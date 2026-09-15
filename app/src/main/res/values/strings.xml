@@ -621,6 +621,10 @@
     <string name="history_empty_desc">Previous chat sessions from Hermes will appear here.</string>
     <string name="history_untitled">Untitled</string>
     <string name="history_message_count">%1$d messages</string>
+    <plurals name="sessions_card_message_count">
+        <item quantity="one">%1$d message</item>
+        <item quantity="other">%1$d messages</item>
+    </plurals>
     <string name="sessions_project_home">Home</string>
     <!-- Short activity age on history cards (m = minutes, h = hours, d = days) -->
     <string name="session_age_now">now</string>

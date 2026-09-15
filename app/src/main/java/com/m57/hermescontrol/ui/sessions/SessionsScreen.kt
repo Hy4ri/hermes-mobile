@@ -78,6 +78,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -125,12 +126,14 @@ import com.m57.hermescontrol.ui.sessions.components.SessionsBulkActionBar
 import com.m57.hermescontrol.ui.sessions.components.SessionsDialogs
 import com.m57.hermescontrol.ui.sessions.components.SessionsStatsRow
 import com.m57.hermescontrol.ui.sessions.components.automationGroups
+import kotlinx.coroutines.delay
 
 /**
  * Auto-load the next history page when the user scrolls to within this many
  * items of the end — a pre-load buffer so paging feels continuous.
  */
 private const val AUTO_LOAD_THRESHOLD = 6
+private const val AGE_TICK_MS = 60_000L
 
 /**
  * Maps a session source string to a Material icon for visual identification.
@@ -764,8 +767,19 @@ fun SessionsScreen(
                                     viewModel.loadMore()
                                 }
                             }
+                            // One clock for every row's "15m" age, re-read on each minute boundary.
+                            val nowMillis by produceState(System.currentTimeMillis()) {
+                                while (true) {
+                                    delay(AGE_TICK_MS - value % AGE_TICK_MS)
+                                    value = System.currentTimeMillis()
+                                }
+                            }
                             val sessionCard: @Composable (SessionTreeItem) -> Unit = { item ->
                                 val session = item.session
+                                val project =
+                                    remember(session.cwd, session.git_repo_root, state.projects) {
+                                        resolveSessionProject(session, state.projects)
+                                    }
                                 BranchRow(item = item) {
                                     SessionCard(
                                         session = session,
@@ -780,6 +794,8 @@ fun SessionsScreen(
                                         isPinned = session.pinned == true,
                                         isHidden = session.hidden == true,
                                         liveStatus = state.liveStatuses[session.id],
+                                        project = project,
+                                        nowMillis = nowMillis,
                                         highlightBackground = primaryContainer,
                                         highlightForeground = onPrimaryContainer,
                                         onCardClick = {

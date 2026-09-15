@@ -532,6 +532,29 @@
     <string name="history_empty_desc">之前的 Hermes 对话会话将显示在这里。</string>
     <string name="history_untitled">未命名</string>
     <string name="history_message_count">%1$d 条消息</string>
+    <plurals name="sessions_card_message_count">
+        <item quantity="one">%1$d 条消息</item>
+        <item quantity="other">%1$d 条消息</item>
+    </plurals>
+    <string name="sessions_project_home">主页</string>
+    <string name="session_age_now">刚刚</string>
+    <string name="session_age_minutes">%1$d分钟</string>
+    <string name="session_age_hours">%1$d小时</string>
+    <string name="session_age_days">%1$d天</string>
+    <string name="session_age_now_desc">刚刚活跃</string>
+    <plurals name="session_age_minutes_desc">
+        <item quantity="one">%1$d 分钟前活跃</item>
+        <item quantity="other">%1$d 分钟前活跃</item>
+    </plurals>
+    <plurals name="session_age_hours_desc">
+        <item quantity="one">%1$d 小时前活跃</item>
+        <item quantity="other">%1$d 小时前活跃</item>
+    </plurals>
+    <plurals name="session_age_days_desc">
+        <item quantity="one">%1$d 天前活跃</item>
+        <item quantity="other">%1$d 天前活跃</item>
+    </plurals>
+    <string name="session_age_date_desc">%1$s 活跃</string>
     <string name="history_load_more">加载更多会话…</string>
     <string name="sessions_search_placeholder">搜索会话…</string>
     <string name="sessions_search_empty_title">无结果</string>

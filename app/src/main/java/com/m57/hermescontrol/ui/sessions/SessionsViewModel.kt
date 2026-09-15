@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.BulkDeleteRequest
+import com.m57.hermescontrol.data.model.ProjectInfo
 import com.m57.hermescontrol.data.model.PruneRequest
 import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.model.SessionLiveStatus
@@ -15,7 +16,9 @@ import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.ws.ChangeEventHub
 import com.m57.hermescontrol.data.ws.ChangeEvents
 import com.m57.hermescontrol.data.ws.ConnectionStatus
+import com.m57.hermescontrol.data.ws.HermesProjectsSource
 import com.m57.hermescontrol.data.ws.HermesSessionLiveStatusSource
+import com.m57.hermescontrol.data.ws.ProjectsSource
 import com.m57.hermescontrol.data.ws.SessionLiveStatusSource
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.ui.common.ToastHost
@@ -99,6 +102,8 @@ data class SessionsUiState(
     val showHidden: Boolean = false,
     val pinnedExpanded: Boolean = true,
     val liveStatuses: Map<String, SessionLiveStatus> = emptyMap(),
+    // Named projects used to label each row with the workspace it belongs to.
+    val projects: List<ProjectInfo> = emptyList(),
 ) {
     val isSearchMode: Boolean get() = searchQuery.isNotBlank()
 
@@ -114,6 +119,7 @@ data class SessionsUiState(
 
 class SessionsViewModel(
     private val liveStatusSource: SessionLiveStatusSource = HermesSessionLiveStatusSource(),
+    private val projectsSource: ProjectsSource = HermesProjectsSource(),
 ) : ViewModel(),
     ToastHost {
     private val _uiState = MutableStateFlow(SessionsUiState())
@@ -123,6 +129,7 @@ class SessionsViewModel(
     private var pageJob: Job? = null
     private var statsJob: Job? = null
     private var trackingJob: Job? = null
+    private var projectsJob: Job? = null
     private var trackingGeneration: Long = 0
     private var liveTrackingState = SessionLiveTrackingState()
     private var liveStatusRefreshInFlight = false
@@ -277,6 +284,7 @@ class SessionsViewModel(
         loadEmptyCount()
         if (trackingJob?.isActive == true) {
             refreshLiveStatuses()
+            loadProjects()
         }
         loadJob =
             safeLaunchLoad(
@@ -327,6 +335,19 @@ class SessionsViewModel(
                     }
                 },
             )
+    }
+
+    /**
+     * Refresh the project list; a failed fetch keeps the last good one so labels don't flicker.
+     * Like live statuses, it only runs while the screen tracks the gateway (visible + connected).
+     */
+    private fun loadProjects() {
+        projectsJob?.cancel()
+        projectsJob =
+            viewModelScope.launch {
+                val projects = projectsSource.fetchProjects() ?: return@launch
+                _uiState.update { it.copy(projects = projects) }
+            }
     }
 
     /** Load the next page and append to the existing session list. */
@@ -905,6 +926,7 @@ class SessionsViewModel(
                             _uiState.update { it.copy(liveStatuses = emptyMap()) }
                         } else {
                             requestLiveStatusSnapshot(++trackingGeneration)
+                            loadProjects()
                         }
                     }
                 }
@@ -940,6 +962,8 @@ class SessionsViewModel(
         trackingGeneration++
         trackingJob?.cancel()
         trackingJob = null
+        projectsJob?.cancel()
+        projectsJob = null
         liveStatusRefreshInFlight = false
         liveStatusRefreshPending = false
         liveTrackingState = SessionLiveStatusReducer.clear()

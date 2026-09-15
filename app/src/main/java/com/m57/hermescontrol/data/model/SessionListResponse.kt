@@ -79,6 +79,10 @@ data class SessionInfo(
     val display_name: String? = null,
     val model: String? = null,
     val terminal_backend: String? = null,
+    // Workspace the session ran in. The project label resolves from these
+    // (explicit project folder, else the repo root, else the cwd leaf).
+    val cwd: String? = null,
+    val git_repo_root: String? = null,
     // Epoch seconds of the latest message (backend-computed, present on all
     // list rows). Recency source of truth; started_at is the fallback.
     val last_active: Double? = null,

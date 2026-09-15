@@ -71,3 +71,23 @@ fun parseHexColor(
         fallback
     }
 }
+
+private val HSL_COLOR =
+    Regex("""^hsla?\(\s*([\d.]+)(?:deg)?[\s,]+([\d.]+)%[\s,]+([\d.]+)%\s*(?:[,/]\s*[\d.]+%?\s*)?\)$""")
+
+/**
+ * Parse a project color chosen in the desktop app: CSS `hsl(210 68% 58%)` (space or comma
+ * separated) or hex. Returns null for anything else so callers can simply omit the accent.
+ */
+fun parseProjectColor(raw: String?): Color? {
+    val value = raw?.trim().orEmpty()
+    if (value.isEmpty()) return null
+    if (value.startsWith("#")) return parseHexColor(value, Color.Unspecified).takeIf { it != Color.Unspecified }
+    val match = HSL_COLOR.matchEntire(value.lowercase()) ?: return null
+    val (hue, saturation, lightness) = match.destructured
+    val h = hue.toFloatOrNull() ?: return null
+    val s = saturation.toFloatOrNull()?.div(100f) ?: return null
+    val l = lightness.toFloatOrNull()?.div(100f) ?: return null
+    if (h !in 0f..360f || s !in 0f..1f || l !in 0f..1f) return null
+    return Color.hsl(h % 360f, s, l)
+}

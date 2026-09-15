@@ -434,6 +434,29 @@
     <string name="history_empty_desc">이전 채팅 세션이 여기에 표시됩니다.</string>
     <string name="history_untitled">제목 없음</string>
     <string name="history_message_count">%1$d개 메시지</string>
+    <plurals name="sessions_card_message_count">
+        <item quantity="one">%1$d개 메시지</item>
+        <item quantity="other">%1$d개 메시지</item>
+    </plurals>
+    <string name="sessions_project_home">홈</string>
+    <string name="session_age_now">지금</string>
+    <string name="session_age_minutes">%1$d분</string>
+    <string name="session_age_hours">%1$d시간</string>
+    <string name="session_age_days">%1$d일</string>
+    <string name="session_age_now_desc">방금 활동</string>
+    <plurals name="session_age_minutes_desc">
+        <item quantity="one">%1$d분 전 활동</item>
+        <item quantity="other">%1$d분 전 활동</item>
+    </plurals>
+    <plurals name="session_age_hours_desc">
+        <item quantity="one">%1$d시간 전 활동</item>
+        <item quantity="other">%1$d시간 전 활동</item>
+    </plurals>
+    <plurals name="session_age_days_desc">
+        <item quantity="one">%1$d일 전 활동</item>
+        <item quantity="other">%1$d일 전 활동</item>
+    </plurals>
+    <string name="session_age_date_desc">%1$s 활동</string>
     <string name="history_load_more">더 불러오기…</string>
 
     <!-- Sessions Stats -->

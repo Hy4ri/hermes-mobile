@@ -38,6 +38,10 @@ data class SettingsUiState(
     val typingEffectEnabled: Boolean = false,
     val typingEffectDelayMs: Int = 30,
     val chatFontScale: Float = 1.0f,
+    val messageStatsEnabled: Boolean = false,
+    val showUserMessageTokens: Boolean = true,
+    val showAssistantMessageTokens: Boolean = true,
+    val showTokensPerSecond: Boolean = true,
     val profiles: List<ConnectionProfile> = emptyList(),
     val selectedProfileId: String? = null,
     val renameProfileName: String = "",
@@ -80,6 +84,10 @@ class SettingsViewModel(
         val typingEffectEnabled = AuthManager.isTypingEffectEnabled()
         val typingEffectDelayMs = AuthManager.getTypingEffectDelayMs()
         val chatFontScale = AuthManager.getChatFontScale()
+        val messageStatsEnabled = AuthManager.isMessageStatsEnabled()
+        val showUserMessageTokens = AuthManager.isUserMessageTokensEnabled()
+        val showAssistantMessageTokens = AuthManager.isAssistantMessageTokensEnabled()
+        val showTokensPerSecond = AuthManager.isTokensPerSecondEnabled()
         val profiles = AuthManager.getConnectionProfiles()
         val appLanguage = AuthManager.getAppLanguage()
         val renameProfileName =
@@ -101,6 +109,10 @@ class SettingsViewModel(
                 typingEffectEnabled = typingEffectEnabled,
                 typingEffectDelayMs = typingEffectDelayMs,
                 chatFontScale = chatFontScale,
+                messageStatsEnabled = messageStatsEnabled,
+                showUserMessageTokens = showUserMessageTokens,
+                showAssistantMessageTokens = showAssistantMessageTokens,
+                showTokensPerSecond = showTokensPerSecond,
                 profiles = profiles,
                 selectedProfileId = selectedId,
                 renameProfileName = renameProfileName,
@@ -327,6 +339,26 @@ class SettingsViewModel(
         AuthManager.setChatFontScale(scale)
     }
 
+    fun onMessageStatsEnabledChange(enabled: Boolean) {
+        _uiState.update { it.copy(messageStatsEnabled = enabled, isSaved = false) }
+        AuthManager.setMessageStatsEnabled(enabled)
+    }
+
+    fun onUserMessageTokensChange(enabled: Boolean) {
+        _uiState.update { it.copy(showUserMessageTokens = enabled, isSaved = false) }
+        AuthManager.setUserMessageTokensEnabled(enabled)
+    }
+
+    fun onAssistantMessageTokensChange(enabled: Boolean) {
+        _uiState.update { it.copy(showAssistantMessageTokens = enabled, isSaved = false) }
+        AuthManager.setAssistantMessageTokensEnabled(enabled)
+    }
+
+    fun onTokensPerSecondChange(enabled: Boolean) {
+        _uiState.update { it.copy(showTokensPerSecond = enabled, isSaved = false) }
+        AuthManager.setTokensPerSecondEnabled(enabled)
+    }
+
     /** Clear all auth credentials — logs out and returns to landing screen. */
     fun logout() {
         AuthManager.setToken(null)
@@ -355,6 +387,10 @@ class SettingsViewModel(
         AuthManager.setThemePreset(state.themePreset)
         AuthManager.setTypingEffectEnabled(state.typingEffectEnabled)
         AuthManager.setTypingEffectDelayMs(state.typingEffectDelayMs)
+        AuthManager.setMessageStatsEnabled(state.messageStatsEnabled)
+        AuthManager.setUserMessageTokensEnabled(state.showUserMessageTokens)
+        AuthManager.setAssistantMessageTokensEnabled(state.showAssistantMessageTokens)
+        AuthManager.setTokensPerSecondEnabled(state.showTokensPerSecond)
         ApiClient.rebuild()
 
         viewModelScope.launch(ioDispatcher) {

@@ -95,6 +95,7 @@ import java.time.format.DateTimeFormatter
  * renderer (issue #866). Agent prose renders full-bleed; user messages keep
  * this bubble so the conversation stays scannable.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ChatBubble(
     message: ChatMessage,
@@ -106,6 +107,8 @@ fun ChatBubble(
     openingAttachmentPath: String? = null,
     canSaveAttachment: Boolean = true,
     onImageClick: (ImageViewerModel) -> Unit = {},
+    messageStatsEnabled: Boolean = false,
+    showUserMessageTokens: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
@@ -222,12 +225,12 @@ fun ChatBubble(
                                 }
                             }
                             if (!message.isStreaming) {
-                                Row(
+                                FlowRow(
                                     modifier =
                                         Modifier
                                             .align(Alignment.End)
                                             .padding(top = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
+                                    itemVerticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     IconButton(
                                         onClick = {
@@ -257,43 +260,28 @@ fun ChatBubble(
                                         color = userBubbleTextColor.copy(alpha = 0.6f),
                                         style = MaterialTheme.typography.labelSmall,
                                     )
-                                    if (message.tokenCount != null && message.tokenCount > 0) {
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = "•",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = userBubbleTextColor.copy(alpha = 0.4f),
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text =
-                                                stringResource(
-                                                    R.string.chat_msg_tokens,
-                                                    TokenEstimator.formatTokenCount(message.tokenCount),
-                                                ),
-                                            color = userBubbleTextColor.copy(alpha = 0.7f),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            modifier = Modifier.testTag("bubble_token_count"),
-                                        )
-                                    }
-                                    if (message.tps != null && message.tps > 0.0) {
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = "•",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = userBubbleTextColor.copy(alpha = 0.4f),
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text =
-                                                stringResource(
-                                                    R.string.chat_msg_tps,
-                                                    TokenEstimator.formatTps(message.tps),
-                                                ),
-                                            color = userBubbleTextColor.copy(alpha = 0.7f),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            modifier = Modifier.testTag("bubble_tps"),
-                                        )
+                                    if (messageStatsEnabled && showUserMessageTokens &&
+                                        message.tokenCount != null && message.tokenCount > 0
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = "•",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = userBubbleTextColor.copy(alpha = 0.4f),
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text =
+                                                    stringResource(
+                                                        R.string.chat_msg_tokens,
+                                                        TokenEstimator.formatTokenCount(message.tokenCount),
+                                                    ),
+                                                color = userBubbleTextColor.copy(alpha = 0.7f),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                modifier = Modifier.testTag("bubble_token_count"),
+                                            )
+                                        }
                                     }
                                 }
                             }

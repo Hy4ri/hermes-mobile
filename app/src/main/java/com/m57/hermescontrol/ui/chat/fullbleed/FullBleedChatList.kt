@@ -64,6 +64,10 @@ fun FullBleedChatList(
     searchState: ChatSearchState,
     typingEffectEnabled: Boolean,
     typingEffectDelayMs: Int,
+    messageStatsEnabled: Boolean = false,
+    showUserMessageTokens: Boolean = true,
+    showAssistantMessageTokens: Boolean = true,
+    showTokensPerSecond: Boolean = true,
     maxToolCallsPerTurn: Int? = null,
     isLoading: Boolean,
     isLoadingOlder: Boolean,
@@ -184,6 +188,8 @@ fun FullBleedChatList(
                                         savingAttachmentPath = savingAttachmentPath,
                                         openingAttachmentPath = openingAttachmentPath,
                                         onImageClick = onImageClick,
+                                        messageStatsEnabled = messageStatsEnabled,
+                                        showUserMessageTokens = showUserMessageTokens,
                                     )
                                 }
                             }
@@ -248,6 +254,9 @@ fun FullBleedChatList(
                                                             openingAttachmentPath = openingAttachmentPath,
                                                             canSaveAttachment = savingAttachmentPath == null,
                                                             onImageClick = onImageClick,
+                                                            messageStatsEnabled = messageStatsEnabled,
+                                                            showAssistantMessageTokens = showAssistantMessageTokens,
+                                                            showTokensPerSecond = showTokensPerSecond,
                                                         )
                                                     }
                                                 }
@@ -356,6 +365,8 @@ private fun renderChatBubble(
     savingAttachmentPath: String?,
     openingAttachmentPath: String?,
     onImageClick: (ImageViewerModel) -> Unit,
+    messageStatsEnabled: Boolean,
+    showUserMessageTokens: Boolean,
 ) {
     ChatBubble(
         message = message,
@@ -367,5 +378,7 @@ private fun renderChatBubble(
         openingAttachmentPath = openingAttachmentPath,
         canSaveAttachment = savingAttachmentPath == null,
         onImageClick = onImageClick,
+        messageStatsEnabled = messageStatsEnabled,
+        showUserMessageTokens = showUserMessageTokens,
     )
 }

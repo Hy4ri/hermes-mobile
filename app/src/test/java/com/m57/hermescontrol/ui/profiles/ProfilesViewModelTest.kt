@@ -12,6 +12,7 @@ import com.m57.hermescontrol.data.model.ProfileInfo
 import com.m57.hermescontrol.data.model.ProfileSetupCommandResponse
 import com.m57.hermescontrol.data.model.ProfilesResponse
 import com.m57.hermescontrol.data.model.RenameProfileRequest
+import com.m57.hermescontrol.data.model.StatusResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.HermesApiService
 import com.m57.hermescontrol.data.remote.NetworkError
@@ -62,6 +63,7 @@ class ProfilesViewModelTest {
         coEvery { mockApi.getProfiles() } returns
             Response.success(ProfilesResponse(listOf(ProfileInfo(name = "default", is_default = true))))
         coEvery { mockApi.getActiveProfile() } returns Response.success(ActiveProfileResponse(active = "default"))
+        coEvery { mockApi.getStatus() } returns Response.success(StatusResponse())
     }
 
     @Before
@@ -358,6 +360,53 @@ class ProfilesViewModelTest {
             vm.uiState.value.toastMessage!!
                 .contains("Failed to switch profile"),
         )
+    }
+
+    @Test
+    fun `loadProfiles displays normalized shared gateway profiles`() {
+        coEvery { mockApi.getProfiles() } returns
+            Response.success(
+                ProfilesResponse(
+                    listOf(
+                        ProfileInfo(name = "default", is_default = true),
+                        ProfileInfo(name = "coding"),
+                    ),
+                ),
+            )
+        coEvery { mockApi.getStatus() } returns
+            Response.success(
+                StatusResponse(
+                    gatewaySharedWith = listOf("default", "coding", "coding", " ", ""),
+                ),
+            )
+
+        val vm = createViewModel()
+        vm.loadProfiles()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf("default", "coding"), vm.uiState.value.sharedGatewayProfiles)
+        assertNull(vm.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun `loadProfiles keeps profiles usable when optional status request fails`() {
+        coEvery { mockApi.getStatus() } returns errorResponse(404)
+
+        val vm = createViewModel()
+        vm.loadProfiles()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            listOf("default"),
+            vm.uiState.value.profiles
+                .map { it.name },
+        )
+        assertEquals("default", vm.uiState.value.activeProfileName)
+        assertTrue(
+            vm.uiState.value.sharedGatewayProfiles
+                .isEmpty(),
+        )
+        assertNull(vm.uiState.value.errorMessage)
     }
 
     @Test

@@ -17,6 +17,7 @@ data class MessagingPlatform(
     @SerialName("env_vars") val envVars: List<EnvVarField>? = null,
     @SerialName("updated_at") val updatedAt: String? = null,
     @SerialName("home_channel") val homeChannel: HomeChannelInfo? = null,
+    @SerialName("ingress_url") val ingressUrl: String? = null,
 )
 
 @Serializable
@@ -62,6 +63,13 @@ data class MessagingPlatformTestResult(
     val ok: Boolean,
     val state: String,
     val message: String,
+)
+
+@Serializable
+data class MessagingPlatformUpdateResponse(
+    val ok: Boolean = false,
+    val platform: String? = null,
+    @SerialName("hot_served") val hotServed: Boolean = false,
 )
 
 // ── Telegram onboarding ─────────────────────────────────────────────────

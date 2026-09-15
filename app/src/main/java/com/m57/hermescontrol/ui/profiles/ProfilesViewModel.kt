@@ -34,6 +34,7 @@ data class ProfilesUiState(
     val isLoading: Boolean = false,
     val profiles: List<ProfileInfo> = emptyList(),
     val activeProfileName: String? = null,
+    val sharedGatewayProfiles: List<String> = emptyList(),
     val selectedSoulContent: String? = null,
     val isLoadingSoul: Boolean = false,
     val errorMessage: String? = null,
@@ -66,6 +67,15 @@ data class ProfilesUiState(
                 }
             }
 }
+
+private fun normalizeSharedGatewayProfiles(names: List<String>?): List<String> =
+    names
+        .orEmpty()
+        .asSequence()
+        .map(String::trim)
+        .filter(String::isNotEmpty)
+        .distinct()
+        .toList()
 
 class ProfilesViewModel(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
@@ -110,6 +120,7 @@ class ProfilesViewModel(
                     val profilesDeferred = async(ioDispatcher) { safeApiCall { ApiClient.hermesApi.getProfiles() } }
                     val activeDeferred =
                         async(ioDispatcher) { safeApiCall { ApiClient.hermesApi.getActiveProfile() } }
+                    val statusDeferred = async(ioDispatcher) { safeApiCall { ApiClient.hermesApi.getStatus() } }
 
                     val profilesResult = profilesDeferred.await()
                     val activeResult = activeDeferred.await()
@@ -120,8 +131,19 @@ class ProfilesViewModel(
                                 isLoading = false,
                                 profiles = profilesResult.data.profiles.orEmpty(),
                                 activeProfileName = activeResult.data.active,
+                                sharedGatewayProfiles = emptyList(),
                                 hiddenProfiles = AuthManager.getHiddenProfiles().toSet(),
                             )
+                        }
+
+                        val statusResult = statusDeferred.await()
+                        if (statusResult is NetworkResult.Success) {
+                            _uiState.update {
+                                it.copy(
+                                    sharedGatewayProfiles =
+                                        normalizeSharedGatewayProfiles(statusResult.data.gatewaySharedWith),
+                                )
+                            }
                         }
                     } else {
                         val profilesError = (profilesResult as? NetworkResult.Failure)?.error?.message ?: "Success"

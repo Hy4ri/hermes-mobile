@@ -422,6 +422,20 @@
 <string name="system_gateway_start">بدء</string>
 <string name="system_gateway_restart">إعادة التشغيل</string>
 <string name="system_gateway_stop">إيقاف</string>
+<string name="system_migration_title">ترحيل البوابة</string>
+<string name="system_migration_description">راجع خطة الترحيل من الخادم قبل نقل بوابات الملفات الشخصية إلى مُضاعِف مشترك واحد.</string>
+<string name="system_migration_profiles">الملفات الشخصية</string>
+<string name="system_migration_automatic_eligibility">الأهلية التلقائية</string>
+<string name="system_migration_yes">نعم</string>
+<string name="system_migration_no">لا</string>
+<string name="system_migration_already_multiplexed">تعمل بالمضاعفة مسبقًا</string>
+<string name="system_migration_interrupted">تمت مقاطعة عملية ترحيل سابقة. راجع الخطة قبل إعادة المحاولة.</string>
+<string name="system_migration_blockers">العوائق</string>
+<string name="system_migration_notices">التنبيهات</string>
+<string name="system_migration_start">بدء الترحيل</string>
+<string name="system_migration_confirm_title">بدء ترحيل البوابة؟</string>
+<string name="system_migration_confirm_description">سيوقف هذا بوابات الملفات الشخصية المستقلة ويعيد تشغيل البوابة الافتراضية كمضاعِف مشترك. ستعمل العملية في الخلفية.</string>
+<string name="system_migration_progress_title">ترحيل البوابة</string>
 <string name="memory_active">النشط: %1$s</string>
 <string name="memory_builtin">الذاكرة المدمجة</string>
 <string name="memory_builtin_sizes">MEMORY.md: %1$s · USER.md: %2$s</string>
@@ -638,6 +652,16 @@
 <string name="profiles_show_hidden">إظهار الملفات الشخصية المخفية</string>
 <string name="profiles_hide_hidden">إخفاء الملفات الشخصية المخفية</string>
 <string name="profiles_hidden_badge">مخفي</string>
+<string name="profiles_shared_gateway_title">بوابة مشتركة</string>
+<string name="profiles_shared_gateway_badge">مشترك</string>
+<plurals name="profiles_shared_gateway_count">
+    <item quantity="zero">لا تُخدم أي ملفات شخصية معًا</item>
+    <item quantity="one">يُخدم %1$d ملف شخصي معًا</item>
+    <item quantity="two">يُخدم ملفان شخصيان معًا</item>
+    <item quantity="few">تُخدم %1$d ملفات شخصية معًا</item>
+    <item quantity="many">تُخدم %1$d ملفًا شخصيًا معًا</item>
+    <item quantity="other">تُخدم %1$d ملفات شخصية معًا</item>
+</plurals>
 <string name="profiles_all_hidden_desc">جميع الملفات الشخصية مخفية حاليًا. انقر أدناه لإظهار الملفات الشخصية المخفية.</string>
 <string name="profiles_content_desc_active">الملف الشخصي النشط</string>
 <string name="profiles_title_edit_soul">تعديل ملف الـ Soul: %1$s</string>
@@ -934,6 +958,8 @@
 <string name="channels_action_test">اختبار</string>
 <string name="channels_action_restart_now">إعادة التشغيل الآن</string>
 <string name="channels_restart_banner">تم حفظ التغييرات. أعد تشغيل البوابة (Gateway) لتصبح سارية المفعول.</string>
+<string name="channels_ingress_url">رابط الدخول</string>
+<string name="channels_copy_ingress_url">نسخ رابط الدخول</string>
 <string name="pairing_sec_pending">الموافقات المعلقة</string>
 <string name="pairing_sec_approved">المستخدمون المعتمدون</string>
 <string name="pairing_action_clear_all">مسح الكل</string>

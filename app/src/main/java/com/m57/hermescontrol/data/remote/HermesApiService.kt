@@ -33,6 +33,8 @@ import com.m57.hermescontrol.data.model.EnvVarDeleteRequest
 import com.m57.hermescontrol.data.model.EnvVarRevealRequest
 import com.m57.hermescontrol.data.model.EnvVarRevealResponse
 import com.m57.hermescontrol.data.model.EnvVarUpdate
+import com.m57.hermescontrol.data.model.GatewayMigrationPlan
+import com.m57.hermescontrol.data.model.GatewayMigrationStartResponse
 import com.m57.hermescontrol.data.model.HealthStatus
 import com.m57.hermescontrol.data.model.HookResponse
 import com.m57.hermescontrol.data.model.InstantiateBlueprintRequest
@@ -65,6 +67,7 @@ import com.m57.hermescontrol.data.model.MemoryResponse
 import com.m57.hermescontrol.data.model.MessagingPlatformResponse
 import com.m57.hermescontrol.data.model.MessagingPlatformTestResult
 import com.m57.hermescontrol.data.model.MessagingPlatformUpdate
+import com.m57.hermescontrol.data.model.MessagingPlatformUpdateResponse
 import com.m57.hermescontrol.data.model.MoaConfigResponse
 import com.m57.hermescontrol.data.model.ModelAssignmentRequest
 import com.m57.hermescontrol.data.model.ModelAssignmentResponse
@@ -390,6 +393,12 @@ interface HermesApiService : KanbanApiService {
     @POST("api/gateway/restart")
     suspend fun restartGateway(): Response<Unit>
 
+    @GET("api/gateway/migrate/plan")
+    suspend fun getGatewayMigrationPlan(): Response<GatewayMigrationPlan>
+
+    @POST("api/gateway/migrate")
+    suspend fun startGatewayMigration(): Response<GatewayMigrationStartResponse>
+
     @GET("api/profiles")
     suspend fun getProfiles(): Response<ProfilesResponse>
 
@@ -677,7 +686,7 @@ interface HermesApiService : KanbanApiService {
     suspend fun configurePlatform(
         @Path("platform_id") platformId: String,
         @Body config: MessagingPlatformUpdate,
-    ): Response<Unit>
+    ): Response<MessagingPlatformUpdateResponse>
 
     @POST("api/messaging/platforms/{platform_id}/test")
     suspend fun testMessagingPlatform(

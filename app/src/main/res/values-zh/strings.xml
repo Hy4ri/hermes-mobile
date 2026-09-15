@@ -413,6 +413,20 @@
     <string name="system_gateway_start">启动</string>
     <string name="system_gateway_restart">重启</string>
     <string name="system_gateway_stop">停止</string>
+    <string name="system_migration_title">网关迁移</string>
+    <string name="system_migration_description">将配置文件网关迁移到共享多路复用器前，先查看服务器返回的迁移计划。</string>
+    <string name="system_migration_profiles">配置文件</string>
+    <string name="system_migration_automatic_eligibility">自动迁移资格</string>
+    <string name="system_migration_yes">是</string>
+    <string name="system_migration_no">否</string>
+    <string name="system_migration_already_multiplexed">已使用多路复用</string>
+    <string name="system_migration_interrupted">上一次迁移被中断。重试前请查看计划。</string>
+    <string name="system_migration_blockers">阻碍</string>
+    <string name="system_migration_notices">注意事项</string>
+    <string name="system_migration_start">开始迁移</string>
+    <string name="system_migration_confirm_title">开始网关迁移？</string>
+    <string name="system_migration_confirm_description">这会停止独立的配置文件网关，并将默认网关重启为共享多路复用器。操作将在后台运行。</string>
+    <string name="system_migration_progress_title">网关迁移</string>
     <string name="memory_active">当前：%1$s</string>
     <string name="memory_builtin">内置记忆</string>
     <string name="memory_builtin_sizes">MEMORY.md：%1$s · USER.md：%2$s</string>
@@ -625,6 +639,12 @@
     <string name="profiles_show_hidden">显示隐藏的配置文件</string>
     <string name="profiles_hide_hidden">隐藏已隐藏的配置文件</string>
     <string name="profiles_hidden_badge">已隐藏</string>
+    <string name="profiles_shared_gateway_title">共享网关</string>
+    <string name="profiles_shared_gateway_badge">共享</string>
+    <plurals name="profiles_shared_gateway_count">
+        <item quantity="one">%1$d 个配置文件共同服务</item>
+        <item quantity="other">%1$d 个配置文件共同服务</item>
+    </plurals>
     <string name="profiles_all_hidden_desc">所有配置文件当前均已隐藏。点击下方以显示已隐藏的配置文件。</string>
     <string name="profiles_content_desc_active">当前配置</string>
     <string name="profiles_title_edit_soul">编辑 Soul 配置：%1$s</string>
@@ -921,6 +941,8 @@
     <string name="channels_action_test">测试</string>
     <string name="channels_action_restart_now">立即重启</string>
     <string name="channels_restart_banner">更改已保存。重启网关后生效。</string>
+    <string name="channels_ingress_url">入口 URL</string>
+    <string name="channels_copy_ingress_url">复制入口 URL</string>
     <string name="pairing_sec_pending">待批准</string>
     <string name="pairing_sec_approved">已批准用户</string>
     <string name="pairing_action_clear_all">全部清除</string>

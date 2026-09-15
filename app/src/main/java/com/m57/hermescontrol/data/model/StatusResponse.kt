@@ -1,4 +1,5 @@
 package com.m57.hermescontrol.data.model
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -8,6 +9,8 @@ data class StatusResponse(
     val active_sessions: Int? = null,
     val auth_required: Boolean? = null,
     val gateway_platforms: Map<String, PlatformStatus?>? = null,
+    @SerialName("gateway_shared_with")
+    val gatewaySharedWith: List<String>? = null,
     val memory: MemoryPressureStatus? = null,
     val disk: DiskPressureStatus? = null,
 )

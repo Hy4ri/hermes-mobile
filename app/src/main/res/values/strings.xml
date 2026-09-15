@@ -487,6 +487,20 @@
     <string name="system_gateway_start">Start</string>
     <string name="system_gateway_restart">Restart</string>
     <string name="system_gateway_stop">Stop</string>
+    <string name="system_migration_title">Gateway migration</string>
+    <string name="system_migration_description">Review the backend migration plan before moving profile gateways onto one shared multiplexer.</string>
+    <string name="system_migration_profiles">Profiles</string>
+    <string name="system_migration_automatic_eligibility">Automatic eligibility</string>
+    <string name="system_migration_yes">Yes</string>
+    <string name="system_migration_no">No</string>
+    <string name="system_migration_already_multiplexed">Already multiplexed</string>
+    <string name="system_migration_interrupted">An earlier migration was interrupted. Review the plan before retrying.</string>
+    <string name="system_migration_blockers">Blockers</string>
+    <string name="system_migration_notices">Notices</string>
+    <string name="system_migration_start">Start migration</string>
+    <string name="system_migration_confirm_title">Start gateway migration?</string>
+    <string name="system_migration_confirm_description">This stops standalone profile gateways and restarts the default gateway as a shared multiplexer. The operation runs in the background.</string>
+    <string name="system_migration_progress_title">Gateway migration</string>
 
     <!-- Memory section -->
     <string name="memory_active">Active: %1$s</string>
@@ -739,6 +753,12 @@
     <string name="profiles_show_hidden">Show hidden profiles</string>
     <string name="profiles_hide_hidden">Hide hidden profiles</string>
     <string name="profiles_hidden_badge">Hidden</string>
+    <string name="profiles_shared_gateway_title">Shared gateway</string>
+    <string name="profiles_shared_gateway_badge">Shared</string>
+    <plurals name="profiles_shared_gateway_count">
+        <item quantity="one">%1$d profile served together</item>
+        <item quantity="other">%1$d profiles served together</item>
+    </plurals>
     <string name="profiles_all_hidden_desc">All profiles are currently hidden. Tap below to show hidden profiles.</string>
     <string name="profiles_content_desc_active">Active Profile</string>
     <string name="profiles_title_edit_soul">Edit Soul Profile: %1$s</string>
@@ -1077,6 +1097,8 @@
     <string name="channels_action_test">Test</string>
     <string name="channels_action_restart_now">Restart now</string>
     <string name="channels_restart_banner">Changes saved. Restart the gateway for them to take effect.</string>
+    <string name="channels_ingress_url">Ingress URL</string>
+    <string name="channels_copy_ingress_url">Copy ingress URL</string>
 
     <!-- Pairing Screen -->
     <string name="pairing_sec_pending">Pending Approvals</string>

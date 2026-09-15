@@ -15,6 +15,7 @@ import com.m57.hermescontrol.data.model.CredentialPoolProvider
 import com.m57.hermescontrol.data.model.CuratorResponse
 import com.m57.hermescontrol.data.model.DebugShareResponse
 import com.m57.hermescontrol.data.model.DoctorResponse
+import com.m57.hermescontrol.data.model.GatewayMigrationPlan
 import com.m57.hermescontrol.data.model.HookResponse
 import com.m57.hermescontrol.data.model.PortalResponse
 import com.m57.hermescontrol.data.model.StatusResponse
@@ -26,6 +27,7 @@ import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.ui.common.ActionProgressController
 import com.m57.hermescontrol.ui.common.ToastHost
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -53,6 +55,8 @@ data class SystemUiState(
     val updateInfo: UpdateCheckResponse? = null,
     val status: StatusResponse? = null,
     val doctorReport: DoctorResponse? = null,
+    val migrationPlan: GatewayMigrationPlan? = null,
+    val migrationSupported: Boolean? = null,
     val activeAction: String? = null,
     val actionLog: ActionStatusResponse? = null,
     val backupArchive: String? = null,
@@ -88,6 +92,7 @@ data class SystemUiState(
 
 class SystemViewModel(
     application: Application,
+    private val migrationDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : AndroidViewModel(application),
     ToastHost {
     companion object {
@@ -114,12 +119,22 @@ class SystemViewModel(
             onFinished = { status -> onActionFinished(status) },
         )
 
+    /** Progress popup for the optional gateway migration action. */
+    val migrationProgress =
+        ActionProgressController(
+            scope = viewModelScope,
+            onFinished = { status -> onMigrationFinished(status) },
+        )
+
     private var actionPollingJob: Job? = null
     private var downloadJob: Job? = null
 
     // ── Full parallel data load ────────────────────────────────────────
 
     fun loadAll() {
+        // Migration support is optional; probe it independently so an older or
+        // slow backend cannot hold up the required System data.
+        loadMigrationPlan()
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
 
@@ -138,6 +153,7 @@ class SystemViewModel(
 
                 val statsResult = statsDeferred.await()
                 val statusResult = statusDeferred.await()
+
                 val portalResult = portalDeferred.await()
                 val curatorResult = curatorDeferred.await()
 
@@ -224,6 +240,66 @@ class SystemViewModel(
         }
     }
 
+    /** Load optional migration capability state without affecting other System data. */
+    fun loadMigrationPlan() {
+        viewModelScope.launch {
+            val result =
+                withContext(migrationDispatcher) {
+                    safeApiCall { ApiClient.hermesApi.getGatewayMigrationPlan() }
+                }
+            _uiState.update {
+                it.copy(
+                    migrationPlan = (result as? NetworkResult.Success)?.data,
+                    migrationSupported = migrationSupport(result),
+                )
+            }
+        }
+    }
+
+    /**
+     * Start the backend migration only after the Gateway section's confirmation.
+     * The POST starts an asynchronous `gateway-migrate` action; completion is
+     * owned by [migrationProgress], not by the trigger response.
+     */
+    fun startMigration() {
+        val plan = _uiState.value.migrationPlan ?: return
+        if (plan.alreadyMultiplexed) {
+            _uiState.update { it.copy(toastMessage = "Gateway is already multiplexed") }
+            return
+        }
+        if (plan.blockers.isNotEmpty()) {
+            _uiState.update { it.copy(toastMessage = "Migration is blocked by the preflight plan") }
+            return
+        }
+
+        migrationProgress.open()
+        viewModelScope.launch {
+            val result =
+                withContext(migrationDispatcher) {
+                    safeApiCall { ApiClient.hermesApi.startGatewayMigration() }
+                }
+            when (result) {
+                is NetworkResult.Success -> {
+                    val response = result.data
+                    val actionName = response.name
+                    if (!response.ok) {
+                        migrationProgress.fail("Migration was rejected by the backend")
+                    } else if (actionName != null) {
+                        migrationProgress.markStarted(actionName)
+                    } else {
+                        migrationProgress.fail(
+                            "Migration was accepted but the backend did not report an action name",
+                        )
+                    }
+                }
+
+                is NetworkResult.Failure -> {
+                    migrationProgress.fail("Failed to start migration: ${result.error.message}")
+                }
+            }
+        }
+    }
+
     /**
      * Fired when [actionProgress] finishes tracking a backend action. For the
      * `hermes-update` action we additionally fetch the durable update receipt
@@ -240,6 +316,12 @@ class SystemViewModel(
             }
         }
         loadAll()
+    }
+
+    private fun onMigrationFinished(status: ActionStatusResponse?) {
+        if (status?.exit_code == 0) {
+            loadAll()
+        }
     }
 
     /**
@@ -862,3 +944,15 @@ class SystemViewModel(
         _uiState.update { it.copy(toastMessage = null) }
     }
 }
+
+private fun migrationSupport(result: NetworkResult<GatewayMigrationPlan>): Boolean? =
+    when (result) {
+        is NetworkResult.Success -> {
+            true
+        }
+
+        is NetworkResult.Failure -> {
+            val code = (result.error as? NetworkError.Http)?.code
+            if (code == 404 || code == 405) false else null
+        }
+    }

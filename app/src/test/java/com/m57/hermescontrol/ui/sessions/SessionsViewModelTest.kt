@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.ui.sessions
 
 import com.m57.hermescontrol.data.model.LiveSessionSnapshot
+import com.m57.hermescontrol.data.model.ProjectInfo
 import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.model.SessionListResponse
 import com.m57.hermescontrol.data.model.SessionLiveStatus
@@ -11,6 +12,7 @@ import com.m57.hermescontrol.data.remote.HermesApiService
 import com.m57.hermescontrol.data.ws.ChangeEventHub
 import com.m57.hermescontrol.data.ws.ChangeEvents
 import com.m57.hermescontrol.data.ws.ConnectionStatus
+import com.m57.hermescontrol.data.ws.ProjectsSource
 import com.m57.hermescontrol.data.ws.SessionLiveStatusSource
 import com.m57.hermescontrol.data.ws.WsEvent
 import io.mockk.coEvery
@@ -64,8 +66,21 @@ class SessionsViewModelTest {
         override val connectionStatus: StateFlow<ConnectionStatus> = connectionStatusFlow
     }
 
-    private fun createViewModel(source: SessionLiveStatusSource = FakeSessionLiveStatusSource()): SessionsViewModel {
-        val vm = SessionsViewModel(liveStatusSource = source)
+    private class FakeProjectsSource : ProjectsSource {
+        var projectsToReturn: List<ProjectInfo>? = emptyList()
+        var fetchCallCount = 0
+
+        override suspend fun fetchProjects(): List<ProjectInfo>? {
+            fetchCallCount++
+            return projectsToReturn
+        }
+    }
+
+    private fun createViewModel(
+        source: SessionLiveStatusSource = FakeSessionLiveStatusSource(),
+        projectsSource: ProjectsSource = FakeProjectsSource(),
+    ): SessionsViewModel {
+        val vm = SessionsViewModel(liveStatusSource = source, projectsSource = projectsSource)
         testDispatcher.scheduler.advanceUntilIdle()
         return vm
     }
@@ -81,6 +96,77 @@ class SessionsViewModelTest {
     fun tearDown() {
         Dispatchers.resetMain()
         unmockkAll()
+    }
+
+    @Test
+    fun `tracking loads the project list`() {
+        val projects = FakeProjectsSource().apply { projectsToReturn = listOf(ProjectInfo(id = "p_1", name = "App")) }
+        val vm = createViewModel(projectsSource = projects)
+
+        vm.startLiveStatusTracking()
+        testDispatcher.scheduler.runCurrent()
+
+        assertEquals(
+            listOf("App"),
+            vm.uiState.value.projects
+                .map { it.name },
+        )
+        vm.stopLiveStatusTracking()
+    }
+
+    @Test
+    fun `loadSessions without tracking does not fetch projects`() {
+        val projects = FakeProjectsSource()
+        val vm = createViewModel(projectsSource = projects)
+
+        vm.loadSessions()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(0, projects.fetchCallCount)
+    }
+
+    @Test
+    fun `failed project refresh keeps the last good list`() {
+        val projects = FakeProjectsSource().apply { projectsToReturn = listOf(ProjectInfo(id = "p_1", name = "App")) }
+        val vm = createViewModel(projectsSource = projects)
+        vm.startLiveStatusTracking()
+        testDispatcher.scheduler.runCurrent()
+
+        projects.projectsToReturn = null
+        vm.loadSessions()
+        testDispatcher.scheduler.runCurrent()
+
+        assertEquals(2, projects.fetchCallCount)
+        assertEquals(
+            listOf("App"),
+            vm.uiState.value.projects
+                .map { it.name },
+        )
+        vm.stopLiveStatusTracking()
+    }
+
+    @Test
+    fun `reconnecting refreshes the project list`() {
+        val live = FakeSessionLiveStatusSource()
+        val projects = FakeProjectsSource()
+        val vm = createViewModel(source = live, projectsSource = projects)
+        vm.startLiveStatusTracking()
+        testDispatcher.scheduler.runCurrent()
+        live.connectionStatusFlow.value = ConnectionStatus.DISCONNECTED
+        testDispatcher.scheduler.runCurrent()
+        val before = projects.fetchCallCount
+
+        projects.projectsToReturn = listOf(ProjectInfo(id = "p_2", name = "Web"))
+        live.connectionStatusFlow.value = ConnectionStatus.CONNECTED
+        testDispatcher.scheduler.runCurrent()
+
+        assertTrue(projects.fetchCallCount > before)
+        assertEquals(
+            listOf("Web"),
+            vm.uiState.value.projects
+                .map { it.name },
+        )
+        vm.stopLiveStatusTracking()
     }
 
     @Test

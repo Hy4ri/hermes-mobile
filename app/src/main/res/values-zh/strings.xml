@@ -494,9 +494,15 @@
     <string name="model_label_available">可用模型：</string>
     <string name="model_no_models">没有可用的模型，或提供商需要认证。</string>
     <string name="content_desc_active_model">当前模型</string>
+    <string name="content_desc_expand_provider">展开 %1$s 模型</string>
+    <string name="content_desc_collapse_provider">折叠 %1$s 模型</string>
     <string name="model_section_pinned">固定模型</string>
     <string name="content_desc_unpin_model">取消固定模型</string>
     <string name="content_desc_pinned_section_toggle">切换固定区显示</string>
+    <plurals name="model_provider_count">
+        <item quantity="one">%1$d 个模型</item>
+        <item quantity="other">%1$d 个模型</item>
+    </plurals>
     <string name="history_empty_title">暂无历史</string>
     <string name="history_empty_desc">之前的 Hermes 对话会话将显示在这里。</string>
     <string name="history_untitled">未命名</string>

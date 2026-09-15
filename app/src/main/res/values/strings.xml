@@ -621,6 +621,26 @@
     <string name="history_empty_desc">Previous chat sessions from Hermes will appear here.</string>
     <string name="history_untitled">Untitled</string>
     <string name="history_message_count">%1$d messages</string>
+    <string name="sessions_project_home">Home</string>
+    <!-- Short activity age on history cards (m = minutes, h = hours, d = days) -->
+    <string name="session_age_now">now</string>
+    <string name="session_age_minutes">%1$dm</string>
+    <string name="session_age_hours">%1$dh</string>
+    <string name="session_age_days">%1$dd</string>
+    <string name="session_age_now_desc">Active just now</string>
+    <plurals name="session_age_minutes_desc">
+        <item quantity="one">Active %1$d minute ago</item>
+        <item quantity="other">Active %1$d minutes ago</item>
+    </plurals>
+    <plurals name="session_age_hours_desc">
+        <item quantity="one">Active %1$d hour ago</item>
+        <item quantity="other">Active %1$d hours ago</item>
+    </plurals>
+    <plurals name="session_age_days_desc">
+        <item quantity="one">Active %1$d day ago</item>
+        <item quantity="other">Active %1$d days ago</item>
+    </plurals>
+    <string name="session_age_date_desc">Active %1$s</string>
     <string name="history_load_more">Load more sessions…</string>
 
     <!-- Sessions Stats -->

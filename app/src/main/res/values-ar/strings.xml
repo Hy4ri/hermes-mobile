@@ -540,6 +540,45 @@
 <string name="history_empty_desc">ستظهر جلسات المحادثة السابقة من Hermes هنا.</string>
 <string name="history_untitled">بلا عنوان</string>
 <string name="history_message_count">%1$d رسالة</string>
+<plurals name="sessions_card_message_count">
+    <item quantity="zero">%1$d رسالة</item>
+    <item quantity="one">%1$d رسالة</item>
+    <item quantity="two">%1$d رسالتان</item>
+    <item quantity="few">%1$d رسائل</item>
+    <item quantity="many">%1$d رسالة</item>
+    <item quantity="other">%1$d رسالة</item>
+</plurals>
+<string name="sessions_project_home">الرئيسية</string>
+<string name="session_age_now">الآن</string>
+<string name="session_age_minutes">%1$d د</string>
+<string name="session_age_hours">%1$d س</string>
+<string name="session_age_days">%1$d ي</string>
+<string name="session_age_now_desc">نشط الآن</string>
+<plurals name="session_age_minutes_desc">
+    <item quantity="zero">نشط منذ %1$d دقيقة</item>
+    <item quantity="one">نشط منذ %1$d دقيقة</item>
+    <item quantity="two">نشط منذ %1$d دقيقتين</item>
+    <item quantity="few">نشط منذ %1$d دقائق</item>
+    <item quantity="many">نشط منذ %1$d دقيقة</item>
+    <item quantity="other">نشط منذ %1$d دقيقة</item>
+</plurals>
+<plurals name="session_age_hours_desc">
+    <item quantity="zero">نشط منذ %1$d ساعة</item>
+    <item quantity="one">نشط منذ %1$d ساعة</item>
+    <item quantity="two">نشط منذ %1$d ساعتين</item>
+    <item quantity="few">نشط منذ %1$d ساعات</item>
+    <item quantity="many">نشط منذ %1$d ساعة</item>
+    <item quantity="other">نشط منذ %1$d ساعة</item>
+</plurals>
+<plurals name="session_age_days_desc">
+    <item quantity="zero">نشط منذ %1$d يوم</item>
+    <item quantity="one">نشط منذ %1$d يوم</item>
+    <item quantity="two">نشط منذ %1$d يومين</item>
+    <item quantity="few">نشط منذ %1$d أيام</item>
+    <item quantity="many">نشط منذ %1$d يومًا</item>
+    <item quantity="other">نشط منذ %1$d يوم</item>
+</plurals>
+<string name="session_age_date_desc">نشط %1$s</string>
 <string name="history_load_more">تحميل المزيد من الجلسات…</string>
 <string name="sessions_search_placeholder">البحث في الجلسات…</string>
 <string name="sessions_search_empty_title">لا توجد نتائج</string>

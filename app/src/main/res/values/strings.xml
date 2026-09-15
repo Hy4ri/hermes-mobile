@@ -212,6 +212,7 @@
     <string name="chat_agent_status_thinking">Thinking…</string>
     <string name="chat_agent_status_searching">Searching…</string>
     <string name="chat_agent_status_reading">Reading file…</string>
+    <string name="chat_agent_status_browsing">Browsing…</string>
     <string name="chat_agent_status_running_command">Running command…</string>
     <string name="chat_agent_status_using_tool">Using tool…</string>
     <string name="settings_item_typing_delay">Delay: %1$d ms</string>

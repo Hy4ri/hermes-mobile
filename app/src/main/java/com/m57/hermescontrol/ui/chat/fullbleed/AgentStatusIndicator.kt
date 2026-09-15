@@ -22,6 +22,7 @@ import com.m57.hermescontrol.ui.chat.StreamingState
 import com.m57.hermescontrol.ui.chat.ToolSchemaRegistry
 import com.m57.hermescontrol.ui.chat.ToolStatus
 import com.m57.hermescontrol.ui.chat.components.TypingIndicator
+import com.m57.hermescontrol.ui.chat.isUserTurnBoundary
 
 /** Live status for an agent turn before visible assistant prose is available. */
 internal sealed interface AgentStatus {
@@ -48,8 +49,15 @@ internal fun deriveAgentStatus(
 ): AgentStatus? {
     if (!isAgentTyping) return null
 
+    val currentTurnStart = messages.indexOfLast { it.isUserTurnBoundary() }
+    val currentTurnMessages =
+        if (currentTurnStart >= 0) {
+            messages.drop(currentTurnStart + 1)
+        } else {
+            emptyList()
+        }
     val activeTool =
-        messages
+        currentTurnMessages
             .asReversed()
             .firstOrNull {
                 it.role == MessageRole.TOOL &&
@@ -77,14 +85,22 @@ internal fun toolStatusLabelRes(toolName: String?): Int =
         -> R.string.chat_agent_status_searching
 
         "read_file",
+        -> R.string.chat_agent_status_reading
+
         "web_extract",
         "browser_navigate",
+        "browser_click",
+        "browser_type",
+        "browser_scroll",
+        "browser_back",
+        "browser_press",
         "browser_snapshot",
         "browser_get_images",
         "browser_console",
+        "browser_cdp",
+        "browser_dialog",
         "browser_vision",
-        "vision_analyze",
-        -> R.string.chat_agent_status_reading
+        -> R.string.chat_agent_status_browsing
 
         "terminal",
         "execute_code",

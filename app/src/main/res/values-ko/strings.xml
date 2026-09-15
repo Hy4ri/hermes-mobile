@@ -191,6 +191,7 @@
     <string name="chat_agent_status_thinking">생각 중…</string>
     <string name="chat_agent_status_searching">검색 중…</string>
     <string name="chat_agent_status_reading">파일 읽는 중…</string>
+    <string name="chat_agent_status_browsing">탐색 중…</string>
     <string name="chat_agent_status_running_command">명령 실행 중…</string>
     <string name="chat_agent_status_using_tool">도구 사용 중…</string>
     <string name="settings_item_typing_delay">지연: %1$d ms</string>

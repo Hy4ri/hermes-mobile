@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.chat
 
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.ui.chat.fullbleed.AgentEntry
 import com.m57.hermescontrol.ui.chat.fullbleed.AgentStatus
 import com.m57.hermescontrol.ui.chat.fullbleed.ChatTurn
@@ -9,6 +10,7 @@ import com.m57.hermescontrol.ui.chat.fullbleed.groupIntoTurns
 import com.m57.hermescontrol.ui.chat.fullbleed.groupIntoTurnsWithStreaming
 import com.m57.hermescontrol.ui.chat.fullbleed.matchedMessageIds
 import com.m57.hermescontrol.ui.chat.fullbleed.messageIdToLazyIndex
+import com.m57.hermescontrol.ui.chat.fullbleed.toolStatusLabelRes
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -249,28 +251,124 @@ class FullBleedTurnsTest {
     }
 
     @Test
-    fun `running tool takes precedence and selects the latest active call`() {
-        val first = msg("t1", MessageRole.TOOL, toolStatus = ToolStatus.RUNNING).copy(toolName = "read_file")
-        val latest = msg("t2", MessageRole.TOOL, toolStatus = ToolStatus.RUNNING).copy(toolName = "web_search")
-        assertEquals(
-            AgentStatus.Tool("web_search"),
-            deriveAgentStatus(
-                isAgentTyping = true,
-                streamingState = StreamingState(),
-                messages = listOf(first, latest),
-            ),
-        )
-    }
-
-    @Test
-    fun `completed tool falls back to dots while the turn is still active`() {
-        val completed = msg("t1", MessageRole.TOOL, toolStatus = ToolStatus.COMPLETED)
+    fun `stale running tool from a previous turn is ignored`() {
+        val messages =
+            listOf(
+                msg("old-user", MessageRole.USER),
+                msg("old-tool", MessageRole.TOOL, toolStatus = ToolStatus.RUNNING).copy(toolName = "terminal"),
+                msg("old-assistant", MessageRole.ASSISTANT, content = "previous response"),
+                msg("new-user", MessageRole.USER),
+            )
         assertEquals(
             AgentStatus.Typing,
             deriveAgentStatus(
                 isAgentTyping = true,
                 streamingState = StreamingState(),
-                messages = listOf(completed),
+                messages = messages,
+            ),
+        )
+    }
+
+    @Test
+    fun `current turn running tool is detected`() {
+        val messages =
+            listOf(
+                msg("old-user", MessageRole.USER),
+                msg("old-tool", MessageRole.TOOL, toolStatus = ToolStatus.COMPLETED).copy(toolName = "terminal"),
+                msg("old-assistant", MessageRole.ASSISTANT, content = "previous response"),
+                msg("new-user", MessageRole.USER),
+                msg("current-tool", MessageRole.TOOL, toolStatus = ToolStatus.RUNNING).copy(toolName = "web_search"),
+            )
+        assertEquals(
+            AgentStatus.Tool("web_search"),
+            deriveAgentStatus(
+                isAgentTyping = true,
+                streamingState = StreamingState(),
+                messages = messages,
+            ),
+        )
+    }
+
+    @Test
+    fun `latest current turn running tool wins`() {
+        val messages =
+            listOf(
+                msg("new-user", MessageRole.USER),
+                msg("done-tool", MessageRole.TOOL, toolStatus = ToolStatus.COMPLETED).copy(toolName = "terminal"),
+                msg("first-running", MessageRole.TOOL, toolStatus = ToolStatus.RUNNING).copy(toolName = "read_file"),
+                msg("latest-running", MessageRole.TOOL, toolStatus = ToolStatus.RUNNING).copy(toolName = "web_search"),
+            )
+        assertEquals(
+            AgentStatus.Tool("web_search"),
+            deriveAgentStatus(
+                isAgentTyping = true,
+                streamingState = StreamingState(),
+                messages = messages,
+            ),
+        )
+    }
+
+    @Test
+    fun `completed current turn tool falls back to dots`() {
+        val messages =
+            listOf(
+                msg("new-user", MessageRole.USER),
+                msg(
+                    "completed-tool",
+                    MessageRole.TOOL,
+                    toolStatus = ToolStatus.COMPLETED,
+                ).copy(toolName = "web_search"),
+            )
+        assertEquals(
+            AgentStatus.Typing,
+            deriveAgentStatus(
+                isAgentTyping = true,
+                streamingState = StreamingState(),
+                messages = messages,
+            ),
+        )
+    }
+
+    @Test
+    fun `timeline marker does not create a new tool-status turn`() {
+        val marker =
+            msg("marker", MessageRole.USER, content = "model changed")
+                .copy(displayKind = "model_switch")
+        val messages =
+            listOf(
+                msg("new-user", MessageRole.USER),
+                marker,
+                msg("current-tool", MessageRole.TOOL, toolStatus = ToolStatus.RUNNING).copy(toolName = "web_search"),
+            )
+        assertEquals(
+            AgentStatus.Tool("web_search"),
+            deriveAgentStatus(
+                isAgentTyping = true,
+                streamingState = StreamingState(),
+                messages = messages,
+            ),
+        )
+    }
+
+    @Test
+    fun `browser tools use browsing label while read_file keeps file label`() {
+        assertEquals(R.string.chat_agent_status_browsing, toolStatusLabelRes("browser_navigate"))
+        assertEquals(R.string.chat_agent_status_browsing, toolStatusLabelRes("web_extract"))
+        assertEquals(R.string.chat_agent_status_reading, toolStatusLabelRes("read_file"))
+    }
+
+    @Test
+    fun `inactive generation ignores even a running historical tool`() {
+        val messages =
+            listOf(
+                msg("old-user", MessageRole.USER),
+                msg("old-tool", MessageRole.TOOL, toolStatus = ToolStatus.RUNNING).copy(toolName = "terminal"),
+            )
+        assertNull(
+            deriveAgentStatus(
+                isAgentTyping = false,
+                streamingState = StreamingState(),
+                messages = messages,
             ),
         )
     }

@@ -188,6 +188,7 @@
 <string name="chat_agent_status_thinking">يفكّر…</string>
 <string name="chat_agent_status_searching">يبحث…</string>
 <string name="chat_agent_status_reading">يقرأ الملف…</string>
+<string name="chat_agent_status_browsing">يتصفّح…</string>
 <string name="chat_agent_status_running_command">يشغّل الأمر…</string>
 <string name="chat_agent_status_using_tool">يستخدم أداة…</string>
 <string name="settings_item_typing_delay">التأخير: %1$d مللي ثانية</string>

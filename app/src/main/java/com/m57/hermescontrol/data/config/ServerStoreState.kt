@@ -24,6 +24,10 @@ data class ServerStoreState(
     val typingEffectEnabled: Boolean = true,
     val typingEffectDelayMs: Int = 30,
     val chatFontScale: Float = 1.0f,
+    val messageStatsEnabled: Boolean = false,
+    val showUserMessageTokens: Boolean = true,
+    val showAssistantMessageTokens: Boolean = true,
+    val showTokensPerSecond: Boolean = true,
     // App display language. "system" = follow device locale; otherwise a BCP-47
     // language code such as "en" or "ko". Applied via ContextWrapper in MainActivity.
     val appLanguage: String = "system",

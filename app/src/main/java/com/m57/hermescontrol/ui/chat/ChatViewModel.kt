@@ -113,6 +113,10 @@ data class ChatUiState(
     // Cached settings
     val typingEffectEnabled: Boolean = true,
     val typingEffectDelayMs: Int = 30,
+    val messageStatsEnabled: Boolean = false,
+    val showUserMessageTokens: Boolean = true,
+    val showAssistantMessageTokens: Boolean = true,
+    val showTokensPerSecond: Boolean = true,
     // Commands catalog
     val commandCatalog: CommandCatalog = CommandCatalog(),
     // Per-command usage counts for the slash-autocomplete ranking (issue
@@ -2530,6 +2534,10 @@ class ChatViewModel(
             state.copy(
                 typingEffectEnabled = AuthManager.isTypingEffectEnabled(),
                 typingEffectDelayMs = AuthManager.getTypingEffectDelayMs(),
+                messageStatsEnabled = AuthManager.isMessageStatsEnabled(),
+                showUserMessageTokens = AuthManager.isUserMessageTokensEnabled(),
+                showAssistantMessageTokens = AuthManager.isAssistantMessageTokensEnabled(),
+                showTokensPerSecond = AuthManager.isTokensPerSecondEnabled(),
             )
         }
     }

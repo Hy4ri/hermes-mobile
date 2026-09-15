@@ -980,7 +980,7 @@ object HermesWsClient {
                     val deferred =
                         request(
                             method = WsMethods.SESSION_EVENTS_SINCE,
-                            params = mapOf("session_id" to sid, "last_seen" to lastSeen, "since_seq" to lastSeen),
+                            params = mapOf("session_id" to sid, "last_seen" to lastSeen),
                             timeoutMs = 10_000L,
                         )
                     val result = deferred.await()

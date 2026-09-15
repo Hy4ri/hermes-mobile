@@ -3,6 +3,7 @@ package com.m57.hermescontrol.ui.skills.components
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.AlertDialog
@@ -44,13 +45,21 @@ internal fun SkillEditorDialog(
     onDismiss: () -> Unit,
     onClearSaveSuccess: () -> Unit,
 ) {
-    var contentText by remember(initialContent) { mutableStateOf(initialContent.orEmpty()) }
+    val textFieldState = rememberTextFieldState(initialContent.orEmpty())
     var showDiscardConfirm by remember { mutableStateOf(false) }
 
+    LaunchedEffect(initialContent) {
+        val newContent = initialContent.orEmpty()
+        if (textFieldState.text.toString() != newContent) {
+            textFieldState.edit {
+                replace(0, length, newContent)
+            }
+        }
+    }
+
     val hasChanges =
-        remember(initialContent, contentText) {
-            val original = initialContent.orEmpty()
-            original != contentText
+        remember(initialContent, textFieldState.text) {
+            initialContent.orEmpty() != textFieldState.text.toString()
         }
 
     LaunchedEffect(saveSuccess) {
@@ -95,7 +104,7 @@ internal fun SkillEditorDialog(
                 actions = {
                     if (!isLoading) {
                         IconButton(
-                            onClick = { onSave(contentText) },
+                            onClick = { onSave(textFieldState.text.toString()) },
                             enabled = !isSaving,
                         ) {
                             if (isSaving) {
@@ -126,8 +135,7 @@ internal fun SkillEditorDialog(
 
                         else -> {
                             OutlinedTextField(
-                                value = contentText,
-                                onValueChange = { contentText = it },
+                                state = textFieldState,
                                 modifier =
                                     Modifier
                                         .fillMaxSize()

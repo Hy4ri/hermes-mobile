@@ -16,6 +16,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.clearText
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -29,6 +32,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,8 +62,17 @@ fun GroupChatSettingsDialog(
 ) {
     var maxMessages by remember(currentMaxMessages) { mutableStateOf(currentMaxMessages.toFloat()) }
     var maxPasses by remember(currentMaxPasses) { mutableStateOf(currentMaxPasses.toFloat()) }
-    var systemPrompt by remember(currentSystemPrompt) { mutableStateOf(currentSystemPrompt.orEmpty()) }
+    val systemPromptTextFieldState = rememberTextFieldState(currentSystemPrompt.orEmpty())
     var showHighLimitsConfirmation by remember { mutableStateOf(false) }
+
+    LaunchedEffect(currentSystemPrompt) {
+        val loaded = currentSystemPrompt.orEmpty()
+        if (systemPromptTextFieldState.text.toString() != loaded) {
+            systemPromptTextFieldState.edit {
+                replace(0, length, loaded)
+            }
+        }
+    }
 
     val isHighLimit =
         maxMessages.roundToInt() > WARN_MAX_BOT_MESSAGES ||
@@ -217,8 +230,7 @@ fun GroupChatSettingsDialog(
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     OutlinedTextField(
-                        value = systemPrompt,
-                        onValueChange = { systemPrompt = it },
+                        state = systemPromptTextFieldState,
                         placeholder = {
                             Text(
                                 text = stringResource(R.string.group_chat_settings_system_prompt_hint),
@@ -231,7 +243,7 @@ fun GroupChatSettingsDialog(
                                 .heightIn(min = 80.dp, max = 160.dp)
                                 .testTag("room_system_prompt_input"),
                         textStyle = MaterialTheme.typography.bodyMedium,
-                        maxLines = 4,
+                        lineLimits = TextFieldLineLimits.MultiLine(maxHeightInLines = 4),
                     )
                 }
             }
@@ -245,7 +257,10 @@ fun GroupChatSettingsDialog(
                         onSave(
                             maxMessages.roundToInt(),
                             maxPasses.roundToInt(),
-                            systemPrompt.trim().ifBlank { null },
+                            systemPromptTextFieldState.text
+                                .toString()
+                                .trim()
+                                .ifBlank { null },
                         )
                     }
                 },
@@ -260,7 +275,7 @@ fun GroupChatSettingsDialog(
                     onClick = {
                         maxMessages = DEFAULT_MAX_BOT_MESSAGES.toFloat()
                         maxPasses = DEFAULT_MAX_CONTINUATION_PASSES.toFloat()
-                        systemPrompt = ""
+                        systemPromptTextFieldState.clearText()
                     },
                 ) {
                     Text(stringResource(R.string.group_chat_settings_reset_default))
@@ -307,7 +322,10 @@ fun GroupChatSettingsDialog(
                         onSave(
                             maxMessages.roundToInt(),
                             maxPasses.roundToInt(),
-                            systemPrompt.trim().ifBlank { null },
+                            systemPromptTextFieldState.text
+                                .toString()
+                                .trim()
+                                .ifBlank { null },
                         )
                     },
                     colors =

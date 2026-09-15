@@ -1,16 +1,25 @@
 package com.m57.hermescontrol.ui.chat.components
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
 import com.m57.hermescontrol.data.ws.CommandCatalog
@@ -36,30 +45,37 @@ class ComposerInteractionTest {
     private var selectedLevel: String? = null
 
     /** Renders the real input bar with live text and a mic that toggles like ChatMediaLaunchers. */
-    private fun setComposer(reasoningLevel: String? = "medium") {
+    private fun setComposer(
+        reasoningLevel: String? = "medium",
+        model: String = "openai/gpt-5.5",
+        width: Dp? = null,
+    ) {
         composeTestRule.setContent {
             var input by remember { mutableStateOf(TextFieldValue("")) }
             var listening by remember { mutableStateOf(false) }
-            ChatInputBar(
-                inputFieldValue = input,
-                onInputChange = { input = it },
-                onSend = {
-                    sends++
-                    input = TextFieldValue("")
-                },
-                onMicTap = {
-                    micTaps++
-                    listening = !listening
-                },
-                isListening = listening,
-                isAgentTyping = false,
-                isConnected = true,
-                commandCatalog = CommandCatalog(),
-                currentSessionModel = "openai/gpt-5.5",
-                reasoningLevel = reasoningLevel,
-                onModelTap = { modelTaps++ },
-                onReasoningTap = { selectedLevel = it },
-            )
+            val composer: @Composable () -> Unit = {
+                ChatInputBar(
+                    inputFieldValue = input,
+                    onInputChange = { input = it },
+                    onSend = {
+                        sends++
+                        input = TextFieldValue("")
+                    },
+                    onMicTap = {
+                        micTaps++
+                        listening = !listening
+                    },
+                    isListening = listening,
+                    isAgentTyping = false,
+                    isConnected = true,
+                    commandCatalog = CommandCatalog(),
+                    currentSessionModel = model,
+                    reasoningLevel = reasoningLevel,
+                    onModelTap = { modelTaps++ },
+                    onReasoningTap = { selectedLevel = it },
+                )
+            }
+            if (width == null) composer() else Box(Modifier.width(width)) { composer() }
         }
     }
 
@@ -150,5 +166,26 @@ class ComposerInteractionTest {
             assertEquals("reasoning menu must report the picked level", "high", selectedLevel)
             assertEquals("reasoning side must not open the model picker", 0, modelTaps)
         }
+    }
+
+    @Test
+    fun longModelName_narrowComposer_scrollsWithoutOpeningPicker_orHidingControls() {
+        val longModel = "openrouter/some-extremely-long-model-name-preview-2026-with-extra-characters"
+        setComposer(model = longModel, width = 280.dp)
+
+        composeTestRule.onNodeWithTag("reasoning_chip").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("mic_button").assertIsDisplayed()
+        val modelText = composeTestRule.onNodeWithText(longModel)
+        val leftBefore = modelText.getUnclippedBoundsInRoot().left
+
+        composeTestRule.onNodeWithTag("model_chip").performTouchInput { swipeLeft() }
+        val leftAfter = modelText.getUnclippedBoundsInRoot().left
+
+        composeTestRule.runOnIdle {
+            assertEquals("swiping the model must not open the picker", 0, modelTaps)
+        }
+        check(leftAfter < leftBefore) { "model text did not move after horizontal swipe" }
+        composeTestRule.onNodeWithTag("reasoning_chip").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("mic_button").assertIsDisplayed()
     }
 }

@@ -5,6 +5,7 @@ import androidx.navigation3.runtime.NavKey
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -21,12 +22,14 @@ class NavigationControllerTest {
         // Start fresh — no pinned back stack from a previous test
         NavigationController.backStack = null
         NavigationController.consumePendingSessionId()
+        NavigationController.consumePendingNewChatNavigation()
     }
 
     @After
     fun tearDown() {
         NavigationController.backStack = null
         NavigationController.consumePendingSessionId()
+        NavigationController.consumePendingNewChatNavigation()
     }
 
     // ── Dedup guard: navigateTo with same key ──────────────────────────────
@@ -117,6 +120,18 @@ class NavigationControllerTest {
         assertEquals(ChatScreen, backStack.lastOrNull())
         assertEquals("stored-session", NavigationController.consumePendingSessionId())
         assertNull(NavigationController.consumePendingSessionId())
+    }
+
+    @Test
+    fun `openNewChat navigates to chat and exposes a consumable request`() {
+        val backStack = NavBackStack<NavKey>(HistoryScreen)
+        NavigationController.backStack = backStack
+
+        NavigationController.openNewChat()
+
+        assertEquals(ChatScreen, backStack.lastOrNull())
+        assertNotNull(NavigationController.consumePendingNewChatNavigation())
+        assertNull(NavigationController.consumePendingNewChatNavigation())
     }
 
     @Test

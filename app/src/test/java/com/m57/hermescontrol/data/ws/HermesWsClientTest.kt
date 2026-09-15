@@ -6,6 +6,7 @@ import com.m57.hermescontrol.data.remote.CleartextPolicy
 import com.m57.hermescontrol.data.remote.CookieManager
 import com.m57.hermescontrol.data.remote.DashboardSessionTokenRefresher
 import com.m57.hermescontrol.data.remote.NetworkMonitor
+import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.buildFakePersistentCookieJar
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
@@ -23,6 +24,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
@@ -1559,12 +1562,18 @@ class HermesWsClientTest {
         val ws = serverWebSocket
         assertNotNull(ws)
 
-        val receivedTokens = mutableListOf<String>()
+        val receivedTokens = Collections.synchronizedList(mutableListOf<String>())
+        val tokenALatch = CountDownLatch(1)
+        val tokenBLatch = CountDownLatch(1)
         val collectorJob =
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
                 HermesWsClient.events.collect { event ->
                     if (event is WsEvent.MessageToken) {
                         receivedTokens.add(event.token)
+                        when (event.token) {
+                            "A" -> tokenALatch.countDown()
+                            "B" -> tokenBLatch.countDown()
+                        }
                     }
                 }
             }
@@ -1573,7 +1582,7 @@ class HermesWsClientTest {
         ws!!.send(
             """{"method":"event","params":{"type":"message.token","session_id":"s1","seq":1,"payload":{"text":"A"}}}""",
         )
-        Thread.sleep(100)
+        assertTrue(tokenALatch.await(5, TimeUnit.SECONDS))
         assertEquals(1, HermesWsClient.getSeqWatermarks()["s1"])
         assertEquals(listOf("A"), receivedTokens)
 
@@ -1590,7 +1599,7 @@ class HermesWsClientTest {
         ws.send(
             """{"method":"event","params":{"type":"message.token","session_id":"s1","seq":2,"payload":{"text":"B"}}}""",
         )
-        Thread.sleep(100)
+        assertTrue(tokenBLatch.await(5, TimeUnit.SECONDS))
         assertEquals(2, HermesWsClient.getSeqWatermarks()["s1"])
         assertEquals(listOf("A", "B"), receivedTokens)
 
@@ -1647,6 +1656,14 @@ class HermesWsClientTest {
         val serverLatch = CountDownLatch(1)
         val requestLatch = CountDownLatch(1)
         var receivedMethod: String? = null
+        var receivedRequest: JsonObject? = null
+        val receivedTokens = Collections.synchronizedList(mutableListOf<String>())
+        val collectorJob =
+            CoroutineScope(Dispatchers.IO).launch {
+                HermesWsClient.events.collect { event ->
+                    if (event is WsEvent.MessageToken) receivedTokens.add(event.token)
+                }
+            }
 
         mockWebServer.enqueue(
             MockResponse().withWebSocketUpgrade(
@@ -1664,6 +1681,7 @@ class HermesWsClientTest {
                         text: String,
                     ) {
                         if (text.contains(WsMethods.SESSION_EVENTS_SINCE)) {
+                            receivedRequest = OkHttpProvider.json.parseToJsonElement(text) as JsonObject
                             receivedMethod = WsMethods.SESSION_EVENTS_SINCE
                             // Extract ID from JSON-RPC request
                             val id = Regex(""""id":"([^"]+)"""").find(text)?.groupValues?.get(1) ?: "1"
@@ -1689,10 +1707,18 @@ class HermesWsClientTest {
         assertTrue(serverLatch.await(5, TimeUnit.SECONDS))
         assertTrue(requestLatch.await(5, TimeUnit.SECONDS))
         assertEquals(WsMethods.SESSION_EVENTS_SINCE, receivedMethod)
+        val request = requireNotNull(receivedRequest)
+        assertEquals(WsMethods.SESSION_EVENTS_SINCE, request["method"]?.jsonPrimitive?.content)
+        val params = requireNotNull(request["params"] as? JsonObject)
+        assertEquals("s1", params["session_id"]?.jsonPrimitive?.content)
+        assertEquals("5", params["last_seen"]?.jsonPrimitive?.content)
+        assertFalse(params.containsKey("since_seq"))
 
         // Wait for replay processing
         Thread.sleep(200)
         assertEquals(6, HermesWsClient.getSeqWatermarks()["s1"])
+        assertEquals(listOf("replayed"), receivedTokens)
+        collectorJob.cancel()
     }
 
     @Test

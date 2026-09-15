@@ -12,6 +12,10 @@ data class PendingChatNavigation(
     val requestId: Long,
 )
 
+data class PendingNewChatNavigation(
+    val requestId: Long,
+)
+
 /**
  * Central navigation controller with deduplication guard.
  *
@@ -27,9 +31,12 @@ object NavigationController {
     var backStack: NavBackStack<NavKey>? = null
     var pendingChatNavigation: PendingChatNavigation? by mutableStateOf(null)
         private set
+    var pendingNewChatNavigation: PendingNewChatNavigation? by mutableStateOf(null)
+        private set
     val pendingSessionId: String? get() = pendingChatNavigation?.sessionId
 
     private var nextChatNavigationRequestId = 0L
+    private var nextNewChatNavigationRequestId = 0L
 
     /**
      * Top-level primary screens (all drawer-accessible screens).
@@ -73,6 +80,14 @@ object NavigationController {
         queueChatNavigation(sessionId, scrollToBottom = true)
     }
 
+    fun openNewChat() {
+        pendingNewChatNavigation =
+            PendingNewChatNavigation(
+                requestId = ++nextNewChatNavigationRequestId,
+            )
+        navigateTo(ChatScreen)
+    }
+
     private fun queueChatNavigation(
         sessionId: String,
         scrollToBottom: Boolean,
@@ -89,6 +104,9 @@ object NavigationController {
 
     fun consumePendingChatNavigation(): PendingChatNavigation? =
         pendingChatNavigation.also { pendingChatNavigation = null }
+
+    fun consumePendingNewChatNavigation(): PendingNewChatNavigation? =
+        pendingNewChatNavigation.also { pendingNewChatNavigation = null }
 
     fun consumePendingSessionId(): String? = consumePendingChatNavigation()?.sessionId
 

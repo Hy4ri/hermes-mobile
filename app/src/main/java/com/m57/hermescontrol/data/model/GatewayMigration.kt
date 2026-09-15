@@ -23,7 +23,7 @@ data class GatewayMigrationProfile(
     val home: String? = null,
     val pid: Int? = null,
     val service: GatewayMigrationService? = null,
-    val services: List<String> = emptyList(),
+    val services: List<GatewayMigrationService> = emptyList(),
     @SerialName("run_as_user") val runAsUser: String? = null,
     val uid: Int? = null,
     @SerialName("runtime_home") val runtimeHome: String? = null,

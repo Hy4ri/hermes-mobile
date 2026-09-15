@@ -80,6 +80,10 @@ class GatewayMultiplexSerializationTest {
                             "home": "/home/hermes",
                             "pid": 1234,
                             "service": {"kind": "systemd", "system": false},
+                            "services": [
+                                {"kind": "systemd", "system": false},
+                                {"kind": "systemd", "system": true}
+                            ],
                             "uid": 1000,
                             "runtime_home": "/home/hermes"
                         },
@@ -99,9 +103,72 @@ class GatewayMultiplexSerializationTest {
 
         assertEquals(listOf("default", "coding"), plan.profiles.map { it.profile })
         assertEquals(1234, plan.profiles.first().pid)
+        assertEquals(
+            2,
+            plan.profiles
+                .first()
+                .services.size,
+        )
+        assertEquals(
+            "systemd",
+            plan.profiles
+                .first()
+                .services[0]
+                .kind,
+        )
+        assertFalse(
+            plan.profiles
+                .first()
+                .services[0]
+                .system ?: true,
+        )
+        assertTrue(
+            plan.profiles
+                .first()
+                .services[1]
+                .system == true,
+        )
         assertTrue(plan.interrupted)
         assertEquals(listOf("duplicate credential"), plan.blockers)
         assertEquals(listOf("callback URL changes"), plan.notices)
         assertFalse(plan.eligible)
+    }
+
+    @Test
+    fun `migration profile service fields remain optional`() {
+        val emptyServices =
+            json.decodeFromString<GatewayMigrationPlan>(
+                """
+                {
+                    "profiles": [
+                        {"profile": "default", "service": null, "services": []}
+                    ]
+                }
+                """.trimIndent(),
+            )
+        val missingServices =
+            json.decodeFromString<GatewayMigrationPlan>(
+                """
+                {
+                    "profiles": [
+                        {"profile": "default"}
+                    ]
+                }
+                """.trimIndent(),
+            )
+
+        assertNull(emptyServices.profiles.first().service)
+        assertTrue(
+            emptyServices.profiles
+                .first()
+                .services
+                .isEmpty(),
+        )
+        assertTrue(
+            missingServices.profiles
+                .first()
+                .services
+                .isEmpty(),
+        )
     }
 }

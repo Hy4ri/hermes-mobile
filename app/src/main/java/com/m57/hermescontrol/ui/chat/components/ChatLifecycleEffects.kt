@@ -45,9 +45,15 @@ fun ChatLifecycleEffects(
 
     // Switch to session from notification/history
     val pendingNavigation = NavigationController.pendingChatNavigation
-    LaunchedEffect(sessionId, pendingNavigation, connectionStatus) {
+    val pendingNewChatNavigation = NavigationController.pendingNewChatNavigation
+    LaunchedEffect(sessionId, pendingNavigation, pendingNewChatNavigation, connectionStatus) {
         if (connectionStatus != ConnectionStatus.CONNECTED) return@LaunchedEffect
+        val newChatRequest = NavigationController.consumePendingNewChatNavigation()
         val request = NavigationController.consumePendingChatNavigation()
+        if (newChatRequest != null) {
+            viewModel.createNewSession()
+            return@LaunchedEffect
+        }
         val target = request?.sessionId ?: sessionId
         if (!target.isNullOrBlank()) {
             viewModel.switchSession(target)

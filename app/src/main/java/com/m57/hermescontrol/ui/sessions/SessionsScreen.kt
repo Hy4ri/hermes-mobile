@@ -34,6 +34,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.CallSplit
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Code
@@ -466,6 +467,15 @@ fun SessionsScreen(
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadSessions() },
         actions = {
+            IconButton(
+                onClick = { NavigationController.openNewChat() },
+                modifier = Modifier.testTag("sessions_action_new_chat"),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = stringResource(R.string.content_desc_new_chat),
+                )
+            }
             if (state.hasHiddenSessions) {
                 IconButton(
                     onClick = { viewModel.toggleShowHidden() },

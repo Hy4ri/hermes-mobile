@@ -713,6 +713,32 @@ object AuthManager {
         serverStore.update { it.copy(typingEffectDelayMs = delayMs) }
     }
 
+    // ── Message stats ───────────────────────────────────────────────────
+
+    fun isMessageStatsEnabled(): Boolean = serverStore.getLatestState().messageStatsEnabled
+
+    fun setMessageStatsEnabled(enabled: Boolean) {
+        serverStore.update { it.copy(messageStatsEnabled = enabled) }
+    }
+
+    fun isUserMessageTokensEnabled(): Boolean = serverStore.getLatestState().showUserMessageTokens
+
+    fun setUserMessageTokensEnabled(enabled: Boolean) {
+        serverStore.update { it.copy(showUserMessageTokens = enabled) }
+    }
+
+    fun isAssistantMessageTokensEnabled(): Boolean = serverStore.getLatestState().showAssistantMessageTokens
+
+    fun setAssistantMessageTokensEnabled(enabled: Boolean) {
+        serverStore.update { it.copy(showAssistantMessageTokens = enabled) }
+    }
+
+    fun isTokensPerSecondEnabled(): Boolean = serverStore.getLatestState().showTokensPerSecond
+
+    fun setTokensPerSecondEnabled(enabled: Boolean) {
+        serverStore.update { it.copy(showTokensPerSecond = enabled) }
+    }
+
     // ── Chat Font Scale (issue #1004) ───────────────────────────────────
 
     fun getChatFontScale(): Float = serverStore.getLatestState().chatFontScale

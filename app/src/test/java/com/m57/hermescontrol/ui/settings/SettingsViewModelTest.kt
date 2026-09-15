@@ -73,6 +73,10 @@ class SettingsViewModelTest {
         every { AuthManager.isTypingEffectEnabled() } returns true
         every { AuthManager.getTypingEffectDelayMs() } returns 30
         every { AuthManager.getChatFontScale() } returns 1.0f
+        every { AuthManager.isMessageStatsEnabled() } returns false
+        every { AuthManager.isUserMessageTokensEnabled() } returns true
+        every { AuthManager.isAssistantMessageTokensEnabled() } returns true
+        every { AuthManager.isTokensPerSecondEnabled() } returns true
         every { AuthManager.getConnectionProfiles() } returns emptyList()
         every { AuthManager.getSelectedProfileId() } answers { storedSelectedProfileId }
         every { AuthManager.baseUrl() } returns "http://127.0.0.1:9119/"
@@ -85,6 +89,10 @@ class SettingsViewModelTest {
         every { AuthManager.setTypingEffectEnabled(any()) } returns Unit
         every { AuthManager.setTypingEffectDelayMs(any()) } returns Unit
         every { AuthManager.setChatFontScale(any()) } returns Unit
+        every { AuthManager.setMessageStatsEnabled(any()) } returns Unit
+        every { AuthManager.setUserMessageTokensEnabled(any()) } returns Unit
+        every { AuthManager.setAssistantMessageTokensEnabled(any()) } returns Unit
+        every { AuthManager.setTokensPerSecondEnabled(any()) } returns Unit
         every { AuthManager.setSelectedProfileId(any()) } answers {
             storedSelectedProfileId = firstArg()
         }
@@ -169,6 +177,46 @@ class SettingsViewModelTest {
         assertEquals(1.15f, viewModel.uiState.value.chatFontScale)
         verify { AuthManager.setChatFontScale(1.15f) }
     }
+
+    @Test
+    fun testMessageStats_loadsAndTogglesIndependently() =
+        runTest {
+            every { AuthManager.isMessageStatsEnabled() } returns false
+            every { AuthManager.isUserMessageTokensEnabled() } returns false
+            every { AuthManager.isAssistantMessageTokensEnabled() } returns true
+            every { AuthManager.isTokensPerSecondEnabled() } returns false
+
+            val viewModel = SettingsViewModel(ioDispatcher = testDispatcher)
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(false, viewModel.uiState.value.messageStatsEnabled)
+            assertEquals(false, viewModel.uiState.value.showUserMessageTokens)
+            assertEquals(true, viewModel.uiState.value.showAssistantMessageTokens)
+            assertEquals(false, viewModel.uiState.value.showTokensPerSecond)
+
+            viewModel.onMessageStatsEnabledChange(true)
+            assertEquals(true, viewModel.uiState.value.messageStatsEnabled)
+            verify { AuthManager.setMessageStatsEnabled(true) }
+            verify(exactly = 0) { AuthManager.setUserMessageTokensEnabled(any()) }
+            verify(exactly = 0) { AuthManager.setAssistantMessageTokensEnabled(any()) }
+            verify(exactly = 0) { AuthManager.setTokensPerSecondEnabled(any()) }
+
+            viewModel.onUserMessageTokensChange(true)
+            viewModel.onAssistantMessageTokensChange(false)
+            viewModel.onTokensPerSecondChange(true)
+            assertEquals(true, viewModel.uiState.value.showUserMessageTokens)
+            assertEquals(false, viewModel.uiState.value.showAssistantMessageTokens)
+            assertEquals(true, viewModel.uiState.value.showTokensPerSecond)
+            verify { AuthManager.setUserMessageTokensEnabled(true) }
+            verify { AuthManager.setAssistantMessageTokensEnabled(false) }
+            verify { AuthManager.setTokensPerSecondEnabled(true) }
+
+            viewModel.onMessageStatsEnabledChange(false)
+            assertEquals(false, viewModel.uiState.value.messageStatsEnabled)
+            assertEquals(true, viewModel.uiState.value.showUserMessageTokens)
+            assertEquals(false, viewModel.uiState.value.showAssistantMessageTokens)
+            assertEquals(true, viewModel.uiState.value.showTokensPerSecond)
+            verify(exactly = 2) { AuthManager.setMessageStatsEnabled(any()) }
+        }
 
     @Test
     fun testLoadSettings_noSelectedProfile_renameEmpty() {

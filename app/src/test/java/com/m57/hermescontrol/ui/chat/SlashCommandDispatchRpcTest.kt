@@ -94,6 +94,10 @@ class SlashCommandDispatchRpcTest {
         every { AuthManager.getToken() } returns "test-token"
         every { AuthManager.isTypingEffectEnabled() } returns true
         every { AuthManager.getTypingEffectDelayMs() } returns 30
+        every { AuthManager.isMessageStatsEnabled() } returns false
+        every { AuthManager.isUserMessageTokensEnabled() } returns true
+        every { AuthManager.isAssistantMessageTokensEnabled() } returns true
+        every { AuthManager.isTokensPerSecondEnabled() } returns true
         every { AuthManager.isAutoReconnect() } returns false
         every { AuthManager.isRestoreLastSession() } returns false
         every { AuthManager.getLastOpenedSessionId() } returns null

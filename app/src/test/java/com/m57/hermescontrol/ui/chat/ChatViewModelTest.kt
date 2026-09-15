@@ -165,6 +165,10 @@ class ChatViewModelTest {
         every { ProfileSwitchCoordinator.connectionSwitched } returns MutableSharedFlow<String>()
         every { AuthManager.isTypingEffectEnabled() } returns true
         every { AuthManager.getTypingEffectDelayMs() } returns 30
+        every { AuthManager.isMessageStatsEnabled() } returns false
+        every { AuthManager.isUserMessageTokensEnabled() } returns true
+        every { AuthManager.isAssistantMessageTokensEnabled() } returns true
+        every { AuthManager.isTokensPerSecondEnabled() } returns true
         every { AuthManager.isAutoReconnect() } returns false
         every { AuthManager.isRestoreLastSession() } returns false
         every { AuthManager.getLastOpenedSessionId() } returns null
@@ -4140,13 +4144,16 @@ class ChatViewModelTest {
     fun testRefreshSettings_updatesUiState() =
         runTest {
             // Given the default setup, init{} already calls refreshSettings() once,
-            // so the initial state reflects the setUp defaults (typingEffectEnabled=true,
-            // typingEffectDelayMs=30).
+            // so the initial state reflects the setUp defaults.
             val viewModel = createViewModel()
             advanceUntilIdle()
             with(viewModel.uiState.value) {
                 assertTrue(typingEffectEnabled)
                 assertEquals(30, typingEffectDelayMs)
+                assertFalse(messageStatsEnabled)
+                assertTrue(showUserMessageTokens)
+                assertTrue(showAssistantMessageTokens)
+                assertTrue(showTokensPerSecond)
             }
 
             // When settings change after construction and refreshSettings() is re-invoked,
@@ -4154,6 +4161,10 @@ class ChatViewModelTest {
             // re-reads AuthManager live (the real regression scenario).
             every { AuthManager.isTypingEffectEnabled() } returns false
             every { AuthManager.getTypingEffectDelayMs() } returns 50
+            every { AuthManager.isMessageStatsEnabled() } returns true
+            every { AuthManager.isUserMessageTokensEnabled() } returns false
+            every { AuthManager.isAssistantMessageTokensEnabled() } returns false
+            every { AuthManager.isTokensPerSecondEnabled() } returns false
             viewModel.refreshSettings()
             advanceUntilIdle()
 
@@ -4161,6 +4172,10 @@ class ChatViewModelTest {
             val state = viewModel.uiState.value
             assertFalse(state.typingEffectEnabled)
             assertEquals(50, state.typingEffectDelayMs)
+            assertTrue(state.messageStatsEnabled)
+            assertFalse(state.showUserMessageTokens)
+            assertFalse(state.showAssistantMessageTokens)
+            assertFalse(state.showTokensPerSecond)
         }
 
     @Test

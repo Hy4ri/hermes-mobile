@@ -1,7 +1,10 @@
 package com.m57.hermescontrol.ui.chat.fullbleed
 
 import android.content.ClipData
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -36,6 +39,7 @@ import com.m57.hermescontrol.ui.chat.ChatMessage
 import com.m57.hermescontrol.ui.chat.ImageViewerModel
 import com.m57.hermescontrol.ui.chat.InlineAttachment
 import com.m57.hermescontrol.ui.chat.MarkdownText
+import com.m57.hermescontrol.ui.chat.TokenEstimator
 import com.m57.hermescontrol.ui.chat.components.ReasoningCard
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -48,6 +52,7 @@ import kotlinx.coroutines.launch
  * trailing copy affordance. User messages keep their bubbles; this composable
  * is only used for ASSISTANT messages.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun FullBleedAgentMessage(
     message: ChatMessage,
@@ -60,6 +65,9 @@ internal fun FullBleedAgentMessage(
     openingAttachmentPath: String? = null,
     canSaveAttachment: Boolean = true,
     onImageClick: (ImageViewerModel) -> Unit = {},
+    messageStatsEnabled: Boolean = false,
+    showAssistantMessageTokens: Boolean = true,
+    showTokensPerSecond: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val textColor = MaterialTheme.colorScheme.onSurface
@@ -127,8 +135,16 @@ internal fun FullBleedAgentMessage(
         }
 
         if (!message.isStreaming && message.content.isNotBlank()) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
+            val showTokenStat =
+                messageStatsEnabled && showAssistantMessageTokens &&
+                    message.tokenCount != null && message.tokenCount > 0
+            val showTpsStat =
+                messageStatsEnabled && showTokensPerSecond &&
+                    message.tps != null && message.tps > 0.0
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+                itemVerticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(
                     onClick = {
@@ -146,7 +162,40 @@ internal fun FullBleedAgentMessage(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                if (showTokenStat) {
+                    AssistantStatItem(
+                        value =
+                            stringResource(
+                                R.string.chat_msg_tokens,
+                                TokenEstimator.formatTokenCount(message.tokenCount),
+                            ),
+                        testTag = "fullbleed_token_count",
+                    )
+                }
+                if (showTpsStat) {
+                    AssistantStatItem(
+                        value =
+                            stringResource(
+                                R.string.chat_msg_tps,
+                                TokenEstimator.formatTps(message.tps),
+                            ),
+                        testTag = "fullbleed_tps",
+                    )
+                }
             }
         }
     }
+}
+
+@Composable
+private fun AssistantStatItem(
+    value: String,
+    testTag: String,
+) {
+    Text(
+        text = value,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.testTag(testTag),
+    )
 }

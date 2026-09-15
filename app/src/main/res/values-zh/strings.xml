@@ -184,6 +184,11 @@
     <string name="settings_sec_chat">对话</string>
     <string name="settings_item_typing_effect">打字效果</string>
     <string name="settings_desc_typing_effect">逐字显示新消息动画</string>
+    <string name="settings_item_message_stats">消息统计</string>
+    <string name="settings_desc_message_stats">在聊天中显示令牌和生成性能详情</string>
+    <string name="settings_item_user_message_tokens">用户消息令牌</string>
+    <string name="settings_item_assistant_message_tokens">助手消息令牌</string>
+    <string name="settings_item_tokens_per_second">每秒令牌数 (TPS)</string>
     <string name="chat_agent_status_typing">助手正在输入</string>
     <string name="chat_agent_status_thinking">正在思考…</string>
     <string name="chat_agent_status_searching">正在搜索…</string>

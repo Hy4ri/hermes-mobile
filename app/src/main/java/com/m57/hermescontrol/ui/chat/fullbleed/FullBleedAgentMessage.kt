@@ -1,7 +1,10 @@
 package com.m57.hermescontrol.ui.chat.fullbleed
 
 import android.content.ClipData
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -49,6 +52,7 @@ import kotlinx.coroutines.launch
  * trailing copy affordance. User messages keep their bubbles; this composable
  * is only used for ASSISTANT messages.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun FullBleedAgentMessage(
     message: ChatMessage,
@@ -137,8 +141,10 @@ internal fun FullBleedAgentMessage(
             val showTpsStat =
                 messageStatsEnabled && showTokensPerSecond &&
                     message.tps != null && message.tps > 0.0
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+                itemVerticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(
                     onClick = {
@@ -164,7 +170,6 @@ internal fun FullBleedAgentMessage(
                                 TokenEstimator.formatTokenCount(message.tokenCount),
                             ),
                         testTag = "fullbleed_token_count",
-                        showSeparator = false,
                     )
                 }
                 if (showTpsStat) {
@@ -175,7 +180,6 @@ internal fun FullBleedAgentMessage(
                                 TokenEstimator.formatTps(message.tps),
                             ),
                         testTag = "fullbleed_tps",
-                        showSeparator = showTokenStat,
                     )
                 }
             }
@@ -187,21 +191,11 @@ internal fun FullBleedAgentMessage(
 private fun AssistantStatItem(
     value: String,
     testTag: String,
-    showSeparator: Boolean,
 ) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        if (showSeparator) {
-            Text(
-                text = "•",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Text(
-            text = value,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.testTag(testTag),
-        )
-    }
+    Text(
+        text = value,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.testTag(testTag),
+    )
 }

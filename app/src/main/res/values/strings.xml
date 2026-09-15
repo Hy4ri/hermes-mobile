@@ -1244,6 +1244,9 @@
     <string name="channels_expiry_format">Expires: %1$s</string>
     <string name="channels_search_placeholder">Search channels…</string>
     <string name="chat_attach_file">Attach file</string>
+    <string name="chat_attachment_camera">Camera</string>
+    <string name="chat_attachment_photos">Photos</string>
+    <string name="chat_attachment_file">File</string>
     <string name="chat_fast_mode_label">Fast</string>
     <string name="chat_fast_mode_desc">Fast mode</string>
     <string name="chat_fast_mode_unavailable">Fast mode unavailable for this model</string>

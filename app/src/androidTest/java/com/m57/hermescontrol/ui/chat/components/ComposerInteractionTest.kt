@@ -3,11 +3,13 @@ package com.m57.hermescontrol.ui.chat.components
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
@@ -20,7 +22,9 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.test.espresso.Espresso.pressBack
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
 import com.m57.hermescontrol.data.ws.CommandCatalog
@@ -44,6 +48,9 @@ class ComposerInteractionTest {
     private var sends = 0
     private var modelTaps = 0
     private var selectedLevel: String? = null
+    private var cameraTaps = 0
+    private var photosTaps = 0
+    private var fileTaps = 0
 
     /** Renders the real input bar with live text and a mic that toggles like ChatMediaLaunchers. */
     private fun setComposer(
@@ -51,42 +58,61 @@ class ComposerInteractionTest {
         model: String = "openai/gpt-5.5",
         composerWidth: Dp? = null,
         modelAfterTap: String? = null,
+        layoutDirection: LayoutDirection = LayoutDirection.Ltr,
     ) {
         composeTestRule.setContent {
             var input by remember { mutableStateOf(TextFieldValue("")) }
             var listening by remember { mutableStateOf(false) }
             var currentModel by remember { mutableStateOf(model) }
-            val composer: @Composable () -> Unit = {
-                ChatInputBar(
-                    inputFieldValue = input,
-                    onInputChange = { input = it },
-                    onSend = {
-                        sends++
-                        input = TextFieldValue("")
-                    },
-                    onMicTap = {
-                        micTaps++
-                        listening = !listening
-                    },
-                    isListening = listening,
-                    isAgentTyping = false,
-                    isConnected = true,
-                    commandCatalog = CommandCatalog(),
-                    currentSessionModel = currentModel,
-                    reasoningLevel = reasoningLevel,
-                    onModelTap = {
-                        modelTaps++
-                        modelAfterTap?.let { currentModel = it }
-                    },
-                    onReasoningTap = { selectedLevel = it },
-                )
-            }
-            if (composerWidth == null) {
-                composer()
-            } else {
-                Box(Modifier.width(composerWidth).testTag("composer_toolbar")) { composer() }
+
+            CompositionLocalProvider(LocalLayoutDirection provides layoutDirection) {
+                val composer: @Composable () -> Unit = {
+                    ChatInputBar(
+                        inputFieldValue = input,
+                        onInputChange = { input = it },
+                        onSend = {
+                            sends++
+                            input = TextFieldValue("")
+                        },
+                        onMicTap = {
+                            micTaps++
+                            listening = !listening
+                        },
+                        isListening = listening,
+                        isAgentTyping = false,
+                        isConnected = true,
+                        commandCatalog = CommandCatalog(),
+                        currentSessionModel = currentModel,
+                        reasoningLevel = reasoningLevel,
+                        onModelTap = {
+                            modelTaps++
+                            modelAfterTap?.let { currentModel = it }
+                        },
+                        onReasoningTap = { selectedLevel = it },
+                        onCameraTap = { cameraTaps++ },
+                        onImageTap = { photosTaps++ },
+                        onFileTap = { fileTaps++ },
+                    )
+                }
+                if (composerWidth == null) {
+                    composer()
+                } else {
+                    Box(Modifier.width(composerWidth).testTag("composer_toolbar")) { composer() }
+                }
             }
         }
+    }
+
+    private fun openAttachmentTray() {
+        composeTestRule.onNodeWithTag("attachment_button").performClick()
+        composeTestRule.mainClock.advanceTimeBy(300)
+        composeTestRule.onNodeWithTag("attachment_tray").assertIsDisplayed()
+    }
+
+    private fun closeAttachmentTray() {
+        composeTestRule.onNodeWithTag("attachment_button").performClick()
+        composeTestRule.mainClock.advanceTimeBy(300)
+        composeTestRule.onNodeWithTag("attachment_tray").assertDoesNotExist()
     }
 
     @Test
@@ -246,5 +272,75 @@ class ComposerInteractionTest {
         composeTestRule.runOnIdle {
             assertEquals("model selection should still invoke the picker", 1, modelTaps)
         }
+    }
+
+    @Test
+    fun attachmentButton_togglesHorizontalTray() {
+        setComposer()
+
+        openAttachmentTray()
+        composeTestRule.onNodeWithText("Camera").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Photos").assertIsDisplayed()
+        composeTestRule.onNodeWithText("File").assertIsDisplayed()
+
+        closeAttachmentTray()
+    }
+
+    @Test
+    fun attachmentTray_shrinksWithinConstrainedWidth() {
+        setComposer(composerWidth = 180.dp)
+
+        openAttachmentTray()
+        composeTestRule.onNodeWithText("Camera").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Photos").assertIsDisplayed()
+        composeTestRule.onNodeWithText("File").assertIsDisplayed()
+    }
+
+    @Test
+    fun attachmentTray_rtlKeepsActionsAccessible() {
+        setComposer(layoutDirection = LayoutDirection.Rtl)
+
+        openAttachmentTray()
+        composeTestRule.onNodeWithText("Camera").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Photos").assertIsDisplayed()
+        composeTestRule.onNodeWithText("File").assertIsDisplayed()
+    }
+
+    @Test
+    fun attachmentTray_actionsDispatchAndCloseTray() {
+        setComposer()
+
+        openAttachmentTray()
+        composeTestRule.onNodeWithTag("attachment_action_camera").performClick()
+        composeTestRule.mainClock.advanceTimeBy(300)
+        composeTestRule.runOnIdle {
+            assertEquals("Camera must dispatch its callback", 1, cameraTaps)
+            assertEquals("Camera must not dispatch Photos", 0, photosTaps)
+            assertEquals("Camera must not dispatch File", 0, fileTaps)
+        }
+        composeTestRule.onNodeWithTag("attachment_tray").assertDoesNotExist()
+
+        openAttachmentTray()
+        composeTestRule.onNodeWithTag("attachment_action_photos").performClick()
+        composeTestRule.mainClock.advanceTimeBy(300)
+        composeTestRule.runOnIdle { assertEquals("Photos must dispatch its callback", 1, photosTaps) }
+        composeTestRule.onNodeWithTag("attachment_tray").assertDoesNotExist()
+
+        openAttachmentTray()
+        composeTestRule.onNodeWithTag("attachment_action_file").performClick()
+        composeTestRule.mainClock.advanceTimeBy(300)
+        composeTestRule.runOnIdle { assertEquals("File must dispatch its callback", 1, fileTaps) }
+        composeTestRule.onNodeWithTag("attachment_tray").assertDoesNotExist()
+    }
+
+    @Test
+    fun attachmentTray_dismissesOnBackPress() {
+        setComposer()
+
+        openAttachmentTray()
+        pressBack()
+        composeTestRule.mainClock.advanceTimeBy(300)
+
+        composeTestRule.onNodeWithTag("attachment_tray").assertDoesNotExist()
     }
 }

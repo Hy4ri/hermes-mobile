@@ -123,7 +123,7 @@ fun ComposerToolbar(
             onClick = onAttachTap,
             enabled = isConnected,
             colors = flatIconButtonColors(palette),
-            modifier = Modifier.size(ControlSize),
+            modifier = Modifier.size(ControlSize).testTag("attachment_button"),
         ) {
             Icon(
                 imageVector = Icons.Default.Add,

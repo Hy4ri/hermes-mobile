@@ -29,7 +29,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -57,7 +56,6 @@ import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.Attachment
@@ -107,8 +105,8 @@ fun ChatInputBar(
     // dropped. Slash commands were already allowed; regular prompts now are too.
     val canSend = ChatInputPolicy.canSend(inputFieldValue.text, pendingAttachments, isConnected)
 
-    // Attachment menu state
-    var showAttachmentMenu by remember { mutableStateOf(false) }
+    // Attachment tray state
+    var showAttachmentTray by remember { mutableStateOf(false) }
     val palette = composerPalette()
 
     AnimatedVisibility(
@@ -299,7 +297,7 @@ fun ChatInputBar(
                     isListening = isListening,
                     canSend = canSend,
                     onSend = onSend,
-                    onAttachTap = { showAttachmentMenu = true },
+                    onAttachTap = { showAttachmentTray = !showAttachmentTray },
                     onModelTap = onModelTap,
                     onReasoningSelected = onReasoningTap,
                     onMicTap = onMicTap,
@@ -312,52 +310,13 @@ fun ChatInputBar(
                     onToggleFastMode = onToggleFastMode,
                 )
 
-                // Attachment dropdown (anchored to the attach button in ComposerToolbar)
-                // Shown overlaid at the toolbar level
-                DropdownMenu(
-                    expanded = showAttachmentMenu,
-                    onDismissRequest = { showAttachmentMenu = false },
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Camera") },
-                        onClick = {
-                            showAttachmentMenu = false
-                            onCameraTap()
-                        },
-                        leadingIcon = {
-                            Text(
-                                text = "📷",
-                                fontSize = 18.sp,
-                            )
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Image") },
-                        onClick = {
-                            showAttachmentMenu = false
-                            onImageTap()
-                        },
-                        leadingIcon = {
-                            Text(
-                                text = "🖼️",
-                                fontSize = 18.sp,
-                            )
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("File") },
-                        onClick = {
-                            showAttachmentMenu = false
-                            onFileTap()
-                        },
-                        leadingIcon = {
-                            Text(
-                                text = "📄",
-                                fontSize = 18.sp,
-                            )
-                        },
-                    )
-                }
+                AttachmentTray(
+                    visible = showAttachmentTray,
+                    onDismissRequest = { showAttachmentTray = false },
+                    onCameraTap = onCameraTap,
+                    onImageTap = onImageTap,
+                    onFileTap = onFileTap,
+                )
             }
         }
     }

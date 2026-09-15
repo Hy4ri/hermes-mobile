@@ -1084,6 +1084,9 @@
 <string name="channels_expiry_format">ينتهي في: %1$s</string>
 <string name="channels_search_placeholder">البحث في القنوات…</string>
 <string name="chat_attach_file">إرفاق ملف</string>
+<string name="chat_attachment_camera">الكاميرا</string>
+<string name="chat_attachment_photos">الصور</string>
+<string name="chat_attachment_file">ملف</string>
 <string name="chat_fast_mode_label">سريع</string>
 <string name="chat_fast_mode_desc">الوضع السريع</string>
 <string name="chat_fast_mode_unavailable">الوضع السريع غير مدعوم لهذا النموذج</string>

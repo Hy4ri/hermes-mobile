@@ -1067,6 +1067,9 @@
     <string name="channels_expiry_format">过期时间：%1$s</string>
     <string name="channels_search_placeholder">搜索渠道…</string>
     <string name="chat_attach_file">附加文件</string>
+    <string name="chat_attachment_camera">相机</string>
+    <string name="chat_attachment_photos">照片</string>
+    <string name="chat_attachment_file">文件</string>
     <string name="chat_fast_mode_label">快速</string>
     <string name="chat_fast_mode_desc">快速模式</string>
     <string name="chat_fast_mode_unavailable">此模型不支持快速模式</string>

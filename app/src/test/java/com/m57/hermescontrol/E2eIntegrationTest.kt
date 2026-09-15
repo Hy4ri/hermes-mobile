@@ -27,6 +27,7 @@ import com.m57.hermescontrol.data.model.MemoryResponse
 import com.m57.hermescontrol.data.model.MemoryStats
 import com.m57.hermescontrol.data.model.MessagingPlatform
 import com.m57.hermescontrol.data.model.MessagingPlatformResponse
+import com.m57.hermescontrol.data.model.MessagingPlatformUpdateResponse
 import com.m57.hermescontrol.data.model.MoaConfigResponse
 import com.m57.hermescontrol.data.model.MoaModelSlot
 import com.m57.hermescontrol.data.model.ModelOptionsResponse
@@ -1118,7 +1119,8 @@ class E2eIntegrationTest {
                         platforms = listOf(platform),
                     ),
                 )
-            coEvery { mockApiService.configurePlatform("telegram", any()) } returns Response.success(Unit)
+            coEvery { mockApiService.configurePlatform("telegram", any()) } returns
+                Response.success(MessagingPlatformUpdateResponse(ok = true))
 
             val viewModel = ChannelsViewModel()
             viewModel.loadPlatforms()

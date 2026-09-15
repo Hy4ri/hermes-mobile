@@ -54,6 +54,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -232,8 +233,15 @@ fun ProfilesScreen(
                                 contentPadding = PaddingValues(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
+                                if (state.sharedGatewayProfiles.isNotEmpty()) {
+                                    item(key = "shared_gateway_summary") {
+                                        SharedGatewaySummary(state.sharedGatewayProfiles)
+                                    }
+                                }
+
                                 items(state.displayProfiles, key = { it.name }) { profile ->
                                     val isActive = profile.name == state.activeProfileName
+                                    val isProfileShared = profile.name in state.sharedGatewayProfiles
                                     Card(
                                         modifier = Modifier.fillMaxWidth(),
                                         colors =
@@ -288,6 +296,29 @@ fun ProfilesScreen(
                                                                             R.string.profiles_hidden_badge,
                                                                         ),
                                                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                                    style = MaterialTheme.typography.labelSmall,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                )
+                                                            }
+                                                        }
+                                                        if (isProfileShared) {
+                                                            val sharedGatewayContainer =
+                                                                MaterialTheme.colorScheme.secondaryContainer
+                                                            val onSharedGatewayContainer =
+                                                                MaterialTheme.colorScheme.onSecondaryContainer
+                                                            val sharedGatewayLabel =
+                                                                stringResource(R.string.profiles_shared_gateway_badge)
+                                                            Spacer(modifier = Modifier.width(8.dp))
+                                                            Box(
+                                                                modifier =
+                                                                    Modifier
+                                                                        .clip(RoundedCornerShape(4.dp))
+                                                                        .background(sharedGatewayContainer)
+                                                                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                                                            ) {
+                                                                Text(
+                                                                    text = sharedGatewayLabel,
+                                                                    color = onSharedGatewayContainer,
                                                                     style = MaterialTheme.typography.labelSmall,
                                                                     fontWeight = FontWeight.Bold,
                                                                 )
@@ -968,6 +999,43 @@ fun ProfilesScreen(
                 }
             },
         )
+    }
+}
+
+@Composable
+private fun SharedGatewaySummary(profiles: List<String>) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            ),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = stringResource(R.string.profiles_shared_gateway_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text =
+                    pluralStringResource(
+                        R.plurals.profiles_shared_gateway_count,
+                        profiles.size,
+                        profiles.size,
+                    ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = profiles.joinToString(" · "),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+        }
     }
 }
 

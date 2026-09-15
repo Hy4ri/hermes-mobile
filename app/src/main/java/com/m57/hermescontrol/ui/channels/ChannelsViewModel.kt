@@ -125,7 +125,8 @@ class ChannelsViewModel :
                 }
             },
             onStart = {},
-            onSuccess = {
+            onSuccess = { response ->
+                val hotServed = response.hotServed
                 _uiState.update { state ->
                     state.copy(
                         platforms =
@@ -133,16 +134,28 @@ class ChannelsViewModel :
                                 if (p.id == platformId) {
                                     p.copy(
                                         enabled = enabled,
-                                        state = if (enabled) "pending_restart" else "disabled",
+                                        state =
+                                            when {
+                                                !enabled -> "disabled"
+                                                hotServed -> "connected"
+                                                else -> "pending_restart"
+                                            },
                                     )
                                 } else {
                                     p
                                 }
                             },
-                        restartNeeded = true,
+                        restartNeeded = !hotServed,
                         togglingId = null,
+                        toastMessage =
+                            if (hotServed) {
+                                "$platformId updated live"
+                            } else {
+                                null
+                            },
                     )
                 }
+                loadPlatforms()
             },
             onError = { error ->
                 _uiState.update {
@@ -201,12 +214,18 @@ class ChannelsViewModel :
                     it.copy(isLoading = true, errorMessage = null)
                 }
             },
-            onSuccess = {
-                val message = "$platformId configured successfully — restart the gateway for changes to take effect"
+            onSuccess = { response ->
+                val hotServed = response.hotServed
+                val message =
+                    if (hotServed) {
+                        "$platformId configured and reloaded live"
+                    } else {
+                        "$platformId configured successfully — restart the gateway for changes to take effect"
+                    }
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        restartNeeded = true,
+                        restartNeeded = !hotServed,
                         toastMessage = message,
                     )
                 }

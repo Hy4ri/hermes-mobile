@@ -133,6 +133,10 @@ fun SystemScreen(
         controller = resolvedViewModel.actionProgress,
         title = stringResource(R.string.system_update_progress_title),
     )
+    ActionProgressDialog(
+        controller = resolvedViewModel.migrationProgress,
+        title = stringResource(R.string.system_migration_progress_title),
+    )
 
     // Credential remove confirmation using ConfirmDialog
     var credToRemove by remember { mutableStateOf<Pair<String, Int>?>(null) }

@@ -25,18 +25,17 @@ fun resolveSessionProject(
     session: SessionInfo,
     projects: List<ProjectInfo>,
 ): SessionProject? {
-    val cwd = normalizePath(session.cwd)
-    val recordedRoot = normalizePath(session.git_repo_root)
+    val cwd = session.cwd?.trim().orEmpty()
+    val recordedRoot = session.git_repo_root?.trim().orEmpty()
     val repoRoot = recordedRoot.ifEmpty { cwd }
     if (cwd.isEmpty() && repoRoot.isEmpty()) return null
 
     val owner =
         projects
             .filterNot { it.isArchived }
-            .flatMap { project -> project.folders.map { project to normalizePath(it.path) } }
-            .filter { (_, folder) ->
-                folder.isNotEmpty() && (isPathUnder(folder, cwd) || isPathUnder(folder, repoRoot))
-            }.maxByOrNull { (_, folder) -> pathSegments(folder) }
+            .flatMap { project -> project.folders.map { project to it.path } }
+            .filter { (_, folder) -> isPathUnder(folder, cwd) || isPathUnder(folder, repoRoot) }
+            .maxByOrNull { (_, folder) -> pathSegments(folder).size }
 
     if (owner != null) {
         val (project, folder) = owner
@@ -52,22 +51,35 @@ fun resolveSessionProject(
     return SessionProject(label = label)
 }
 
-/** Forward slashes, trimmed, no trailing separator (the filesystem root stays "/"). */
-private fun normalizePath(raw: String?): String {
-    val path = raw?.trim()?.replace('\\', '/').orEmpty()
-    return path.trimEnd('/').ifEmpty { if (path.startsWith("/")) "/" else "" }
+/** Path segments, ignoring mixed separators, repeated separators and trailing slashes. */
+private fun pathSegments(path: String): List<String> = path.trim().split('/', '\\').filter(String::isNotEmpty)
+
+private val WindowsDrive = Regex("^[A-Za-z]:[/\\\\]")
+
+/** Drive-letter (`C:\…`), UNC (`\\srv`, `//srv`) or backslash-rooted paths, as the backend classifies them. */
+private fun isWindowsPath(path: String): Boolean {
+    val trimmed = path.trim()
+    return WindowsDrive.containsMatchIn(trimmed) || trimmed.startsWith("\\") || trimmed.startsWith("//")
+}
+
+/**
+ * Segments for identity comparison. Windows paths fold case so `C:\Work` and `c:/work` are one
+ * folder; POSIX stays case-sensitive. Labels keep the recorded spelling.
+ */
+private fun comparisonSegments(path: String): List<String> {
+    val segments = pathSegments(path)
+    return if (isWindowsPath(path)) segments.map { it.lowercase() } else segments
 }
 
 private fun isPathUnder(
-    parent: String,
-    child: String,
+    folder: String,
+    target: String,
 ): Boolean {
-    if (parent.isEmpty() || child.isEmpty()) return false
-    if (child == parent) return true
-    val prefix = if (parent.endsWith("/")) parent else "$parent/"
-    return child.startsWith(prefix)
+    val folderSegments = comparisonSegments(folder)
+    val targetSegments = comparisonSegments(target)
+    if (folderSegments.isEmpty() || folderSegments.size > targetSegments.size) return false
+    return folderSegments.indices.all { folderSegments[it] == targetSegments[it] }
 }
 
-private fun pathSegments(path: String): Int = path.split('/').count { it.isNotEmpty() }
-
-private fun pathLeaf(path: String): String = path.substringAfterLast('/').ifEmpty { path }
+/** Last segment in its recorded spelling; the filesystem root stays as written ("/"). */
+private fun pathLeaf(path: String): String = pathSegments(path).lastOrNull() ?: path.trim()

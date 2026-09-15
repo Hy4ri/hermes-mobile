@@ -111,6 +111,40 @@ class SessionProjectTest {
     }
 
     @Test
+    fun `windows paths match regardless of casing and separators`() {
+        val projects = listOf(project("Win", "C:\\Work\\App"))
+
+        assertEquals("Win", resolveSessionProject(session(cwd = "c:/work/app/src"), projects)?.label)
+        assertEquals("Win", resolveSessionProject(session(cwd = "C:\\WORK\\APP"), projects)?.label)
+    }
+
+    @Test
+    fun `unc paths match regardless of casing`() {
+        val projects = listOf(project("Share", "\\\\Server\\Repos\\App"))
+
+        assertEquals("Share", resolveSessionProject(session(cwd = "//server/repos/app/lib"), projects)?.label)
+    }
+
+    @Test
+    fun `posix paths stay case sensitive`() {
+        val projects = listOf(project("App", "/srv/App"))
+
+        assertEquals("app", resolveSessionProject(session(cwd = "/srv/app"), projects)?.label)
+    }
+
+    @Test
+    fun `labels keep the recorded spelling`() {
+        assertEquals("MyRepo", resolveSessionProject(session(cwd = "C:\\Code\\MyRepo"), emptyList())?.label)
+    }
+
+    @Test
+    fun `repeated separators do not break matching`() {
+        val projects = listOf(project("App", "/srv/app"))
+
+        assertEquals("App", resolveSessionProject(session(cwd = "/srv//app///src"), projects)?.label)
+    }
+
+    @Test
     fun `session without a workspace has no project`() {
         assertNull(resolveSessionProject(session(), listOf(project("App", "/srv/app"))))
         assertNull(resolveSessionProject(session(cwd = "  ", repoRoot = ""), emptyList()))

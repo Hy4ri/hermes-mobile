@@ -16,6 +16,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.AlertDialog
@@ -25,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -65,6 +69,7 @@ fun ModelPickerDialog(
     onDismiss: () -> Unit,
 ) {
     var pickerQuery by remember { mutableStateOf("") }
+    var expandedProviderSlug by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -149,6 +154,17 @@ fun ModelPickerDialog(
                             }
                         }
 
+                    LaunchedEffect(filteredProvidersWithModels) {
+                        if (
+                            expandedProviderSlug != null &&
+                            filteredProvidersWithModels.none { (provider, _) ->
+                                provider.slug == expandedProviderSlug
+                            }
+                        ) {
+                            expandedProviderSlug = null
+                        }
+                    }
+
                     SearchBar(
                         query = pickerQuery,
                         onQueryChange = { pickerQuery = it },
@@ -205,45 +221,83 @@ fun ModelPickerDialog(
 
                         // ── All providers / models (lazy item per model) ──
                         filteredProvidersWithModels.forEach { (provider, models) ->
+                            val isExpanded = expandedProviderSlug == provider.slug
                             item(key = "header:${provider.slug}") {
                                 Row(
+                                    modifier =
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                expandedProviderSlug =
+                                                    if (isExpanded) {
+                                                        null
+                                                    } else {
+                                                        provider.slug
+                                                    }
+                                            }.padding(top = 12.dp, bottom = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(top = 12.dp, bottom = 6.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 ) {
                                     Text(
                                         text = provider.name,
                                         style = MaterialTheme.typography.labelLarge,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.weight(1f),
                                     )
-                                    Spacer(modifier = Modifier.weight(1f))
                                     Text(
-                                        text = "${models.size} models",
+                                        text =
+                                            pluralStringResource(
+                                                R.plurals.model_provider_count,
+                                                models.size,
+                                                models.size,
+                                            ),
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    Icon(
+                                        imageVector =
+                                            if (isExpanded) {
+                                                Icons.Filled.KeyboardArrowUp
+                                            } else {
+                                                Icons.Filled.KeyboardArrowDown
+                                            },
+                                        contentDescription =
+                                            stringResource(
+                                                if (isExpanded) {
+                                                    R.string.content_desc_collapse_provider
+                                                } else {
+                                                    R.string.content_desc_expand_provider
+                                                },
+                                                provider.name,
+                                            ),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(24.dp),
                                     )
                                 }
                             }
 
-                            items(
-                                items = models,
-                                key = { model -> "${provider.slug}:$model" },
-                            ) { model ->
-                                val isPinned = "${provider.slug}:$model" in pinnedSet
-                                val caps = provider.capabilities?.get(model)
-                                ModelItemCard(
-                                    modelName = model,
-                                    isPinned = isPinned,
-                                    onPinToggle =
-                                        if (onPinToggle != null) {
-                                            { onPinToggle(provider.slug, model) }
-                                        } else {
-                                            null
-                                        },
-                                    onClick = { onSelect(provider.slug, model) },
-                                    canDisableReasoning = caps?.can_disable_reasoning,
-                                    supportsReasoning = caps?.reasoning,
-                                )
+                            if (isExpanded) {
+                                items(
+                                    items = models,
+                                    key = { model -> "${provider.slug}:$model" },
+                                ) { model ->
+                                    val isPinned = "${provider.slug}:$model" in pinnedSet
+                                    val caps = provider.capabilities?.get(model)
+                                    ModelItemCard(
+                                        modelName = model,
+                                        isPinned = isPinned,
+                                        onPinToggle =
+                                            if (onPinToggle != null) {
+                                                { onPinToggle(provider.slug, model) }
+                                            } else {
+                                                null
+                                            },
+                                        onClick = { onSelect(provider.slug, model) },
+                                        canDisableReasoning = caps?.can_disable_reasoning,
+                                        supportsReasoning = caps?.reasoning,
+                                    )
+                                }
                             }
                         }
                     }

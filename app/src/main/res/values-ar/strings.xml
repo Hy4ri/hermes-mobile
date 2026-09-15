@@ -503,9 +503,19 @@
 <string name="model_label_available">النماذج المتاحة:</string>
 <string name="model_no_models">لم يتم العثور على نماذج أو أن المزود يحتاج إلى مصادقة.</string>
 <string name="content_desc_active_model">النموذج النشط</string>
+<string name="content_desc_expand_provider">توسيع نماذج %1$s</string>
+<string name="content_desc_collapse_provider">طي نماذج %1$s</string>
 <string name="model_section_pinned">النماذج المثبتة</string>
 <string name="content_desc_unpin_model">إلغاء تثبيت النموذج</string>
 <string name="content_desc_pinned_section_toggle">تبديل ظهور قسم المثبتات</string>
+<plurals name="model_provider_count">
+    <item quantity="zero">لا توجد نماذج</item>
+    <item quantity="one">%1$d نموذج</item>
+    <item quantity="two">%1$d نموذجان</item>
+    <item quantity="few">%1$d نماذج</item>
+    <item quantity="many">%1$d نموذجًا</item>
+    <item quantity="other">%1$d نموذج</item>
+</plurals>
 <string name="history_empty_title">لا يوجد سجل</string>
 <string name="history_empty_desc">ستظهر جلسات المحادثة السابقة من Hermes هنا.</string>
 <string name="history_untitled">بلا عنوان</string>

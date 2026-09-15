@@ -586,9 +586,15 @@
     <string name="model_label_available">Available Models:</string>
     <string name="model_no_models">No models reported or provider needs authentication.</string>
     <string name="content_desc_active_model">Active Model</string>
+    <string name="content_desc_expand_provider">Expand %1$s models</string>
+    <string name="content_desc_collapse_provider">Collapse %1$s models</string>
     <string name="model_section_pinned">Pinned Models</string>
     <string name="content_desc_unpin_model">Unpin model</string>
     <string name="content_desc_pinned_section_toggle">Toggle pinned section visibility</string>
+    <plurals name="model_provider_count">
+        <item quantity="one">%1$d model</item>
+        <item quantity="other">%1$d models</item>
+    </plurals>
 
     <!-- Sessions (History) Screen -->
     <string name="history_empty_title">No history</string>

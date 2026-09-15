@@ -2,7 +2,9 @@ package com.m57.hermescontrol.ui.model
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
 import com.m57.hermescontrol.data.model.ModelProvider
@@ -60,6 +62,34 @@ class ModelScreenTest {
         }
 
         composeTestRule.onNodeWithText("Pinned Models").assertDoesNotExist()
+    }
+
+    @Test
+    fun modelScreen_providerExpansionArrowMatchesState() {
+        uiStateFlow.value =
+            ModelUiState(
+                providers =
+                    listOf(
+                        ModelProvider(
+                            slug = "openai",
+                            name = "OpenAI",
+                            models = listOf("gpt-4"),
+                        ),
+                    ),
+            )
+
+        composeTestRule.setContent {
+            ModelScreen(
+                onOpenDrawer = {},
+                viewModel = mockViewModel,
+            )
+        }
+
+        composeTestRule.onNodeWithText("gpt-4").assertDoesNotExist()
+        composeTestRule.onNodeWithContentDescription("Expand OpenAI models").performClick()
+        composeTestRule.onNodeWithText("gpt-4").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Collapse OpenAI models").performClick()
+        composeTestRule.onNodeWithText("gpt-4").assertDoesNotExist()
     }
 
     @Test

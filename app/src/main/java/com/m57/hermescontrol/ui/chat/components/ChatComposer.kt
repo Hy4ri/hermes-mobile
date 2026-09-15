@@ -1,16 +1,12 @@
 package com.m57.hermescontrol.ui.chat.components
 
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -32,13 +28,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -51,7 +45,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -76,8 +69,8 @@ import com.m57.hermescontrol.ui.common.BotAvatar
 import com.m57.hermescontrol.util.BidiUtils
 
 /**
- * The chat input bar with a two-row layout: input+send on top,
- * and a toolbar with attach/model chip/reasoning chip/mic below.
+ * The chat input bar: a single rounded card with the input on top and a
+ * controls row (attach, model/reasoning pill, mic, send) inside it below.
  */
 @Composable
 fun ChatInputBar(
@@ -116,29 +109,25 @@ fun ChatInputBar(
 
     // Attachment menu state
     var showAttachmentMenu by remember { mutableStateOf(false) }
-    var isFocused by remember { mutableStateOf(false) }
+    val palette = composerPalette()
 
     AnimatedVisibility(
         visible = true,
         enter = slideInVertically(initialOffsetY = { it }),
         exit = slideOutVertically(targetOffsetY = { it }),
     ) {
+        // One floating card holds the whole composer: suggestions, attachments,
+        // the input and the controls row. Flat fill, hairline edge, no shadow.
         Surface(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-            shape = RoundedCornerShape(20.dp),
-            color = MaterialTheme.colorScheme.surface,
-            border =
-                BorderStroke(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                ),
-            tonalElevation = 2.dp,
-            shadowElevation = 4.dp,
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            shape = MaterialTheme.shapes.large,
+            color = palette.card,
+            border = BorderStroke(width = 1.dp, color = palette.cardBorder),
         ) {
-            Column {
+            Column(modifier = Modifier.padding(top = 8.dp, bottom = 10.dp)) {
                 // Commands hidden from the suggestion menu — desktop/CLI-only and
                 // TUI-only commands that don't function on mobile (issue #574).
                 // Single source of truth: CommandBlocklist.UNSUPPORTED, which is
@@ -216,12 +205,12 @@ fun ChatInputBar(
                     }
                 }
 
-                // ── TOP ROW: Input field with embedded send button ──
+                // ── TOP ROW: Borderless input field ──
                 Row(
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                            .padding(horizontal = 20.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     val placeholderText =
@@ -257,109 +246,43 @@ fun ChatInputBar(
                             modifier =
                                 Modifier
                                     .weight(1f)
-                                    .heightIn(min = 42.dp, max = 120.dp)
+                                    .heightIn(min = 42.dp, max = 200.dp)
                                     .padding(vertical = 4.dp)
-                                    .onFocusChanged { isFocused = it.isFocused }
                                     .testTag("chat_input"),
                             enabled = isConnected,
                             textStyle =
-                                MaterialTheme.typography.bodyMedium.copy(
-                                    color = MaterialTheme.colorScheme.onSurface,
+                                MaterialTheme.typography.bodyLarge.copy(
+                                    color = palette.text,
                                     textAlign = if (isInputRtl) TextAlign.Right else TextAlign.Left,
                                     textDirection = if (isInputRtl) TextDirection.Rtl else TextDirection.Ltr,
                                 ),
                             singleLine = false,
-                            maxLines = 4,
-                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            maxLines = 8,
+                            cursorBrush = SolidColor(palette.text),
                             decorationBox = { innerTextField ->
                                 CompositionLocalProvider(LocalLayoutDirection provides ambientLayoutDirection) {
-                                    Surface(
-                                        shape = RoundedCornerShape(18.dp),
-                                        border =
-                                            BorderStroke(
-                                                width = if (isFocused) 2.dp else 1.dp,
-                                                color =
-                                                    if (isFocused) {
-                                                        MaterialTheme.colorScheme.primary
-                                                    } else {
-                                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
-                                                    },
-                                            ),
-                                        color = MaterialTheme.colorScheme.surface,
+                                    Box(
                                         modifier = Modifier.fillMaxWidth(),
+                                        contentAlignment =
+                                            if (isInputRtl) {
+                                                Alignment.CenterEnd
+                                            } else {
+                                                Alignment.CenterStart
+                                            },
                                     ) {
-                                        Row(
-                                            modifier =
-                                                Modifier
-                                                    .padding(start = 12.dp, end = 4.dp, top = 9.dp, bottom = 9.dp)
-                                                    .fillMaxWidth(),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                        ) {
-                                            Box(
-                                                modifier = Modifier.weight(1f),
-                                                contentAlignment =
-                                                    if (isInputRtl) {
-                                                        Alignment.CenterEnd
-                                                    } else {
-                                                        Alignment.CenterStart
-                                                    },
-                                            ) {
-                                                CompositionLocalProvider(
-                                                    LocalLayoutDirection provides inputLayoutDirection,
-                                                ) {
-                                                    if (inputFieldValue.text.isEmpty()) {
-                                                        Text(
-                                                            text = placeholderText,
-                                                            style = MaterialTheme.typography.bodyMedium,
-                                                            textAlign =
-                                                                if (isInputRtl) {
-                                                                    TextAlign.Right
-                                                                } else {
-                                                                    TextAlign.Left
-                                                                },
-                                                            color =
-                                                                MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                                                                    alpha = 0.6f,
-                                                                ),
-                                                            modifier = Modifier.fillMaxWidth(),
-                                                        )
-                                                    }
-                                                    innerTextField()
-                                                }
+                                        CompositionLocalProvider(LocalLayoutDirection provides inputLayoutDirection) {
+                                            if (inputFieldValue.text.isEmpty()) {
+                                                Text(
+                                                    text = placeholderText,
+                                                    style = MaterialTheme.typography.bodyLarge,
+                                                    textAlign = if (isInputRtl) TextAlign.Right else TextAlign.Left,
+                                                    color = palette.placeholder,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                )
                                             }
-
-                                            // Send button INSIDE the field. Shown whenever a send is
-                                            // possible — text typed OR an attachment pending (issue
-                                            // #956): the old text-only gate hid the button entirely
-                                            // for attachment-only sends.
-                                            AnimatedContent(
-                                                targetState = canSend,
-                                                transitionSpec = {
-                                                    (scaleIn(initialScale = 0.8f) + fadeIn())
-                                                        .togetherWith(scaleOut(targetScale = 0.8f) + fadeOut())
-                                                },
-                                                label = "send_toggle",
-                                            ) { showSend ->
-                                                if (showSend) {
-                                                    IconButton(
-                                                        onClick = onSend,
-                                                        enabled = canSend,
-                                                        colors = IconButtonDefaults.filledTonalIconButtonColors(),
-                                                        modifier =
-                                                            Modifier
-                                                                .size(36.dp)
-                                                                .testTag("send_button"),
-                                                    ) {
-                                                        Icon(
-                                                            imageVector = Icons.AutoMirrored.Filled.Send,
-                                                            contentDescription =
-                                                                stringResource(
-                                                                    R.string.chat_send_desc,
-                                                                ),
-                                                        )
-                                                    }
-                                                }
-                                            }
+                                            innerTextField()
                                         }
                                     }
                                 }
@@ -374,6 +297,8 @@ fun ChatInputBar(
                     currentSessionModel = currentSessionModel,
                     reasoningLevel = reasoningLevel,
                     isListening = isListening,
+                    canSend = canSend,
+                    onSend = onSend,
                     onAttachTap = { showAttachmentMenu = true },
                     onModelTap = onModelTap,
                     onReasoningSelected = onReasoningTap,

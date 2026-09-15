@@ -137,7 +137,7 @@ fun ComposerToolbar(
         LaunchedEffect(currentSessionModel) {
             modelScrollState.scrollTo(0)
         }
-        Box(modifier = Modifier.weight(1f, fill = false), contentAlignment = Alignment.CenterStart) {
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
             Row(
                 modifier =
                     Modifier

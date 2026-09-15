@@ -201,10 +201,14 @@ class ComposerInteractionTest {
         val availableWidth = 420.dp
         val modelChip = composeTestRule.onNodeWithTag("model_chip").getUnclippedBoundsInRoot()
         val reasoningChip = composeTestRule.onNodeWithTag("reasoning_chip").getUnclippedBoundsInRoot()
+        val actionButton = composeTestRule.onNodeWithTag("mic_button").getUnclippedBoundsInRoot()
         val pillWidth = maxOf(modelChip.right, reasoningChip.right) - minOf(modelChip.left, reasoningChip.left)
 
         check(pillWidth < availableWidth * 0.8f) {
             "short model pill should remain content-sized, width=$pillWidth available=$availableWidth"
+        }
+        check(actionButton.right > availableWidth * 0.8f) {
+            "trailing action should stay near the toolbar edge, right=${actionButton.right} available=$availableWidth"
         }
     }
 

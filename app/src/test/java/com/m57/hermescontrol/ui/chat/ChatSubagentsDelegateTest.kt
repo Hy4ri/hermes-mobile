@@ -218,7 +218,7 @@ class ChatSubagentsDelegateTest {
         }
 
     @Test
-    fun testHydrateSubagents_preservesIndicatorsOmittedFromSnapshot() =
+    fun testHydrateSubagents_removesStaleRunningIndicatorOmittedFromSnapshot() =
         testScope.runTest {
             val requestTime = 1000L
             val current =
@@ -228,12 +228,14 @@ class ChatSubagentsDelegateTest {
                         subagentId = "sub-1",
                         goal = "Active worker 1",
                         status = "running",
+                        lastEventTimestamp = 900L,
                     ),
                     SubagentIndicator(
                         type = "subagent.progress",
                         subagentId = "sub-2",
                         goal = "Active worker 2",
                         status = "running",
+                        lastEventTimestamp = 900L,
                     ),
                 )
 
@@ -247,9 +249,188 @@ class ChatSubagentsDelegateTest {
                 )
 
             val result = delegate.mergeSubagentList(current, listItems, requestTime)
-            assertEquals(2, result.size)
-            assertTrue(result.any { it.subagentId == "sub-1" })
+            assertEquals(1, result.size)
+            assertFalse(result.any { it.subagentId == "sub-1" })
             assertTrue(result.any { it.subagentId == "sub-2" })
+        }
+
+    @Test
+    fun testHydrateSubagents_newerPushEventIndicatorOmittedFromSnapshotIsNotRemoved() =
+        testScope.runTest {
+            val requestTime = 1000L
+            val current =
+                listOf(
+                    SubagentIndicator(
+                        type = "subagent.start",
+                        subagentId = "sub-1",
+                        goal = "Spawned during request",
+                        status = "running",
+                        lastEventTimestamp = 1500L, // Newer than requestTime (1000L)
+                    ),
+                )
+
+            // Older snapshot in-flight returns without sub-1
+            val listItems = emptyList<SubagentListItem>()
+
+            val result = delegate.mergeSubagentList(current, listItems, requestTime)
+            assertEquals(1, result.size)
+            assertEquals("sub-1", result.first().subagentId)
+            assertEquals("running", result.first().status)
+        }
+
+    @Test
+    fun testHydrateSubagents_placeholderWithoutSubagentIdIsPreserved() =
+        testScope.runTest {
+            val requestTime = 1000L
+            val current =
+                listOf(
+                    SubagentIndicator(
+                        type = "subagent.spawn_requested",
+                        subagentId = null,
+                        goal = "Plan decomposition",
+                        status = "running",
+                        lastEventTimestamp = 800L,
+                    ),
+                )
+
+            val listItems = emptyList<SubagentListItem>()
+
+            val result = delegate.mergeSubagentList(current, listItems, requestTime)
+            assertEquals(1, result.size)
+            assertNull(result.first().subagentId)
+            assertEquals("Plan decomposition", result.first().goal)
+        }
+
+    @Test
+    fun testHydrateSubagents_terminalIndicatorsOmittedFromSnapshotArePreserved() =
+        testScope.runTest {
+            val requestTime = 2000L
+            val current =
+                listOf(
+                    SubagentIndicator(
+                        type = "subagent.complete",
+                        subagentId = "sub-completed",
+                        goal = "Finished task",
+                        status = "completed",
+                        lastEventTimestamp = 1000L,
+                    ),
+                    SubagentIndicator(
+                        type = "subagent.progress",
+                        subagentId = "sub-failed",
+                        goal = "Failed task",
+                        status = "failed",
+                        lastEventTimestamp = 1000L,
+                    ),
+                    SubagentIndicator(
+                        type = "subagent.progress",
+                        subagentId = "sub-cancelled",
+                        goal = "Cancelled task",
+                        status = "cancelled",
+                        lastEventTimestamp = 1000L,
+                    ),
+                )
+
+            // Snapshot active roster omits all terminal subagents
+            val listItems = emptyList<SubagentListItem>()
+
+            val result = delegate.mergeSubagentList(current, listItems, requestTime)
+            assertEquals(3, result.size)
+            assertTrue(result.any { it.subagentId == "sub-completed" && it.isComplete })
+            assertTrue(result.any { it.subagentId == "sub-failed" && it.isFailed })
+            assertTrue(result.any { it.subagentId == "sub-cancelled" && it.isCancelled })
+        }
+
+    @Test
+    fun testHydrateSubagents_nullResponseDoesNotClearIndicators() =
+        testScope.runTest {
+            val initial =
+                listOf(
+                    SubagentIndicator(
+                        type = "subagent.progress",
+                        subagentId = "sub-1",
+                        goal = "Active worker",
+                        status = "running",
+                        lastEventTimestamp = 500L,
+                    ),
+                )
+            uiState.value = uiState.value.copy(subagentIndicators = initial)
+
+            coEvery { mockRepository.listSubagents("session-123") } returns null
+
+            delegate.hydrateSubagents("session-123")
+            advanceUntilIdle()
+
+            assertEquals(initial, uiState.value.subagentIndicators)
+        }
+
+    @Test
+    fun testHydrateSubagents_exceptionDoesNotClearIndicators() =
+        testScope.runTest {
+            val initial =
+                listOf(
+                    SubagentIndicator(
+                        type = "subagent.progress",
+                        subagentId = "sub-1",
+                        goal = "Active worker",
+                        status = "running",
+                        lastEventTimestamp = 500L,
+                    ),
+                )
+            uiState.value = uiState.value.copy(subagentIndicators = initial)
+
+            coEvery { mockRepository.listSubagents("session-123") } throws RuntimeException("Network timeout")
+
+            delegate.hydrateSubagents("session-123")
+            advanceUntilIdle()
+
+            assertEquals(initial, uiState.value.subagentIndicators)
+        }
+
+    @Test
+    fun testHydrateSubagents_reconnectReconciliationRemovesStaleRunningCard() =
+        testScope.runTest {
+            uiState.value =
+                uiState.value.copy(
+                    subagentIndicators =
+                        listOf(
+                            SubagentIndicator(
+                                type = "subagent.start",
+                                subagentId = "sub-1",
+                                goal = "Download files",
+                                status = "running",
+                                lastEventTimestamp = 500L,
+                            ),
+                            SubagentIndicator(
+                                type = "subagent.start",
+                                subagentId = "sub-2",
+                                goal = "Process files",
+                                status = "running",
+                                lastEventTimestamp = 500L,
+                            ),
+                        ),
+                )
+
+            // sub-1 finished while disconnected, sub-2 is still running
+            coEvery { mockRepository.listSubagents("session-123") } returns
+                SubagentListResponse(
+                    subagents =
+                        listOf(
+                            SubagentListItem(
+                                subagentId = "sub-2",
+                                goal = "Process files",
+                                status = "running",
+                                elapsedSeconds = 15.0,
+                            ),
+                        ),
+                )
+
+            delegate.hydrateSubagents("session-123")
+            advanceUntilIdle()
+
+            val indicators = uiState.value.subagentIndicators
+            assertEquals(1, indicators.size)
+            assertEquals("sub-2", indicators.first().subagentId)
+            assertFalse(indicators.any { it.subagentId == "sub-1" })
         }
 
     @Test

@@ -48,11 +48,13 @@ class ComposerInteractionTest {
     private fun setComposer(
         reasoningLevel: String? = "medium",
         model: String = "openai/gpt-5.5",
-        width: Dp? = null,
+        composerWidth: Dp? = null,
+        modelAfterTap: String? = null,
     ) {
         composeTestRule.setContent {
             var input by remember { mutableStateOf(TextFieldValue("")) }
             var listening by remember { mutableStateOf(false) }
+            var currentModel by remember { mutableStateOf(model) }
             val composer: @Composable () -> Unit = {
                 ChatInputBar(
                     inputFieldValue = input,
@@ -69,13 +71,16 @@ class ComposerInteractionTest {
                     isAgentTyping = false,
                     isConnected = true,
                     commandCatalog = CommandCatalog(),
-                    currentSessionModel = model,
+                    currentSessionModel = currentModel,
                     reasoningLevel = reasoningLevel,
-                    onModelTap = { modelTaps++ },
+                    onModelTap = {
+                        modelTaps++
+                        modelAfterTap?.let { currentModel = it }
+                    },
                     onReasoningTap = { selectedLevel = it },
                 )
             }
-            if (width == null) composer() else Box(Modifier.width(width)) { composer() }
+            if (composerWidth == null) composer() else Box(Modifier.width(composerWidth)) { composer() }
         }
     }
 
@@ -171,7 +176,7 @@ class ComposerInteractionTest {
     @Test
     fun longModelName_narrowComposer_scrollsWithoutOpeningPicker_orHidingControls() {
         val longModel = "openrouter/some-extremely-long-model-name-preview-2026-with-extra-characters"
-        setComposer(model = longModel, width = 280.dp)
+        setComposer(model = longModel, composerWidth = 280.dp)
 
         composeTestRule.onNodeWithTag("reasoning_chip").assertIsDisplayed()
         composeTestRule.onNodeWithTag("mic_button").assertIsDisplayed()
@@ -187,5 +192,46 @@ class ComposerInteractionTest {
         check(leftAfter < leftBefore) { "model text did not move after horizontal swipe" }
         composeTestRule.onNodeWithTag("reasoning_chip").assertIsDisplayed()
         composeTestRule.onNodeWithTag("mic_button").assertIsDisplayed()
+    }
+
+    @Test
+    fun shortModelName_wideComposerKeepsPillCompact() {
+        setComposer(composerWidth = 420.dp)
+
+        val availableWidth = 420.dp
+        val modelChip = composeTestRule.onNodeWithTag("model_chip").getUnclippedBoundsInRoot()
+        val reasoningChip = composeTestRule.onNodeWithTag("reasoning_chip").getUnclippedBoundsInRoot()
+        val pillWidth = maxOf(modelChip.right, reasoningChip.right) - minOf(modelChip.left, reasoningChip.left)
+
+        check(pillWidth < availableWidth * 0.8f) {
+            "short model pill should remain content-sized, width=$pillWidth available=$availableWidth"
+        }
+    }
+
+    @Test
+    fun changingModel_resetsScrolledLabelToTheStart() {
+        val firstModel = "openrouter/some-extremely-long-model-name-preview-2026-with-extra-characters"
+        val secondModel = "anthropic/another-extremely-long-model-name-preview-2026-with-extra-characters"
+        setComposer(model = firstModel, modelAfterTap = secondModel, composerWidth = 280.dp)
+
+        val firstText = composeTestRule.onNodeWithText(firstModel)
+        val leftBefore = firstText.getUnclippedBoundsInRoot().left
+        composeTestRule.onNodeWithTag("model_chip").performTouchInput { swipeLeft() }
+        check(firstText.getUnclippedBoundsInRoot().left < leftBefore) {
+            "first model text did not move after horizontal swipe"
+        }
+
+        composeTestRule.onNodeWithTag("model_chip").performClick()
+        val secondText = composeTestRule.onNodeWithText(secondModel)
+        val leftAfterModelChange = secondText.getUnclippedBoundsInRoot().left
+
+        check(leftAfterModelChange >= leftBefore - 1.dp) {
+            "new model label should reset to its initial left position"
+        }
+        composeTestRule.onNodeWithTag("reasoning_chip").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("mic_button").assertIsDisplayed()
+        composeTestRule.runOnIdle {
+            assertEquals("model selection should still invoke the picker", 1, modelTaps)
+        }
     }
 }

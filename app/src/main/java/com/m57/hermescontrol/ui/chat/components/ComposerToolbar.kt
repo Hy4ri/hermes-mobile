@@ -12,12 +12,14 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
@@ -42,6 +44,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -130,11 +133,15 @@ fun ComposerToolbar(
 
         // Model + reasoning pill — wraps its content inside the free space,
         // pushing the mic/action buttons to the far end
-        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+        val modelScrollState = rememberScrollState()
+        LaunchedEffect(currentSessionModel) {
+            modelScrollState.scrollTo(0)
+        }
+        Box(modifier = Modifier.weight(1f, fill = false), contentAlignment = Alignment.CenterStart) {
             Row(
                 modifier =
                     Modifier
-                        .fillMaxWidth()
+                        .width(IntrinsicSize.Max)
                         .height(ControlSize)
                         .clip(CircleShape)
                         .background(palette.control),
@@ -146,7 +153,7 @@ fun ComposerToolbar(
                             .weight(1f)
                             .fillMaxHeight()
                             .clipToBounds()
-                            .horizontalScroll(rememberScrollState())
+                            .horizontalScroll(modelScrollState)
                             .clickable(onClick = onModelTap)
                             .testTag("model_chip"),
                 ) {

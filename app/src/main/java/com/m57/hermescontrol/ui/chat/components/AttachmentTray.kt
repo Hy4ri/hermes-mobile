@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.CameraAlt
@@ -115,7 +116,7 @@ internal fun AttachmentTray(
             Surface(
                 modifier =
                     Modifier
-                        .width(280.dp)
+                        .widthIn(max = 280.dp)
                         .testTag("attachment_tray"),
                 shape = MaterialTheme.shapes.large,
                 color = palette.card,
@@ -197,7 +198,7 @@ private fun AttachmentTrayAction(
     }
 }
 
-private class AttachmentTrayPositionProvider(
+internal class AttachmentTrayPositionProvider(
     private val marginPx: Int,
 ) : PopupPositionProvider {
     override fun calculatePosition(
@@ -206,7 +207,10 @@ private class AttachmentTrayPositionProvider(
         layoutDirection: LayoutDirection,
         popupContentSize: IntSize,
     ): IntOffset {
-        val maxX = (windowSize.width - popupContentSize.width).coerceAtLeast(0)
+        val minX = marginPx
+        val maxX =
+            (windowSize.width - popupContentSize.width - marginPx)
+                .coerceAtLeast(minX)
         val x =
             if (layoutDirection == LayoutDirection.Ltr) {
                 anchorBounds.left + marginPx
@@ -218,7 +222,7 @@ private class AttachmentTrayPositionProvider(
         val maxY = (windowSize.height - popupContentSize.height).coerceAtLeast(0)
         val y = if (yAbove >= 0) yAbove else yBelow
         return IntOffset(
-            x = x.coerceIn(0, maxX),
+            x = x.coerceIn(minX, maxX),
             y = y.coerceIn(0, maxY),
         )
     }

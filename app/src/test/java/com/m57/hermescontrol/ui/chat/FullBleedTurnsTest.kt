@@ -1,8 +1,10 @@
 package com.m57.hermescontrol.ui.chat
 
 import com.m57.hermescontrol.ui.chat.fullbleed.AgentEntry
+import com.m57.hermescontrol.ui.chat.fullbleed.AgentStatus
 import com.m57.hermescontrol.ui.chat.fullbleed.ChatTurn
 import com.m57.hermescontrol.ui.chat.fullbleed.currentMatchMessageId
+import com.m57.hermescontrol.ui.chat.fullbleed.deriveAgentStatus
 import com.m57.hermescontrol.ui.chat.fullbleed.groupIntoTurns
 import com.m57.hermescontrol.ui.chat.fullbleed.groupIntoTurnsWithStreaming
 import com.m57.hermescontrol.ui.chat.fullbleed.matchedMessageIds
@@ -208,6 +210,71 @@ class FullBleedTurnsTest {
         assertEquals(listOf(entries(AgentEntry.Prose(s))), groupIntoTurnsWithStreaming(emptyList(), s))
     }
 
+    // ── deriveAgentStatus ──────────────────────────────────────────────────
+
+    @Test
+    fun `agent typing with no visible content shows dots`() {
+        assertEquals(
+            AgentStatus.Typing,
+            deriveAgentStatus(
+                isAgentTyping = true,
+                streamingState = StreamingState(),
+                messages = emptyList(),
+            ),
+        )
+    }
+
+    @Test
+    fun `reasoning takes precedence over generic typing`() {
+        assertEquals(
+            AgentStatus.Thinking,
+            deriveAgentStatus(
+                isAgentTyping = true,
+                streamingState = StreamingState(isReasoning = true),
+                messages = emptyList(),
+            ),
+        )
+    }
+
+    @Test
+    fun `visible streaming content removes the temporary status`() {
+        val streaming = msg("s1", MessageRole.ASSISTANT, content = "answer", isStreaming = true)
+        assertNull(
+            deriveAgentStatus(
+                isAgentTyping = true,
+                streamingState = StreamingState(streamingMessage = streaming, isThinking = true),
+                messages = emptyList(),
+            ),
+        )
+    }
+
+    @Test
+    fun `running tool takes precedence and selects the latest active call`() {
+        val first = msg("t1", MessageRole.TOOL, toolStatus = ToolStatus.RUNNING).copy(toolName = "read_file")
+        val latest = msg("t2", MessageRole.TOOL, toolStatus = ToolStatus.RUNNING).copy(toolName = "web_search")
+        assertEquals(
+            AgentStatus.Tool("web_search"),
+            deriveAgentStatus(
+                isAgentTyping = true,
+                streamingState = StreamingState(),
+                messages = listOf(first, latest),
+            ),
+        )
+    }
+
+    @Test
+    fun `completed tool falls back to dots while the turn is still active`() {
+        val completed = msg("t1", MessageRole.TOOL, toolStatus = ToolStatus.COMPLETED)
+        assertEquals(
+            AgentStatus.Typing,
+            deriveAgentStatus(
+                isAgentTyping = true,
+                streamingState = StreamingState(),
+                messages = listOf(completed),
+            ),
+        )
+    }
+
     // ── messageIdToLazyIndex ───────────────────────────────────────────────
 
     @Test
@@ -231,6 +298,19 @@ class FullBleedTurnsTest {
         assertEquals(3, map["a2"])
         // tool rows are items but never map (not searchable).
         assertNull(map["t1"])
+    }
+
+    @Test
+    fun `lazy index skips empty assistant placeholders`() {
+        val u1 = msg("u1", MessageRole.USER)
+        val placeholder = msg("empty", MessageRole.ASSISTANT, content = "", isStreaming = true)
+        val tool = msg("t1", MessageRole.TOOL)
+        val answer = msg("a1", MessageRole.ASSISTANT, content = "answer")
+        val map = messageIdToLazyIndex(groupIntoTurns(listOf(u1, placeholder, tool, answer)))
+        // user u1 at 0, empty assistant omitted, tool at 1, answer at 2.
+        assertEquals(0, map["u1"])
+        assertEquals(2, map["a1"])
+        assertNull(map["empty"])
     }
 
     @Test

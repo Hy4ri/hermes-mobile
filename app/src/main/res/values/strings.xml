@@ -208,7 +208,12 @@
     <string name="settings_sec_chat">Chat</string>
     <string name="settings_item_typing_effect">Typing Effect</string>
     <string name="settings_desc_typing_effect">Animate new messages word by word</string>
-    <string name="fullbleed_role_agent">Assistant</string>
+    <string name="chat_agent_status_typing">Agent is typing</string>
+    <string name="chat_agent_status_thinking">Thinking…</string>
+    <string name="chat_agent_status_searching">Searching…</string>
+    <string name="chat_agent_status_reading">Reading file…</string>
+    <string name="chat_agent_status_running_command">Running command…</string>
+    <string name="chat_agent_status_using_tool">Using tool…</string>
     <string name="settings_item_typing_delay">Delay: %1$d ms</string>
     <string name="settings_delay_10ms">10 ms</string>
     <string name="settings_delay_100ms">100 ms</string>

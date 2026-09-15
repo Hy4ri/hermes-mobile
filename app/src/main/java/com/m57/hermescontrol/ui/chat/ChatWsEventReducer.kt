@@ -456,10 +456,11 @@ object ChatWsEventReducer {
         streamingState: StreamingState,
     ): ReducerResult {
         val streaming =
-            streamingState.streamingMessage ?: return ReducerResult(
-                state = state,
-                streamingState = streamingState,
-            )
+            streamingState.streamingMessage
+                ?: return ReducerResult(
+                    state = state.copy(isAgentTyping = false),
+                    streamingState = streamingState,
+                )
         val reasoning =
             if (streamingState.reasoningText.isNotBlank()) {
                 streamingState.reasoningText
@@ -578,7 +579,12 @@ object ChatWsEventReducer {
         val nextTodos = parsedTodos ?: newState.todos
 
         return ReducerResult(
-            state = newState.copy(messages = newState.messages + toolMessage, todos = nextTodos),
+            state =
+                newState.copy(
+                    messages = newState.messages + toolMessage,
+                    isAgentTyping = true,
+                    todos = nextTodos,
+                ),
             streamingState = finalStreamingState,
             effects = effects,
         )
@@ -810,6 +816,7 @@ object ChatWsEventReducer {
         ReducerResult(
             state =
                 state.copy(
+                    isAgentTyping = false,
                     isLoading = false,
                     errorMessage = "Backend error: ${event.message ?: "Unknown gateway error"}",
                 ),

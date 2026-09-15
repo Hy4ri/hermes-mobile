@@ -68,6 +68,8 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -746,13 +748,19 @@ fun SubagentCard(
 // ── TypingIndicator ───────────────────────────────────────────────────────
 
 /**
- * Three bouncing dots shown while the assistant is typing / thinking.
- * Staggered animation: 0ms, 150ms, 300ms delay per dot.
+ * Three subtle dots shown while the assistant is waiting to produce visible
+ * content. Staggered opacity/scale animation keeps the indicator lightweight
+ * without the distracting vertical bounce used by the old chat renderer.
  */
 @Composable
 fun TypingIndicator(modifier: Modifier = Modifier) {
+    val description = stringResource(R.string.chat_agent_status_typing)
     Row(
-        modifier = modifier.padding(horizontal = 16.dp, vertical = 8.dp).testTag("typing_indicator"),
+        modifier =
+            modifier
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .semantics { contentDescription = description }
+                .testTag("typing_indicator"),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -768,18 +776,18 @@ private fun TypingDot(delayMs: Int) {
     val typingSpec: InfiniteRepeatableSpec<Float> =
         remember(delayMs) {
             infiniteRepeatable(
-                animation = tween(400, delayMillis = delayMs, easing = LinearEasing),
+                animation = tween(700, delayMillis = delayMs, easing = LinearEasing),
                 repeatMode = RepeatMode.Reverse,
             )
         }
     val offset by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = -6f,
+        initialValue = 0.85f,
+        targetValue = 1f,
         animationSpec = typingSpec,
-        label = "typing_dot_offset_$delayMs",
+        label = "typing_dot_scale_$delayMs",
     )
     val alpha by infiniteTransition.animateFloat(
-        initialValue = 0.4f,
+        initialValue = 0.45f,
         targetValue = 1f,
         animationSpec = typingSpec,
         label = "typing_dot_alpha_$delayMs",
@@ -790,7 +798,8 @@ private fun TypingDot(delayMs: Int) {
                 .size(8.dp)
                 .clip(CircleShape)
                 .graphicsLayer {
-                    this.translationY = offset
+                    this.scaleX = offset
+                    this.scaleY = offset
                     this.alpha = alpha
                 },
     ) {

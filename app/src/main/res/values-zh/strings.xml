@@ -184,7 +184,12 @@
     <string name="settings_sec_chat">对话</string>
     <string name="settings_item_typing_effect">打字效果</string>
     <string name="settings_desc_typing_effect">逐字显示新消息动画</string>
-    <string name="fullbleed_role_agent">助手</string>
+    <string name="chat_agent_status_typing">助手正在输入</string>
+    <string name="chat_agent_status_thinking">正在思考…</string>
+    <string name="chat_agent_status_searching">正在搜索…</string>
+    <string name="chat_agent_status_reading">正在读取文件…</string>
+    <string name="chat_agent_status_running_command">正在运行命令…</string>
+    <string name="chat_agent_status_using_tool">正在使用工具…</string>
     <string name="settings_item_typing_delay">延迟：%1$d 毫秒</string>
     <string name="settings_delay_10ms">10 毫秒</string>
     <string name="settings_delay_100ms">100 毫秒</string>

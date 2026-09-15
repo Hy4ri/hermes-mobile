@@ -1241,6 +1241,7 @@
     <string name="chat_fast_mode_label">Fast</string>
     <string name="chat_fast_mode_desc">Fast mode</string>
     <string name="chat_fast_mode_unavailable">Fast mode unavailable for this model</string>
+    <string name="chat_reasoning_menu_desc">Reasoning options</string>
     <string name="chat_save_attachment">Save %1$s</string>
     <string name="chat_switch_model_title">Switch model (this chat)</string>
     <string name="config_clear_value">Clear value</string>

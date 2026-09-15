@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material3.CircularProgressIndicator
@@ -157,7 +158,7 @@ fun ComposerToolbar(
                             Modifier
                                 .fillMaxHeight()
                                 .clickable(enabled = isConnected) { showReasoningMenu = true }
-                                .padding(start = 6.dp, end = 16.dp)
+                                .padding(start = 6.dp, end = 12.dp)
                                 .testTag("reasoning_chip"),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -192,6 +193,13 @@ fun ComposerToolbar(
                             color = levelColor,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
+                        )
+                        // Chevron marks the level half of the pill as a menu trigger
+                        Icon(
+                            imageVector = Icons.Filled.ExpandMore,
+                            contentDescription = stringResource(R.string.chat_reasoning_menu_desc),
+                            tint = levelColor,
+                            modifier = Modifier.size(16.dp),
                         )
                     }
 

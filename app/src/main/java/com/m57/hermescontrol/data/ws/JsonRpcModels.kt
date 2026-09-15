@@ -23,7 +23,9 @@ data class JsonRpcRequest(
 )
 
 /**
- * Incoming JSON-RPC 2.0 response **or** server-pushed notification.
+ * Incoming JSON-RPC 2.0 response, server-to-client request, or notification.
+ * Frames carrying both [id] and [method] are classified as server requests by
+ * [EventParser], never as responses to a client RPC.
  */
 @Serializable
 data class JsonRpcResponse(

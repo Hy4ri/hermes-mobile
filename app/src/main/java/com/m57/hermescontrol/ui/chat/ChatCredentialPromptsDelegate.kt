@@ -7,6 +7,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -21,7 +22,21 @@ class ChatCredentialPromptsDelegate(
     private val uiState: MutableStateFlow<ChatUiState>,
     private val wsSend: (method: String, params: Map<String, Any>, onSent: ((String) -> Unit)?) -> Unit,
     private val trackRequest: (id: String, method: String) -> Unit,
+    private val respondToServerRequest: ((String, JsonElement) -> Unit)? = null,
 ) {
+    private fun sendResponse(
+        requestId: String?,
+        result: JsonElement,
+        legacyMethod: String,
+        legacyParams: Map<String, Any>,
+    ) {
+        if (requestId != null && respondToServerRequest != null) {
+            respondToServerRequest.invoke(requestId, result)
+        } else {
+            wsSend(legacyMethod, legacyParams) { id -> trackRequest(id, legacyMethod) }
+        }
+    }
+
     /**
      * The agent needs the user's sudo password. Surface a secure dialog and
      * reply via sudo.respond.
@@ -101,10 +116,12 @@ class ChatCredentialPromptsDelegate(
                     "password" to "",
                 )
             prompt.requestId?.let { id -> params["request_id"] = id }
-            wsSend(
+            sendResponse(
+                prompt.requestId,
+                buildJsonObject { put("value", "") },
                 WsMethods.SUDO_RESPOND,
                 params,
-            ) { id -> trackRequest(id, WsMethods.SUDO_RESPOND) }
+            )
         }
     }
 
@@ -124,10 +141,12 @@ class ChatCredentialPromptsDelegate(
                     "value" to "",
                 )
             prompt.requestId?.let { id -> params["request_id"] = id }
-            wsSend(
+            sendResponse(
+                prompt.requestId,
+                buildJsonObject { put("value", "") },
                 WsMethods.SECRET_RESPOND,
                 params,
-            ) { id -> trackRequest(id, WsMethods.SECRET_RESPOND) }
+            )
         }
     }
 
@@ -149,10 +168,12 @@ class ChatCredentialPromptsDelegate(
                     "password" to password,
                 )
             prompt.requestId?.let { id -> params["request_id"] = id }
-            wsSend(
+            sendResponse(
+                prompt.requestId,
+                buildJsonObject { put("value", password) },
                 WsMethods.SUDO_RESPOND,
                 params,
-            ) { id -> trackRequest(id, WsMethods.SUDO_RESPOND) }
+            )
         }
     }
 
@@ -173,10 +194,12 @@ class ChatCredentialPromptsDelegate(
                     "value" to value,
                 )
             prompt.requestId?.let { id -> params["request_id"] = id }
-            wsSend(
+            sendResponse(
+                prompt.requestId,
+                buildJsonObject { put("value", value) },
                 WsMethods.SECRET_RESPOND,
                 params,
-            ) { id -> trackRequest(id, WsMethods.SECRET_RESPOND) }
+            )
         }
     }
 
@@ -228,10 +251,12 @@ class ChatCredentialPromptsDelegate(
                     "password" to "",
                 )
             prompt.requestId?.let { id -> params["request_id"] = id }
-            wsSend(
+            sendResponse(
+                prompt.requestId,
+                buildJsonObject { put("value", "") },
                 WsMethods.VAULT_UNLOCK_RESPOND,
                 params,
-            ) { id -> trackRequest(id, WsMethods.VAULT_UNLOCK_RESPOND) }
+            )
         }
     }
 
@@ -249,10 +274,12 @@ class ChatCredentialPromptsDelegate(
                     "password" to password,
                 )
             prompt.requestId?.let { id -> params["request_id"] = id }
-            wsSend(
+            sendResponse(
+                prompt.requestId,
+                buildJsonObject { put("value", password) },
                 WsMethods.VAULT_UNLOCK_RESPOND,
                 params,
-            ) { id -> trackRequest(id, WsMethods.VAULT_UNLOCK_RESPOND) }
+            )
         }
     }
 
@@ -301,10 +328,12 @@ class ChatCredentialPromptsDelegate(
                     "login" to "",
                 )
             prompt.requestId?.let { id -> params["request_id"] = id }
-            wsSend(
+            sendResponse(
+                prompt.requestId,
+                buildJsonObject { put("value", "") },
                 WsMethods.VAULT_SAVE_LOGIN_RESPOND,
                 params,
-            ) { id -> trackRequest(id, WsMethods.VAULT_SAVE_LOGIN_RESPOND) }
+            )
         }
     }
 
@@ -330,10 +359,12 @@ class ChatCredentialPromptsDelegate(
                     "login" to loginJson,
                 )
             prompt.requestId?.let { id -> params["request_id"] = id }
-            wsSend(
+            sendResponse(
+                prompt.requestId,
+                buildJsonObject { put("value", loginJson) },
                 WsMethods.VAULT_SAVE_LOGIN_RESPOND,
                 params,
-            ) { id -> trackRequest(id, WsMethods.VAULT_SAVE_LOGIN_RESPOND) }
+            )
         }
     }
 
@@ -382,10 +413,12 @@ class ChatCredentialPromptsDelegate(
                     "code" to "",
                 )
             prompt.requestId?.let { id -> params["request_id"] = id }
-            wsSend(
+            sendResponse(
+                prompt.requestId,
+                buildJsonObject { put("value", "") },
                 WsMethods.VAULT_CODE_RESPOND,
                 params,
-            ) { id -> trackRequest(id, WsMethods.VAULT_CODE_RESPOND) }
+            )
         }
     }
 
@@ -403,10 +436,12 @@ class ChatCredentialPromptsDelegate(
                     "code" to code,
                 )
             prompt.requestId?.let { id -> params["request_id"] = id }
-            wsSend(
+            sendResponse(
+                prompt.requestId,
+                buildJsonObject { put("value", code) },
                 WsMethods.VAULT_CODE_RESPOND,
                 params,
-            ) { id -> trackRequest(id, WsMethods.VAULT_CODE_RESPOND) }
+            )
         }
     }
 }

@@ -7,6 +7,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 class ChatClarifyDelegate(
     private val uiState: MutableStateFlow<ChatUiState>,
@@ -15,6 +18,7 @@ class ChatClarifyDelegate(
     private val persistMessage: suspend (ChatMessage, String) -> Unit,
     private val wsClient: HermesWsClient = HermesWsClient,
     private val trackRequest: (String, String) -> Unit = { _, _ -> },
+    private val respondToServerRequest: ((String, JsonElement) -> Unit)? = null,
 ) {
     fun respondToClarify(option: String) {
         val clarify = uiState.value.clarifyRequest
@@ -75,6 +79,28 @@ class ChatClarifyDelegate(
         }
 
         scope.launch(ioDispatcher) {
+            if (clarifyId != null && respondToServerRequest != null) {
+                val result =
+                    if (isBatch) {
+                        buildJsonObject {
+                            put(
+                                "answers",
+                                buildJsonObject {
+                                    for (question in questions) {
+                                        put(question.qid, answers[question.qid]?.trim().orEmpty())
+                                    }
+                                },
+                            )
+                        }
+                    } else {
+                        buildJsonObject {
+                            put("answer", answers.values.firstOrNull()?.trim() ?: singleFallbackAnswer.orEmpty())
+                        }
+                    }
+                respondToServerRequest.invoke(clarifyId, result)
+                return@launch
+            }
+
             if (isBatch) {
                 for (q in questions) {
                     val ans = answers[q.qid]?.trim().orEmpty()

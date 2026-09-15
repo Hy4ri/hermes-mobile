@@ -7,6 +7,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /**
  * Owns approval rendering, deduplication, user response submission, and
@@ -22,8 +25,17 @@ class ChatApprovalsDelegate(
     private val wsSend: (method: String, params: Map<String, Any>, onSent: ((String) -> Unit)?) -> Unit,
     private val trackRequest: (id: String, method: String) -> Unit,
     private val addSystemMessage: (text: String) -> Unit,
+    private val respondToServerRequest: ((String, JsonElement) -> Unit)? = null,
 ) {
     fun handleApprovalRequest(event: WsEvent.ApprovalRequest) {
+        if ((event.serverRequestId != null || event.requestId != null) &&
+            uiState.value.messages.any {
+                it.approvalInfo?.serverRequestId == event.serverRequestId &&
+                    it.approvalInfo?.requestId == event.requestId
+            }
+        ) {
+            return
+        }
         val description = event.description ?: event.command ?: "Unknown command"
         val content = "**Approval Required**\n$description"
         val msg =
@@ -36,6 +48,7 @@ class ChatApprovalsDelegate(
                         description = event.description,
                         patternKeys = event.patternKeys,
                         requestId = event.requestId,
+                        serverRequestId = event.serverRequestId,
                         choices = event.choices,
                         allowPermanent = event.allowPermanent,
                         smartDenied = event.smartDenied,
@@ -51,7 +64,7 @@ class ChatApprovalsDelegate(
         // so the backend knows this client holds the prompt. Fire-and-forget.
         val requestId = event.requestId
         val sessionId = runtimeSessionId() ?: event.sessionId ?: uiState.value.currentSessionId
-        if (requestId != null && sessionId != null) {
+        if (event.serverRequestId == null && requestId != null && sessionId != null) {
             scope.launch(ioDispatcher) {
                 runCatching {
                     wsSend(
@@ -118,6 +131,7 @@ class ChatApprovalsDelegate(
         // (any non-deny still unblocks, but stay on-spec going forward).
         val choice = if (action == "approve") "once" else action
         val requestId = approvalMsg.approvalInfo?.requestId
+        val serverRequestId = approvalMsg.approvalInfo?.serverRequestId
 
         // Clear buttons immediately
         uiState.update { s ->
@@ -134,6 +148,16 @@ class ChatApprovalsDelegate(
         }
 
         scope.launch(ioDispatcher) {
+            if (serverRequestId != null && respondToServerRequest != null) {
+                respondToServerRequest.invoke(
+                    serverRequestId,
+                    buildJsonObject {
+                        put("choice", choice)
+                        put("all", false)
+                    },
+                )
+                return@launch
+            }
             val params =
                 mutableMapOf<String, Any>(
                     "session_id" to sessionId,
@@ -147,6 +171,21 @@ class ChatApprovalsDelegate(
             ) { id -> trackRequest(id, WsMethods.APPROVAL_RESPOND) }
             // The queue can hold more pendings — surface the next one.
             replayPendingApproval(sessionId)
+        }
+    }
+
+    fun cancelServerRequest(requestId: String) {
+        uiState.update { state ->
+            state.copy(
+                messages =
+                    state.messages.map { message ->
+                        if (message.approvalInfo?.serverRequestId == requestId) {
+                            message.copy(approvalInfo = null)
+                        } else {
+                            message
+                        }
+                    },
+            )
         }
     }
 }
@@ -189,6 +228,7 @@ internal fun parseApprovalMap(
         patternKeys = patternKeys,
         sessionId = sessionId,
         requestId = map["request_id"] as? String,
+        serverRequestId = null,
         choices = choices,
         allowPermanent = allowPermanent,
         smartDenied = smartDenied,

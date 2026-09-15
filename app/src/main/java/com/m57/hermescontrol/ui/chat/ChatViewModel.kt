@@ -43,6 +43,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
@@ -469,6 +470,12 @@ class ChatViewModel(
             uiState = _uiState,
             wsSend = { method, params, onSent -> wsClient.send(method, params, onSent) },
             trackRequest = { id, method -> trackRequest(id, method) },
+            respondToServerRequest =
+                if (isTestEnvironment()) {
+                    null
+                } else {
+                    { id, result -> wsClient.respondToServerRequest(id, result) }
+                },
         )
 
     private val approvalsDelegate =
@@ -480,6 +487,12 @@ class ChatViewModel(
             wsSend = { method, params, onSent -> wsClient.send(method, params, onSent) },
             trackRequest = { id, method -> trackRequest(id, method) },
             addSystemMessage = { text -> addSystemMessage(text) },
+            respondToServerRequest =
+                if (isTestEnvironment()) {
+                    null
+                } else {
+                    { id, result -> wsClient.respondToServerRequest(id, result) }
+                },
         )
 
     private val clarifyDelegate =
@@ -490,6 +503,12 @@ class ChatViewModel(
             persistMessage = { msg, sid -> repo.persistMessage(msg, sid) },
             wsClient = wsClient,
             trackRequest = { id, method -> trackRequest(id, method) },
+            respondToServerRequest =
+                if (isTestEnvironment()) {
+                    null
+                } else {
+                    { id, result -> wsClient.respondToServerRequest(id, result) }
+                },
         )
 
     private val subagentsDelegate =
@@ -941,6 +960,14 @@ class ChatViewModel(
                 streamingController.resetStreaming()
             }
 
+            is WsEvent.ServerRequest -> {
+                handleServerRequest(event)
+            }
+
+            is WsEvent.ServerRequestCancelled -> {
+                handleServerRequestCancelled(event)
+            }
+
             is WsEvent.ApprovalRequest -> {
                 approvalsDelegate.handleApprovalRequest(event)
             }
@@ -1012,6 +1039,157 @@ class ChatViewModel(
             }
 
             else -> { /* reducer handles these */ }
+        }
+    }
+
+    /** Route the generic transport event into the existing prompt delegates. */
+    private fun handleServerRequest(request: WsEvent.ServerRequest) {
+        val params = request.params
+        val sessionId = params["session_id"] as? String
+        when (request.method) {
+            "clarify" -> {
+                @Suppress("UNCHECKED_CAST")
+                val rawQuestions = params["questions"] as? List<*>
+                val questions =
+                    rawQuestions.orEmpty().mapIndexedNotNull { index, item ->
+                        val map = item as? Map<*, *> ?: return@mapIndexedNotNull null
+                        val question = map["question"] as? String ?: return@mapIndexedNotNull null
+
+                        @Suppress("UNCHECKED_CAST")
+                        val choices = (map["choices"] as? List<*>)?.filterIsInstance<String>() ?: emptyList()
+                        WsEvent.ClarifyQuestion(
+                            qid = map["qid"] as? String ?: "q$index",
+                            question = question,
+                            choices = choices,
+                            multiSelect = map["multi_select"] as? Boolean ?: false,
+                        )
+                    }
+                val first = questions.firstOrNull()
+                handleWsEvent(
+                    WsEvent.ClarifyRequest(
+                        text = first?.question ?: params["question"] as? String,
+                        options = first?.choices ?: (params["choices"] as? List<*>)?.filterIsInstance<String>(),
+                        clarifyId = request.id,
+                        sessionId = sessionId,
+                        questionId = first?.qid,
+                        multiSelect = first?.multiSelect ?: (params["multi_select"] as? Boolean ?: false),
+                        questions = questions,
+                    ),
+                )
+            }
+
+            "approval" -> {
+                @Suppress("UNCHECKED_CAST")
+                val choices = (params["choices"] as? List<*>)?.filterIsInstance<String>()
+                handleWsEvent(
+                    WsEvent.ApprovalRequest(
+                        command = params["command"] as? String,
+                        description = params["description"] as? String,
+                        patternKeys = (params["pattern_keys"] as? List<*>)?.filterIsInstance<String>(),
+                        sessionId = sessionId,
+                        requestId = params["request_id"] as? String,
+                        serverRequestId = request.id,
+                        choices = choices,
+                        allowPermanent = params["allow_permanent"] as? Boolean,
+                        smartDenied = params["smart_denied"] as? Boolean,
+                    ),
+                )
+            }
+
+            "sudo" -> {
+                handleWsEvent(WsEvent.SudoRequest(request.id, sessionId))
+            }
+
+            "secret" -> {
+                handleWsEvent(
+                    WsEvent.SecretRequest(
+                        requestId = request.id,
+                        sessionId = sessionId,
+                        envVar = params["env_var"] as? String,
+                        prompt = params["prompt"] as? String,
+                    ),
+                )
+            }
+
+            "vault.code" -> {
+                handleWsEvent(
+                    WsEvent.VaultCodeRequest(
+                        requestId = request.id,
+                        sessionId = sessionId,
+                        site = params["site"] as? String,
+                        hint = params["hint"] as? String,
+                    ),
+                )
+            }
+
+            "vault.save_login" -> {
+                handleWsEvent(
+                    WsEvent.VaultSaveLoginRequest(
+                        requestId = request.id,
+                        sessionId = sessionId,
+                        origin = params["origin"] as? String,
+                        site = params["site"] as? String,
+                    ),
+                )
+            }
+
+            "vault.unlock_prompt" -> {
+                handleWsEvent(
+                    WsEvent.VaultUnlockRequest(
+                        requestId = request.id,
+                        sessionId = sessionId,
+                        backend = params["backend"] as? String,
+                        displayName = params["display_name"] as? String,
+                    ),
+                )
+            }
+
+            else -> {
+                wsClient.respondToServerRequestError(
+                    request.id,
+                    -32601,
+                    "no handler for server request: ${request.method}",
+                )
+            }
+        }
+    }
+
+    private fun handleServerRequestCancelled(event: WsEvent.ServerRequestCancelled) {
+        when (event.method) {
+            "clarify" -> {
+                if (_uiState.value.clarifyRequest?.clarifyId == event.id) {
+                    _uiState.update { it.copy(clarifyRequest = null) }
+                    streamingController.resetStreaming()
+                }
+            }
+
+            "approval" -> {
+                approvalsDelegate.cancelServerRequest(event.id)
+            }
+
+            "sudo" -> {
+                credentialPromptsDelegate.handleSudoExpire(WsEvent.SudoExpire(event.id, event.sessionId))
+            }
+
+            "secret" -> {
+                credentialPromptsDelegate.handleSecretExpire(WsEvent.SecretExpire(event.id, event.sessionId))
+            }
+
+            "vault.code" -> {
+                credentialPromptsDelegate.handleVaultCodeExpire(WsEvent.VaultCodeExpire(event.id, event.sessionId))
+            }
+
+            "vault.save_login" -> {
+                credentialPromptsDelegate.handleVaultSaveLoginExpire(
+                    WsEvent.VaultSaveLoginExpire(event.id, event.sessionId),
+                )
+            }
+
+            "vault.unlock_prompt" -> {
+                credentialPromptsDelegate.handleVaultUnlockExpire(
+                    WsEvent.VaultUnlockExpire(event.id, event.sessionId),
+                )
+            }
         }
     }
 
@@ -3476,6 +3654,10 @@ class ChatViewModel(
         addSystemMessage("Clarify dismissed — no answer sent", persist = true)
 
         viewModelScope.launch(ioDispatcher) {
+            if (clarifyId != null && !isTestEnvironment()) {
+                wsClient.respondToServerRequest(clarifyId, buildJsonObject {})
+                return@launch
+            }
             if (isBatch) {
                 // Send dismissal for every question in the batch
                 for (q in displayQuestions) {

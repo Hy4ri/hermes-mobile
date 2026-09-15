@@ -213,6 +213,25 @@ sealed class WsEvent {
         val sessionId: String? = null,
     ) : WsEvent()
 
+    /**
+     * Generic JSON-RPC server-to-client request. The gateway keeps the request
+     * open until the client sends a response frame with this exact [id].
+     */
+    data class ServerRequest(
+        val id: String,
+        val method: String,
+        val params: Map<String, Any?> = emptyMap(),
+        val replayed: Boolean = false,
+    ) : WsEvent()
+
+    /** The gateway withdrew a still-open server request (timeout/interruption). */
+    data class ServerRequestCancelled(
+        val id: String,
+        val method: String,
+        val reason: String,
+        val sessionId: String? = null,
+    ) : WsEvent()
+
     // ── RPC responses ────────────────────────────────────────────────────
 
     data class RpcResult(
@@ -256,6 +275,8 @@ sealed class WsEvent {
          * restricts to once/deny only (desktop `smartDenied` parity).
          */
         val smartDenied: Boolean? = null,
+        /** JSON-RPC server-request id (`srq-*`) used for the response frame. */
+        val serverRequestId: String? = null,
     ) : WsEvent()
 
     // ── Sudo / secret requests ─────────────────────────────────────────

@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.ui.chat
 
+import com.m57.hermescontrol.data.model.UsageSnapshotResponse
+
 data class StreamingState(
     val streamingMessage: ChatMessage? = null,
     val isThinking: Boolean = false,
@@ -14,4 +16,8 @@ data class StreamingState(
      * every fresh StreamingState (message.start / interrupt / session switch).
      */
     val sealedOrphanIds: List<String> = emptyList(),
+    /** Cumulative usage before the current turn; retained across tool-loop message segments. */
+    val turnUsageBaseline: UsageSnapshotResponse? = null,
+    /** Distinguishes a captured-but-unavailable baseline from a not-yet-captured one. */
+    val turnUsageBaselineCaptured: Boolean = false,
 )

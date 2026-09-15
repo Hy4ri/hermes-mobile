@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.ui.chat
 
+import com.m57.hermescontrol.data.model.deltaFrom
+import com.m57.hermescontrol.data.model.mergeWith
 import com.m57.hermescontrol.data.model.parseUsageSnapshot
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.ws.WsEvent
@@ -10,6 +12,22 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
 private fun List<ChatMessage>.upsertById(message: ChatMessage): List<ChatMessage> = (this + message).dedupeById()
+
+private fun Long.toIntOrNullSafely(): Int? = takeIf { it in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong() }?.toInt()
+
+internal fun applyUsageSnapshot(
+    state: ChatUiState,
+    snapshot: com.m57.hermescontrol.data.model.UsageSnapshotResponse,
+): ChatUiState {
+    val validTps = snapshot.avgTps?.takeIf { it.isFinite() && it > 0.0 }
+    return state.copy(
+        sessionUsage = snapshot.mergeWith(state.sessionUsage),
+        compressionCount = snapshot.compressions ?: state.compressionCount,
+        usedContextTokens = snapshot.contextUsed?.takeIf { it > 0L } ?: state.usedContextTokens,
+        fullContextTokens = snapshot.contextMax?.takeIf { it > 0L } ?: state.fullContextTokens,
+        latestTps = validTps ?: state.latestTps,
+    )
+}
 
 /**
  * Strips this turn's sealed-orphan prefix from the final message text.
@@ -83,7 +101,7 @@ object ChatWsEventReducer {
                 is WsEvent.VaultCodeExpire -> event.sessionId
                 else -> null
             }
-        if (eventSessionId != null && currentSessionId != null && eventSessionId != currentSessionId) {
+        if (eventSessionId != null && (currentSessionId == null || eventSessionId != currentSessionId)) {
             return ReducerResult(state = state, streamingState = streamingState)
         }
         val result = reduceInternal(state, streamingState, event)
@@ -242,8 +260,8 @@ object ChatWsEventReducer {
                     streamingState.streamingMessage.copy(
                         isStreaming = false,
                         finishTimestamp = System.currentTimeMillis(),
-                        tokenCount = TokenEstimator.estimate(streamingState.streamingMessage.content).takeIf { it > 0 },
-                        tps = state.latestTps?.takeIf { it > 0.0 },
+                        tokenCount = null,
+                        tps = null,
                     )
                 orphan = finalized
                 state.copy(
@@ -264,6 +282,13 @@ object ChatWsEventReducer {
                 // slate — no isReasoning flag, no inherited reasoning text.
                 isReasoning = false,
                 reasoningText = "",
+                turnUsageBaseline =
+                    if (streamingState.turnUsageBaselineCaptured) {
+                        streamingState.turnUsageBaseline
+                    } else {
+                        state.sessionUsage
+                    },
+                turnUsageBaselineCaptured = true,
             )
         val newState = preState
         val sid = newState.currentSessionId
@@ -375,6 +400,9 @@ object ChatWsEventReducer {
         streamingState: StreamingState,
         event: WsEvent.MessageComplete,
     ): ReducerResult {
+        val finalSnapshot = event.rawPayload?.let(::parseUsageSnapshot)
+        val usageState = finalSnapshot?.let { applyUsageSnapshot(state, it) } ?: state
+        val turnUsage = finalSnapshot?.deltaFrom(streamingState.turnUsageBaseline)
         val streaming = streamingState.streamingMessage
         // Prefer the authoritative reasoning carried in the message.complete
         // payload (the gateway's assembled full trace), then fall back to
@@ -392,20 +420,25 @@ object ChatWsEventReducer {
         // exactly once, matching the persisted transcript (sealed orphans +
         // stripped answer). Turns whose final text does NOT contain the
         // commentary are left untouched (orphans stay, final keeps its text).
-        val text = stripSealedOrphanPrefix(event.text, state.messages, streamingState.sealedOrphanIds)
+        val text = stripSealedOrphanPrefix(event.text, usageState.messages, streamingState.sealedOrphanIds)
         // Edge: the complete payload was entirely covered by sealed orphans
         // (the interim text already rendered as its own bubble(s)) — nothing
-        // new to show, so don't add an empty final bubble.
+        // new to show, so don't add an empty final bubble. Usage is applied
+        // above before this return because the final snapshot is still needed
+        // as the next turn's cumulative baseline.
         if (text.isBlank()) {
             return ReducerResult(
-                state = state.copy(isAgentTyping = false),
-                streamingState = streamingState.copy(streamingMessage = null),
+                state = usageState.copy(isAgentTyping = false),
+                streamingState = StreamingState(),
             )
         }
-        val rawUsage = event.rawPayload?.get("usage") as? Map<*, *>
-        val tpsFromPayload = (rawUsage?.get("avg_tps") as? Number)?.toDouble()
-        val tps = (tpsFromPayload ?: state.latestTps)?.takeIf { it > 0.0 }
-        val tokenCount = TokenEstimator.estimate(text).takeIf { it > 0 }
+        val tps = (turnUsage?.avgTps ?: usageState.latestTps)?.takeIf { it.isFinite() && it > 0.0 }
+        val tokenCount =
+            if (turnUsage?.outputTokens != null) {
+                turnUsage.outputTokens.toIntOrNullSafely()
+            } else {
+                TokenEstimator.estimate(text).takeIf { it > 0 }
+            }
         val msg =
             streaming?.copy(
                 content = text,
@@ -440,11 +473,12 @@ object ChatWsEventReducer {
         }
         return ReducerResult(
             state =
-                state.copy(
-                    messages = state.messages.upsertById(msg),
+                usageState.copy(
+                    messages = usageState.messages.upsertById(msg),
                     isAgentTyping = false,
                     clarifyRequest = null,
                 ),
+            streamingState = StreamingState(),
             effects = effects,
         )
     }
@@ -459,7 +493,7 @@ object ChatWsEventReducer {
             streamingState.streamingMessage
                 ?: return ReducerResult(
                     state = state.copy(isAgentTyping = false),
-                    streamingState = streamingState,
+                    streamingState = StreamingState(),
                 )
         val reasoning =
             if (streamingState.reasoningText.isNotBlank()) {
@@ -493,6 +527,7 @@ object ChatWsEventReducer {
                     messages = state.messages.upsertById(msg),
                     isAgentTyping = false,
                 ),
+            streamingState = StreamingState(),
             effects = effects,
         )
     }
@@ -539,8 +574,8 @@ object ChatWsEventReducer {
                         isStreaming = false,
                         reasoningText = reasoning,
                         finishTimestamp = System.currentTimeMillis(),
-                        tokenCount = TokenEstimator.estimate(streamingState.streamingMessage.content).takeIf { it > 0 },
-                        tps = state.latestTps?.takeIf { it > 0.0 },
+                        tokenCount = null,
+                        tps = null,
                     )
                 orphanToPersist = finalized
                 state.copy(
@@ -820,7 +855,7 @@ object ChatWsEventReducer {
                     isLoading = false,
                     errorMessage = "Backend error: ${event.message ?: "Unknown gateway error"}",
                 ),
-            streamingState = streamingState,
+            streamingState = StreamingState(),
         )
 
     // ── BackgroundComplete ────────────────────────────────────────────
@@ -998,20 +1033,7 @@ object ChatWsEventReducer {
         val snapshot =
             parseUsageSnapshot(event.data)
                 ?: return ReducerResult(state = state, streamingState = streamingState)
-        var updatedState = state
-        if (snapshot.compressions != null) {
-            updatedState = updatedState.copy(compressionCount = snapshot.compressions)
-        }
-        if (snapshot.contextUsed != null && snapshot.contextUsed > 0L) {
-            updatedState = updatedState.copy(usedContextTokens = snapshot.contextUsed)
-        }
-        if (snapshot.contextMax != null && snapshot.contextMax > 0L) {
-            updatedState = updatedState.copy(fullContextTokens = snapshot.contextMax)
-        }
-        if (snapshot.avgTps != null && snapshot.avgTps > 0.0) {
-            updatedState = updatedState.copy(latestTps = snapshot.avgTps)
-        }
-        return ReducerResult(state = updatedState, streamingState = streamingState)
+        return ReducerResult(state = applyUsageSnapshot(state, snapshot), streamingState = streamingState)
     }
 }
 

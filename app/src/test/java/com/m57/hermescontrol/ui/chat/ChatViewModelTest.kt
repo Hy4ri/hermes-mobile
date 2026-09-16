@@ -75,6 +75,7 @@ class ChatViewModelTest {
 
     /** Counter used to generate unique WS request IDs. */
     private var reqCount = 0
+    private val sentRequestMethods = mutableListOf<Pair<String, String>>()
 
     @Test
     fun mergeTranscriptWithLive_collapsesDuplicateIdsKeepingLatestMessage() {
@@ -118,6 +119,7 @@ class ChatViewModelTest {
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
         reqCount = 0
+        sentRequestMethods.clear()
 
         mockkStatic(Log::class)
         every { Log.d(any(), any()) } returns 0
@@ -185,6 +187,7 @@ class ChatViewModelTest {
         every { HermesWsClient.send(any(), any(), any()) } answers {
             reqCount++
             val id = "req-id-$reqCount"
+            sentRequestMethods += arg<String>(0) to id
             arg<((String) -> Unit)?>(2)?.invoke(id)
             id
         }
@@ -1883,7 +1886,7 @@ class ChatViewModelTest {
     @Test
     fun sendMessage_oversizedDuringSnapshotLeavesNoPersistedGhostMessage() =
         runTest {
-            val (viewModel, _) = createViewModelWithSession()
+            val (viewModel, sessionId) = createViewModelWithSession()
             val persistedBeforeSend = fakeRepo.dao.count()
             val uriString = "content://unknown/growing-file"
             val mockUri = mockk<Uri>()
@@ -1920,6 +1923,7 @@ class ChatViewModelTest {
             viewModel.sendMessage("Inspect changing file")
             advanceUntilIdle()
 
+            assertFalse(viewModel.streamingState.value.turnUsageBaselineCaptured)
             assertEquals(persistedBeforeSend, fakeRepo.dao.count())
             assertFalse(
                 fakeRepo.dao
@@ -1931,6 +1935,24 @@ class ChatViewModelTest {
                 viewModel.uiState.value.messages
                     .any { it.content == "Inspect changing file" },
             )
+
+            mockEventsFlow.emit(
+                WsEvent.SessionUsage(
+                    data = mapOf("usage" to mapOf("output" to 1300L)),
+                    sessionId = sessionId,
+                ),
+            )
+            advanceUntilIdle()
+            viewModel.removeAttachment(0)
+            viewModel.sendMessage("Retry without attachment")
+            advanceUntilIdle()
+
+            assertEquals(
+                1300L,
+                viewModel.streamingState.value.turnUsageBaseline
+                    ?.outputTokens,
+            )
+            assertTrue(viewModel.streamingState.value.turnUsageBaselineCaptured)
         }
 
     @Test
@@ -2091,7 +2113,7 @@ class ChatViewModelTest {
             viewModel.sendMessage("Send in the old session")
             advanceUntilIdle()
 
-            verify {
+            verify(exactly = 0) {
                 HermesWsClient.sendMessage(
                     oldSessionId,
                     match { it.contains("Send in the old session") },
@@ -2099,17 +2121,44 @@ class ChatViewModelTest {
                     any(),
                 )
             }
-            mockEventsFlow.emit(
-                WsEvent.RpcError(
-                    promptRequestId,
-                    JsonRpcError(code = 4001, message = "old session rejected prompt"),
-                ),
-            )
-            advanceUntilIdle()
+            assertFalse(viewModel.streamingState.value.turnUsageBaselineCaptured)
 
             val state = viewModel.uiState.value
             assertEquals("session-456", state.currentSessionId)
             assertNull(state.errorMessage)
+
+            val resumeRequestId = sentRequestMethods.last { it.first == WsMethods.SESSION_RESUME }.second
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    resumeRequestId,
+                    mapOf("session_id" to "session-456"),
+                ),
+            )
+            advanceUntilIdle()
+            mockEventsFlow.emit(
+                WsEvent.SessionUsage(
+                    data = mapOf("usage" to mapOf("output" to 9000L)),
+                    sessionId = "session-456",
+                ),
+            )
+            advanceUntilIdle()
+            viewModel.sendMessage("Send in the new session")
+            advanceUntilIdle()
+
+            assertEquals(
+                9000L,
+                viewModel.streamingState.value.turnUsageBaseline
+                    ?.outputTokens,
+            )
+            assertTrue(viewModel.streamingState.value.turnUsageBaselineCaptured)
+            verify {
+                HermesWsClient.sendMessage(
+                    "session-456",
+                    match { it.contains("Send in the new session") },
+                    any(),
+                    any(),
+                )
+            }
         }
 
     @Test
@@ -4176,6 +4225,33 @@ class ChatViewModelTest {
             assertFalse(state.showUserMessageTokens)
             assertFalse(state.showAssistantMessageTokens)
             assertFalse(state.showTokensPerSecond)
+        }
+
+    @Test
+    fun testSendMessage_capturesCurrentUsageBeforeTurnAndSessionSwitchClearsIt() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            mockEventsFlow.emit(
+                WsEvent.SessionUsage(
+                    data = mapOf("usage" to mapOf("output" to 1000L)),
+                    sessionId = sessionId,
+                ),
+            )
+            advanceUntilIdle()
+
+            viewModel.sendMessage("prompt")
+            advanceUntilIdle()
+
+            assertEquals(
+                1000L,
+                viewModel.streamingState.value.turnUsageBaseline
+                    ?.outputTokens,
+            )
+            assertTrue(viewModel.streamingState.value.turnUsageBaselineCaptured)
+            viewModel.switchSession("session-other")
+
+            assertNull(viewModel.streamingState.value.turnUsageBaseline)
+            assertFalse(viewModel.streamingState.value.turnUsageBaselineCaptured)
         }
 
     @Test

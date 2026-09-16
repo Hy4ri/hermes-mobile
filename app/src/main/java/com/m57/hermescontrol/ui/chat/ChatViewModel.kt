@@ -12,6 +12,7 @@ import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.ModelCapabilities
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
+import com.m57.hermescontrol.data.model.UsageSnapshotResponse
 import com.m57.hermescontrol.data.model.parseContextBreakdown
 import com.m57.hermescontrol.data.model.parseUsageSnapshot
 import com.m57.hermescontrol.data.remote.ApiClient
@@ -159,6 +160,8 @@ data class ChatUiState(
     val compressionCount: Int? = null,
     /** Rolling output tokens/sec over the last ~10 calls. */
     val latestTps: Double? = null,
+    /** Latest cumulative backend usage snapshot for the current session. */
+    val sessionUsage: UsageSnapshotResponse? = null,
     // Attachment state
     val pendingAttachments: List<Attachment> = emptyList(),
     /** One-shot composer recovery after an attachment is rejected before send. */
@@ -1258,6 +1261,7 @@ class ChatViewModel(
                         fullContextTokens = null,
                         contextBreakdown = null,
                         compressionCount = null,
+                        sessionUsage = null,
                     )
                 }
                 // A gone-session recovery just landed — announce it now that
@@ -1803,6 +1807,8 @@ class ChatViewModel(
                             if (text.isNotBlank()) "\n\n$text" else ""
                     }
 
+                if (dispatchGeneration != sessionGeneration) return@launch
+
                 // While a turn is actively streaming and this is a plain text prompt
                 // (no attachments — session.redirect carries text only), steer the
                 // in-flight turn via session.redirect instead of queueing a fresh
@@ -1811,6 +1817,7 @@ class ChatViewModel(
                 if (dispatchGeneration == sessionGeneration) {
                     ActiveSessionHolder.set(agentSessionId, storageSessionId)
                 }
+                captureTurnUsageBaselineIfNeeded()
                 if (wasStreaming && attachments.isEmpty()) {
                     wsClient.sendRedirect(
                         agentSessionId,
@@ -1840,6 +1847,20 @@ class ChatViewModel(
                 }
             } finally {
                 preparedAttachments.forEach { it.encodedFile.delete() }
+            }
+        }
+    }
+
+    private fun captureTurnUsageBaselineIfNeeded() {
+        if (_streamingState.value.turnUsageBaselineCaptured) return
+        _streamingState.update {
+            if (it.turnUsageBaselineCaptured) {
+                it
+            } else {
+                it.copy(
+                    turnUsageBaseline = _uiState.value.sessionUsage,
+                    turnUsageBaselineCaptured = true,
+                )
             }
         }
     }
@@ -2867,6 +2888,7 @@ class ChatViewModel(
                 fullContextTokens = null,
                 contextBreakdown = null,
                 compressionCount = null,
+                sessionUsage = null,
                 pendingAttachments = emptyList(),
                 composerTextToRestore = null,
                 reactionKind = null,
@@ -3494,7 +3516,7 @@ class ChatViewModel(
                                 )
                             coroutineContext.ensureActive()
                             val snapshot = parseUsageSnapshot(usage)
-                            if (snapshot != null && snapshot.compressions != null) {
+                            if (snapshot != null) {
                                 _uiState.update { current ->
                                     if (!isCurrentContextFetch(
                                             sessionId,
@@ -3505,7 +3527,7 @@ class ChatViewModel(
                                     ) {
                                         current
                                     } else {
-                                        current.copy(compressionCount = snapshot.compressions)
+                                        applyUsageSnapshot(current, snapshot)
                                     }
                                 }
                             }

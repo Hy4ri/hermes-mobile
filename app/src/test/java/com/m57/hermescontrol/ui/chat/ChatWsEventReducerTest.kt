@@ -1,8 +1,10 @@
 package com.m57.hermescontrol.ui.chat
 
+import com.m57.hermescontrol.data.model.UsageSnapshotResponse
 import com.m57.hermescontrol.data.ws.WsEvent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -979,7 +981,13 @@ class ChatWsEventReducerTest {
 
     @Test
     fun testSessionUsage_differentSession_isIgnored() {
-        val state = ChatUiState(currentSessionId = "session-1", compressionCount = 1)
+        val state =
+            ChatUiState(
+                currentSessionId = "session-1",
+                compressionCount = 1,
+                latestTps = 30.0,
+                sessionUsage = UsageSnapshotResponse(outputTokens = 1000, contextMax = 128000),
+            )
         val usagePayload =
             mapOf(
                 "usage" to
@@ -991,12 +999,19 @@ class ChatWsEventReducerTest {
         val result =
             ChatWsEventReducer.reduce(
                 state = state,
-                streamingState = StreamingState(),
+                streamingState =
+                    StreamingState(
+                        turnUsageBaseline = state.sessionUsage,
+                        turnUsageBaselineCaptured = true,
+                    ),
                 event = WsEvent.SessionUsage(data = usagePayload, sessionId = "session-other"),
                 currentSessionId = "session-1",
             )
         assertEquals(1, result.state.compressionCount)
         assertEquals(null, result.state.usedContextTokens)
+        assertEquals(30.0, result.state.latestTps ?: 0.0, 0.001)
+        assertEquals(1000L, result.state.sessionUsage?.outputTokens)
+        assertTrue(result.streamingState.turnUsageBaselineCaptured)
     }
 
     @Test
@@ -1081,5 +1096,270 @@ class ChatWsEventReducerTest {
         assertEquals(null, extracted?.get(0)?.parent)
         assertEquals("b", extracted?.get(1)?.id)
         assertEquals("a", extracted?.get(1)?.parent)
+    }
+
+    @Test
+    fun testSessionUsage_retainsCompleteSnapshotAndUpdatesConvenienceState() {
+        val state = ChatUiState(currentSessionId = "session-1")
+        val result =
+            ChatWsEventReducer.reduce(
+                state,
+                StreamingState(),
+                WsEvent.SessionUsage(
+                    data =
+                        mapOf(
+                            "usage" to
+                                mapOf(
+                                    "model" to "m",
+                                    "input" to 1000L,
+                                    "output" to 200L,
+                                    "reasoning" to 50L,
+                                    "prompt" to 1200L,
+                                    "completion" to 200L,
+                                    "total" to 1200L,
+                                    "calls" to 2L,
+                                    "compressions" to 3,
+                                    "context_used" to 400L,
+                                    "context_max" to 2000L,
+                                    "avg_tps" to 42.5,
+                                ),
+                        ),
+                    sessionId = "session-1",
+                ),
+                "session-1",
+            )
+
+        assertEquals(1000L, result.state.sessionUsage?.inputTokens)
+        assertEquals(200L, result.state.sessionUsage?.outputTokens)
+        assertEquals(3, result.state.compressionCount)
+        assertEquals(400L, result.state.usedContextTokens)
+        assertEquals(2000L, result.state.fullContextTokens)
+        assertEquals(42.5, result.state.latestTps ?: 0.0, 0.001)
+    }
+
+    @Test
+    fun testSessionUsage_partialSnapshotPreservesKnownFields() {
+        val state =
+            ChatUiState(
+                currentSessionId = "session-1",
+                sessionUsage = UsageSnapshotResponse(inputTokens = 100, outputTokens = 200, contextMax = 200_000),
+                fullContextTokens = 200_000,
+            )
+        val result =
+            ChatWsEventReducer.reduce(
+                state,
+                StreamingState(),
+                WsEvent.SessionUsage(mapOf("usage" to mapOf("output" to 250L)), "session-1"),
+                "session-1",
+            )
+
+        assertEquals(100L, result.state.sessionUsage?.inputTokens)
+        assertEquals(250L, result.state.sessionUsage?.outputTokens)
+        assertEquals(200_000L, result.state.sessionUsage?.contextMax)
+        assertEquals(200_000L, result.state.fullContextTokens)
+    }
+
+    @Test
+    fun testMessageComplete_usesBackendOutputDeltaAndFinalTps() {
+        val state =
+            ChatUiState(
+                currentSessionId = "session-1",
+                sessionUsage = UsageSnapshotResponse(outputTokens = 1000),
+            )
+        val start = ChatWsEventReducer.reduce(state, StreamingState(), WsEvent.MessageStart("session-1"), "session-1")
+        val result =
+            ChatWsEventReducer.reduce(
+                state,
+                start.streamingState,
+                WsEvent.MessageComplete(
+                    text = "short",
+                    sessionId = "session-1",
+                    rawPayload = mapOf("usage" to mapOf("output" to 1250L, "avg_tps" to 42.5)),
+                ),
+                "session-1",
+            )
+
+        val message = result.state.messages.single()
+        assertEquals(250, message.tokenCount)
+        assertEquals(42.5, message.tps ?: 0.0, 0.001)
+        assertEquals(1250L, result.state.sessionUsage?.outputTokens)
+        assertTrue(!result.streamingState.turnUsageBaselineCaptured)
+    }
+
+    @Test
+    fun testMessageComplete_invalidFinalTpsFallsBackToLatestValidTps() {
+        fun complete(
+            finalTps: Double?,
+            latestTps: Double?,
+        ): Double? {
+            val state =
+                ChatUiState(
+                    currentSessionId = "session-1",
+                    latestTps = latestTps,
+                    sessionUsage = UsageSnapshotResponse(outputTokens = 1000),
+                )
+            val start =
+                ChatWsEventReducer.reduce(
+                    state,
+                    StreamingState(),
+                    WsEvent.MessageStart("session-1"),
+                    "session-1",
+                )
+            val usage = mutableMapOf<String, Any?>("output" to 1250L)
+            if (finalTps != null) usage["avg_tps"] = finalTps
+            return ChatWsEventReducer
+                .reduce(
+                    state,
+                    start.streamingState,
+                    WsEvent.MessageComplete("reply", "session-1", rawPayload = mapOf("usage" to usage)),
+                    "session-1",
+                ).state.messages
+                .single()
+                .tps
+        }
+
+        assertEquals(42.5, complete(42.5, 30.0) ?: 0.0, 0.001)
+        assertEquals(37.5, complete(0.0, 37.5) ?: 0.0, 0.001)
+        assertEquals(37.5, complete(-2.0, 37.5) ?: 0.0, 0.001)
+        assertEquals(37.5, complete(null, 37.5) ?: 0.0, 0.001)
+        assertNull(complete(-2.0, null))
+        assertNull(complete(0.0, -1.0))
+    }
+
+    @Test
+    fun testMessageComplete_withoutBaselineFallsBackToVisibleTextEstimate() {
+        val result =
+            ChatWsEventReducer.reduce(
+                ChatUiState(currentSessionId = "session-1"),
+                StreamingState(
+                    streamingMessage = ChatMessage(role = MessageRole.ASSISTANT, content = "short"),
+                ),
+                WsEvent.MessageComplete(
+                    text = "short",
+                    sessionId = "session-1",
+                    rawPayload = mapOf("usage" to mapOf("output" to 1250L)),
+                ),
+                "session-1",
+            )
+
+        assertTrue(
+            result.state.messages
+                .single()
+                .tokenCount != 1250,
+        )
+    }
+
+    @Test
+    fun testMessageComplete_counterResetDoesNotProduceNegativeOrCumulativeCount() {
+        val state =
+            ChatUiState(currentSessionId = "session-1", sessionUsage = UsageSnapshotResponse(outputTokens = 5000))
+        val start = ChatWsEventReducer.reduce(state, StreamingState(), WsEvent.MessageStart("session-1"), "session-1")
+        val result =
+            ChatWsEventReducer.reduce(
+                state,
+                start.streamingState,
+                WsEvent.MessageComplete("short", "session-1", rawPayload = mapOf("usage" to mapOf("output" to 100L))),
+                "session-1",
+            )
+
+        assertTrue(
+            result.state.messages
+                .single()
+                .tokenCount != -4900,
+        )
+        assertTrue(
+            result.state.messages
+                .single()
+                .tokenCount != 100,
+        )
+    }
+
+    @Test
+    fun testMessageComplete_exactZeroDeltaIsNotReplacedByEstimate() {
+        val state =
+            ChatUiState(currentSessionId = "session-1", sessionUsage = UsageSnapshotResponse(outputTokens = 5000))
+        val start = ChatWsEventReducer.reduce(state, StreamingState(), WsEvent.MessageStart("session-1"), "session-1")
+        val result =
+            ChatWsEventReducer.reduce(
+                state,
+                start.streamingState,
+                WsEvent.MessageComplete("short", "session-1", rawPayload = mapOf("usage" to mapOf("output" to 5000L))),
+                "session-1",
+            )
+
+        assertEquals(
+            0,
+            result.state.messages
+                .single()
+                .tokenCount,
+        )
+    }
+
+    @Test
+    fun testToolLoop_keepsOriginalPreTurnBaseline() {
+        val state =
+            ChatUiState(currentSessionId = "session-1", sessionUsage = UsageSnapshotResponse(outputTokens = 1000))
+        val first = ChatWsEventReducer.reduce(state, StreamingState(), WsEvent.MessageStart("session-1"), "session-1")
+        val live =
+            ChatWsEventReducer.reduce(
+                state.copy(sessionUsage = UsageSnapshotResponse(outputTokens = 1100)),
+                first.streamingState,
+                WsEvent.SessionUsage(mapOf("usage" to mapOf("output" to 1100L)), "session-1"),
+                "session-1",
+            )
+        val second =
+            ChatWsEventReducer.reduce(
+                state.copy(sessionUsage = UsageSnapshotResponse(outputTokens = 1100)),
+                live.streamingState.copy(streamingMessage = null),
+                WsEvent.MessageStart("session-1"),
+                "session-1",
+            )
+        val result =
+            ChatWsEventReducer.reduce(
+                state.copy(sessionUsage = UsageSnapshotResponse(outputTokens = 1100)),
+                second.streamingState,
+                WsEvent.MessageComplete("final", "session-1", rawPayload = mapOf("usage" to mapOf("output" to 1250L))),
+                "session-1",
+            )
+
+        assertEquals(
+            250,
+            result.state.messages
+                .last()
+                .tokenCount,
+        )
+    }
+
+    @Test
+    fun testMessageComplete_blankVisibleTextStillStoresFinalUsageAndClearsBaseline() {
+        val orphan = ChatMessage(role = MessageRole.ASSISTANT, content = "already shown", id = "orphan")
+        val state =
+            ChatUiState(
+                currentSessionId = "session-1",
+                messages = listOf(orphan),
+                sessionUsage = UsageSnapshotResponse(outputTokens = 1000),
+            )
+        val streaming =
+            StreamingState(
+                streamingMessage = orphan,
+                sealedOrphanIds = listOf("orphan"),
+                turnUsageBaseline = state.sessionUsage,
+                turnUsageBaselineCaptured = true,
+            )
+        val result =
+            ChatWsEventReducer.reduce(
+                state,
+                streaming,
+                WsEvent.MessageComplete(
+                    "already shown",
+                    "session-1",
+                    rawPayload = mapOf("usage" to mapOf("output" to 1300L)),
+                ),
+                "session-1",
+            )
+
+        assertEquals(1300L, result.state.sessionUsage?.outputTokens)
+        assertTrue(result.state.messages.none { it.id != "orphan" })
+        assertTrue(!result.streamingState.turnUsageBaselineCaptured)
     }
 }

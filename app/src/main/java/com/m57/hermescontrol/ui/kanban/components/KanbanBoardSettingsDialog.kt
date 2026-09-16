@@ -61,7 +61,7 @@ fun KanbanBoardSettingsDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Board Name") },
+                    label = { Text(stringResource(R.string.kanban_board_name)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                 )
@@ -69,7 +69,7 @@ fun KanbanBoardSettingsDialog(
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
-                    label = { Text("Description") },
+                    label = { Text(stringResource(R.string.kanban_description)) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2,
                 )
@@ -121,8 +121,8 @@ fun KanbanBoardSettingsDialog(
                 OutlinedTextField(
                     value = defaultWorkdir,
                     onValueChange = { defaultWorkdir = it },
-                    label = { Text("Default Workdir") },
-                    placeholder = { Text("e.g. /home/user/project") },
+                    label = { Text(stringResource(R.string.kanban_default_workdir)) },
+                    placeholder = { Text(stringResource(R.string.kanban_workdir_example)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                 )

@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.data.model
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
@@ -146,18 +147,18 @@ data class CreateTaskBody(
     val assignee: String? = null,
     val tenant: String? = null,
     val priority: Int = 0,
-    val workspaceKind: String? = null,
-    val workspacePath: String? = null,
+    @SerialName("workspace_kind") val workspaceKind: String? = null,
+    @SerialName("workspace_path") val workspacePath: String? = null,
     val parents: List<String> = emptyList(),
     val triage: Boolean = false,
-    val maxRuntimeSeconds: Int? = null,
+    @SerialName("max_runtime_seconds") val maxRuntimeSeconds: Int? = null,
     val skills: List<String>? = null,
-    val goalMode: Boolean = false,
-    val goalMaxTurns: Int? = null,
-    val modelOverride: String? = null,
-    val providerOverride: String? = null,
-    val reasoningEffort: String? = null,
-    val projectId: String? = null,
+    @SerialName("goal_mode") val goalMode: Boolean = false,
+    @SerialName("goal_max_turns") val goalMaxTurns: Int? = null,
+    @SerialName("model_override") val modelOverride: String? = null,
+    @SerialName("provider_override") val providerOverride: String? = null,
+    @SerialName("reasoning_effort") val reasoningEffort: String? = null,
+    @SerialName("project_id") val projectId: String? = null,
 )
 
 @Serializable
@@ -174,14 +175,14 @@ data class UpdateTaskBody(
     val title: String? = null,
     val body: String? = null,
     val result: String? = null,
-    val blockReason: String? = null,
+    @SerialName("block_reason") val blockReason: String? = null,
     val summary: String? = null,
     val metadata: Map<String, JsonElement>? = null,
-    val modelOverride: String? = null,
-    val providerOverride: String? = null,
-    val clearModelOverride: Boolean = false,
-    val reasoningEffort: String? = null,
-    val clearReasoningEffort: Boolean = false,
+    @SerialName("model_override") val modelOverride: String? = null,
+    @SerialName("provider_override") val providerOverride: String? = null,
+    @SerialName("clear_model_override") val clearModelOverride: Boolean = false,
+    @SerialName("reasoning_effort") val reasoningEffort: String? = null,
+    @SerialName("clear_reasoning_effort") val clearReasoningEffort: Boolean = false,
 )
 
 @Serializable
@@ -199,12 +200,12 @@ data class BulkTasksBody(
     val result: String? = null,
     val summary: String? = null,
     val metadata: Map<String, JsonElement>? = null,
-    val reclaimFirst: Boolean = false,
-    val modelOverride: String? = null,
-    val providerOverride: String? = null,
-    val clearModelOverride: Boolean = false,
-    val reasoningEffort: String? = null,
-    val clearReasoningEffort: Boolean = false,
+    @SerialName("reclaim_first") val reclaimFirst: Boolean = false,
+    @SerialName("model_override") val modelOverride: String? = null,
+    @SerialName("provider_override") val providerOverride: String? = null,
+    @SerialName("clear_model_override") val clearModelOverride: Boolean = false,
+    @SerialName("reasoning_effort") val reasoningEffort: String? = null,
+    @SerialName("clear_reasoning_effort") val clearReasoningEffort: Boolean = false,
 )
 
 @Serializable

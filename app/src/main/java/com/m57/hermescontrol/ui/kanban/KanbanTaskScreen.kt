@@ -345,7 +345,7 @@ private fun TaskOverviewTab(
                                         onClick = onReclaim,
                                         shape = RoundedCornerShape(6.dp),
                                     ) {
-                                        Text("Reclaim task")
+                                        Text(stringResource(R.string.kanban_reclaim_task))
                                     }
                                 }
                             }
@@ -400,7 +400,7 @@ private fun TaskOverviewTab(
                                 onDismissRequest = { assigneeMenuExpanded = false },
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text("Unassigned") },
+                                    text = { Text(stringResource(R.string.kanban_assignee_unassigned)) },
                                     onClick = {
                                         onReassign(null)
                                         assigneeMenuExpanded = false
@@ -591,7 +591,7 @@ private fun TaskOverviewTab(
                             IconButton(onClick = { isEditingDescription = true }) {
                                 Icon(
                                     Icons.Filled.Edit,
-                                    contentDescription = "Edit Description",
+                                    contentDescription = stringResource(R.string.kanban_edit_description),
                                     modifier = Modifier.size(16.dp),
                                 )
                             }
@@ -608,14 +608,14 @@ private fun TaskOverviewTab(
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
                             OutlinedButton(onClick = { isEditingDescription = false }) {
-                                Text("Cancel")
+                                Text(stringResource(R.string.action_cancel))
                             }
                             Spacer(modifier = Modifier.width(8.dp))
                             Button(onClick = {
                                 onSaveDescription(descriptionDraft)
                                 isEditingDescription = false
                             }) {
-                                Text("Save")
+                                Text(stringResource(R.string.action_save))
                             }
                         }
                     } else {
@@ -676,7 +676,7 @@ private fun TaskDiscussionTab(
         ) {
             if (comments.isEmpty()) {
                 item {
-                    Text("No comments yet.", style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.kanban_no_comments), style = MaterialTheme.typography.bodySmall)
                 }
             } else {
                 items(comments, key = { it.id }) { comment ->
@@ -712,7 +712,7 @@ private fun TaskDiscussionTab(
         OutlinedTextField(
             value = newCommentText,
             onValueChange = { newCommentText = it },
-            placeholder = { Text("Write a comment...") },
+            placeholder = { Text(stringResource(R.string.kanban_write_comment)) },
             modifier = Modifier.fillMaxWidth(),
             maxLines = 4,
             enabled = !isSubmitting,
@@ -733,7 +733,7 @@ private fun TaskDiscussionTab(
                 ) {
                     Icon(Icons.Filled.RestartAlt, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Note & Requeue")
+                    Text(stringResource(R.string.kanban_note_requeue))
                 }
                 Spacer(modifier = Modifier.width(8.dp))
             }
@@ -754,11 +754,18 @@ private fun TaskDiscussionTab(
                     Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                 }
-                Text("Comment")
+                Text(stringResource(R.string.kanban_comment))
             }
         }
     }
 }
+
+private fun formatRunDuration(durationSeconds: Long): String =
+    when {
+        durationSeconds < 60L -> "${durationSeconds}s"
+        durationSeconds < 3600L -> "${durationSeconds / 60L}m"
+        else -> "${durationSeconds / 3600L}h"
+    }
 
 @Composable
 private fun TaskRunsTab(
@@ -771,12 +778,16 @@ private fun TaskRunsTab(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item {
-            Text("Execution Runs", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Text(
+                stringResource(R.string.kanban_execution_runs),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+            )
         }
 
         if (runs.isEmpty()) {
             item {
-                Text("No run history available.", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.kanban_no_run_history), style = MaterialTheme.typography.bodySmall)
             }
         } else {
             items(runs, key = { it.id }) { run ->
@@ -791,7 +802,7 @@ private fun TaskRunsTab(
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Text(
-                                text = "Run #${run.id}",
+                                text = stringResource(R.string.kanban_run_number, run.id),
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                             )
@@ -806,12 +817,37 @@ private fun TaskRunsTab(
                                     },
                             )
                         }
-                        run.profile?.let { Text("Profile: $it", style = MaterialTheme.typography.bodySmall) }
-                        run.outcome?.let { Text("Outcome: $it", style = MaterialTheme.typography.bodySmall) }
+                        run.profile?.let {
+                            Text(
+                                stringResource(R.string.kanban_run_profile, it),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        run.outcome?.let {
+                            Text(
+                                stringResource(R.string.kanban_run_outcome, it),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        if (run.startedAt != null && run.endedAt != null && run.endedAt >= run.startedAt) {
+                            Text(
+                                stringResource(
+                                    R.string.kanban_run_duration,
+                                    formatRunDuration(run.endedAt - run.startedAt),
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
                         run.error?.let {
                             Text(
-                                "Error: $it",
+                                stringResource(R.string.kanban_run_error, it),
                                 color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        run.summary?.takeIf { it.isNotBlank() }?.let {
+                            Text(
+                                stringResource(R.string.kanban_run_summary, it),
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }
@@ -823,7 +859,11 @@ private fun TaskRunsTab(
         if (workerLog != null && workerLog.exists && workerLog.content.isNotBlank()) {
             item {
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("Worker Log Output", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text(
+                    stringResource(R.string.kanban_worker_log),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                )
                 Spacer(modifier = Modifier.height(6.dp))
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -852,12 +892,16 @@ private fun TaskActivityTab(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item {
-            Text("Event Timeline", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Text(
+                stringResource(R.string.kanban_event_timeline),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+            )
         }
 
         if (events.isEmpty()) {
             item {
-                Text("No activity events.", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.kanban_no_activity), style = MaterialTheme.typography.bodySmall)
             }
         } else {
             items(events, key = { it.id }) { event ->
@@ -951,7 +995,11 @@ private fun TaskFilesTab(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text("Attachments", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Text(
+                stringResource(R.string.kanban_attachments),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+            )
             Button(
                 onClick = { launcher.launch("*/*") },
                 enabled = !isUploading,
@@ -960,7 +1008,7 @@ private fun TaskFilesTab(
                     CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                     Spacer(modifier = Modifier.width(6.dp))
                 }
-                Text("Upload")
+                Text(stringResource(R.string.kanban_upload))
             }
         }
 
@@ -972,7 +1020,7 @@ private fun TaskFilesTab(
         ) {
             if (attachments.isEmpty()) {
                 item {
-                    Text("No attachments uploaded.", style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.kanban_no_attachments), style = MaterialTheme.typography.bodySmall)
                 }
             } else {
                 items(attachments, key = { it.id }) { att ->
@@ -993,7 +1041,7 @@ private fun TaskFilesTab(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = att.filename?.ifBlank { "File #${att.id}" } ?: "File #${att.id}",
+                                    text = att.filename.ifBlank { "File #${att.id}" },
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.SemiBold,
                                 )

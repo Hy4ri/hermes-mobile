@@ -33,6 +33,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.ui.kanban.KanbanModelOverride
+import com.m57.hermescontrol.ui.kanban.supportedKanbanReasoningEfforts
 import com.m57.hermescontrol.ui.model.components.ModelPickerDialog
 
 @Composable
@@ -123,6 +124,14 @@ fun KanbanModelOverrideEditor(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(modifier = Modifier.height(4.dp))
+        val selectedCapabilities =
+            modelProviders
+                .firstOrNull { it.slug == override.provider }
+                ?.capabilities
+                ?.get(override.model)
+        val reasoningSupported = selectedCapabilities?.reasoning != false
+        val canDisableReasoning = selectedCapabilities?.can_disable_reasoning != false
+        val supportedEfforts = supportedKanbanReasoningEfforts(reasoningSupported, canDisableReasoning)
         Row(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             modifier =
@@ -130,24 +139,33 @@ fun KanbanModelOverrideEditor(
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState()),
         ) {
-            listOf(
-                "" to stringResource(R.string.kanban_effort_inherit),
-                "none" to stringResource(R.string.kanban_effort_none),
-                "low" to stringResource(R.string.kanban_effort_low),
-                "medium" to stringResource(R.string.kanban_effort_medium),
-                "high" to stringResource(R.string.kanban_effort_high),
-            ).forEach { (effortVal, label) ->
-                FilterChip(
-                    selected = override.effort == effortVal,
-                    onClick = {
-                        if (enabled) {
-                            onOverrideChange(override.copy(effort = effortVal))
+            supportedEfforts
+                .map { effortVal ->
+                    effortVal to
+                        when (effortVal) {
+                            "" -> stringResource(R.string.kanban_effort_inherit)
+                            "none" -> stringResource(R.string.kanban_effort_none)
+                            "minimal" -> stringResource(R.string.kanban_effort_minimal)
+                            "low" -> stringResource(R.string.kanban_effort_low)
+                            "medium" -> stringResource(R.string.kanban_effort_medium)
+                            "high" -> stringResource(R.string.kanban_effort_high)
+                            "xhigh" -> stringResource(R.string.kanban_effort_xhigh)
+                            "max" -> stringResource(R.string.kanban_effort_max)
+                            "ultra" -> stringResource(R.string.kanban_effort_ultra)
+                            else -> effortVal
                         }
-                    },
-                    label = { Text(label) },
-                    enabled = enabled,
-                )
-            }
+                }.forEach { (effortVal, label) ->
+                    FilterChip(
+                        selected = override.effort == effortVal,
+                        onClick = {
+                            if (enabled) {
+                                onOverrideChange(override.copy(effort = effortVal))
+                            }
+                        },
+                        label = { Text(label) },
+                        enabled = enabled,
+                    )
+                }
         }
     }
 
@@ -157,7 +175,14 @@ fun KanbanModelOverrideEditor(
             title = stringResource(R.string.kanban_select_model),
             pinnedModels = pinnedModels,
             onSelect = { provider, model ->
-                onOverrideChange(override.copy(provider = provider, model = model))
+                val capabilities = modelProviders.firstOrNull { it.slug == provider }?.capabilities?.get(model)
+                onOverrideChange(
+                    override.copy(
+                        provider = provider,
+                        model = model,
+                        effort = if (capabilities?.reasoning == false) "" else override.effort,
+                    ),
+                )
                 showPickerDialog = false
             },
             onDismiss = { showPickerDialog = false },

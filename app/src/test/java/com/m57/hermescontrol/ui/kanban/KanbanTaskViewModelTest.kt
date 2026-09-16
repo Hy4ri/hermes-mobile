@@ -15,6 +15,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -31,10 +32,11 @@ class KanbanTaskViewModelTest {
     private val mockRepository = mockk<KanbanRepository>(relaxed = true)
     private val mockEventsClient = mockk<KanbanEventsClient>(relaxed = true)
 
-    private fun createViewModel(): KanbanTaskViewModel =
+    private fun createViewModel(enableFallbackPolling: Boolean = false): KanbanTaskViewModel =
         KanbanTaskViewModel(
             repository = mockRepository,
             eventsClientProvider = { mockEventsClient },
+            enableFallbackPolling = enableFallbackPolling,
         )
 
     @Before
@@ -284,5 +286,39 @@ class KanbanTaskViewModelTest {
             coVerify { mockRepository.deleteTask("t_1", "dev") }
             assertTrue(deleted)
             assertEquals("Task deleted", vm.uiState.value.toastMessage)
+        }
+
+    @Test
+    fun testFallbackPollingReloadsTaskWithoutEvents() =
+        runTest(testDispatcher) {
+            val first = KanbanTaskFull(id = "t_1", title = "Before", status = "todo")
+            val second = KanbanTaskFull(id = "t_1", title = "After", status = "todo")
+            coEvery { mockRepository.getTask("t_1", "dev") } returnsMany
+                listOf(
+                    NetworkResult.Success(KanbanTaskDetailResponse(task = first)),
+                    NetworkResult.Success(KanbanTaskDetailResponse(task = second)),
+                )
+
+            val vm = createViewModel(enableFallbackPolling = true)
+            vm.loadTask("dev", "t_1")
+            testDispatcher.scheduler.runCurrent()
+            assertEquals(
+                "Before",
+                vm.uiState.value.detail
+                    ?.task
+                    ?.title,
+            )
+
+            testDispatcher.scheduler.advanceTimeBy(30_000L)
+            testDispatcher.scheduler.runCurrent()
+
+            assertEquals(
+                "After",
+                vm.uiState.value.detail
+                    ?.task
+                    ?.title,
+            )
+            coVerify(exactly = 2) { mockRepository.getTask("t_1", "dev") }
+            vm.onCleared()
         }
 }

@@ -89,6 +89,7 @@ import com.m57.hermescontrol.ui.kanban.components.KanbanCreateTaskDialog
 import com.m57.hermescontrol.ui.kanban.components.KanbanFilterSheet
 import com.m57.hermescontrol.ui.kanban.components.KanbanOrchestrationDialog
 import com.m57.hermescontrol.ui.kanban.components.KanbanTaskCard
+import com.m57.hermescontrol.util.StreamingUriRequestBody
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -107,6 +108,7 @@ fun KanbanScreen(
     viewModel: KanbanViewModel = viewModel { KanbanViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val nowSeconds = rememberKanbanNowSeconds(state.tasks.any { it.status.equals("running", ignoreCase = true) })
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -168,10 +170,12 @@ fun KanbanScreen(
                     try {
                         val cachedFile = File(pendingExportPath!!)
                         if (cachedFile.exists()) {
-                            context.contentResolver.openOutputStream(uri)?.use { output ->
-                                cachedFile.inputStream().use { input ->
-                                    input.copyTo(output)
-                                }
+                            withContext(Dispatchers.IO) {
+                                context.contentResolver.openOutputStream(uri)?.use { output ->
+                                    cachedFile.inputStream().use { input ->
+                                        input.copyTo(output)
+                                    }
+                                } ?: error("Unable to open selected destination")
                             }
                             viewModel.showToast("Board exported successfully")
                         }
@@ -199,50 +203,64 @@ fun KanbanScreen(
                             }
                         }
 
-                        val inputStream = context.contentResolver.openInputStream(uri)
-                        if (inputStream != null) {
-                            val bytes = withContext(Dispatchers.IO) { inputStream.use { it.readBytes() } }
-                            val targetPath = "kanban-imports/$fileName"
-                            val pathBody = targetPath.toRequestBody("text/plain".toMediaTypeOrNull())
-                            val overwriteBody = "true".toRequestBody("text/plain".toMediaTypeOrNull())
-                            val filePart =
-                                MultipartBody.Part.createFormData(
-                                    "file",
-                                    fileName,
-                                    bytes.toRequestBody("application/gzip".toMediaTypeOrNull()),
-                                )
-                            val uploadResult =
-                                withContext(Dispatchers.IO) {
-                                    safeApiCall {
-                                        ApiClient.hermesApi.uploadManagedFileStream(pathBody, overwriteBody, filePart)
+                        val contentLength =
+                            context.contentResolver
+                                .query(
+                                    uri,
+                                    arrayOf(OpenableColumns.SIZE),
+                                    null,
+                                    null,
+                                    null,
+                                )?.use { cursor ->
+                                    val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                                    if (sizeIndex != -1 && cursor.moveToFirst() && !cursor.isNull(sizeIndex)) {
+                                        cursor.getLong(sizeIndex).takeIf { it >= 0L } ?: -1L
+                                    } else {
+                                        -1L
                                     }
+                                } ?: -1L
+                        val targetPath = "kanban-imports/$fileName"
+                        val pathBody = targetPath.toRequestBody("text/plain".toMediaTypeOrNull())
+                        val overwriteBody = "true".toRequestBody("text/plain".toMediaTypeOrNull())
+                        val requestBody =
+                            StreamingUriRequestBody(
+                                contentResolver = context.contentResolver,
+                                uri = uri,
+                                contentType = "application/gzip".toMediaTypeOrNull(),
+                                contentLength = contentLength,
+                            )
+                        val filePart = MultipartBody.Part.createFormData("file", fileName, requestBody)
+                        val uploadResult =
+                            withContext(Dispatchers.IO) {
+                                safeApiCall {
+                                    ApiClient.hermesApi.uploadManagedFileStream(pathBody, overwriteBody, filePart)
                                 }
-                            when (uploadResult) {
-                                is NetworkResult.Success -> {
-                                    val serverPath =
-                                        uploadResult.data.entry?.path ?: uploadResult.data.path ?: targetPath
-                                    val importResult = viewModel.importBoard(serverPath)
-                                    when (importResult) {
-                                        is NetworkResult.Success -> {
-                                            val res = importResult.data
-                                            var msg = "Board '${res.name}' imported"
-                                            if (res.renamed) msg += " (as ${res.board})"
-                                            viewModel.showToast(msg)
-                                            viewModel.loadBoards()
-                                        }
+                            }
+                        when (uploadResult) {
+                            is NetworkResult.Success -> {
+                                val serverPath =
+                                    uploadResult.data.entry?.path ?: uploadResult.data.path ?: targetPath
+                                val importResult = viewModel.importBoard(serverPath)
+                                when (importResult) {
+                                    is NetworkResult.Success -> {
+                                        val res = importResult.data
+                                        var msg = "Board '${res.name}' imported"
+                                        if (res.renamed) msg += " (as ${res.board})"
+                                        viewModel.showToast(msg)
+                                        viewModel.loadBoards()
+                                    }
 
-                                        is NetworkResult.Failure -> {
-                                            viewModel.showToast("Import failed: ${importResult.error.message}")
-                                        }
-                                    }
-                                    runCatching {
-                                        ApiClient.hermesApi.deleteManagedFile(ManagedFileDelete(serverPath))
+                                    is NetworkResult.Failure -> {
+                                        viewModel.showToast("Import failed: ${importResult.error.message}")
                                     }
                                 }
+                                runCatching {
+                                    ApiClient.hermesApi.deleteManagedFile(ManagedFileDelete(serverPath))
+                                }
+                            }
 
-                                is NetworkResult.Failure -> {
-                                    viewModel.showToast("Failed to upload archive: ${uploadResult.error.message}")
-                                }
+                            is NetworkResult.Failure -> {
+                                viewModel.showToast("Failed to upload archive: ${uploadResult.error.message}")
                             }
                         }
                     } catch (e: Exception) {
@@ -270,14 +288,14 @@ fun KanbanScreen(
             IconButton(onClick = { showFilterSheet = true }) {
                 Icon(
                     imageVector = Icons.Default.FilterList,
-                    contentDescription = "Filter",
+                    contentDescription = stringResource(R.string.kanban_filter),
                 )
             }
             Box {
                 IconButton(onClick = { showBoardMenu = true }) {
                     Icon(
                         imageVector = Icons.Default.MoreVert,
-                        contentDescription = "Board options",
+                        contentDescription = stringResource(R.string.kanban_board_options),
                     )
                 }
                 DropdownMenu(
@@ -285,7 +303,7 @@ fun KanbanScreen(
                     onDismissRequest = { showBoardMenu = false },
                 ) {
                     DropdownMenuItem(
-                        text = { Text("New Board") },
+                        text = { Text(stringResource(R.string.kanban_new_board)) },
                         onClick = {
                             showBoardMenu = false
                             showCreateBoardDialog = true
@@ -439,7 +457,7 @@ fun KanbanScreen(
                                     IconButton(onClick = { showFilterSheet = true }) {
                                         Icon(
                                             imageVector = Icons.Default.FilterList,
-                                            contentDescription = "Filters",
+                                            contentDescription = stringResource(R.string.kanban_filters),
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
                                     }
@@ -695,6 +713,7 @@ fun KanbanScreen(
                                                             items(group.tasks, key = { it.id }) { task ->
                                                                 KanbanTaskCard(
                                                                     task = task,
+                                                                    nowSeconds = nowSeconds,
                                                                     defaultAssignee =
                                                                         state.orchestration
                                                                             ?.resolvedDefaultAssignee,
@@ -743,6 +762,7 @@ fun KanbanScreen(
                                                         items(colTasks, key = { it.id }) { task ->
                                                             KanbanTaskCard(
                                                                 task = task,
+                                                                nowSeconds = nowSeconds,
                                                                 defaultAssignee =
                                                                     state.orchestration
                                                                         ?.resolvedDefaultAssignee,
@@ -931,13 +951,19 @@ fun KanbanScreen(
                                                 }
                                         },
                                     ) {
-                                        Text(if (selectedTaskIds.size == filteredTasks.size) "Clear" else "All")
+                                        Text(
+                                            if (selectedTaskIds.size == filteredTasks.size) {
+                                                stringResource(R.string.kanban_clear_selection)
+                                            } else {
+                                                stringResource(R.string.kanban_select_all)
+                                            },
+                                        )
                                     }
                                     Button(
                                         onClick = { showBulkMoveDialog = true },
                                         enabled = selectedTaskIds.isNotEmpty(),
                                     ) {
-                                        Text("Move")
+                                        Text(stringResource(R.string.kanban_move))
                                     }
                                     Button(
                                         onClick = { showBulkAssignDialog = true },
@@ -965,7 +991,7 @@ fun KanbanScreen(
                                         },
                                         enabled = selectedTaskIds.isNotEmpty(),
                                     ) {
-                                        Text("Archive")
+                                        Text(stringResource(R.string.kanban_action_archive))
                                     }
                                     Button(
                                         onClick = { showBulkDeleteDialog = true },
@@ -983,7 +1009,10 @@ fun KanbanScreen(
                                             selectedTaskIds = emptySet()
                                         },
                                     ) {
-                                        Icon(Icons.Default.Close, contentDescription = "Close multi-select")
+                                        Icon(
+                                            Icons.Default.Close,
+                                            contentDescription = stringResource(R.string.kanban_close_multi_select),
+                                        )
                                     }
                                 }
                             }
@@ -997,7 +1026,7 @@ fun KanbanScreen(
                             }
                         AlertDialog(
                             onDismissRequest = { showBulkMoveDialog = false },
-                            title = { Text("Move ${selectedTaskIds.size} tasks") },
+                            title = { Text(stringResource(R.string.kanban_move_tasks, selectedTaskIds.size)) },
                             text = {
                                 Column {
                                     writableMoveColumns.forEach { col ->
@@ -1097,13 +1126,13 @@ fun KanbanScreen(
 
                         AlertDialog(
                             onDismissRequest = { showCreateBoardDialog = false },
-                            title = { Text("Create New Board") },
+                            title = { Text(stringResource(R.string.kanban_create_new_board)) },
                             text = {
                                 Column {
                                     OutlinedTextField(
                                         value = boardSlug,
                                         onValueChange = { boardSlug = it },
-                                        label = { Text("Slug (id)") },
+                                        label = { Text(stringResource(R.string.kanban_slug)) },
                                         modifier = Modifier.fillMaxWidth(),
                                         singleLine = true,
                                     )
@@ -1111,7 +1140,7 @@ fun KanbanScreen(
                                     OutlinedTextField(
                                         value = boardName,
                                         onValueChange = { boardName = it },
-                                        label = { Text("Display Name") },
+                                        label = { Text(stringResource(R.string.kanban_display_name)) },
                                         modifier = Modifier.fillMaxWidth(),
                                         singleLine = true,
                                     )
@@ -1119,7 +1148,7 @@ fun KanbanScreen(
                                     OutlinedTextField(
                                         value = boardDesc,
                                         onValueChange = { boardDesc = it },
-                                        label = { Text("Description") },
+                                        label = { Text(stringResource(R.string.kanban_description)) },
                                         modifier = Modifier.fillMaxWidth(),
                                     )
                                     Spacer(modifier = Modifier.height(8.dp))
@@ -1184,7 +1213,7 @@ fun KanbanScreen(
                                     },
                                     enabled = boardSlug.isNotBlank(),
                                 ) {
-                                    Text("Create")
+                                    Text(stringResource(R.string.action_add))
                                 }
                             },
                             dismissButton = {
@@ -1333,16 +1362,16 @@ private fun ConfirmActionDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Confirm action") },
+        title = { Text(stringResource(R.string.kanban_confirm_action)) },
         text = { Text(message) },
         confirmButton = {
             Button(onClick = onConfirm) {
-                Text("Confirm")
+                Text(stringResource(R.string.action_confirm))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.action_cancel))
             }
         },
     )
@@ -1376,7 +1405,7 @@ private fun CompleteTaskDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.action_cancel))
             }
         },
     )

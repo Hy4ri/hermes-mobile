@@ -1,9 +1,12 @@
 package com.m57.hermescontrol.ui.kanban
 
+import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
 import com.m57.hermescontrol.data.model.KanbanColumn
@@ -45,7 +48,7 @@ class KanbanScreenTest {
             }
         }
 
-        composeTestRule.onNodeWithText("Show archived").performClick()
+        composeTestRule.onNodeWithTag("kanban_show_archived").performClick()
         assertTrue(toggled)
     }
 
@@ -66,18 +69,18 @@ class KanbanScreenTest {
         }
 
         // Expand advanced options
-        composeTestRule.onNodeWithText("Advanced Options").performClick()
+        composeTestRule.onNodeWithTag("kanban_advanced_options").performClick()
 
         // By default scratch is selected, workspace path is not visible
-        composeTestRule.onNodeWithText("Workspace Path Override").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("kanban_workspace_path").assertDoesNotExist()
 
         // Select Worktree
-        composeTestRule.onNodeWithText("Worktree").performClick()
-        composeTestRule.onNodeWithText("Workspace Path Override").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("kanban_workspace_kind_worktree").performClick()
+        composeTestRule.onNodeWithTag("kanban_workspace_path").performScrollTo().assertIsDisplayed()
 
         // Select Scratch again
-        composeTestRule.onNodeWithText("Scratch (Default)").performClick()
-        composeTestRule.onNodeWithText("Workspace Path Override").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("kanban_workspace_kind_scratch").performClick()
+        composeTestRule.onNodeWithTag("kanban_workspace_path").assertDoesNotExist()
     }
 
     @Test

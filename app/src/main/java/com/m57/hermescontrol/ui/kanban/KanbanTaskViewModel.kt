@@ -52,6 +52,7 @@ data class KanbanTaskUiState(
 class KanbanTaskViewModel(
     private val repository: KanbanRepository = KanbanRepositoryImpl(),
     private val eventsClientProvider: () -> KanbanEventsClient = { KanbanEventsClient() },
+    private val enableFallbackPolling: Boolean = true,
 ) : ViewModel(),
     ToastHost {
     private val _uiState = MutableStateFlow(KanbanTaskUiState())
@@ -63,17 +64,30 @@ class KanbanTaskViewModel(
     private var currentLoadGen: Int = 0
     private var reloadJob: Job? = null
     private var logPollJob: Job? = null
+    private var detailPollJob: Job? = null
 
     fun loadTask(
         board: String,
         taskId: String,
     ) {
         val gen = ++currentLoadGen
+        reloadJob?.cancel()
+        stopLogPolling()
+        detailPollJob?.cancel()
         activeTaskId = taskId
-        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        _uiState.update {
+            it.copy(
+                isLoading = true,
+                detail = null,
+                workerLog = null,
+                estimate = null,
+                errorMessage = null,
+            )
+        }
         loadProfiles()
         loadModelOptions()
         connectEvents(board)
+        startDetailPolling(board, taskId)
 
         viewModelScope.launch {
             when (val result = repository.getTask(taskId = taskId, board = board)) {
@@ -191,8 +205,23 @@ class KanbanTaskViewModel(
         logPollJob = null
     }
 
+    private fun startDetailPolling(
+        board: String,
+        taskId: String,
+    ) {
+        if (!enableFallbackPolling) return
+        detailPollJob =
+            viewModelScope.launch {
+                while (isActive) {
+                    delay(DETAIL_POLL_INTERVAL_MS)
+                    loadTaskSilently(board, taskId)
+                }
+            }
+    }
+
     private fun connectEvents(board: String) {
         if (eventsBoard == board) return
+        eventsClient?.disconnect()
         eventsBoard = board
         val client = eventsClient ?: eventsClientProvider().also { eventsClient = it }
         client.connect(
@@ -536,6 +565,8 @@ class KanbanTaskViewModel(
 
     public override fun onCleared() {
         stopLogPolling()
+        detailPollJob?.cancel()
+        reloadJob?.cancel()
         eventsClient?.disconnect()
         super.onCleared()
     }
@@ -547,5 +578,6 @@ class KanbanTaskViewModel(
     private companion object {
         const val RELOAD_DEBOUNCE_MS = 250L
         const val POLL_INTERVAL_MS = 3000L
+        const val DETAIL_POLL_INTERVAL_MS = 30_000L
     }
 }

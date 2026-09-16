@@ -63,4 +63,20 @@ class KanbanModelOverrideTest {
         assertEquals("low", patch.reasoningEffort)
         assertFalse(patch.clearReasoningEffort)
     }
+
+    @Test
+    fun testFullReasoningScaleAndCapabilities() {
+        assertEquals(
+            listOf("none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"),
+            supportedKanbanReasoningEfforts(supportsReasoning = true, canDisableReasoning = true),
+        )
+        assertEquals(
+            listOf("minimal", "low", "medium", "high", "xhigh", "max", "ultra"),
+            supportedKanbanReasoningEfforts(supportsReasoning = true, canDisableReasoning = false),
+        )
+        assertEquals(
+            listOf(""),
+            supportedKanbanReasoningEfforts(supportsReasoning = false, canDisableReasoning = false),
+        )
+    }
 }

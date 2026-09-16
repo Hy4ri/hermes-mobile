@@ -317,7 +317,7 @@ private fun ProfileDescriptionEditor(
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 2,
                 maxLines = 4,
-                placeholder = { Text("Profile description for routing") },
+                placeholder = { Text(stringResource(R.string.kanban_profile_description_hint)) },
             )
         }
     }

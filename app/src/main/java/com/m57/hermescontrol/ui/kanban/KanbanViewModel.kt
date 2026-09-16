@@ -174,13 +174,14 @@ class KanbanViewModel(
         loadOrchestration()
         loadModelOptions()
         viewModelScope.launch {
-            when (val result = repository.getBoards(includeArchived = _uiState.value.includeArchived)) {
+            when (val result = repository.getBoards(includeArchived = false)) {
                 is NetworkResult.Success -> {
                     val boards = result.data.boards
                     _uiState.update { it.copy(isLoading = false, boards = boards) }
                     val targetBoard =
                         boards.find { it.id == previouslySelectedId }
                             ?: boards.find { it.id == result.data.current }
+                            ?: boards.find { it.id.equals("default", ignoreCase = true) }
                             ?: boards.firstOrNull()
                     if (targetBoard != null) {
                         selectBoard(targetBoard)
@@ -531,7 +532,9 @@ class KanbanViewModel(
             _uiState.update { it.copy(isLoading = true) }
             when (val res = repository.deleteBoard(slug, delete = false)) {
                 is NetworkResult.Success -> {
-                    _uiState.update { it.copy(toastMessage = "Board archived") }
+                    val endpoint = endpointProvider()
+                    preferences.clearSelectedBoard(endpoint)
+                    _uiState.update { it.copy(selectedBoard = null, toastMessage = "Board archived") }
                     loadBoards()
                 }
 
@@ -652,13 +655,19 @@ class KanbanViewModel(
         val board = _uiState.value.selectedBoard ?: return
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
-            when (val res = repository.bulkTasks(board.id, BulkTasksBody(ids = taskIds, assignee = assignee))) {
+            val body =
+                BulkTasksBody(
+                    ids = taskIds,
+                    assignee = assignee ?: "",
+                    reclaimFirst = true,
+                )
+            when (val res = repository.bulkTasks(board.id, body)) {
                 is NetworkResult.Success -> {
                     val results = res.data.results
                     val succeeded = results.filter { it.ok }.map { it.id }.toSet()
                     val failed = results.filter { !it.ok }.map { it.id }.toSet()
                     val firstError = results.firstOrNull { !it.ok }?.error
-                    val actionName = if (assignee != null) "Assigned" else "Unassigned"
+                    val actionName = if (!assignee.isNullOrBlank()) "Assigned" else "Unassigned"
                     val msg =
                         when {
                             failed.isEmpty() -> "$actionName ${succeeded.size} tasks"

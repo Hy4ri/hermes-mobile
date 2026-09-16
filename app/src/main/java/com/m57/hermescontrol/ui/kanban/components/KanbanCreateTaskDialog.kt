@@ -43,6 +43,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
@@ -83,7 +84,7 @@ fun KanbanCreateTaskDialog(
     val descTextFieldState = rememberSyncedTextFieldState(desc) { desc = it }
     var selectedColumn by remember(defaultColumn) { mutableStateOf(defaultColumn) }
     var selectedAssignee by remember(defaultAssignee) {
-        mutableStateOf(defaultAssignee ?: profiles.firstOrNull()?.name ?: "default")
+        mutableStateOf(defaultAssignee.orEmpty())
     }
     var priority by remember { mutableIntStateOf(0) }
     var goalMode by remember { mutableStateOf(false) }
@@ -222,7 +223,13 @@ fun KanbanCreateTaskDialog(
                             DropdownMenuItem(
                                 text = {
                                     Column {
-                                        Text(if (isDef) "${profile.name} (Default)" else profile.name)
+                                        Text(
+                                            if (isDef) {
+                                                stringResource(R.string.kanban_assignee_default_suffix, profile.name)
+                                            } else {
+                                                profile.name
+                                            },
+                                        )
                                         if (profile.model != null) {
                                             Text(
                                                 profile.model,
@@ -311,6 +318,7 @@ fun KanbanCreateTaskDialog(
                         Modifier
                             .fillMaxWidth()
                             .clickable { showAdvanced = !showAdvanced }
+                            .testTag("kanban_advanced_options")
                             .padding(vertical = 8.dp),
                 ) {
                     Text(
@@ -409,15 +417,16 @@ fun KanbanCreateTaskDialog(
                             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                         ) {
                             listOf(
-                                "scratch" to "Scratch (Default)",
-                                "worktree" to "Worktree",
-                                "dir" to "Dir",
+                                "scratch" to stringResource(R.string.kanban_workspace_scratch),
+                                "worktree" to stringResource(R.string.kanban_workspace_worktree),
+                                "dir" to stringResource(R.string.kanban_workspace_dir),
                             ).forEach { (kind, label) ->
                                 FilterChip(
                                     selected = workspaceKind == kind,
                                     onClick = { workspaceKind = kind },
                                     label = { Text(label) },
                                     enabled = !isCreating,
+                                    modifier = Modifier.testTag("kanban_workspace_kind_$kind"),
                                 )
                             }
                         }
@@ -435,7 +444,7 @@ fun KanbanCreateTaskDialog(
                                         Text(stringResource(R.string.kanban_workspace_path_hint))
                                     }
                                 },
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier.fillMaxWidth().testTag("kanban_workspace_path"),
                                 singleLine = true,
                                 enabled = !isCreating,
                             )
@@ -448,7 +457,7 @@ fun KanbanCreateTaskDialog(
                             value = skillsText,
                             onValueChange = { skillsText = it },
                             label = { Text(stringResource(R.string.kanban_skills)) },
-                            placeholder = { Text("e.g. git, coding, tests") },
+                            placeholder = { Text(stringResource(R.string.kanban_skills_placeholder)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             enabled = !isCreating,

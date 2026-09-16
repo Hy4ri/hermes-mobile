@@ -2,6 +2,20 @@ package com.m57.hermescontrol.ui.kanban
 
 import com.m57.hermescontrol.data.model.UpdateTaskBody
 
+private val ALL_REASONING_EFFORTS = listOf("none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra")
+
+fun supportedKanbanReasoningEfforts(
+    supportsReasoning: Boolean,
+    canDisableReasoning: Boolean,
+): List<String> =
+    if (!supportsReasoning) {
+        listOf("")
+    } else if (canDisableReasoning) {
+        ALL_REASONING_EFFORTS
+    } else {
+        ALL_REASONING_EFFORTS.filterNot { it == "none" }
+    }
+
 /**
  * Task model override matching desktop's TaskModelOverride contract:
  * - model: model name or ID

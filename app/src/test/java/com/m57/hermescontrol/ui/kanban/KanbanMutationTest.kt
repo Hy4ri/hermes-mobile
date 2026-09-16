@@ -375,6 +375,40 @@ class KanbanMutationTest {
         }
 
     @Test
+    fun testBulkAssignUsesReclaimAndRetainsOnlyFailures() =
+        runTest(testDispatcher) {
+            val board = KanbanBoard(id = "dev", name = "Dev")
+            coEvery { mockRepository.getBoard("dev") } returns
+                NetworkResult.Success(KanbanBoardResponse(columns = listOf(KanbanColumn("todo", emptyList()))))
+            coEvery { mockRepository.bulkTasks("dev", any()) } returns
+                NetworkResult.Success(
+                    BulkTasksResponse(
+                        results =
+                            listOf(
+                                BulkTaskResult("t_1", ok = true),
+                                BulkTaskResult("t_2", ok = false, error = "locked"),
+                            ),
+                    ),
+                )
+
+            val vm = createViewModel()
+            vm.selectBoard(board)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            var failedIds = emptySet<String>()
+            vm.bulkAssign(listOf("t_1", "t_2"), assignee = null) { failedIds = it }
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            coVerify {
+                mockRepository.bulkTasks(
+                    "dev",
+                    match { it.ids == listOf("t_1", "t_2") && it.assignee == "" && it.reclaimFirst },
+                )
+            }
+            assertEquals(setOf("t_2"), failedIds)
+        }
+
+    @Test
     fun testRenameBoardSuccess() =
         runTest(testDispatcher) {
             val board = KanbanBoard(id = "dev", name = "Dev Renamed")
@@ -408,11 +442,13 @@ class KanbanMutationTest {
                 )
 
             val vm = createViewModel()
+            preferences.setSelectedBoard("http://127.0.0.1:9119", "old-board")
             vm.deleteBoard("old-board")
             testDispatcher.scheduler.advanceUntilIdle()
 
             coVerify { mockRepository.deleteBoard("old-board", delete = false) }
             assertEquals("Board archived", vm.uiState.value.toastMessage)
+            assertEquals(null, preferences.getSelectedBoard("http://127.0.0.1:9119"))
         }
 
     @Test

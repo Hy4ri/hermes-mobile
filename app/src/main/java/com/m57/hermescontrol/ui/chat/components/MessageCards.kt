@@ -68,6 +68,8 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -473,6 +475,7 @@ fun ClarifyBubble(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             questions.forEachIndexed { index, q ->
+                val lockedAnswer = clarifyRequest.lockedAnswers[q.qid]
                 if (index > 0) {
                     HorizontalDivider(
                         modifier = Modifier.padding(vertical = 12.dp),
@@ -497,79 +500,105 @@ fun ClarifyBubble(
                     )
                 }
 
-                if (q.multiSelect) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = "Select all that apply",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-
-                if (q.choices.isNotEmpty()) {
-                    Spacer(Modifier.height(8.dp))
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                if (lockedAnswer != null) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        shape = RoundedCornerShape(8.dp),
                     ) {
-                        q.choices.forEach { choice ->
-                            val selectedSet = selectedChoicesByQid[q.qid] ?: emptySet()
-                            val isSelected = selectedSet.contains(choice)
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = {
-                                    if (q.multiSelect) {
-                                        val updated = if (isSelected) selectedSet - choice else selectedSet + choice
-                                        selectedChoicesByQid = selectedChoicesByQid + (q.qid to updated)
-                                    } else {
-                                        if (!isBatch && customTextByQid[q.qid].isNullOrBlank()) {
-                                            // Fast 1-tap respond for lone single-select question when no custom text is entered
-                                            onRespondSingle(choice)
-                                        } else {
-                                            val updated = if (isSelected) emptySet() else setOf(choice)
-                                            selectedChoicesByQid = selectedChoicesByQid + (q.qid to updated)
-                                        }
-                                    }
-                                },
-                                label = { Text(choice) },
-                                leadingIcon =
-                                    if (isSelected) {
-                                        {
-                                            Icon(
-                                                imageVector = Icons.Default.Check,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(16.dp),
-                                            )
-                                        }
-                                    } else {
-                                        null
-                                    },
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = "Answered: $lockedAnswer",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
                             )
                         }
                     }
-                }
-
-                Spacer(Modifier.height(8.dp))
-                val typed = customTextByQid[q.qid].orEmpty()
-                OutlinedTextField(
-                    value = typed,
-                    onValueChange = { newText ->
-                        customTextByQid = customTextByQid + (q.qid to newText)
-                    },
-                    label = {
+                } else {
+                    if (q.multiSelect) {
+                        Spacer(Modifier.height(2.dp))
                         Text(
-                            if (q.choices.isEmpty()) {
-                                stringResource(R.string.message_your_response)
-                            } else {
-                                "Other (optional)"
-                            },
+                            text = "Select all that apply",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.fillMaxWidth(),
                         )
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
+                    }
+
+                    if (q.choices.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            q.choices.forEach { choice ->
+                                val selectedSet = selectedChoicesByQid[q.qid] ?: emptySet()
+                                val isSelected = selectedSet.contains(choice)
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = {
+                                        if (q.multiSelect) {
+                                            val updated = if (isSelected) selectedSet - choice else selectedSet + choice
+                                            selectedChoicesByQid = selectedChoicesByQid + (q.qid to updated)
+                                        } else {
+                                            if (!isBatch && customTextByQid[q.qid].isNullOrBlank()) {
+                                                // Fast 1-tap respond for lone single-select question when no custom text is entered
+                                                onRespondSingle(choice)
+                                            } else {
+                                                val updated = if (isSelected) emptySet() else setOf(choice)
+                                                selectedChoicesByQid = selectedChoicesByQid + (q.qid to updated)
+                                            }
+                                        }
+                                    },
+                                    label = { Text(choice) },
+                                    leadingIcon =
+                                        if (isSelected) {
+                                            {
+                                                Icon(
+                                                    imageVector = Icons.Default.Check,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(16.dp),
+                                                )
+                                            }
+                                        } else {
+                                            null
+                                        },
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+                    val typed = customTextByQid[q.qid].orEmpty()
+                    OutlinedTextField(
+                        value = typed,
+                        onValueChange = { newText ->
+                            customTextByQid = customTextByQid + (q.qid to newText)
+                        },
+                        label = {
+                            Text(
+                                if (q.choices.isEmpty()) {
+                                    stringResource(R.string.message_your_response)
+                                } else {
+                                    "Other (optional)"
+                                },
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                    )
+                }
             }
 
             Spacer(Modifier.height(12.dp))
@@ -719,13 +748,19 @@ fun SubagentCard(
 // ── TypingIndicator ───────────────────────────────────────────────────────
 
 /**
- * Three bouncing dots shown while the assistant is typing / thinking.
- * Staggered animation: 0ms, 150ms, 300ms delay per dot.
+ * Three subtle dots shown while the assistant is waiting to produce visible
+ * content. Staggered opacity/scale animation keeps the indicator lightweight
+ * without the distracting vertical bounce used by the old chat renderer.
  */
 @Composable
 fun TypingIndicator(modifier: Modifier = Modifier) {
+    val description = stringResource(R.string.chat_agent_status_typing)
     Row(
-        modifier = modifier.padding(horizontal = 16.dp, vertical = 8.dp).testTag("typing_indicator"),
+        modifier =
+            modifier
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .semantics { contentDescription = description }
+                .testTag("typing_indicator"),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -741,18 +776,18 @@ private fun TypingDot(delayMs: Int) {
     val typingSpec: InfiniteRepeatableSpec<Float> =
         remember(delayMs) {
             infiniteRepeatable(
-                animation = tween(400, delayMillis = delayMs, easing = LinearEasing),
+                animation = tween(700, delayMillis = delayMs, easing = LinearEasing),
                 repeatMode = RepeatMode.Reverse,
             )
         }
     val offset by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = -6f,
+        initialValue = 0.85f,
+        targetValue = 1f,
         animationSpec = typingSpec,
-        label = "typing_dot_offset_$delayMs",
+        label = "typing_dot_scale_$delayMs",
     )
     val alpha by infiniteTransition.animateFloat(
-        initialValue = 0.4f,
+        initialValue = 0.45f,
         targetValue = 1f,
         animationSpec = typingSpec,
         label = "typing_dot_alpha_$delayMs",
@@ -763,7 +798,8 @@ private fun TypingDot(delayMs: Int) {
                 .size(8.dp)
                 .clip(CircleShape)
                 .graphicsLayer {
-                    this.translationY = offset
+                    this.scaleX = offset
+                    this.scaleY = offset
                     this.alpha = alpha
                 },
     ) {

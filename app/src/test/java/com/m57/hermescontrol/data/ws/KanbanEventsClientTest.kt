@@ -31,6 +31,16 @@ class KanbanEventsClientTest {
     }
 
     @Test
+    fun `parses event with numeric run_id from sqlite`() {
+        val frame =
+            """{"events":[{"id":8,"task_id":"t-2","run_id":42,"kind":"status","payload":null,"created_at":1710000001}],"cursor":8}"""
+        val envelope = parseKanbanEventsFrame(frame)
+        assertNotNull(envelope)
+        assertEquals(1, envelope!!.events.size)
+        assertEquals("42", envelope.events.first().runId)
+    }
+
+    @Test
     fun `parses empty events batch`() {
         val envelope = parseKanbanEventsFrame("""{"events":[],"cursor":3}""")
         assertNotNull(envelope)

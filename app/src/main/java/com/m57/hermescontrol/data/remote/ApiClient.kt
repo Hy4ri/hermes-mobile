@@ -30,6 +30,10 @@ object ApiClient {
             }
         }
 
+    /** The current [KanbanApiService] instance. Reuses [hermesApi]. */
+    val kanbanApi: KanbanApiService
+        get() = hermesApi
+
     /** Force-rebuild the Retrofit client (e.g. after settings change). */
     fun rebuild() {
         synchronized(this) {
@@ -79,7 +83,15 @@ object ApiClient {
 
     // ── Internal ─────────────────────────────────────────────────────────
 
-    private fun buildService(): HermesApiService {
+    private fun buildService(): HermesApiService =
+        buildRetrofit().create(HermesApiService::class.java).also {
+            service = it
+        }
+
+    private fun buildRetrofit(): Retrofit {
+        val cached = retrofit
+        if (cached != null) return cached
+
         val logging =
             HttpLoggingInterceptor().apply {
                 level =
@@ -129,15 +141,12 @@ object ApiClient {
                 .authenticator(TokenRefreshAuthenticator)
                 .build()
 
-        val rf =
-            Retrofit
-                .Builder()
-                .baseUrl(AuthManager.endpointForBuild().baseUrl)
-                .client(okHttp)
-                .addConverterFactory(OkHttpProvider.json.asConverterFactory("application/json".toMediaType()))
-                .build()
-                .also { retrofit = it }
-
-        return rf.create(HermesApiService::class.java)
+        return Retrofit
+            .Builder()
+            .baseUrl(AuthManager.endpointForBuild().baseUrl)
+            .client(okHttp)
+            .addConverterFactory(OkHttpProvider.json.asConverterFactory("application/json".toMediaType()))
+            .build()
+            .also { retrofit = it }
     }
 }

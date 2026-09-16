@@ -208,7 +208,18 @@
     <string name="settings_sec_chat">Chat</string>
     <string name="settings_item_typing_effect">Typing Effect</string>
     <string name="settings_desc_typing_effect">Animate new messages word by word</string>
-    <string name="fullbleed_role_agent">Assistant</string>
+    <string name="settings_item_message_stats">Message stats</string>
+    <string name="settings_desc_message_stats">Show token and generation performance details in chat.</string>
+    <string name="settings_item_user_message_tokens">User message tokens</string>
+    <string name="settings_item_assistant_message_tokens">Assistant message tokens</string>
+    <string name="settings_item_tokens_per_second">Tokens per second (TPS)</string>
+    <string name="chat_agent_status_typing">Agent is typing</string>
+    <string name="chat_agent_status_thinking">Thinking…</string>
+    <string name="chat_agent_status_searching">Searching…</string>
+    <string name="chat_agent_status_reading">Reading file…</string>
+    <string name="chat_agent_status_browsing">Browsing…</string>
+    <string name="chat_agent_status_running_command">Running command…</string>
+    <string name="chat_agent_status_using_tool">Using tool…</string>
     <string name="settings_item_typing_delay">Delay: %1$d ms</string>
     <string name="settings_delay_10ms">10 ms</string>
     <string name="settings_delay_100ms">100 ms</string>
@@ -342,6 +353,25 @@
     <string name="kanban_live">Live</string>
     <string name="kanban_offline">Offline</string>
     <string name="kanban_no_tasks">No tasks</string>
+    <string name="kanban_priority">Priority</string>
+    <string name="kanban_priority_normal">0 (Normal)</string>
+    <string name="kanban_priority_med">1 (Med)</string>
+    <string name="kanban_priority_high">2 (High)</string>
+    <string name="kanban_priority_urgent">3 (Urgent)</string>
+    <string name="kanban_assignee">Assignee</string>
+    <string name="kanban_assignee_unassigned">Default (Unassigned)</string>
+    <string name="kanban_assignee_parked">Parked (No worker)</string>
+    <string name="kanban_goal_mode">Autonomous Goal Mode</string>
+    <string name="kanban_goal_mode_desc">Judge validates task completion across multi-turn iterations</string>
+    <string name="kanban_advanced_options">Advanced Options</string>
+    <string name="kanban_parent_task">Parent Task</string>
+    <string name="kanban_parent_none">None</string>
+    <string name="kanban_model_override">Model Override</string>
+    <string name="kanban_provider_override">Provider Override</string>
+    <string name="kanban_reasoning_effort">Reasoning Effort</string>
+    <string name="kanban_workspace_kind">Workspace Kind</string>
+    <string name="kanban_skills">Skills</string>
+    <string name="kanban_target_column">Column</string>
     <string name="action_add">Add</string>
     <!-- Skills Screen -->
     <string name="skills_status_all">All Statuses</string>
@@ -468,6 +498,20 @@
     <string name="system_gateway_start">Start</string>
     <string name="system_gateway_restart">Restart</string>
     <string name="system_gateway_stop">Stop</string>
+    <string name="system_migration_title">Gateway migration</string>
+    <string name="system_migration_description">Review the backend migration plan before moving profile gateways onto one shared multiplexer.</string>
+    <string name="system_migration_profiles">Profiles</string>
+    <string name="system_migration_automatic_eligibility">Automatic eligibility</string>
+    <string name="system_migration_yes">Yes</string>
+    <string name="system_migration_no">No</string>
+    <string name="system_migration_already_multiplexed">Already multiplexed</string>
+    <string name="system_migration_interrupted">An earlier migration was interrupted. Review the plan before retrying.</string>
+    <string name="system_migration_blockers">Blockers</string>
+    <string name="system_migration_notices">Notices</string>
+    <string name="system_migration_start">Start migration</string>
+    <string name="system_migration_confirm_title">Start gateway migration?</string>
+    <string name="system_migration_confirm_description">This stops standalone profile gateways and restarts the default gateway as a shared multiplexer. The operation runs in the background.</string>
+    <string name="system_migration_progress_title">Gateway migration</string>
 
     <!-- Memory section -->
     <string name="memory_active">Active: %1$s</string>
@@ -567,15 +611,45 @@
     <string name="model_label_available">Available Models:</string>
     <string name="model_no_models">No models reported or provider needs authentication.</string>
     <string name="content_desc_active_model">Active Model</string>
+    <string name="content_desc_expand_provider">Expand %1$s models</string>
+    <string name="content_desc_collapse_provider">Collapse %1$s models</string>
     <string name="model_section_pinned">Pinned Models</string>
     <string name="content_desc_unpin_model">Unpin model</string>
     <string name="content_desc_pinned_section_toggle">Toggle pinned section visibility</string>
+    <plurals name="model_provider_count">
+        <item quantity="one">%1$d model</item>
+        <item quantity="other">%1$d models</item>
+    </plurals>
 
     <!-- Sessions (History) Screen -->
     <string name="history_empty_title">No history</string>
     <string name="history_empty_desc">Previous chat sessions from Hermes will appear here.</string>
     <string name="history_untitled">Untitled</string>
     <string name="history_message_count">%1$d messages</string>
+    <plurals name="sessions_card_message_count">
+        <item quantity="one">%1$d message</item>
+        <item quantity="other">%1$d messages</item>
+    </plurals>
+    <string name="sessions_project_home">Home</string>
+    <!-- Short activity age on history cards (m = minutes, h = hours, d = days) -->
+    <string name="session_age_now">now</string>
+    <string name="session_age_minutes">%1$dm</string>
+    <string name="session_age_hours">%1$dh</string>
+    <string name="session_age_days">%1$dd</string>
+    <string name="session_age_now_desc">Active just now</string>
+    <plurals name="session_age_minutes_desc">
+        <item quantity="one">Active %1$d minute ago</item>
+        <item quantity="other">Active %1$d minutes ago</item>
+    </plurals>
+    <plurals name="session_age_hours_desc">
+        <item quantity="one">Active %1$d hour ago</item>
+        <item quantity="other">Active %1$d hours ago</item>
+    </plurals>
+    <plurals name="session_age_days_desc">
+        <item quantity="one">Active %1$d day ago</item>
+        <item quantity="other">Active %1$d days ago</item>
+    </plurals>
+    <string name="session_age_date_desc">Active %1$s</string>
     <string name="history_load_more">Load more sessions…</string>
 
     <!-- Sessions Stats -->
@@ -714,6 +788,12 @@
     <string name="profiles_show_hidden">Show hidden profiles</string>
     <string name="profiles_hide_hidden">Hide hidden profiles</string>
     <string name="profiles_hidden_badge">Hidden</string>
+    <string name="profiles_shared_gateway_title">Shared gateway</string>
+    <string name="profiles_shared_gateway_badge">Shared</string>
+    <plurals name="profiles_shared_gateway_count">
+        <item quantity="one">%1$d profile served together</item>
+        <item quantity="other">%1$d profiles served together</item>
+    </plurals>
     <string name="profiles_all_hidden_desc">All profiles are currently hidden. Tap below to show hidden profiles.</string>
     <string name="profiles_content_desc_active">Active Profile</string>
     <string name="profiles_title_edit_soul">Edit Soul Profile: %1$s</string>
@@ -1052,6 +1132,8 @@
     <string name="channels_action_test">Test</string>
     <string name="channels_action_restart_now">Restart now</string>
     <string name="channels_restart_banner">Changes saved. Restart the gateway for them to take effect.</string>
+    <string name="channels_ingress_url">Ingress URL</string>
+    <string name="channels_copy_ingress_url">Copy ingress URL</string>
 
     <!-- Pairing Screen -->
     <string name="pairing_sec_pending">Pending Approvals</string>
@@ -1191,9 +1273,13 @@
     <string name="channels_expiry_format">Expires: %1$s</string>
     <string name="channels_search_placeholder">Search channels…</string>
     <string name="chat_attach_file">Attach file</string>
+    <string name="chat_attachment_camera">Camera</string>
+    <string name="chat_attachment_photos">Photos</string>
+    <string name="chat_attachment_file">File</string>
     <string name="chat_fast_mode_label">Fast</string>
     <string name="chat_fast_mode_desc">Fast mode</string>
     <string name="chat_fast_mode_unavailable">Fast mode unavailable for this model</string>
+    <string name="chat_reasoning_menu_desc">Reasoning options</string>
     <string name="chat_save_attachment">Save %1$s</string>
     <string name="chat_switch_model_title">Switch model (this chat)</string>
     <string name="config_clear_value">Clear value</string>

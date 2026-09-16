@@ -27,6 +27,7 @@ import com.m57.hermescontrol.ui.chat.ChatSearchState
 import com.m57.hermescontrol.ui.chat.ChatViewModel
 import com.m57.hermescontrol.ui.chat.ClarifyUi
 import com.m57.hermescontrol.ui.chat.ImageViewerModel
+import com.m57.hermescontrol.ui.chat.StreamingState
 import com.m57.hermescontrol.ui.chat.ToolCallDivider
 import com.m57.hermescontrol.ui.chat.VaultCodePromptUi
 import com.m57.hermescontrol.ui.chat.VaultSaveLoginPromptUi
@@ -43,8 +44,8 @@ import com.m57.hermescontrol.ui.common.EmptyState
 /**
  * The chat message list for FULL-BLEED style (issue #866) — the single chat
  * surface since the bubble renderer was removed. User messages keep their
- * bubble (the universal anchor), agent turns render full-bleed with a turn
- * header, and tool rows / system events render as distinct compact cards.
+ * bubble (the universal anchor), agent turns render full-bleed, and tool rows
+ * / system events render as distinct compact cards.
  * Spacing contract:
  * - intra-turn: entries separated by 6.dp (Column padding on agent turn items)
  * - inter-turn: 12.dp bottom padding after each turn's last item
@@ -52,20 +53,24 @@ import com.m57.hermescontrol.ui.common.EmptyState
  * COMPOSE GOTCHA (verified): LazyColumn `item {}` content lambdas execute
  * LAZILY at item-composition time, not during this DSL-building loop. Loop
  * locals that are read inside item lambdas must be captured as immutable
- * vals FIRST (eagerly), or every item sees the loop's final value — the
- * turn header would never render and milestones would be misindexed.
+ * vals FIRST (eagerly), or every item sees the loop's final value and
+ * per-entry state can be rendered against the wrong message.
  */
 @Composable
 fun FullBleedChatList(
     messages: List<ChatMessage>,
-    streamingMessage: ChatMessage?,
+    streamingState: StreamingState,
+    isAgentTyping: Boolean,
     searchState: ChatSearchState,
     typingEffectEnabled: Boolean,
     typingEffectDelayMs: Int,
+    messageStatsEnabled: Boolean = false,
+    showUserMessageTokens: Boolean = true,
+    showAssistantMessageTokens: Boolean = true,
+    showTokensPerSecond: Boolean = true,
     maxToolCallsPerTurn: Int? = null,
     isLoading: Boolean,
     isLoadingOlder: Boolean,
-    isDark: Boolean,
     listState: androidx.compose.foundation.lazy.LazyListState,
     scrollController: ChatScrollController,
     lastAnimatedMessageId: String?,
@@ -89,7 +94,7 @@ fun FullBleedChatList(
     openingAttachmentPath: String? = null,
     onImageClick: (ImageViewerModel) -> Unit = {},
 ) {
-    if (messages.isEmpty() && !isLoading) {
+    if (messages.isEmpty() && !isLoading && !isAgentTyping) {
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center,
@@ -102,9 +107,10 @@ fun FullBleedChatList(
     } else {
         val toolMilestones = remember(messages) { toolCallMilestones(messages) }
         val turns =
-            remember(messages, streamingMessage) {
-                groupIntoTurnsWithStreaming(messages, streamingMessage)
+            remember(messages, streamingState.streamingMessage) {
+                groupIntoTurnsWithStreaming(messages, streamingState.streamingMessage)
             }
+        val agentStatus = deriveAgentStatus(isAgentTyping, streamingState, messages)
         // messageId → LazyColumn item index. The lazy list has EXTRA items
         // vs the message list (reasoning hoists, tool rows), so search-match
         // scrolling must resolve the lazy index, not use the message index.
@@ -182,13 +188,14 @@ fun FullBleedChatList(
                                         savingAttachmentPath = savingAttachmentPath,
                                         openingAttachmentPath = openingAttachmentPath,
                                         onImageClick = onImageClick,
+                                        messageStatsEnabled = messageStatsEnabled,
+                                        showUserMessageTokens = showUserMessageTokens,
                                     )
                                 }
                             }
                         }
 
                         is ChatTurn.Agent -> {
-                            var firstProseSeen = false
                             // Reasoning hoist: the turn's reasoning renders at the
                             // TOP of the turn — above tool rows — so thinking
                             // leads, then the tool work, then the answer. The
@@ -201,9 +208,6 @@ fun FullBleedChatList(
                                 val reasoning = turnReasoning.message
                                 item(key = "reasoning-${reasoning.id}") {
                                     Column(modifier = Modifier.padding(bottom = 6.dp)) {
-                                        // Lead the turn with the assistant identity
-                                        // and timestamp, then the thinking block.
-                                        AssistantTurnHeader(timestamp = reasoning.timestamp)
                                         ReasoningCard(
                                             reasoningText = reasoning.reasoningText,
                                             isStreaming = reasoning.isStreaming,
@@ -215,50 +219,49 @@ fun FullBleedChatList(
                                 when (entry) {
                                     is AgentEntry.Prose -> {
                                         val proseMessage = entry.message
-                                        val showTurnHeader = !firstProseSeen && turnReasoning == null
                                         val hoistedReasoning =
                                             turnReasoning != null &&
                                                 proseMessage.id == turnReasoning.message.id
-                                        item(key = "prose-${proseMessage.id}") {
-                                            Column(modifier = Modifier.padding(bottom = 12.dp)) {
-                                                if (proseMessage.isStreaming && typingEffectEnabled) {
-                                                    StreamingFullBleedWithTypingEffect(
-                                                        streaming = proseMessage,
-                                                        typingDelayMs = typingEffectDelayMs,
-                                                        isDark = isDark,
-                                                        showTurnHeader = showTurnHeader,
-                                                        showReasoning = !hoistedReasoning,
-                                                    )
-                                                } else {
-                                                    FullBleedAgentMessage(
-                                                        message = proseMessage,
-                                                        showTurnHeader = showTurnHeader,
-                                                        isDarkTheme = isDark,
-                                                        // Highlight only bubbles that actually contain a match —
-                                                        // the rest skip the highlight scan entirely.
-                                                        searchQuery =
-                                                            if (searchState.isActive &&
-                                                                proseMessage.id in searchState.matchedIds
-                                                            ) {
-                                                                searchState.query
-                                                            } else {
-                                                                ""
-                                                            },
-                                                        isCurrentMatch =
-                                                            searchState.currentMatchId != null &&
-                                                                searchState.currentMatchId == proseMessage.id,
-                                                        showReasoning = !hoistedReasoning,
-                                                        onOpenAttachment = viewModel::openAttachment,
-                                                        onSaveAttachment = onSaveAttachment,
-                                                        savingAttachmentPath = savingAttachmentPath,
-                                                        openingAttachmentPath = openingAttachmentPath,
-                                                        canSaveAttachment = savingAttachmentPath == null,
-                                                        onImageClick = onImageClick,
-                                                    )
+                                        if (proseMessage.hasVisibleAgentContent()) {
+                                            item(key = "prose-${proseMessage.id}") {
+                                                Column(modifier = Modifier.padding(bottom = 12.dp)) {
+                                                    if (proseMessage.isStreaming && typingEffectEnabled) {
+                                                        StreamingFullBleedWithTypingEffect(
+                                                            streaming = proseMessage,
+                                                            typingDelayMs = typingEffectDelayMs,
+                                                            showReasoning = !hoistedReasoning,
+                                                        )
+                                                    } else {
+                                                        FullBleedAgentMessage(
+                                                            message = proseMessage,
+                                                            // Highlight only bubbles that actually contain a match —
+                                                            // the rest skip the highlight scan entirely.
+                                                            searchQuery =
+                                                                if (searchState.isActive &&
+                                                                    proseMessage.id in searchState.matchedIds
+                                                                ) {
+                                                                    searchState.query
+                                                                } else {
+                                                                    ""
+                                                                },
+                                                            isCurrentMatch =
+                                                                searchState.currentMatchId != null &&
+                                                                    searchState.currentMatchId == proseMessage.id,
+                                                            showReasoning = !hoistedReasoning,
+                                                            onOpenAttachment = viewModel::openAttachment,
+                                                            onSaveAttachment = onSaveAttachment,
+                                                            savingAttachmentPath = savingAttachmentPath,
+                                                            openingAttachmentPath = openingAttachmentPath,
+                                                            canSaveAttachment = savingAttachmentPath == null,
+                                                            onImageClick = onImageClick,
+                                                            messageStatsEnabled = messageStatsEnabled,
+                                                            showAssistantMessageTokens = showAssistantMessageTokens,
+                                                            showTokensPerSecond = showTokensPerSecond,
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
-                                        firstProseSeen = true
                                     }
 
                                     is AgentEntry.ToolRow -> {
@@ -295,6 +298,12 @@ fun FullBleedChatList(
                                 }
                             }
                         }
+                    }
+                }
+
+                agentStatus?.let { status ->
+                    item(key = "agent_status") {
+                        AgentStatusIndicator(status = status)
                     }
                 }
 
@@ -356,6 +365,8 @@ private fun renderChatBubble(
     savingAttachmentPath: String?,
     openingAttachmentPath: String?,
     onImageClick: (ImageViewerModel) -> Unit,
+    messageStatsEnabled: Boolean,
+    showUserMessageTokens: Boolean,
 ) {
     ChatBubble(
         message = message,
@@ -367,5 +378,7 @@ private fun renderChatBubble(
         openingAttachmentPath = openingAttachmentPath,
         canSaveAttachment = savingAttachmentPath == null,
         onImageClick = onImageClick,
+        messageStatsEnabled = messageStatsEnabled,
+        showUserMessageTokens = showUserMessageTokens,
     )
 }

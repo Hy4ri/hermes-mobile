@@ -110,7 +110,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.version.outputs.tag }}
-          name: Hermes Mobile ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
           generate_release_notes: true
           files: |
             release/hermes-mobile-${{ steps.version.outputs.tag }}.apk

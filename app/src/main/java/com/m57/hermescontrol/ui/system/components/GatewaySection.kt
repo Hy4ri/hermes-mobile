@@ -22,12 +22,19 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.model.GatewayMigrationPlan
 import com.m57.hermescontrol.theme.Spacing
+import com.m57.hermescontrol.ui.common.ConfirmDialog
 import com.m57.hermescontrol.ui.common.InfoRow
 import com.m57.hermescontrol.ui.common.SectionHeader
 import com.m57.hermescontrol.ui.common.StatusBadge
@@ -183,5 +190,134 @@ fun LazyListScope.gatewaySection(
                 }
             }
         }
+
+        state.migrationPlan?.let { plan ->
+            item {
+                GatewayMigrationCard(
+                    plan = plan,
+                    onStartMigration = viewModel::startMigration,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GatewayMigrationCard(
+    plan: GatewayMigrationPlan,
+    onStartMigration: () -> Unit,
+) {
+    var showConfirmation by remember(plan) { mutableStateOf(false) }
+    val profileNames =
+        plan.profiles
+            .mapNotNull { it.profile?.takeIf(String::isNotBlank) }
+            .ifEmpty { plan.liveServed.orEmpty() }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            ),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = stringResource(R.string.system_migration_title),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(
+                text = stringResource(R.string.system_migration_description),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            if (profileNames.isNotEmpty()) {
+                InfoRow(
+                    label = stringResource(R.string.system_migration_profiles),
+                    value = profileNames.joinToString(" · "),
+                )
+            }
+            InfoRow(
+                label = stringResource(R.string.system_migration_automatic_eligibility),
+                value =
+                    stringResource(
+                        if (plan.eligible) {
+                            R.string.system_migration_yes
+                        } else {
+                            R.string.system_migration_no
+                        },
+                    ),
+            )
+
+            if (plan.alreadyMultiplexed) {
+                Spacer(modifier = Modifier.height(8.dp))
+                StatusBadge(
+                    text = stringResource(R.string.system_migration_already_multiplexed),
+                    status = StatusBadgeType.SUCCESS,
+                )
+            }
+            if (plan.interrupted) {
+                Spacer(modifier = Modifier.height(8.dp))
+                StatusBadge(
+                    text = stringResource(R.string.system_migration_interrupted),
+                    status = StatusBadgeType.WARNING,
+                )
+            }
+
+            if (plan.blockers.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.system_migration_blockers),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                plan.blockers.forEach { blocker ->
+                    Text(
+                        text = "• $blocker",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+
+            if (plan.notices.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.system_migration_notices),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                plan.notices.forEach { notice ->
+                    Text(
+                        text = "• $notice",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            if (!plan.alreadyMultiplexed && plan.blockers.isEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = { showConfirmation = true },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.system_migration_start))
+                }
+            }
+        }
+    }
+
+    if (showConfirmation) {
+        ConfirmDialog(
+            title = stringResource(R.string.system_migration_confirm_title),
+            message = stringResource(R.string.system_migration_confirm_description),
+            onConfirm = {
+                showConfirmation = false
+                onStartMigration()
+            },
+            onDismiss = { showConfirmation = false },
+            confirmText = stringResource(R.string.system_migration_start),
+        )
     }
 }

@@ -14,6 +14,8 @@ data class ApprovalInfo(
     val patternKeys: List<String>?,
     /** Backend `request_id` — sent back in `approval.respond` to pin the exact pending. */
     val requestId: String? = null,
+    /** JSON-RPC server-request id (`srq-*`) used for the response frame. */
+    val serverRequestId: String? = null,
     /** Backend-advertised choices (`once`/`session`/`always`/`deny`). Null = legacy Run/Deny. */
     val choices: List<String>? = null,
     /** False → hide "Always allow" (tirith warning, desktop parity). */

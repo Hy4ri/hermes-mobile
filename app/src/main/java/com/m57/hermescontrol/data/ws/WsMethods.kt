@@ -29,6 +29,11 @@ object WsMethods {
     const val PROFILES_CONFIGURE = "profiles.configure"
     const val PROFILES_LIST = "profiles.list"
 
+    // ── Projects ──────────────────────────────────────────────────────────
+
+    /** Named workspaces (id, name, color, folders) used to label history rows. */
+    const val PROJECTS_LIST = "projects.list"
+
     // ── Interaction ───────────────────────────────────────────────────────
     const val PROMPT_SUBMIT = "prompt.submit"
     const val PROMPT_BTW = "prompt.btw"
@@ -159,6 +164,7 @@ object WsMethods {
             // Binds HERMES_HOME so config/skills/pets resolve to the
             // focused profile.
             "verification.status", // line 282
+            PROJECTS_LIST, // methods_projects.py: @_registry.profile_scoped
             "pet.info", // line 1253
             "pet.info.meta", // line 1279
             "pet.cells", // line 1302

@@ -72,6 +72,7 @@ import com.m57.hermescontrol.ui.common.StatusBadgeType
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
+import com.m57.hermescontrol.ui.common.rememberSyncedTextFieldState
 import com.m57.hermescontrol.util.CronExpressionFormatter
 
 @Composable
@@ -377,6 +378,11 @@ fun CronJobEditorDialog(
             state.monitor_script.isNotEmpty() || state.monitor_url.isNotEmpty() ||
             state.monitorMode != "off"
 
+    val promptTextFieldState =
+        rememberSyncedTextFieldState(state.prompt) { onFieldChange("prompt", it) }
+    val skillsTextFieldState =
+        rememberSyncedTextFieldState(state.skills) { onFieldChange("skills", it) }
+
     ToastEffect(toastMessage = state.toastMessage, onClearToast = onClearToast)
 
     Dialog(
@@ -506,8 +512,7 @@ fun CronJobEditorDialog(
 
                             // Prompt
                             OutlinedTextField(
-                                value = state.prompt,
-                                onValueChange = { onFieldChange("prompt", it) },
+                                state = promptTextFieldState,
                                 label = { Text(stringResource(R.string.cron_edit_field_prompt)) },
                                 modifier =
                                     Modifier
@@ -531,8 +536,7 @@ fun CronJobEditorDialog(
 
                             // Skills
                             OutlinedTextField(
-                                value = state.skills,
-                                onValueChange = { onFieldChange("skills", it) },
+                                state = skillsTextFieldState,
                                 label = { Text(stringResource(R.string.cron_edit_field_skills)) },
                                 placeholder = { Text(stringResource(R.string.cron_edit_hint_skills)) },
                                 modifier =

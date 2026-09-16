@@ -32,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
@@ -204,6 +205,14 @@ internal fun ChatSection(
     onTypingEffectDelayMsChange: (Int) -> Unit,
     chatFontScale: Float = 1.0f,
     onChatFontScaleChange: (Float) -> Unit = {},
+    messageStatsEnabled: Boolean = false,
+    onMessageStatsEnabledChange: (Boolean) -> Unit = {},
+    showUserMessageTokens: Boolean = true,
+    onUserMessageTokensChange: (Boolean) -> Unit = {},
+    showAssistantMessageTokens: Boolean = true,
+    onAssistantMessageTokensChange: (Boolean) -> Unit = {},
+    showTokensPerSecond: Boolean = true,
+    onTokensPerSecondChange: (Boolean) -> Unit = {},
 ) {
     val fontScaleOptions = listOf(0.85f, 1.0f, 1.15f, 1.30f, 1.50f)
     val currentIndex =
@@ -369,6 +378,53 @@ internal fun ChatSection(
 
         Spacer(modifier = Modifier.height(20.dp))
 
+        Text(
+            text = stringResource(R.string.settings_item_message_stats),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.settings_desc_message_stats),
+                modifier = Modifier.weight(1f),
+                style =
+                    MaterialTheme.typography.bodySmall.copy(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
+            )
+            Switch(
+                checked = messageStatsEnabled,
+                onCheckedChange = onMessageStatsEnabledChange,
+                modifier = Modifier.testTag("settings_message_stats"),
+            )
+        }
+        MessageStatsOption(
+            label = stringResource(R.string.settings_item_user_message_tokens),
+            checked = showUserMessageTokens,
+            enabled = messageStatsEnabled,
+            onCheckedChange = onUserMessageTokensChange,
+            testTag = "settings_user_message_tokens",
+        )
+        MessageStatsOption(
+            label = stringResource(R.string.settings_item_assistant_message_tokens),
+            checked = showAssistantMessageTokens,
+            enabled = messageStatsEnabled,
+            onCheckedChange = onAssistantMessageTokensChange,
+            testTag = "settings_assistant_message_tokens",
+        )
+        MessageStatsOption(
+            label = stringResource(R.string.settings_item_tokens_per_second),
+            checked = showTokensPerSecond,
+            enabled = messageStatsEnabled,
+            onCheckedChange = onTokensPerSecondChange,
+            testTag = "settings_tps",
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -438,5 +494,39 @@ internal fun ChatSection(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun MessageStatsOption(
+    label: String,
+    checked: Boolean,
+    enabled: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    testTag: String,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(start = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            style =
+                MaterialTheme.typography.bodyMedium.copy(
+                    color =
+                        if (enabled) {
+                            MaterialTheme.colorScheme.onSurface
+                        } else {
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                        },
+                ),
+        )
+        Switch(
+            checked = checked,
+            enabled = enabled,
+            onCheckedChange = onCheckedChange,
+            modifier = Modifier.testTag(testTag),
+        )
     }
 }

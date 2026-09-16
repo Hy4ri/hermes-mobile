@@ -1,15 +1,16 @@
 package com.m57.hermescontrol.ui.chat.fullbleed
 
 import android.content.ClipData
-import android.text.format.DateFormat
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -29,10 +30,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.Attachment
@@ -50,17 +49,13 @@ import kotlinx.coroutines.launch
  *
  * Unlike [com.m57.hermescontrol.ui.chat.ChatBubble], agent prose renders
  * directly on the background — no bubble container, no width cap — with a
- * turn header (role + time) and a trailing copy affordance. User messages
- * keep their bubbles; this composable is only used for ASSISTANT messages.
- *
- * [showTurnHeader] renders the role/time header — true only for the first
- * prose entry of an agent turn so multi-message turns don't repeat it.
+ * trailing copy affordance. User messages keep their bubbles; this composable
+ * is only used for ASSISTANT messages.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun FullBleedAgentMessage(
     message: ChatMessage,
-    showTurnHeader: Boolean,
-    isDarkTheme: Boolean,
     searchQuery: String = "",
     isCurrentMatch: Boolean = false,
     showReasoning: Boolean = true,
@@ -70,6 +65,9 @@ internal fun FullBleedAgentMessage(
     openingAttachmentPath: String? = null,
     canSaveAttachment: Boolean = true,
     onImageClick: (ImageViewerModel) -> Unit = {},
+    messageStatsEnabled: Boolean = false,
+    showAssistantMessageTokens: Boolean = true,
+    showTokensPerSecond: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val textColor = MaterialTheme.colorScheme.onSurface
@@ -92,10 +90,6 @@ internal fun FullBleedAgentMessage(
                 .padding(horizontal = 16.dp)
                 .testTag("fullbleed_agent_message"),
     ) {
-        if (showTurnHeader) {
-            AssistantTurnHeader(message.timestamp)
-        }
-
         if (showReasoning && message.reasoningText.isNotBlank()) {
             ReasoningCard(
                 reasoningText = message.reasoningText,
@@ -105,10 +99,10 @@ internal fun FullBleedAgentMessage(
         }
 
         // Defense-in-depth: never render an empty prose block (blank bubble +
-        // lone Copy button). Blank settled rows are tool-call placeholders that
-        // slipped through upstream mapping; streaming keeps rendering so the
-        // live cursor survives until the first delta lands.
-        if (message.content.isNotBlank() || message.isStreaming) {
+        // lone Copy button). Blank rows are tool-call placeholders that slipped
+        // through upstream mapping; the parent list renders the live status
+        // indicator until the first visible delta lands.
+        if (message.content.isNotBlank()) {
             SelectionContainer {
                 MarkdownText(
                     text = message.content,
@@ -140,9 +134,17 @@ internal fun FullBleedAgentMessage(
             }
         }
 
-        if (!message.isStreaming) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
+        if (!message.isStreaming && message.content.isNotBlank()) {
+            val showTokenStat =
+                messageStatsEnabled && showAssistantMessageTokens &&
+                    message.tokenCount != null && message.tokenCount > 0
+            val showTpsStat =
+                messageStatsEnabled && showTokensPerSecond &&
+                    message.tps != null && message.tps > 0.0
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+                itemVerticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(
                     onClick = {
@@ -160,54 +162,24 @@ internal fun FullBleedAgentMessage(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                Spacer(modifier = Modifier.width(4.dp))
-                val finishTime = message.finishTimestamp ?: message.timestamp
-                Text(
-                    text =
-                        com.m57.hermescontrol.ui.chat.formatTimestamp(
-                            finishTime,
-                            DateFormat.is24HourFormat(LocalContext.current),
-                        ),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    modifier = Modifier.testTag("fullbleed_finish_time"),
-                )
-                if (message.tokenCount != null && message.tokenCount > 0) {
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "•",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text =
+                if (showTokenStat) {
+                    AssistantStatItem(
+                        value =
                             stringResource(
                                 R.string.chat_msg_tokens,
                                 TokenEstimator.formatTokenCount(message.tokenCount),
                             ),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                        modifier = Modifier.testTag("fullbleed_token_count"),
+                        testTag = "fullbleed_token_count",
                     )
                 }
-                if (message.tps != null && message.tps > 0.0) {
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "•",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text =
+                if (showTpsStat) {
+                    AssistantStatItem(
+                        value =
                             stringResource(
                                 R.string.chat_msg_tps,
                                 TokenEstimator.formatTps(message.tps),
                             ),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                        modifier = Modifier.testTag("fullbleed_tps"),
+                        testTag = "fullbleed_tps",
                     )
                 }
             }
@@ -215,42 +187,15 @@ internal fun FullBleedAgentMessage(
     }
 }
 
-/**
- * Agent turn header — "Agent · <time>". Shared by the prose message and the
- * hoisted reasoning block so both can lead with the assistant identity and
- * timestamp.
- */
 @Composable
-internal fun AssistantTurnHeader(
-    timestamp: Long,
-    modifier: Modifier = Modifier,
+private fun AssistantStatItem(
+    value: String,
+    testTag: String,
 ) {
-    Row(
-        modifier = modifier.padding(bottom = 4.dp).testTag("fullbleed_agent_header"),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = stringResource(R.string.fullbleed_role_agent),
-            style =
-                MaterialTheme.typography.labelMedium.copy(
-                    fontWeight = FontWeight.SemiBold,
-                ),
-            // Meta color (not primary): Nord's light mode reuses its
-            // pastel Frost accent as primary, which fails >= 3:1 on a
-            // light background. The header is metadata, so the dimmed
-            // meta token is both more correct and gate-compliant in
-            // every preset.
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text =
-                com.m57.hermescontrol.ui.chat.formatTimestamp(
-                    timestamp,
-                    DateFormat.is24HourFormat(LocalContext.current),
-                ),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
+    Text(
+        text = value,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.testTag(testTag),
+    )
 }

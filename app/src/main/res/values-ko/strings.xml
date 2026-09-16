@@ -187,7 +187,18 @@
     <string name="settings_sec_chat">채팅</string>
     <string name="settings_item_typing_effect">타이핑 효과</string>
     <string name="settings_desc_typing_effect">새 메시지를 단어 단위로 애니메이션</string>
-    <string name="fullbleed_role_agent">어시스턴트</string>
+    <string name="settings_item_message_stats">메시지 통계</string>
+    <string name="settings_desc_message_stats">채팅에서 토큰 및 생성 성능 세부정보 표시</string>
+    <string name="settings_item_user_message_tokens">사용자 메시지 토큰</string>
+    <string name="settings_item_assistant_message_tokens">어시스턴트 메시지 토큰</string>
+    <string name="settings_item_tokens_per_second">초당 토큰 수 (TPS)</string>
+    <string name="chat_agent_status_typing">에이전트 입력 중</string>
+    <string name="chat_agent_status_thinking">생각 중…</string>
+    <string name="chat_agent_status_searching">검색 중…</string>
+    <string name="chat_agent_status_reading">파일 읽는 중…</string>
+    <string name="chat_agent_status_browsing">탐색 중…</string>
+    <string name="chat_agent_status_running_command">명령 실행 중…</string>
+    <string name="chat_agent_status_using_tool">도구 사용 중…</string>
     <string name="settings_item_typing_delay">지연: %1$d ms</string>
     <string name="settings_delay_10ms">10 ms</string>
     <string name="settings_delay_100ms">100 ms</string>
@@ -364,6 +375,20 @@
     <string name="system_action_update_now">지금 업데이트</string>
     <string name="system_update_confirm_title">Hermes 업데이트?</string>
     <string name="system_update_confirm_desc">Hermes 업데이트를 실행하고 게이트웨이를 재시작합니다. 다음 재시작 시 적용됩니다.</string>
+    <string name="system_migration_title">게이트웨이 마이그레이션</string>
+    <string name="system_migration_description">프로필 게이트웨이를 하나의 공유 멀티플렉서로 옮기기 전에 서버의 마이그레이션 계획을 확인하세요.</string>
+    <string name="system_migration_profiles">프로필</string>
+    <string name="system_migration_automatic_eligibility">자동 마이그레이션 가능 여부</string>
+    <string name="system_migration_yes">예</string>
+    <string name="system_migration_no">아니요</string>
+    <string name="system_migration_already_multiplexed">이미 멀티플렉싱됨</string>
+    <string name="system_migration_interrupted">이전 마이그레이션이 중단되었습니다. 다시 시도하기 전에 계획을 확인하세요.</string>
+    <string name="system_migration_blockers">차단 요인</string>
+    <string name="system_migration_notices">알림</string>
+    <string name="system_migration_start">마이그레이션 시작</string>
+    <string name="system_migration_confirm_title">게이트웨이 마이그레이션을 시작할까요?</string>
+    <string name="system_migration_confirm_description">독립 프로필 게이트웨이를 중지하고 기본 게이트웨이를 공유 멀티플렉서로 재시작합니다. 작업은 백그라운드에서 실행됩니다.</string>
+    <string name="system_migration_progress_title">게이트웨이 마이그레이션</string>
     <string name="system_hooks_modal_title">새 셸 훅</string>
     <string name="system_hooks_field_event">이벤트</string>
     <string name="system_hooks_field_command">명령어 (절대 경로)</string>
@@ -393,16 +418,45 @@
     <string name="model_label_available">사용 가능한 모델:</string>
     <string name="model_no_models">보고된 모델이 없거나 인증이 필요합니다.</string>
     <string name="content_desc_active_model">활성 모델</string>
+    <string name="content_desc_expand_provider">%1$s 모델 펼치기</string>
+    <string name="content_desc_collapse_provider">%1$s 모델 접기</string>
     <string name="model_section_pinned">고정된 모델</string>
     <string name="model_confirm_continue">계속</string>
     <string name="content_desc_unpin_model">모델 고정 해제</string>
     <string name="content_desc_pinned_section_toggle">고정 섹션 표시 전환</string>
+    <plurals name="model_provider_count">
+        <item quantity="one">%1$d개 모델</item>
+        <item quantity="other">%1$d개 모델</item>
+    </plurals>
 
     <!-- Sessions (History) Screen -->
     <string name="history_empty_title">히스토리 없음</string>
     <string name="history_empty_desc">이전 채팅 세션이 여기에 표시됩니다.</string>
     <string name="history_untitled">제목 없음</string>
     <string name="history_message_count">%1$d개 메시지</string>
+    <plurals name="sessions_card_message_count">
+        <item quantity="one">%1$d개 메시지</item>
+        <item quantity="other">%1$d개 메시지</item>
+    </plurals>
+    <string name="sessions_project_home">홈</string>
+    <string name="session_age_now">지금</string>
+    <string name="session_age_minutes">%1$d분</string>
+    <string name="session_age_hours">%1$d시간</string>
+    <string name="session_age_days">%1$d일</string>
+    <string name="session_age_now_desc">방금 활동</string>
+    <plurals name="session_age_minutes_desc">
+        <item quantity="one">%1$d분 전 활동</item>
+        <item quantity="other">%1$d분 전 활동</item>
+    </plurals>
+    <plurals name="session_age_hours_desc">
+        <item quantity="one">%1$d시간 전 활동</item>
+        <item quantity="other">%1$d시간 전 활동</item>
+    </plurals>
+    <plurals name="session_age_days_desc">
+        <item quantity="one">%1$d일 전 활동</item>
+        <item quantity="other">%1$d일 전 활동</item>
+    </plurals>
+    <string name="session_age_date_desc">%1$s 활동</string>
     <string name="history_load_more">더 불러오기…</string>
 
     <!-- Sessions Stats -->
@@ -484,6 +538,12 @@
     <string name="profiles_show_hidden">숨겨진 프로필 표시</string>
     <string name="profiles_hide_hidden">숨겨진 프로필 숨기기</string>
     <string name="profiles_hidden_badge">숨김</string>
+    <string name="profiles_shared_gateway_title">공유 게이트웨이</string>
+    <string name="profiles_shared_gateway_badge">공유</string>
+    <plurals name="profiles_shared_gateway_count">
+        <item quantity="one">프로필 %1$d개가 함께 제공됨</item>
+        <item quantity="other">프로필 %1$d개가 함께 제공됨</item>
+    </plurals>
     <string name="profiles_all_hidden_desc">모든 프로필이 현재 숨겨져 있습니다. 아래를 탭하여 숨겨진 프로필을 표시하세요.</string>
     <string name="profiles_content_desc_active">활성 프로필</string>
     <string name="profiles_title_edit_soul">소울 프로필 편집: %1$s</string>
@@ -743,6 +803,8 @@
     <string name="channels_action_test">테스트</string>
     <string name="channels_action_restart_now">지금 재시작</string>
     <string name="channels_restart_banner">변경사항이 저장되었습니다. 게이트웨이를 재시작하면 적용됩니다.</string>
+    <string name="channels_ingress_url">수신 URL</string>
+    <string name="channels_copy_ingress_url">수신 URL 복사</string>
 
     <!-- Pairing Screen -->
     <string name="pairing_sec_pending">승인 대기</string>
@@ -894,6 +956,9 @@
     <string name="subagent_status_cancelled">취소됨</string>
     <string name="subagent_status_failed">실패</string>
     <string name="subagent_duration">%1$.1f초</string>
+    <string name="chat_attachment_camera">카메라</string>
+    <string name="chat_attachment_photos">사진</string>
+    <string name="chat_attachment_file">파일</string>
     <string name="chat_fast_mode_label">빠름</string>
     <string name="chat_fast_mode_desc">빠른 모드</string>
     <string name="chat_fast_mode_unavailable">이 모델에서는 빠른 모드를 사용할 수 없습니다</string>

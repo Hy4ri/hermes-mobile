@@ -720,7 +720,7 @@ private fun ProviderCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = provider.name,
                         style = MaterialTheme.typography.titleMedium,
@@ -733,12 +733,36 @@ private fun ProviderCard(
                     )
                 }
 
-                if (isCurrent) {
-                    Text(
-                        text = stringResource(R.string.model_status_current),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold,
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    if (isCurrent) {
+                        Text(
+                            text = stringResource(R.string.model_status_current),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                    Icon(
+                        imageVector =
+                            if (isExpanded) {
+                                Icons.Filled.KeyboardArrowUp
+                            } else {
+                                Icons.Filled.KeyboardArrowDown
+                            },
+                        contentDescription =
+                            stringResource(
+                                if (isExpanded) {
+                                    R.string.content_desc_collapse_provider
+                                } else {
+                                    R.string.content_desc_expand_provider
+                                },
+                                provider.name,
+                            ),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(24.dp),
                     )
                 }
             }

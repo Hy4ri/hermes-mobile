@@ -15,7 +15,6 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -359,7 +358,6 @@ fun ChatScreen(
     }
     var viewingImage by rememberSaveable { mutableStateOf<ImageViewerModel?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
-    val isDark = isSystemInDarkTheme()
     val launchExternalActivity: (() -> Unit) -> Unit = { launch ->
         ExternalActivityLifecycleGuard.launchExternalActivity(
             acquireConnectionLease = HermesWsClient::acquireExternalActivityConnectionLease,
@@ -668,14 +666,18 @@ fun ChatScreen(
                 // surface since the bubble renderer was removed.
                 FullBleedChatList(
                     messages = state.messages,
-                    streamingMessage = streamingState.streamingMessage,
+                    streamingState = streamingState,
+                    isAgentTyping = state.isAgentTyping,
                     searchState = searchState,
                     typingEffectEnabled = state.typingEffectEnabled,
                     typingEffectDelayMs = state.typingEffectDelayMs,
+                    messageStatsEnabled = state.messageStatsEnabled,
+                    showUserMessageTokens = state.showUserMessageTokens,
+                    showAssistantMessageTokens = state.showAssistantMessageTokens,
+                    showTokensPerSecond = state.showTokensPerSecond,
                     maxToolCallsPerTurn = state.maxToolCallsPerTurn,
                     isLoading = state.isLoading,
                     isLoadingOlder = state.isLoadingOlder,
-                    isDark = isDark,
                     listState = listState,
                     scrollController = scrollController,
                     lastAnimatedMessageId = lastAnimatedMessageId,

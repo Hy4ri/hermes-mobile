@@ -18,6 +18,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Code
@@ -51,6 +53,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
@@ -71,6 +74,7 @@ import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
 import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.ToastEffect
+import com.m57.hermescontrol.ui.common.rememberSyncedTextFieldState
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
@@ -290,6 +294,8 @@ private fun YAMLEditor(
         return
     }
 
+    val textFieldState = rememberSyncedTextFieldState(yamlText, onYamlTextChange)
+
     Column(
         modifier =
             Modifier
@@ -297,14 +303,12 @@ private fun YAMLEditor(
                 .padding(horizontal = 16.dp),
     ) {
         OutlinedTextField(
-            value = yamlText,
-            onValueChange = onYamlTextChange,
+            state = textFieldState,
             modifier =
                 Modifier
                     .fillMaxWidth()
                     .weight(1f),
             textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-            maxLines = Int.MAX_VALUE,
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -936,34 +940,41 @@ private fun JsonField(
     label: String,
     onChange: (JsonElement) -> Unit,
 ) {
-    var text by remember(key) { mutableStateOf(value?.let(::jsonText) ?: "") }
+    val textFieldState = remember(key) { TextFieldState(value?.let(::jsonText) ?: "") }
     var hasFocus by remember { mutableStateOf(false) }
     var invalid by remember { mutableStateOf(false) }
 
-    LaunchedEffect(value) {
-        if (!hasFocus) text = value?.let(::jsonText) ?: ""
+    LaunchedEffect(value, hasFocus) {
+        if (!hasFocus) {
+            val canonical = value?.let(::jsonText) ?: ""
+            if (textFieldState.text.toString() != canonical) {
+                textFieldState.edit {
+                    replace(0, length, canonical)
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(textFieldState) {
+        snapshotFlow { textFieldState.text.toString() }
+            .collect { newText ->
+                val parsed = runCatching { Json.parseToJsonElement(newText) }.getOrNull()
+                invalid = newText.isNotBlank() && parsed == null
+                if (parsed != null && newText.isNotBlank() && parsed != value) {
+                    onChange(parsed)
+                }
+            }
     }
 
     OutlinedTextField(
-        value = text,
-        onValueChange = { newText ->
-            text = newText
-            val parsed = runCatching { Json.parseToJsonElement(newText) }.getOrNull()
-            invalid = newText.isNotBlank() && parsed == null
-            if (parsed != null && newText.isNotBlank()) {
-                onChange(parsed)
-            }
-        },
+        state = textFieldState,
         modifier =
             Modifier
                 .fillMaxWidth()
                 .heightIn(min = 96.dp)
                 .onFocusChanged {
                     hasFocus = it.isFocused
-                    if (!it.isFocused) {
-                        invalid = false
-                        text = value?.let(::jsonText) ?: ""
-                    }
+                    if (!it.isFocused) invalid = false
                 },
         isError = invalid,
         supportingText =
@@ -974,6 +985,6 @@ private fun JsonField(
             },
         textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
         label = { Text(label) },
-        maxLines = Int.MAX_VALUE,
+        lineLimits = TextFieldLineLimits.MultiLine(minHeightInLines = 4),
     )
 }

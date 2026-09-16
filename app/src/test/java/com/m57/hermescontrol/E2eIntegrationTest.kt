@@ -27,6 +27,7 @@ import com.m57.hermescontrol.data.model.MemoryResponse
 import com.m57.hermescontrol.data.model.MemoryStats
 import com.m57.hermescontrol.data.model.MessagingPlatform
 import com.m57.hermescontrol.data.model.MessagingPlatformResponse
+import com.m57.hermescontrol.data.model.MessagingPlatformUpdateResponse
 import com.m57.hermescontrol.data.model.MoaConfigResponse
 import com.m57.hermescontrol.data.model.MoaModelSlot
 import com.m57.hermescontrol.data.model.ModelOptionsResponse
@@ -1118,7 +1119,8 @@ class E2eIntegrationTest {
                         platforms = listOf(platform),
                     ),
                 )
-            coEvery { mockApiService.configurePlatform("telegram", any()) } returns Response.success(Unit)
+            coEvery { mockApiService.configurePlatform("telegram", any()) } returns
+                Response.success(MessagingPlatformUpdateResponse(ok = true))
 
             val viewModel = ChannelsViewModel()
             viewModel.loadPlatforms()
@@ -1205,10 +1207,9 @@ class E2eIntegrationTest {
         runTest {
             val board = KanbanBoard("board-1", "Backlog", null)
             val task = KanbanTask("task-1", "Do laundry", null, "todo", null)
-            coEvery { mockApiService.getKanbanBoards() } returns
+            coEvery { mockApiService.getBoards(any()) } returns
                 Response.success(KanbanBoardsResponse(listOf(board), "board-1"))
-            coEvery { mockApiService.switchKanbanBoard("board-1") } returns Response.success(Unit)
-            coEvery { mockApiService.getKanbanBoard() } returns
+            coEvery { mockApiService.getBoard("board-1", any(), any()) } returns
                 Response.success(KanbanBoardResponse(listOf(KanbanColumn("todo", listOf(task))), null, null))
 
             val viewModel = KanbanViewModel(eventsClientProvider = { mockk<KanbanEventsClient>(relaxed = true) })
@@ -1230,11 +1231,16 @@ class E2eIntegrationTest {
             // Desktop-style transition: todo -> ready is a direct write the
             // backend accepts; the VM PATCHes the target status.
             coEvery {
-                mockApiService.updateKanbanTask(
-                    "task-1",
-                    mapOf("status" to "ready"),
+                mockApiService.updateTask(
+                    eq("task-1"),
+                    eq("board-1"),
+                    any(),
                 )
-            } returns Response.success(Unit)
+            } returns
+                Response.success(
+                    com.m57.hermescontrol.data.model
+                        .UpdateTaskResponse(task = task.copy(status = "ready")),
+                )
             viewModel.moveTask(viewModel.uiState.value.tasks[0], KanbanTaskAction.READY)
             advanceUntilIdle()
             assertEquals(
@@ -1243,9 +1249,13 @@ class E2eIntegrationTest {
                     .status,
             )
 
-            // Create path: the wrapped {"task": ...} response must not
-            // break deserialization — the API layer reads it as Unit.
-            coEvery { mockApiService.createKanbanTask(any(), any()) } returns Response.success(Unit)
+            // Create path: returns CreateTaskResponse
+            coEvery { mockApiService.createTask(any(), any()) } returns
+                Response.success(
+                    com.m57.hermescontrol.data.model.CreateTaskResponse(
+                        task = KanbanTask("task-2", "Fresh task", status = "todo"),
+                    ),
+                )
             viewModel.createTask("Fresh task", null, "todo")
             advanceUntilIdle()
             assertEquals("Task created successfully", viewModel.uiState.value.toastMessage)

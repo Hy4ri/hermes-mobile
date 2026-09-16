@@ -49,6 +49,8 @@ import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
@@ -73,6 +75,7 @@ class ChatViewModelTest {
 
     /** Counter used to generate unique WS request IDs. */
     private var reqCount = 0
+    private val sentRequestMethods = mutableListOf<Pair<String, String>>()
 
     @Test
     fun mergeTranscriptWithLive_collapsesDuplicateIdsKeepingLatestMessage() {
@@ -116,6 +119,7 @@ class ChatViewModelTest {
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
         reqCount = 0
+        sentRequestMethods.clear()
 
         mockkStatic(Log::class)
         every { Log.d(any(), any()) } returns 0
@@ -163,6 +167,10 @@ class ChatViewModelTest {
         every { ProfileSwitchCoordinator.connectionSwitched } returns MutableSharedFlow<String>()
         every { AuthManager.isTypingEffectEnabled() } returns true
         every { AuthManager.getTypingEffectDelayMs() } returns 30
+        every { AuthManager.isMessageStatsEnabled() } returns false
+        every { AuthManager.isUserMessageTokensEnabled() } returns true
+        every { AuthManager.isAssistantMessageTokensEnabled() } returns true
+        every { AuthManager.isTokensPerSecondEnabled() } returns true
         every { AuthManager.isAutoReconnect() } returns false
         every { AuthManager.isRestoreLastSession() } returns false
         every { AuthManager.getLastOpenedSessionId() } returns null
@@ -179,6 +187,7 @@ class ChatViewModelTest {
         every { HermesWsClient.send(any(), any(), any()) } answers {
             reqCount++
             val id = "req-id-$reqCount"
+            sentRequestMethods += arg<String>(0) to id
             arg<((String) -> Unit)?>(2)?.invoke(id)
             id
         }
@@ -188,6 +197,8 @@ class ChatViewModelTest {
             arg<((String) -> Unit)?>(2)?.invoke(id)
             id
         }
+        every { HermesWsClient.respondToServerRequest(any(), any()) } returns true
+        every { HermesWsClient.respondToServerRequestError(any(), any(), any()) } returns true
 
         // Stub model-options so preloadModelOptions() (fired at GatewayReady) is safe.
         val mockApi = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
@@ -1495,6 +1506,100 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun testServerRequestClarifyReplay_restoresLockedAnswersAndMergesRemainingAnswer() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            mockEventsFlow.emit(
+                WsEvent.ServerRequest(
+                    id = "srq-clarify-replay",
+                    method = "clarify",
+                    params =
+                        mapOf(
+                            "session_id" to sessionId,
+                            "questions" to
+                                listOf(
+                                    mapOf("qid" to "q0", "question" to "First?", "choices" to listOf("yes")),
+                                    mapOf("qid" to "q1", "question" to "Second?", "choices" to emptyList<String>()),
+                                ),
+                            "answers" to mapOf("q0" to "yes", "invalid" to 42),
+                        ),
+                    replayed = true,
+                ),
+            )
+            advanceUntilIdle()
+
+            val clarify = viewModel.uiState.value.clarifyRequest
+            assertEquals("srq-clarify-replay", clarify?.serverRequestId)
+            assertEquals(mapOf("q0" to "yes"), clarify?.lockedAnswers)
+            assertEquals(2, clarify?.resolvedQuestions?.size)
+
+            viewModel.respondToClarifyBatch(mapOf("q0" to "", "q1" to "new answer"))
+            advanceUntilIdle()
+
+            verify {
+                HermesWsClient.respondToServerRequest(
+                    "srq-clarify-replay",
+                    withArg { result ->
+                        val answers = result.jsonObject["answers"]?.jsonObject
+                        assertEquals("yes", answers?.get("q0")?.jsonPrimitive?.content)
+                        assertEquals("new answer", answers?.get("q1")?.jsonPrimitive?.content)
+                        assertFalse(answers?.containsKey("invalid") == true)
+                    },
+                )
+            }
+        }
+
+    @Test
+    fun serverRequestCancel_clearsOnlyMatchingClarifyPrompt() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            mockEventsFlow.emit(
+                WsEvent.ServerRequest(
+                    id = "srq-clarify-cancel",
+                    method = "clarify",
+                    params =
+                        mapOf(
+                            "session_id" to sessionId,
+                            "question" to "Continue?",
+                        ),
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals(
+                "srq-clarify-cancel",
+                viewModel.uiState.value.clarifyRequest
+                    ?.serverRequestId,
+            )
+
+            mockEventsFlow.emit(
+                WsEvent.ServerRequestCancelled(
+                    id = "srq-other",
+                    method = "clarify",
+                    reason = "timeout",
+                    sessionId = sessionId,
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals(
+                "srq-clarify-cancel",
+                viewModel.uiState.value.clarifyRequest
+                    ?.serverRequestId,
+            )
+
+            mockEventsFlow.emit(
+                WsEvent.ServerRequestCancelled(
+                    id = "srq-clarify-cancel",
+                    method = "clarify",
+                    reason = "timeout",
+                    sessionId = sessionId,
+                ),
+            )
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.clarifyRequest)
+        }
+
+    @Test
     fun testClarifyRequestCustomResponse() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()
@@ -1781,7 +1886,7 @@ class ChatViewModelTest {
     @Test
     fun sendMessage_oversizedDuringSnapshotLeavesNoPersistedGhostMessage() =
         runTest {
-            val (viewModel, _) = createViewModelWithSession()
+            val (viewModel, sessionId) = createViewModelWithSession()
             val persistedBeforeSend = fakeRepo.dao.count()
             val uriString = "content://unknown/growing-file"
             val mockUri = mockk<Uri>()
@@ -1818,6 +1923,7 @@ class ChatViewModelTest {
             viewModel.sendMessage("Inspect changing file")
             advanceUntilIdle()
 
+            assertFalse(viewModel.streamingState.value.turnUsageBaselineCaptured)
             assertEquals(persistedBeforeSend, fakeRepo.dao.count())
             assertFalse(
                 fakeRepo.dao
@@ -1829,6 +1935,24 @@ class ChatViewModelTest {
                 viewModel.uiState.value.messages
                     .any { it.content == "Inspect changing file" },
             )
+
+            mockEventsFlow.emit(
+                WsEvent.SessionUsage(
+                    data = mapOf("usage" to mapOf("output" to 1300L)),
+                    sessionId = sessionId,
+                ),
+            )
+            advanceUntilIdle()
+            viewModel.removeAttachment(0)
+            viewModel.sendMessage("Retry without attachment")
+            advanceUntilIdle()
+
+            assertEquals(
+                1300L,
+                viewModel.streamingState.value.turnUsageBaseline
+                    ?.outputTokens,
+            )
+            assertTrue(viewModel.streamingState.value.turnUsageBaselineCaptured)
         }
 
     @Test
@@ -1989,7 +2113,7 @@ class ChatViewModelTest {
             viewModel.sendMessage("Send in the old session")
             advanceUntilIdle()
 
-            verify {
+            verify(exactly = 0) {
                 HermesWsClient.sendMessage(
                     oldSessionId,
                     match { it.contains("Send in the old session") },
@@ -1997,17 +2121,44 @@ class ChatViewModelTest {
                     any(),
                 )
             }
-            mockEventsFlow.emit(
-                WsEvent.RpcError(
-                    promptRequestId,
-                    JsonRpcError(code = 4001, message = "old session rejected prompt"),
-                ),
-            )
-            advanceUntilIdle()
+            assertFalse(viewModel.streamingState.value.turnUsageBaselineCaptured)
 
             val state = viewModel.uiState.value
             assertEquals("session-456", state.currentSessionId)
             assertNull(state.errorMessage)
+
+            val resumeRequestId = sentRequestMethods.last { it.first == WsMethods.SESSION_RESUME }.second
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    resumeRequestId,
+                    mapOf("session_id" to "session-456"),
+                ),
+            )
+            advanceUntilIdle()
+            mockEventsFlow.emit(
+                WsEvent.SessionUsage(
+                    data = mapOf("usage" to mapOf("output" to 9000L)),
+                    sessionId = "session-456",
+                ),
+            )
+            advanceUntilIdle()
+            viewModel.sendMessage("Send in the new session")
+            advanceUntilIdle()
+
+            assertEquals(
+                9000L,
+                viewModel.streamingState.value.turnUsageBaseline
+                    ?.outputTokens,
+            )
+            assertTrue(viewModel.streamingState.value.turnUsageBaselineCaptured)
+            verify {
+                HermesWsClient.sendMessage(
+                    "session-456",
+                    match { it.contains("Send in the new session") },
+                    any(),
+                    any(),
+                )
+            }
         }
 
     @Test
@@ -4042,13 +4193,16 @@ class ChatViewModelTest {
     fun testRefreshSettings_updatesUiState() =
         runTest {
             // Given the default setup, init{} already calls refreshSettings() once,
-            // so the initial state reflects the setUp defaults (typingEffectEnabled=true,
-            // typingEffectDelayMs=30).
+            // so the initial state reflects the setUp defaults.
             val viewModel = createViewModel()
             advanceUntilIdle()
             with(viewModel.uiState.value) {
                 assertTrue(typingEffectEnabled)
                 assertEquals(30, typingEffectDelayMs)
+                assertFalse(messageStatsEnabled)
+                assertTrue(showUserMessageTokens)
+                assertTrue(showAssistantMessageTokens)
+                assertTrue(showTokensPerSecond)
             }
 
             // When settings change after construction and refreshSettings() is re-invoked,
@@ -4056,6 +4210,10 @@ class ChatViewModelTest {
             // re-reads AuthManager live (the real regression scenario).
             every { AuthManager.isTypingEffectEnabled() } returns false
             every { AuthManager.getTypingEffectDelayMs() } returns 50
+            every { AuthManager.isMessageStatsEnabled() } returns true
+            every { AuthManager.isUserMessageTokensEnabled() } returns false
+            every { AuthManager.isAssistantMessageTokensEnabled() } returns false
+            every { AuthManager.isTokensPerSecondEnabled() } returns false
             viewModel.refreshSettings()
             advanceUntilIdle()
 
@@ -4063,6 +4221,37 @@ class ChatViewModelTest {
             val state = viewModel.uiState.value
             assertFalse(state.typingEffectEnabled)
             assertEquals(50, state.typingEffectDelayMs)
+            assertTrue(state.messageStatsEnabled)
+            assertFalse(state.showUserMessageTokens)
+            assertFalse(state.showAssistantMessageTokens)
+            assertFalse(state.showTokensPerSecond)
+        }
+
+    @Test
+    fun testSendMessage_capturesCurrentUsageBeforeTurnAndSessionSwitchClearsIt() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            mockEventsFlow.emit(
+                WsEvent.SessionUsage(
+                    data = mapOf("usage" to mapOf("output" to 1000L)),
+                    sessionId = sessionId,
+                ),
+            )
+            advanceUntilIdle()
+
+            viewModel.sendMessage("prompt")
+            advanceUntilIdle()
+
+            assertEquals(
+                1000L,
+                viewModel.streamingState.value.turnUsageBaseline
+                    ?.outputTokens,
+            )
+            assertTrue(viewModel.streamingState.value.turnUsageBaselineCaptured)
+            viewModel.switchSession("session-other")
+
+            assertNull(viewModel.streamingState.value.turnUsageBaseline)
+            assertFalse(viewModel.streamingState.value.turnUsageBaselineCaptured)
         }
 
     @Test

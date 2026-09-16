@@ -199,6 +199,14 @@ internal fun SettingsChatPage(
                 onTypingEffectDelayMsChange = viewModel::onTypingEffectDelayMsChange,
                 chatFontScale = state.chatFontScale,
                 onChatFontScaleChange = viewModel::onChatFontScaleChange,
+                messageStatsEnabled = state.messageStatsEnabled,
+                onMessageStatsEnabledChange = viewModel::onMessageStatsEnabledChange,
+                showUserMessageTokens = state.showUserMessageTokens,
+                onUserMessageTokensChange = viewModel::onUserMessageTokensChange,
+                showAssistantMessageTokens = state.showAssistantMessageTokens,
+                onAssistantMessageTokensChange = viewModel::onAssistantMessageTokensChange,
+                showTokensPerSecond = state.showTokensPerSecond,
+                onTokensPerSecondChange = viewModel::onTokensPerSecondChange,
             )
         }
     }

@@ -2110,7 +2110,7 @@ class ChatViewModelTest {
             viewModel.sendMessage("Send in the old session")
             advanceUntilIdle()
 
-            verify {
+            verify(exactly = 0) {
                 HermesWsClient.sendMessage(
                     oldSessionId,
                     match { it.contains("Send in the old session") },
@@ -2118,13 +2118,7 @@ class ChatViewModelTest {
                     any(),
                 )
             }
-            mockEventsFlow.emit(
-                WsEvent.RpcError(
-                    promptRequestId,
-                    JsonRpcError(code = 4001, message = "old session rejected prompt"),
-                ),
-            )
-            advanceUntilIdle()
+            assertFalse(viewModel.streamingState.value.turnUsageBaselineCaptured)
 
             val state = viewModel.uiState.value
             assertEquals("session-456", state.currentSessionId)

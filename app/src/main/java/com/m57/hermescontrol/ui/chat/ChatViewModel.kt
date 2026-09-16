@@ -1807,6 +1807,8 @@ class ChatViewModel(
                             if (text.isNotBlank()) "\n\n$text" else ""
                     }
 
+                if (dispatchGeneration != sessionGeneration) return@launch
+
                 // While a turn is actively streaming and this is a plain text prompt
                 // (no attachments — session.redirect carries text only), steer the
                 // in-flight turn via session.redirect instead of queueing a fresh

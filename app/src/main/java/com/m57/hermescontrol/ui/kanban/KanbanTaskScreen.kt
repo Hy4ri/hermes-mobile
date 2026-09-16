@@ -101,7 +101,14 @@ fun KanbanTaskScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var selectedTabIndex by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Overview", "Discussion", "Runs", "Activity", "Files")
+    val tabs =
+        listOf(
+            stringResource(R.string.kanban_tab_overview),
+            stringResource(R.string.kanban_tab_discussion),
+            stringResource(R.string.kanban_tab_runs),
+            stringResource(R.string.kanban_tab_activity),
+            stringResource(R.string.kanban_tab_files),
+        )
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(boardSlug, taskId) {
@@ -114,7 +121,7 @@ fun KanbanTaskScreen(
         title = {
             Column {
                 Text(
-                    text = state.detail?.task?.title ?: "Task Details",
+                    text = state.detail?.task?.title ?: stringResource(R.string.kanban_task_details),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
@@ -379,7 +386,7 @@ private fun TaskOverviewTab(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
                     ) {
                         Text(
-                            text = "Assignee",
+                            text = stringResource(R.string.kanban_assignee),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -582,7 +589,7 @@ private fun TaskOverviewTab(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(
-                            text = "Description",
+                            text = stringResource(R.string.kanban_description),
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary,

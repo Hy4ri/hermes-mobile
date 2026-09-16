@@ -431,6 +431,12 @@
     <string name="kanban_filters">筛选</string>
     <string name="kanban_confirm_action">确认操作</string>
     <string name="kanban_edit_description">编辑描述</string>
+    <string name="kanban_task_details">任务详情</string>
+    <string name="kanban_tab_overview">概览</string>
+    <string name="kanban_tab_discussion">讨论</string>
+    <string name="kanban_tab_runs">执行</string>
+    <string name="kanban_tab_activity">活动</string>
+    <string name="kanban_tab_files">文件</string>
     <string name="kanban_event_created">创建于 %1$s</string>
     <string name="kanban_event_created_by">由 %2$s 创建于 %1$s</string>
     <string name="kanban_event_moved">移动到 %1$s</string>

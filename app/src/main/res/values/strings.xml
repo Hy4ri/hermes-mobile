@@ -467,6 +467,12 @@
     <string name="kanban_filters">Filters</string>
     <string name="kanban_confirm_action">Confirm action</string>
     <string name="kanban_edit_description">Edit Description</string>
+    <string name="kanban_task_details">Task Details</string>
+    <string name="kanban_tab_overview">Overview</string>
+    <string name="kanban_tab_discussion">Discussion</string>
+    <string name="kanban_tab_runs">Runs</string>
+    <string name="kanban_tab_activity">Activity</string>
+    <string name="kanban_tab_files">Files</string>
     <string name="kanban_event_created">Created in %1$s</string>
     <string name="kanban_event_created_by">Created in %1$s by %2$s</string>
     <string name="kanban_event_moved">Moved to %1$s</string>

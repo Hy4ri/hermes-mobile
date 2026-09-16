@@ -432,6 +432,12 @@
     <string name="kanban_filters">عوامل التصفية</string>
     <string name="kanban_confirm_action">تأكيد الإجراء</string>
     <string name="kanban_edit_description">تعديل الوصف</string>
+    <string name="kanban_task_details">تفاصيل المهمة</string>
+    <string name="kanban_tab_overview">نظرة عامة</string>
+    <string name="kanban_tab_discussion">النقاش</string>
+    <string name="kanban_tab_runs">التنفيذات</string>
+    <string name="kanban_tab_activity">النشاط</string>
+    <string name="kanban_tab_files">الملفات</string>
     <string name="kanban_event_created">أُنشئت في %1$s</string>
     <string name="kanban_event_created_by">أُنشئت في %1$s بواسطة %2$s</string>
     <string name="kanban_event_moved">نُقلت إلى %1$s</string>

@@ -430,6 +430,12 @@
     <string name="kanban_filters">필터</string>
     <string name="kanban_confirm_action">작업 확인</string>
     <string name="kanban_edit_description">설명 편집</string>
+    <string name="kanban_task_details">작업 세부정보</string>
+    <string name="kanban_tab_overview">개요</string>
+    <string name="kanban_tab_discussion">토론</string>
+    <string name="kanban_tab_runs">실행</string>
+    <string name="kanban_tab_activity">활동</string>
+    <string name="kanban_tab_files">파일</string>
     <string name="kanban_event_created">%1$s에서 생성됨</string>
     <string name="kanban_event_created_by">%1$s에서 %2$s가 생성함</string>
     <string name="kanban_event_moved">%1$s로 이동됨</string>

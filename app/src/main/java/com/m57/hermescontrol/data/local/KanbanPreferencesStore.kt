@@ -12,6 +12,8 @@ interface KanbanPreferencesStore {
         slug: String,
     )
 
+    fun clearSelectedBoard(endpoint: String)
+
     fun getViewMode(): String
 
     fun setViewMode(mode: String)
@@ -43,6 +45,10 @@ class InMemoryKanbanPreferencesStore : KanbanPreferencesStore {
         slug: String,
     ) {
         selectedBoards[endpoint] = slug
+    }
+
+    override fun clearSelectedBoard(endpoint: String) {
+        selectedBoards.remove(endpoint)
     }
 
     override fun getViewMode(): String = viewMode

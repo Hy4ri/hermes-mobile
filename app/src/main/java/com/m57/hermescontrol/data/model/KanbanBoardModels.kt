@@ -92,3 +92,17 @@ data class DeleteBoardResponse(
     val result: JsonElement? = null,
     val current: String? = null,
 )
+
+@Serializable
+data class ExportBoardBody(
+    val output: String = "",
+    val attachments: Boolean = true,
+    val logs: Boolean = false,
+)
+
+@Serializable
+data class ImportBoardBody(
+    val archive: String,
+    val slug: String? = null,
+    val switch: Boolean = false,
+)

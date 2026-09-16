@@ -8,12 +8,14 @@ import com.m57.hermescontrol.data.model.UpdateTaskResponse
 import com.m57.hermescontrol.data.model.WorkerLog
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.repository.KanbanRepository
+import com.m57.hermescontrol.data.ws.KanbanEventsClient
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -28,10 +30,13 @@ import org.junit.Test
 class KanbanTaskViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private val mockRepository = mockk<KanbanRepository>(relaxed = true)
+    private val mockEventsClient = mockk<KanbanEventsClient>(relaxed = true)
 
-    private fun createViewModel(): KanbanTaskViewModel =
+    private fun createViewModel(enableFallbackPolling: Boolean = false): KanbanTaskViewModel =
         KanbanTaskViewModel(
             repository = mockRepository,
+            eventsClientProvider = { mockEventsClient },
+            enableFallbackPolling = enableFallbackPolling,
         )
 
     @Before
@@ -75,7 +80,7 @@ class KanbanTaskViewModelTest {
 
             val vm = createViewModel()
             vm.loadTask("dev", "t_1")
-            testDispatcher.scheduler.advanceUntilIdle()
+            testDispatcher.scheduler.runCurrent()
 
             assertEquals(
                 "Log line 1",
@@ -83,6 +88,7 @@ class KanbanTaskViewModelTest {
                     ?.content,
             )
             coVerify { mockRepository.getTaskLog("t_1", "dev", any()) }
+            vm.onCleared()
         }
 
     @Test
@@ -133,7 +139,7 @@ class KanbanTaskViewModelTest {
     @Test
     fun testPostNoteAndRequeue() =
         runTest(testDispatcher) {
-            val task = KanbanTaskFull(id = "t_1", title = "Running task", status = "running")
+            val task = KanbanTaskFull(id = "t_1", title = "Task 1", status = "todo")
             coEvery { mockRepository.getTask("t_1", "dev") } returns
                 NetworkResult.Success(KanbanTaskDetailResponse(task = task))
             coEvery { mockRepository.addComment("t_1", "dev", "Stop now") } returns
@@ -196,5 +202,123 @@ class KanbanTaskViewModelTest {
 
             coVerify { mockRepository.uploadAttachment("t_1", "dev", any()) }
             assertEquals("Attachment uploaded", vm.uiState.value.toastMessage)
+        }
+
+    @Test
+    fun testUpdateModelOverride() =
+        runTest(testDispatcher) {
+            val task = KanbanTaskFull(id = "t_1", title = "Task 1", status = "todo")
+            coEvery { mockRepository.getTask("t_1", "dev") } returns
+                NetworkResult.Success(KanbanTaskDetailResponse(task = task))
+            coEvery { mockRepository.updateTask("t_1", "dev", any()) } returns
+                NetworkResult.Success(UpdateTaskResponse())
+
+            val vm = createViewModel()
+            vm.loadTask("dev", "t_1")
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            val override = KanbanModelOverride(model = "claude-3-5-sonnet", provider = "anthropic", effort = "high")
+            vm.updateModelOverride("dev", "t_1", override)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            coVerify {
+                mockRepository.updateTask(
+                    "t_1",
+                    "dev",
+                    match {
+                        it.modelOverride == "claude-3-5-sonnet" &&
+                            it.providerOverride == "anthropic" &&
+                            it.reasoningEffort == "high" &&
+                            !it.clearModelOverride
+                    },
+                )
+            }
+            assertEquals("Model override updated", vm.uiState.value.toastMessage)
+        }
+
+    @Test
+    fun testEstimateTask() =
+        runTest(testDispatcher) {
+            val task = KanbanTaskFull(id = "t_1", title = "Task 1", status = "todo")
+            coEvery { mockRepository.getTask("t_1", "dev") } returns
+                NetworkResult.Success(KanbanTaskDetailResponse(task = task))
+            coEvery { mockRepository.estimateTask("t_1", "dev") } returns
+                NetworkResult.Success(
+                    com.m57.hermescontrol.data.model.TaskEstimate(
+                        ok = true,
+                        estTokens = 1500,
+                        complexity = "medium",
+                    ),
+                )
+
+            val vm = createViewModel()
+            vm.loadTask("dev", "t_1")
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            vm.estimateTask("dev", "t_1")
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            coVerify { mockRepository.estimateTask("t_1", "dev") }
+            assertEquals(
+                1500,
+                vm.uiState.value.estimate
+                    ?.tokens,
+            )
+            assertEquals(
+                "medium",
+                vm.uiState.value.estimate
+                    ?.complexity,
+            )
+        }
+
+    @Test
+    fun testDeleteTask() =
+        runTest(testDispatcher) {
+            coEvery { mockRepository.deleteTask("t_1", "dev") } returns NetworkResult.Success(Unit)
+
+            val vm = createViewModel()
+            var deleted = false
+            vm.deleteTask("dev", "t_1") {
+                deleted = true
+            }
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            coVerify { mockRepository.deleteTask("t_1", "dev") }
+            assertTrue(deleted)
+            assertEquals("Task deleted", vm.uiState.value.toastMessage)
+        }
+
+    @Test
+    fun testFallbackPollingReloadsTaskWithoutEvents() =
+        runTest(testDispatcher) {
+            val first = KanbanTaskFull(id = "t_1", title = "Before", status = "todo")
+            val second = KanbanTaskFull(id = "t_1", title = "After", status = "todo")
+            coEvery { mockRepository.getTask("t_1", "dev") } returnsMany
+                listOf(
+                    NetworkResult.Success(KanbanTaskDetailResponse(task = first)),
+                    NetworkResult.Success(KanbanTaskDetailResponse(task = second)),
+                )
+
+            val vm = createViewModel(enableFallbackPolling = true)
+            vm.loadTask("dev", "t_1")
+            testDispatcher.scheduler.runCurrent()
+            assertEquals(
+                "Before",
+                vm.uiState.value.detail
+                    ?.task
+                    ?.title,
+            )
+
+            testDispatcher.scheduler.advanceTimeBy(30_000L)
+            testDispatcher.scheduler.runCurrent()
+
+            assertEquals(
+                "After",
+                vm.uiState.value.detail
+                    ?.task
+                    ?.title,
+            )
+            coVerify(exactly = 2) { mockRepository.getTask("t_1", "dev") }
+            vm.onCleared()
         }
 }

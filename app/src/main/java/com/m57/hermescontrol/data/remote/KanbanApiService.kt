@@ -2,6 +2,8 @@ package com.m57.hermescontrol.data.remote
 
 import com.m57.hermescontrol.data.model.AttachmentUploadResponse
 import com.m57.hermescontrol.data.model.AutoDescribeResponse
+import com.m57.hermescontrol.data.model.BoardExportResult
+import com.m57.hermescontrol.data.model.BoardImportResult
 import com.m57.hermescontrol.data.model.BulkTasksBody
 import com.m57.hermescontrol.data.model.BulkTasksResponse
 import com.m57.hermescontrol.data.model.CreateBoardBody
@@ -10,6 +12,8 @@ import com.m57.hermescontrol.data.model.CreateTaskBody
 import com.m57.hermescontrol.data.model.CreateTaskResponse
 import com.m57.hermescontrol.data.model.DeleteBoardResponse
 import com.m57.hermescontrol.data.model.DispatchResult
+import com.m57.hermescontrol.data.model.ExportBoardBody
+import com.m57.hermescontrol.data.model.ImportBoardBody
 import com.m57.hermescontrol.data.model.KanbanBoardResponse
 import com.m57.hermescontrol.data.model.KanbanBoardsResponse
 import com.m57.hermescontrol.data.model.KanbanProfilesResponse
@@ -76,6 +80,17 @@ interface KanbanApiService {
     suspend fun switchBoard(
         @Path("slug") slug: String,
     ): Response<Unit>
+
+    @POST("api/plugins/kanban/boards/{slug}/export")
+    suspend fun exportBoard(
+        @Path("slug") slug: String,
+        @Body body: ExportBoardBody = ExportBoardBody(),
+    ): Response<BoardExportResult>
+
+    @POST("api/plugins/kanban/boards/import")
+    suspend fun importBoard(
+        @Body body: ImportBoardBody,
+    ): Response<BoardImportResult>
 
     @GET("api/plugins/kanban/tasks/{id}")
     suspend fun getTask(

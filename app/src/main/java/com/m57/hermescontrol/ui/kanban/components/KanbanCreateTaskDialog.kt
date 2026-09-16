@@ -29,6 +29,7 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -49,8 +50,12 @@ import com.m57.hermescontrol.data.model.CreateTaskBody
 import com.m57.hermescontrol.data.model.KanbanColumn
 import com.m57.hermescontrol.data.model.KanbanProfile
 import com.m57.hermescontrol.data.model.KanbanTask
+import com.m57.hermescontrol.data.model.ModelProvider
+import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.data.model.TaskEstimate
 import com.m57.hermescontrol.ui.common.rememberSyncedTextFieldState
+import com.m57.hermescontrol.ui.kanban.KanbanModelOverride
+import com.m57.hermescontrol.ui.kanban.KanbanStatusConstraints
 import kotlinx.coroutines.launch
 
 private const val PARKED_VALUE = "__parked__"
@@ -66,13 +71,20 @@ fun KanbanCreateTaskDialog(
     onDismiss: () -> Unit,
     onConfirm: (body: CreateTaskBody, targetStatus: String) -> Unit,
     modifier: Modifier = Modifier,
+    defaultAssignee: String? = null,
+    boardDefaultWorkspaceKind: String? = null,
+    boardDefaultWorkdir: String? = null,
+    modelProviders: List<ModelProvider> = emptyList(),
+    pinnedModels: List<PinnedModel> = emptyList(),
     onEstimate: (suspend (title: String, body: String?) -> TaskEstimate?)? = null,
 ) {
     var title by remember { mutableStateOf("") }
     var desc by remember { mutableStateOf("") }
     val descTextFieldState = rememberSyncedTextFieldState(desc) { desc = it }
     var selectedColumn by remember(defaultColumn) { mutableStateOf(defaultColumn) }
-    var selectedAssignee by remember { mutableStateOf<String?>(null) }
+    var selectedAssignee by remember(defaultAssignee) {
+        mutableStateOf(defaultAssignee ?: profiles.firstOrNull()?.name ?: "default")
+    }
     var priority by remember { mutableIntStateOf(0) }
     var goalMode by remember { mutableStateOf(false) }
 
@@ -84,15 +96,21 @@ fun KanbanCreateTaskDialog(
     // Advanced options
     var showAdvanced by remember { mutableStateOf(false) }
     var parentTaskId by remember { mutableStateOf<String?>(null) }
-    var modelOverride by remember { mutableStateOf("") }
-    var providerOverride by remember { mutableStateOf("") }
-    var reasoningEffort by remember { mutableStateOf<String?>(null) }
-    var workspaceKind by remember { mutableStateOf<String?>(null) }
+    var modelOverride by remember { mutableStateOf(KanbanModelOverride.EMPTY) }
+    var workspaceKind by remember(boardDefaultWorkspaceKind) {
+        mutableStateOf(boardDefaultWorkspaceKind ?: "scratch")
+    }
+    var workspacePath by remember { mutableStateOf("") }
     var skillsText by remember { mutableStateOf("") }
 
     var assigneeExpanded by remember { mutableStateOf(false) }
     var columnExpanded by remember { mutableStateOf(false) }
     var parentExpanded by remember { mutableStateOf(false) }
+
+    val writableColumns =
+        remember(columns) {
+            columns.filter { KanbanStatusConstraints.isUserWritableTarget(it.name) }
+        }
 
     AlertDialog(
         onDismissRequest = { if (!isCreating) onDismiss() },
@@ -127,7 +145,7 @@ fun KanbanCreateTaskDialog(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // Target Column selector
-                if (columns.isNotEmpty()) {
+                if (writableColumns.isNotEmpty()) {
                     ExposedDropdownMenuBox(
                         expanded = columnExpanded,
                         onExpandedChange = { if (!isCreating) columnExpanded = it },
@@ -149,7 +167,7 @@ fun KanbanCreateTaskDialog(
                             expanded = columnExpanded,
                             onDismissRequest = { columnExpanded = false },
                         ) {
-                            columns.forEach { col ->
+                            writableColumns.forEach { col ->
                                 DropdownMenuItem(
                                     text = { Text(col.name.uppercase()) },
                                     onClick = {
@@ -169,10 +187,22 @@ fun KanbanCreateTaskDialog(
                     onExpandedChange = { if (!isCreating) assigneeExpanded = it },
                 ) {
                     val displayAssignee =
-                        when (selectedAssignee) {
-                            null -> stringResource(R.string.kanban_assignee_unassigned)
-                            PARKED_VALUE -> stringResource(R.string.kanban_assignee_parked)
-                            else -> selectedAssignee ?: ""
+                        when {
+                            selectedAssignee == PARKED_VALUE -> {
+                                stringResource(R.string.kanban_assignee_parked)
+                            }
+
+                            selectedAssignee == defaultAssignee && !defaultAssignee.isNullOrBlank() -> {
+                                "$defaultAssignee (Default)"
+                            }
+
+                            selectedAssignee.isNullOrBlank() -> {
+                                stringResource(R.string.kanban_assignee_unassigned)
+                            }
+
+                            else -> {
+                                selectedAssignee
+                            }
                         }
                     OutlinedTextField(
                         value = displayAssignee,
@@ -187,18 +217,12 @@ fun KanbanCreateTaskDialog(
                         expanded = assigneeExpanded,
                         onDismissRequest = { assigneeExpanded = false },
                     ) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.kanban_assignee_unassigned)) },
-                            onClick = {
-                                selectedAssignee = null
-                                assigneeExpanded = false
-                            },
-                        )
                         profiles.forEach { profile ->
+                            val isDef = profile.name == defaultAssignee
                             DropdownMenuItem(
                                 text = {
                                     Column {
-                                        Text(profile.name)
+                                        Text(if (isDef) "${profile.name} (Default)" else profile.name)
                                         if (profile.model != null) {
                                             Text(
                                                 profile.model,
@@ -258,11 +282,7 @@ fun KanbanCreateTaskDialog(
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .clickable(enabled = !isCreating) { goalMode = !goalMode }
-                            .padding(vertical = 4.dp),
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
@@ -271,11 +291,10 @@ fun KanbanCreateTaskDialog(
                         )
                         Text(
                             text = stringResource(R.string.kanban_goal_mode_desc),
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
                     Switch(
                         checked = goalMode,
                         onCheckedChange = { goalMode = it },
@@ -286,34 +305,42 @@ fun KanbanCreateTaskDialog(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // Advanced Options Toggle
-                TextButton(
-                    onClick = { showAdvanced = !showAdvanced },
-                    modifier = Modifier.align(Alignment.Start),
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable { showAdvanced = !showAdvanced }
+                            .padding(vertical = 8.dp),
                 ) {
+                    Text(
+                        text = stringResource(R.string.kanban_advanced_options),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.weight(1f),
+                    )
                     Icon(
                         imageVector = if (showAdvanced) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.primary,
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(stringResource(R.string.kanban_advanced_options))
                 }
 
                 AnimatedVisibility(visible = showAdvanced) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
+                    Column {
                         // Parent Task
                         if (existingTasks.isNotEmpty()) {
                             ExposedDropdownMenuBox(
                                 expanded = parentExpanded,
                                 onExpandedChange = { if (!isCreating) parentExpanded = it },
                             ) {
-                                val displayParent =
-                                    existingTasks.find { it.id == parentTaskId }?.let {
-                                        "#${it.id.removePrefix("t_").take(6)} • ${it.title}"
+                                val parentDisplay =
+                                    parentTaskId?.let { pid ->
+                                        existingTasks.find { it.id == pid }?.title ?: pid
                                     } ?: stringResource(R.string.kanban_parent_none)
 
                                 OutlinedTextField(
-                                    value = displayParent,
+                                    value = parentDisplay,
                                     onValueChange = {},
                                     readOnly = true,
                                     label = { Text(stringResource(R.string.kanban_parent_task)) },
@@ -342,7 +369,12 @@ fun KanbanCreateTaskDialog(
                                     )
                                     existingTasks.forEach { task ->
                                         DropdownMenuItem(
-                                            text = { Text("#${task.id.removePrefix("t_").take(6)} • ${task.title}") },
+                                            text = {
+                                                Text(
+                                                    task.title,
+                                                    maxLines = 1,
+                                                )
+                                            },
                                             onClick = {
                                                 parentTaskId = task.id
                                                 parentExpanded = false
@@ -354,57 +386,14 @@ fun KanbanCreateTaskDialog(
                             Spacer(modifier = Modifier.height(8.dp))
                         }
 
-                        // Model Override
-                        OutlinedTextField(
-                            value = modelOverride,
-                            onValueChange = { modelOverride = it },
-                            label = { Text(stringResource(R.string.kanban_model_override)) },
-                            placeholder = { Text("e.g. claude-3-5-sonnet") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
+                        // Model Override via shared ModelPickerDialog
+                        KanbanModelOverrideEditor(
+                            override = modelOverride,
+                            onOverrideChange = { modelOverride = it },
+                            modelProviders = modelProviders,
+                            pinnedModels = pinnedModels,
                             enabled = !isCreating,
                         )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Provider Override
-                        OutlinedTextField(
-                            value = providerOverride,
-                            onValueChange = { providerOverride = it },
-                            label = { Text(stringResource(R.string.kanban_provider_override)) },
-                            placeholder = { Text("e.g. anthropic") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            enabled = !isCreating,
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Reasoning Effort
-                        Text(
-                            text = stringResource(R.string.kanban_reasoning_effort),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                        ) {
-                            listOf(
-                                null to "Inherit",
-                                "low" to "Low",
-                                "medium" to "Medium",
-                                "high" to "High",
-                            ).forEach { (effort, label) ->
-                                FilterChip(
-                                    selected = reasoningEffort == effort,
-                                    onClick = { reasoningEffort = effort },
-                                    label = { Text(label) },
-                                    enabled = !isCreating,
-                                )
-                            }
-                        }
 
                         Spacer(modifier = Modifier.height(8.dp))
 
@@ -420,7 +409,7 @@ fun KanbanCreateTaskDialog(
                             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                         ) {
                             listOf(
-                                null to "Scratch (Default)",
+                                "scratch" to "Scratch (Default)",
                                 "worktree" to "Worktree",
                                 "dir" to "Dir",
                             ).forEach { (kind, label) ->
@@ -431,6 +420,25 @@ fun KanbanCreateTaskDialog(
                                     enabled = !isCreating,
                                 )
                             }
+                        }
+
+                        if (workspaceKind == "worktree" || workspaceKind == "dir") {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = workspacePath,
+                                onValueChange = { workspacePath = it },
+                                label = { Text(stringResource(R.string.kanban_workspace_path)) },
+                                placeholder = {
+                                    if (!boardDefaultWorkdir.isNullOrBlank()) {
+                                        Text(boardDefaultWorkdir)
+                                    } else {
+                                        Text(stringResource(R.string.kanban_workspace_path_hint))
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                enabled = !isCreating,
+                            )
                         }
 
                         Spacer(modifier = Modifier.height(8.dp))
@@ -448,40 +456,57 @@ fun KanbanCreateTaskDialog(
                     }
                 }
 
+                // Estimation Section
                 if (onEstimate != null) {
                     Spacer(modifier = Modifier.height(12.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                    if (estimate != null) {
+                        estimate?.let { est ->
+                            Column(
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp),
+                            ) {
+                                Text(
+                                    text = "Estimated Tokens: ${est.tokens ?: "N/A"}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                                if (!est.complexity.isNullOrBlank()) {
+                                    Text(
+                                        text = "Complexity: ${est.complexity}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                                if (!est.rationale.isNullOrBlank()) {
+                                    Text(
+                                        text = est.rationale,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            if (title.isNotBlank() && !isEstimating) {
+                                isEstimating = true
+                                coroutineScope.launch {
+                                    val res = onEstimate(title.trim(), desc.trim().ifBlank { null })
+                                    estimate = res
+                                    isEstimating = false
+                                }
+                            }
+                        },
+                        enabled = title.isNotBlank() && !isEstimating && !isCreating,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        if (estimate != null && estimate?.ok == true) {
-                            Text(
-                                text = "~${estimate?.estTokens ?: 0} tokens · ${estimate?.complexity ?: "normal"}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                        } else {
-                            Spacer(modifier = Modifier.weight(1f))
+                        if (isEstimating) {
+                            CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 1.5.dp)
+                            Spacer(modifier = Modifier.width(4.dp))
                         }
-                        TextButton(
-                            onClick = {
-                                if (title.isNotBlank() && !isEstimating) {
-                                    coroutineScope.launch {
-                                        isEstimating = true
-                                        estimate = onEstimate(title, desc.ifBlank { null })
-                                        isEstimating = false
-                                    }
-                                }
-                            },
-                            enabled = title.isNotBlank() && !isEstimating && !isCreating,
-                        ) {
-                            if (isEstimating) {
-                                CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 1.5.dp)
-                                Spacer(modifier = Modifier.width(4.dp))
-                            }
-                            Text(if (estimate != null) "Re-estimate" else "Estimate tokens")
-                        }
+                        Text(if (estimate != null) "Re-estimate" else "Estimate tokens")
                     }
                 }
             }
@@ -497,6 +522,23 @@ fun KanbanCreateTaskDialog(
                                 .filter { it.isNotEmpty() }
                                 .takeIf { it.isNotEmpty() }
 
+                        val finalWorkspaceKind = if (workspaceKind == "scratch") null else workspaceKind
+                        val finalWorkspacePath =
+                            if (finalWorkspaceKind != null && workspacePath.isNotBlank()) {
+                                workspacePath.trim()
+                            } else {
+                                null
+                            }
+
+                        val finalModel = modelOverride.model.trim().ifBlank { null }
+                        val finalProvider =
+                            if (finalModel != null && modelOverride.provider.isNotBlank()) {
+                                modelOverride.provider.trim()
+                            } else {
+                                null
+                            }
+                        val finalEffort = modelOverride.effort.trim().ifBlank { null }
+
                         val body =
                             CreateTaskBody(
                                 title = title.trim(),
@@ -505,10 +547,11 @@ fun KanbanCreateTaskDialog(
                                 priority = priority,
                                 goalMode = goalMode,
                                 parents = parentTaskId?.let { listOf(it) } ?: emptyList(),
-                                modelOverride = modelOverride.trim().ifBlank { null },
-                                providerOverride = providerOverride.trim().ifBlank { null },
-                                reasoningEffort = reasoningEffort,
-                                workspaceKind = workspaceKind,
+                                modelOverride = finalModel,
+                                providerOverride = finalProvider,
+                                reasoningEffort = finalEffort,
+                                workspaceKind = finalWorkspaceKind,
+                                workspacePath = finalWorkspacePath,
                                 skills = skillsList,
                                 triage = selectedColumn.equals("triage", ignoreCase = true),
                             )

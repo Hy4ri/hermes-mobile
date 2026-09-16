@@ -414,7 +414,11 @@ fun KanbanCreateTaskDialog(
                         Spacer(modifier = Modifier.height(4.dp))
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState())
+                                    .testTag("kanban_workspace_kinds"),
                         ) {
                             listOf(
                                 "scratch" to stringResource(R.string.kanban_workspace_scratch),

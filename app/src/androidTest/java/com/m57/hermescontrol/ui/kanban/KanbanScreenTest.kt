@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.ui.kanban
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -74,10 +75,13 @@ class KanbanScreenTest {
         composeTestRule.onNodeWithTag("kanban_workspace_path").assertDoesNotExist()
 
         // Select Worktree
+        composeTestRule.onNodeWithTag("kanban_workspace_kinds").performScrollTo()
         composeTestRule.onNodeWithTag("kanban_workspace_kind_worktree").performClick()
+        composeTestRule.onNodeWithTag("kanban_workspace_kind_worktree").assertIsSelected()
         composeTestRule.onNodeWithTag("kanban_workspace_path").performScrollTo().assertIsDisplayed()
 
         // Select Scratch again
+        composeTestRule.onNodeWithTag("kanban_workspace_kinds").performScrollTo()
         composeTestRule.onNodeWithTag("kanban_workspace_kind_scratch").performClick()
         composeTestRule.onNodeWithTag("kanban_workspace_path").assertDoesNotExist()
     }

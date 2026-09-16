@@ -75,6 +75,7 @@ class ChatViewModelTest {
 
     /** Counter used to generate unique WS request IDs. */
     private var reqCount = 0
+    private val sentRequestMethods = mutableListOf<Pair<String, String>>()
 
     @Test
     fun mergeTranscriptWithLive_collapsesDuplicateIdsKeepingLatestMessage() {
@@ -118,6 +119,7 @@ class ChatViewModelTest {
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
         reqCount = 0
+        sentRequestMethods.clear()
 
         mockkStatic(Log::class)
         every { Log.d(any(), any()) } returns 0
@@ -185,6 +187,7 @@ class ChatViewModelTest {
         every { HermesWsClient.send(any(), any(), any()) } answers {
             reqCount++
             val id = "req-id-$reqCount"
+            sentRequestMethods += arg<String>(0) to id
             arg<((String) -> Unit)?>(2)?.invoke(id)
             id
         }
@@ -2123,6 +2126,39 @@ class ChatViewModelTest {
             val state = viewModel.uiState.value
             assertEquals("session-456", state.currentSessionId)
             assertNull(state.errorMessage)
+
+            val resumeRequestId = sentRequestMethods.last { it.first == WsMethods.SESSION_RESUME }.second
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    resumeRequestId,
+                    mapOf("session_id" to "session-456"),
+                ),
+            )
+            advanceUntilIdle()
+            mockEventsFlow.emit(
+                WsEvent.SessionUsage(
+                    data = mapOf("usage" to mapOf("output" to 9000L)),
+                    sessionId = "session-456",
+                ),
+            )
+            advanceUntilIdle()
+            viewModel.sendMessage("Send in the new session")
+            advanceUntilIdle()
+
+            assertEquals(
+                9000L,
+                viewModel.streamingState.value.turnUsageBaseline
+                    ?.outputTokens,
+            )
+            assertTrue(viewModel.streamingState.value.turnUsageBaselineCaptured)
+            verify {
+                HermesWsClient.sendMessage(
+                    "session-456",
+                    match { it.contains("Send in the new session") },
+                    any(),
+                    any(),
+                )
+            }
         }
 
     @Test

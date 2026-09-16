@@ -6,9 +6,33 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
+enum class KanbanEventMessage {
+    CREATED,
+    CREATED_BY,
+    MOVED,
+    ASSIGNED,
+    UNASSIGNED,
+    COMMENTED,
+    CLAIMED_REVIEW,
+    CLAIMED_WORKER,
+    WORKER_STARTED,
+    COMPLETED,
+    BLOCKED,
+    UNBLOCKED,
+    RECLAIMED,
+    SPECIFIED,
+    PROMOTED,
+    SCHEDULED,
+    ARCHIVED,
+    PRIORITY,
+    UNKNOWN,
+}
+
 data class FormattedKanbanEvent(
     val label: String,
     val detail: String? = null,
+    val message: KanbanEventMessage = KanbanEventMessage.UNKNOWN,
+    val arguments: List<String> = emptyList(),
 )
 
 object KanbanEventFormatter {
@@ -51,7 +75,11 @@ object KanbanEventFormatter {
                 val status = col("status") ?: "Todo"
                 val assignee = str("assignee")
                 val label = if (assignee != null) "Created in $status by $assignee" else "Created in $status"
-                FormattedKanbanEvent(label = label)
+                FormattedKanbanEvent(
+                    label = label,
+                    message = if (assignee != null) KanbanEventMessage.CREATED_BY else KanbanEventMessage.CREATED,
+                    arguments = listOfNotNull(status, assignee),
+                )
             }
 
             "status" -> {
@@ -66,6 +94,8 @@ object KanbanEventFormatter {
                 FormattedKanbanEvent(
                     label = "Moved to $targetStatus",
                     detail = detail,
+                    message = KanbanEventMessage.MOVED,
+                    arguments = listOf(targetStatus),
                 )
             }
 
@@ -73,18 +103,32 @@ object KanbanEventFormatter {
                 val assignee = str("assignee")
                 FormattedKanbanEvent(
                     label = if (assignee != null) "Assigned to $assignee" else "Unassigned",
+                    message = if (assignee != null) KanbanEventMessage.ASSIGNED else KanbanEventMessage.UNASSIGNED,
+                    arguments = listOfNotNull(assignee),
                 )
             }
 
             "commented" -> {
                 val author = str("author") ?: "someone"
-                FormattedKanbanEvent(label = "Comment by $author")
+                FormattedKanbanEvent(
+                    label = "Comment by $author",
+                    message = KanbanEventMessage.COMMENTED,
+                    arguments = listOf(author),
+                )
             }
 
             "claimed" -> {
                 val source = str("source_status")
                 FormattedKanbanEvent(
                     label = if (source == "review") "Claimed for review" else "Claimed by worker",
+                    message =
+                        if (source ==
+                            "review"
+                        ) {
+                            KanbanEventMessage.CLAIMED_REVIEW
+                        } else {
+                            KanbanEventMessage.CLAIMED_WORKER
+                        },
                 )
             }
 
@@ -93,49 +137,59 @@ object KanbanEventFormatter {
                 FormattedKanbanEvent(
                     label = "Worker started",
                     detail = if (pid != null && pid != "null") "PID $pid" else null,
+                    message = KanbanEventMessage.WORKER_STARTED,
+                    arguments = listOfNotNull(pid?.takeIf { it != "null" }),
                 )
             }
 
             "completed" -> {
-                FormattedKanbanEvent(label = "Completed")
+                FormattedKanbanEvent(label = "Completed", message = KanbanEventMessage.COMPLETED)
             }
 
             "blocked" -> {
                 val reason = str("reason")
-                FormattedKanbanEvent(label = "Blocked", detail = reason)
+                FormattedKanbanEvent(label = "Blocked", detail = reason, message = KanbanEventMessage.BLOCKED)
             }
 
             "unblocked" -> {
                 val status = col("status")
                 val label = if (status != null) "Unblocked ($status)" else "Unblocked"
-                FormattedKanbanEvent(label = label)
+                FormattedKanbanEvent(
+                    label = label,
+                    message = KanbanEventMessage.UNBLOCKED,
+                    arguments = listOfNotNull(status),
+                )
             }
 
             "reclaimed" -> {
                 val reason = str("reason")
-                FormattedKanbanEvent(label = "Reclaimed", detail = reason)
+                FormattedKanbanEvent(label = "Reclaimed", detail = reason, message = KanbanEventMessage.RECLAIMED)
             }
 
             "specified" -> {
-                FormattedKanbanEvent(label = "Specified")
+                FormattedKanbanEvent(label = "Specified", message = KanbanEventMessage.SPECIFIED)
             }
 
             "promoted" -> {
-                FormattedKanbanEvent(label = "Promoted to ready")
+                FormattedKanbanEvent(label = "Promoted to ready", message = KanbanEventMessage.PROMOTED)
             }
 
             "scheduled" -> {
                 val reason = str("reason")
-                FormattedKanbanEvent(label = "Scheduled", detail = reason)
+                FormattedKanbanEvent(label = "Scheduled", detail = reason, message = KanbanEventMessage.SCHEDULED)
             }
 
             "archived" -> {
-                FormattedKanbanEvent(label = "Archived")
+                FormattedKanbanEvent(label = "Archived", message = KanbanEventMessage.ARCHIVED)
             }
 
             "reprioritized" -> {
                 val priority = str("priority") ?: payloadMap["priority"]?.toString() ?: "?"
-                FormattedKanbanEvent(label = "Priority set to $priority")
+                FormattedKanbanEvent(
+                    label = "Priority set to $priority",
+                    message = KanbanEventMessage.PRIORITY,
+                    arguments = listOf(priority),
+                )
             }
 
             else -> {

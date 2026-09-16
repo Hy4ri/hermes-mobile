@@ -883,6 +883,94 @@ private fun TaskRunsTab(
 }
 
 @Composable
+private fun localizedKanbanEventLabel(event: FormattedKanbanEvent): String =
+    when (event.message) {
+        KanbanEventMessage.CREATED -> {
+            stringResource(R.string.kanban_event_created, event.arguments.getOrElse(0) { "Todo" })
+        }
+
+        KanbanEventMessage.CREATED_BY -> {
+            stringResource(
+                R.string.kanban_event_created_by,
+                event.arguments.getOrElse(0) { "Todo" },
+                event.arguments.getOrElse(1) { "" },
+            )
+        }
+
+        KanbanEventMessage.MOVED -> {
+            stringResource(R.string.kanban_event_moved, event.arguments.getOrElse(0) { "?" })
+        }
+
+        KanbanEventMessage.ASSIGNED -> {
+            stringResource(R.string.kanban_event_assigned, event.arguments.getOrElse(0) { "" })
+        }
+
+        KanbanEventMessage.UNASSIGNED -> {
+            stringResource(R.string.kanban_event_unassigned)
+        }
+
+        KanbanEventMessage.COMMENTED -> {
+            stringResource(R.string.kanban_event_commented, event.arguments.getOrElse(0) { "someone" })
+        }
+
+        KanbanEventMessage.CLAIMED_REVIEW -> {
+            stringResource(R.string.kanban_event_claimed_review)
+        }
+
+        KanbanEventMessage.CLAIMED_WORKER -> {
+            stringResource(R.string.kanban_event_claimed_worker)
+        }
+
+        KanbanEventMessage.WORKER_STARTED -> {
+            stringResource(R.string.kanban_event_worker_started)
+        }
+
+        KanbanEventMessage.COMPLETED -> {
+            stringResource(R.string.kanban_event_completed)
+        }
+
+        KanbanEventMessage.BLOCKED -> {
+            stringResource(R.string.kanban_event_blocked)
+        }
+
+        KanbanEventMessage.UNBLOCKED -> {
+            if (event.arguments.isEmpty()) {
+                stringResource(R.string.kanban_event_unblocked)
+            } else {
+                stringResource(R.string.kanban_event_unblocked_to, event.arguments[0])
+            }
+        }
+
+        KanbanEventMessage.RECLAIMED -> {
+            stringResource(R.string.kanban_event_reclaimed)
+        }
+
+        KanbanEventMessage.SPECIFIED -> {
+            stringResource(R.string.kanban_event_specified)
+        }
+
+        KanbanEventMessage.PROMOTED -> {
+            stringResource(R.string.kanban_event_promoted)
+        }
+
+        KanbanEventMessage.SCHEDULED -> {
+            stringResource(R.string.kanban_event_scheduled)
+        }
+
+        KanbanEventMessage.ARCHIVED -> {
+            stringResource(R.string.kanban_event_archived)
+        }
+
+        KanbanEventMessage.PRIORITY -> {
+            stringResource(R.string.kanban_event_priority, event.arguments.getOrElse(0) { "?" })
+        }
+
+        KanbanEventMessage.UNKNOWN -> {
+            event.label
+        }
+    }
+
+@Composable
 private fun TaskActivityTab(
     events: List<com.m57.hermescontrol.data.model.KanbanDetailEvent>,
     modifier: Modifier = Modifier,
@@ -920,7 +1008,7 @@ private fun TaskActivityTab(
                     Spacer(modifier = Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = formatted.label,
+                            text = localizedKanbanEventLabel(formatted),
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.SemiBold,
                         )

@@ -15,6 +15,8 @@ private fun List<ChatMessage>.upsertById(message: ChatMessage): List<ChatMessage
 
 private fun Long.toIntOrNullSafely(): Int? = takeIf { it in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong() }?.toInt()
 
+private fun Double?.validTpsOrNull(): Double? = takeIf { it != null && it.isFinite() && it > 0.0 }
+
 internal fun applyUsageSnapshot(
     state: ChatUiState,
     snapshot: com.m57.hermescontrol.data.model.UsageSnapshotResponse,
@@ -432,7 +434,7 @@ object ChatWsEventReducer {
                 streamingState = StreamingState(),
             )
         }
-        val tps = (turnUsage?.avgTps ?: usageState.latestTps)?.takeIf { it.isFinite() && it > 0.0 }
+        val tps = turnUsage?.avgTps.validTpsOrNull() ?: usageState.latestTps.validTpsOrNull()
         val tokenCount =
             if (turnUsage?.outputTokens != null) {
                 turnUsage.outputTokens.toIntOrNullSafely()

@@ -1883,7 +1883,7 @@ class ChatViewModelTest {
     @Test
     fun sendMessage_oversizedDuringSnapshotLeavesNoPersistedGhostMessage() =
         runTest {
-            val (viewModel, _) = createViewModelWithSession()
+            val (viewModel, sessionId) = createViewModelWithSession()
             val persistedBeforeSend = fakeRepo.dao.count()
             val uriString = "content://unknown/growing-file"
             val mockUri = mockk<Uri>()
@@ -1920,6 +1920,7 @@ class ChatViewModelTest {
             viewModel.sendMessage("Inspect changing file")
             advanceUntilIdle()
 
+            assertFalse(viewModel.streamingState.value.turnUsageBaselineCaptured)
             assertEquals(persistedBeforeSend, fakeRepo.dao.count())
             assertFalse(
                 fakeRepo.dao
@@ -1931,6 +1932,24 @@ class ChatViewModelTest {
                 viewModel.uiState.value.messages
                     .any { it.content == "Inspect changing file" },
             )
+
+            mockEventsFlow.emit(
+                WsEvent.SessionUsage(
+                    data = mapOf("usage" to mapOf("output" to 1300L)),
+                    sessionId = sessionId,
+                ),
+            )
+            advanceUntilIdle()
+            viewModel.removeAttachment(0)
+            viewModel.sendMessage("Retry without attachment")
+            advanceUntilIdle()
+
+            assertEquals(
+                1300L,
+                viewModel.streamingState.value.turnUsageBaseline
+                    ?.outputTokens,
+            )
+            assertTrue(viewModel.streamingState.value.turnUsageBaselineCaptured)
         }
 
     @Test
@@ -4191,6 +4210,7 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             viewModel.sendMessage("prompt")
+            advanceUntilIdle()
 
             assertEquals(
                 1000L,

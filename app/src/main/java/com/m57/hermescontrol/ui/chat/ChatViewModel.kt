@@ -1676,17 +1676,6 @@ class ChatViewModel(
         userMessage: ChatMessage? = null,
     ) {
         val dispatchGeneration = sessionGeneration
-        // Capture before attachment work or prompt submission can advance the
-        // cumulative counters. The reducer preserves this baseline across
-        // every assistant segment in a tool loop.
-        if (!_streamingState.value.turnUsageBaselineCaptured) {
-            _streamingState.update {
-                it.copy(
-                    turnUsageBaseline = _uiState.value.sessionUsage,
-                    turnUsageBaselineCaptured = true,
-                )
-            }
-        }
         AuthManager.setLastOpenedSessionId(storageSessionId)
         val msgToPersist =
             userMessage ?: ChatMessage(
@@ -1826,6 +1815,7 @@ class ChatViewModel(
                 if (dispatchGeneration == sessionGeneration) {
                     ActiveSessionHolder.set(agentSessionId, storageSessionId)
                 }
+                captureTurnUsageBaselineIfNeeded()
                 if (wasStreaming && attachments.isEmpty()) {
                     wsClient.sendRedirect(
                         agentSessionId,
@@ -1855,6 +1845,20 @@ class ChatViewModel(
                 }
             } finally {
                 preparedAttachments.forEach { it.encodedFile.delete() }
+            }
+        }
+    }
+
+    private fun captureTurnUsageBaselineIfNeeded() {
+        if (_streamingState.value.turnUsageBaselineCaptured) return
+        _streamingState.update {
+            if (it.turnUsageBaselineCaptured) {
+                it
+            } else {
+                it.copy(
+                    turnUsageBaseline = _uiState.value.sessionUsage,
+                    turnUsageBaselineCaptured = true,
+                )
             }
         }
     }

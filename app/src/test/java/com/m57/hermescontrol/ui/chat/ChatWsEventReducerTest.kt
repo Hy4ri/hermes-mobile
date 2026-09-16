@@ -4,6 +4,7 @@ import com.m57.hermescontrol.data.model.UsageSnapshotResponse
 import com.m57.hermescontrol.data.ws.WsEvent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -1183,6 +1184,46 @@ class ChatWsEventReducerTest {
         assertEquals(42.5, message.tps ?: 0.0, 0.001)
         assertEquals(1250L, result.state.sessionUsage?.outputTokens)
         assertTrue(!result.streamingState.turnUsageBaselineCaptured)
+    }
+
+    @Test
+    fun testMessageComplete_invalidFinalTpsFallsBackToLatestValidTps() {
+        fun complete(
+            finalTps: Double?,
+            latestTps: Double?,
+        ): Double? {
+            val state =
+                ChatUiState(
+                    currentSessionId = "session-1",
+                    latestTps = latestTps,
+                    sessionUsage = UsageSnapshotResponse(outputTokens = 1000),
+                )
+            val start =
+                ChatWsEventReducer.reduce(
+                    state,
+                    StreamingState(),
+                    WsEvent.MessageStart("session-1"),
+                    "session-1",
+                )
+            val usage = mutableMapOf<String, Any?>("output" to 1250L)
+            if (finalTps != null) usage["avg_tps"] = finalTps
+            return ChatWsEventReducer
+                .reduce(
+                    state,
+                    start.streamingState,
+                    WsEvent.MessageComplete("reply", "session-1", rawPayload = mapOf("usage" to usage)),
+                    "session-1",
+                ).state.messages
+                .single()
+                .tps
+        }
+
+        assertEquals(42.5, complete(42.5, 30.0) ?: 0.0, 0.001)
+        assertEquals(37.5, complete(0.0, 37.5) ?: 0.0, 0.001)
+        assertEquals(37.5, complete(-2.0, 37.5) ?: 0.0, 0.001)
+        assertEquals(37.5, complete(null, 37.5) ?: 0.0, 0.001)
+        assertNull(complete(-2.0, null))
+        assertNull(complete(0.0, -1.0))
     }
 
     @Test

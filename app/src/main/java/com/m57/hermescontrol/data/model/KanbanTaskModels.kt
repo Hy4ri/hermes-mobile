@@ -252,4 +252,6 @@ data class TaskEstimate(
     val complexity: String? = null,
     val rationale: String? = null,
     val model: String? = null,
-)
+) {
+    val tokens: Int? get() = estTokens
+}

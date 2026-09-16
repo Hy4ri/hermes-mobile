@@ -2,8 +2,12 @@ package com.m57.hermescontrol.ui.kanban
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.produceState
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import com.m57.hermescontrol.data.model.KanbanTask
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 
 enum class KanbanArcState {
     QUEUED,
@@ -54,13 +58,23 @@ object KanbanRuntimeHelper {
 
 /** One coarse clock per board screen, rather than one coroutine per task card. */
 @Composable
-fun rememberKanbanNowSeconds(enabled: Boolean): Long =
-    produceState(
-        initialValue = System.currentTimeMillis() / 1000L,
+fun rememberKanbanNowSeconds(
+    enabled: Boolean,
+    clock: () -> Long = { System.currentTimeMillis() / 1000L },
+): Long {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    return produceState(
+        initialValue = clock(),
         key1 = enabled,
+        key2 = lifecycle,
     ) {
-        while (enabled) {
-            delay(5_000L)
-            value = System.currentTimeMillis() / 1000L
+        if (enabled) {
+            lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                while (isActive) {
+                    value = clock()
+                    delay(5_000L)
+                }
+            }
         }
     }.value
+}

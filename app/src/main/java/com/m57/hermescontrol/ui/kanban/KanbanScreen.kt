@@ -90,13 +90,16 @@ import com.m57.hermescontrol.ui.kanban.components.KanbanFilterSheet
 import com.m57.hermescontrol.ui.kanban.components.KanbanOrchestrationDialog
 import com.m57.hermescontrol.ui.kanban.components.KanbanTaskCard
 import com.m57.hermescontrol.util.StreamingUriRequestBody
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
+import kotlin.coroutines.coroutineContext
 
 private const val DEFAULT_COLUMN = "todo"
 
@@ -159,26 +162,27 @@ fun KanbanScreen(
     var showOrchestrationDialog by remember { mutableStateOf(false) }
 
     // Board Transfer (Export / Import)
-    var pendingExportPath by remember { mutableStateOf<String?>(null) }
+    var pendingExportPath by rememberPendingKanbanExportPath()
 
     val exportLauncher =
         rememberLauncherForActivityResult(
             contract = ActivityResultContracts.CreateDocument("application/gzip"),
         ) { uri ->
-            if (uri != null && pendingExportPath != null) {
+            if (uri != null) {
                 coroutineScope.launch {
                     try {
-                        val cachedFile = File(pendingExportPath!!)
-                        if (cachedFile.exists()) {
-                            withContext(Dispatchers.IO) {
-                                context.contentResolver.openOutputStream(uri)?.use { output ->
-                                    cachedFile.inputStream().use { input ->
-                                        input.copyTo(output)
-                                    }
-                                } ?: error("Unable to open selected destination")
-                            }
-                            viewModel.showToast("Board exported successfully")
+                        val cachedFile = File(checkNotNull(pendingExportPath) { "No pending board export" })
+                        withContext(Dispatchers.IO) {
+                            check(cachedFile.isFile) { "Cached board export is missing; export the board again" }
+                            context.contentResolver.openOutputStream(uri)?.use { output ->
+                                cachedFile.inputStream().use { input ->
+                                    input.copyTo(output)
+                                }
+                            } ?: error("Unable to open selected destination")
                         }
+                        viewModel.showToast("Board exported successfully")
+                    } catch (e: CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         viewModel.showToast("Failed to save export: ${e.message}")
                     } finally {
@@ -230,39 +234,55 @@ fun KanbanScreen(
                                 contentLength = contentLength,
                             )
                         val filePart = MultipartBody.Part.createFormData("file", fileName, requestBody)
+                        // Retrofit streams the body on OkHttp's worker; avoid losing a confirmed
+                        // response to withContext's prompt cancellation on the return hop (#1137).
                         val uploadResult =
-                            withContext(Dispatchers.IO) {
-                                safeApiCall {
-                                    ApiClient.hermesApi.uploadManagedFileStream(pathBody, overwriteBody, filePart)
-                                }
+                            safeApiCall {
+                                ApiClient.hermesApi.uploadManagedFileStream(pathBody, overwriteBody, filePart)
                             }
                         when (uploadResult) {
                             is NetworkResult.Success -> {
                                 val serverPath =
                                     uploadResult.data.entry?.path ?: uploadResult.data.path ?: targetPath
-                                val importResult = viewModel.importBoard(serverPath)
-                                when (importResult) {
-                                    is NetworkResult.Success -> {
-                                        val res = importResult.data
-                                        var msg = "Board '${res.name}' imported"
-                                        if (res.renamed) msg += " (as ${res.board})"
-                                        viewModel.showToast(msg)
-                                        viewModel.loadBoards()
-                                    }
+                                withKanbanImportCleanup(
+                                    cleanup = {
+                                        val response =
+                                            ApiClient.hermesApi.deleteManagedFile(
+                                                ManagedFileDelete(serverPath),
+                                            )
+                                        check(
+                                            response.isSuccessful,
+                                        ) { "Archive cleanup failed (HTTP ${response.code()})" }
+                                    },
+                                    onCleanupFailure = {
+                                        viewModel.showToast("Temporary import archive cleanup failed: ${it.message}")
+                                    },
+                                ) {
+                                    val importResult = viewModel.importBoard(serverPath)
+                                    coroutineContext.ensureActive()
+                                    when (importResult) {
+                                        is NetworkResult.Success -> {
+                                            val res = importResult.data
+                                            var msg = "Board '${res.name}' imported"
+                                            if (res.renamed) msg += " (as ${res.board})"
+                                            viewModel.showToast(msg)
+                                            viewModel.loadBoards()
+                                        }
 
-                                    is NetworkResult.Failure -> {
-                                        viewModel.showToast("Import failed: ${importResult.error.message}")
+                                        is NetworkResult.Failure -> {
+                                            viewModel.showToast("Import failed: ${importResult.error.message}")
+                                        }
                                     }
-                                }
-                                runCatching {
-                                    ApiClient.hermesApi.deleteManagedFile(ManagedFileDelete(serverPath))
                                 }
                             }
 
                             is NetworkResult.Failure -> {
+                                coroutineContext.ensureActive()
                                 viewModel.showToast("Failed to upload archive: ${uploadResult.error.message}")
                             }
                         }
+                    } catch (e: CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         viewModel.showToast("Import failed: ${e.message}")
                     }

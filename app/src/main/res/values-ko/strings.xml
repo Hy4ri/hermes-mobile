@@ -417,6 +417,7 @@
     <string name="kanban_skills_placeholder">예: git, coding, tests</string>
     <string name="kanban_profile_description_hint">라우팅에 사용할 프로필 설명</string>
     <string name="kanban_filter">필터</string>
+    <string name="kanban_filter_placeholder">제목, 상태 또는 담당자로 작업 필터링...</string>
     <string name="kanban_board_options">보드 옵션</string>
     <string name="kanban_new_board">새 보드</string>
     <string name="kanban_clear_selection">지우기</string>

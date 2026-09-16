@@ -21,8 +21,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.m57.hermescontrol.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,7 +63,7 @@ fun KanbanFilterSheet(
                     fontWeight = FontWeight.Bold,
                 )
                 TextButton(onClick = onClearFilters) {
-                    Text("Clear all")
+                    Text(stringResource(R.string.kanban_clear_all))
                 }
             }
 
@@ -75,10 +78,11 @@ fun KanbanFilterSheet(
                         .fillMaxWidth()
                         .padding(vertical = 4.dp),
             ) {
-                Text("Show archived tasks", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.kanban_show_archived), style = MaterialTheme.typography.bodyMedium)
                 Switch(
                     checked = includeArchived,
                     onCheckedChange = onToggleIncludeArchived,
+                    modifier = Modifier.testTag("kanban_show_archived"),
                 )
             }
 
@@ -91,10 +95,11 @@ fun KanbanFilterSheet(
                         .fillMaxWidth()
                         .padding(vertical = 4.dp),
             ) {
-                Text("Group running lane by profile", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.kanban_group_running), style = MaterialTheme.typography.bodyMedium)
                 Switch(
                     checked = groupRunning,
                     onCheckedChange = onToggleGroupRunning,
+                    modifier = Modifier.testTag("kanban_group_running"),
                 )
             }
 
@@ -102,7 +107,7 @@ fun KanbanFilterSheet(
 
             // Assignee Filter
             Text(
-                text = "Assignee",
+                text = stringResource(R.string.kanban_assignee),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(vertical = 4.dp),
@@ -120,7 +125,7 @@ fun KanbanFilterSheet(
                     selected = selectedAssignee == null,
                     onClick = { onSelectAssignee(null) },
                 )
-                Text("All assignees", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.kanban_all_assignees), style = MaterialTheme.typography.bodyMedium)
             }
 
             assignees.forEach { assignee ->
@@ -144,7 +149,7 @@ fun KanbanFilterSheet(
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
                 Text(
-                    text = "Tenant",
+                    text = stringResource(R.string.kanban_tenant),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(vertical = 4.dp),
@@ -162,7 +167,7 @@ fun KanbanFilterSheet(
                         selected = selectedTenant == null,
                         onClick = { onSelectTenant(null) },
                     )
-                    Text("All tenants", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.kanban_all_tenants), style = MaterialTheme.typography.bodyMedium)
                 }
 
                 tenants.forEach { tenant ->

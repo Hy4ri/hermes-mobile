@@ -5,9 +5,11 @@ import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -26,16 +29,21 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -43,9 +51,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.PrimaryScrollableTabRow
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -56,11 +66,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.KanbanTaskDetailKey
+import com.m57.hermescontrol.NavigationController
+import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.model.KanbanProfile
+import com.m57.hermescontrol.data.model.KanbanTaskFull
+import com.m57.hermescontrol.data.model.ModelProvider
+import com.m57.hermescontrol.data.model.PinnedModel
+import com.m57.hermescontrol.data.model.TaskEstimate
+import com.m57.hermescontrol.data.model.TaskLinks
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.chat.MarkdownText
 import com.m57.hermescontrol.ui.common.ErrorState
@@ -68,6 +88,7 @@ import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.ToastEffect
+import com.m57.hermescontrol.ui.kanban.components.KanbanModelOverrideEditor
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,7 +101,15 @@ fun KanbanTaskScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var selectedTabIndex by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Overview", "Discussion", "Runs", "Activity", "Files")
+    val tabs =
+        listOf(
+            stringResource(R.string.kanban_tab_overview),
+            stringResource(R.string.kanban_tab_discussion),
+            stringResource(R.string.kanban_tab_runs),
+            stringResource(R.string.kanban_tab_activity),
+            stringResource(R.string.kanban_tab_files),
+        )
+    var showDeleteDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(boardSlug, taskId) {
         viewModel.loadTask(boardSlug, taskId)
@@ -92,7 +121,7 @@ fun KanbanTaskScreen(
         title = {
             Column {
                 Text(
-                    text = state.detail?.task?.title ?: "Task Details",
+                    text = state.detail?.task?.title ?: stringResource(R.string.kanban_task_details),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
@@ -105,6 +134,15 @@ fun KanbanTaskScreen(
             }
         },
         navigationIcon = NavIcon.Back(onBack),
+        actions = {
+            IconButton(onClick = { showDeleteDialog = true }) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = stringResource(R.string.kanban_delete_task),
+                    tint = MaterialTheme.colorScheme.error,
+                )
+            }
+        },
         drawerGesturesEnabled = false,
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadTask(boardSlug, taskId) },
@@ -127,7 +165,10 @@ fun KanbanTaskScreen(
                 val task = detail.task
 
                 Column(modifier = Modifier.fillMaxSize()) {
-                    PrimaryTabRow(selectedTabIndex = selectedTabIndex) {
+                    PrimaryScrollableTabRow(
+                        selectedTabIndex = selectedTabIndex,
+                        edgePadding = 16.dp,
+                    ) {
                         tabs.forEachIndexed { index, title ->
                             Tab(
                                 selected = selectedTabIndex == index,
@@ -141,6 +182,26 @@ fun KanbanTaskScreen(
                         0 -> {
                             TaskOverviewTab(
                                 task = task,
+                                links = detail.links,
+                                profiles = state.profiles,
+                                modelProviders = state.modelProviders,
+                                pinnedModels = state.pinnedModels,
+                                estimate = state.estimate,
+                                isEstimating = state.isEstimating,
+                                onReassign = { newProfile ->
+                                    viewModel.reassign(boardSlug, taskId, newProfile)
+                                },
+                                onUpdateModel = { override ->
+                                    viewModel.updateModelOverride(boardSlug, taskId, override)
+                                },
+                                onEstimate = {
+                                    viewModel.estimateTask(boardSlug, taskId)
+                                },
+                                onNavigateToTask = { targetId ->
+                                    NavigationController.navigateTo(
+                                        KanbanTaskDetailKey(boardSlug = boardSlug, taskId = targetId),
+                                    )
+                                },
                                 onSaveDescription = { newBody ->
                                     viewModel.updateDescription(boardSlug, taskId, newBody)
                                 },
@@ -191,18 +252,58 @@ fun KanbanTaskScreen(
             }
         }
     }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text(stringResource(R.string.kanban_delete_task)) },
+            text = { Text(stringResource(R.string.kanban_delete_task_confirm)) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteDialog = false
+                        viewModel.deleteTask(boardSlug, taskId, onSuccess = onBack)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                ) {
+                    Text(stringResource(R.string.kanban_delete_task))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
 }
 
 @Composable
 private fun TaskOverviewTab(
-    task: com.m57.hermescontrol.data.model.KanbanTaskFull,
+    task: KanbanTaskFull,
+    links: TaskLinks,
+    profiles: List<KanbanProfile>,
+    modelProviders: List<ModelProvider>,
+    pinnedModels: List<PinnedModel>,
+    estimate: TaskEstimate?,
+    isEstimating: Boolean,
+    onReassign: (String?) -> Unit,
+    onUpdateModel: (KanbanModelOverride) -> Unit,
+    onEstimate: () -> Unit,
+    onNavigateToTask: (String) -> Unit,
     onSaveDescription: (String) -> Unit,
     onReclaim: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var isEditingDescription by remember { mutableStateOf(false) }
     var descriptionDraft by remember(task.body) { mutableStateOf(task.body ?: "") }
+    var assigneeMenuExpanded by remember { mutableStateOf(false) }
     val statusColors = LocalHermesStatusColors.current
+
+    val currentModelOverride =
+        remember(task.modelOverride, task.providerOverride, task.reasoningEffort) {
+            KanbanModelOverride.fromTask(task.modelOverride, task.providerOverride, task.reasoningEffort)
+        }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -251,7 +352,7 @@ private fun TaskOverviewTab(
                                         onClick = onReclaim,
                                         shape = RoundedCornerShape(6.dp),
                                     ) {
-                                        Text("Reclaim task")
+                                        Text(stringResource(R.string.kanban_reclaim_task))
                                     }
                                 }
                             }
@@ -260,7 +361,7 @@ private fun TaskOverviewTab(
                 }
             }
 
-            // Metadata card
+            // Metadata / Attributes card
             Card(
                 shape = RoundedCornerShape(8.dp),
                 modifier =
@@ -277,13 +378,199 @@ private fun TaskOverviewTab(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     MetaRow(label = "Status", value = task.status.uppercase())
-                    task.assignee?.let { MetaRow(label = "Assignee", value = it) }
+
+                    // Editable Assignee
+                    Row(
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.kanban_assignee),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Box {
+                            TextButton(
+                                onClick = { assigneeMenuExpanded = true },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                modifier = Modifier.height(32.dp),
+                            ) {
+                                Text(
+                                    text = task.assignee ?: "Unassigned",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = assigneeMenuExpanded,
+                                onDismissRequest = { assigneeMenuExpanded = false },
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.kanban_assignee_unassigned)) },
+                                    onClick = {
+                                        onReassign(null)
+                                        assigneeMenuExpanded = false
+                                    },
+                                )
+                                profiles.forEach { p ->
+                                    DropdownMenuItem(
+                                        text = { Text(p.name) },
+                                        onClick = {
+                                            onReassign(p.name)
+                                            assigneeMenuExpanded = false
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     task.priority?.let { MetaRow(label = "Priority", value = it.toString()) }
                     task.tenant?.let { MetaRow(label = "Tenant", value = it) }
-                    task.modelOverride?.let { MetaRow(label = "Model Override", value = it) }
-                    task.reasoningEffort?.let { MetaRow(label = "Reasoning Effort", value = it) }
                     task.workspaceKind?.let { MetaRow(label = "Workspace", value = "$it ${task.workspacePath ?: ""}") }
                     task.workerPid?.let { MetaRow(label = "Worker PID", value = it.toString()) }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    HorizontalDivider()
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Editable Model & Reasoning Override
+                    KanbanModelOverrideEditor(
+                        override = currentModelOverride,
+                        onOverrideChange = onUpdateModel,
+                        modelProviders = modelProviders,
+                        pinnedModels = pinnedModels,
+                    )
+                }
+            }
+
+            // Dependencies Section
+            if (links.parents.isNotEmpty() || links.children.isNotEmpty()) {
+                Card(
+                    shape = RoundedCornerShape(8.dp),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = stringResource(R.string.kanban_dependencies),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        if (links.parents.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = stringResource(R.string.kanban_blocked_by),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            ) {
+                                links.parents.forEach { parentId ->
+                                    SuggestionChip(
+                                        onClick = { onNavigateToTask(parentId) },
+                                        label = { Text("#${parentId.removePrefix("t_").take(6)}") },
+                                    )
+                                }
+                            }
+                        }
+                        if (links.children.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = stringResource(R.string.kanban_blocks),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            ) {
+                                links.children.forEach { childId ->
+                                    SuggestionChip(
+                                        onClick = { onNavigateToTask(childId) },
+                                        label = { Text("#${childId.removePrefix("t_").take(6)}") },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Effort Estimation Section
+            Card(
+                shape = RoundedCornerShape(8.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.kanban_estimate),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        if (isEstimating) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        }
+                    }
+                    val currentEst = estimate
+                    if (currentEst != null) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        currentEst.tokens?.let { tokensCount ->
+                            Text(
+                                text = stringResource(R.string.kanban_estimated_tokens, tokensCount),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                        if (!currentEst.complexity.isNullOrBlank()) {
+                            Text(
+                                text = stringResource(R.string.kanban_complexity, currentEst.complexity),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        if (!currentEst.rationale.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = currentEst.rationale,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = onEstimate,
+                            enabled = !isEstimating,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(stringResource(R.string.kanban_reestimate_action))
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Button(
+                            onClick = onEstimate,
+                            enabled = !isEstimating,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(stringResource(R.string.kanban_estimate_action))
+                        }
+                    }
                 }
             }
 
@@ -302,7 +589,7 @@ private fun TaskOverviewTab(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(
-                            text = "Description",
+                            text = stringResource(R.string.kanban_description),
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary,
@@ -311,7 +598,7 @@ private fun TaskOverviewTab(
                             IconButton(onClick = { isEditingDescription = true }) {
                                 Icon(
                                     Icons.Filled.Edit,
-                                    contentDescription = "Edit Description",
+                                    contentDescription = stringResource(R.string.kanban_edit_description),
                                     modifier = Modifier.size(16.dp),
                                 )
                             }
@@ -328,14 +615,14 @@ private fun TaskOverviewTab(
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
                             OutlinedButton(onClick = { isEditingDescription = false }) {
-                                Text("Cancel")
+                                Text(stringResource(R.string.action_cancel))
                             }
                             Spacer(modifier = Modifier.width(8.dp))
                             Button(onClick = {
                                 onSaveDescription(descriptionDraft)
                                 isEditingDescription = false
                             }) {
-                                Text("Save")
+                                Text(stringResource(R.string.action_save))
                             }
                         }
                     } else {
@@ -367,16 +654,13 @@ private fun TaskOverviewTab(
                             color = MaterialTheme.colorScheme.primary,
                         )
                         Spacer(modifier = Modifier.height(6.dp))
-                        SelectionContainer {
-                            MarkdownText(
-                                text = summary,
-                                textColor = MaterialTheme.colorScheme.onSurface,
-                            )
-                        }
+                        MarkdownText(
+                            text = summary,
+                            textColor = MaterialTheme.colorScheme.onSurface,
+                        )
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
@@ -390,29 +674,22 @@ private fun TaskDiscussionTab(
     onNoteAndRequeue: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var commentText by remember { mutableStateOf("") }
+    var newCommentText by remember { mutableStateOf("") }
 
-    Column(modifier = modifier.fillMaxSize()) {
+    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         LazyColumn(
-            modifier =
-                Modifier
-                    .weight(1f)
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+            modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             if (comments.isEmpty()) {
                 item {
-                    Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                        Text(
-                            "No comments yet. Post a note to steer the agent.",
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
+                    Text(stringResource(R.string.kanban_no_comments), style = MaterialTheme.typography.bodySmall)
                 }
             } else {
                 items(comments, key = { it.id }) { comment ->
                     Card(
-                        shape = RoundedCornerShape(8.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        shape = RoundedCornerShape(6.dp),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Column(modifier = Modifier.padding(10.dp)) {
@@ -422,69 +699,80 @@ private fun TaskDiscussionTab(
                             ) {
                                 Text(
                                     text = comment.author,
-                                    style = MaterialTheme.typography.labelMedium,
+                                    style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
                                 )
                             }
                             Spacer(modifier = Modifier.height(4.dp))
-                            SelectionContainer {
-                                MarkdownText(
-                                    text = comment.body,
-                                    textColor = MaterialTheme.colorScheme.onSurface,
-                                )
-                            }
+                            MarkdownText(
+                                text = comment.body,
+                                textColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
                     }
                 }
             }
         }
 
-        HorizontalDivider()
+        Spacer(modifier = Modifier.height(8.dp))
 
-        Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
-            OutlinedTextField(
-                value = commentText,
-                onValueChange = { commentText = it },
-                placeholder = { Text("Write a steering note...") },
-                modifier = Modifier.fillMaxWidth(),
-                maxLines = 3,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                if (isRunning) {
-                    OutlinedButton(
-                        onClick = {
-                            onNoteAndRequeue(commentText)
-                            commentText = ""
-                        },
-                        enabled = commentText.isNotBlank() && !isSubmitting,
-                    ) {
-                        Icon(Icons.Filled.RestartAlt, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Note & Requeue")
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                }
+        OutlinedTextField(
+            value = newCommentText,
+            onValueChange = { newCommentText = it },
+            placeholder = { Text(stringResource(R.string.kanban_write_comment)) },
+            modifier = Modifier.fillMaxWidth(),
+            maxLines = 4,
+            enabled = !isSubmitting,
+        )
 
-                Button(
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+            if (isRunning) {
+                OutlinedButton(
                     onClick = {
-                        onAddComment(commentText)
-                        commentText = ""
+                        if (newCommentText.isNotBlank()) {
+                            onNoteAndRequeue(newCommentText.trim())
+                            newCommentText = ""
+                        }
                     },
-                    enabled = commentText.isNotBlank() && !isSubmitting,
+                    enabled = newCommentText.isNotBlank() && !isSubmitting,
                 ) {
-                    if (isSubmitting) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    } else {
-                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Post")
-                    }
+                    Icon(Icons.Filled.RestartAlt, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(stringResource(R.string.kanban_note_requeue))
                 }
+                Spacer(modifier = Modifier.width(8.dp))
+            }
+
+            Button(
+                onClick = {
+                    if (newCommentText.isNotBlank()) {
+                        onAddComment(newCommentText.trim())
+                        newCommentText = ""
+                    }
+                },
+                enabled = newCommentText.isNotBlank() && !isSubmitting,
+            ) {
+                if (isSubmitting) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(6.dp))
+                } else {
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
+                Text(stringResource(R.string.kanban_comment))
             }
         }
     }
 }
+
+private fun formatRunDuration(durationSeconds: Long): String =
+    when {
+        durationSeconds < 60L -> "${durationSeconds}s"
+        durationSeconds < 3600L -> "${durationSeconds / 60L}m"
+        else -> "${durationSeconds / 3600L}h"
+    }
 
 @Composable
 private fun TaskRunsTab(
@@ -494,63 +782,95 @@ private fun TaskRunsTab(
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item {
-            Text("Attempt History", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Text(
+                stringResource(R.string.kanban_execution_runs),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+            )
         }
 
         if (runs.isEmpty()) {
             item {
-                Text("No worker attempts recorded yet.", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.kanban_no_run_history), style = MaterialTheme.typography.bodySmall)
             }
         } else {
             items(runs, key = { it.id }) { run ->
                 Card(
-                    shape = RoundedCornerShape(8.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    shape = RoundedCornerShape(6.dp),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
+                    Column(modifier = Modifier.padding(10.dp)) {
                         Row(
                             horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Text(
-                                "Run #${run.id}",
-                                style = MaterialTheme.typography.labelMedium,
+                                text = stringResource(R.string.kanban_run_number, run.id),
+                                style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                             )
                             Text(
-                                text = (run.outcome ?: run.status).uppercase(),
+                                text = run.status.uppercase(),
                                 style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
                                 color =
-                                    if (run.outcome == "completed") {
-                                        LocalHermesStatusColors.current.success
+                                    if (run.status.equals("done", ignoreCase = true)) {
+                                        MaterialTheme.colorScheme.primary
                                     } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                        MaterialTheme.colorScheme.outline
                                     },
                             )
                         }
                         run.profile?.let {
-                            Text("Profile: $it", style = MaterialTheme.typography.bodySmall)
+                            Text(
+                                stringResource(R.string.kanban_run_profile, it),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
                         }
-                        val summary = run.error ?: run.summary
-                        if (!summary.isNullOrBlank()) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(text = summary, style = MaterialTheme.typography.bodySmall)
+                        run.outcome?.let {
+                            Text(
+                                stringResource(R.string.kanban_run_outcome, it),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        if (run.startedAt != null && run.endedAt != null && run.endedAt >= run.startedAt) {
+                            Text(
+                                stringResource(
+                                    R.string.kanban_run_duration,
+                                    formatRunDuration(run.endedAt - run.startedAt),
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        run.error?.let {
+                            Text(
+                                stringResource(R.string.kanban_run_error, it),
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        run.summary?.takeIf { it.isNotBlank() }?.let {
+                            Text(
+                                stringResource(R.string.kanban_run_summary, it),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
                         }
                     }
                 }
             }
         }
 
-        // Live Log Output
         if (workerLog != null && workerLog.exists && workerLog.content.isNotBlank()) {
             item {
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("Worker Log Output", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text(
+                    stringResource(R.string.kanban_worker_log),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                )
                 Spacer(modifier = Modifier.height(6.dp))
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -570,6 +890,94 @@ private fun TaskRunsTab(
 }
 
 @Composable
+private fun localizedKanbanEventLabel(event: FormattedKanbanEvent): String =
+    when (event.message) {
+        KanbanEventMessage.CREATED -> {
+            stringResource(R.string.kanban_event_created, event.arguments.getOrElse(0) { "Todo" })
+        }
+
+        KanbanEventMessage.CREATED_BY -> {
+            stringResource(
+                R.string.kanban_event_created_by,
+                event.arguments.getOrElse(0) { "Todo" },
+                event.arguments.getOrElse(1) { "" },
+            )
+        }
+
+        KanbanEventMessage.MOVED -> {
+            stringResource(R.string.kanban_event_moved, event.arguments.getOrElse(0) { "?" })
+        }
+
+        KanbanEventMessage.ASSIGNED -> {
+            stringResource(R.string.kanban_event_assigned, event.arguments.getOrElse(0) { "" })
+        }
+
+        KanbanEventMessage.UNASSIGNED -> {
+            stringResource(R.string.kanban_event_unassigned)
+        }
+
+        KanbanEventMessage.COMMENTED -> {
+            stringResource(R.string.kanban_event_commented, event.arguments.getOrElse(0) { "someone" })
+        }
+
+        KanbanEventMessage.CLAIMED_REVIEW -> {
+            stringResource(R.string.kanban_event_claimed_review)
+        }
+
+        KanbanEventMessage.CLAIMED_WORKER -> {
+            stringResource(R.string.kanban_event_claimed_worker)
+        }
+
+        KanbanEventMessage.WORKER_STARTED -> {
+            stringResource(R.string.kanban_event_worker_started)
+        }
+
+        KanbanEventMessage.COMPLETED -> {
+            stringResource(R.string.kanban_event_completed)
+        }
+
+        KanbanEventMessage.BLOCKED -> {
+            stringResource(R.string.kanban_event_blocked)
+        }
+
+        KanbanEventMessage.UNBLOCKED -> {
+            if (event.arguments.isEmpty()) {
+                stringResource(R.string.kanban_event_unblocked)
+            } else {
+                stringResource(R.string.kanban_event_unblocked_to, event.arguments[0])
+            }
+        }
+
+        KanbanEventMessage.RECLAIMED -> {
+            stringResource(R.string.kanban_event_reclaimed)
+        }
+
+        KanbanEventMessage.SPECIFIED -> {
+            stringResource(R.string.kanban_event_specified)
+        }
+
+        KanbanEventMessage.PROMOTED -> {
+            stringResource(R.string.kanban_event_promoted)
+        }
+
+        KanbanEventMessage.SCHEDULED -> {
+            stringResource(R.string.kanban_event_scheduled)
+        }
+
+        KanbanEventMessage.ARCHIVED -> {
+            stringResource(R.string.kanban_event_archived)
+        }
+
+        KanbanEventMessage.PRIORITY -> {
+            stringResource(R.string.kanban_event_priority, event.arguments.getOrElse(0) { "?" })
+        }
+
+        KanbanEventMessage.UNKNOWN -> {
+            event.label
+        }
+    }
+
+@Composable
 private fun TaskActivityTab(
     events: List<com.m57.hermescontrol.data.model.KanbanDetailEvent>,
     modifier: Modifier = Modifier,
@@ -579,28 +987,46 @@ private fun TaskActivityTab(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item {
-            Text("Event Timeline", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Text(
+                stringResource(R.string.kanban_event_timeline),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+            )
         }
 
         if (events.isEmpty()) {
             item {
-                Text("No activity events.", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.kanban_no_activity), style = MaterialTheme.typography.bodySmall)
             }
         } else {
             items(events, key = { it.id }) { event ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                val formatted = remember(event) { KanbanEventFormatter.format(event) }
+                Row(
+                    verticalAlignment = Alignment.Top,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                ) {
                     Box(
                         modifier =
                             Modifier
-                                .size(8.dp)
+                                .padding(top = 5.dp)
+                                .size(6.dp)
                                 .background(MaterialTheme.colorScheme.primary, shape = CircleShape),
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = event.kind,
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.SemiBold,
-                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = localizedKanbanEventLabel(formatted),
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        if (!formatted.detail.isNullOrBlank()) {
+                            Text(
+                                text = formatted.detail,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -649,98 +1075,79 @@ private fun TaskFilesTab(
                     }
                 }
                 val mimeType = context.contentResolver.getType(uri) ?: "application/octet-stream"
-                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                if (bytes != null) {
+                val bytes =
+                    context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        ?: byteArrayOf()
+                if (bytes.isNotEmpty()) {
                     onUpload(filename, mimeType, bytes)
                 }
             }
         }
 
-    LazyColumn(
-        modifier =
-            modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        item {
-            Row(
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
+    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
+        Row(
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                stringResource(R.string.kanban_attachments),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+            )
+            Button(
+                onClick = { launcher.launch("*/*") },
+                enabled = !isUploading,
             ) {
-                Text(
-                    text = "Attached Files (${attachments.size})",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                )
-                Button(
-                    onClick = { launcher.launch("*/*") },
-                    enabled = !isUploading,
-                ) {
-                    if (isUploading) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                        Spacer(modifier = Modifier.width(6.dp))
-                    }
-                    Text("Attach File")
+                if (isUploading) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(6.dp))
                 }
+                Text(stringResource(R.string.kanban_upload))
             }
         }
 
-        if (attachments.isEmpty()) {
-            item {
-                Box(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 32.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = "No files attached to this task.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+        Spacer(modifier = Modifier.height(12.dp))
+
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (attachments.isEmpty()) {
+                item {
+                    Text(stringResource(R.string.kanban_no_attachments), style = MaterialTheme.typography.bodySmall)
                 }
-            }
-        } else {
-            items(attachments, key = { it.id }) { att ->
-                Card(
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier =
-                            Modifier
-                                .padding(12.dp)
-                                .fillMaxWidth(),
+            } else {
+                items(attachments, key = { it.id }) { att ->
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        shape = RoundedCornerShape(6.dp),
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.Description,
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = att.filename,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold,
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(12.dp),
+                        ) {
+                            Icon(
+                                Icons.Filled.Description,
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp),
                             )
-                            val sizeStr =
-                                att.size?.let { s ->
-                                    if (s > 1024 * 1024) "${s / (1024 * 1024)} MB" else "${s / 1024} KB"
-                                } ?: "Unknown size"
-                            Text(
-                                text = "$sizeStr • ${att.uploadedBy ?: "unknown"}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = att.filename.ifBlank { "File #${att.id}" },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                                att.size?.let {
+                                    Text(
+                                        text = "${it / 1024} KB",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
                         }
                     }
                 }

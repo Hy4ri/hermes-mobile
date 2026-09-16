@@ -31,12 +31,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.KanbanTask
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
+import com.m57.hermescontrol.ui.kanban.KanbanArcState
+import com.m57.hermescontrol.ui.kanban.KanbanRuntimeHelper
 
 @Composable
 fun KanbanTaskCard(
@@ -44,6 +48,8 @@ fun KanbanTaskCard(
     onTaskClick: (KanbanTask) -> Unit,
     modifier: Modifier = Modifier,
     isSelected: Boolean = false,
+    defaultAssignee: String? = null,
+    nowSeconds: Long = System.currentTimeMillis() / 1000L,
     onActionClick: ((KanbanTask) -> Unit)? = null,
 ) {
     val statusColors = LocalHermesStatusColors.current
@@ -56,6 +62,10 @@ fun KanbanTaskCard(
             "done" -> statusColors.success
             else -> MaterialTheme.colorScheme.outline
         }
+
+    val arcState = KanbanRuntimeHelper.arcState(task, defaultAssignee, nowSeconds)
+    val isWontRun = KanbanRuntimeHelper.isWontRun(task, defaultAssignee)
+    val elapsed = KanbanRuntimeHelper.formatElapsed(task.startedAt, nowSeconds)
 
     val cardColors =
         if (isSelected) {
@@ -92,6 +102,41 @@ fun KanbanTaskCard(
                         fontWeight = FontWeight.Bold,
                         color = statusTone,
                     )
+                    when {
+                        arcState == KanbanArcState.RUNNING -> {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text =
+                                    stringResource(
+                                        R.string.kanban_runtime_elapsed,
+                                        elapsed ?: stringResource(R.string.kanban_runtime_working),
+                                    ),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Medium,
+                                color = statusColors.success,
+                            )
+                        }
+
+                        arcState == KanbanArcState.STALE -> {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = stringResource(R.string.kanban_runtime_stale_badge),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = statusColors.warning,
+                            )
+                        }
+
+                        isWontRun -> {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = stringResource(R.string.kanban_runtime_wont_run_badge),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = statusColors.error,
+                            )
+                        }
+                    }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -108,7 +153,7 @@ fun KanbanTaskCard(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.MoreVert,
-                                contentDescription = "Task actions",
+                                contentDescription = stringResource(R.string.kanban_task_actions),
                                 modifier = Modifier.size(16.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -145,7 +190,14 @@ fun KanbanTaskCard(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                task.assignee?.let { assignee ->
+                val displayAssignee =
+                    task.assignee
+                        ?: if (arcState == KanbanArcState.QUEUED && !defaultAssignee.isNullOrBlank()) {
+                            "$defaultAssignee (Default)"
+                        } else {
+                            null
+                        }
+                displayAssignee?.let { assignee ->
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(end = 8.dp),

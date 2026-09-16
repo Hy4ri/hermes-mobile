@@ -289,4 +289,29 @@ class KanbanSerializationTest {
         assertEquals("M", estimate.complexity)
         assertEquals("Multi-file changes needed", estimate.rationale)
     }
+
+    @Test
+    fun testBulkAssignmentUsesExplicitEmptyStringAndReclaim() {
+        val assignJson =
+            json.encodeToString(
+                BulkTasksBody(
+                    ids = listOf("t_1"),
+                    assignee = "researcher",
+                    reclaimFirst = true,
+                ),
+            )
+        val unassignJson =
+            json.encodeToString(
+                BulkTasksBody(
+                    ids = listOf("t_1"),
+                    assignee = "",
+                    reclaimFirst = true,
+                ),
+            )
+
+        assertTrue(assignJson.contains("\"assignee\":\"researcher\""))
+        assertTrue(assignJson.contains("\"reclaim_first\":true"))
+        assertTrue(unassignJson.contains("\"assignee\":\"\""))
+        assertTrue(unassignJson.contains("\"reclaim_first\":true"))
+    }
 }

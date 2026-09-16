@@ -2,6 +2,8 @@ package com.m57.hermescontrol.data.repository
 
 import com.m57.hermescontrol.data.model.AttachmentUploadResponse
 import com.m57.hermescontrol.data.model.AutoDescribeResponse
+import com.m57.hermescontrol.data.model.BoardExportResult
+import com.m57.hermescontrol.data.model.BoardImportResult
 import com.m57.hermescontrol.data.model.BulkTasksBody
 import com.m57.hermescontrol.data.model.BulkTasksResponse
 import com.m57.hermescontrol.data.model.CreateBoardBody
@@ -10,6 +12,8 @@ import com.m57.hermescontrol.data.model.CreateTaskBody
 import com.m57.hermescontrol.data.model.CreateTaskResponse
 import com.m57.hermescontrol.data.model.DeleteBoardResponse
 import com.m57.hermescontrol.data.model.DispatchResult
+import com.m57.hermescontrol.data.model.ExportBoardBody
+import com.m57.hermescontrol.data.model.ImportBoardBody
 import com.m57.hermescontrol.data.model.KanbanBoardResponse
 import com.m57.hermescontrol.data.model.KanbanBoardsResponse
 import com.m57.hermescontrol.data.model.KanbanProfilesResponse
@@ -57,6 +61,13 @@ interface KanbanRepository {
         slug: String,
         delete: Boolean = false,
     ): NetworkResult<DeleteBoardResponse>
+
+    suspend fun exportBoard(
+        slug: String,
+        body: ExportBoardBody = ExportBoardBody(),
+    ): NetworkResult<BoardExportResult>
+
+    suspend fun importBoard(body: ImportBoardBody): NetworkResult<BoardImportResult>
 
     suspend fun getTask(
         taskId: String,
@@ -151,6 +162,7 @@ interface KanbanRepository {
 class KanbanRepositoryImpl(
     private val apiProvider: () -> KanbanApiService = { ApiClient.kanbanApi },
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val nudger: KanbanDispatcherNudger = DefaultKanbanDispatcherNudger(apiProvider),
 ) : KanbanRepository {
     override suspend fun getBoards(includeArchived: Boolean): NetworkResult<KanbanBoardsResponse> =
         withContext(ioDispatcher) {
@@ -187,6 +199,19 @@ class KanbanRepositoryImpl(
             safeApiCall { apiProvider().deleteBoard(slug, delete) }
         }
 
+    override suspend fun exportBoard(
+        slug: String,
+        body: ExportBoardBody,
+    ): NetworkResult<BoardExportResult> =
+        withContext(ioDispatcher) {
+            safeApiCall { apiProvider().exportBoard(slug, body) }
+        }
+
+    override suspend fun importBoard(body: ImportBoardBody): NetworkResult<BoardImportResult> =
+        withContext(ioDispatcher) {
+            safeApiCall { apiProvider().importBoard(body) }
+        }
+
     override suspend fun getTask(
         taskId: String,
         board: String?,
@@ -200,7 +225,11 @@ class KanbanRepositoryImpl(
         body: CreateTaskBody,
     ): NetworkResult<CreateTaskResponse> =
         withContext(ioDispatcher) {
-            safeApiCall { apiProvider().createTask(board = board, body = body) }
+            val result = safeApiCall { apiProvider().createTask(board = board, body = body) }
+            if (result is NetworkResult.Success) {
+                nudger.scheduleNudge(board)
+            }
+            result
         }
 
     override suspend fun updateTask(
@@ -209,7 +238,11 @@ class KanbanRepositoryImpl(
         body: UpdateTaskBody,
     ): NetworkResult<UpdateTaskResponse> =
         withContext(ioDispatcher) {
-            safeApiCall { apiProvider().updateTask(taskId = taskId, board = board, body = body) }
+            val result = safeApiCall { apiProvider().updateTask(taskId = taskId, board = board, body = body) }
+            if (result is NetworkResult.Success) {
+                nudger.scheduleNudge(board)
+            }
+            result
         }
 
     override suspend fun deleteTask(
@@ -217,7 +250,11 @@ class KanbanRepositoryImpl(
         board: String?,
     ): NetworkResult<Unit> =
         withContext(ioDispatcher) {
-            safeApiCall { apiProvider().deleteTask(taskId = taskId, board = board) }
+            val result = safeApiCall { apiProvider().deleteTask(taskId = taskId, board = board) }
+            if (result is NetworkResult.Success) {
+                nudger.scheduleNudge(board)
+            }
+            result
         }
 
     override suspend fun bulkTasks(
@@ -225,7 +262,11 @@ class KanbanRepositoryImpl(
         body: BulkTasksBody,
     ): NetworkResult<BulkTasksResponse> =
         withContext(ioDispatcher) {
-            safeApiCall { apiProvider().bulkTasks(board = board, body = body) }
+            val result = safeApiCall { apiProvider().bulkTasks(board = board, body = body) }
+            if (result is NetworkResult.Success) {
+                nudger.scheduleNudge(board)
+            }
+            result
         }
 
     override suspend fun addComment(
@@ -250,13 +291,18 @@ class KanbanRepositoryImpl(
         reclaimFirst: Boolean,
     ): NetworkResult<ReassignTaskResponse> =
         withContext(ioDispatcher) {
-            safeApiCall {
-                apiProvider().reassignTask(
-                    taskId = taskId,
-                    board = board,
-                    body = ReassignTaskBody(profile = profile, reclaimFirst = reclaimFirst),
-                )
+            val result =
+                safeApiCall {
+                    apiProvider().reassignTask(
+                        taskId = taskId,
+                        board = board,
+                        body = ReassignTaskBody(profile = profile, reclaimFirst = reclaimFirst),
+                    )
+                }
+            if (result is NetworkResult.Success) {
+                nudger.scheduleNudge(board)
             }
+            result
         }
 
     override suspend fun reclaimTask(
@@ -265,13 +311,18 @@ class KanbanRepositoryImpl(
         reason: String?,
     ): NetworkResult<ReclaimTaskResponse> =
         withContext(ioDispatcher) {
-            safeApiCall {
-                apiProvider().reclaimTask(
-                    taskId = taskId,
-                    board = board,
-                    body = ReclaimTaskBody(reason = reason),
-                )
+            val result =
+                safeApiCall {
+                    apiProvider().reclaimTask(
+                        taskId = taskId,
+                        board = board,
+                        body = ReclaimTaskBody(reason = reason),
+                    )
+                }
+            if (result is NetworkResult.Success) {
+                nudger.scheduleNudge(board)
             }
+            result
         }
 
     override suspend fun getTaskLog(

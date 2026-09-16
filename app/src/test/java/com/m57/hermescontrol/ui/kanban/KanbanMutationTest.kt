@@ -375,6 +375,40 @@ class KanbanMutationTest {
         }
 
     @Test
+    fun testBulkAssignUsesReclaimAndRetainsOnlyFailures() =
+        runTest(testDispatcher) {
+            val board = KanbanBoard(id = "dev", name = "Dev")
+            coEvery { mockRepository.getBoard("dev") } returns
+                NetworkResult.Success(KanbanBoardResponse(columns = listOf(KanbanColumn("todo", emptyList()))))
+            coEvery { mockRepository.bulkTasks("dev", any()) } returns
+                NetworkResult.Success(
+                    BulkTasksResponse(
+                        results =
+                            listOf(
+                                BulkTaskResult("t_1", ok = true),
+                                BulkTaskResult("t_2", ok = false, error = "locked"),
+                            ),
+                    ),
+                )
+
+            val vm = createViewModel()
+            vm.selectBoard(board)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            var failedIds = emptySet<String>()
+            vm.bulkAssign(listOf("t_1", "t_2"), assignee = null) { failedIds = it }
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            coVerify {
+                mockRepository.bulkTasks(
+                    "dev",
+                    match { it.ids == listOf("t_1", "t_2") && it.assignee == "" && it.reclaimFirst },
+                )
+            }
+            assertEquals(setOf("t_2"), failedIds)
+        }
+
+    @Test
     fun testRenameBoardSuccess() =
         runTest(testDispatcher) {
             val board = KanbanBoard(id = "dev", name = "Dev Renamed")
@@ -393,26 +427,122 @@ class KanbanMutationTest {
             coVerify {
                 mockRepository.updateBoard("dev", match { it.name == "Dev Renamed" })
             }
-            assertEquals("Board renamed to Dev Renamed", vm.uiState.value.toastMessage)
+            assertEquals("Board updated: Dev Renamed", vm.uiState.value.toastMessage)
         }
 
     @Test
     fun testDeleteBoardSuccess() =
         runTest(testDispatcher) {
-            coEvery { mockRepository.deleteBoard("old-board", delete = true) } returns
+            coEvery { mockRepository.deleteBoard("old-board", delete = false) } returns
                 NetworkResult.Success(DeleteBoardResponse(current = null))
-            coEvery { mockRepository.getBoards() } returns
+            coEvery { mockRepository.getBoards(any()) } returns
                 NetworkResult.Success(
                     com.m57.hermescontrol.data.model
                         .KanbanBoardsResponse(emptyList(), null),
                 )
 
             val vm = createViewModel()
+            preferences.setSelectedBoard("http://127.0.0.1:9119", "old-board")
             vm.deleteBoard("old-board")
             testDispatcher.scheduler.advanceUntilIdle()
 
-            coVerify { mockRepository.deleteBoard("old-board", delete = true) }
-            assertEquals("Board deleted", vm.uiState.value.toastMessage)
+            coVerify { mockRepository.deleteBoard("old-board", delete = false) }
+            assertEquals("Board archived", vm.uiState.value.toastMessage)
+            assertEquals(null, preferences.getSelectedBoard("http://127.0.0.1:9119"))
+        }
+
+    @Test
+    fun testDeleteDefaultBoardRefused() =
+        runTest(testDispatcher) {
+            val vm = createViewModel()
+            vm.deleteBoard("default")
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            coVerify(exactly = 0) { mockRepository.deleteBoard(any(), any()) }
+            assertTrue(
+                vm.uiState.value.toastMessage
+                    ?.contains("default board") == true,
+            )
+        }
+
+    @Test
+    fun testSetIncludeArchivedTogglesAndReloadsBoard() =
+        runTest(testDispatcher) {
+            val board = KanbanBoard(id = "dev", name = "Dev")
+            coEvery { mockRepository.getBoard(board = "dev", includeArchived = any(), any()) } returns
+                NetworkResult.Success(KanbanBoardResponse(columns = listOf(KanbanColumn("todo", emptyList()))))
+
+            val vm = createViewModel()
+            vm.selectBoard(board)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            vm.setIncludeArchived(true)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            assertTrue(vm.uiState.value.includeArchived)
+            coVerify { mockRepository.getBoard(board = "dev", includeArchived = true, any()) }
+
+            vm.setIncludeArchived(false)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            assertFalse(vm.uiState.value.includeArchived)
+            coVerify { mockRepository.getBoard(board = "dev", includeArchived = false, any()) }
+        }
+
+    @Test
+    fun testBulkMovePartialFailureKeepsFailedIds() =
+        runTest(testDispatcher) {
+            val board = KanbanBoard(id = "dev", name = "Dev")
+            coEvery { mockRepository.getBoard("dev", any(), any()) } returns
+                NetworkResult.Success(KanbanBoardResponse(columns = listOf(KanbanColumn("done", emptyList()))))
+            coEvery { mockRepository.bulkTasks("dev", any()) } returns
+                NetworkResult.Success(
+                    BulkTasksResponse(
+                        listOf(
+                            BulkTaskResult("t_1", true),
+                            BulkTaskResult("t_2", false, "Conflict"),
+                        ),
+                    ),
+                )
+
+            val vm = createViewModel()
+            vm.selectBoard(board)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            var reportedFailed: Set<String>? = null
+            vm.bulkMove(listOf("t_1", "t_2"), "done") { failed ->
+                reportedFailed = failed
+            }
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            assertEquals(setOf("t_2"), reportedFailed)
+            assertTrue(
+                vm.uiState.value.toastMessage
+                    ?.contains("1 failed") == true,
+            )
+        }
+
+    @Test
+    fun testCreateBoardWithProject() =
+        runTest(testDispatcher) {
+            val board = KanbanBoard(id = "scoped", name = "Scoped", projectId = "proj-123")
+            coEvery { mockRepository.createBoard(any()) } returns
+                NetworkResult.Success(CreateBoardResponse(board = board))
+            coEvery { mockRepository.getBoards(any()) } returns
+                NetworkResult.Success(
+                    com.m57.hermescontrol.data.model
+                        .KanbanBoardsResponse(listOf(board), "scoped"),
+                )
+
+            val vm = createViewModel()
+            vm.createBoard(slug = "scoped", name = "Scoped", projectId = "proj-123")
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            coVerify {
+                mockRepository.createBoard(
+                    match { it.slug == "scoped" && it.projectId == "proj-123" },
+                )
+            }
         }
 
     @Test

@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.chat.tool
 
+import com.m57.hermescontrol.ui.chat.tool.render.SkillManageRenderer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
@@ -653,6 +654,76 @@ class ToolViewCharacterizationTest {
 
         assertEquals("summarize", view.subtitle)
         assertEquals("${"x".repeat(500)}\n... [120 more chars]", view.detail)
+    }
+
+    @Test
+    fun `skill_manage success renders a success detail and status`() {
+        val view =
+            build(
+                "skill_manage",
+                """{"action":"create","name":"summarize"}""",
+                """{"success":true,"message":"Skill 'summarize' created."}""",
+            )
+
+        assertEquals(ToolViewStatus.SUCCESS, view.status)
+        assertEquals("✅ Skill 'summarize' created.", view.detail)
+    }
+
+    @Test
+    fun `skill_manage explicit failure renders a failure detail`() {
+        val call =
+            ToolCall.of(
+                "skill_manage",
+                Json.parseToJsonElement("""{"action":"create","name":"summarize"}"""),
+                Json.parseToJsonElement("""{"success":false,"message":"Permission denied"}"""),
+            )
+
+        assertEquals("❌ Permission denied", SkillManageRenderer.detail(call))
+    }
+
+    @Test
+    fun `skill_manage failure status and detail agree`() {
+        val view =
+            build(
+                "skill_manage",
+                """{"action":"create","name":"summarize"}""",
+                """{"success":false,"message":"Permission denied"}""",
+            )
+
+        assertEquals(ToolViewStatus.ERROR, view.status)
+        assertTrue(view.detail.contains("❌ Permission denied"))
+        assertTrue(!view.detail.contains("✅"))
+    }
+
+    @Test
+    fun `skill_manage error field remains the failure detail`() {
+        val call =
+            ToolCall.of(
+                "skill_manage",
+                Json.parseToJsonElement("""{"action":"create","name":"summarize"}"""),
+                Json.parseToJsonElement("""{"success":false,"error":"Permission denied"}"""),
+            )
+
+        assertEquals("❌ Permission denied", SkillManageRenderer.detail(call))
+    }
+
+    @Test
+    fun `skill_manage missing or invalid success fails closed`() {
+        val missing =
+            ToolCall.of(
+                "skill_manage",
+                null,
+                Json.parseToJsonElement("""{"message":"unexpected payload"}"""),
+            )
+        val invalid =
+            ToolCall.of(
+                "skill_manage",
+                null,
+                Json.parseToJsonElement("""{"success":"true","message":"unexpected payload"}"""),
+            )
+
+        assertEquals("❌ unexpected payload", SkillManageRenderer.detail(missing))
+        assertEquals("❌ unexpected payload", SkillManageRenderer.detail(invalid))
     }
 
     @Test

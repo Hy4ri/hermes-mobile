@@ -50,6 +50,7 @@ import com.m57.hermescontrol.data.remote.CleartextPolicy
 import com.m57.hermescontrol.data.remote.HermesApiService
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.ws.KanbanEventsClient
+import com.m57.hermescontrol.data.ws.ModelOptionsRepository
 import com.m57.hermescontrol.ui.channels.ChannelsViewModel
 import com.m57.hermescontrol.ui.connect.ConnectViewModel
 import com.m57.hermescontrol.ui.cron.CronJobsViewModel
@@ -1293,7 +1294,8 @@ class E2eIntegrationTest {
                     ),
                 )
 
-            val viewModel = ModelViewModel()
+            // Issue #1164: keep the real WS singleton off this test's mocked IO dispatcher.
+            val viewModel = ModelViewModel(ModelOptionsRepository(connected = { false }))
             viewModel.loadAll()
             advanceUntilIdle()
 
@@ -1352,7 +1354,8 @@ class E2eIntegrationTest {
             }
 
             // Default loadAll() must call getModelOptions with refresh = false
-            val viewModel = ModelViewModel()
+            // Issue #1164: keep the real WS singleton off this test's mocked IO dispatcher.
+            val viewModel = ModelViewModel(ModelOptionsRepository(connected = { false }))
             viewModel.loadAll()
             advanceUntilIdle()
 

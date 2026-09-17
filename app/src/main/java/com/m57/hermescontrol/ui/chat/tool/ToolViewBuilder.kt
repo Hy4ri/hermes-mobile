@@ -64,7 +64,13 @@ object ToolViewBuilder {
 
         val detailBody =
             ToolJson.stripDividerLines(
-                renderer.detail(call) ?: ToolJson.fallbackDetailText(call.rawArgs, call.rawResult),
+                if (running) {
+                    renderer.pendingDetail(call)
+                        ?: renderer.detail(call)
+                        ?: ToolJson.fallbackDetailText(call.rawArgs, call.rawResult)
+                } else {
+                    renderer.detail(call) ?: ToolJson.fallbackDetailText(call.rawArgs, call.rawResult)
+                },
             )
         val detail =
             if (error.isNotEmpty()) {

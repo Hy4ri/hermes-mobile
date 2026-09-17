@@ -128,14 +128,16 @@ object EventParser {
             }
 
             "tool.progress" -> {
+                val toolId = payload?.get("tool_id") as? String
                 val name = payload?.get("name") as? String
                 val preview = payload?.get("preview") as? String
-                WsEvent.ToolProgress(name, preview, sessionId)
+                WsEvent.ToolProgress(name, preview, sessionId, toolId)
             }
 
             "tool.generating" -> {
+                val toolId = payload?.get("tool_id") as? String
                 val name = payload?.get("name") as? String
-                WsEvent.ToolGenerating(name, sessionId)
+                WsEvent.ToolGenerating(name, sessionId, toolId)
             }
 
             "subagent.spawn_requested", "subagent.start", "subagent.progress", "subagent.complete" -> {

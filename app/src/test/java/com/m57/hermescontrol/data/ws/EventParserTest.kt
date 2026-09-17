@@ -980,7 +980,12 @@ class EventParserTest {
                     mapOf(
                         "type" to "tool.progress",
                         "session_id" to "sess-123",
-                        "payload" to mapOf("name" to "web_search", "preview" to "downloading content..."),
+                        "payload" to
+                            mapOf(
+                                "tool_id" to "call-progress",
+                                "name" to "web_search",
+                                "preview" to "downloading content...",
+                            ),
                     ),
             )
         val event = EventParser.parse(response)
@@ -989,6 +994,7 @@ class EventParserTest {
         assertEquals("web_search", toolProgress.name)
         assertEquals("downloading content...", toolProgress.preview)
         assertEquals("sess-123", toolProgress.sessionId)
+        assertEquals("call-progress", toolProgress.toolId)
     }
 
     @Test
@@ -1004,7 +1010,7 @@ class EventParserTest {
                     mapOf(
                         "type" to "tool.generating",
                         "session_id" to "sess-123",
-                        "payload" to mapOf("name" to "code_writer"),
+                        "payload" to mapOf("tool_id" to "call-generating", "name" to "code_writer"),
                     ),
             )
         val event = EventParser.parse(response)
@@ -1012,6 +1018,7 @@ class EventParserTest {
         val toolGenerating = event as WsEvent.ToolGenerating
         assertEquals("code_writer", toolGenerating.name)
         assertEquals("sess-123", toolGenerating.sessionId)
+        assertEquals("call-generating", toolGenerating.toolId)
     }
 
     @Test

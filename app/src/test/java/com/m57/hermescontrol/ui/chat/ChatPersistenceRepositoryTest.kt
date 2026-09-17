@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.ui.chat
 
 import com.m57.hermescontrol.ui.chat.fakes.FakeChatMessageDao
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -9,6 +10,41 @@ import org.junit.Test
 class ChatPersistenceRepositoryTest {
     private lateinit var dao: FakeChatMessageDao
     private lateinit var repository: ChatPersistenceRepository
+
+    @Test
+    fun providerIsLazyAndPendingWriteWaitsForDatabase() =
+        runTest {
+            val ready = kotlinx.coroutines.CompletableDeferred<Unit>()
+            var calls = 0
+            val lazyRepository =
+                ChatPersistenceRepository {
+                    calls++
+                    ready.await()
+                    dao
+                }
+            assertEquals(0, calls)
+            val pending =
+                async {
+                    lazyRepository.persistMessage(
+                        ChatMessage(id = "pending", role = MessageRole.USER, content = "saved"),
+                        "s",
+                    )
+                }
+            kotlinx.coroutines.yield()
+            assertEquals(1, calls)
+            org.junit.Assert.assertFalse(pending.isCompleted)
+            ready.complete(Unit)
+            pending.await()
+            assertEquals("pending", dao.getMessagesForSession("s").single().id)
+        }
+
+    @Test
+    fun providerFailureIsNotReportedAsEmptyHistory() =
+        runTest {
+            val failure = IllegalStateException("database unavailable")
+            val failing = ChatPersistenceRepository { throw failure }
+            org.junit.Assert.assertSame(failure, runCatching { failing.loadMessages("s") }.exceptionOrNull())
+        }
 
     @Before
     fun setup() {

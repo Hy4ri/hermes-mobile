@@ -9,15 +9,24 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.notification.NotificationHelper
 import com.m57.hermescontrol.notification.NotificationReplyReceiver
 import com.m57.hermescontrol.theme.HermesControlTheme
+import com.m57.hermescontrol.ui.common.ErrorState
+import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.util.LocaleContextWrapper
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     companion object {
@@ -32,6 +41,8 @@ class MainActivity : ComponentActivity() {
             "com.m57.hermescontrol.ACTION_OPEN_CHAT_FROM_NOTIFICATION"
     }
 
+    private var baseContextLanguageCode: String = LocaleContextWrapper.SYSTEM_LANGUAGE
+
     /**
      * Apply the user-selected display language before any view is inflated.
      * Reads the persisted code from [AuthManager]; an uninitialized store
@@ -41,6 +52,7 @@ class MainActivity : ComponentActivity() {
         val code =
             runCatching { AuthManager.getAppLanguage() }
                 .getOrDefault(LocaleContextWrapper.SYSTEM_LANGUAGE)
+        baseContextLanguageCode = code
         super.attachBaseContext(LocaleContextWrapper.wrapWithCode(base, code))
     }
 
@@ -48,6 +60,18 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         consumeNotificationIntent(intent)
+
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                AuthManager.initializationState.collect { state ->
+                    if (state == AuthManager.InitializationState.Ready) {
+                        if (AuthManager.isGatedMode() || !AuthManager.getToken().isNullOrBlank()) {
+                            HermesWsClient.connect()
+                        }
+                    }
+                }
+            }
+        }
 
         enableEdgeToEdge()
         setContent {
@@ -65,7 +89,35 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
                 ) {
-                    MainNavigation()
+                    val initState by AuthManager.initializationState.collectAsStateWithLifecycle()
+                    when (initState) {
+                        AuthManager.InitializationState.Loading -> {
+                            LoadingState()
+                        }
+
+                        AuthManager.InitializationState.Ready -> {
+                            val savedLanguage = AuthManager.getAppLanguage()
+                            if (savedLanguage != baseContextLanguageCode) {
+                                // The next activity attaches with loaded preferences. Keep navigation
+                                // gated across recompositions until that recreation completes (#1171).
+                                LaunchedEffect(savedLanguage) {
+                                    recreate()
+                                }
+                                LoadingState()
+                            } else {
+                                MainNavigation()
+                            }
+                        }
+
+                        AuthManager.InitializationState.Failed -> {
+                            ErrorState(
+                                message = stringResource(R.string.auth_init_failed),
+                                onRetry = {
+                                    AuthManager.init(applicationContext)
+                                },
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -82,9 +134,6 @@ class MainActivity : ComponentActivity() {
         NotificationHelper.setAppForeground(this, true)
         ExternalActivityLifecycleGuard.onHostResumed()
         NotificationHelper.stop(this)
-        if (AuthManager.isGatedMode() || !AuthManager.getToken().isNullOrBlank()) {
-            HermesWsClient.connect()
-        }
     }
 
     override fun onPause() {

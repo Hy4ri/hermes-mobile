@@ -1303,7 +1303,8 @@
     <string name="landing_subtitle">Control panel for Hermes Agent</string>
     <string name="landing_action_auth_login">Auth Login</string>
 
-    <!-- Loading State -->
+    <!-- Loading / Startup State (issue #1171) -->
+    <string name="auth_init_failed">Failed to initialize app settings</string>
 
     <!-- Providers Screen (issue #534) -->
     <string name="providers_empty_title">No OAuth providers</string>

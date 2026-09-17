@@ -1008,7 +1008,8 @@
     <string name="landing_subtitle">Hermes Agent 제어판</string>
     <string name="landing_action_auth_login">인증 로그인</string>
 
-    <!-- Loading State -->
+    <!-- Loading / Startup State (issue #1171) -->
+    <string name="auth_init_failed">앱 설정을 초기화하지 못했습니다</string>
 
     <!-- Providers Screen -->
     <string name="providers_empty_title">OAuth 제공자가 없습니다</string>

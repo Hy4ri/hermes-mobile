@@ -7,6 +7,8 @@ import androidx.room3.RoomDatabase
 import androidx.room3.migration.Migration
 import androidx.sqlite.SQLiteConnection
 import androidx.sqlite.execSQL
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import net.zetetic.database.sqlcipher.driver.SQLCipherDriver
 import java.io.File
 
@@ -79,40 +81,45 @@ abstract class HermesDatabase : RoomDatabase() {
                 }
             }
 
-        fun get(context: Context): HermesDatabase =
-            instance ?: synchronized(this) {
-                // SQLCipher can't open plaintext SQLite databases — if an old
-                // unencrypted DB exists (v1), delete it so Room + SQLCipher can
-                // create an encrypted replacement from scratch.
-                val dbFile = context.getDatabasePath("hermes_control.db")
-                if (dbFile.exists() && !isSqlCipherDatabase(dbFile)) {
-                    dbFile.delete()
+        suspend fun get(context: Context): HermesDatabase =
+            withContext(Dispatchers.IO) {
+                instance?.let { return@withContext it }
+                val password = AuthManager.getDatabasePassword()
+                synchronized(this@Companion) {
+                    instance?.let { return@synchronized it }
+                    // SQLCipher can't open plaintext SQLite databases — if an old
+                    // unencrypted DB exists (v1), delete it so Room + SQLCipher can
+                    // create an encrypted replacement from scratch.
+                    val dbFile = context.getDatabasePath("hermes_control.db")
+                    if (dbFile.exists() && !isSqlCipherDatabase(dbFile)) {
+                        dbFile.delete()
+                    }
+
+                    // Load SQLCipher native library before creating the driver
+                    System.loadLibrary("sqlcipher")
+                    val driver =
+                        SQLCipherDriver(
+                            password,
+                            null,
+                            null,
+                        )
+
+                    instance ?: Room
+                        .databaseBuilder(
+                            context.applicationContext,
+                            HermesDatabase::class.java,
+                            "hermes_control.db",
+                        ).setDriver(driver)
+                        .addMigrations(
+                            MIGRATION_2_3,
+                            MIGRATION_3_4,
+                            MIGRATION_4_5,
+                            MIGRATION_5_6,
+                            MIGRATION_6_7,
+                        ).fallbackToDestructiveMigration(false)
+                        .build()
+                        .also { instance = it }
                 }
-
-                // Load SQLCipher native library before creating the driver
-                System.loadLibrary("sqlcipher")
-                val driver =
-                    SQLCipherDriver(
-                        AuthManager.getDatabasePassword(),
-                        null,
-                        null,
-                    )
-
-                instance ?: Room
-                    .databaseBuilder(
-                        context.applicationContext,
-                        HermesDatabase::class.java,
-                        "hermes_control.db",
-                    ).setDriver(driver)
-                    .addMigrations(
-                        MIGRATION_2_3,
-                        MIGRATION_3_4,
-                        MIGRATION_4_5,
-                        MIGRATION_5_6,
-                        MIGRATION_6_7,
-                    ).fallbackToDestructiveMigration(false)
-                    .build()
-                    .also { instance = it }
             }
 
         /** Returns true if the database file starts with the SQLCipher magic header. */

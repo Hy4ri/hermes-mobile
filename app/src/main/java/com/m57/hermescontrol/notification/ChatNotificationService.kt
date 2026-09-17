@@ -296,6 +296,7 @@ class ChatNotificationService : Service() {
  */
 object NotificationHelper {
     fun start(context: Context) {
+        if (AuthManager.initializationState.value != AuthManager.InitializationState.Ready) return
         if (AuthManager.getToken().isNullOrBlank()) return
         // Only run the foreground service while a reply is actually pending
         // (issue #794) — otherwise the mandatory persistent "Waiting for

@@ -106,10 +106,11 @@ object HermesWsClient {
 
     /**
      * Liveness thresholds aligned with reference clients (desktop/web):
-     * Ping every 15s using gateway.ping; 45s inbound silence deadline.
+     * Ping every 15s using gateway.ping; 30s inbound silence deadline (issue #1165)
+     * as mobile secondary safety net for faster half-open socket recovery.
      */
     private const val HEARTBEAT_INTERVAL_MS = 15_000L
-    private const val STALE_THRESHOLD_MS = 45_000L
+    private const val STALE_THRESHOLD_MS = 30_000L
     private const val LIVENESS_PROBE_TIMEOUT_MS = 5_000L
 
     // ── Internal state (all access through synchronized / atomic) ────────
@@ -369,6 +370,7 @@ object HermesWsClient {
     val isConnected: Boolean get() = connected.get()
 
     private var foregroundProbeJob: Job? = null
+    private var transportProbeJob: Job? = null
 
     fun setAppForeground(foreground: Boolean) {
         appInForeground.set(foreground)
@@ -395,6 +397,29 @@ object HermesWsClient {
                 synchronized(outboundLock) {
                     if (connected.get()) webSocket?.cancel()
                 }
+            }
+    }
+
+    @VisibleForTesting
+    internal fun probeLivenessOnTransportChange(
+        onFailureAction: () -> Unit = {
+            synchronized(outboundLock) {
+                if (connected.get()) webSocket?.cancel()
+            }
+        },
+    ) {
+        if (!connected.get()) return
+        transportProbeJob?.cancel()
+        transportProbeJob =
+            wsScope.launch {
+                Log.d(TAG, "Network transport changed — probing WebSocket liveness")
+                val alive = runCatching { ping(LIVENESS_PROBE_TIMEOUT_MS) }.isSuccess
+                if (alive) {
+                    Log.d(TAG, "WebSocket liveness probe succeeded on new transport")
+                    return@launch
+                }
+                Log.w(TAG, "Transport change liveness probe failed — cancelling socket")
+                onFailureAction()
             }
     }
 
@@ -426,6 +451,11 @@ object HermesWsClient {
             wsScope.launch {
                 NetworkMonitor.networkChanges.collect { networkAvailable ->
                     reconnectForNetworkChange(networkAvailable)
+                }
+            }
+            wsScope.launch {
+                NetworkMonitor.transportChanges.collect {
+                    probeLivenessOnTransportChange()
                 }
             }
         }

@@ -1316,12 +1316,9 @@ object HermesWsClient {
                     }
 
                     if (rpc.id == null) {
-                        @Suppress("UNCHECKED_CAST")
-                        val params = rpc.params?.toAny() as? Map<String, Any?>
-                        val sid =
-                            (params?.get("session_id") as? String)
-                                ?: ((params?.get("payload") as? Map<*, *>)?.get("session_id") as? String)
-                        val seq = (params?.get("seq") as? Number)?.toInt()
+                        // Issue #1163: inspect scalars, not a throwaway copy of the whole params tree.
+                        val sid = rpc.params?.eventSessionId()
+                        val seq = ((rpc.params?.get("seq") as? JsonPrimitive)?.toAny() as? Number)?.toInt()
 
                         if (!sid.isNullOrBlank() && seq != null) {
                             val prev = lastSeenSeq[sid] ?: 0

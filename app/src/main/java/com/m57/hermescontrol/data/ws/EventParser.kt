@@ -2,6 +2,7 @@ package com.m57.hermescontrol.data.ws
 
 import android.util.Log
 import com.m57.hermescontrol.ui.chat.extractTodosFromMap
+import kotlinx.serialization.json.JsonObject
 
 /**
  * Converts raw [JsonRpcResponse] objects into typed [WsEvent] instances.
@@ -38,8 +39,22 @@ object EventParser {
         }
 
         // ── Notification / event (no id, has method) ─────────────────────
+        val jsonParams = response.params ?: return WsEvent.Unknown(rawJson)
+        // Issue #1163: token events need only scalar lookups, never recursive map/list copies.
+        val eventType = jsonParams["type"].eventStringOrNull()
+        if (eventType == "message.token" || eventType == "message.delta" ||
+            eventType == "thinking.delta" || eventType == "reasoning.delta"
+        ) {
+            val sessionId = jsonParams.eventSessionId()
+            val token = (jsonParams["payload"] as? JsonObject)?.get("text").eventStringOrNull() ?: ""
+            return when (eventType) {
+                "thinking.delta" -> WsEvent.ThinkingDelta(token, sessionId)
+                "reasoning.delta" -> WsEvent.ReasoningDelta(token, sessionId)
+                else -> WsEvent.MessageToken(token, sessionId)
+            }
+        }
         @Suppress("UNCHECKED_CAST")
-        val params = response.params?.toAny() as? Map<String, Any?> ?: return WsEvent.Unknown(rawJson)
+        val params = jsonParams.toAny() as Map<String, Any?>
         return parseParams(params, rawJson)
     }
 

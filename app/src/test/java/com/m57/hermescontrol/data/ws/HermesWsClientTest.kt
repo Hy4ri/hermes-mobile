@@ -1827,6 +1827,47 @@ class HermesWsClientTest {
     }
 
     @Test
+    fun testStreamingDedupPreservesSessionFallbackAndNumericSequenceSemantics() {
+        // Issue #1163: exercise the real listener, including the early duplicate return.
+        val socket = mockk<WebSocket>(relaxed = true)
+        val intentionalClose = HermesWsClient::class.java.getDeclaredField("intentionalClose")
+        intentionalClose.isAccessible = true
+        (intentionalClose.get(HermesWsClient) as java.util.concurrent.atomic.AtomicBoolean).set(false)
+        val generation = HermesWsClient::class.java.getDeclaredField("connectionGeneration")
+        generation.isAccessible = true
+        val constructor =
+            Class
+                .forName("com.m57.hermescontrol.data.ws.HermesWsClient\$WsListenerImpl")
+                .declaredConstructors
+                .single()
+        constructor.isAccessible = true
+        val listener =
+            constructor.newInstance(
+                (generation.get(HermesWsClient) as AtomicInteger).get(),
+            ) as WebSocketListener
+        // Directly install the reflection-built listener so onMessage runs even
+        // though this test never performed a real OkHttp connect.
+        val socketField = HermesWsClient::class.java.getDeclaredField("webSocket")
+        socketField.isAccessible = true
+        socketField.set(HermesWsClient, socket)
+        mockkObject(EventParser)
+
+        val seqValues = listOf("6", "6.9", "4294967302", "\"6\"", "null", "true", "{}", "[]")
+        for ((index, seq) in seqValues.withIndex()) {
+            val sid = "stream-$index"
+            HermesWsClient.setSeqWatermark(sid, 5)
+            val text =
+                """{"method":"event","params":{"type":"message.token","session_id":false,"seq":$seq,""" +
+                    """"payload":{"session_id":"$sid","text":"chunk"}}}"""
+            listener.onMessage(socket, text)
+            listener.onMessage(socket, text)
+            val numeric = index < 3
+            assertEquals(if (numeric) 6 else 5, HermesWsClient.getSeqWatermarks()[sid])
+            verify(exactly = if (numeric) 1 else 2) { EventParser.parse(any(), text) }
+        }
+    }
+
+    @Test
     fun testTerminalCloseCode4403SetsAuthExpired() {
         val socket = mockk<WebSocket>(relaxed = true)
         val intentionalCloseField = HermesWsClient::class.java.getDeclaredField("intentionalClose")

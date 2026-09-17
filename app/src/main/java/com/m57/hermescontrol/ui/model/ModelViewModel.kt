@@ -13,6 +13,7 @@ import com.m57.hermescontrol.data.model.UpdateProfileModelRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.ws.ModelOptionsRepository
 import com.m57.hermescontrol.ui.common.ToastHost
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -66,8 +67,9 @@ data class ModelUiState(
     val pendingModelPickerResolve: ((Boolean) -> Unit)? = null,
 )
 
-class ModelViewModel :
-    ViewModel(),
+class ModelViewModel(
+    private val modelOptionsRepository: ModelOptionsRepository = ModelOptionsRepository(),
+) : ViewModel(),
     ToastHost {
     private val _uiState = MutableStateFlow(ModelUiState())
     val uiState: StateFlow<ModelUiState> = _uiState.asStateFlow()
@@ -100,7 +102,7 @@ class ModelViewModel :
             // Phase 2: Launch model options concurrently
             val optionsDeferred =
                 async(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.getModelOptions(refresh = refresh, includeUnconfigured = false) }
+                    modelOptionsRepository.load(refresh)
                 }
 
             // Await Phase 1 calls (~40-190ms total) and update UI immediately with available state

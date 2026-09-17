@@ -180,7 +180,9 @@ class HermesWsClientTest {
                             response: okhttp3.Response,
                         ) {
                             webSocket.send(
-                                """{"jsonrpc":"2.0","id":"42","result":{"open_requests":[{"id":"srq-secret","method":"secret","params":{"session_id":"session-1","env_var":"API_KEY","prompt":"Enter API key"}}]}}""",
+                                """{"jsonrpc":"2.0","id":"42","result":{"open_requests":[{"id":"srq-secret",""" +
+                                    """"method":"secret","params":{"session_id":"session-1","env_var":"API_KEY",""" +
+                                    """"prompt":"Enter API key"}}]}}""",
                             )
                         }
                     },
@@ -2012,5 +2014,86 @@ class HermesWsClientTest {
         assertNotNull(HermesWsClient.lastLatencyMs.value)
         assertEquals(latency, HermesWsClient.lastLatencyMs.value)
         assertTrue(HermesWsClient.lastPongTimestamp > 0)
+    }
+
+    @Test
+    fun testProbeLivenessOnTransportChangeCancelsSocketWhenPingFails() {
+        val connectedField = HermesWsClient::class.java.getDeclaredField("connected")
+        connectedField.isAccessible = true
+        (connectedField.get(HermesWsClient) as java.util.concurrent.atomic.AtomicBoolean).set(true)
+
+        val failureLatch = CountDownLatch(1)
+        HermesWsClient.probeLivenessOnTransportChange(
+            onFailureAction = {
+                failureLatch.countDown()
+            },
+        )
+
+        assertTrue("Expected failure action to be invoked on failed ping", failureLatch.await(6, TimeUnit.SECONDS))
+    }
+
+    @Test
+    fun testProbeLivenessOnTransportChangeSkipsWhenDisconnected() {
+        val connectedField = HermesWsClient::class.java.getDeclaredField("connected")
+        connectedField.isAccessible = true
+        (connectedField.get(HermesWsClient) as java.util.concurrent.atomic.AtomicBoolean).set(false)
+
+        var failureInvoked = false
+        HermesWsClient.probeLivenessOnTransportChange(
+            onFailureAction = {
+                failureInvoked = true
+            },
+        )
+
+        Thread.sleep(100)
+        assertFalse(failureInvoked)
+    }
+
+    @Test
+    fun testProbeLivenessOnTransportChangeSucceedsWhenServerAnswers() {
+        val serverLatch = CountDownLatch(1)
+
+        mockWebServer.enqueue(
+            MockResponse().withWebSocketUpgrade(
+                object : WebSocketListener() {
+                    override fun onOpen(
+                        webSocket: WebSocket,
+                        response: okhttp3.Response,
+                    ) {
+                        serverLatch.countDown()
+                    }
+
+                    override fun onMessage(
+                        webSocket: WebSocket,
+                        text: String,
+                    ) {
+                        if (text.contains(""""method":"gateway.ping"""") || text.contains(""""method":"ping"""")) {
+                            val id = Regex(""""id":"([^"]+)"""").find(text)?.groupValues?.get(1) ?: "1"
+                            webSocket.send(
+                                """{"jsonrpc":"2.0","id":"$id","result":{"pong":true,"timestamp":1700000000.0}}""",
+                            )
+                        }
+                    }
+                },
+            ),
+        )
+
+        HermesWsClient.connect()
+        runBlocking {
+            withTimeout(5000) {
+                HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED }
+            }
+        }
+        assertTrue(serverLatch.await(5, TimeUnit.SECONDS))
+
+        var failureInvoked = false
+        HermesWsClient.probeLivenessOnTransportChange(
+            onFailureAction = {
+                failureInvoked = true
+            },
+        )
+
+        Thread.sleep(500)
+        assertFalse("Expected socket to remain connected when ping succeeds", failureInvoked)
     }
 }

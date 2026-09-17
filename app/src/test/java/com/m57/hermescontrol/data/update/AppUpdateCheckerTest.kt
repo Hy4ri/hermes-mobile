@@ -35,9 +35,33 @@ class AppUpdateCheckerTest {
     }
 
     @Test
-    fun isNewerVersion_nonNumericSuffixCountsAsZero() {
+    fun isNewerVersion_newerCoreOutranksDevBuild() {
         // Local dev default "1.0-dev" must still see a real release as newer.
         assertTrue(isNewerVersion("1.21.0", "1.0-dev"))
+        assertTrue(isNewerVersion("v1.21.0", "1.0-dev"))
+    }
+
+    @Test
+    fun isNewerVersion_preReleaseSuffixesSortBelowStableBase() {
+        // A versionName built from a release-candidate tag ("1.25.0-rc.1",
+        // or the dot-form "1.25.rc.1") must see the stable release of the
+        // same base as a NEWER update. Previously the "rc" segment parsed
+        // as 0 with a stray trailing segment, so an installed rc compared
+        // GREATER than the stable tag and the update prompt never fired.
+        assertTrue(isNewerVersion("v1.25", "1.25.rc.1"))
+        assertTrue(isNewerVersion("v1.25", "1.25.0-rc.1"))
+        assertTrue(isNewerVersion("v1.25", "1.25-rc.9"))
+        assertTrue(isNewerVersion("v1.26.0", "1.25.0-rc.2"))
+        assertTrue(isNewerVersion("v1.28.1", "1.28.0-rc.3"))
+        assertTrue(isNewerVersion("1.25.0-rc.3", "1.25.0-rc.2"))
+        // Equal versions — including rc == rc — must stay silent.
+        assertFalse(isNewerVersion("v1.25", "1.25"))
+        assertFalse(isNewerVersion("v1.25.0-rc.2", "1.25.0-rc.2"))
+        // A stable install must not be prompted by a same-base rc release.
+        assertFalse(isNewerVersion("v1.25.0-rc.2", "1.25.0"))
+        // Numeric growth still wins over any pre-release marker.
+        assertTrue(isNewerVersion("v1.26", "1.25.0-rc.5"))
+        // Local dev builds still see any real release as newer.
         assertTrue(isNewerVersion("v1.21.0", "1.0-dev"))
     }
 
@@ -46,6 +70,44 @@ class AppUpdateCheckerTest {
         assertFalse(isNewerVersion("not-a-version", "1.21.0"))
         assertFalse(isNewerVersion("1.21.0", ""))
         assertFalse(isNewerVersion("", "1.21.0"))
+    }
+
+    @Test
+    fun isNewerVersion_comparesCoreBeforePrerelease() {
+        assertTrue(isNewerVersion("1.25.1-rc.1", "1.25"))
+        assertFalse(isNewerVersion("1.25", "1.25.1-rc.1"))
+        assertTrue(isNewerVersion("1.25.0.1", "1.25-rc.9"))
+        assertFalse(isNewerVersion("1.24.9", "1.25.rc.1"))
+        assertFalse(isNewerVersion("1.25", "1.25.0"))
+        assertFalse(isNewerVersion("1.25.0-rc.1", "1.25.rc.1"))
+        assertFalse(isNewerVersion("1.25.rc.1", "1.25.0-rc.1"))
+    }
+
+    @Test
+    fun isNewerVersion_ordersPrereleaseIdentifiers() {
+        val versions = listOf("1.25-alpha", "1.25-alpha.1", "1.25-beta", "1.25-rc.2", "1.25-rc.10", "1.25")
+        versions.zipWithNext().forEach { (older, newer) ->
+            assertTrue("$newer > $older", isNewerVersion(newer, older))
+            assertFalse("$older < $newer", isNewerVersion(older, newer))
+        }
+        assertTrue(isNewerVersion("1.25-rc.99999999999999999999", "1.25-rc.10"))
+        assertTrue(isNewerVersion("1.25-rc.a", "1.25-rc.10"))
+        assertTrue(isNewerVersion("1.25", "1.25-dev"))
+    }
+
+    @Test
+    fun isNewerVersion_ignoresBuildMetadata() {
+        assertFalse(isNewerVersion("1.25+build.2", "1.25+build.1"))
+        assertFalse(isNewerVersion("1.25", "1.25+build.1"))
+        assertTrue(isNewerVersion(" v1.25+build.2 ", "1.25-rc.1+build.3"))
+    }
+
+    @Test
+    fun isNewerVersion_rejectsMalformedVersionsOnEitherSide() {
+        listOf("garbage", "1..25", "1.25-", "1.25+", "1.25_rc.1", "1.25!", "99999999999999999999").forEach {
+            assertFalse(it, isNewerVersion(it, "1.25"))
+            assertFalse(it, isNewerVersion("1.25", it))
+        }
     }
 
     @Test

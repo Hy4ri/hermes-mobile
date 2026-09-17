@@ -132,6 +132,27 @@ class UpdateNoticeManagerTest {
     }
 
     @Test
+    fun checkOnLaunch_stableReleasePromptsInstalledRc() =
+        runTest {
+            val checker = mockk<AppUpdateChecker>()
+            coEvery { checker.fetchLatestRelease() } returns updateInfo(tag = "v1.25")
+
+            UpdateNoticeManager.checkOnLaunch(checker, "1.25.0-rc.1", testDispatcher)
+            advanceUntilIdle()
+
+            assertTrue(AppUpdateCache.state.value is AppUpdateState.UpdateAvailable)
+            assertEquals("v1.25", UpdateNoticeManager.noticeTag("1.25.0-rc.1"))
+            verify { AuthManager.setLastKnownLatestTag("v1.25") }
+        }
+
+    @Test
+    fun noticeTag_stableReleasePromptsDotRcFromPersistedCache() {
+        every { AuthManager.getLastKnownLatestTag() } returns "v1.25"
+        assertEquals("v1.25", UpdateNoticeManager.noticeTag("1.25.rc.1"))
+        assertNull(UpdateNoticeManager.noticeTag("1.25"))
+    }
+
+    @Test
     fun checkOnLaunch_upToDateWhenSameVersion() =
         runTest {
             val checker = mockk<AppUpdateChecker>()

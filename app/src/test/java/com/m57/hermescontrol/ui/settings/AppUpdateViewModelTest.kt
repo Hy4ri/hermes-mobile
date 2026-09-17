@@ -167,6 +167,21 @@ class AppUpdateViewModelTest {
     // ── Manual check ────────────────────────────────────────────────────
 
     @Test
+    fun checkForUpdate_stableReleasePromptsInstalledRc() =
+        runTest {
+            coEvery { checker.fetchLatestRelease() } returns updateInfo(tag = "v1.25")
+            val vm = AppUpdateViewModel(app, checker, "1.25.rc.1", testDispatcher)
+            advanceUntilIdle()
+
+            vm.checkForUpdate()
+            advanceUntilIdle()
+
+            assertTrue(vm.state.value is AppUpdateState.UpdateAvailable)
+            assertEquals("v1.25", (vm.state.value as AppUpdateState.UpdateAvailable).latestTag)
+            assertEquals(vm.state.value, AppUpdateCache.state.value)
+        }
+
+    @Test
     fun checkForUpdate_upToDateWhenSameVersion() =
         runTest {
             coEvery { checker.fetchLatestRelease() } returns updateInfo(tag = "v1.21.0")

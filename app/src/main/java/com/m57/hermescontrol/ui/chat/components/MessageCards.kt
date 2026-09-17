@@ -48,8 +48,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SuggestionChip
-import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -57,6 +55,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -91,7 +90,9 @@ import com.m57.hermescontrol.theme.CodeTerminalMuted
 import com.m57.hermescontrol.theme.CodeTerminalText
 import com.m57.hermescontrol.ui.chat.ClarifyUi
 import com.m57.hermescontrol.ui.chat.SubagentIndicator
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 // ── ReasoningCard ─────────────────────────────────────────────────────────
 
@@ -317,7 +318,15 @@ fun CodeBlockCard(
                 }
             }
             // Code content with syntax highlighting
-            val highlighted = remember(code) { highlightSyntax(code) }
+            val highlighted by produceState(
+                initialValue = remember(code) { AnnotatedString(code) },
+                key1 = code,
+            ) {
+                value =
+                    withContext(Dispatchers.Default) {
+                        highlightSyntax(code)
+                    }
+            }
             Text(
                 text = highlighted,
                 fontFamily = FontFamily.Monospace,

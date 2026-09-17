@@ -1475,4 +1475,24 @@
     <string name="session_integrations_retry">إعادة المحاولة</string>
     <string name="session_integrations_close">إغلاق</string>
     <string name="session_integrations_menu_item">تكاملات الجلسة</string>
+
+    <!-- Media Player -->
+    <string name="media_player_play">تشغيل</string>
+    <string name="media_player_pause">إيقاف مؤقت</string>
+    <string name="media_player_replay">إعادة التشغيل</string>
+    <string name="media_player_retry">إعادة المحاولة</string>
+    <string name="media_player_audio">صوت</string>
+    <string name="media_player_video">فيديو</string>
+    <string name="media_player_close">إغلاق</string>
+    <string name="media_player_save">حفظ في الجهاز</string>
+    <string name="media_player_share">مشاركة</string>
+    <string name="media_player_share_title">مشاركة الوسائط</string>
+    <string name="media_player_saved">تم حفظ الوسائط في التنزيلات</string>
+    <string name="media_player_save_failed">تعذر حفظ الوسائط</string>
+    <string name="media_player_load_failed">تعذر تحميل الوسائط: %1$s</string>
+    <string name="media_player_share_failed">تعذر مشاركة الوسائط</string>
+    <string name="media_player_buffering">جار التحميل…</string>
+    <string name="media_player_seek">تقديم/ترجيع</string>
+    <string name="media_player_play_audio">تشغيل الصوت</string>
+    <string name="media_player_play_video">تشغيل الفيديو</string>
 </resources>

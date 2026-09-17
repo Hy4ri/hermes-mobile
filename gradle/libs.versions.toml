@@ -3,6 +3,7 @@ androidGradlePlugin = "9.1.1"
 androidxBrowser = "1.10.0"
 androidxCore = "1.19.0"
 androidxLifecycle = "2.11.0"
+androidxMedia3 = "1.11.1"
 androidxActivity = "1.13.0"
 androidxComposeBom = "2026.08.00"
 androidxTest = "1.7.0"
@@ -90,6 +91,11 @@ latex-renderer = { module = "io.github.huarangmeng:latex-renderer", version.ref 
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 coil-gif = { module = "io.coil-kt.coil3:coil-gif", version.ref = "coil" }
 coil-network-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version.ref = "coil" }
+
+# Media (ExoPlayer Media3)
+media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = "androidxMedia3" }
+media3-ui = { module = "androidx.media3:media3-ui", version.ref = "androidxMedia3" }
+media3-datasource-okhttp = { module = "androidx.media3:media3-datasource-okhttp", version.ref = "androidxMedia3" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }

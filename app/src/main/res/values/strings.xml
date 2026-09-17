@@ -1642,4 +1642,24 @@
     <string name="session_integrations_retry">Retry</string>
     <string name="session_integrations_close">Close</string>
     <string name="session_integrations_menu_item">Session Integrations</string>
+
+    <!-- Media Player -->
+    <string name="media_player_play">Play</string>
+    <string name="media_player_pause">Pause</string>
+    <string name="media_player_replay">Replay</string>
+    <string name="media_player_retry">Retry</string>
+    <string name="media_player_audio">Audio</string>
+    <string name="media_player_video">Video</string>
+    <string name="media_player_close">Close</string>
+    <string name="media_player_save">Save to device</string>
+    <string name="media_player_share">Share</string>
+    <string name="media_player_share_title">Share media</string>
+    <string name="media_player_saved">Media saved to Downloads</string>
+    <string name="media_player_save_failed">Could not save media</string>
+    <string name="media_player_load_failed">Could not load media: %1$s</string>
+    <string name="media_player_share_failed">Could not share media</string>
+    <string name="media_player_buffering">Loading…</string>
+    <string name="media_player_seek">Seek</string>
+    <string name="media_player_play_audio">Play audio</string>
+    <string name="media_player_play_video">Play video</string>
 </resources>

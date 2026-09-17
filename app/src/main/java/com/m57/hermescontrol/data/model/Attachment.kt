@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.data.model
 
+import com.m57.hermescontrol.ui.chat.MediaKind
+import com.m57.hermescontrol.ui.chat.classifyMedia
 import kotlinx.serialization.Serializable
 
 /**
@@ -25,22 +27,23 @@ data class Attachment(
     val gatewayUrl: String? = null,
     val source: AttachmentSource = AttachmentSource.LOCAL,
 ) {
+    val mediaKind: MediaKind
+        get() = classifyMedia(mimeType = mimeType, name = name, uri = gatewayUrl ?: uri)
+
     val isImage: Boolean
-        get() = mimeType.startsWith("image/")
+        get() = mediaKind == MediaKind.IMAGE
 
     val isGif: Boolean
         get() =
             mimeType.equals("image/gif", ignoreCase = true) ||
                 fileExtension == "gif" ||
-                uri.contains(".gif", ignoreCase = true) ||
                 uri.startsWith("data:image/gif", ignoreCase = true)
 
     val isVideo: Boolean
-        get() =
-            mimeType.startsWith("video/") ||
-                fileExtension in listOf("mp4", "webm", "mkv", "mov", "avi", "3gp") ||
-                uri.contains(".mp4", ignoreCase = true) ||
-                uri.contains(".webm", ignoreCase = true)
+        get() = mediaKind == MediaKind.VIDEO
+
+    val isAudio: Boolean
+        get() = mediaKind == MediaKind.AUDIO
 
     val isGateway: Boolean
         get() = source == AttachmentSource.GATEWAY

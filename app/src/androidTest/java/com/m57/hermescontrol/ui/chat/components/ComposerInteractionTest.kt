@@ -81,6 +81,7 @@ class ComposerInteractionTest {
                         isListening = listening,
                         isAgentTyping = false,
                         isConnected = true,
+                        isSessionReady = true,
                         commandCatalog = CommandCatalog(),
                         currentSessionModel = currentModel,
                         reasoningLevel = reasoningLevel,

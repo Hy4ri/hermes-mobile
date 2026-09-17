@@ -1,5 +1,11 @@
 package com.m57.hermescontrol.ui.sessions
 
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.model.SessionSearchResult
 import kotlinx.serialization.json.Json
@@ -15,26 +21,27 @@ import java.time.format.FormatStyle
 import kotlin.math.abs
 
 /**
- * Converts a backend search hit into a display model WITHOUT faking a title.
- * The backend returns no session name, only a matched `snippet` + metadata, so the
- * card must render the snippet as a match excerpt (never as the title). `title` is
- * deliberately left null so [SearchResultCard] shows the honest "Match" layout.
+ * Converts a backend search hit into a display model.
+ * When the backend returns an actual session title, it is mapped cleanly.
+ * When title is missing/null, title is kept null so [SearchResultCard] shows
+ * the honest fallback "Match" layout.
  */
 internal fun SessionSearchResult.toSessionInfo(): SessionInfo =
     SessionInfo(
         id = session_id,
-        title = null,
+        title = title?.takeIf(String::isNotBlank),
         preview = snippet,
         source = source,
         model = model,
         started_at = session_started,
-        // message_count/status aren't in the search payload; leave null so the
-        // search card hides those normal-list affordances.
+        last_active = last_active,
+        message_count = message_count,
+        lineageRootId = lineage_root,
     )
 
 /**
  * Formats a backend epoch-seconds timestamp into a friendly, local relative/absolute
- * string. Used for search results where the session name is unknown.
+ * string. Used for search results where the session name is unknown or when displaying recency.
  */
 internal fun formatPlayedAt(epochSeconds: Double?): String? {
     if (epochSeconds == null || epochSeconds <= 0.0) return null
@@ -96,3 +103,84 @@ private fun JsonElement.searchText(): String? =
                 ?: wrapperFieldNames.firstNotNullOfOrNull { fieldName -> this[fieldName]?.searchText() }
         }
     }
+
+private val SEARCH_TOKEN_REGEX = Regex("\"([^\"]+)\"|(\\S+)")
+
+/**
+ * Builds an AnnotatedString highlighting terms from [query] in [text].
+ * Supports multi-word queries, quoted phrases ("like this"), case-insensitivity,
+ * overlapping matches, and Unicode characters safely without offset drift.
+ * Renders as plain text (no HTML interpretation).
+ */
+fun highlightSearchText(
+    text: String,
+    query: String,
+    highlightBackground: Color,
+    highlightForeground: Color,
+): AnnotatedString {
+    if (query.isBlank() || text.isEmpty()) {
+        return AnnotatedString(text)
+    }
+    val terms =
+        SEARCH_TOKEN_REGEX
+            .findAll(query)
+            .mapNotNull { match ->
+                (match.groups[1]?.value ?: match.groups[2]?.value)?.trim()?.takeIf(String::isNotEmpty)
+            }.distinct()
+            .toList()
+
+    if (terms.isEmpty()) {
+        return AnnotatedString(text)
+    }
+
+    val ranges = mutableListOf<IntRange>()
+    for (term in terms) {
+        var startIndex = 0
+        while (startIndex < text.length) {
+            val found = text.indexOf(term, startIndex = startIndex, ignoreCase = true)
+            if (found == -1) break
+            ranges.add(found until (found + term.length))
+            startIndex = found + term.length
+        }
+    }
+
+    if (ranges.isEmpty()) {
+        return AnnotatedString(text)
+    }
+
+    ranges.sortBy { it.first }
+    val merged = mutableListOf<IntRange>()
+    var current = ranges[0]
+    for (i in 1 until ranges.size) {
+        val next = ranges[i]
+        if (next.first <= current.last + 1) {
+            current = current.first..maxOf(current.last, next.last)
+        } else {
+            merged.add(current)
+            current = next
+        }
+    }
+    merged.add(current)
+
+    return buildAnnotatedString {
+        var cursor = 0
+        for (range in merged) {
+            if (range.first > cursor) {
+                append(text.substring(cursor, range.first))
+            }
+            withStyle(
+                SpanStyle(
+                    background = highlightBackground,
+                    color = highlightForeground,
+                    fontWeight = FontWeight.Bold,
+                ),
+            ) {
+                append(text.substring(range.first, range.last + 1))
+            }
+            cursor = range.last + 1
+        }
+        if (cursor < text.length) {
+            append(text.substring(cursor))
+        }
+    }
+}

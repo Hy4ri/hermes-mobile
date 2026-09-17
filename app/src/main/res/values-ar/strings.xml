@@ -1495,4 +1495,6 @@
     <string name="media_player_seek">تقديم/ترجيع</string>
     <string name="media_player_play_audio">تشغيل الصوت</string>
     <string name="media_player_play_video">تشغيل الفيديو</string>
+    <string name="chat_session_preparing">جارٍ تجهيز الجلسة…</string>
+    <string name="chat_session_not_ready">الجلسة غير جاهزة — أعد المحاولة للمتابعة</string>
 </resources>

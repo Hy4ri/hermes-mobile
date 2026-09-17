@@ -1448,4 +1448,6 @@
     <string name="media_player_seek">跳转进度</string>
     <string name="media_player_play_audio">播放音频</string>
     <string name="media_player_play_video">播放视频</string>
+    <string name="chat_session_preparing">正在准备会话…</string>
+    <string name="chat_session_not_ready">会话未就绪，请重试以继续</string>
 </resources>

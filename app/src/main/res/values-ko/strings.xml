@@ -1179,4 +1179,6 @@
     <string name="media_player_seek">탐색</string>
     <string name="media_player_play_audio">오디오 재생</string>
     <string name="media_player_play_video">비디오 재생</string>
+    <string name="chat_session_preparing">세션 준비 중…</string>
+    <string name="chat_session_not_ready">세션이 준비되지 않았습니다. 다시 시도하세요</string>
 </resources>

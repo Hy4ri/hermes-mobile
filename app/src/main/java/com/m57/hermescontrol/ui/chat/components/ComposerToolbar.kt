@@ -95,6 +95,7 @@ fun ComposerToolbar(
     onMicTap: () -> Unit,
     modifier: Modifier = Modifier,
     canSend: Boolean = false,
+    showSend: Boolean = canSend,
     onSend: () -> Unit = {},
     canDisableReasoning: Boolean? = null,
     supportsReasoning: Boolean? = null,
@@ -360,7 +361,7 @@ fun ComposerToolbar(
 
         // Flat mic / stop button — only while the action button is in send mode
         AnimatedVisibility(
-            visible = canSend,
+            visible = showSend,
             enter = fadeIn() + scaleIn(initialScale = 0.8f),
             exit = fadeOut() + scaleOut(targetScale = 0.8f),
         ) {
@@ -382,10 +383,10 @@ fun ComposerToolbar(
 
         // Action button — send when a send is possible, mic / stop otherwise
         FilledIconButton(
-            onClick = if (canSend) onSend else onMicTap,
-            enabled = canSend || isConnected,
+            onClick = if (showSend) onSend else onMicTap,
+            enabled = if (showSend) canSend else isConnected,
             colors =
-                if (!canSend && isListening) {
+                if (!showSend && isListening) {
                     listeningIconButtonColors()
                 } else {
                     IconButtonDefaults.filledIconButtonColors(
@@ -398,7 +399,7 @@ fun ComposerToolbar(
                     .size(ControlSize)
                     .testTag(
                         when {
-                            canSend -> "send_button"
+                            showSend -> "send_button"
                             isListening -> "mic_stop_button"
                             else -> "mic_button"
                         },
@@ -407,7 +408,7 @@ fun ComposerToolbar(
             Crossfade(
                 targetState =
                     when {
-                        canSend -> ActionGlyph.SEND
+                        showSend -> ActionGlyph.SEND
                         isListening -> ActionGlyph.STOP
                         else -> ActionGlyph.VOICE
                     },

@@ -2695,6 +2695,138 @@ class ChatViewModelTest {
     // ── Session resume recovery (desktop parity: warm cache + bounded retry) ──
 
     /** Override the send stub to capture (method → id) pairs. */
+    @Test
+    fun testSendReadiness_restBeforeResume_preservesDraftUntilAck() =
+        runTest {
+            stubSession456Rests(success = true)
+            val (viewModel, _) = createViewModelWithSession()
+            assertTrue(viewModel.uiState.value.isSessionReady)
+            val captured = captureSends()
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+            val before = viewModel.uiState.value
+            assertFalse(before.isSessionReady)
+            assertFalse(viewModel.sendMessage("keep this draft"))
+            assertEquals(before.messages, viewModel.uiState.value.messages)
+            assertEquals(before.pendingAttachments, viewModel.uiState.value.pendingAttachments)
+            assertFalse(viewModel.uiState.value.isAgentTyping)
+            val id = captured.last { it.first == WsMethods.SESSION_RESUME }.second
+            mockEventsFlow.emit(WsEvent.RpcResult(id, mapOf("session_id" to "runtime-456")))
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isSessionReady)
+            assertTrue(viewModel.sendMessage("keep this draft"))
+            advanceUntilIdle()
+            assertEquals(
+                1,
+                viewModel.uiState.value.messages
+                    .count { it.content == "keep this draft" },
+            )
+        }
+
+    @Test
+    fun testSendReadiness_resumeBeforeRest_waitsForHydration() =
+        runTest {
+            stubSession456Rests(success = true)
+            val response =
+                CompletableDeferred<retrofit2.Response<com.m57.hermescontrol.data.model.SessionMessagesResponse>>()
+            coEvery {
+                ApiClient.hermesApi.getSessionMessages("session-456", any(), any(), any(), any())
+            } coAnswers { response.await() }
+            val (viewModel, _) = createViewModelWithSession()
+            val captured = captureSends()
+            viewModel.switchSession("session-456")
+            runCurrent()
+            val id = captured.last { it.first == WsMethods.SESSION_RESUME }.second
+            mockEventsFlow.emit(WsEvent.RpcResult(id, mapOf("session_id" to "runtime-456")))
+            runCurrent()
+            assertFalse(viewModel.uiState.value.isSessionReady)
+            assertFalse(viewModel.sendMessage("/queue draft"))
+            response.complete(
+                retrofit2.Response.success(
+                    com.m57.hermescontrol.data.model
+                        .SessionMessagesResponse(messages = emptyList()),
+                ),
+            )
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isSessionReady)
+        }
+
+    @Test
+    fun testSendReadiness_reconnectRejectsOldAckAndRequiresFreshHydration() =
+        runTest {
+            stubSession456Rests(success = true)
+            val (viewModel, _) = createViewModelWithSession()
+            val captured = captureSends()
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+            val oldId = captured.last { it.first == WsMethods.SESSION_RESUME }.second
+            mockConnectionStatus.value = ConnectionStatus.RECONNECTING
+            runCurrent()
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.RpcResult(oldId, mapOf("session_id" to "stale-runtime")))
+            runCurrent()
+            assertFalse(viewModel.uiState.value.isSessionReady)
+            assertFalse(viewModel.sendMessage("draft"))
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.isSessionReady)
+            val freshId = captured.last { it.first == WsMethods.SESSION_RESUME }.second
+            mockEventsFlow.emit(WsEvent.RpcResult(freshId, mapOf("session_id" to "fresh-runtime")))
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isSessionReady)
+            viewModel.retryResumeSession()
+            runCurrent()
+            assertFalse(viewModel.uiState.value.isSessionReady)
+        }
+
+    @Test
+    fun testSendReadiness_malformedAckNeverEnablesSend() =
+        runTest {
+            stubSession456Rests(success = true)
+            val (viewModel, _) = createViewModelWithSession()
+            val captured = captureSends()
+            viewModel.switchSession("session-456")
+            runCurrent()
+            val id = captured.last { it.first == WsMethods.SESSION_RESUME }.second
+            mockEventsFlow.emit(WsEvent.RpcResult(id, mapOf("session_id" to "")))
+            runCurrent()
+            assertFalse(viewModel.uiState.value.isSessionReady)
+            assertFalse(viewModel.sendMessage("draft"))
+            assertTrue(viewModel.uiState.value.isResumeRetrying)
+        }
+
+    @Test
+    fun testSendReadiness_abandonedCreateCannotAcceptDraft() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+            mockConnectionStatus.value = ConnectionStatus.RECONNECTING
+            runCurrent()
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            runCurrent()
+            assertFalse(viewModel.sendMessage("retain me"))
+            assertFalse(viewModel.uiState.value.isAgentTyping)
+        }
+
+    @Test
+    fun testSendReadiness_pendingCreateAppliesBackpressure() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+            assertTrue(viewModel.sendMessage("first"))
+            assertFalse(viewModel.sendMessage("second"))
+            assertFalse(
+                viewModel.uiState.value.messages
+                    .any { it.content == "second" },
+            )
+        }
+
     private fun captureSends(): MutableList<Pair<String, String>> {
         val captured = mutableListOf<Pair<String, String>>()
         every { HermesWsClient.send(any(), any(), any()) } answers {

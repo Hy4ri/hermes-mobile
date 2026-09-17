@@ -1428,4 +1428,6 @@
     <string name="session_integrations_retry">重试</string>
     <string name="session_integrations_close">关闭</string>
     <string name="session_integrations_menu_item">会话集成</string>
+    <string name="chat_session_preparing">正在准备会话…</string>
+    <string name="chat_session_not_ready">会话未就绪，请重试以继续</string>
 </resources>

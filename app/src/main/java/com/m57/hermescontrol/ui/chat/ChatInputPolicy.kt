@@ -24,7 +24,8 @@ object ChatInputPolicy {
         text: String,
         pendingAttachments: List<Any>,
         isConnected: Boolean,
-    ): Boolean = (text.isNotBlank() || pendingAttachments.isNotEmpty()) && isConnected
+        isSessionReady: Boolean,
+    ): Boolean = (text.isNotBlank() || pendingAttachments.isNotEmpty()) && isConnected && isSessionReady
 
     /**
      * Whether the input placeholder should read "queued" rather than the plain

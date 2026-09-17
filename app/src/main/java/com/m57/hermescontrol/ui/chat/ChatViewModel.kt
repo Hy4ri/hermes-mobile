@@ -766,43 +766,7 @@ class ChatViewModel(
         _streamingState.update { result.streamingState }
 
         // Process side-effects from the reducer
-        for (effect in result.effects) {
-            when (effect) {
-                is ReducerEffect.PersistMessage -> {
-                    viewModelScope.launch(ioDispatcher) {
-                        repo.persistMessage(effect.message, effect.sessionId)
-                    }
-                }
-
-                is ReducerEffect.CreateNewSession -> {
-                    createNewSession()
-                }
-
-                is ReducerEffect.LoadSessions -> {
-                    loadSessions()
-                }
-
-                is ReducerEffect.RefreshSessions -> {
-                    loadSessions()
-                }
-
-                is ReducerEffect.RefreshContextUsage -> {
-                    // Streaming finished — refresh the context meter now rather
-                    // than waiting up to 5s for the next session-sync poll.
-                    viewModelScope.launch { fetchContextUsage() }
-                }
-
-                is ReducerEffect.AttachHostMedia -> {
-                    // Issue #724: turn host-path MEDIA: directives into real
-                    // attachments (images inline, every other file tappable)
-                    // via the gateway /api/files/download endpoint. Works on a
-                    // remote phone too.
-                    viewModelScope.launch(ioDispatcher) {
-                        mediaDelegate.attachHostMedia(effect.sessionId, effect.messageId)
-                    }
-                }
-            }
-        }
+        dispatchReducerEffects(result.effects)
 
         // Handle complex events that need ViewModel-specific context
         when (event) {
@@ -811,84 +775,7 @@ class ChatViewModel(
             }
 
             is WsEvent.SessionInfo -> {
-                // Session info pushed by backend when config changes
-                // (model switch, reasoning level, etc.)
-                val info = event.data
-                if (info != null) {
-                    val model = info["model"] as? String
-                    val provider = info["provider"] as? String
-                    val reasoningEffort = info["reasoning_effort"] as? String
-                    val terminalBackend = info["terminal_backend"] as? String
-                    val serviceTier = (info["service_tier"] as? String)?.trim()?.lowercase()
-                    val fastFlag =
-                        (info["fast"] as? Boolean)
-                            ?: (if (serviceTier != null) serviceTier == "priority" else null)
-                    val newModelLabel =
-                        if (model != null && provider != null) {
-                            "$provider/$model"
-                        } else {
-                            model
-                        }
-                    // Issue #817 & #1103: on a REAL model swap the meter's denominator
-                    // still belongs to the old model until the next fetch.
-                    // Check against both lastConfirmedSessionModel and optimisticPreviousModel
-                    // so optimistic model updates in sendSlashModel don't defeat swap detection.
-                    val optimisticPrevious = modelSwitchDelegate.consumeOptimisticPreviousModel()
-                    val previousModel =
-                        lastConfirmedSessionModel
-                            ?: optimisticPrevious
-                            ?: _uiState.value.currentSessionModel
-                    val modelSwapped =
-                        previousModel != null &&
-                            newModelLabel != null &&
-                            !newModelLabel.equals(previousModel, ignoreCase = true)
-                    val initialHydration = previousModel == null && newModelLabel != null
-                    val meterEmpty = _uiState.value.fullContextTokens == null
-                    lastConfirmedSessionModel = newModelLabel ?: lastConfirmedSessionModel
-                    if (newModelLabel != null) {
-                        modelSwitchDelegate.onModelConfirmed(newModelLabel)
-                    }
-                    _uiState.update { state ->
-                        state.copy(
-                            currentSessionModel = newModelLabel ?: state.currentSessionModel,
-                            reasoningLevel =
-                                if (reasoningEffort.isNullOrEmpty()) {
-                                    null
-                                } else {
-                                    reasoningEffort
-                                },
-                            fastMode = fastFlag ?: state.fastMode,
-                            isFastModeChanging = if (fastFlag != null) false else state.isFastModeChanging,
-                            terminalBackend = terminalBackend ?: state.terminalBackend,
-                            fullContextTokens = if (modelSwapped) null else state.fullContextTokens,
-                        )
-                    }
-                    modelSwitchDelegate.syncCurrentModelCapabilities()
-                    if (modelSwapped) {
-                        modelGeneration++
-                        contextUsageJob?.cancel()
-                        contextUsageJob = null
-                        // Issue #817 & #1103: after a swap the REST model/info window is
-                        // PROFILE-scoped and may describe the old model (e.g. a
-                        // session-scoped swap) — the meter must not fall back to
-                        // it. Wait for the RPC's live context_max instead; the
-                        // chip stays hidden until the real window lands.
-                        viewModelScope.launch { fetchContextUsage(skipRestFallback = true) }
-                    } else if ((initialHydration || meterEmpty) && newModelLabel != null &&
-                        contextUsageJob?.isActive != true
-                    ) {
-                        viewModelScope.launch { fetchContextUsage() }
-                    }
-                    // Session.info can carry `pending_approval` (reconnect
-                    // reconciliation) — surface it unless already on screen.
-                    val pendingApproval = info["pending_approval"] as? Map<*, *>
-                    if (pendingApproval != null) {
-                        approvalsDelegate.maybeSurfacePendingApproval(
-                            pendingApproval,
-                            runtimeSessionId ?: _uiState.value.currentSessionId,
-                        )
-                    }
-                }
+                handleSessionInfo(event.data)
             }
 
             is WsEvent.MessageToken -> {
@@ -1229,6 +1116,126 @@ class ChatViewModel(
         // If the event has no session ID, process it (legacy compatibility)
         if (eventSessionId == null) return true
         return eventSessionId == runtimeSessionId || eventSessionId == _uiState.value.currentSessionId
+    }
+
+    private fun dispatchReducerEffects(effects: List<ReducerEffect>) {
+        for (effect in effects) {
+            when (effect) {
+                is ReducerEffect.PersistMessage -> {
+                    viewModelScope.launch(ioDispatcher) {
+                        repo.persistMessage(effect.message, effect.sessionId)
+                    }
+                }
+
+                is ReducerEffect.CreateNewSession -> {
+                    createNewSession()
+                }
+
+                is ReducerEffect.LoadSessions -> {
+                    loadSessions()
+                }
+
+                is ReducerEffect.RefreshSessions -> {
+                    loadSessions()
+                }
+
+                is ReducerEffect.RefreshContextUsage -> {
+                    // Streaming finished — refresh the context meter now rather
+                    // than waiting up to 5s for the next session-sync poll.
+                    viewModelScope.launch { fetchContextUsage() }
+                }
+
+                is ReducerEffect.AttachHostMedia -> {
+                    // Issue #724: turn host-path MEDIA: directives into real
+                    // attachments (images inline, every other file tappable)
+                    // via the gateway /api/files/download endpoint. Works on a
+                    // remote phone too.
+                    viewModelScope.launch(ioDispatcher) {
+                        mediaDelegate.attachHostMedia(effect.sessionId, effect.messageId)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun handleSessionInfo(info: Map<String, Any?>?) {
+        // Session info pushed by backend when config changes
+        // (model switch, reasoning level, etc.)
+        if (info != null) {
+            val model = info["model"] as? String
+            val provider = info["provider"] as? String
+            val reasoningEffort = info["reasoning_effort"] as? String
+            val terminalBackend = info["terminal_backend"] as? String
+            val serviceTier = (info["service_tier"] as? String)?.trim()?.lowercase()
+            val fastFlag =
+                (info["fast"] as? Boolean)
+                    ?: (if (serviceTier != null) serviceTier == "priority" else null)
+            val newModelLabel =
+                if (model != null && provider != null) {
+                    "$provider/$model"
+                } else {
+                    model
+                }
+            // Issue #817 & #1103: on a REAL model swap the meter's denominator
+            // still belongs to the old model until the next fetch.
+            // Check against both lastConfirmedSessionModel and optimisticPreviousModel
+            // so optimistic model updates in sendSlashModel don't defeat swap detection.
+            val optimisticPrevious = modelSwitchDelegate.consumeOptimisticPreviousModel()
+            val previousModel =
+                lastConfirmedSessionModel
+                    ?: optimisticPrevious
+                    ?: _uiState.value.currentSessionModel
+            val modelSwapped =
+                previousModel != null &&
+                    newModelLabel != null &&
+                    !newModelLabel.equals(previousModel, ignoreCase = true)
+            val initialHydration = previousModel == null && newModelLabel != null
+            val meterEmpty = _uiState.value.fullContextTokens == null
+            lastConfirmedSessionModel = newModelLabel ?: lastConfirmedSessionModel
+            if (newModelLabel != null) {
+                modelSwitchDelegate.onModelConfirmed(newModelLabel)
+            }
+            _uiState.update { state ->
+                state.copy(
+                    currentSessionModel = newModelLabel ?: state.currentSessionModel,
+                    reasoningLevel =
+                        if (reasoningEffort.isNullOrEmpty()) {
+                            null
+                        } else {
+                            reasoningEffort
+                        },
+                    fastMode = fastFlag ?: state.fastMode,
+                    isFastModeChanging = if (fastFlag != null) false else state.isFastModeChanging,
+                    terminalBackend = terminalBackend ?: state.terminalBackend,
+                    fullContextTokens = if (modelSwapped) null else state.fullContextTokens,
+                )
+            }
+            modelSwitchDelegate.syncCurrentModelCapabilities()
+            if (modelSwapped) {
+                modelGeneration++
+                contextUsageJob?.cancel()
+                contextUsageJob = null
+                // Issue #817 & #1103: after a swap the REST model/info window is
+                // PROFILE-scoped and may describe the old model (e.g. a
+                // session-scoped swap) — the meter must not fall back to
+                // it. Wait for the RPC's live context_max instead; the
+                // chip stays hidden until the real window lands.
+                viewModelScope.launch { fetchContextUsage(skipRestFallback = true) }
+            } else if ((initialHydration || meterEmpty) && newModelLabel != null &&
+                contextUsageJob?.isActive != true
+            ) {
+                viewModelScope.launch { fetchContextUsage() }
+            }
+            // Session.info can carry `pending_approval` (reconnect
+            // reconciliation) — surface it unless already on screen.
+            val pendingApproval = info["pending_approval"] as? Map<*, *>
+            if (pendingApproval != null) {
+                approvalsDelegate.maybeSurfacePendingApproval(
+                    pendingApproval,
+                    runtimeSessionId ?: _uiState.value.currentSessionId,
+                )
+            }
+        }
     }
 
     // ── RPC response handling ────────────────────────────────────────────

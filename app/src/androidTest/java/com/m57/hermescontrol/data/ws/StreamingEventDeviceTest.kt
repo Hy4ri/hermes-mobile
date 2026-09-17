@@ -32,7 +32,8 @@ class StreamingEventDeviceTest {
             repeat(1000) { seq ->
                 val frame =
                     """{"method":"event","params":{"type":"$type","seq":$seq,""" +
-                        """"payload":{"session_id":"device-test","text":"chunk-$seq 🌙\n"}}}"""
+                        """"payload":{"session_id":"device-test","text":"chunk-$seq ../ \uD83C\uDF19\n",""" +
+                        """"extra":{"nested":[{"text":"ignored","path":"../ignored"}]}}}}"""
                 val response = Json.decodeFromString<JsonRpcResponse>(frame)
                 val event = EventParser.parse(response, frame)
                 val (token, session) =
@@ -44,7 +45,7 @@ class StreamingEventDeviceTest {
                     }
                 assertEquals("device-test", session)
                 actual.append(token)
-                expected.append("chunk-$seq 🌙\n")
+                expected.append("chunk-$seq ../ 🌙\n")
             }
             assertEquals(type, expected.toString(), actual.toString())
         }

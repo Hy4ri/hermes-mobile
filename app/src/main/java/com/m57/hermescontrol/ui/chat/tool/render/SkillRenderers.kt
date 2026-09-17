@@ -105,14 +105,12 @@ internal object SkillManageRenderer : ToolRenderer {
 
         val msg = ToolJson.firstString(call.result, listOf("message"))
         val failed = ToolJson.boolFalse(call.result?.get("success"))
+        val succeeded = ToolJson.boolTrue(call.result?.get("success"))
 
-        // Pinned quirk from the original engine: the branch order is inverted
-        // (a non-false `success` renders the failure line). Preserved verbatim
-        // by the characterization suite; fix upstream deliberately if desired.
         return when {
-            !failed -> "❌ Skill operation failed"
-            msg.isNotEmpty() -> "✅ $msg"
-            else -> "✅ Skill operation done"
+            failed -> "❌ ${msg.ifEmpty { "Skill operation failed" }}"
+            succeeded -> "✅ ${msg.ifEmpty { "Skill operation done" }}"
+            else -> "❌ ${msg.ifEmpty { "Skill operation failed" }}"
         }
     }
 }

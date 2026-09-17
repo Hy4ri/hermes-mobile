@@ -639,12 +639,7 @@ object ChatWsEventReducer {
                 OkHttpProvider.json.encodeToString(it.toJsonElement())
             } ?: ""
         val messages = state.messages.toMutableList()
-        val toolIdx =
-            messages.indexOfLast {
-                it.role == MessageRole.TOOL &&
-                    it.toolName == event.name &&
-                    it.toolStatus == ToolStatus.RUNNING
-            }
+        val toolIdx = findToolIndex(messages, event.name, event.data?.get("tool_id") as? String, ToolStatus.RUNNING)
         if (toolIdx < 0) return ReducerResult(state = state, streamingState = streamingState)
 
         val updated =
@@ -675,10 +670,10 @@ object ChatWsEventReducer {
     /**
      * Attaches [ToolOutputRiskData] to the matching tool message.
      *
-     * Finds the last RUNNING tool message with matching [WsEvent.ToolOutputRisk.name].
-     * If no RUNNING message exists (tool already completed), falls back to the last
-     * COMPLETED tool with that name. This covers the case where the risk event arrives
-     * after tool.complete.
+     * Finds the matching stable tool ID first. If the event has no ID or no ID
+     * match exists, it falls back to the tool name for legacy payloads. It
+     * prefers RUNNING tools and then falls back to COMPLETED tools because the
+     * risk event may arrive after tool.complete.
      */
     private fun onToolOutputRisk(
         state: ChatUiState,
@@ -694,20 +689,11 @@ object ChatWsEventReducer {
 
         val messages = state.messages.toMutableList()
 
-        // Prefer RUNNING tool, fall back to COMPLETED
-        var toolIdx =
-            messages.indexOfLast {
-                it.role == MessageRole.TOOL &&
-                    it.toolName == event.name &&
-                    it.toolStatus == ToolStatus.RUNNING
-            }
+        // Prefer RUNNING tool, fall back to COMPLETED. Stable tool IDs win over
+        // name matching so overlapping calls to the same tool stay isolated.
+        var toolIdx = findToolIndex(messages, event.name, event.toolId, ToolStatus.RUNNING)
         if (toolIdx < 0) {
-            toolIdx =
-                messages.indexOfLast {
-                    it.role == MessageRole.TOOL &&
-                        it.toolName == event.name &&
-                        it.toolStatus == ToolStatus.COMPLETED
-                }
+            toolIdx = findToolIndex(messages, event.name, event.toolId, ToolStatus.COMPLETED)
         }
         if (toolIdx < 0) return ReducerResult(state = state, streamingState = streamingState)
 
@@ -904,12 +890,7 @@ object ChatWsEventReducer {
         event: WsEvent.ToolProgress,
     ): ReducerResult {
         val messages = state.messages.toMutableList()
-        val toolIdx =
-            messages.indexOfLast {
-                it.role == MessageRole.TOOL &&
-                    it.toolName == event.name &&
-                    it.toolStatus == ToolStatus.RUNNING
-            }
+        val toolIdx = findToolIndex(messages, event.name, event.toolId, ToolStatus.RUNNING)
         if (toolIdx < 0) return ReducerResult(state = state, streamingState = streamingState)
 
         messages[toolIdx] = messages[toolIdx].copy(progressPreview = event.preview ?: "")
@@ -925,12 +906,7 @@ object ChatWsEventReducer {
         event: WsEvent.ToolGenerating,
     ): ReducerResult {
         val messages = state.messages.toMutableList()
-        val toolIdx =
-            messages.indexOfLast {
-                it.role == MessageRole.TOOL &&
-                    it.toolName == event.name &&
-                    it.toolStatus == ToolStatus.RUNNING
-            }
+        val toolIdx = findToolIndex(messages, event.name, event.toolId, ToolStatus.RUNNING)
         if (toolIdx < 0) return ReducerResult(state = state, streamingState = streamingState)
 
         messages[toolIdx] = messages[toolIdx].copy(progressPreview = "")
@@ -938,6 +914,30 @@ object ChatWsEventReducer {
             state = state.copy(messages = messages),
             streamingState = streamingState,
         )
+    }
+
+    /** Match stable tool IDs first, with name matching for legacy events. */
+    private fun findToolIndex(
+        messages: List<ChatMessage>,
+        name: String?,
+        toolId: String?,
+        status: ToolStatus,
+    ): Int {
+        if (!toolId.isNullOrBlank()) {
+            val byId =
+                messages.indexOfLast {
+                    it.role == MessageRole.TOOL &&
+                        it.toolCallId == toolId &&
+                        it.toolStatus == status
+                }
+            if (byId >= 0) return byId
+        }
+
+        return messages.indexOfLast {
+            it.role == MessageRole.TOOL &&
+                it.toolName == name &&
+                it.toolStatus == status
+        }
     }
 
     private fun onSubagentEvent(

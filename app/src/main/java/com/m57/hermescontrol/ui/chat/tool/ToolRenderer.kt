@@ -25,6 +25,9 @@ internal interface ToolRenderer {
     /** Expanded body text. */
     fun detail(call: ToolCall): String? = null
 
+    /** Expanded body text while the call is still running. */
+    fun pendingDetail(call: ToolCall): String? = null
+
     /** Structured extras (streams, diffs, search hits) for special row layouts. */
     fun extras(
         call: ToolCall,

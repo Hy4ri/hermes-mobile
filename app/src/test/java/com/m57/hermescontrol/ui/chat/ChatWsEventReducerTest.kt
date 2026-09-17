@@ -510,6 +510,103 @@ class ChatWsEventReducerTest {
     }
 
     @Test
+    fun testToolLifecycle_sameNameUsesToolIdForProgressAndCompletion() {
+        val state = ChatUiState(currentSessionId = "session-1")
+        val first =
+            ChatWsEventReducer.reduce(
+                state,
+                StreamingState(),
+                WsEvent.ToolStart(
+                    name = "process_manage",
+                    data = mapOf("tool_id" to "call-1", "action" to "wait"),
+                    sessionId = "session-1",
+                ),
+                "session-1",
+            )
+        val second =
+            ChatWsEventReducer.reduce(
+                first.state,
+                first.streamingState,
+                WsEvent.ToolStart(
+                    name = "process_manage",
+                    data = mapOf("tool_id" to "call-2", "action" to "wait"),
+                    sessionId = "session-1",
+                ),
+                "session-1",
+            )
+
+        val progress =
+            ChatWsEventReducer.reduce(
+                second.state,
+                second.streamingState,
+                WsEvent.ToolProgress(
+                    name = "process_manage",
+                    preview = "call-1 is still waiting",
+                    sessionId = "session-1",
+                    toolId = "call-1",
+                ),
+                "session-1",
+            )
+        assertEquals("call-1 is still waiting", progress.state.messages[0].progressPreview)
+        assertNull(progress.state.messages[1].progressPreview)
+
+        val completed =
+            ChatWsEventReducer.reduce(
+                progress.state,
+                progress.streamingState,
+                WsEvent.ToolComplete(
+                    name = "process_manage",
+                    data = mapOf("tool_id" to "call-1", "output" to "finished"),
+                    sessionId = "session-1",
+                ),
+                "session-1",
+            )
+        assertEquals(ToolStatus.COMPLETED, completed.state.messages[0].toolStatus)
+        assertEquals(ToolStatus.RUNNING, completed.state.messages[1].toolStatus)
+    }
+
+    @Test
+    fun testToolOutputRisk_sameNameUsesToolId() {
+        val state = ChatUiState(currentSessionId = "session-1")
+        val first =
+            ChatWsEventReducer.reduce(
+                state,
+                StreamingState(),
+                WsEvent.ToolStart("terminal", mapOf("tool_id" to "call-1"), "session-1"),
+                "session-1",
+            )
+        val second =
+            ChatWsEventReducer.reduce(
+                first.state,
+                first.streamingState,
+                WsEvent.ToolStart("terminal", mapOf("tool_id" to "call-2"), "session-1"),
+                "session-1",
+            )
+
+        val result =
+            ChatWsEventReducer.reduce(
+                second.state,
+                second.streamingState,
+                WsEvent.ToolOutputRisk(
+                    toolId = "call-1",
+                    name = "terminal",
+                    risk = "high",
+                    findings = listOf("secret"),
+                    sessionId = "session-1",
+                ),
+                "session-1",
+            )
+
+        assertEquals(
+            "high",
+            result.state.messages[0]
+                .toolOutputRiskData
+                ?.risk,
+        )
+        assertNull(result.state.messages[1].toolOutputRiskData)
+    }
+
+    @Test
     fun testHydrateTodosFromMessages_parsesStoredToolMessage() {
         val todoMessage =
             ChatMessage(

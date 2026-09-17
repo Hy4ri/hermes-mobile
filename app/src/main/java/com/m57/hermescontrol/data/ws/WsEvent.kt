@@ -104,23 +104,25 @@ sealed class WsEvent {
      * Live tool execution progress with optional preview content.
      *
      * Events: `tool.progress`
-     * Payload: `{ name?: string, preview?: string }`
+     * Payload: `{ tool_id?: string, name?: string, preview?: string }`
      */
     data class ToolProgress(
         val name: String? = null,
         val preview: String? = null,
         val sessionId: String? = null,
+        val toolId: String? = null,
     ) : WsEvent()
 
     /**
      * Tool generation active state.
      *
      * Events: `tool.generating`
-     * Payload: `{ name?: string }`
+     * Payload: `{ tool_id?: string, name?: string }`
      */
     data class ToolGenerating(
         val name: String? = null,
         val sessionId: String? = null,
+        val toolId: String? = null,
     ) : WsEvent()
 
     /**

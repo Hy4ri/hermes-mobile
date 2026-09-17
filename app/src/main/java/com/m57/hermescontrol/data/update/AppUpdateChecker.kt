@@ -36,31 +36,64 @@ data class UpdateInfo(
 fun normalizedVersion(tag: String): String = tag.trim().removePrefix("v")
 
 /**
- * True when [latest] is strictly newer than [current]. Numeric dot-segment
- * comparison ("1.21.0" > "1.2"). Non-numeric suffixes (e.g. "1.0-dev")
- * compare as 0; an unparseable version never claims an update exists.
+ * True when [latest] is strictly newer than [current] (issue #867).
+ * Compare the numeric core first, padding missing parts with zero, then
+ * prerelease identifiers. Stable outranks prerelease for the same core.
+ * Accept both "1.25.0-rc.1" and legacy "1.25.rc.1"; ignore build metadata.
+ * Invalid versions never claim an update exists.
  */
 fun isNewerVersion(
     latest: String,
     current: String,
 ): Boolean {
-    val a = versionSegments(latest) ?: return false
-    val b = versionSegments(current) ?: return false
-    for (i in 0 until maxOf(a.size, b.size)) {
-        val x = a.getOrElse(i) { 0 }
-        val y = b.getOrElse(i) { 0 }
-        if (x != y) return x > y
+    val a = parseVersion(latest) ?: return false
+    val b = parseVersion(current) ?: return false
+    for (i in 0 until maxOf(a.core.size, b.core.size)) {
+        val comparison = a.core.getOrElse(i) { 0 }.compareTo(b.core.getOrElse(i) { 0 })
+        if (comparison != 0) return comparison > 0
     }
-    return false
+    if (a.prerelease.isEmpty()) return b.prerelease.isNotEmpty()
+    if (b.prerelease.isEmpty()) return false
+    for (i in 0 until minOf(a.prerelease.size, b.prerelease.size)) {
+        val comparison = comparePrereleaseIdentifier(a.prerelease[i], b.prerelease[i])
+        if (comparison != 0) return comparison > 0
+    }
+    return a.prerelease.size > b.prerelease.size
 }
 
-private fun versionSegments(version: String): List<Int>? {
-    val cleaned = normalizedVersion(version)
-    if (cleaned.isBlank()) return null
-    return cleaned.split('.').map { segment ->
-        // Leading numeric portion of each segment: "0-dev" → 0, "21" → 21.
-        segment.takeWhile { it.isDigit() }.toIntOrNull() ?: 0
-    }
+private data class ParsedVersion(
+    val core: List<Int>,
+    val prerelease: List<String>,
+)
+
+private val VERSION_PATTERN =
+    Regex(
+        """^([0-9]+(?:\.[0-9]+)*)(?:(?:-|\.(?=[a-zA-Z]))([a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*))?(?:\+[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*)?$""",
+    )
+
+private fun parseVersion(version: String): ParsedVersion? {
+    val match = VERSION_PATTERN.matchEntire(normalizedVersion(version)) ?: return null
+    val core = match.groupValues[1].split('.').map { it.toIntOrNull() ?: return null }
+    val prerelease =
+        match.groupValues[2]
+            .takeIf { it.isNotEmpty() }
+            ?.split('.')
+            .orEmpty()
+    return ParsedVersion(core, prerelease)
+}
+
+private fun comparePrereleaseIdentifier(
+    a: String,
+    b: String,
+): Int {
+    val aNumeric = a.all { it in '0'..'9' }
+    val bNumeric = b.all { it in '0'..'9' }
+    if (aNumeric != bNumeric) return if (aNumeric) -1 else 1
+    if (!aNumeric) return a.compareTo(b)
+    // Compare arbitrarily large RC numbers without integer overflow.
+    val x = a.trimStart('0')
+    val y = b.trimStart('0')
+    return x.length.compareTo(y.length).takeIf { it != 0 } ?: x.compareTo(y)
 }
 
 /**

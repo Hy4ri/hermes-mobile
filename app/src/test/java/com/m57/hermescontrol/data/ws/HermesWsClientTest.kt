@@ -1671,7 +1671,10 @@ class HermesWsClientTest {
         val tokenALatch = CountDownLatch(1)
         val tokenBLatch = CountDownLatch(1)
         val collectorJob =
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            // Subscribe before sending A: this SharedFlow does not replay missed tokens (#1163).
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch(
+                start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED,
+            ) {
                 HermesWsClient.events.collect { event ->
                     if (event is WsEvent.MessageToken) {
                         receivedTokens.add(event.token)

@@ -661,6 +661,37 @@ fun SessionsScreen(
                                                     onDelete = { viewModel.requestDeleteSession(session.id) },
                                                 )
                                             }
+                                            if (state.searchHasMore) {
+                                                item(key = "search_paging_footer") {
+                                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                        state.searchLoadMoreError?.let { error ->
+                                                            Text(error, color = MaterialTheme.colorScheme.error)
+                                                        }
+                                                        TextButton(
+                                                            onClick = viewModel::loadMoreSearch,
+                                                            enabled = !state.isLoadingMoreSearch,
+                                                            modifier =
+                                                                Modifier.fillMaxWidth().testTag(
+                                                                    "search_load_more",
+                                                                ),
+                                                        ) {
+                                                            if (state.isLoadingMoreSearch) {
+                                                                CircularProgressIndicator(Modifier.size(20.dp))
+                                                            } else {
+                                                                Text(
+                                                                    stringResource(
+                                                                        if (state.searchLoadMoreError != null) {
+                                                                            R.string.action_retry
+                                                                        } else {
+                                                                            R.string.history_load_more
+                                                                        },
+                                                                    ),
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }

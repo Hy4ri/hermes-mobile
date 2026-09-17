@@ -99,6 +99,10 @@ data class SessionsUiState(
     val isSearching: Boolean = false,
     val searchResults: List<SessionSearchResult> = emptyList(),
     val searchError: String? = null,
+    val isLoadingMoreSearch: Boolean = false,
+    val searchHasMore: Boolean = false,
+    val searchNextOffset: Int? = null,
+    val searchLoadMoreError: String? = null,
     val showHidden: Boolean = false,
     val pinnedExpanded: Boolean = true,
     val liveStatuses: Map<String, SessionLiveStatus> = emptyMap(),
@@ -255,6 +259,8 @@ class SessionsViewModel(
         loadJob?.cancel()
         pageJob?.cancel()
         searchJob?.cancel()
+        searchPageJob?.cancel()
+        searchGeneration++
         rawPaginationOffset = 0
         val query = _uiState.value.searchQuery
         _uiState.update {
@@ -413,6 +419,8 @@ class SessionsViewModel(
     // ── Search (server-backed FTS5) ──────────────────────────────────
 
     private var searchJob: Job? = null
+    private var searchPageJob: Job? = null
+    private var searchGeneration = 0L
 
     /**
      * Debounced server-side session search. A non-blank query schedules a search
@@ -420,53 +428,99 @@ class SessionsViewModel(
      * paginated list mode.
      */
     fun setSearchQuery(query: String) {
-        val requestGeneration = generation
+        val requestGeneration = ++searchGeneration
         val section = _uiState.value.section
-        _uiState.update { it.copy(searchQuery = query, searchResults = emptyList()) }
         searchJob?.cancel()
+        searchPageJob?.cancel()
+        _uiState.update {
+            it.copy(
+                searchQuery = query,
+                searchResults = emptyList(),
+                isSearching = query.isNotBlank(),
+                searchError = null,
+                isLoadingMoreSearch = false,
+                searchHasMore = false,
+                searchNextOffset = null,
+                searchLoadMoreError = null,
+                isSelecting = false,
+                selectedIds = emptySet(),
+            )
+        }
         if (query.isBlank()) {
-            _uiState.update {
-                it.copy(searchResults = emptyList(), searchError = null, isSearching = false)
-            }
             if (_uiState.value.sessions.isEmpty()) loadSessions()
             return
         }
         searchJob =
             viewModelScope.launch {
                 delay(SEARCH_DEBOUNCE_MS)
-                _uiState.update { it.copy(isSearching = true, searchError = null) }
-                val result =
-                    safeApiCall {
-                        ApiClient.hermesApi.searchSessions(
-                            q = query,
-                            profile = null,
-                            source = section.source,
-                            excludeSources = section.excludeSources,
-                        )
-                    }
-                if (requestGeneration != generation || _uiState.value.searchQuery != query) return@launch
-                when (result) {
-                    is NetworkResult.Success -> {
-                        _uiState.update {
-                            it.copy(
-                                isSearching = false,
-                                searchResults = result.data.results.orEmpty(),
-                                searchError = null,
-                            )
-                        }
-                    }
+                requestSearchPage(query, section, requestGeneration, 0)
+            }
+    }
 
-                    is NetworkResult.Failure -> {
-                        _uiState.update {
-                            it.copy(
-                                isSearching = false,
-                                searchResults = emptyList(),
-                                searchError = "Search failed: ${result.error.message}",
-                            )
+    fun loadMoreSearch() {
+        val state = _uiState.value
+        val offset = state.searchNextOffset ?: return
+        if (!state.isSearchMode || state.isSearching || state.isLoadingMoreSearch || !state.searchHasMore) return
+        val requestGeneration = searchGeneration
+        _uiState.update { it.copy(isLoadingMoreSearch = true, searchLoadMoreError = null) }
+        searchPageJob =
+            viewModelScope.launch {
+                requestSearchPage(state.searchQuery, state.section, requestGeneration, offset)
+            }
+    }
+
+    private suspend fun requestSearchPage(
+        query: String,
+        section: HistorySection,
+        requestGeneration: Long,
+        offset: Int,
+    ) {
+        val result =
+            safeApiCall {
+                ApiClient.hermesApi.searchSessions(
+                    q = query,
+                    profile = null,
+                    source = section.source,
+                    excludeSources = section.excludeSources,
+                    limit = 20,
+                    offset = offset,
+                )
+            }
+        if (requestGeneration != searchGeneration || _uiState.value.section != section) return
+        when (result) {
+            is NetworkResult.Success -> {
+                _uiState.update { state ->
+                    val previous = if (offset == 0) emptyList() else state.searchResults
+                    // Dedup by final surfaced session id: legacy backends can return
+                    // the same continuation twice (distinct lineage roots), and
+                    // LazyList keys session ids — duplicates crash the screen.
+                    val results = (previous + result.data.results).distinctBy { it.session_id }
+                    val next =
+                        result.data.next_offset?.takeIf {
+                            result.data.hasMore && it > offset && results.size > previous.size
                         }
+                    state.copy(
+                        isSearching = false,
+                        isLoadingMoreSearch = false,
+                        searchResults = results,
+                        searchError = null,
+                        searchLoadMoreError = null,
+                        searchHasMore = next != null,
+                        searchNextOffset = next,
+                    )
+                }
+            }
+
+            is NetworkResult.Failure -> {
+                _uiState.update {
+                    if (offset == 0) {
+                        it.copy(isSearching = false, searchError = "Search failed: ${result.error.message}")
+                    } else {
+                        it.copy(isLoadingMoreSearch = false, searchLoadMoreError = "Failed to load more")
                     }
                 }
             }
+        }
     }
 
     // ── Stats ────────────────────────────────────────────────────────────
@@ -580,6 +634,10 @@ class SessionsViewModel(
                             sessions =
                                 it.sessions.map { s ->
                                     if (s.id == sessionId) s.copy(title = newTitle) else s
+                                },
+                            searchResults =
+                                it.searchResults.map { s ->
+                                    if (s.session_id == sessionId) s.copy(title = newTitle) else s
                                 },
                             toastMessage = "Session renamed",
                         )
@@ -780,6 +838,7 @@ class SessionsViewModel(
                             isDeletingBulk = false,
                             isSelecting = false,
                             selectedIds = emptySet(),
+                            searchResults = it.searchResults.filter { hit -> hit.session_id !in ids },
                             toastMessage = toastMsg,
                         )
                     }

@@ -100,6 +100,66 @@ class SessionsViewModelTest {
     }
 
     @Test
+    fun `wire paging metadata drives a second request without changing history paging`() {
+        val first =
+            kotlinx.serialization.json.Json.decodeFromString<SessionSearchResponse>(
+                """{"results":[{"session_id":"a"},{"session_id":"a"}],"has_more":true,"next_offset":20}""",
+            )
+        coEvery { mockApi.searchSessions("launch", null, null, "cron", 20, 0) } returns Response.success(first)
+        coEvery { mockApi.searchSessions("launch", null, null, "cron", 20, 20) } returns
+            Response.success(
+                SessionSearchResponse(listOf(SessionSearchResult("b")), has_more = false),
+            )
+        val vm = createViewModel()
+        vm.setSearchQuery("launch")
+        testDispatcher.scheduler.advanceUntilIdle()
+        vm.loadMoreSearch()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(
+            listOf("a", "b"),
+            vm.uiState.value.searchResults
+                .map { it.session_id },
+        )
+        assertFalse(vm.uiState.value.searchHasMore)
+        assertFalse(vm.uiState.value.hasMore)
+        coVerify(exactly = 1) { mockApi.searchSessions("launch", null, null, "cron", 20, 20) }
+    }
+
+    @Test
+    fun `bulk delete removes selected search hits and preserves others`() {
+        mockkObject(com.m57.hermescontrol.data.local.AuthManager)
+        every {
+            com.m57.hermescontrol.data.local.AuthManager
+                .getLastOpenedSessionId()
+        } returns null
+        coEvery { mockApi.searchSessions("launch", null, null, "cron", 20, 0) } returns
+            Response.success(SessionSearchResponse(listOf(SessionSearchResult("a"), SessionSearchResult("b"))))
+        coEvery { mockApi.bulkDeleteSessions(any()) } returns
+            Response.success(
+                com.m57.hermescontrol.data.model
+                    .BulkDeleteResponse(ok = true, deleted = 1),
+            )
+        coEvery { mockApi.getSessions(any(), any(), any(), any(), any()) } returns
+            Response.success(SessionListResponse(sessions = emptyList(), total = 0))
+        val vm = createViewModel()
+        vm.setSearchQuery("launch")
+        testDispatcher.scheduler.advanceUntilIdle()
+        vm.toggleSessionSelection("a")
+        vm.confirmBulkDelete()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(
+            listOf("b"),
+            vm.uiState.value.searchResults
+                .map { it.session_id },
+        )
+        assertTrue(
+            vm.uiState.value.selectedIds
+                .isEmpty(),
+        )
+        assertFalse(vm.uiState.value.isDeletingBulk)
+    }
+
+    @Test
     fun `tracking loads the project list`() {
         val projects = FakeProjectsSource().apply { projectsToReturn = listOf(ProjectInfo(id = "p_1", name = "App")) }
         val vm = createViewModel(projectsSource = projects)
@@ -187,6 +247,67 @@ class SessionsViewModelTest {
                 .map { it.name },
         )
         vm.stopLiveStatusTracking()
+    }
+
+    @Test
+    fun `search is pending immediately before debounce`() {
+        val vm = createViewModel()
+        vm.setSearchQuery("deploy")
+        assertTrue(vm.uiState.value.isSearching)
+        assertNull(vm.uiState.value.searchError)
+        vm.setSearchQuery("")
+        assertFalse(vm.uiState.value.isSearching)
+    }
+
+    @Test
+    fun `search pagination keeps results on failure and retries same offset`() {
+        coEvery { mockApi.searchSessions("deploy", null, null, "cron", 20, 0) } returns
+            Response.success(SessionSearchResponse(listOf(SessionSearchResult("one")), true, 1))
+        coEvery { mockApi.searchSessions("deploy", null, null, "cron", 20, 1) } returns
+            Response.error(503, "busy".toResponseBody()) andThen
+            Response.error(503, "busy".toResponseBody()) andThen
+            Response.error(503, "busy".toResponseBody()) andThen
+            Response.success(
+                SessionSearchResponse(listOf(SessionSearchResult("one"), SessionSearchResult("two")), false),
+            )
+        val vm = createViewModel()
+        vm.setSearchQuery("deploy")
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue(vm.uiState.value.searchHasMore)
+        vm.loadMoreSearch()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(
+            listOf("one"),
+            vm.uiState.value.searchResults
+                .map { it.session_id },
+        )
+        assertNotNull(vm.uiState.value.searchLoadMoreError)
+        assertNull(vm.uiState.value.searchError)
+        vm.loadMoreSearch()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(
+            listOf("one", "two"),
+            vm.uiState.value.searchResults
+                .map { it.session_id },
+        )
+        assertFalse(vm.uiState.value.searchHasMore)
+        assertFalse(vm.uiState.value.hasMore)
+    }
+
+    @Test
+    fun `legacy search and non advancing page do not loop`() {
+        coEvery { mockApi.searchSessions("old", null, null, "cron", 20, 0) } returns
+            Response.success(SessionSearchResponse(listOf(SessionSearchResult("one"))))
+        coEvery { mockApi.searchSessions("new", null, null, "cron", 20, 0) } returns
+            Response.success(SessionSearchResponse(listOf(SessionSearchResult("two")), true, 0))
+        val vm = createViewModel()
+        for (query in listOf("old", "new")) {
+            vm.setSearchQuery(query)
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertFalse(vm.uiState.value.searchHasMore)
+            vm.loadMoreSearch()
+        }
+        coVerify(exactly = 2) { mockApi.searchSessions(any(), any(), any(), any(), any(), any()) }
     }
 
     @Test

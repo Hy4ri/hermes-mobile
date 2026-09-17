@@ -10,6 +10,7 @@ import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
+import kotlinx.coroutines.async
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -84,16 +85,13 @@ class AuthManagerTest {
         storeField.isAccessible = true
         storeField.set(AuthManager, null)
 
-        AuthManager.resetAuthStateForTest()
+        kotlinx.coroutines.runBlocking { AuthManager.resetAndAwaitForTest() }
 
         // Initialise AuthManager
         AuthManager.init(testContext)
 
         // Wait for async initialization to complete to prevent coroutine leaks
-        kotlinx.coroutines.runBlocking {
-            val deferred = field.get(AuthManager) as? kotlinx.coroutines.Deferred<*>
-            deferred?.await()
-        }
+        kotlinx.coroutines.runBlocking { AuthManager.awaitInitialization() }
 
         // Wait for ServerStore initialization to complete
         AuthManager.serverStore.getLatestState()
@@ -105,13 +103,106 @@ class AuthManagerTest {
         // into later classes — leaked collectors re-touch deleted/recreated
         // server_store.json and surface as UncaughtExceptionsBeforeTest
         // phantoms in whichever test class runs next.
-        AuthManager.resetAuthStateForTest()
+        kotlinx.coroutines.runBlocking { AuthManager.resetAndAwaitForTest() }
         val tempDir = java.io.File(System.getProperty("java.io.tmpdir") ?: "/tmp")
         val tempFile = java.io.File(tempDir, "server_store.json")
         if (tempFile.exists()) {
             tempFile.delete()
         }
         unmockkAll()
+    }
+
+    @Test
+    fun delayedKeystoreDoesNotBlockCallerOrExpireAfterTwoSeconds() =
+        kotlinx.coroutines.runBlocking {
+            AuthManager.resetAndAwaitForTest()
+            val entered = java.util.concurrent.CountDownLatch(1)
+            val release = java.util.concurrent.CountDownLatch(1)
+            every { MasterKeys.getOrCreate(any()) } answers {
+                entered.countDown()
+                check(release.await(10, java.util.concurrent.TimeUnit.SECONDS))
+                "mockMasterKey"
+            }
+            AuthManager.init(testContext)
+            try {
+                org.junit.Assert.assertTrue(entered.await(5, java.util.concurrent.TimeUnit.SECONDS))
+                assertEquals(AuthManager.InitializationState.Loading, AuthManager.initializationState.value)
+                val waiter = async { AuthManager.awaitInitialization() }
+                kotlinx.coroutines.delay(2100)
+                org.junit.Assert.assertFalse(waiter.isCompleted)
+                release.countDown()
+                waiter.await()
+                assertEquals(AuthManager.InitializationState.Ready, AuthManager.initializationState.value)
+            } finally {
+                release.countDown()
+            }
+        }
+
+    @Test
+    fun failedKeystoreCanRetryWithoutClearingCredentials() =
+        kotlinx.coroutines.runBlocking {
+            AuthManager.resetAndAwaitForTest()
+            every { MasterKeys.getOrCreate(any()) } throws IllegalStateException("keystore unavailable")
+            AuthManager.init(testContext)
+            val failure = runCatching { AuthManager.awaitInitialization() }.exceptionOrNull()
+            org.junit.Assert.assertTrue(failure is IllegalStateException)
+            assertEquals(AuthManager.InitializationState.Failed, AuthManager.initializationState.value)
+            every { MasterKeys.getOrCreate(any()) } returns "mockMasterKey"
+            every { mockPrefs.getString("token_default", null) } returns "restored-token"
+            AuthManager.init(testContext)
+            AuthManager.awaitInitialization()
+            assertEquals("restored-token", AuthManager.getToken())
+            assertEquals(AuthManager.InitializationState.Ready, AuthManager.initializationState.value)
+        }
+
+    @Test
+    fun databaseKeyIsCreatedOnceAndCacheReturnsDefensiveCopies() =
+        kotlinx.coroutines.runBlocking {
+            every { mockPrefs.getString("db_password", null) } returns null
+            every { mockEditor.commit() } returns true
+            val first = AuthManager.getDatabasePassword()
+            val original = first.copyOf()
+            first.fill(0)
+            org.junit.Assert.assertArrayEquals(original, AuthManager.getDatabasePassword())
+            assertEquals(32, original.size)
+            verify(exactly = 1) { mockPrefs.getString("db_password", null) }
+            verify(exactly = 1) { mockEditor.commit() }
+        }
+
+    @Test
+    fun existingDatabaseKeyIsPreserved() =
+        kotlinx.coroutines.runBlocking {
+            val original = ByteArray(32) { it.toByte() }
+            every { mockPrefs.getString("db_password", null) } returns
+                java.util.Base64
+                    .getEncoder()
+                    .encodeToString(original)
+            org.junit.Assert.assertArrayEquals(original, AuthManager.getDatabasePassword())
+            verify(exactly = 0) { mockEditor.commit() }
+        }
+
+    @Test
+    fun failedDatabaseKeyWriteDoesNotCacheUnsavedPassword() =
+        kotlinx.coroutines.runBlocking {
+            every { mockPrefs.getString("db_password", null) } returns null
+            every { mockEditor.commit() } returns false
+            org.junit.Assert.assertTrue(runCatching { AuthManager.getDatabasePassword() }.isFailure)
+            every { mockEditor.commit() } returns true
+            assertEquals(32, AuthManager.getDatabasePassword().size)
+            verify(exactly = 2) { mockEditor.commit() }
+        }
+
+    @Test
+    fun defaultTokenUpdateRefreshesInheritedTokenCache() {
+        AuthManager.saveConnectionProfiles(listOf(ConnectionProfile(id = "other", name = "Other")))
+        every { mockPrefs.getString("token_other", null) } returns null
+        every { mockPrefs.getString("token_default", null) } returns "old"
+        AuthManager.setSelectedProfileId("other")
+        assertEquals("old", AuthManager.getToken())
+        every { mockPrefs.getString("token_default", null) } returns "new"
+        AuthManager.setProfileToken("default", "new")
+        assertEquals("new", AuthManager.getToken())
+        assertEquals("new", AuthManager.tokenFlow.value)
     }
 
     @Test
@@ -491,13 +582,9 @@ class AuthManagerTest {
         every { mockPrefs.getBoolean("legacy_default_migrated", false) } returns false
 
         // Re-initialize so init() runs the one-time migration
-        AuthManager.resetAuthStateForTest()
+        kotlinx.coroutines.runBlocking { AuthManager.resetAndAwaitForTest() }
         AuthManager.init(testContext)
-        kotlinx.coroutines.runBlocking {
-            val field = AuthManager::class.java.getDeclaredField("prefsDeferred")
-            field.isAccessible = true
-            (field.get(AuthManager) as? kotlinx.coroutines.Deferred<*>)?.await()
-        }
+        kotlinx.coroutines.runBlocking { AuthManager.awaitInitialization() }
 
         // token should now be persisted under the default profile key, and the legacy key removed
         verify { mockEditor.putString("token_${AuthManager.DEFAULT_PROFILE_ID}", "legacy-standalone-token") }
@@ -542,13 +629,9 @@ class AuthManagerTest {
     fun testActiveProfileId_restoredFromPrefsAfterRestart() {
         every { mockPrefs.getString("active_profile_id", null) } returns "meow"
 
-        AuthManager.resetAuthStateForTest()
+        kotlinx.coroutines.runBlocking { AuthManager.resetAndAwaitForTest() }
         AuthManager.init(testContext)
-        kotlinx.coroutines.runBlocking {
-            val field = AuthManager::class.java.getDeclaredField("prefsDeferred")
-            field.isAccessible = true
-            (field.get(AuthManager) as? kotlinx.coroutines.Deferred<*>)?.await()
-        }
+        kotlinx.coroutines.runBlocking { AuthManager.awaitInitialization() }
 
         assertEquals("meow", AuthManager.activeProfileId.value)
 
@@ -557,7 +640,7 @@ class AuthManagerTest {
         // prefs/DataStore state and break subsequent mockkObject(AuthManager)
         // classes — the "Missing mocked calls" / UncaughtExceptionsBeforeTest
         // suite-order failures).
-        AuthManager.resetAuthStateForTest()
+        kotlinx.coroutines.runBlocking { AuthManager.resetAndAwaitForTest() }
     }
 
     @Test

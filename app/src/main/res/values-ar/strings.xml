@@ -1189,6 +1189,7 @@
 <string name="landing_title">Hermes Mobile</string>
 <string name="landing_subtitle">لوحة التحكم لـ Hermes Agent</string>
 <string name="landing_action_auth_login">تسجيل الدخول والمصادقة</string>
+<string name="auth_init_failed">فشل في تهيئة إعدادات التطبيق</string>
 <string name="providers_empty_title">لا يوجد موفرو OAuth</string>
 <string name="providers_empty_desc">سيظهر موفرو خدمة OAuth المهيؤون هنا. قم بربط حساب لاستخدامه من التطبيق.</string>
 <string name="providers_action_connect">اتصال</string>

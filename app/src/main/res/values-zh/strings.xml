@@ -1156,6 +1156,7 @@
     <string name="landing_title">Hermes Mobile</string>
     <string name="landing_subtitle">Hermes Agent 控制面板</string>
     <string name="landing_action_auth_login">认证登录</string>
+    <string name="auth_init_failed">应用设置初始化失败</string>
     <string name="providers_empty_title">没有 OAuth 提供商</string>
     <string name="providers_empty_desc">已配置的 OAuth 提供商将显示在这里。连接账户即可在应用中使用。</string>
     <string name="providers_action_connect">连接</string>

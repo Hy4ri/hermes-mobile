@@ -1642,4 +1642,6 @@
     <string name="session_integrations_retry">Retry</string>
     <string name="session_integrations_close">Close</string>
     <string name="session_integrations_menu_item">Session Integrations</string>
+    <string name="chat_session_preparing">Preparing session…</string>
+    <string name="chat_session_not_ready">Session not ready — retry to continue</string>
 </resources>

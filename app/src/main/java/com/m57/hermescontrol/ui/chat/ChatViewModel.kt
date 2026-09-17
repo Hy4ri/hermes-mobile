@@ -181,6 +181,7 @@ data class ChatUiState(
     /** Agent todo / plan items (issue #736). */
     val todos: List<TodoItem> = emptyList(),
     // Session resume recovery (desktop parity: bounded auto-retry + error UI)
+    val isSessionReady: Boolean = false,
     val resumeError: String? = null,
     val isResumeRetrying: Boolean = false,
     /** Text staged to prefill the composer (e.g. from /undo). */
@@ -587,6 +588,13 @@ class ChatViewModel(
                     // fire with a stale id and 4001 "session not found";
                     // handleGatewayReady rebinds it on the re-resume.
                     runtimeSessionId = null
+                    resumedGeneration = -1L
+                    hydratedGeneration = -1L
+                    activeResumeRequestSequence = ++resumeRequestSequence
+                    activeHydrationRequestSequence = ++hydrationRequestSequence
+                    // Preserve metadata so late results and errors are rejected as stale.
+                    sessionGeneration++
+                    _uiState.update { it.copy(isSessionReady = false) }
                     // Fail any in-flight awaited RPCs so callers don't hang
                     // across the disconnect (delegated to HermesWsClient, issue #526).
                     wsClient.rejectAllPending()
@@ -1250,8 +1258,14 @@ class ChatViewModel(
         if (request != null && isStaleSessionRequest(request)) return
         when (method) {
             WsMethods.SESSION_CREATE -> {
-                val resultMap = result as? Map<String, Any?> ?: return
-                val runtimeId = resultMap["session_id"] as? String ?: return
+                val resultMap = result as? Map<String, Any?>
+                val runtimeId = (resultMap?.get("session_id") as? String)?.takeIf { it.isNotBlank() }
+                if (runtimeId == null) {
+                    _uiState.update {
+                        it.copy(isLoading = false, resumeError = "Invalid session creation response")
+                    }
+                    return
+                }
                 val storageId = resultMap["stored_session_id"] as? String ?: runtimeId
                 runtimeSessionId = runtimeId
                 // The gateway persists the row lazily on the first prompt —
@@ -1261,6 +1275,7 @@ class ChatViewModel(
                 _uiState.update {
                     it.copy(
                         currentSessionId = storageId,
+                        isSessionReady = true,
                         isLoading = false,
                         messages = if (pendingInitialPrompt != null) it.messages else emptyList(),
                         chatTitle = "Hermes",
@@ -1308,7 +1323,7 @@ class ChatViewModel(
                 // must stay the storage key — storing the runtime id here made
                 // every later resume 4007 "session not found" (the DB lookup
                 // misses) and the REST transcript 404.
-                val runtimeId = resultMap["session_id"] as? String ?: return
+                val runtimeId = (resultMap["session_id"] as? String)?.takeIf { it.isNotBlank() } ?: return
                 val storageId = resultMap["stored_session_id"] as? String ?: runtimeId
                 val generation =
                     resetSessionState(
@@ -1317,6 +1332,7 @@ class ChatViewModel(
                         isLoading = false,
                     )
                 runtimeSessionId = runtimeId
+                resumedGeneration = generation
                 ActiveSessionHolder.set(runtimeId, storageId)
                 sessionHasServerPresence = false
                 sessionGoneRecoveryInFlight = false
@@ -1348,16 +1364,22 @@ class ChatViewModel(
 
             WsMethods.SESSION_RESUME -> {
                 val resultMap = result as? Map<String, Any?>
-                runtimeSessionId = resultMap?.get("session_id") as? String
+                val runtimeId = (resultMap?.get("session_id") as? String)?.takeIf { it.isNotBlank() }
+                if (runtimeId == null) {
+                    val sessionId = request?.sessionId ?: _uiState.value.currentSessionId ?: return
+                    handleResumeFailure(sessionId, sessionGeneration, "Invalid session resume response")
+                    return
+                }
+                runtimeSessionId = runtimeId
                 // Resume succeeded — the gateway confirmed the DB row.
                 sessionHasServerPresence = true
                 val sessionId =
                     request?.sessionId
-                        ?: (resultMap?.get("resumed") as? String)
+                        ?: (resultMap["resumed"] as? String)
                         ?: _uiState.value.currentSessionId
 
                 // Parse session info from backend — model, provider, reasoning_effort
-                val infoMap = resultMap?.get("info") as? Map<String, Any?>
+                val infoMap = resultMap["info"] as? Map<String, Any?>
                 val model = infoMap?.get("model") as? String
                 val provider = infoMap?.get("provider") as? String
                 val reasoningEffort = infoMap?.get("reasoning_effort") as? String
@@ -1423,7 +1445,7 @@ class ChatViewModel(
                 // Reconnect replay: resume payload can carry `pending_approval`
                 // (server `_session_info_payload`); surface it, then ask for
                 // the full queue in case more are parked.
-                val pendingApproval = resultMap?.get("pending_approval") as? Map<*, *>
+                val pendingApproval = resultMap["pending_approval"] as? Map<*, *>
                 if (pendingApproval != null) {
                     approvalsDelegate.maybeSurfacePendingApproval(
                         pendingApproval,
@@ -1582,6 +1604,7 @@ class ChatViewModel(
             it.copy(
                 isLoading = false,
                 errorMessage = "Error ($method): $errorMsg",
+                resumeError = if (method == WsMethods.SESSION_CREATE) errorMsg else it.resumeError,
             )
         }
     }
@@ -1603,8 +1626,9 @@ class ChatViewModel(
      * 6. For each file → await `file.attach` (requires session_id), collect @file: refs
      * 7. Send `prompt.submit` with text + @file: refs — images auto-picked up by backend
      */
-    fun sendMessage(text: String) {
-        if (text.isBlank() && _uiState.value.pendingAttachments.isEmpty()) return
+    fun sendMessage(text: String): Boolean {
+        if (!canSubmitMessage()) return false
+        if (text.isBlank() && _uiState.value.pendingAttachments.isEmpty()) return false
 
         val trimmed = text.trim()
         if (trimmed.startsWith("/", ignoreCase = true)) {
@@ -1612,10 +1636,10 @@ class ChatViewModel(
             // of requiring the user to hand-type the provider/model.
             if (modelSwitchDelegate.isModelPickerCommand(trimmed)) {
                 openModelPicker()
-                return
+                return true
             }
             handleSlashCommand(trimmed)
-            return
+            return true
         }
 
         val oversizedAttachment =
@@ -1629,7 +1653,7 @@ class ChatViewModel(
                     composerTextToRestore = text,
                 )
             }
-            return
+            return true
         }
 
         // Snapshot + clear attachments so the input bar empties immediately
@@ -1661,7 +1685,7 @@ class ChatViewModel(
             // Issue #969: Session creation is still in-flight. Hold the prompt
             // so it is dispatched automatically the moment SESSION_CREATE lands.
             pendingInitialPrompt = PendingPrompt(text, attachments, wasStreaming, userMessage)
-            return
+            return true
         }
 
         dispatchPrompt(
@@ -1672,7 +1696,22 @@ class ChatViewModel(
             agentSessionId = agentSessionId,
             userMessage = userMessage,
         )
+        return true
     }
+
+    private fun canSubmitMessage(): Boolean =
+        wsClient.connectionStatus.value == ConnectionStatus.CONNECTED &&
+            (
+                (_uiState.value.isSessionReady && runtimeSessionId != null) ||
+                    (
+                        _uiState.value.currentSessionId == null &&
+                            pendingInitialPrompt == null &&
+                            idToMethod.any { (id, method) ->
+                                method == WsMethods.SESSION_CREATE &&
+                                    sessionRequestById[id]?.let { !isStaleSessionRequest(it) } == true
+                            }
+                    )
+            )
 
     private fun dispatchPrompt(
         text: String,
@@ -2867,6 +2906,7 @@ class ChatViewModel(
         _uiState.update {
             it.copy(
                 messages = emptyList(),
+                isSessionReady = false,
                 currentSessionId = sessionId,
                 chatTitle = title,
                 isAgentTyping = false,
@@ -2913,6 +2953,9 @@ class ChatViewModel(
         sessionId: String,
         generation: Long,
     ) {
+        resumedGeneration = -1L
+        hydratedGeneration = -1L
+        _uiState.update { it.copy(isSessionReady = false) }
         val requestSequence = ++resumeRequestSequence
         activeResumeRequestSequence = requestSequence
         val profile = AuthManager.activeProfileId.value
@@ -2963,6 +3006,7 @@ class ChatViewModel(
                 isResumeRetrying = false,
                 resumeError = null,
                 errorMessage = null,
+                isSessionReady = runtimeSessionId != null,
             )
         }
     }
@@ -3037,7 +3081,7 @@ class ChatViewModel(
     ) {
         // Only handle if still on this session.
         if (!isCurrentSessionRequest(sessionId, generation)) return
-        _uiState.update { it.copy(errorMessage = null) }
+        _uiState.update { it.copy(errorMessage = null, isSessionReady = false) }
 
         // New session → reset the counter for a fresh backoff cycle.
         if (resumeRetrySessionId != sessionId) {
@@ -3108,7 +3152,11 @@ class ChatViewModel(
      * resumeSession: reconnect / reselect / Retry all reset the counter).
      */
     fun retryResumeSession() {
-        val sessionId = _uiState.value.currentSessionId ?: return
+        val sessionId = _uiState.value.currentSessionId
+        if (sessionId == null) {
+            createNewSession()
+            return
+        }
         val generation = sessionGeneration
         cancelResumeRetry()
         _uiState.update {

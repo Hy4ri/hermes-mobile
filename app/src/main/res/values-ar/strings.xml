@@ -1475,4 +1475,6 @@
     <string name="session_integrations_retry">إعادة المحاولة</string>
     <string name="session_integrations_close">إغلاق</string>
     <string name="session_integrations_menu_item">تكاملات الجلسة</string>
+    <string name="chat_session_preparing">جارٍ تجهيز الجلسة…</string>
+    <string name="chat_session_not_ready">الجلسة غير جاهزة — أعد المحاولة للمتابعة</string>
 </resources>

@@ -759,15 +759,18 @@ fun ChatScreen(
                 inputFieldValue = inputFieldValue,
                 onInputChange = { inputFieldValue = it },
                 onSend = {
-                    viewModel.sendMessage(inputFieldValue.text)
-                    inputFieldValue = TextFieldValue("")
-                    // Jump to bottom after send (serialized through the controller).
-                    scrollController.jumpToBottom(animated = true)
+                    if (viewModel.sendMessage(inputFieldValue.text)) {
+                        inputFieldValue = TextFieldValue("")
+                        // Jump only after an accepted send. A readiness race keeps the draft intact.
+                        scrollController.jumpToBottom(animated = true)
+                    }
                 },
                 onMicTap = mediaLaunchers.onMicTap,
                 isListening = mediaLaunchers.isListening,
                 isAgentTyping = state.isAgentTyping,
                 isConnected = state.isConnected,
+                isSessionReady = state.isSessionReady,
+                sessionPreparationFailed = state.resumeError != null,
                 commandCatalog = state.commandCatalog,
                 slashUsageCounts = state.slashUsageCounts,
                 pendingAttachments = state.pendingAttachments,

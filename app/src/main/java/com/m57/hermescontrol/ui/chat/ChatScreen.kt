@@ -503,22 +503,6 @@ fun ChatScreen(
             }
         },
         actions = {
-            // Search toggle
-            IconButton(onClick = { viewModel.toggleSearch() }) {
-                Icon(
-                    imageVector =
-                        if (searchState.isActive) Icons.Filled.Close else Icons.Filled.Search,
-                    contentDescription =
-                        if (searchState.isActive) {
-                            stringResource(
-                                R.string.chat_action_close_search,
-                            )
-                        } else {
-                            stringResource(R.string.chat_action_search)
-                        },
-                )
-            }
-
             IconButton(onClick = { viewModel.createNewSession() }) {
                 Icon(
                     imageVector = Icons.Filled.Add,
@@ -542,6 +526,33 @@ fun ChatScreen(
                     expanded = showSessionMenu,
                     onDismissRequest = { showSessionMenu = false },
                 ) {
+                    // Chat search lives in this overflow menu (moved from the top bar)
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                stringResource(
+                                    if (searchState.isActive) {
+                                        R.string.chat_action_close_search
+                                    } else {
+                                        R.string.chat_action_search
+                                    },
+                                ),
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector =
+                                    if (searchState.isActive) Icons.Filled.Close else Icons.Filled.Search,
+                                contentDescription = null,
+                            )
+                        },
+                        onClick = {
+                            showSessionMenu = false
+                            viewModel.toggleSearch()
+                        },
+                        modifier = Modifier.testTag("chat_menu_search"),
+                    )
+
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.session_integrations_menu_item)) },
                         leadingIcon = {

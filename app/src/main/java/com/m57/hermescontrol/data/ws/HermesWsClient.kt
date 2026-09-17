@@ -8,6 +8,7 @@ import com.m57.hermescontrol.data.remote.CookieManager
 import com.m57.hermescontrol.data.remote.DashboardSessionTokenRefresher
 import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.remote.OkHttpProvider
+import com.m57.hermescontrol.data.remote.await
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -547,7 +548,7 @@ object HermesWsClient {
      * or because ticket refresh succeeded). Returns false if we are in gated mode
      * and ticket refresh failed or cannot be performed.
      */
-    internal fun refreshWsTicketIfNeeded(generation: Int): Boolean {
+    internal suspend fun refreshWsTicketIfNeeded(generation: Int): Boolean {
         val isGated =
             try {
                 AuthManager.serverStore.getLatestState().wsAuthParam == "ticket"
@@ -563,11 +564,9 @@ object HermesWsClient {
             // restart. Refresh it before each WebSocket handshake so automatic
             // reconnect does not get stuck in AUTH_EXPIRED with a stale token.
             val token =
-                synchronized(DashboardSessionTokenRefresher) {
-                    runCatching {
-                        DashboardSessionTokenRefresher.fetch(AuthManager.baseUrl(), OkHttpProvider.probe)
-                    }.getOrNull()
-                }
+                runCatching {
+                    DashboardSessionTokenRefresher.refreshAsync()
+                }.getOrNull()
             synchronized(outboundLock) {
                 if (isCurrentGeneration(generation) && token != null) {
                     runCatching { AuthManager.setToken(token) }
@@ -610,7 +609,7 @@ object HermesWsClient {
      * ticket. Loopback mode: refresh the dashboard token and return it.
      * Returns null when a ticket could not be obtained.
      */
-    internal fun mintWsTicket(): String? {
+    internal suspend fun mintWsTicket(): String? {
         val isGated =
             try {
                 AuthManager.serverStore.getLatestState().wsAuthParam == "ticket"
@@ -618,7 +617,7 @@ object HermesWsClient {
                 false
             }
         if (!isGated) {
-            DashboardSessionTokenRefresher.refresh()
+            DashboardSessionTokenRefresher.refreshAsync()
             return AuthManager.getToken()
         }
         return requestWsTicket().ticket
@@ -631,7 +630,7 @@ object HermesWsClient {
     )
 
     /** POST /api/auth/ws-ticket (cookie-auth'd via the shared CookieJar) and parse the ticket. */
-    private fun requestWsTicket(): TicketRequestResult {
+    private suspend fun requestWsTicket(): TicketRequestResult {
         try {
             val client = OkHttpProvider.probe
             val request =
@@ -641,16 +640,12 @@ object HermesWsClient {
                     .post("{}".toRequestBody())
                     .build()
 
-            // Run the ENTIRE call on Dispatchers.IO — execute() already hops,
-            // but ResponseBody.string() reads the socket on the CALLING
-            // thread. When the caller is main (kanban events connect), that
-            // read throws NetworkOnMainThreadException and the mint fails.
             val (code, body) =
-                kotlinx.coroutines.runBlocking(Dispatchers.IO) {
+                withContext(Dispatchers.IO) {
                     if (CookieManager.isInitialized()) {
                         CookieManager.useStore(CookieManager.cookieJar.currentServer())
                     }
-                    client.newCall(request).execute().use { resp ->
+                    client.newCall(request).await().use { resp ->
                         resp.code to resp.body.string()
                     }
                 }
@@ -1184,22 +1179,24 @@ object HermesWsClient {
                 if (intentionalClose.get()) return
                 connectionGeneration.incrementAndGet()
             }
-        if (!refreshWsTicketIfNeeded(generation)) {
-            Log.w(TAG, "Aborting openSocket: WS ticket refresh failed")
-            return
-        }
-        if (!isCurrentGeneration(generation)) return
-        val url = AuthManager.wsUrl()
-        val safeUrl = url.replace(Regex("token=[^&]+"), "token=REDACTED")
-        if (BuildConfig.DEBUG) Log.d(TAG, "Connecting to $safeUrl")
+        wsScope.launch(Dispatchers.IO) {
+            if (!refreshWsTicketIfNeeded(generation)) {
+                Log.w(TAG, "Aborting openSocket: WS ticket refresh failed")
+                return@launch
+            }
+            if (!isCurrentGeneration(generation)) return@launch
+            val url = AuthManager.wsUrl()
+            val safeUrl = url.replace(Regex("token=[^&]+"), "token=REDACTED")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Connecting to $safeUrl")
 
-        val request = Request.Builder().url(url).build()
-        val newSocket = OkHttpProvider.websocket.newWebSocket(request, WsListenerImpl(generation))
-        synchronized(outboundLock) {
-            if (connectionGeneration.get() == generation && !intentionalClose.get()) {
-                webSocket = newSocket
-            } else {
-                newSocket.cancel()
+            val request = Request.Builder().url(url).build()
+            val newSocket = OkHttpProvider.websocket.newWebSocket(request, WsListenerImpl(generation))
+            synchronized(outboundLock) {
+                if (connectionGeneration.get() == generation && !intentionalClose.get()) {
+                    webSocket = newSocket
+                } else {
+                    newSocket.cancel()
+                }
             }
         }
     }

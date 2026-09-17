@@ -10,6 +10,7 @@ import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.buildFakePersistentCookieJar
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -83,6 +84,10 @@ class HermesWsClientTest {
         // resolves the shared CookieManager.cookieJar. Inject a fake jar so
         // the WS stack can build its OkHttp clients without app context.
         CookieManager.setJarForTest(buildFakePersistentCookieJar())
+
+        mockkObject(DashboardSessionTokenRefresher)
+        coEvery { DashboardSessionTokenRefresher.refreshAsync() } returns null
+        every { DashboardSessionTokenRefresher.refresh() } returns null
 
         // Reset state
         val connectedField = HermesWsClient::class.java.getDeclaredField("connected")
@@ -850,12 +855,11 @@ class HermesWsClientTest {
     @Test
     fun testDisconnectThenConnectSupersedesBlockedSocketOpen() =
         runBlocking {
-            mockkObject(DashboardSessionTokenRefresher)
             every { AuthManager.baseUrl() } returns mockWebServer.url("/").toString()
             val refreshStarted = CountDownLatch(1)
             val releaseRefresh = CountDownLatch(1)
             val refreshCalls = AtomicInteger(0)
-            every { DashboardSessionTokenRefresher.fetch(any(), any()) } answers {
+            coEvery { DashboardSessionTokenRefresher.refreshAsync() } answers {
                 if (refreshCalls.getAndIncrement() == 0) {
                     refreshStarted.countDown()
                     releaseRefresh.await(5, TimeUnit.SECONDS)
@@ -1181,10 +1185,8 @@ class HermesWsClientTest {
         // 5-6s latch windows routinely overshoot under parallel load).
         HermesWsClient.setReconnectBackoffForTest(0L)
         // The reconnect path refreshes the WS token over the network before
-        // opening the socket. Stub it so no real HTTP call sits inside the
+        // opening the socket. Stubbed in setUp() so no real HTTP call sits inside the
         // test's timing window (CI network latency was the dominant flake).
-        mockkObject(DashboardSessionTokenRefresher)
-        every { DashboardSessionTokenRefresher.fetch(any(), any()) } returns null
 
         var serverSocket1: WebSocket? = null
         var serverSocket2: WebSocket? = null
@@ -1523,6 +1525,11 @@ class HermesWsClientTest {
 
         HermesWsClient.connect()
 
+        runBlocking {
+            withTimeout(5000) {
+                HermesWsClient.connectionStatus.first { it == ConnectionStatus.DISCONNECTED }
+            }
+        }
         assertEquals(ConnectionStatus.DISCONNECTED, HermesWsClient.connectionStatus.value)
         ticketServer.shutdown()
     }
@@ -1549,6 +1556,11 @@ class HermesWsClientTest {
 
         HermesWsClient.connect()
 
+        runBlocking {
+            withTimeout(5000) {
+                HermesWsClient.connectionStatus.first { it == ConnectionStatus.RECONNECTING }
+            }
+        }
         assertEquals(ConnectionStatus.RECONNECTING, HermesWsClient.connectionStatus.value)
     }
 

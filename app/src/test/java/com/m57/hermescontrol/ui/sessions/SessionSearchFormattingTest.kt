@@ -8,6 +8,33 @@ import org.junit.Test
 
 class SessionSearchFormattingTest {
     @Test
+    fun `wire title stays distinct from excerpt and preserves metadata`() {
+        val hit =
+            kotlinx.serialization.json.Json
+                .decodeFromString<SessionSearchResult>(
+                    """{"session_id":"s","title":"Launch","snippet":"match","last_active":42,"message_count":7}""",
+                ).toSessionInfo()
+        assertEquals("Launch", hit.title)
+        assertEquals("match", hit.preview)
+        assertEquals(42.0, hit.last_active)
+        assertEquals(7, hit.message_count)
+    }
+
+    @Test
+    fun `highlight phrases and words without Unicode offset drift`() {
+        val text = "İ 🌙 launch notes and deploy"
+        val result =
+            highlightSearchText(
+                text,
+                "\"launch notes\" deploy",
+                androidx.compose.ui.graphics.Color.Transparent,
+                androidx.compose.ui.graphics.Color.Unspecified,
+            )
+        assertEquals(text, result.text)
+        assertEquals(listOf("launch notes", "deploy"), result.spanStyles.map { text.substring(it.start, it.end) })
+    }
+
+    @Test
     fun `clean search snippet strips highlight markers from plain text`() {
         assertEquals(
             "Find the deployment logs",

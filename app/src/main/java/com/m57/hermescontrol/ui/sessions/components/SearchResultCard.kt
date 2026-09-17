@@ -44,11 +44,11 @@ import com.m57.hermescontrol.ui.common.StatusBadge
 import com.m57.hermescontrol.ui.common.StatusBadgeType
 import com.m57.hermescontrol.ui.sessions.cleanSearchSnippet
 import com.m57.hermescontrol.ui.sessions.formatPlayedAt
+import com.m57.hermescontrol.ui.sessions.highlightSearchText
 
 /**
- * Search-result card. The backend search payload has no session title, so this card is
- * honest about it: it shows a "Match" label + the highlighted snippet as the body, plus
- * source / model / played-at metadata chips. It never presents the snippet as a name.
+ * Search-result card with a separate title and matched excerpt. Legacy responses
+ * without a title retain the Match label; a snippet is never used as a name.
  */
 @OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
@@ -71,7 +71,7 @@ fun SearchResultCard(
     val statusColors = LocalHermesStatusColors.current
     val snippet = session.preview?.takeIf { it.isNotBlank() } ?: stringResource(R.string.history_untitled)
     val cleanSnippet = cleanSearchSnippet(snippet)
-    val playedAt = formatPlayedAt(session.started_at)
+    val playedAt = formatPlayedAt(session.last_active ?: session.started_at)
     var menuExpanded by remember { mutableStateOf(false) }
 
     Card(
@@ -145,9 +145,20 @@ fun SearchResultCard(
 
                     Spacer(modifier = Modifier.height(spacing.xs))
 
-                    // The matched snippet, highlighted — shown as the body, NOT as a title.
+                    session.title?.takeIf(String::isNotBlank)?.let { title ->
+                        Text(
+                            text = highlightSearchText(title, query, highlightBackground, highlightForeground),
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.testTag("search_title_${session.id}"),
+                        )
+                        Spacer(modifier = Modifier.height(spacing.xs))
+                    }
+
+                    // The matched snippet stays separate from the conversation title.
                     Text(
-                        text = highlightText(cleanSnippet, query, highlightBackground, highlightForeground),
+                        text = highlightSearchText(cleanSnippet, query, highlightBackground, highlightForeground),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 4,

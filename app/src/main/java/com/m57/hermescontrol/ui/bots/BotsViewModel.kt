@@ -21,6 +21,8 @@ import com.m57.hermescontrol.data.ws.toJsonElement
 import com.m57.hermescontrol.ui.common.ToastHost
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -235,68 +237,72 @@ class BotsViewModel(
             }
         }
         viewModelScope.launch(ioDispatcher) {
-            // First try fetching profiles via WebSocket RPC (profiles.list) which includes ui_meta (groups, custom avatars).
-            var profilesWithMeta: List<ProfileInfo>? = null
-            try {
-                val rpcResult = HermesWsClient.request(WsMethods.PROFILES_LIST).await()
-                val jsonElement =
-                    when (rpcResult) {
-                        is JsonElement -> rpcResult
-                        null -> null
-                        else -> rpcResult.toJsonElement()
-                    }
-                if (jsonElement != null) {
-                    val resp = OkHttpProvider.json.decodeFromJsonElement<ProfilesResponse>(jsonElement)
-                    if (!resp.profiles.isNullOrEmpty()) {
-                        profilesWithMeta = resp.profiles
-                    }
-                }
-            } catch (_: Exception) {
-                // Fallback to REST API below
-            }
+            coroutineScope {
+                val activeDeferred = async(ioDispatcher) { safeApiCall { ApiClient.hermesApi.getActiveProfile() } }
 
-            val profilesResult =
+                // First try fetching profiles via WebSocket RPC (profiles.list) which includes ui_meta (groups, custom avatars).
+                var profilesWithMeta: List<ProfileInfo>? = null
+                try {
+                    val rpcResult = HermesWsClient.request(WsMethods.PROFILES_LIST).await()
+                    val jsonElement =
+                        when (rpcResult) {
+                            is JsonElement -> rpcResult
+                            null -> null
+                            else -> rpcResult.toJsonElement()
+                        }
+                    if (jsonElement != null) {
+                        val resp = OkHttpProvider.json.decodeFromJsonElement<ProfilesResponse>(jsonElement)
+                        if (!resp.profiles.isNullOrEmpty()) {
+                            profilesWithMeta = resp.profiles
+                        }
+                    }
+                } catch (_: Exception) {
+                    // Fallback to REST API below
+                }
+
+                val profilesResult =
+                    if (profilesWithMeta != null) {
+                        null
+                    } else {
+                        safeApiCall { ApiClient.hermesApi.getProfiles() }
+                    }
+                val activeResult = activeDeferred.await()
+
                 if (profilesWithMeta != null) {
-                    null
+                    val activeName = (activeResult as? NetworkResult.Success)?.data?.active
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            isRefreshing = false,
+                            profiles = profilesWithMeta,
+                            activeProfileName = activeName ?: it.activeProfileName,
+                            hiddenProfiles = AuthManager.getHiddenProfiles().toSet(),
+                            errorMessage = null,
+                        )
+                    }
+                } else if (profilesResult is NetworkResult.Success) {
+                    val activeName = (activeResult as? NetworkResult.Success)?.data?.active
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            isRefreshing = false,
+                            profiles = profilesResult.data.profiles.orEmpty(),
+                            activeProfileName = activeName ?: it.activeProfileName,
+                            hiddenProfiles = AuthManager.getHiddenProfiles().toSet(),
+                            errorMessage = null,
+                        )
+                    }
                 } else {
-                    safeApiCall { ApiClient.hermesApi.getProfiles() }
-                }
-            val activeResult = safeApiCall { ApiClient.hermesApi.getActiveProfile() }
-
-            if (profilesWithMeta != null) {
-                val activeName = (activeResult as? NetworkResult.Success)?.data?.active
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        isRefreshing = false,
-                        profiles = profilesWithMeta,
-                        activeProfileName = activeName ?: it.activeProfileName,
-                        hiddenProfiles = AuthManager.getHiddenProfiles().toSet(),
-                        errorMessage = null,
-                    )
-                }
-            } else if (profilesResult is NetworkResult.Success) {
-                val activeName = (activeResult as? NetworkResult.Success)?.data?.active
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        isRefreshing = false,
-                        profiles = profilesResult.data.profiles.orEmpty(),
-                        activeProfileName = activeName ?: it.activeProfileName,
-                        hiddenProfiles = AuthManager.getHiddenProfiles().toSet(),
-                        errorMessage = null,
-                    )
-                }
-            } else {
-                val err =
-                    (profilesResult as? NetworkResult.Failure)?.error?.message
-                        ?: "Failed to load bots"
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        isRefreshing = false,
-                        errorMessage = err,
-                    )
+                    val err =
+                        (profilesResult as? NetworkResult.Failure)?.error?.message
+                            ?: "Failed to load bots"
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            isRefreshing = false,
+                            errorMessage = err,
+                        )
+                    }
                 }
             }
         }

@@ -58,7 +58,7 @@ fun SkillsScreen(
         isRefreshing = state.isLoading,
         onRefresh = {
             if (state.viewMode == SkillsViewMode.INSTALLED) {
-                viewModel.loadSkills()
+                viewModel.loadSkills(forceRefresh = true)
             } else {
                 viewModel.loadHubSources()
             }

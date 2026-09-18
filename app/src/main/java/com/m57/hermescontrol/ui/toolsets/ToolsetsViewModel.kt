@@ -2,6 +2,8 @@ package com.m57.hermescontrol.ui.toolsets
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.Toolset
 import com.m57.hermescontrol.data.model.ToolsetToggleRequest
@@ -38,6 +40,7 @@ class ToolsetsViewModel :
         if (forceRefresh) toolsetsCache.clear()
         safeLaunchSwrLoad(
             cache = toolsetsCache,
+            forceRefresh = forceRefresh,
             onCacheHit = { cached ->
                 _uiState.update { it.copy(isLoading = false, toolsets = cached, errorMessage = null) }
             },
@@ -76,7 +79,11 @@ class ToolsetsViewModel :
                 withContext(Dispatchers.IO) {
                     safeApiCall { ApiClient.hermesApi.toggleToolset(toolset.name, ToolsetToggleRequest(targetEnabled)) }
                 }
-            if (result is NetworkResult.Failure) {
+            if (result is NetworkResult.Success) {
+                val updated = _uiState.value.toolsets
+                val requestScope = runCatching { AuthManager.currentDataScope() }.getOrDefault(DataScope.EMPTY)
+                toolsetsCache.put(requestScope.scopedKey("default"), updated)
+            } else if (result is NetworkResult.Failure) {
                 revertToggle(toolset.name, originalEnabled, "Failed to toggle toolset: ${result.error.message}")
             }
         }

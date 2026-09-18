@@ -3,6 +3,7 @@ package com.m57.hermescontrol.ui.profiles
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.CreateProfileRequest
 import com.m57.hermescontrol.data.model.HubSkill
@@ -117,8 +118,10 @@ class ProfilesViewModel(
     private val profilesCache = SwrCache<String, ProfilesResponse>()
 
     fun loadProfiles(forceRefresh: Boolean = false) {
-        if (forceRefresh) profilesCache.clear()
-        val cached = profilesCache.get("default")
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrDefault(DataScope.EMPTY)
+        val scopedKey = requestScope.scopedKey("default")
+        if (forceRefresh) profilesCache.remove(scopedKey)
+        val cached = if (!forceRefresh) profilesCache.get(scopedKey) else null
         if (cached != null) {
             _uiState.update {
                 it.copy(
@@ -142,8 +145,11 @@ class ProfilesViewModel(
                     val profilesResult = profilesDeferred.await()
                     val activeResult = activeDeferred.await()
 
+                    val currentScope = runCatching { AuthManager.currentDataScope() }.getOrDefault(DataScope.EMPTY)
+                    if (currentScope != requestScope) return@coroutineScope
+
                     if (profilesResult is NetworkResult.Success && activeResult is NetworkResult.Success) {
-                        profilesCache.put("default", profilesResult.data)
+                        profilesCache.put(scopedKey, profilesResult.data)
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
@@ -164,7 +170,7 @@ class ProfilesViewModel(
                                 )
                             }
                         }
-                    } else if (cached == null) {
+                    } else if (cached == null || forceRefresh) {
                         val profilesError = (profilesResult as? NetworkResult.Failure)?.error?.message ?: "Success"
                         val activeError = (activeResult as? NetworkResult.Failure)?.error?.message ?: "Success"
                         _uiState.update {
@@ -178,8 +184,11 @@ class ProfilesViewModel(
                     }
                 }
             } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(isLoading = false, errorMessage = "Failed to load profiles: ${e.message}")
+                val currentScope = runCatching { AuthManager.currentDataScope() }.getOrDefault(DataScope.EMPTY)
+                if (currentScope == requestScope && (cached == null || forceRefresh)) {
+                    _uiState.update {
+                        it.copy(isLoading = false, errorMessage = "Failed to load profiles: ${e.message}")
+                    }
                 }
             }
         }
@@ -197,7 +206,7 @@ class ProfilesViewModel(
             when (val result = ProfileSwitchCoordinator.switchProfile(name)) {
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(toastMessage = "Switched to profile $name") }
-                    loadProfiles()
+                    loadProfiles(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -263,7 +272,7 @@ class ProfilesViewModel(
                             toastMessage = "Soul updated successfully",
                         )
                     }
-                    loadProfiles()
+                    loadProfiles(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -295,7 +304,7 @@ class ProfilesViewModel(
             when (result) {
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(toastMessage = "Model settings updated") }
-                    loadProfiles()
+                    loadProfiles(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -341,7 +350,7 @@ class ProfilesViewModel(
                             toastMessage = "Profile '$sourceProfileName' cloned successfully to '$newProfileName'",
                         )
                     }
-                    loadProfiles()
+                    loadProfiles(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -378,7 +387,7 @@ class ProfilesViewModel(
                             toastMessage = "Profile '$profileName' description updated",
                         )
                     }
-                    loadProfiles()
+                    loadProfiles(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -416,7 +425,7 @@ class ProfilesViewModel(
                             toastMessage = "Profile '$oldName' renamed to '$newName'",
                         )
                     }
-                    loadProfiles()
+                    loadProfiles(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -445,7 +454,7 @@ class ProfilesViewModel(
                             toastMessage = "Profile '$name' deleted",
                         )
                     }
-                    loadProfiles()
+                    loadProfiles(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -482,7 +491,7 @@ class ProfilesViewModel(
                                 toastMessage = "Auto-described profile '$name'",
                             )
                         }
-                        loadProfiles()
+                        loadProfiles(forceRefresh = true)
                     } else {
                         // Backend returns generation failures as ok:false + reason,
                         // NOT an HTTP error — surface the reason to the user.
@@ -675,7 +684,7 @@ class ProfilesViewModel(
                             toastMessage = "Profile ${request.name} created successfully",
                         )
                     }
-                    loadProfiles()
+                    loadProfiles(forceRefresh = true)
                     onSuccess()
                 }
 

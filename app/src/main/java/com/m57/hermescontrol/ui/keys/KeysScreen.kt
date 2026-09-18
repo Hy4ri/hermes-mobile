@@ -211,7 +211,7 @@ fun KeysScreen(
         title = { Text(stringResource(R.string.screen_keys)) },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
-        onRefresh = { viewModel.loadKeys() },
+        onRefresh = { viewModel.loadKeys(forceRefresh = true) },
         actions = {
             IconButton(onClick = { viewModel.openAddDialog() }) {
                 Icon(

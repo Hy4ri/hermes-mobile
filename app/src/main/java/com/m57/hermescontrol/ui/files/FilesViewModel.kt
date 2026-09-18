@@ -86,10 +86,10 @@ class FilesViewModel :
         forceRefresh: Boolean = false,
     ) {
         val cacheKey = path ?: ""
-        if (forceRefresh) filesCache.remove(cacheKey)
         safeLaunchSwrLoad(
             cache = filesCache,
             cacheKey = cacheKey,
+            forceRefresh = forceRefresh,
             onCacheHit = { data ->
                 _uiState.update { state ->
                     state.copy(

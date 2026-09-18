@@ -82,7 +82,7 @@ fun ToolsetsScreen(
         title = { Text(stringResource(R.string.screen_toolsets)) },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
-        onRefresh = { viewModel.loadToolsets() },
+        onRefresh = { viewModel.loadToolsets(forceRefresh = true) },
     ) { paddingValues ->
         when {
             state.isLoading && state.toolsets.isEmpty() -> {

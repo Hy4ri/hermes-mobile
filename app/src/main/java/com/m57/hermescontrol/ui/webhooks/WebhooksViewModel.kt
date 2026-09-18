@@ -57,13 +57,14 @@ class WebhooksViewModel :
         if (forceRefresh) webhooksCache.clear()
         safeLaunchSwrLoad(
             cache = webhooksCache,
-            onCacheHit = { body ->
+            forceRefresh = forceRefresh,
+            onCacheHit = { data ->
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        enabled = body.enabled,
-                        baseUrl = body.base_url,
-                        subscriptions = body.subscriptions.orEmpty(),
+                        enabled = data.enabled,
+                        baseUrl = data.base_url,
+                        subscriptions = data.subscriptions.orEmpty(),
                         errorMessage = null,
                     )
                 }
@@ -108,7 +109,7 @@ class WebhooksViewModel :
                             toastMessage = "Webhooks global status ${if (targetEnabled) "enabled" else "disabled"}",
                         )
                     }
-                    loadWebhooks()
+                    loadWebhooks(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -203,7 +204,7 @@ class WebhooksViewModel :
                             toastMessage = "Subscription \"$name\" created",
                         )
                     }
-                    loadWebhooks()
+                    loadWebhooks(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -244,7 +245,7 @@ class WebhooksViewModel :
                             toastMessage = "Subscription \"$name\" ${if (enabled) "enabled" else "disabled"}",
                         )
                     }
-                    loadWebhooks()
+                    loadWebhooks(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -281,7 +282,7 @@ class WebhooksViewModel :
                     _uiState.update {
                         it.copy(toastMessage = "Subscription \"${target.name}\" deleted")
                     }
-                    loadWebhooks()
+                    loadWebhooks(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {

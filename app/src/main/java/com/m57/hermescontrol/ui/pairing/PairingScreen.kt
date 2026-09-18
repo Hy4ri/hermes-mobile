@@ -61,7 +61,7 @@ fun PairingScreen(
         title = { Text(stringResource(R.string.screen_pairing)) },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
-        onRefresh = { viewModel.loadPairing() },
+        onRefresh = { viewModel.loadPairing(forceRefresh = true) },
         modifier = modifier,
     ) { paddingValues ->
         val pairing = state.pairing

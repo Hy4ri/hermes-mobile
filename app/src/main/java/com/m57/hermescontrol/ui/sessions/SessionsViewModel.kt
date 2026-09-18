@@ -3,6 +3,7 @@ package com.m57.hermescontrol.ui.sessions
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.local.SessionListCacheStore
 import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.BulkDeleteRequest
@@ -16,6 +17,7 @@ import com.m57.hermescontrol.data.model.SessionSearchResult
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.data.ws.ChangeEventHub
 import com.m57.hermescontrol.data.ws.ChangeEvents
 import com.m57.hermescontrol.data.ws.ConnectionStatus
@@ -146,6 +148,17 @@ class SessionsViewModel(
     private val sessionsPageCache = SwrCache<String, SessionListResponse>()
 
     init {
+        viewModelScope.launch {
+            ProfileSwitchCoordinator.switched.collect {
+                onDataScopeChanged()
+            }
+        }
+        viewModelScope.launch {
+            ProfileSwitchCoordinator.connectionSwitched.collect {
+                onDataScopeChanged()
+            }
+        }
+
         // Issue #784: gateway broadcasts sessions.changed — refresh the list
         // silently (no spinner, no selection reset) instead of blind polling.
         refreshOnChange(
@@ -153,6 +166,7 @@ class SessionsViewModel(
             apiCall = {
                 val requestGeneration = generation
                 val section = _uiState.value.section
+                val requestScope = runCatching { AuthManager.currentDataScope() }.getOrDefault(DataScope.EMPTY)
                 when (
                     val result =
                         safeApiCall {
@@ -165,14 +179,22 @@ class SessionsViewModel(
                             )
                         }
                 ) {
-                    is NetworkResult.Success -> NetworkResult.Success(requestGeneration to result.data)
-                    is NetworkResult.Failure -> result
+                    is NetworkResult.Success -> {
+                        NetworkResult.Success(
+                            Triple(requestGeneration, requestScope, result.data),
+                        )
+                    }
+
+                    is NetworkResult.Failure -> {
+                        result
+                    }
                 }
             },
-            onSuccess = { (requestGeneration, data) ->
-                if (requestGeneration == generation) {
+            onSuccess = { (requestGeneration, requestScope, data) ->
+                val currentScope = runCatching { AuthManager.currentDataScope() }.getOrDefault(DataScope.EMPTY)
+                if (requestGeneration == generation && currentScope == requestScope) {
                     val section = _uiState.value.section
-                    val cacheKey = "${section.name}:${section.source}:${section.excludeSources}"
+                    val cacheKey = requestScope.scopedKey("${section.name}:${section.source}:${section.excludeSources}")
                     sessionsPageCache.put(cacheKey, data)
                     SessionListCacheStore.put(cacheKey, data)
                     rawPaginationOffset = data.nextOffset(0)
@@ -195,6 +217,26 @@ class SessionsViewModel(
                 }
             },
         )
+    }
+
+    private fun onDataScopeChanged() {
+        generation++
+        loadJob?.cancel()
+        pageJob?.cancel()
+        statsJob?.cancel()
+        rawPaginationOffset = 0
+        resolvedParentCache.clear()
+        _uiState.update {
+            it.copy(
+                sessions = emptyList(),
+                total = 0,
+                hasMore = false,
+                selectedIds = emptySet(),
+                isSelecting = false,
+                errorMessage = null,
+            )
+        }
+        loadSessions()
     }
 
     /**
@@ -293,15 +335,20 @@ class SessionsViewModel(
     /** Load (or reload) sessions from page 0. Used by pull-to-refresh and initial load. */
     fun loadSessions(forceRefresh: Boolean = false) {
         val requestGeneration = generation
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrDefault(DataScope.EMPTY)
         val section = _uiState.value.section
-        val cacheKey = "${section.name}:${section.source}:${section.excludeSources}"
+        val cacheKey = requestScope.scopedKey("${section.name}:${section.source}:${section.excludeSources}")
         if (forceRefresh) {
             sessionsPageCache.remove(cacheKey)
             SessionListCacheStore.remove(cacheKey)
         }
         val cached =
-            sessionsPageCache.get(cacheKey)
-                ?: SessionListCacheStore.get(cacheKey)?.also { sessionsPageCache.put(cacheKey, it) }
+            if (!forceRefresh) {
+                sessionsPageCache.get(cacheKey)
+                    ?: SessionListCacheStore.get(cacheKey)?.also { sessionsPageCache.put(cacheKey, it) }
+            } else {
+                null
+            }
         if (cached != null) {
             val sessionsList = cached.sessions.orEmpty()
             val paging =
@@ -347,7 +394,8 @@ class SessionsViewModel(
                     }
                 },
                 onSuccess = { data ->
-                    if (requestGeneration != generation) return@safeLaunchLoad
+                    val currentScope = runCatching { AuthManager.currentDataScope() }.getOrDefault(DataScope.EMPTY)
+                    if (requestGeneration != generation || currentScope != requestScope) return@safeLaunchLoad
                     sessionsPageCache.put(cacheKey, data)
                     SessionListCacheStore.put(cacheKey, data)
                     rawPaginationOffset = data.nextOffset(0)
@@ -372,12 +420,12 @@ class SessionsViewModel(
                     stitchMissingParents(requestGeneration)
                 },
                 onError = { errorMsg ->
-                    if (requestGeneration != generation) return@safeLaunchLoad
-                    if (cached == null) {
+                    val currentScope = runCatching { AuthManager.currentDataScope() }.getOrDefault(DataScope.EMPTY)
+                    if (requestGeneration != generation || currentScope != requestScope) return@safeLaunchLoad
+                    if (cached == null || forceRefresh) {
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
-                                isLoadingMore = false,
                                 errorMessage = "Failed to load sessions: $errorMsg",
                             )
                         }

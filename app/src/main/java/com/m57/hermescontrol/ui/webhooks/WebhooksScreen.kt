@@ -232,7 +232,7 @@ fun WebhooksScreen(
         title = { Text(stringResource(R.string.screen_webhooks)) },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
-        onRefresh = { viewModel.loadWebhooks() },
+        onRefresh = { viewModel.loadWebhooks(forceRefresh = true) },
         actions = {
             IconButton(onClick = { viewModel.showCreateDialog() }) {
                 Icon(

@@ -59,6 +59,7 @@ class PairingViewModel :
         launchJob =
             safeLaunchSwrLoad(
                 cache = pairingCache,
+                forceRefresh = forceRefresh,
                 currentJob = launchJob,
                 onCacheHit = { cached ->
                     _uiState.update { it.copy(isLoading = false, pairing = cached, errorMessage = null) }
@@ -138,7 +139,7 @@ class PairingViewModel :
             when (result) {
                 is NetworkResult.Success -> {
                     _uiState.update { onSuccess(it.copy(actionKey = null)) }
-                    loadPairing()
+                    loadPairing(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {

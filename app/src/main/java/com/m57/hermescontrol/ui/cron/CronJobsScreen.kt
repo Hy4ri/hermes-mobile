@@ -95,7 +95,7 @@ fun CronJobsScreen(
         title = { Text(stringResource(R.string.screen_cron)) },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
-        onRefresh = { viewModel.loadCronJobs() },
+        onRefresh = { viewModel.loadCronJobs(forceRefresh = true) },
         actions = {
             IconButton(onClick = { viewModel.openNewJobDialog() }) {
                 Icon(

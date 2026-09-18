@@ -98,7 +98,7 @@ fun ProvidersScreen(
         title = { Text(stringResource(R.string.screen_providers)) },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
-        onRefresh = { viewModel.load() },
+        onRefresh = { viewModel.load(forceRefresh = true) },
     ) { paddingValues ->
         when {
             state.isLoading && state.providers.isEmpty() -> {

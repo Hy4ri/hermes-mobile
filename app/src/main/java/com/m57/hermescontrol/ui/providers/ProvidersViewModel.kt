@@ -75,6 +75,7 @@ class ProvidersViewModel :
         if (forceRefresh) providersCache.clear()
         safeLaunchSwrLoad(
             cache = providersCache,
+            forceRefresh = forceRefresh,
             onCacheHit = { data ->
                 _uiState.update {
                     it.copy(
@@ -120,7 +121,7 @@ class ProvidersViewModel :
                         toastMessage = "Disconnected",
                     )
                 }
-                load()
+                load(forceRefresh = true)
             },
             onError = { error ->
                 _uiState.update {
@@ -316,7 +317,7 @@ class ProvidersViewModel :
 
     private fun finishFlow(status: String) {
         pollJob?.cancel()
-        load()
+        load(forceRefresh = true)
         // Stay on DONE so the dialog can show a success confirmation; the Screen's
         // Done button calls dismissFlow() to reset to IDLE. (Setting IDLE here would
         // conflate with DONE via StateFlow and unmount the dialog before the user sees it.)

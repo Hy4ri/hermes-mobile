@@ -152,7 +152,7 @@ fun PluginsScreen(
         isRefreshing = if (state.selectedTab == PluginsTab.INSTALLED) state.isLoading else state.isCatalogLoading,
         onRefresh = {
             if (state.selectedTab == PluginsTab.INSTALLED) {
-                viewModel.loadPlugins()
+                viewModel.loadPlugins(forceRefresh = true)
             } else {
                 viewModel.loadCatalog(isRefresh = true)
             }

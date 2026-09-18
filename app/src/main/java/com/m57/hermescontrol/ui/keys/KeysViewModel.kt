@@ -97,6 +97,7 @@ class KeysViewModel :
         if (forceRefresh) keysCache.clear()
         safeLaunchSwrLoad(
             cache = keysCache,
+            forceRefresh = forceRefresh,
             onCacheHit = { envVars ->
                 val currentCategories = _uiState.value.categories
                 val expandedCategories = currentCategories.map { it.name to it.expanded }.toMap()
@@ -195,7 +196,7 @@ class KeysViewModel :
                             toastMessage = "Key added successfully",
                         )
                     }
-                    loadKeys()
+                    loadKeys(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -240,7 +241,7 @@ class KeysViewModel :
                             toastMessage = "Key deleted successfully",
                         )
                     }
-                    loadKeys()
+                    loadKeys(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -298,7 +299,7 @@ class KeysViewModel :
             when (result) {
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(keysChanged = true, toastMessage = "Key updated successfully") }
-                    loadKeys()
+                    loadKeys(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {

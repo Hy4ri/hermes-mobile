@@ -63,7 +63,7 @@ fun GatewayScreen(
         title = { Text(stringResource(R.string.screen_gateway)) },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
-        onRefresh = { viewModel.loadStatus() },
+        onRefresh = { viewModel.loadStatus(forceRefresh = true) },
     ) { paddingValues ->
         when {
             state.isLoading && state.status == null -> {

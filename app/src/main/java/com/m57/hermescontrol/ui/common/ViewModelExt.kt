@@ -2,6 +2,8 @@ package com.m57.hermescontrol.ui.common
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.ws.ChangeEventHub
@@ -37,14 +39,18 @@ inline fun <T> ViewModel.safeLaunchLoad(
 
 /**
  * Executes a read-only API call with Stale-While-Revalidate caching.
- * If cached data exists in [cache] for [cacheKey], [onCacheHit] is invoked immediately
+ * If cached data exists in [cache] for [cacheKey] and [forceRefresh] is false, [onCacheHit] is invoked immediately
  * on the caller thread, avoiding full-screen loading spinners on screen revisits.
  * The network call runs in the background to update the cache and invoke [onSuccess].
+ * Results are checked against [requestScope] to ensure a late-arriving response from a previous
+ * server/profile context is discarded.
  */
 inline fun <T : Any> ViewModel.safeLaunchSwrLoad(
     cache: SwrCache<String, T>,
     cacheKey: String = "default",
+    forceRefresh: Boolean = false,
     currentJob: Job? = null,
+    requestScope: DataScope = runCatching { AuthManager.currentDataScope() }.getOrDefault(DataScope.EMPTY),
     crossinline onCacheHit: (T) -> Unit,
     crossinline apiCall: suspend () -> NetworkResult<T>,
     crossinline onStart: () -> Unit,
@@ -52,7 +58,11 @@ inline fun <T : Any> ViewModel.safeLaunchSwrLoad(
     crossinline onError: (String) -> Unit,
 ): Job {
     if (currentJob?.isActive == true) return currentJob
-    val cached = cache.get(cacheKey)
+    val scopedKey = requestScope.scopedKey(cacheKey)
+    if (forceRefresh) {
+        cache.remove(scopedKey)
+    }
+    val cached = if (!forceRefresh) cache.get(scopedKey) else null
     if (cached != null) {
         onCacheHit(cached)
     } else {
@@ -60,14 +70,18 @@ inline fun <T : Any> ViewModel.safeLaunchSwrLoad(
     }
     return viewModelScope.launch {
         val result = apiCall()
+        val currentScope = runCatching { AuthManager.currentDataScope() }.getOrDefault(DataScope.EMPTY)
+        if (currentScope != requestScope) {
+            return@launch
+        }
         when (result) {
             is NetworkResult.Success -> {
-                cache.put(cacheKey, result.data)
+                cache.put(scopedKey, result.data)
                 onSuccess(result.data)
             }
 
             is NetworkResult.Failure -> {
-                if (cached == null) {
+                if (cached == null || forceRefresh) {
                     onError(result.error.message)
                 }
             }

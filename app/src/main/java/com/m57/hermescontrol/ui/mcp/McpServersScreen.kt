@@ -134,7 +134,7 @@ fun McpServersScreen(
         title = { Text(stringResource(R.string.screen_mcp_servers)) },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
-        onRefresh = { viewModel.loadServers() },
+        onRefresh = { viewModel.loadServers(forceRefresh = true) },
         actions = {
             IconButton(
                 onClick = { viewModel.testAllServers() },

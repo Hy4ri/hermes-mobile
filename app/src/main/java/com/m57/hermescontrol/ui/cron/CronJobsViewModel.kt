@@ -118,6 +118,7 @@ class CronJobsViewModel :
         loadJob =
             safeLaunchSwrLoad(
                 cache = jobsCache,
+                forceRefresh = forceRefresh,
                 currentJob = loadJob,
                 onCacheHit = { cached ->
                     _uiState.update { it.copy(isLoading = false, jobs = cached, errorMessage = null) }
@@ -459,7 +460,7 @@ class CronJobsViewModel :
             when (result) {
                 is NetworkResult.Success -> {
                     closeEditor()
-                    loadCronJobs()
+                    loadCronJobs(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {

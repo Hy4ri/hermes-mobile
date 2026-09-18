@@ -611,6 +611,13 @@ object AuthManager {
 
     fun getBaseUrl(): String = serverStore.getLatestState().resolvedBaseUrl
 
+    fun currentDataScope(): DataScope =
+        DataScope(
+            connectionProfileId = getSelectedProfileId() ?: DEFAULT_PROFILE_ID,
+            baseUrl = getBaseUrl().trimEnd('/'),
+            activeProfileId = activeProfileId.value?.takeIf { it.isNotBlank() } ?: DEFAULT_PROFILE_ID,
+        )
+
     fun endpoint(): ServerEndpoint =
         ServerEndpoint.parse(
             getBaseUrl(),

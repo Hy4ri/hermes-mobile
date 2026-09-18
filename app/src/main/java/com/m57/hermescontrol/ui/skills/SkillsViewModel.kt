@@ -102,6 +102,7 @@ class SkillsViewModel(
         loadJob =
             safeLaunchSwrLoad(
                 cache = skillsCache,
+                forceRefresh = forceRefresh,
                 currentJob = loadJob,
                 onCacheHit = { cached ->
                     _uiState.update { it.copy(isLoading = false, skills = cached, errorMessage = null) }
@@ -336,7 +337,7 @@ class SkillsViewModel(
                         )
                     }
                     // Refresh installed skills
-                    loadSkills()
+                    loadSkills(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -373,7 +374,7 @@ class SkillsViewModel(
                             toastMessage = "Uninstalled: $name",
                         )
                     }
-                    loadSkills()
+                    loadSkills(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {

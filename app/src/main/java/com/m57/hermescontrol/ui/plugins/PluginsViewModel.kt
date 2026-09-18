@@ -82,6 +82,7 @@ class PluginsViewModel :
         if (forceRefresh) pluginsCache.clear()
         safeLaunchSwrLoad(
             cache = pluginsCache,
+            forceRefresh = forceRefresh,
             onCacheHit = { data ->
                 val plugins = data.plugins.orEmpty()
                 val providers = data.providers
@@ -185,7 +186,7 @@ class PluginsViewModel :
                             toastMessage = "Plugin installed successfully",
                         )
                     }
-                    loadPlugins()
+                    loadPlugins(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -226,7 +227,7 @@ class PluginsViewModel :
             when (result) {
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(providerBusy = false, toastMessage = "Plugin providers saved") }
-                    loadPlugins()
+                    loadPlugins(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -251,7 +252,7 @@ class PluginsViewModel :
             when (result) {
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(rescanBusy = false, toastMessage = "Plugins rescanned") }
-                    loadPlugins()
+                    loadPlugins(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -308,7 +309,7 @@ class PluginsViewModel :
             when (result) {
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(toastMessage = "Plugin enabled successfully") }
-                    loadPlugins()
+                    loadPlugins(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -341,7 +342,7 @@ class PluginsViewModel :
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(toastMessage = "Plugin uninstalled successfully") }
                     clearRowBusy(name)
-                    loadPlugins()
+                    loadPlugins(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -363,7 +364,7 @@ class PluginsViewModel :
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(toastMessage = "Plugin updated successfully") }
                     clearRowBusy(name)
-                    loadPlugins()
+                    loadPlugins(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -391,7 +392,7 @@ class PluginsViewModel :
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(toastMessage = "Plugin visibility updated") }
                     clearRowBusy(plugin.name)
-                    loadPlugins()
+                    loadPlugins(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {

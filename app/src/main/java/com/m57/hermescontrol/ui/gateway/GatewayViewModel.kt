@@ -36,6 +36,7 @@ class GatewayViewModel :
         if (forceRefresh) statusCache.clear()
         safeLaunchSwrLoad(
             cache = statusCache,
+            forceRefresh = forceRefresh,
             onCacheHit = { data ->
                 _uiState.update { it.copy(isLoading = false, status = data, errorMessage = null) }
             },
@@ -82,7 +83,7 @@ class GatewayViewModel :
                             toastMessage = "Gateway ${actionName}ed successfully",
                         )
                     }
-                    loadStatus()
+                    loadStatus(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {

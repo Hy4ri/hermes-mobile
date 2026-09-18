@@ -133,7 +133,7 @@ fun ProfilesScreen(
             if (isBuildingProfile) {
                 null
             } else {
-                { viewModel.loadProfiles() }
+                { viewModel.loadProfiles(forceRefresh = true) }
             },
         actions = {
             if (!isBuildingProfile) {

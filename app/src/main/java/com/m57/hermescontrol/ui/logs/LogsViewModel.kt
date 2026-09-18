@@ -49,11 +49,11 @@ class LogsViewModel :
     fun loadLogs(forceRefresh: Boolean = false) {
         val filters = _uiState.value.filters
         val cacheKey = "${filters.file}:${filters.level}:${filters.component}:${filters.lines}"
-        if (forceRefresh) logsCache.remove(cacheKey)
         loadJob =
             safeLaunchSwrLoad(
                 cache = logsCache,
                 cacheKey = cacheKey,
+                forceRefresh = forceRefresh,
                 currentJob = loadJob,
                 onCacheHit = { data ->
                     val logsList = data.lines ?: data.logs ?: emptyList()

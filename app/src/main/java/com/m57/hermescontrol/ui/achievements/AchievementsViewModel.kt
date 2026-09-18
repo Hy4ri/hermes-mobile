@@ -55,6 +55,7 @@ class AchievementsViewModel :
         if (forceRefresh) achievementsCache.clear()
         safeLaunchSwrLoad(
             cache = achievementsCache,
+            forceRefresh = forceRefresh,
             onCacheHit = { data ->
                 val categories =
                     data.achievements
@@ -186,7 +187,7 @@ class AchievementsViewModel :
                         toastMessage = "Achievement state reset",
                     )
                 }
-                loadAchievements()
+                loadAchievements(forceRefresh = true)
             },
             onError = { errorMsg ->
                 _uiState.update {

@@ -2,6 +2,8 @@ package com.m57.hermescontrol.ui.memory
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.LearningGraphResponse
 import com.m57.hermescontrol.data.model.MemoryResetRequest
@@ -61,8 +63,10 @@ class MemoryViewModel :
         forceRefresh: Boolean = false,
     ) {
         if (_uiState.value.isLoading) return
-        if (forceRefresh) memoryCache.clear()
-        val cached = memoryCache.get("default")
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrDefault(DataScope.EMPTY)
+        val scopedKey = requestScope.scopedKey("default")
+        if (forceRefresh) memoryCache.remove(scopedKey)
+        val cached = if (!forceRefresh) memoryCache.get(scopedKey) else null
         if (cached != null) {
             _uiState.update { it.copy(isLoading = false, memory = cached, errorMessage = null) }
         } else if (!silent) {
@@ -74,14 +78,17 @@ class MemoryViewModel :
                 val graphDeferred = async { safeApiCall { ApiClient.hermesApi.getLearningGraph() } }
 
                 val memoryResult = memoryDeferred.await()
+                val currentScope = runCatching { AuthManager.currentDataScope() }.getOrDefault(DataScope.EMPTY)
+                if (currentScope != requestScope) return@coroutineScope
+
                 when (memoryResult) {
                     is NetworkResult.Success -> {
-                        memoryCache.put("default", memoryResult.data)
+                        memoryCache.put(scopedKey, memoryResult.data)
                         _uiState.update { it.copy(isLoading = false, memory = memoryResult.data) }
                     }
 
                     is NetworkResult.Failure -> {
-                        if (cached == null) {
+                        if (cached == null || forceRefresh) {
                             _uiState.update {
                                 it.copy(
                                     isLoading = false,

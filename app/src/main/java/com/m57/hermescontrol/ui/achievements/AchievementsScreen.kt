@@ -129,7 +129,7 @@ fun AchievementsScreen(
         title = { Text(stringResource(R.string.screen_achievements)) },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
-        onRefresh = { viewModel.loadAchievements() },
+        onRefresh = { viewModel.loadAchievements(forceRefresh = true) },
         modifier = modifier,
         actions = {
             Box {

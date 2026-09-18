@@ -2,12 +2,15 @@ package com.m57.hermescontrol.ui.config
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.model.ConfigSchemaResponse
 import com.m57.hermescontrol.data.model.ConfigUpdateRequest
 import com.m57.hermescontrol.data.model.UpdateRawConfigRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.ui.common.ToastHost
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -50,18 +53,36 @@ class ConfigViewModel :
     val uiState: StateFlow<ConfigUiState> = _uiState.asStateFlow()
 
     private val pendingChanges = mutableMapOf<String, JsonElement>()
-    private var cachedSchema: ConfigSchemaResponse? = null
-    private var cachedDefaults: Map<String, JsonElement>? = null
+    private val schemaCache = mutableMapOf<String, ConfigSchemaResponse>()
+    private val defaultsCache = mutableMapOf<String, Map<String, JsonElement>>()
 
     init {
+        viewModelScope.launch {
+            ProfileSwitchCoordinator.switched.collect {
+                _uiState.update { it.copy(values = null) }
+                loadAll(forceRefresh = true)
+            }
+        }
+        viewModelScope.launch {
+            ProfileSwitchCoordinator.connectionSwitched.collect {
+                schemaCache.clear()
+                defaultsCache.clear()
+                _uiState.update { it.copy(values = null) }
+                loadAll(forceRefresh = true)
+            }
+        }
         loadAll()
     }
 
     fun loadAll(forceRefresh: Boolean = false) {
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrDefault(DataScope.EMPTY)
+        val scopeKey = requestScope.key
         if (forceRefresh) {
-            cachedSchema = null
-            cachedDefaults = null
+            schemaCache.remove(scopeKey)
+            defaultsCache.remove(scopeKey)
         }
+        val cachedSchema = schemaCache[scopeKey]
+        val cachedDefaults = defaultsCache[scopeKey]
         val hasCachedData = _uiState.value.values != null
         if (!hasCachedData) {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
@@ -86,12 +107,16 @@ class ConfigViewModel :
 
                     val configResult = configDeferred.await()
                     val schema =
-                        (schemaDeferred?.await() as? NetworkResult.Success)?.data?.also { cachedSchema = it }
+                        (schemaDeferred?.await() as? NetworkResult.Success)?.data?.also { schemaCache[scopeKey] = it }
                             ?: cachedSchema
                     val defaults =
-                        (defaultsDeferred?.await() as? NetworkResult.Success)?.data?.also { cachedDefaults = it }
-                            ?: cachedDefaults
+                        (defaultsDeferred?.await() as? NetworkResult.Success)?.data?.also {
+                            defaultsCache[scopeKey] = it
+                        } ?: cachedDefaults
                     val rawResult = rawDeferred.await()
+
+                    val currentScope = runCatching { AuthManager.currentDataScope() }.getOrDefault(DataScope.EMPTY)
+                    if (currentScope != requestScope) return@coroutineScope
 
                     if (configResult is NetworkResult.Success) {
                         val values = flattenConfig(configResult.data)
@@ -128,7 +153,8 @@ class ConfigViewModel :
                     }
                 }
             } catch (e: Exception) {
-                if (!hasCachedData) {
+                val currentScope = runCatching { AuthManager.currentDataScope() }.getOrDefault(DataScope.EMPTY)
+                if (currentScope == requestScope && !hasCachedData) {
                     _uiState.update {
                         it.copy(isLoading = false, errorMessage = "Failed to load config: ${e.message}")
                     }

@@ -80,6 +80,7 @@ class McpServersViewModel :
         if (forceRefresh) mcpCache.clear()
         safeLaunchSwrLoad(
             cache = mcpCache,
+            forceRefresh = forceRefresh,
             onCacheHit = { data ->
                 _uiState.update {
                     it.copy(
@@ -265,7 +266,7 @@ class McpServersViewModel :
             when (result) {
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(toastMessage = "Server '$name' deleted") }
-                    loadServers()
+                    loadServers(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -389,7 +390,7 @@ class McpServersViewModel :
                             toastMessage = "Server '${request.name}' added",
                         )
                     }
-                    loadServers()
+                    loadServers(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -446,7 +447,7 @@ class McpServersViewModel :
                             toastMessage = "Env var '$key' added",
                         )
                     }
-                    loadServers()
+                    loadServers(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -471,7 +472,7 @@ class McpServersViewModel :
             when (result) {
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(toastMessage = "Env var '$key' removed") }
-                    loadServers()
+                    loadServers(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -538,7 +539,7 @@ class McpServersViewModel :
                             toastMessage = "Catalog entry '${entry.name}' installed",
                         )
                     }
-                    loadServers()
+                    loadServers(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -623,7 +624,7 @@ class McpServersViewModel :
                                             toastMessage = "OAuth authorization successful!",
                                         )
                                     }
-                                    loadServers()
+                                    loadServers(forceRefresh = true)
                                 }
 
                                 "error" -> {

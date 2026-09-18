@@ -468,7 +468,7 @@ fun SessionsScreen(
         title = { Text(stringResource(R.string.screen_history)) },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
-        onRefresh = { viewModel.loadSessions() },
+        onRefresh = { viewModel.loadSessions(forceRefresh = true) },
         actions = {
             IconButton(
                 onClick = { NavigationController.openNewChat() },

@@ -154,6 +154,16 @@ class SystemViewModel(
                 val statsResult = statsDeferred.await()
                 val statusResult = statusDeferred.await()
 
+                // Phase 1: Un-gate UI immediately with fast host stats & gateway status (~100-200ms)
+                _uiState.update { state ->
+                    state.copy(
+                        isLoading = false,
+                        stats = (statsResult as? NetworkResult.Success)?.data ?: state.stats,
+                        status = (statusResult as? NetworkResult.Success)?.data ?: state.status,
+                        errorMessage = null,
+                    )
+                }
+
                 val portalResult = portalDeferred.await()
                 val curatorResult = curatorDeferred.await()
 
@@ -165,18 +175,14 @@ class SystemViewModel(
 
                 _uiState.update { state ->
                     state.copy(
-                        isLoading = false,
-                        stats = (statsResult as? NetworkResult.Success)?.data,
-                        status = (statusResult as? NetworkResult.Success)?.data,
-                        portal = (portalResult as? NetworkResult.Success)?.data,
-                        curator = (curatorResult as? NetworkResult.Success)?.data,
+                        portal = (portalResult as? NetworkResult.Success)?.data ?: state.portal,
+                        curator = (curatorResult as? NetworkResult.Success)?.data ?: state.curator,
                         credentials =
-                            ((credResult as? NetworkResult.Success)?.data)?.providers ?: emptyList(),
-                        checkpoints = (checkpointsResult as? NetworkResult.Success)?.data,
-                        hooks = (hooksResult as? NetworkResult.Success)?.data,
-                        updateInfo = (updateResult as? NetworkResult.Success)?.data,
-                        doctorReport = (doctorResult as? NetworkResult.Success)?.data,
-                        errorMessage = null,
+                            ((credResult as? NetworkResult.Success)?.data)?.providers ?: state.credentials,
+                        checkpoints = (checkpointsResult as? NetworkResult.Success)?.data ?: state.checkpoints,
+                        hooks = (hooksResult as? NetworkResult.Success)?.data ?: state.hooks,
+                        updateInfo = (updateResult as? NetworkResult.Success)?.data ?: state.updateInfo,
+                        doctorReport = (doctorResult as? NetworkResult.Success)?.data ?: state.doctorReport,
                     )
                 }
 

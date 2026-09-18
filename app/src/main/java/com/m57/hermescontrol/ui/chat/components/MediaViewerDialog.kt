@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.chat.components
 
+import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.widget.Toast
@@ -75,13 +76,20 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import com.m57.hermescontrol.ExternalActivityLifecycleGuard
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.remote.MediaDataSourceProvider
+import com.m57.hermescontrol.data.ws.HermesWsClient
+import com.m57.hermescontrol.notification.NotificationHelper
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.chat.MediaExportHelper
 import com.m57.hermescontrol.ui.chat.MediaKind
+import com.m57.hermescontrol.ui.chat.MediaSaveStrategy
+import com.m57.hermescontrol.ui.chat.acceptedSaveDestination
 import com.m57.hermescontrol.ui.chat.classifyMedia
 import com.m57.hermescontrol.ui.chat.mediaNameFromPath
+import com.m57.hermescontrol.ui.chat.mediaSaveStrategy
+import com.m57.hermescontrol.ui.chat.normalizeFrameworkMime
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -252,83 +260,121 @@ private fun MediaViewerContent(
         }
     }
 
-    val createDocumentLauncher =
+    val launchExternalActivity: (() -> Unit) -> Unit = { launch ->
+        ExternalActivityLifecycleGuard.launchExternalActivity(
+            acquireConnectionLease = HermesWsClient::acquireExternalActivityConnectionLease,
+            releaseConnectionLease = HermesWsClient::releaseExternalActivityConnectionLease,
+            prepareForBackground = { NotificationHelper.start(context) },
+            cleanupAfterLaunchFailure = { NotificationHelper.stop(context) },
+            launch = launch,
+        )
+    }
+
+    val saveDocumentLauncher =
         rememberLauncherForActivityResult(
-            contract =
-                ActivityResultContracts.CreateDocument(
-                    mimeType?.takeUnless { it == "application/octet-stream" }
-                        ?: com.m57.hermescontrol.ui.chat
-                            .mediaMimeForPath(displayName),
-                ),
-        ) { targetUri: Uri? ->
-            if (targetUri == null) {
-                isBusy = false
-                return@rememberLauncherForActivityResult
-            }
-            scope.launch {
-                try {
-                    val msg =
-                        MediaExportHelper.saveMediaToUri(
-                            context = context,
-                            sourceUri = mediaUri,
-                            targetUri = targetUri,
-                            fallbackMime =
-                                mimeType?.takeUnless { it == "application/octet-stream" }
-                                    ?: com.m57.hermescontrol.ui.chat
-                                        .mediaMimeForPath(displayName),
-                        )
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+            contract = ActivityResultContracts.StartActivityForResult(),
+        ) { result ->
+            try {
+                ExternalActivityLifecycleGuard.externalActivityReturned()
+                val destination = acceptedSaveDestination(result.resultCode, result.data?.data)
+                if (destination != null) {
+                    scope.launch {
+                        try {
+                            val msg =
+                                MediaExportHelper.saveMediaToUri(
+                                    context = context,
+                                    sourceUri = mediaUri,
+                                    targetUri = destination,
+                                    fallbackMime =
+                                        mimeType?.takeUnless { it == "application/octet-stream" }
+                                            ?: com.m57.hermescontrol.ui.chat
+                                                .mediaMimeForPath(displayName),
+                                )
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                            }
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (_: Exception) {
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(context, saveFailed, Toast.LENGTH_SHORT).show()
+                            }
+                        } finally {
+                            isBusy = false
+                        }
                     }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (_: Exception) {
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, saveFailed, Toast.LENGTH_SHORT).show()
-                    }
-                } finally {
+                } else {
                     isBusy = false
                 }
+            } catch (e: Throwable) {
+                isBusy = false
+                if (e is CancellationException) throw e
             }
         }
 
     val onSave: () -> Unit = {
         if (!isBusy) {
             isBusy = true
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                scope.launch {
-                    try {
-                        val msg =
-                            MediaExportHelper.saveMediaToDownloads(
-                                context = context,
-                                uri = mediaUri,
-                                fallbackMime =
-                                    mimeType?.takeUnless { it == "application/octet-stream" }
-                                        ?: com.m57.hermescontrol.ui.chat
-                                            .mediaMimeForPath(displayName),
-                                displayName = displayName,
-                            )
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+            when (mediaSaveStrategy()) {
+                MediaSaveStrategy.MEDIA_STORE -> {
+                    scope.launch {
+                        try {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                val msg =
+                                    MediaExportHelper.saveMediaToDownloads(
+                                        context = context,
+                                        uri = mediaUri,
+                                        fallbackMime =
+                                            mimeType?.takeUnless { it == "application/octet-stream" }
+                                                ?: com.m57.hermescontrol.ui.chat
+                                                    .mediaMimeForPath(displayName),
+                                        displayName = displayName,
+                                    )
+                                withContext(Dispatchers.Main) {
+                                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (_: Exception) {
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(context, saveFailed, Toast.LENGTH_SHORT).show()
+                            }
+                        } finally {
+                            isBusy = false
                         }
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (_: Exception) {
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(context, saveFailed, Toast.LENGTH_SHORT).show()
-                        }
-                    } finally {
-                        isBusy = false
                     }
                 }
-            } else {
-                val suggestedName =
-                    MediaExportHelper.resolveDisplayName(
-                        displayName = displayName,
-                        mimeType = mimeType,
-                        uri = mediaUri,
-                    )
-                createDocumentLauncher.launch(suggestedName)
+
+                MediaSaveStrategy.CREATE_DOCUMENT -> {
+                    val suggestedName =
+                        MediaExportHelper.resolveDisplayName(
+                            displayName = displayName,
+                            mimeType = mimeType,
+                            uri = mediaUri,
+                        )
+                    val rawMime =
+                        mimeType?.takeUnless { it == "application/octet-stream" }
+                            ?: com.m57.hermescontrol.ui.chat
+                                .mediaMimeForPath(displayName)
+                    val normalizedMime = normalizeFrameworkMime(rawMime)
+                    val intent =
+                        Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                            addCategory(Intent.CATEGORY_OPENABLE)
+                            type = normalizedMime
+                            putExtra(Intent.EXTRA_TITLE, suggestedName)
+                        }
+                    try {
+                        launchExternalActivity {
+                            saveDocumentLauncher.launch(intent)
+                        }
+                    } catch (_: Exception) {
+                        isBusy = false
+                        scope.launch(Dispatchers.Main) {
+                            Toast.makeText(context, saveFailed, Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
             }
         }
     }
@@ -350,12 +396,14 @@ private fun MediaViewerContent(
                         )
                     withContext(Dispatchers.Main) {
                         if (intent != null) {
-                            context.startActivity(
-                                android.content.Intent.createChooser(
-                                    intent,
-                                    shareTitle,
-                                ),
-                            )
+                            val chooser = Intent.createChooser(intent, shareTitle)
+                            try {
+                                launchExternalActivity {
+                                    context.startActivity(chooser)
+                                }
+                            } catch (_: Exception) {
+                                Toast.makeText(context, shareFailed, Toast.LENGTH_SHORT).show()
+                            }
                         } else {
                             Toast.makeText(context, shareFailed, Toast.LENGTH_SHORT).show()
                         }

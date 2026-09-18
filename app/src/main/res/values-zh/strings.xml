@@ -1443,7 +1443,7 @@
     <string name="media_player_save">保存到设备</string>
     <string name="media_player_share">分享</string>
     <string name="media_player_share_title">分享媒体</string>
-    <string name="media_player_saved">媒体已保存至下载目录</string>
+    <string name="media_player_saved">媒体已保存</string>
     <string name="media_player_save_failed">无法保存媒体</string>
     <string name="media_player_load_failed">无法加载媒体: %1$s</string>
     <string name="media_player_share_failed">无法分享媒体</string>

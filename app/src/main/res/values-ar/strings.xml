@@ -1490,7 +1490,7 @@
     <string name="media_player_save">حفظ في الجهاز</string>
     <string name="media_player_share">مشاركة</string>
     <string name="media_player_share_title">مشاركة الوسائط</string>
-    <string name="media_player_saved">تم حفظ الوسائط في التنزيلات</string>
+    <string name="media_player_saved">تم حفظ الوسائط</string>
     <string name="media_player_save_failed">تعذر حفظ الوسائط</string>
     <string name="media_player_load_failed">تعذر تحميل الوسائط: %1$s</string>
     <string name="media_player_share_failed">تعذر مشاركة الوسائط</string>

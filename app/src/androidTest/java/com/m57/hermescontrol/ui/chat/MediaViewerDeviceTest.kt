@@ -1,5 +1,9 @@
 package com.m57.hermescontrol.ui.chat
 
+import android.content.ContentUris
+import android.content.Intent
+import android.net.Uri
+import android.provider.MediaStore
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -18,6 +22,11 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.HermesControlTheme
 import com.m57.hermescontrol.ui.chat.components.MediaViewerDialog
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -107,15 +116,99 @@ class MediaViewerDeviceTest {
     fun videoPlaysPausesSeeksReplaysAndCloses() = checkPlayback("player-video.mp4", "video/mp4")
 
     @Test
-    fun saveButtonStreamsToDownloadsWithoutCrash() {
+    fun saveButtonStreamsToDownloadsAndVerifiesMediaStoreItem() {
         open("player-tone.wav", "audio/wav")
         awaitTag("media_save_button")
         compose.onNodeWithTag("media_save_button").assertIsDisplayed().performClick()
+
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val resolver = instrumentation.targetContext.contentResolver
+
+        var savedUri: Uri? = null
         compose.waitUntil(15_000) {
-            compose.onAllNodesWithTag("media_save_button").fetchSemanticsNodes().isNotEmpty()
+            val cursor =
+                resolver.query(
+                    MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                    arrayOf(
+                        MediaStore.MediaColumns._ID,
+                        MediaStore.MediaColumns.DISPLAY_NAME,
+                        MediaStore.MediaColumns.MIME_TYPE,
+                    ),
+                    "${MediaStore.MediaColumns.DISPLAY_NAME} = ?",
+                    arrayOf("player-tone.wav"),
+                    "${MediaStore.MediaColumns._ID} DESC",
+                )
+            cursor?.use { c ->
+                if (c.moveToFirst()) {
+                    val id = c.getLong(c.getColumnIndexOrThrow(MediaStore.MediaColumns._ID))
+                    savedUri = ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id)
+                    val name = c.getString(c.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME))
+                    val mime = c.getString(c.getColumnIndexOrThrow(MediaStore.MediaColumns.MIME_TYPE))
+                    assertEquals("player-tone.wav", name)
+                    assertTrue(mime == "audio/wav" || mime == "audio/x-wav")
+                    true
+                } else {
+                    false
+                }
+            } ?: false
         }
+
+        try {
+            assertNotNull(savedUri)
+            val expectedBytes =
+                instrumentation.context.assets
+                    .open("player-tone.wav")
+                    .use { it.readBytes() }
+            val actualBytes = resolver.openInputStream(savedUri!!)?.use { it.readBytes() }
+            assertArrayEquals(expectedBytes, actualBytes)
+        } finally {
+            savedUri?.let { resolver.delete(it, null, null) }
+        }
+
         compose.onNodeWithTag("media_close_button").performClick()
     }
+
+    @Test
+    fun shareMediaBuildsValidIntentAndReadableStream() =
+        runBlocking {
+            val instrumentation = InstrumentationRegistry.getInstrumentation()
+            val context = instrumentation.targetContext
+            val file = File(context.cacheDir, "player-tone.wav")
+            instrumentation.context.assets.open("player-tone.wav").use { input ->
+                file.outputStream().use(input::copyTo)
+            }
+
+            val intent =
+                MediaExportHelper.shareMedia(
+                    context = context,
+                    uri = file.toURI().toString(),
+                    fallbackMime = "audio/wav",
+                    displayName = "player-tone.wav",
+                )
+
+            assertNotNull(intent)
+            assertEquals(Intent.ACTION_SEND, intent!!.action)
+            assertEquals("audio/wav", intent.type)
+            assertTrue(intent.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
+
+            @Suppress("DEPRECATION")
+            val streamUri = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
+            assertNotNull(streamUri)
+
+            val expectedSize = file.length()
+            val actualSize =
+                context.contentResolver.openInputStream(streamUri!!)?.use { stream ->
+                    var count = 0L
+                    val buf = ByteArray(8192)
+                    while (true) {
+                        val r = stream.read(buf)
+                        if (r < 0) break
+                        count += r
+                    }
+                    count
+                }
+            assertEquals(expectedSize, actualSize)
+        }
 
     @Test
     fun invalidSourceShowsRetryAndCanClose() {

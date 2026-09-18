@@ -21,6 +21,45 @@ object MediaStreamResolver {
     )
 
     /**
+     * Streams characters directly from a [CharSequence] without allocating substring copies.
+     * Skips whitespace to tolerate formatted Base64 data URLs.
+     */
+    internal class CharSequenceInputStream(
+        private val value: CharSequence,
+        startIndex: Int,
+    ) : InputStream() {
+        private var index = startIndex
+
+        override fun read(): Int {
+            while (index < value.length) {
+                val c = value[index++]
+                if (!c.isWhitespace()) {
+                    return c.code and 0xFF
+                }
+            }
+            return -1
+        }
+
+        override fun read(
+            b: ByteArray,
+            off: Int,
+            len: Int,
+        ): Int {
+            if (len == 0) return 0
+            var bytesRead = 0
+            while (bytesRead < len) {
+                val c = read()
+                if (c == -1) {
+                    return if (bytesRead == 0) -1 else bytesRead
+                }
+                b[off + bytesRead] = c.toByte()
+                bytesRead++
+            }
+            return bytesRead
+        }
+    }
+
+    /**
      * Resolves the media source identified by [uriString] and streams its content
      * into [consumer]. Guarantees that all underlying streams and HTTP response bodies
      * are strictly closed via [use], and that no whole-media buffering occurs.
@@ -42,7 +81,7 @@ object MediaStreamResolver {
                         openContentStream(context, uriString, fallbackMime, consumer)
                     }
 
-                    uriString.startsWith("file://", ignoreCase = true) -> {
+                    uriString.startsWith("file:", ignoreCase = true) -> {
                         openFileUriStream(uriString, fallbackMime, consumer)
                     }
 
@@ -80,21 +119,7 @@ object MediaStreamResolver {
         if (!meta.contains(";base64", ignoreCase = true)) {
             throw IOException("Only base64 data URLs are supported")
         }
-        val rawBase64 = dataUrl.substring(comma + 1)
-        val rawStream =
-            object : InputStream() {
-                private var index = 0
-
-                override fun read(): Int {
-                    while (index < rawBase64.length) {
-                        val c = rawBase64[index++]
-                        if (!c.isWhitespace()) {
-                            return c.code and 0xFF
-                        }
-                    }
-                    return -1
-                }
-            }
+        val rawStream = CharSequenceInputStream(dataUrl, comma + 1)
         val decodingStream = Base64.getDecoder().wrap(rawStream)
         return decodingStream.use { stream ->
             consumer(
@@ -115,7 +140,8 @@ object MediaStreamResolver {
         consumer: suspend (InputStream, StreamInfo) -> T,
     ): T {
         val uri = Uri.parse(uriString)
-        val mime = context.contentResolver.getType(uri) ?: fallbackMime
+        val resolvedMime = runCatching { context.contentResolver.getType(uri) }.getOrNull()
+        val mime = resolvedMime?.takeIf { it.isNotBlank() } ?: fallbackMime
         val length =
             runCatching {
                 context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
@@ -123,7 +149,7 @@ object MediaStreamResolver {
                 }
             }.getOrNull()
         val stream =
-            context.contentResolver.openInputStream(uri)
+            runCatching { context.contentResolver.openInputStream(uri) }.getOrNull()
                 ?: throw IOException("Could not open content URI: $uriString")
         return stream.use { inputStream ->
             consumer(
@@ -142,8 +168,9 @@ object MediaStreamResolver {
         fallbackMime: String,
         consumer: suspend (InputStream, StreamInfo) -> T,
     ): T {
-        val file = File(Uri.parse(uriString).path ?: throw IOException("Invalid file URI: $uriString"))
-        if (!file.exists()) throw FileNotFoundException("File not found: ${file.path}")
+        val parsed = runCatching { java.net.URI(uriString).path }.getOrNull() ?: Uri.parse(uriString).path
+        val file = File(parsed ?: throw IOException("Invalid file URI: $uriString"))
+        if (!file.exists() || !file.isFile) throw FileNotFoundException("Not a valid file: ${file.path}")
         val mime = mediaMimeForPath(file.name).takeUnless { it == "application/octet-stream" } ?: fallbackMime
         return file.inputStream().use { inputStream ->
             consumer(
@@ -163,7 +190,7 @@ object MediaStreamResolver {
         consumer: suspend (InputStream, StreamInfo) -> T,
     ): T {
         val file = File(filePath)
-        if (!file.exists()) throw FileNotFoundException("File not found: $filePath")
+        if (!file.exists() || !file.isFile) throw FileNotFoundException("Not a valid file: $filePath")
         val mime = mediaMimeForPath(file.name).takeUnless { it == "application/octet-stream" } ?: fallbackMime
         return file.inputStream().use { inputStream ->
             consumer(

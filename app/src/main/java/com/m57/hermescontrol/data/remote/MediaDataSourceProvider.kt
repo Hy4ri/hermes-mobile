@@ -15,9 +15,13 @@ import okhttp3.Response
 @OptIn(UnstableApi::class)
 object MediaDataSourceProvider {
     class SameOriginAuthInterceptor(
-        private val baseUrlProvider: () -> String = { AuthManager.baseUrl() },
-        private val tokenProvider: () -> String? = { AuthManager.getToken() },
-        private val isGatedModeProvider: () -> Boolean = { AuthManager.isGatedMode() },
+        private val baseUrlProvider: () -> String = { runCatching { AuthManager.baseUrl() }.getOrDefault("") },
+        private val tokenProvider: () -> String? = { runCatching { AuthManager.getToken() }.getOrNull() },
+        private val isGatedModeProvider: () -> Boolean = {
+            runCatching { AuthManager.isGatedMode() }.getOrDefault(
+                false,
+            )
+        },
     ) : Interceptor {
         override fun intercept(chain: Interceptor.Chain): Response {
             val request = chain.request()
@@ -49,7 +53,13 @@ object MediaDataSourceProvider {
         }
     }
 
-    val mediaOkHttpClient: OkHttpClient by lazy {
+    @Volatile
+    internal var testClient: OkHttpClient? = null
+
+    val mediaOkHttpClient: OkHttpClient
+        get() = testClient ?: defaultClient
+
+    private val defaultClient: OkHttpClient by lazy {
         OkHttpProvider.base
             .newBuilder()
             .addInterceptor(SameOriginAuthInterceptor())

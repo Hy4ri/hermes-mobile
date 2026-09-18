@@ -1657,7 +1657,7 @@
     <string name="media_player_save">Save to device</string>
     <string name="media_player_share">Share</string>
     <string name="media_player_share_title">Share media</string>
-    <string name="media_player_saved">Media saved to Downloads</string>
+    <string name="media_player_saved">Media saved</string>
     <string name="media_player_save_failed">Could not save media</string>
     <string name="media_player_load_failed">Could not load media: %1$s</string>
     <string name="media_player_share_failed">Could not share media</string>

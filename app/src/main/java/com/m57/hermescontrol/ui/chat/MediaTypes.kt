@@ -129,6 +129,17 @@ fun mediaMimeForPath(path: String): String {
     return MEDIA_BY_EXT[ext]?.second ?: "application/octet-stream"
 }
 
+/**
+ * Normalizes a MIME type string for Android framework boundaries (MediaStore, Intent, SAF),
+ * stripping parameters such as codecs (e.g. `audio/ogg; codecs=opus` -> `audio/ogg`).
+ */
+fun normalizeFrameworkMime(mime: String?): String =
+    mime
+        ?.substringBefore(';')
+        ?.trim()
+        ?.takeIf { it.isNotBlank() }
+        ?: "application/octet-stream"
+
 /** Returns the canonical file extension for a given MIME type. */
 fun extensionForMime(mime: String): String {
     val clean = mime.substringBefore(';').trim().lowercase()

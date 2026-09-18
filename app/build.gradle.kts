@@ -176,6 +176,11 @@ dependencies {
     implementation(libs.coil.gif)
     implementation(libs.coil.network.okhttp)
 
+    // Media3 (ExoPlayer)
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.ui)
+    implementation(libs.media3.datasource.okhttp)
+
     // Encrypted storage
     implementation(libs.androidx.security.crypto)
     implementation(libs.androidx.datastore)

@@ -277,6 +277,7 @@ object GatewayFileClient {
             coroutineContext.ensureActive()
             val read = input.read(buffer)
             if (read < 0) break
+            coroutineContext.ensureActive()
             output.write(buffer, 0, read)
         }
     }

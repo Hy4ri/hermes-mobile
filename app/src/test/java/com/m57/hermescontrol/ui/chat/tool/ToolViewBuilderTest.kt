@@ -297,6 +297,20 @@ class ToolViewBuilderTest {
     }
 
     @Test
+    fun `process_manage poll renders output_preview`() {
+        val view =
+            build(
+                "process_manage",
+                """{"action":"poll","session_id":"proc-1"}""",
+                """{"status":"running","output_preview":"listening on port 8080"}""",
+            )
+
+        assertEquals("poll: proc-1", view.subtitle)
+        assertTrue(view.detail.contains("Status: running"))
+        assertTrue(view.detail.contains("listening on port 8080"))
+    }
+
+    @Test
     fun `todo_list alias activates TodoRenderer`() {
         val view =
             build(

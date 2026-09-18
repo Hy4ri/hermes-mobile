@@ -253,7 +253,7 @@ internal object ProcessRenderer : ToolRenderer {
                 }.joinToString("\n\n")
         }
 
-        val output = ToolJson.firstString(result, listOf("output"))
+        val output = ToolJson.firstString(result, listOf("output", "output_preview"))
         if (output.isNotEmpty()) {
             val status = ToolJson.firstString(result, listOf("status"))
             return "${status.takeIf { it.isNotEmpty() }?.let { "Status: $it\n" } ?: ""}$output"

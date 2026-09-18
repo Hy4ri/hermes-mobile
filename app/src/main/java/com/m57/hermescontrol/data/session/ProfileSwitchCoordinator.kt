@@ -6,6 +6,7 @@ import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.ws.HermesWsClient
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -31,6 +32,18 @@ import kotlinx.coroutines.withContext
  *  4. Re-dial the WebSocket so the gateway re-homes chat to the new profile.
  */
 object ProfileSwitchCoordinator {
+    /**
+     * Dispatcher for the blocking network hops below.
+     *
+     * Injectable so tests can drive the whole switch on a TestDispatcher. With the
+     * real Dispatchers.IO these paths hop to a live thread pool and the ORDER of
+     * the mocked calls becomes load-dependent -- ProfileSwitchCoordinatorTest's
+     * Ordering.SEQUENCE checks passed on an idle machine but lost 2 tests while the
+     * emulator saturated the CPU, and its setMain-less sibling tests failed
+     * outright whenever another class had left Dispatchers.Main broken.
+     */
+    internal var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+
     private val _switched = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val switched: SharedFlow<String> = _switched.asSharedFlow()
 
@@ -39,7 +52,7 @@ object ProfileSwitchCoordinator {
 
     suspend fun switchProfile(name: String): NetworkResult<Unit> {
         val result =
-            withContext(Dispatchers.IO) {
+            withContext(ioDispatcher) {
                 safeApiCall { ApiClient.hermesApi.setActiveProfile(SetActiveProfileRequest(name)) }
             }
         if (result !is NetworkResult.Success) return result
@@ -50,7 +63,7 @@ object ProfileSwitchCoordinator {
         // run off the main thread or the dial crashes with
         // NetworkOnMainThreadException and falls back to the 1s reconnect
         // retry (visible in the 2026-08-06 live logcat).
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             HermesWsClient.disconnect()
             HermesWsClient.connect()
         }
@@ -81,7 +94,7 @@ object ProfileSwitchCoordinator {
         AuthManager.setSelectedProfileId(profileId)
         ApiClient.rebuild()
         _connectionSwitched.emit(profileId.orEmpty())
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             // The WS ticket mint reads the cookie jar's ACTIVE store; the
             // selection change swaps that store asynchronously, so a dial
             // that races it mints with the PREVIOUS server's cookie → 401 →

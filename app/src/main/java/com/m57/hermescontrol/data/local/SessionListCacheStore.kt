@@ -2,6 +2,7 @@ package com.m57.hermescontrol.data.local
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.annotation.VisibleForTesting
 import com.m57.hermescontrol.data.model.SessionListResponse
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 
@@ -56,5 +57,12 @@ object SessionListCacheStore {
 
     fun clear() {
         prefs?.edit()?.clear()?.apply()
+    }
+
+    @VisibleForTesting
+    internal fun resetForTesting(testPrefs: SharedPreferences? = null) {
+        synchronized(this) {
+            prefs = testPrefs
+        }
     }
 }

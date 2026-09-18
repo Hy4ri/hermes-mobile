@@ -1,10 +1,11 @@
 package com.m57.hermescontrol.data.local
 
-import java.util.Collections
-
 /**
  * Lightweight thread-safe in-memory cache for Stale-While-Revalidate screen state.
  * Stores entries with optional TTL and a bounded capacity.
+ *
+ * All map operations are synchronized on a private lock so that compound
+ * operations (e.g. read + TTL expiry check + remove) are atomic and safe against races.
  */
 class SwrCache<K : Any, V : Any>(
     private val maxCapacity: Int = DEFAULT_MAX_CAPACITY,
@@ -16,40 +17,47 @@ class SwrCache<K : Any, V : Any>(
         val timestamp: Long,
     )
 
-    private val map: MutableMap<K, Entry<V>> =
-        Collections.synchronizedMap(
-            object : LinkedHashMap<K, Entry<V>>(maxCapacity, 0.75f, true) {
-                override fun removeEldestEntry(eldest: MutableMap.MutableEntry<K, Entry<V>>?): Boolean =
-                    size > maxCapacity
-            },
-        )
-
-    fun get(key: K): V? {
-        val entry = map[key] ?: return null
-        if (ttlMillis > 0 && timeProvider() - entry.timestamp > ttlMillis) {
-            map.remove(key)
-            return null
+    private val lock = Any()
+    private val map =
+        object : LinkedHashMap<K, Entry<V>>(maxCapacity, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<K, Entry<V>>?): Boolean = size > maxCapacity
         }
-        return entry.value
-    }
+
+    fun get(key: K): V? =
+        synchronized(lock) {
+            val entry = map[key] ?: return null
+            if (ttlMillis > 0 && timeProvider() - entry.timestamp > ttlMillis) {
+                map.remove(key)
+                return null
+            }
+            entry.value
+        }
 
     fun put(
         key: K,
         value: V,
     ) {
-        map[key] = Entry(value, timeProvider())
+        synchronized(lock) {
+            map[key] = Entry(value, timeProvider())
+        }
     }
 
-    fun remove(key: K): V? = map.remove(key)?.value
+    fun remove(key: K): V? =
+        synchronized(lock) {
+            map.remove(key)?.value
+        }
 
     fun clear() {
-        map.clear()
+        synchronized(lock) {
+            map.clear()
+        }
     }
 
-    val size: Int get() = map.size
+    val size: Int
+        get() = synchronized(lock) { map.size }
 
     companion object {
-        const val DEFAULT_MAX_CAPACITY = 20
+        const val DEFAULT_MAX_CAPACITY = 50
         const val DEFAULT_TTL_MILLIS = 5 * 60 * 1000L // 5 minutes
     }
 }

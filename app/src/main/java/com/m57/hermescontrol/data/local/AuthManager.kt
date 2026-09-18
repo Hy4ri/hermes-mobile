@@ -127,6 +127,41 @@ object AuthManager {
             initialValue = null,
         )
 
+    private val _authGenerationFlow = MutableStateFlow(0L)
+    val authGenerationFlow: StateFlow<Long> = _authGenerationFlow.asStateFlow()
+
+    fun invalidateAuthGeneration() {
+        _authGenerationFlow.value = _authGenerationFlow.value + 1
+    }
+
+    /**
+     * Canonical observable data-scope identity covering connection profile, base URL,
+     * active server-side Hermes profile, and in-memory auth generation.
+     */
+    val dataScopeFlow: StateFlow<DataScope?> =
+        combine(
+            selectedProfileFlow,
+            baseUrlFlow,
+            activeProfileId,
+            authGenerationFlow,
+        ) { selectedProfile, baseUrl, activeProfile, authGen ->
+            val cleanUrl = baseUrl.trimEnd('/')
+            if (cleanUrl.isBlank()) {
+                null
+            } else {
+                DataScope(
+                    connectionProfileId = selectedProfile ?: DEFAULT_PROFILE_ID,
+                    baseUrl = cleanUrl,
+                    activeProfileId = activeProfile?.takeIf { it.isNotBlank() } ?: DEFAULT_PROFILE_ID,
+                    inMemoryAuthGeneration = authGen,
+                )
+            }
+        }.stateIn(
+            scope = contextScope,
+            started = SharingStarted.Eagerly,
+            initialValue = null,
+        )
+
     /**
      * Initialise the encrypted preferences.
      * Call this once from Application.onCreate() or MainActivity.onCreate().
@@ -595,6 +630,9 @@ object AuthManager {
     }
 
     fun setToken(token: String?) {
+        if (token == null) {
+            invalidateAuthGeneration()
+        }
         val selectedId =
             getSelectedProfileId() ?: run {
                 ensureDefaultSelected()
@@ -611,12 +649,22 @@ object AuthManager {
 
     fun getBaseUrl(): String = serverStore.getLatestState().resolvedBaseUrl
 
-    fun currentDataScope(): DataScope =
-        DataScope(
-            connectionProfileId = getSelectedProfileId() ?: DEFAULT_PROFILE_ID,
-            baseUrl = getBaseUrl().trimEnd('/'),
-            activeProfileId = activeProfileId.value?.takeIf { it.isNotBlank() } ?: DEFAULT_PROFILE_ID,
+    fun currentDataScope(): DataScope? {
+        val rawUrl = runCatching { getBaseUrl() }.getOrNull() ?: _baseUrlFlow.value
+        val cleanUrl = rawUrl.trimEnd('/')
+        if (cleanUrl.isBlank()) return null
+        val connectionProfileId =
+            runCatching { getSelectedProfileId() }.getOrNull()
+                ?: _selectedProfileFlow.value
+                ?: DEFAULT_PROFILE_ID
+        val activeProfile = _activeProfileId.value?.takeIf { it.isNotBlank() } ?: DEFAULT_PROFILE_ID
+        return DataScope(
+            connectionProfileId = connectionProfileId,
+            baseUrl = cleanUrl,
+            activeProfileId = activeProfile,
+            inMemoryAuthGeneration = _authGenerationFlow.value,
         )
+    }
 
     fun endpoint(): ServerEndpoint =
         ServerEndpoint.parse(

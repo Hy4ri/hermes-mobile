@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.memory
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.LearningGraphResponse
 import com.m57.hermescontrol.data.model.MemoryResetRequest
 import com.m57.hermescontrol.data.model.MemoryResponse
@@ -10,6 +11,8 @@ import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.ui.common.ToastHost
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -51,36 +54,48 @@ class MemoryViewModel :
         }
     }
 
-    fun load(silent: Boolean = false) {
+    private val memoryCache = SwrCache<String, MemoryResponse>()
+
+    fun load(
+        silent: Boolean = false,
+        forceRefresh: Boolean = false,
+    ) {
         if (_uiState.value.isLoading) return
-        if (!silent) {
+        if (forceRefresh) memoryCache.clear()
+        val cached = memoryCache.get("default")
+        if (cached != null) {
+            _uiState.update { it.copy(isLoading = false, memory = cached, errorMessage = null) }
+        } else if (!silent) {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         }
         viewModelScope.launch {
-            val result = safeApiCall { ApiClient.hermesApi.getMemory() }
-            when (result) {
-                is NetworkResult.Success -> {
-                    _uiState.update { it.copy(isLoading = false, memory = result.data) }
-                }
+            coroutineScope {
+                val memoryDeferred = async { safeApiCall { ApiClient.hermesApi.getMemory() } }
+                val graphDeferred = async { safeApiCall { ApiClient.hermesApi.getLearningGraph() } }
 
-                is NetworkResult.Failure -> {
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            errorMessage = result.error.message,
-                        )
+                val memoryResult = memoryDeferred.await()
+                when (memoryResult) {
+                    is NetworkResult.Success -> {
+                        memoryCache.put("default", memoryResult.data)
+                        _uiState.update { it.copy(isLoading = false, memory = memoryResult.data) }
+                    }
+
+                    is NetworkResult.Failure -> {
+                        if (cached == null) {
+                            _uiState.update {
+                                it.copy(
+                                    isLoading = false,
+                                    errorMessage = memoryResult.error.message,
+                                )
+                            }
+                        }
                     }
                 }
-            }
-            loadLearningGraph()
-        }
-    }
 
-    private fun loadLearningGraph() {
-        viewModelScope.launch {
-            val result = safeApiCall { ApiClient.hermesApi.getLearningGraph() }
-            if (result is NetworkResult.Success) {
-                _uiState.update { it.copy(learningGraph = result.data) }
+                val graphResult = graphDeferred.await()
+                if (graphResult is NetworkResult.Success) {
+                    _uiState.update { it.copy(learningGraph = graphResult.data) }
+                }
             }
         }
     }
@@ -109,7 +124,7 @@ class MemoryViewModel :
                     }
                 }
             }
-            load()
+            load(forceRefresh = true)
         }
     }
 

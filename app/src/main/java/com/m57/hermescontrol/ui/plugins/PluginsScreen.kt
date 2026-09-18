@@ -50,6 +50,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.MemoryProviderDetailKey
 import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.PluginCatalogEntry
 import com.m57.hermescontrol.data.model.PluginInfo
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
@@ -75,10 +76,16 @@ fun PluginsScreen(
     viewModel: PluginsViewModel = viewModel { PluginsViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val dataScope by AuthManager.dataScopeFlow.collectAsStateWithLifecycle()
 
     var query by remember { mutableStateOf("") }
     var showDetail by remember { mutableStateOf<PluginInfo?>(null) }
     var showCatalogDetail by remember { mutableStateOf<PluginCatalogEntry?>(null) }
+
+    LaunchedEffect(dataScope) {
+        viewModel.clearScopeOwnedState()
+        viewModel.loadPlugins()
+    }
 
     val filteredPlugins =
         remember(query, state.plugins) {
@@ -110,10 +117,6 @@ fun PluginsScreen(
                 matchesQuery && matchesTier
             }
         }
-
-    LaunchedEffect(Unit) {
-        viewModel.loadPlugins()
-    }
 
     ToastEffect(toastMessage = state.toastMessage, onClearToast = viewModel::clearToast)
 

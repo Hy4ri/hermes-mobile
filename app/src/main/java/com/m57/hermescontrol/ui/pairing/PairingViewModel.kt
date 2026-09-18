@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.pairing
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.PairingApproveRequest
 import com.m57.hermescontrol.data.model.PairingResponse
@@ -41,6 +42,10 @@ class PairingViewModel :
     private var launchJob: Job? = null
     private val pairingCache = SwrCache<String, PairingResponse>()
 
+    fun clearScopeOwnedState() {
+        _uiState.update { it.copy(isLoading = false, pairing = null, errorMessage = null, actionKey = null) }
+    }
+
     init {
         // Issue #784: gateway broadcasts pairing.changed — refresh silently
         // (no spinner) instead of waiting for a manual pull.
@@ -48,14 +53,14 @@ class PairingViewModel :
             eventType = ChangeEvents.PAIRING,
             apiCall = { safeApiCall { ApiClient.hermesApi.getPairing() } },
             onSuccess = { data ->
-                pairingCache.put("default", data)
+                val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+                if (requestScope != null) pairingCache.put(requestScope.inMemoryKey("default"), data)
                 _uiState.update { it.copy(pairing = data) }
             },
         )
     }
 
     fun loadPairing(forceRefresh: Boolean = false) {
-        if (forceRefresh) pairingCache.clear()
         launchJob =
             safeLaunchSwrLoad(
                 cache = pairingCache,

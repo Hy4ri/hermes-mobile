@@ -45,6 +45,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -57,6 +58,7 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.ManagedFileEntry
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
@@ -79,6 +81,7 @@ fun FilesScreen(
     viewModel: FilesViewModel = viewModel { FilesViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val dataScope by AuthManager.dataScopeFlow.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     val uploadLauncher =
@@ -102,6 +105,13 @@ fun FilesScreen(
 
     DisposableEffect(Unit) {
         onDispose { viewModel.clearTransientState() }
+    }
+
+    // Scope-aware load: a new server/profile context must never keep the old
+    // server's directory path or entries on screen (PR #1192 cache scoping).
+    LaunchedEffect(dataScope) {
+        viewModel.clearScopeOwnedState()
+        viewModel.load()
     }
 
     val hasEntries = state.entries.isNotEmpty()

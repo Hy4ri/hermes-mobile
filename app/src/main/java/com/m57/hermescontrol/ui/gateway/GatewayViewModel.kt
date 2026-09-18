@@ -32,8 +32,11 @@ class GatewayViewModel :
 
     private val statusCache = SwrCache<String, StatusResponse>()
 
+    fun clearScopeOwnedState() {
+        _uiState.update { it.copy(isLoading = false, status = null, errorMessage = null) }
+    }
+
     fun loadStatus(forceRefresh: Boolean = false) {
-        if (forceRefresh) statusCache.clear()
         safeLaunchSwrLoad(
             cache = statusCache,
             forceRefresh = forceRefresh,

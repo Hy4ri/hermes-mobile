@@ -148,14 +148,17 @@ class SessionsViewModel(
     private val sessionsPageCache = SwrCache<String, SessionListResponse>()
 
     init {
+        // Scope transitions are driven by ProfileSwitchCoordinator (profile switch and
+        // connection switch). An additional AuthManager.dataScopeFlow collector would
+        // double-fire on the same transition and reset/refetch History twice.
         viewModelScope.launch {
             ProfileSwitchCoordinator.switched.collect {
-                onDataScopeChanged()
+                onDataScopeChanged(AuthManager.currentDataScope())
             }
         }
         viewModelScope.launch {
             ProfileSwitchCoordinator.connectionSwitched.collect {
-                onDataScopeChanged()
+                onDataScopeChanged(AuthManager.currentDataScope())
             }
         }
 
@@ -165,8 +168,8 @@ class SessionsViewModel(
             eventType = ChangeEvents.SESSIONS,
             apiCall = {
                 val requestGeneration = generation
-                val section = _uiState.value.section
-                val requestScope = runCatching { AuthManager.currentDataScope() }.getOrDefault(DataScope.EMPTY)
+                val capturedSection = _uiState.value.section
+                val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
                 when (
                     val result =
                         safeApiCall {
@@ -174,14 +177,14 @@ class SessionsViewModel(
                                 limit = PAGE_SIZE,
                                 offset = 0,
                                 order = "recent",
-                                source = section.source,
-                                excludeSources = section.excludeSources,
+                                source = capturedSection.source,
+                                excludeSources = capturedSection.excludeSources,
                             )
                         }
                 ) {
                     is NetworkResult.Success -> {
                         NetworkResult.Success(
-                            Triple(requestGeneration, requestScope, result.data),
+                            Triple(requestGeneration, Pair(requestScope, capturedSection), result.data),
                         )
                     }
 
@@ -190,13 +193,15 @@ class SessionsViewModel(
                     }
                 }
             },
-            onSuccess = { (requestGeneration, requestScope, data) ->
-                val currentScope = runCatching { AuthManager.currentDataScope() }.getOrDefault(DataScope.EMPTY)
+            onSuccess = { (requestGeneration, scopeAndSection, data) ->
+                val (requestScope, capturedSection) = scopeAndSection
+                val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
                 if (requestGeneration == generation && currentScope == requestScope) {
-                    val section = _uiState.value.section
-                    val cacheKey = requestScope.scopedKey("${section.name}:${section.source}:${section.excludeSources}")
-                    sessionsPageCache.put(cacheKey, data)
-                    SessionListCacheStore.put(cacheKey, data)
+                    val localKey = "${capturedSection.name}:${capturedSection.source}:${capturedSection.excludeSources}"
+                    val inMemoryKey = requestScope?.inMemoryKey(localKey)
+                    val persistentKey = requestScope?.persistentKey(localKey)
+                    if (inMemoryKey != null) sessionsPageCache.put(inMemoryKey, data)
+                    if (persistentKey != null) SessionListCacheStore.put(persistentKey, data)
                     rawPaginationOffset = data.nextOffset(0)
                     _uiState.update {
                         val newSessions = data.sessions.orEmpty()
@@ -219,11 +224,16 @@ class SessionsViewModel(
         )
     }
 
-    private fun onDataScopeChanged() {
+    private fun onDataScopeChanged(newScope: DataScope? = AuthManager.currentDataScope()) {
         generation++
+        searchGeneration++
+        trackingGeneration++
         loadJob?.cancel()
         pageJob?.cancel()
         statsJob?.cancel()
+        searchJob?.cancel()
+        searchPageJob?.cancel()
+        projectsJob?.cancel()
         rawPaginationOffset = 0
         resolvedParentCache.clear()
         _uiState.update {
@@ -234,6 +244,16 @@ class SessionsViewModel(
                 selectedIds = emptySet(),
                 isSelecting = false,
                 errorMessage = null,
+                searchResults = emptyList(),
+                searchError = null,
+                searchLoadMoreError = null,
+                searchHasMore = false,
+                searchNextOffset = null,
+                isSearching = false,
+                isLoadingMoreSearch = false,
+                stats = SessionStats(),
+                emptyCount = 0,
+                projects = emptyList(),
             )
         }
         loadSessions()
@@ -335,17 +355,19 @@ class SessionsViewModel(
     /** Load (or reload) sessions from page 0. Used by pull-to-refresh and initial load. */
     fun loadSessions(forceRefresh: Boolean = false) {
         val requestGeneration = generation
-        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrDefault(DataScope.EMPTY)
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
         val section = _uiState.value.section
-        val cacheKey = requestScope.scopedKey("${section.name}:${section.source}:${section.excludeSources}")
+        val localKey = "${section.name}:${section.source}:${section.excludeSources}"
+        val inMemoryKey = requestScope?.inMemoryKey(localKey)
+        val persistentKey = requestScope?.persistentKey(localKey)
         if (forceRefresh) {
-            sessionsPageCache.remove(cacheKey)
-            SessionListCacheStore.remove(cacheKey)
+            if (inMemoryKey != null) sessionsPageCache.remove(inMemoryKey)
+            if (persistentKey != null) SessionListCacheStore.remove(persistentKey)
         }
         val cached =
-            if (!forceRefresh) {
-                sessionsPageCache.get(cacheKey)
-                    ?: SessionListCacheStore.get(cacheKey)?.also { sessionsPageCache.put(cacheKey, it) }
+            if (!forceRefresh && inMemoryKey != null && persistentKey != null) {
+                sessionsPageCache.get(inMemoryKey)
+                    ?: SessionListCacheStore.get(persistentKey)?.also { sessionsPageCache.put(inMemoryKey, it) }
             } else {
                 null
             }
@@ -394,10 +416,10 @@ class SessionsViewModel(
                     }
                 },
                 onSuccess = { data ->
-                    val currentScope = runCatching { AuthManager.currentDataScope() }.getOrDefault(DataScope.EMPTY)
+                    val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
                     if (requestGeneration != generation || currentScope != requestScope) return@safeLaunchLoad
-                    sessionsPageCache.put(cacheKey, data)
-                    SessionListCacheStore.put(cacheKey, data)
+                    if (inMemoryKey != null) sessionsPageCache.put(inMemoryKey, data)
+                    if (persistentKey != null) SessionListCacheStore.put(persistentKey, data)
                     rawPaginationOffset = data.nextOffset(0)
                     val sessionsList = data.sessions.orEmpty()
                     val paging =
@@ -420,7 +442,7 @@ class SessionsViewModel(
                     stitchMissingParents(requestGeneration)
                 },
                 onError = { errorMsg ->
-                    val currentScope = runCatching { AuthManager.currentDataScope() }.getOrDefault(DataScope.EMPTY)
+                    val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
                     if (requestGeneration != generation || currentScope != requestScope) return@safeLaunchLoad
                     if (cached == null || forceRefresh) {
                         _uiState.update {
@@ -452,6 +474,7 @@ class SessionsViewModel(
         val state = _uiState.value
         if (state.isLoading || state.isLoadingMore || !state.hasMore || state.isSearchMode) return
         val requestGeneration = generation
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
         val offset = rawPaginationOffset
 
         _uiState.update { it.copy(isLoadingMore = true) }
@@ -467,7 +490,8 @@ class SessionsViewModel(
                             excludeSources = state.section.excludeSources,
                         )
                     }
-                if (requestGeneration != generation) return@launch
+                val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+                if (requestGeneration != generation || currentScope != requestScope) return@launch
                 when (result) {
                     is NetworkResult.Success -> {
                         val data = result.data
@@ -541,10 +565,11 @@ class SessionsViewModel(
             if (_uiState.value.sessions.isEmpty()) loadSessions()
             return
         }
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
         searchJob =
             viewModelScope.launch {
                 delay(SEARCH_DEBOUNCE_MS)
-                requestSearchPage(query, section, requestGeneration, 0)
+                requestSearchPage(query, section, requestGeneration, requestScope, 0)
             }
     }
 
@@ -553,10 +578,11 @@ class SessionsViewModel(
         val offset = state.searchNextOffset ?: return
         if (!state.isSearchMode || state.isSearching || state.isLoadingMoreSearch || !state.searchHasMore) return
         val requestGeneration = searchGeneration
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
         _uiState.update { it.copy(isLoadingMoreSearch = true, searchLoadMoreError = null) }
         searchPageJob =
             viewModelScope.launch {
-                requestSearchPage(state.searchQuery, state.section, requestGeneration, offset)
+                requestSearchPage(state.searchQuery, state.section, requestGeneration, requestScope, offset)
             }
     }
 
@@ -564,6 +590,7 @@ class SessionsViewModel(
         query: String,
         section: HistorySection,
         requestGeneration: Long,
+        requestScope: DataScope?,
         offset: Int,
     ) {
         val result =
@@ -577,7 +604,12 @@ class SessionsViewModel(
                     offset = offset,
                 )
             }
-        if (requestGeneration != searchGeneration || _uiState.value.section != section) return
+        val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+        if (requestGeneration != searchGeneration || _uiState.value.section != section ||
+            currentScope != requestScope
+        ) {
+            return
+        }
         when (result) {
             is NetworkResult.Success -> {
                 _uiState.update { state ->
@@ -997,11 +1029,15 @@ class SessionsViewModel(
 
     /** Refresh the empty-session count (REST; auxiliary — failures are silent). */
     fun loadEmptyCount() {
+        val requestGeneration = generation
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
         viewModelScope.launch {
             val result =
                 runCatching {
                     safeApiCall { ApiClient.hermesApi.getEmptySessionCount() }
                 }.getOrNull()
+            val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+            if (requestGeneration != generation || currentScope != requestScope) return@launch
             val count = (result as? NetworkResult.Success)?.data?.count
             if (count != null) {
                 _uiState.update { it.copy(emptyCount = count) }

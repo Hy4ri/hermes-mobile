@@ -2,6 +2,8 @@ package com.m57.hermescontrol.ui.plugins
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.AgentPluginInstallBody
 import com.m57.hermescontrol.data.model.PluginCatalogEntry
@@ -78,8 +80,26 @@ class PluginsViewModel :
 
     private val pluginsCache = SwrCache<String, PluginsHubResponse>()
 
+    fun clearScopeOwnedState() {
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                plugins = emptyList(),
+                orphanPlugins = emptyList(),
+                errorMessage = null,
+                memoryProvider = "",
+                memoryOptions = emptyList(),
+                contextEngine = "compressor",
+                contextOptions = emptyList(),
+                providerBusy = false,
+                rowBusy = null,
+                removeConfirmPlugin = null,
+                rescanBusy = false,
+            )
+        }
+    }
+
     fun loadPlugins(forceRefresh: Boolean = false) {
-        if (forceRefresh) pluginsCache.clear()
         safeLaunchSwrLoad(
             cache = pluginsCache,
             forceRefresh = forceRefresh,
@@ -270,6 +290,7 @@ class PluginsViewModel :
     fun togglePlugin(plugin: PluginInfo) {
         val originalEnabled = plugin.enabled
         val targetEnabled = !originalEnabled
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
 
         // Optimistically update
         _uiState.update { state ->
@@ -294,8 +315,19 @@ class PluginsViewModel :
                         safeApiCall { ApiClient.hermesApi.disablePlugin(plugin.name) }
                     }
                 }
-            if (result is NetworkResult.Failure) {
+            val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+            if (requestScope != null && currentScope != requestScope) return@launch
+            if (result is NetworkResult.Success) {
+                val updated = _uiState.value.plugins
+                if (requestScope != null) {
+                    pluginsCache.put(requestScope.scopedKey("default"), PluginsHubResponse(plugins = updated))
+                }
+            } else if (result is NetworkResult.Failure) {
                 revertPluginToggle(plugin.name, originalEnabled, "Failed to toggle plugin: ${result.error.message}")
+                val reverted = _uiState.value.plugins
+                if (requestScope != null) {
+                    pluginsCache.put(requestScope.scopedKey("default"), PluginsHubResponse(plugins = reverted))
+                }
             }
         }
     }
@@ -502,7 +534,7 @@ class PluginsViewModel :
                         toastMessage = "Plugin \"${entry.displayName}\" installed successfully",
                     )
                 }
-                loadPlugins()
+                loadPlugins(forceRefresh = true)
                 loadCatalog(isRefresh = true)
             },
             onError = { errorMsg ->

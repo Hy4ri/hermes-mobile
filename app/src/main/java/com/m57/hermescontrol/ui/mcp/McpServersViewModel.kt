@@ -74,10 +74,23 @@ class McpServersViewModel :
 
     private val mcpCache = SwrCache<String, McpServersResponse>()
 
+    fun clearScopeOwnedState() {
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                servers = emptyList(),
+                serverTestResults = emptyMap(),
+                testingServers = emptySet(),
+                isTestingAll = false,
+                errorMessage = null,
+                activeOAuthFlow = null,
+            )
+        }
+    }
+
     // ── Data loading ──────────────────────────────────────────
 
     fun loadServers(forceRefresh: Boolean = false) {
-        if (forceRefresh) mcpCache.clear()
         safeLaunchSwrLoad(
             cache = mcpCache,
             forceRefresh = forceRefresh,
@@ -324,7 +337,9 @@ class McpServersViewModel :
                     toastMessage = msg,
                 )
             }
-            loadServers()
+            if (successCount > 0) {
+                loadServers(forceRefresh = true)
+            }
         }
     }
 

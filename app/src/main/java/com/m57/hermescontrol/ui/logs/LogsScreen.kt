@@ -48,6 +48,7 @@ import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
@@ -70,6 +71,7 @@ fun LogsScreen(
     viewModel: LogsViewModel = viewModel { LogsViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val dataScope by AuthManager.dataScopeFlow.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
     val listState = rememberLazyListState()
 
@@ -115,7 +117,8 @@ fun LogsScreen(
             }
         }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(dataScope) {
+        viewModel.clearScopeOwnedState()
         viewModel.loadLogs()
     }
 

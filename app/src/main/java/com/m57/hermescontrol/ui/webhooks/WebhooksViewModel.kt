@@ -53,8 +53,21 @@ class WebhooksViewModel :
 
     private val webhooksCache = SwrCache<String, WebhooksResponse>()
 
+    fun clearScopeOwnedState() {
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                enabled = false,
+                baseUrl = null,
+                subscriptions = emptyList(),
+                errorMessage = null,
+                deleteTarget = null,
+                togglingName = null,
+            )
+        }
+    }
+
     fun loadWebhooks(forceRefresh: Boolean = false) {
-        if (forceRefresh) webhooksCache.clear()
         safeLaunchSwrLoad(
             cache = webhooksCache,
             forceRefresh = forceRefresh,

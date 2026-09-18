@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.WebhookSubscription
 import com.m57.hermescontrol.ui.common.DetailDialog
 import com.m57.hermescontrol.ui.common.EmptyState
@@ -71,6 +72,7 @@ fun WebhooksScreen(
     viewModel: WebhooksViewModel = viewModel { WebhooksViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val dataScope by AuthManager.dataScopeFlow.collectAsStateWithLifecycle()
 
     var query by remember { mutableStateOf("") }
     var showDetail by remember { mutableStateOf<WebhookSubscription?>(null) }
@@ -84,7 +86,8 @@ fun WebhooksScreen(
             }
         }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(dataScope) {
+        viewModel.clearScopeOwnedState()
         viewModel.loadWebhooks()
     }
 

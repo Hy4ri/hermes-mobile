@@ -36,8 +36,11 @@ class ToolsetsViewModel :
 
     private val toolsetsCache = SwrCache<String, List<Toolset>>()
 
+    fun clearScopeOwnedState() {
+        _uiState.update { it.copy(isLoading = false, toolsets = emptyList(), errorMessage = null) }
+    }
+
     fun loadToolsets(forceRefresh: Boolean = false) {
-        if (forceRefresh) toolsetsCache.clear()
         safeLaunchSwrLoad(
             cache = toolsetsCache,
             forceRefresh = forceRefresh,
@@ -63,6 +66,7 @@ class ToolsetsViewModel :
     fun toggleToolset(toolset: Toolset) {
         val originalEnabled = toolset.enabled
         val targetEnabled = !originalEnabled
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
 
         // Optimistic UI update
         _uiState.update { state ->
@@ -79,12 +83,19 @@ class ToolsetsViewModel :
                 withContext(Dispatchers.IO) {
                     safeApiCall { ApiClient.hermesApi.toggleToolset(toolset.name, ToolsetToggleRequest(targetEnabled)) }
                 }
+            val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+            if (requestScope != null && currentScope != requestScope) return@launch
             if (result is NetworkResult.Success) {
                 val updated = _uiState.value.toolsets
-                val requestScope = runCatching { AuthManager.currentDataScope() }.getOrDefault(DataScope.EMPTY)
-                toolsetsCache.put(requestScope.scopedKey("default"), updated)
+                if (requestScope != null) {
+                    toolsetsCache.put(requestScope.scopedKey("default"), updated)
+                }
             } else if (result is NetworkResult.Failure) {
                 revertToggle(toolset.name, originalEnabled, "Failed to toggle toolset: ${result.error.message}")
+                val reverted = _uiState.value.toolsets
+                if (requestScope != null) {
+                    toolsetsCache.put(requestScope.scopedKey("default"), reverted)
+                }
             }
         }
     }

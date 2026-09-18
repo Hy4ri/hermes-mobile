@@ -59,6 +59,17 @@ class KeysViewModel :
 
     private val keysCache = SwrCache<String, Map<String, EnvVarConfig>>()
 
+    fun clearScopeOwnedState() {
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                categories = emptyList(),
+                revealedValues = emptyMap(),
+                errorMessage = null,
+            )
+        }
+    }
+
     private fun buildCategoryList(
         envVars: Map<String, EnvVarConfig>,
         expandedCategories: Set<String> =
@@ -94,7 +105,6 @@ class KeysViewModel :
     }
 
     fun loadKeys(forceRefresh: Boolean = false) {
-        if (forceRefresh) keysCache.clear()
         safeLaunchSwrLoad(
             cache = keysCache,
             forceRefresh = forceRefresh,

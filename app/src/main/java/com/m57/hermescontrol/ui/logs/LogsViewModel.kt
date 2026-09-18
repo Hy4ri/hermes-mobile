@@ -46,6 +46,10 @@ class LogsViewModel :
     private var autoRefreshJob: Job? = null
     private val logsCache = SwrCache<String, LogResponse>()
 
+    fun clearScopeOwnedState() {
+        _uiState.update { it.copy(isLoading = false, logs = emptyList(), errorMessage = null) }
+    }
+
     fun loadLogs(forceRefresh: Boolean = false) {
         val filters = _uiState.value.filters
         val cacheKey = "${filters.file}:${filters.level}:${filters.component}:${filters.lines}"

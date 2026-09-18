@@ -71,6 +71,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.McpCatalogEntry
 import com.m57.hermescontrol.data.model.McpServer
 import com.m57.hermescontrol.theme.LocalSpacing
@@ -99,6 +100,7 @@ fun McpServersScreen(
     viewModel: McpServersViewModel = viewModel { McpServersViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val dataScope by AuthManager.dataScopeFlow.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
@@ -127,7 +129,10 @@ fun McpServersScreen(
             }
         }
 
-    LaunchedEffect(Unit) { viewModel.loadServers() }
+    LaunchedEffect(dataScope) {
+        viewModel.clearScopeOwnedState()
+        viewModel.loadServers()
+    }
     ToastEffect(toastMessage = state.toastMessage, onClearToast = viewModel::clearToast)
 
     HermesScaffold(

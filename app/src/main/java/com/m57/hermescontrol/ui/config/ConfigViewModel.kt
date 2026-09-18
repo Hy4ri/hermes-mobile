@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.DataScope
+import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.ConfigSchemaResponse
 import com.m57.hermescontrol.data.model.ConfigUpdateRequest
 import com.m57.hermescontrol.data.model.UpdateRawConfigRequest
@@ -53,36 +54,57 @@ class ConfigViewModel :
     val uiState: StateFlow<ConfigUiState> = _uiState.asStateFlow()
 
     private val pendingChanges = mutableMapOf<String, JsonElement>()
-    private val schemaCache = mutableMapOf<String, ConfigSchemaResponse>()
-    private val defaultsCache = mutableMapOf<String, Map<String, JsonElement>>()
+    private val schemaCache = SwrCache<String, ConfigSchemaResponse>(maxCapacity = 10)
+    private val defaultsCache = SwrCache<String, Map<String, JsonElement>>(maxCapacity = 10)
 
     init {
+        // Scope transitions are driven by ProfileSwitchCoordinator (profile switch and
+        // connection switch). An additional AuthManager.dataScopeFlow collector would
+        // double-fire on the same transition and issue a duplicate loadAll().
         viewModelScope.launch {
             ProfileSwitchCoordinator.switched.collect {
-                _uiState.update { it.copy(values = null) }
-                loadAll(forceRefresh = true)
+                onDataScopeChanged(AuthManager.currentDataScope())
             }
         }
         viewModelScope.launch {
             ProfileSwitchCoordinator.connectionSwitched.collect {
-                schemaCache.clear()
-                defaultsCache.clear()
-                _uiState.update { it.copy(values = null) }
-                loadAll(forceRefresh = true)
+                onDataScopeChanged(AuthManager.currentDataScope())
             }
         }
         loadAll()
     }
 
+    private fun onDataScopeChanged(newScope: DataScope?) {
+        pendingChanges.clear()
+        _uiState.update {
+            it.copy(
+                values = null,
+                schema = null,
+                defaults = null,
+                uncoveredPaths = emptyList(),
+                path = null,
+                yamlText = null,
+                modifiedKeys = emptySet(),
+                isSaving = false,
+                yamlIsSaving = false,
+                yamlIsLoading = false,
+                errorMessage = null,
+            )
+        }
+        // A scope switch must load the new context. The scoped caches mean this paints the
+        // new scope's own entry instantly when one exists, then revalidates in the background.
+        loadAll()
+    }
+
     fun loadAll(forceRefresh: Boolean = false) {
-        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrDefault(DataScope.EMPTY)
-        val scopeKey = requestScope.key
-        if (forceRefresh) {
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+        val scopeKey = requestScope?.inMemoryKey("schema") ?: ""
+        if (forceRefresh && scopeKey.isNotBlank()) {
             schemaCache.remove(scopeKey)
             defaultsCache.remove(scopeKey)
         }
-        val cachedSchema = schemaCache[scopeKey]
-        val cachedDefaults = defaultsCache[scopeKey]
+        val cachedSchema = if (scopeKey.isNotBlank()) schemaCache.get(scopeKey) else null
+        val cachedDefaults = if (scopeKey.isNotBlank()) defaultsCache.get(scopeKey) else null
         val hasCachedData = _uiState.value.values != null
         if (!hasCachedData) {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
@@ -106,24 +128,40 @@ class ConfigViewModel :
                     val rawDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getRawConfig() } }
 
                     val configResult = configDeferred.await()
-                    val schema =
-                        (schemaDeferred?.await() as? NetworkResult.Success)?.data?.also { schemaCache[scopeKey] = it }
-                            ?: cachedSchema
-                    val defaults =
+                    val schema: ConfigSchemaResponse? =
+                        (schemaDeferred?.await() as? NetworkResult.Success)?.data?.also {
+                            if (scopeKey.isNotBlank()) schemaCache.put(scopeKey, it)
+                        } ?: cachedSchema
+                    val defaults: Map<String, JsonElement>? =
                         (defaultsDeferred?.await() as? NetworkResult.Success)?.data?.also {
-                            defaultsCache[scopeKey] = it
+                            if (scopeKey.isNotBlank()) defaultsCache.put(scopeKey, it)
                         } ?: cachedDefaults
                     val rawResult = rawDeferred.await()
 
-                    val currentScope = runCatching { AuthManager.currentDataScope() }.getOrDefault(DataScope.EMPTY)
-                    if (currentScope != requestScope) return@coroutineScope
+                    val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+                    if (requestScope != null && currentScope != requestScope) return@coroutineScope
 
                     if (configResult is NetworkResult.Success) {
                         val values = flattenConfig(configResult.data)
                         val path = (rawResult as? NetworkResult.Success)?.data?.path
 
-                        _uiState.update {
-                            it.copy(
+                        _uiState.update { state ->
+                            val categories = schema?.category_order ?: emptyList()
+                            val validCategory =
+                                when {
+                                    state.activeCategory.isNotBlank() && state.activeCategory in categories -> {
+                                        state.activeCategory
+                                    }
+
+                                    categories.isNotEmpty() -> {
+                                        categories.first()
+                                    }
+
+                                    else -> {
+                                        state.activeCategory
+                                    }
+                                }
+                            state.copy(
                                 isLoading = false,
                                 values = values,
                                 schema = schema,
@@ -134,14 +172,7 @@ class ConfigViewModel :
                                         schema?.fields?.keys ?: emptySet(),
                                     ),
                                 path = path,
-                                activeCategory =
-                                    if (it.activeCategory.isNotBlank()) {
-                                        it.activeCategory
-                                    } else if (schema?.category_order?.isNotEmpty() == true) {
-                                        schema.category_order.first()
-                                    } else {
-                                        ""
-                                    },
+                                activeCategory = validCategory,
                                 errorMessage = null,
                             )
                         }
@@ -153,8 +184,8 @@ class ConfigViewModel :
                     }
                 }
             } catch (e: Exception) {
-                val currentScope = runCatching { AuthManager.currentDataScope() }.getOrDefault(DataScope.EMPTY)
-                if (currentScope == requestScope && !hasCachedData) {
+                val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+                if (requestScope != null && currentScope == requestScope && !hasCachedData) {
                     _uiState.update {
                         it.copy(isLoading = false, errorMessage = "Failed to load config: ${e.message}")
                     }
@@ -249,6 +280,7 @@ class ConfigViewModel :
 
     fun saveConfig() {
         if (pendingChanges.isEmpty()) return
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
         _uiState.update { it.copy(isSaving = true) }
         viewModelScope.launch {
             val changeset = buildChangeset(pendingChanges)
@@ -260,6 +292,8 @@ class ConfigViewModel :
                         )
                     }
                 }
+            val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+            if (requestScope != null && currentScope != requestScope) return@launch
             when (result) {
                 is NetworkResult.Success -> {
                     pendingChanges.clear()
@@ -267,6 +301,8 @@ class ConfigViewModel :
                         withContext(Dispatchers.IO) {
                             safeApiCall { ApiClient.hermesApi.getConfig() }
                         }
+                    val currentScopeAfterGet = runCatching { AuthManager.currentDataScope() }.getOrNull()
+                    if (requestScope != null && currentScopeAfterGet != requestScope) return@launch
                     _uiState.update {
                         it.copy(
                             isSaving = false,
@@ -293,6 +329,7 @@ class ConfigViewModel :
 
     fun saveYamlConfig() {
         val yamlText = _uiState.value.yamlText ?: return
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
         _uiState.update { it.copy(yamlIsSaving = true) }
         viewModelScope.launch {
             val result =
@@ -303,12 +340,16 @@ class ConfigViewModel :
                         )
                     }
                 }
+            val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+            if (requestScope != null && currentScope != requestScope) return@launch
             when (result) {
                 is NetworkResult.Success -> {
                     val configResult =
                         withContext(Dispatchers.IO) {
                             safeApiCall { ApiClient.hermesApi.getConfig() }
                         }
+                    val currentScopeAfterGet = runCatching { AuthManager.currentDataScope() }.getOrNull()
+                    if (requestScope != null && currentScopeAfterGet != requestScope) return@launch
                     _uiState.update {
                         it.copy(
                             yamlIsSaving = false,

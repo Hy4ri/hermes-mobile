@@ -88,6 +88,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.EnvVarConfig
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.common.EmptyState
@@ -114,6 +115,7 @@ fun KeysScreen(
     viewModel: KeysViewModel = viewModel { KeysViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val dataScope by AuthManager.dataScopeFlow.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf(FILTER_ALL) }
 
@@ -150,7 +152,8 @@ fun KeysScreen(
 
     val hasAnyVars = state.categories.any { it.vars.isNotEmpty() }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(dataScope) {
+        viewModel.clearScopeOwnedState()
         viewModel.loadKeys()
     }
 

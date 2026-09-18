@@ -117,11 +117,39 @@ class ProfilesViewModel(
 
     private val profilesCache = SwrCache<String, ProfilesResponse>()
 
+    /**
+     * Reset state owned by the previous server/profile context (PR #1192 cache scoping).
+     * Profiles, their soul content, setup commands, and builder data all belong to the
+     * server that served them and must not be shown for a new context.
+     */
+    fun clearScopeOwnedState() {
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                profiles = emptyList(),
+                activeProfileName = null,
+                sharedGatewayProfiles = emptyList(),
+                selectedSoulContent = null,
+                isLoadingSoul = false,
+                errorMessage = null,
+                isAutoDescribing = false,
+                setupCommand = null,
+                isLoadingSetupCommand = false,
+                modelPickerPinned = emptyList(),
+                modelProviders = emptyList(),
+                isLoadingBuilderData = false,
+                availableSkills = emptyList(),
+                hubSearchResults = emptyList(),
+                isSearchingHub = false,
+            )
+        }
+    }
+
     fun loadProfiles(forceRefresh: Boolean = false) {
-        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrDefault(DataScope.EMPTY)
-        val scopedKey = requestScope.scopedKey("default")
-        if (forceRefresh) profilesCache.remove(scopedKey)
-        val cached = if (!forceRefresh) profilesCache.get(scopedKey) else null
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+        val scopedKey = requestScope?.inMemoryKey("default")
+        if (forceRefresh && scopedKey != null) profilesCache.remove(scopedKey)
+        val cached = if (!forceRefresh && scopedKey != null) profilesCache.get(scopedKey) else null
         if (cached != null) {
             _uiState.update {
                 it.copy(
@@ -145,11 +173,11 @@ class ProfilesViewModel(
                     val profilesResult = profilesDeferred.await()
                     val activeResult = activeDeferred.await()
 
-                    val currentScope = runCatching { AuthManager.currentDataScope() }.getOrDefault(DataScope.EMPTY)
+                    val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
                     if (currentScope != requestScope) return@coroutineScope
 
                     if (profilesResult is NetworkResult.Success && activeResult is NetworkResult.Success) {
-                        profilesCache.put(scopedKey, profilesResult.data)
+                        if (scopedKey != null) profilesCache.put(scopedKey, profilesResult.data)
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
@@ -184,7 +212,7 @@ class ProfilesViewModel(
                     }
                 }
             } catch (e: Exception) {
-                val currentScope = runCatching { AuthManager.currentDataScope() }.getOrDefault(DataScope.EMPTY)
+                val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
                 if (currentScope == requestScope && (cached == null || forceRefresh)) {
                     _uiState.update {
                         it.copy(isLoading = false, errorMessage = "Failed to load profiles: ${e.message}")

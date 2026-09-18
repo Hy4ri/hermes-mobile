@@ -71,8 +71,21 @@ class ProvidersViewModel :
     private var pollJob: Job? = null
     private val providersCache = SwrCache<String, OAuthProvidersResponse>()
 
+    fun clearScopeOwnedState() {
+        pollJob?.cancel()
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                providers = emptyList(),
+                errorMessage = null,
+                flowPhase = OAuthFlowPhase.IDLE,
+                flowProvider = null,
+                flowErrorMessage = null,
+            )
+        }
+    }
+
     fun load(forceRefresh: Boolean = false) {
-        if (forceRefresh) providersCache.clear()
         safeLaunchSwrLoad(
             cache = providersCache,
             forceRefresh = forceRefresh,

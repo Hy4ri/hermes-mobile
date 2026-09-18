@@ -81,6 +81,29 @@ class FilesViewModel :
 
     private val filesCache = SwrCache<String, ManagedFilesListResponse>()
 
+    /**
+     * Reset state owned by the previous server/profile context (issue: PR #1192 cache scoping).
+     * The current directory path belongs to the old server and must not leak into the new one.
+     */
+    fun clearScopeOwnedState() {
+        _uiState.update {
+            it.copy(
+                currentPath = "",
+                parentPath = null,
+                crumbs = emptyList(),
+                entries = emptyList(),
+                isLoading = false,
+                errorMessage = null,
+                busyPaths = emptySet(),
+                isCreatingDir = false,
+                newDirName = "",
+                isUploading = false,
+                deleteTarget = null,
+                openingPath = null,
+            )
+        }
+    }
+
     fun load(
         path: String? = null,
         forceRefresh: Boolean = false,

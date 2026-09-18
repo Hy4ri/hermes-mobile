@@ -8,10 +8,10 @@ import com.m57.hermescontrol.data.model.BulkDeleteRequest
 import com.m57.hermescontrol.data.model.ProjectInfo
 import com.m57.hermescontrol.data.model.PruneRequest
 import com.m57.hermescontrol.data.model.SessionInfo
+import com.m57.hermescontrol.data.model.SessionListResponse
 import com.m57.hermescontrol.data.model.SessionLiveStatus
 import com.m57.hermescontrol.data.model.SessionRenameRequest
 import com.m57.hermescontrol.data.model.SessionSearchResult
-import com.m57.hermescontrol.data.model.SessionsResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
@@ -142,7 +142,7 @@ class SessionsViewModel(
     private var liveStatusRefreshPending = false
     private var generation: Long = 0
     private var rawPaginationOffset: Int = 0
-    private val sessionsPageCache = SwrCache<String, SessionsResponse>()
+    private val sessionsPageCache = SwrCache<String, SessionListResponse>()
 
     init {
         // Issue #784: gateway broadcasts sessions.changed — refresh the list

@@ -3,6 +3,7 @@ package com.m57.hermescontrol.ui.sessions
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.SessionListCacheStore
 import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.BulkDeleteRequest
 import com.m57.hermescontrol.data.model.ProjectInfo
@@ -170,6 +171,10 @@ class SessionsViewModel(
             },
             onSuccess = { (requestGeneration, data) ->
                 if (requestGeneration == generation) {
+                    val section = _uiState.value.section
+                    val cacheKey = "${section.name}:${section.source}:${section.excludeSources}"
+                    sessionsPageCache.put(cacheKey, data)
+                    SessionListCacheStore.put(cacheKey, data)
                     rawPaginationOffset = data.nextOffset(0)
                     _uiState.update {
                         val newSessions = data.sessions.orEmpty()
@@ -292,8 +297,11 @@ class SessionsViewModel(
         val cacheKey = "${section.name}:${section.source}:${section.excludeSources}"
         if (forceRefresh) {
             sessionsPageCache.remove(cacheKey)
+            SessionListCacheStore.remove(cacheKey)
         }
-        val cached = sessionsPageCache.get(cacheKey)
+        val cached =
+            sessionsPageCache.get(cacheKey)
+                ?: SessionListCacheStore.get(cacheKey)?.also { sessionsPageCache.put(cacheKey, it) }
         if (cached != null) {
             val sessionsList = cached.sessions.orEmpty()
             val paging =
@@ -341,6 +349,7 @@ class SessionsViewModel(
                 onSuccess = { data ->
                     if (requestGeneration != generation) return@safeLaunchLoad
                     sessionsPageCache.put(cacheKey, data)
+                    SessionListCacheStore.put(cacheKey, data)
                     rawPaginationOffset = data.nextOffset(0)
                     val sessionsList = data.sessions.orEmpty()
                     val paging =

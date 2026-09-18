@@ -3,12 +3,14 @@ package com.m57.hermescontrol.ui.profiles
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.CreateProfileRequest
 import com.m57.hermescontrol.data.model.HubSkill
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.data.model.ProfileDescribeAutoRequest
 import com.m57.hermescontrol.data.model.ProfileInfo
+import com.m57.hermescontrol.data.model.ProfilesResponse
 import com.m57.hermescontrol.data.model.RenameProfileRequest
 import com.m57.hermescontrol.data.model.Skill
 import com.m57.hermescontrol.data.model.UpdateProfileDescriptionRequest
@@ -112,8 +114,23 @@ class ProfilesViewModel(
         }
     }
 
-    fun loadProfiles() {
-        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+    private val profilesCache = SwrCache<String, ProfilesResponse>()
+
+    fun loadProfiles(forceRefresh: Boolean = false) {
+        if (forceRefresh) profilesCache.clear()
+        val cached = profilesCache.get("default")
+        if (cached != null) {
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    profiles = cached.profiles.orEmpty(),
+                    hiddenProfiles = AuthManager.getHiddenProfiles().toSet(),
+                    errorMessage = null,
+                )
+            }
+        } else {
+            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        }
         viewModelScope.launch {
             try {
                 coroutineScope {
@@ -126,6 +143,7 @@ class ProfilesViewModel(
                     val activeResult = activeDeferred.await()
 
                     if (profilesResult is NetworkResult.Success && activeResult is NetworkResult.Success) {
+                        profilesCache.put("default", profilesResult.data)
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
@@ -133,6 +151,7 @@ class ProfilesViewModel(
                                 activeProfileName = activeResult.data.active,
                                 sharedGatewayProfiles = emptyList(),
                                 hiddenProfiles = AuthManager.getHiddenProfiles().toSet(),
+                                errorMessage = null,
                             )
                         }
 
@@ -145,7 +164,7 @@ class ProfilesViewModel(
                                 )
                             }
                         }
-                    } else {
+                    } else if (cached == null) {
                         val profilesError = (profilesResult as? NetworkResult.Failure)?.error?.message ?: "Success"
                         val activeError = (activeResult as? NetworkResult.Failure)?.error?.message ?: "Success"
                         _uiState.update {

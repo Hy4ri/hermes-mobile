@@ -146,7 +146,7 @@ fun LogsScreen(
         title = { Text(stringResource(R.string.screen_logs)) },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
-        onRefresh = { viewModel.loadLogs() },
+        onRefresh = { viewModel.loadLogs(forceRefresh = true) },
         actions = {
             // Pause / Resume toggle
             IconButton(onClick = { pauseScroll = !pauseScroll }) {

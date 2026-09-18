@@ -2,6 +2,9 @@ package com.m57.hermescontrol.ui.cron
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
+import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.CreateCronJobRequest
 import com.m57.hermescontrol.data.model.CronBlueprint
 import com.m57.hermescontrol.data.model.CronJob
@@ -16,6 +19,7 @@ import com.m57.hermescontrol.data.ws.toJsonElement
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.refreshOnChange
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
+import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -95,6 +99,19 @@ class CronJobsViewModel :
     val uiState: StateFlow<CronJobsUiState> = _uiState.asStateFlow()
 
     private var loadJob: Job? = null
+    private val jobsCache = SwrCache<String, List<CronJob>>()
+
+    fun clearScopeOwnedState() {
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                jobs = emptyList(),
+                errorMessage = null,
+                deleteTarget = null,
+                editorState = CronJobEditorState(),
+            )
+        }
+    }
 
     init {
         // Issue #784: gateway broadcasts cron.changed — refresh the list
@@ -102,14 +119,24 @@ class CronJobsViewModel :
         refreshOnChange(
             eventType = ChangeEvents.CRON,
             apiCall = { safeApiCall { ApiClient.hermesApi.getCronJobs() } },
-            onSuccess = { data -> _uiState.update { it.copy(jobs = data.orEmpty()) } },
+            onSuccess = { data ->
+                val jobs = data.orEmpty()
+                val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+                if (requestScope != null) jobsCache.put(requestScope.inMemoryKey("default"), jobs)
+                _uiState.update { it.copy(jobs = jobs) }
+            },
         )
     }
 
-    fun loadCronJobs() {
+    fun loadCronJobs(forceRefresh: Boolean = false) {
         loadJob =
-            safeLaunchLoad(
+            safeLaunchSwrLoad(
+                cache = jobsCache,
+                forceRefresh = forceRefresh,
                 currentJob = loadJob,
+                onCacheHit = { cached ->
+                    _uiState.update { it.copy(isLoading = false, jobs = cached, errorMessage = null) }
+                },
                 apiCall = { safeApiCall { ApiClient.hermesApi.getCronJobs() } },
                 onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
                 onSuccess = { data ->
@@ -128,6 +155,7 @@ class CronJobsViewModel :
 
     fun pauseCronJob(id: String) {
         val originalJobs = _uiState.value.jobs
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
         _uiState.update { state ->
             state.copy(
                 jobs =
@@ -141,14 +169,24 @@ class CronJobsViewModel :
                 withContext(Dispatchers.IO) {
                     safeApiCall { ApiClient.hermesApi.pauseCronJob(id) }
                 }
-            if (result is NetworkResult.Failure) {
+            val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+            if (requestScope != null && currentScope != requestScope) return@launch
+            if (result is NetworkResult.Success) {
+                if (requestScope != null) {
+                    jobsCache.put(requestScope.scopedKey("default"), _uiState.value.jobs)
+                }
+            } else if (result is NetworkResult.Failure) {
                 revertJobs(originalJobs, "Failed to pause cron job: ${result.error.message}")
+                if (requestScope != null) {
+                    jobsCache.put(requestScope.scopedKey("default"), _uiState.value.jobs)
+                }
             }
         }
     }
 
     fun resumeCronJob(id: String) {
         val originalJobs = _uiState.value.jobs
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
         _uiState.update { state ->
             state.copy(
                 jobs =
@@ -162,8 +200,17 @@ class CronJobsViewModel :
                 withContext(Dispatchers.IO) {
                     safeApiCall { ApiClient.hermesApi.resumeCronJob(id) }
                 }
-            if (result is NetworkResult.Failure) {
+            val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+            if (requestScope != null && currentScope != requestScope) return@launch
+            if (result is NetworkResult.Success) {
+                if (requestScope != null) {
+                    jobsCache.put(requestScope.scopedKey("default"), _uiState.value.jobs)
+                }
+            } else if (result is NetworkResult.Failure) {
                 revertJobs(originalJobs, "Failed to resume cron job: ${result.error.message}")
+                if (requestScope != null) {
+                    jobsCache.put(requestScope.scopedKey("default"), _uiState.value.jobs)
+                }
             }
         }
     }
@@ -188,6 +235,7 @@ class CronJobsViewModel :
 
     fun deleteCronJob(id: String) {
         val originalJobs = _uiState.value.jobs
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
         _uiState.update { state ->
             state.copy(jobs = state.jobs.filter { it.id != id })
         }
@@ -196,8 +244,17 @@ class CronJobsViewModel :
                 withContext(Dispatchers.IO) {
                     safeApiCall { ApiClient.hermesApi.deleteCronJob(id) }
                 }
-            if (result is NetworkResult.Failure) {
+            val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+            if (requestScope != null && currentScope != requestScope) return@launch
+            if (result is NetworkResult.Success) {
+                if (requestScope != null) {
+                    jobsCache.put(requestScope.scopedKey("default"), _uiState.value.jobs)
+                }
+            } else if (result is NetworkResult.Failure) {
                 revertJobs(originalJobs, "Failed to delete cron job: ${result.error.message}")
+                if (requestScope != null) {
+                    jobsCache.put(requestScope.scopedKey("default"), _uiState.value.jobs)
+                }
             }
         }
     }
@@ -447,7 +504,7 @@ class CronJobsViewModel :
             when (result) {
                 is NetworkResult.Success -> {
                     closeEditor()
-                    loadCronJobs()
+                    loadCronJobs(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {

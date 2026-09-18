@@ -42,6 +42,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.ToolsetDetailKey
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
@@ -60,8 +61,14 @@ fun ToolsetsScreen(
     viewModel: ToolsetsViewModel = viewModel { ToolsetsViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val dataScope by AuthManager.dataScopeFlow.collectAsStateWithLifecycle()
 
     var query by remember { mutableStateOf("") }
+
+    LaunchedEffect(dataScope) {
+        viewModel.clearScopeOwnedState()
+        viewModel.loadToolsets()
+    }
 
     val filteredToolsets =
         remember(query, state.toolsets) {
@@ -72,17 +79,13 @@ fun ToolsetsScreen(
             }
         }
 
-    LaunchedEffect(Unit) {
-        viewModel.loadToolsets()
-    }
-
     ToastEffect(toastMessage = state.toastMessage, onClearToast = viewModel::clearToast)
 
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_toolsets)) },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
-        onRefresh = { viewModel.loadToolsets() },
+        onRefresh = { viewModel.loadToolsets(forceRefresh = true) },
     ) { paddingValues ->
         when {
             state.isLoading && state.toolsets.isEmpty() -> {

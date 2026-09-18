@@ -4,6 +4,9 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
+import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.HubSkill
 import com.m57.hermescontrol.data.model.SaveSkillContentRequest
 import com.m57.hermescontrol.data.model.Skill
@@ -17,6 +20,7 @@ import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
+import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -93,11 +97,35 @@ class SkillsViewModel(
 
     private var loadJob: Job? = null
     private var searchJob: Job? = null
+    private val skillsCache = SwrCache<String, List<Skill>>()
 
-    fun loadSkills() {
+    fun clearScopeOwnedState() {
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                skills = emptyList(),
+                errorMessage = null,
+                editingSkillName = null,
+                skillContent = null,
+                isLoadingContent = false,
+                isSavingContent = false,
+                saveContentSuccess = false,
+                previewSkillName = null,
+                previewSkillContent = null,
+                isLoadingPreview = false,
+            )
+        }
+    }
+
+    fun loadSkills(forceRefresh: Boolean = false) {
         loadJob =
-            safeLaunchLoad(
+            safeLaunchSwrLoad(
+                cache = skillsCache,
+                forceRefresh = forceRefresh,
                 currentJob = loadJob,
+                onCacheHit = { cached ->
+                    _uiState.update { it.copy(isLoading = false, skills = cached, errorMessage = null) }
+                },
                 apiCall = { safeApiCall { ApiClient.hermesApi.getSkills() } },
                 onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
                 onSuccess = { data ->
@@ -328,7 +356,7 @@ class SkillsViewModel(
                         )
                     }
                     // Refresh installed skills
-                    loadSkills()
+                    loadSkills(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -365,7 +393,7 @@ class SkillsViewModel(
                             toastMessage = "Uninstalled: $name",
                         )
                     }
-                    loadSkills()
+                    loadSkills(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -396,7 +424,9 @@ class SkillsViewModel(
     fun toggleSkill(skill: Skill) {
         val originalEnabled = skill.enabled
         val targetEnabled = !originalEnabled
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
 
+        // Optimistically update
         _uiState.update { state ->
             state.copy(
                 skills =
@@ -411,12 +441,23 @@ class SkillsViewModel(
                 withContext(Dispatchers.IO) {
                     safeApiCall { ApiClient.hermesApi.toggleSkill(ToggleSkillRequest(skill.name, targetEnabled)) }
                 }
-            if (result is NetworkResult.Failure) {
+            val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+            if (requestScope != null && currentScope != requestScope) return@launch
+            if (result is NetworkResult.Success) {
+                val updated = _uiState.value.skills
+                if (requestScope != null) {
+                    skillsCache.put(requestScope.scopedKey("default"), updated)
+                }
+            } else if (result is NetworkResult.Failure) {
                 revertSkillToggle(
                     skill.name,
                     originalEnabled,
                     "Failed to toggle skill: ${result.error.message}",
                 )
+                val reverted = _uiState.value.skills
+                if (requestScope != null) {
+                    skillsCache.put(requestScope.scopedKey("default"), reverted)
+                }
             }
         }
     }
@@ -525,7 +566,7 @@ class SkillsViewModel(
             when (result) {
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(toastMessage = "Skills updated") }
-                    loadSkills()
+                    loadSkills(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {

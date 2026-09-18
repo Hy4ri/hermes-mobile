@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.PairingItem
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
@@ -50,8 +51,10 @@ fun PairingScreen(
     viewModel: PairingViewModel = viewModel { PairingViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val dataScope by AuthManager.dataScopeFlow.collectAsStateWithLifecycle()
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(dataScope) {
+        viewModel.clearScopeOwnedState()
         viewModel.loadPairing()
     }
 
@@ -61,7 +64,7 @@ fun PairingScreen(
         title = { Text(stringResource(R.string.screen_pairing)) },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
-        onRefresh = { viewModel.loadPairing() },
+        onRefresh = { viewModel.loadPairing(forceRefresh = true) },
         modifier = modifier,
     ) { paddingValues ->
         val pairing = state.pairing

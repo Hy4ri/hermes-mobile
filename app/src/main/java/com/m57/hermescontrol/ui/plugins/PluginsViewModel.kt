@@ -2,10 +2,14 @@ package com.m57.hermescontrol.ui.plugins
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
+import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.AgentPluginInstallBody
 import com.m57.hermescontrol.data.model.PluginCatalogEntry
 import com.m57.hermescontrol.data.model.PluginInfo
 import com.m57.hermescontrol.data.model.PluginProvidersPutRequest
+import com.m57.hermescontrol.data.model.PluginsHubResponse
 import com.m57.hermescontrol.data.model.ProviderOption
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
@@ -13,6 +17,7 @@ import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchAction
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
+import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -73,8 +78,56 @@ class PluginsViewModel :
     private val _uiState = MutableStateFlow(PluginsUiState())
     val uiState: StateFlow<PluginsUiState> = _uiState.asStateFlow()
 
-    fun loadPlugins() {
-        safeLaunchLoad(
+    private val pluginsCache = SwrCache<String, PluginsHubResponse>()
+
+    fun clearScopeOwnedState() {
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                plugins = emptyList(),
+                orphanPlugins = emptyList(),
+                errorMessage = null,
+                memoryProvider = "",
+                memoryOptions = emptyList(),
+                contextEngine = "compressor",
+                contextOptions = emptyList(),
+                providerBusy = false,
+                rowBusy = null,
+                removeConfirmPlugin = null,
+                rescanBusy = false,
+            )
+        }
+    }
+
+    fun loadPlugins(forceRefresh: Boolean = false) {
+        safeLaunchSwrLoad(
+            cache = pluginsCache,
+            forceRefresh = forceRefresh,
+            onCacheHit = { data ->
+                val plugins = data.plugins.orEmpty()
+                val providers = data.providers
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        plugins = plugins,
+                        orphanPlugins =
+                            data.orphanDashboardPlugins.orEmpty().map { orphan ->
+                                PluginInfo(
+                                    name = orphan.name ?: "unknown",
+                                    description = orphan.description ?: orphan.label,
+                                    version = null,
+                                    source = null,
+                                    runtimeStatus = null,
+                                )
+                            },
+                        memoryProvider = providers?.memoryProvider ?: "",
+                        memoryOptions = providers?.memoryOptions.orEmpty(),
+                        contextEngine = providers?.contextEngine ?: "compressor",
+                        contextOptions = providers?.contextOptions.orEmpty(),
+                        errorMessage = null,
+                    )
+                }
+            },
             apiCall = { safeApiCall { ApiClient.hermesApi.getPlugins() } },
             onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
             onSuccess = { data ->
@@ -85,10 +138,10 @@ class PluginsViewModel :
                         isLoading = false,
                         plugins = plugins,
                         orphanPlugins =
-                            data.orphanDashboardPlugins.orEmpty().map {
+                            data.orphanDashboardPlugins.orEmpty().map { orphan ->
                                 PluginInfo(
-                                    name = it.name ?: "unknown",
-                                    description = it.description ?: it.label,
+                                    name = orphan.name ?: "unknown",
+                                    description = orphan.description ?: orphan.label,
                                     version = null,
                                     source = null,
                                     runtimeStatus = null,
@@ -153,7 +206,7 @@ class PluginsViewModel :
                             toastMessage = "Plugin installed successfully",
                         )
                     }
-                    loadPlugins()
+                    loadPlugins(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -194,7 +247,7 @@ class PluginsViewModel :
             when (result) {
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(providerBusy = false, toastMessage = "Plugin providers saved") }
-                    loadPlugins()
+                    loadPlugins(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -219,7 +272,7 @@ class PluginsViewModel :
             when (result) {
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(rescanBusy = false, toastMessage = "Plugins rescanned") }
-                    loadPlugins()
+                    loadPlugins(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -237,6 +290,7 @@ class PluginsViewModel :
     fun togglePlugin(plugin: PluginInfo) {
         val originalEnabled = plugin.enabled
         val targetEnabled = !originalEnabled
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
 
         // Optimistically update
         _uiState.update { state ->
@@ -261,8 +315,19 @@ class PluginsViewModel :
                         safeApiCall { ApiClient.hermesApi.disablePlugin(plugin.name) }
                     }
                 }
-            if (result is NetworkResult.Failure) {
+            val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+            if (requestScope != null && currentScope != requestScope) return@launch
+            if (result is NetworkResult.Success) {
+                val updated = _uiState.value.plugins
+                if (requestScope != null) {
+                    pluginsCache.put(requestScope.scopedKey("default"), PluginsHubResponse(plugins = updated))
+                }
+            } else if (result is NetworkResult.Failure) {
                 revertPluginToggle(plugin.name, originalEnabled, "Failed to toggle plugin: ${result.error.message}")
+                val reverted = _uiState.value.plugins
+                if (requestScope != null) {
+                    pluginsCache.put(requestScope.scopedKey("default"), PluginsHubResponse(plugins = reverted))
+                }
             }
         }
     }
@@ -276,7 +341,7 @@ class PluginsViewModel :
             when (result) {
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(toastMessage = "Plugin enabled successfully") }
-                    loadPlugins()
+                    loadPlugins(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -309,7 +374,7 @@ class PluginsViewModel :
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(toastMessage = "Plugin uninstalled successfully") }
                     clearRowBusy(name)
-                    loadPlugins()
+                    loadPlugins(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -331,7 +396,7 @@ class PluginsViewModel :
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(toastMessage = "Plugin updated successfully") }
                     clearRowBusy(name)
-                    loadPlugins()
+                    loadPlugins(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -359,7 +424,7 @@ class PluginsViewModel :
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(toastMessage = "Plugin visibility updated") }
                     clearRowBusy(plugin.name)
-                    loadPlugins()
+                    loadPlugins(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -469,7 +534,7 @@ class PluginsViewModel :
                         toastMessage = "Plugin \"${entry.displayName}\" installed successfully",
                     )
                 }
-                loadPlugins()
+                loadPlugins(forceRefresh = true)
                 loadCatalog(isRefresh = true)
             },
             onError = { errorMsg ->

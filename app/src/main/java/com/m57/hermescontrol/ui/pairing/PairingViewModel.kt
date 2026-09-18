@@ -2,6 +2,8 @@ package com.m57.hermescontrol.ui.pairing
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.PairingApproveRequest
 import com.m57.hermescontrol.data.model.PairingResponse
 import com.m57.hermescontrol.data.model.PairingRevokeRequest
@@ -12,6 +14,7 @@ import com.m57.hermescontrol.data.ws.ChangeEvents
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.refreshOnChange
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
+import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,6 +40,11 @@ class PairingViewModel :
     val uiState: StateFlow<PairingUiState> = _uiState.asStateFlow()
 
     private var launchJob: Job? = null
+    private val pairingCache = SwrCache<String, PairingResponse>()
+
+    fun clearScopeOwnedState() {
+        _uiState.update { it.copy(isLoading = false, pairing = null, errorMessage = null, actionKey = null) }
+    }
 
     init {
         // Issue #784: gateway broadcasts pairing.changed — refresh silently
@@ -44,14 +52,23 @@ class PairingViewModel :
         refreshOnChange(
             eventType = ChangeEvents.PAIRING,
             apiCall = { safeApiCall { ApiClient.hermesApi.getPairing() } },
-            onSuccess = { data -> _uiState.update { it.copy(pairing = data) } },
+            onSuccess = { data ->
+                val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+                if (requestScope != null) pairingCache.put(requestScope.inMemoryKey("default"), data)
+                _uiState.update { it.copy(pairing = data) }
+            },
         )
     }
 
-    fun loadPairing() {
+    fun loadPairing(forceRefresh: Boolean = false) {
         launchJob =
-            safeLaunchLoad(
+            safeLaunchSwrLoad(
+                cache = pairingCache,
+                forceRefresh = forceRefresh,
                 currentJob = launchJob,
+                onCacheHit = { cached ->
+                    _uiState.update { it.copy(isLoading = false, pairing = cached, errorMessage = null) }
+                },
                 apiCall = { safeApiCall { ApiClient.hermesApi.getPairing() } },
                 onStart = {
                     _uiState.update { it.copy(isLoading = true, errorMessage = null) }
@@ -127,7 +144,7 @@ class PairingViewModel :
             when (result) {
                 is NetworkResult.Success -> {
                     _uiState.update { onSuccess(it.copy(actionKey = null)) }
-                    loadPairing()
+                    loadPairing(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {

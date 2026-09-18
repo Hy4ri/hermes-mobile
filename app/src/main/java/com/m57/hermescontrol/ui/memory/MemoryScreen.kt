@@ -112,7 +112,7 @@ fun MemoryScreen(
         title = { Text(stringResource(R.string.screen_memory)) },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
-        onRefresh = { viewModel.load() },
+        onRefresh = { viewModel.load(forceRefresh = true) },
         modifier = modifier,
     ) { paddingValues ->
         when {

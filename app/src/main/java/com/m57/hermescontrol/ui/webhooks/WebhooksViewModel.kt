@@ -2,15 +2,18 @@ package com.m57.hermescontrol.ui.webhooks
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.CreateWebhookRequest
 import com.m57.hermescontrol.data.model.WebhookSubscription
 import com.m57.hermescontrol.data.model.WebhookToggleSubscriptionRequest
+import com.m57.hermescontrol.data.model.WebhooksResponse
 import com.m57.hermescontrol.data.model.WebhooksToggleRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
+import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -48,8 +51,37 @@ class WebhooksViewModel :
     private val _uiState = MutableStateFlow(WebhooksUiState())
     val uiState: StateFlow<WebhooksUiState> = _uiState.asStateFlow()
 
-    fun loadWebhooks() {
-        safeLaunchLoad(
+    private val webhooksCache = SwrCache<String, WebhooksResponse>()
+
+    fun clearScopeOwnedState() {
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                enabled = false,
+                baseUrl = null,
+                subscriptions = emptyList(),
+                errorMessage = null,
+                deleteTarget = null,
+                togglingName = null,
+            )
+        }
+    }
+
+    fun loadWebhooks(forceRefresh: Boolean = false) {
+        safeLaunchSwrLoad(
+            cache = webhooksCache,
+            forceRefresh = forceRefresh,
+            onCacheHit = { data ->
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        enabled = data.enabled,
+                        baseUrl = data.base_url,
+                        subscriptions = data.subscriptions.orEmpty(),
+                        errorMessage = null,
+                    )
+                }
+            },
             apiCall = { safeApiCall { ApiClient.hermesApi.getWebhooks() } },
             onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
             onSuccess = { data ->
@@ -90,7 +122,7 @@ class WebhooksViewModel :
                             toastMessage = "Webhooks global status ${if (targetEnabled) "enabled" else "disabled"}",
                         )
                     }
-                    loadWebhooks()
+                    loadWebhooks(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -185,7 +217,7 @@ class WebhooksViewModel :
                             toastMessage = "Subscription \"$name\" created",
                         )
                     }
-                    loadWebhooks()
+                    loadWebhooks(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -226,7 +258,7 @@ class WebhooksViewModel :
                             toastMessage = "Subscription \"$name\" ${if (enabled) "enabled" else "disabled"}",
                         )
                     }
-                    loadWebhooks()
+                    loadWebhooks(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -263,7 +295,7 @@ class WebhooksViewModel :
                     _uiState.update {
                         it.copy(toastMessage = "Subscription \"${target.name}\" deleted")
                     }
-                    loadWebhooks()
+                    loadWebhooks(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {

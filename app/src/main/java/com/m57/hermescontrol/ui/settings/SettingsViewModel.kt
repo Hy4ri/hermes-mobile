@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.config.ConnectionProfile
 import com.m57.hermescontrol.data.config.resolveBaseUrl
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.SessionListCacheStore
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.CleartextPolicy
 import com.m57.hermescontrol.data.remote.NetworkResult
@@ -365,6 +366,7 @@ class SettingsViewModel(
         AuthManager.setSessionCookie(null)
         AuthManager.setWsAuthParam("token")
         AuthManager.clearLastOpenedSessionId()
+        SessionListCacheStore.clear()
         HermesWsClient.disconnect(clearPendingMessages = true)
         // Don't rebuild ApiClient here — let the navigation complete first
     }

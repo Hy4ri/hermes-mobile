@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.data.remote
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -132,6 +133,8 @@ suspend inline fun <reified T> safeApiCall(
             }
             val backoff = jitteredBackoff(500L * (1 shl attempt))
             delay(backoff)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             return NetworkResult.Failure(
                 NetworkError.Unknown(

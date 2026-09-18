@@ -1,12 +1,16 @@
 package com.m57.hermescontrol.ui.achievements
 
 import androidx.lifecycle.ViewModel
+import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.Achievement
+import com.m57.hermescontrol.data.model.AchievementsResponse
 import com.m57.hermescontrol.data.model.RecentUnlock
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
+import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -46,9 +50,53 @@ class AchievementsViewModel :
     val uiState: StateFlow<AchievementsUiState> = _uiState.asStateFlow()
 
     private val api get() = ApiClient.hermesApi
+    private val achievementsCache = SwrCache<String, AchievementsResponse>()
 
-    fun loadAchievements() {
-        safeLaunchLoad(
+    fun clearScopeOwnedState() {
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                achievements = emptyList(),
+                unlockedCount = 0,
+                discoveredCount = 0,
+                secretCount = 0,
+                totalCount = 0,
+                categories = emptyList(),
+                recentUnlocks = emptyList(),
+                errorMessage = null,
+            )
+        }
+    }
+
+    fun loadAchievements(forceRefresh: Boolean = false) {
+        safeLaunchSwrLoad(
+            cache = achievementsCache,
+            forceRefresh = forceRefresh,
+            onCacheHit = { data ->
+                val categories =
+                    data.achievements
+                        ?.mapNotNull { it.category }
+                        ?.distinct()
+                        ?.sorted() ?: emptyList()
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        achievements = data.achievements.orEmpty(),
+                        unlockedCount = data.unlockedCount,
+                        discoveredCount = data.discoveredCount,
+                        secretCount = data.secretCount,
+                        totalCount = data.totalCount,
+                        isStale = data.isStale,
+                        generatedAt = data.generatedAt,
+                        scanState = data.scanMeta?.status?.state ?: "idle",
+                        scanLastError = data.scanMeta?.status?.lastError,
+                        scanLastDurationMs = data.scanMeta?.status?.lastDurationMs,
+                        scanRunCount = data.scanMeta?.status?.runCount ?: 0,
+                        categories = categories,
+                        errorMessage = null,
+                    )
+                }
+            },
             apiCall = { safeApiCall { api.getAchievements() } },
             onStart = {
                 _uiState.update { it.copy(isLoading = true, errorMessage = null) }
@@ -100,6 +148,7 @@ class AchievementsViewModel :
     }
 
     fun rescan() {
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
         safeLaunchLoad(
             apiCall = { safeApiCall { api.rescanAchievements() } },
             onStart = {
@@ -111,6 +160,12 @@ class AchievementsViewModel :
                         ?.mapNotNull { it.category }
                         ?.distinct()
                         ?.sorted() ?: emptyList()
+                // A successful rescan is a mutation: publish the fresh payload into the
+                // scoped cache, otherwise the next SWR revisit replays the pre-rescan list.
+                val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+                if (requestScope != null && currentScope == requestScope) {
+                    achievementsCache.put(requestScope.scopedKey("default"), data)
+                }
                 _uiState.update {
                     it.copy(
                         isRescanning = false,
@@ -155,7 +210,7 @@ class AchievementsViewModel :
                         toastMessage = "Achievement state reset",
                     )
                 }
-                loadAchievements()
+                loadAchievements(forceRefresh = true)
             },
             onError = { errorMsg ->
                 _uiState.update {

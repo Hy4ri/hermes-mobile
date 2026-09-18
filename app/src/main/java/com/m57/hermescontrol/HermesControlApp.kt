@@ -10,6 +10,7 @@ import coil3.gif.GifDecoder
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.SessionListCacheStore
 import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.update.UpdateNoticeManager
@@ -29,6 +30,7 @@ class HermesControlApp :
         super.onCreate()
         AuthManager.init(this)
         NetworkMonitor.init(this)
+        SessionListCacheStore.init(this)
         appScope.launch {
             AuthManager.initializationState.first { it == AuthManager.InitializationState.Ready }
             // Issue #537 follow-up (A): preload analytics in the background after launch

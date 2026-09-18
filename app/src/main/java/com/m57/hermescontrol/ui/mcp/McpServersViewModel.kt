@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.mcp
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.AddMcpServerRequest
 import com.m57.hermescontrol.data.model.McpCatalogEntry
 import com.m57.hermescontrol.data.model.McpCatalogInstallRequest
@@ -9,11 +10,13 @@ import com.m57.hermescontrol.data.model.McpOAuthFlowResponse
 import com.m57.hermescontrol.data.model.McpServer
 import com.m57.hermescontrol.data.model.McpServerTestResponse
 import com.m57.hermescontrol.data.model.McpServerToggleRequest
+import com.m57.hermescontrol.data.model.McpServersResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
+import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -69,10 +72,39 @@ class McpServersViewModel :
     private val _uiState = MutableStateFlow(McpServersUiState())
     val uiState: StateFlow<McpServersUiState> = _uiState.asStateFlow()
 
+    private val mcpCache = SwrCache<String, McpServersResponse>()
+
+    fun clearScopeOwnedState() {
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                servers = emptyList(),
+                serverTestResults = emptyMap(),
+                testingServers = emptySet(),
+                isTestingAll = false,
+                errorMessage = null,
+                activeOAuthFlow = null,
+            )
+        }
+    }
+
     // ── Data loading ──────────────────────────────────────────
 
-    fun loadServers() {
-        safeLaunchLoad(
+    fun loadServers(forceRefresh: Boolean = false) {
+        safeLaunchSwrLoad(
+            cache = mcpCache,
+            forceRefresh = forceRefresh,
+            onCacheHit = { data ->
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        servers = data.servers.orEmpty(),
+                        serverTestResults = emptyMap(),
+                        testingServers = emptySet(),
+                        errorMessage = null,
+                    )
+                }
+            },
             apiCall = { safeApiCall { ApiClient.hermesApi.getMcpServers() } },
             onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
             onSuccess = { data ->
@@ -247,7 +279,7 @@ class McpServersViewModel :
             when (result) {
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(toastMessage = "Server '$name' deleted") }
-                    loadServers()
+                    loadServers(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -305,7 +337,9 @@ class McpServersViewModel :
                     toastMessage = msg,
                 )
             }
-            loadServers()
+            if (successCount > 0) {
+                loadServers(forceRefresh = true)
+            }
         }
     }
 
@@ -371,7 +405,7 @@ class McpServersViewModel :
                             toastMessage = "Server '${request.name}' added",
                         )
                     }
-                    loadServers()
+                    loadServers(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -428,7 +462,7 @@ class McpServersViewModel :
                             toastMessage = "Env var '$key' added",
                         )
                     }
-                    loadServers()
+                    loadServers(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -453,7 +487,7 @@ class McpServersViewModel :
             when (result) {
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(toastMessage = "Env var '$key' removed") }
-                    loadServers()
+                    loadServers(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -520,7 +554,7 @@ class McpServersViewModel :
                             toastMessage = "Catalog entry '${entry.name}' installed",
                         )
                     }
-                    loadServers()
+                    loadServers(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -605,7 +639,7 @@ class McpServersViewModel :
                                             toastMessage = "OAuth authorization successful!",
                                         )
                                     }
-                                    loadServers()
+                                    loadServers(forceRefresh = true)
                                 }
 
                                 "error" -> {

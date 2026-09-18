@@ -3,15 +3,18 @@ package com.m57.hermescontrol.ui.files
 import android.util.Base64
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.ManagedDirectoryCreate
 import com.m57.hermescontrol.data.model.ManagedFileActionResponse
 import com.m57.hermescontrol.data.model.ManagedFileDelete
 import com.m57.hermescontrol.data.model.ManagedFileEntry
+import com.m57.hermescontrol.data.model.ManagedFilesListResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
+import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -76,8 +79,52 @@ class FilesViewModel :
     private val _uiState = MutableStateFlow(FilesUiState())
     val uiState: StateFlow<FilesUiState> = _uiState.asStateFlow()
 
-    fun load(path: String? = null) {
-        safeLaunchLoad(
+    private val filesCache = SwrCache<String, ManagedFilesListResponse>()
+
+    /**
+     * Reset state owned by the previous server/profile context (issue: PR #1192 cache scoping).
+     * The current directory path belongs to the old server and must not leak into the new one.
+     */
+    fun clearScopeOwnedState() {
+        _uiState.update {
+            it.copy(
+                currentPath = "",
+                parentPath = null,
+                crumbs = emptyList(),
+                entries = emptyList(),
+                isLoading = false,
+                errorMessage = null,
+                busyPaths = emptySet(),
+                isCreatingDir = false,
+                newDirName = "",
+                isUploading = false,
+                deleteTarget = null,
+                openingPath = null,
+            )
+        }
+    }
+
+    fun load(
+        path: String? = null,
+        forceRefresh: Boolean = false,
+    ) {
+        val cacheKey = path ?: ""
+        safeLaunchSwrLoad(
+            cache = filesCache,
+            cacheKey = cacheKey,
+            forceRefresh = forceRefresh,
+            onCacheHit = { data ->
+                _uiState.update { state ->
+                    state.copy(
+                        isLoading = false,
+                        currentPath = data.path,
+                        parentPath = data.parent,
+                        crumbs = buildCrumbs(data.path),
+                        entries = data.entries,
+                        errorMessage = null,
+                    )
+                }
+            },
             apiCall = {
                 safeApiCall { ApiClient.hermesApi.listManagedFiles(path) }
             },
@@ -104,7 +151,7 @@ class FilesViewModel :
         )
     }
 
-    fun refresh() = load(_uiState.value.currentPath.ifBlank { null })
+    fun refresh() = load(_uiState.value.currentPath.ifBlank { null }, forceRefresh = true)
 
     fun navigateTo(entry: ManagedFileEntry) {
         if (!entry.isDirectory) return

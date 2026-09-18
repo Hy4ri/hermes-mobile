@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -32,6 +33,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -98,15 +100,15 @@ fun ModelScreen(
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_models)) },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
-        isRefreshing = state.isLoading,
+        isRefreshing = state.isLoading || state.catalogLoading,
         onRefresh = { viewModel.loadAll(refresh = true) },
     ) { paddingValues ->
         when {
-            state.isLoading && state.providers.isEmpty() -> {
+            state.isLoading && state.mainModelProvider.isEmpty() && state.providers.isEmpty() -> {
                 SkeletonListState(modifier = Modifier.padding(paddingValues))
             }
 
-            state.errorMessage != null -> {
+            state.errorMessage != null && state.providers.isEmpty() && state.mainModelProvider.isEmpty() -> {
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.loadAll() },
@@ -114,7 +116,10 @@ fun ModelScreen(
                 )
             }
 
-            state.providers.isEmpty() -> {
+            !state.isLoading &&
+                !state.catalogLoading &&
+                state.providers.isEmpty() &&
+                state.mainModelProvider.isEmpty() -> {
                 EmptyState(
                     title = stringResource(R.string.model_empty_title),
                     subtitle = stringResource(R.string.model_empty_desc),
@@ -191,24 +196,38 @@ fun ModelScreen(
                     }
 
                     // ── Provider List ──
-                    items(filteredProviders, key = { it.slug }) { provider ->
-                        val isExpanded = expandedProviderSlug == provider.slug
-                        val isCurrent = provider.is_current == true
+                    if (state.catalogLoading && state.providers.isEmpty()) {
+                        item {
+                            Box(
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 32.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                CircularProgressIndicator()
+                            }
+                        }
+                    } else {
+                        items(filteredProviders, key = { it.slug }) { provider ->
+                            val isExpanded = expandedProviderSlug == provider.slug
+                            val isCurrent = provider.is_current == true
 
-                        ProviderCard(
-                            provider = provider,
-                            isExpanded = isExpanded,
-                            isCurrent = isCurrent,
-                            query = query,
-                            activeProfile = state.activeProfile,
-                            pinnedModels = state.pinnedModels,
-                            onToggleExpand = {
-                                expandedProviderSlug = if (isExpanded) null else provider.slug
-                            },
-                            onModelClick = { slug, model -> viewModel.selectModel(slug, model) },
-                            onPin = { slug, model -> viewModel.pinModel(slug, model) },
-                            onUnpin = { slug, model -> viewModel.unpinModel(slug, model) },
-                        )
+                            ProviderCard(
+                                provider = provider,
+                                isExpanded = isExpanded,
+                                isCurrent = isCurrent,
+                                query = query,
+                                activeProfile = state.activeProfile,
+                                pinnedModels = state.pinnedModels,
+                                onToggleExpand = {
+                                    expandedProviderSlug = if (isExpanded) null else provider.slug
+                                },
+                                onModelClick = { slug, model -> viewModel.selectModel(slug, model) },
+                                onPin = { slug, model -> viewModel.pinModel(slug, model) },
+                                onUnpin = { slug, model -> viewModel.unpinModel(slug, model) },
+                            )
+                        }
                     }
                 }
             }
@@ -241,7 +260,7 @@ fun ModelScreen(
         ModelPickerDialog(
             providers = state.providers,
             title = stringResource(R.string.model_set_main),
-            isLoading = state.isLoading && state.providers.isEmpty(),
+            isLoading = (state.isLoading || state.catalogLoading) && state.providers.isEmpty(),
             pinnedModels = state.pinnedModels,
             onPinToggle = { provider, model -> viewModel.togglePinModel(provider, model) },
             onSelect = { provider, model ->
@@ -267,7 +286,7 @@ fun ModelScreen(
         ModelPickerDialog(
             providers = state.providers,
             title = stringResource(R.string.model_set_aux, state.auxPickerTask),
-            isLoading = state.isLoading && state.providers.isEmpty(),
+            isLoading = (state.isLoading || state.catalogLoading) && state.providers.isEmpty(),
             pinnedModels = state.pinnedModels,
             onPinToggle = { provider, model -> viewModel.togglePinModel(provider, model) },
             onSelect = { provider, model ->

@@ -2,8 +2,10 @@ package com.m57.hermescontrol.ui.providers
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.OAuthPollResponse
 import com.m57.hermescontrol.data.model.OAuthProvider
+import com.m57.hermescontrol.data.model.OAuthProvidersResponse
 import com.m57.hermescontrol.data.model.OAuthStartResponse
 import com.m57.hermescontrol.data.model.OAuthSubmitRequest
 import com.m57.hermescontrol.data.remote.ApiClient
@@ -12,6 +14,7 @@ import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
+import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -66,9 +69,35 @@ class ProvidersViewModel :
     val uiState: StateFlow<ProvidersUiState> = _uiState.asStateFlow()
 
     private var pollJob: Job? = null
+    private val providersCache = SwrCache<String, OAuthProvidersResponse>()
 
-    fun load() {
-        safeLaunchLoad(
+    fun clearScopeOwnedState() {
+        pollJob?.cancel()
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                providers = emptyList(),
+                errorMessage = null,
+                flowPhase = OAuthFlowPhase.IDLE,
+                flowProvider = null,
+                flowErrorMessage = null,
+            )
+        }
+    }
+
+    fun load(forceRefresh: Boolean = false) {
+        safeLaunchSwrLoad(
+            cache = providersCache,
+            forceRefresh = forceRefresh,
+            onCacheHit = { data ->
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        providers = data.providers.orEmpty(),
+                        errorMessage = null,
+                    )
+                }
+            },
             apiCall = { safeApiCall { ApiClient.hermesApi.getOAuthProviders() } },
             onStart = {
                 _uiState.update { it.copy(isLoading = true, errorMessage = null) }
@@ -105,7 +134,7 @@ class ProvidersViewModel :
                         toastMessage = "Disconnected",
                     )
                 }
-                load()
+                load(forceRefresh = true)
             },
             onError = { error ->
                 _uiState.update {
@@ -301,7 +330,7 @@ class ProvidersViewModel :
 
     private fun finishFlow(status: String) {
         pollJob?.cancel()
-        load()
+        load(forceRefresh = true)
         // Stay on DONE so the dialog can show a success confirmation; the Screen's
         // Done button calls dismissFlow() to reset to IDLE. (Setting IDLE here would
         // conflate with DONE via StateFlow and unmount the dialog before the user sees it.)

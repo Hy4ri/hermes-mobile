@@ -13,6 +13,7 @@ import com.m57.hermescontrol.data.model.CreateTaskBody
 import com.m57.hermescontrol.data.model.ExportBoardBody
 import com.m57.hermescontrol.data.model.ImportBoardBody
 import com.m57.hermescontrol.data.model.KanbanBoard
+import com.m57.hermescontrol.data.model.KanbanBoardResponse
 import com.m57.hermescontrol.data.model.KanbanColumn
 import com.m57.hermescontrol.data.model.KanbanProfile
 import com.m57.hermescontrol.data.model.KanbanProject
@@ -32,7 +33,10 @@ import com.m57.hermescontrol.data.repository.KanbanRepositoryImpl
 import com.m57.hermescontrol.data.ws.KanbanEventsClient
 import com.m57.hermescontrol.data.ws.KanbanLiveStatus
 import com.m57.hermescontrol.ui.common.ToastHost
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -168,34 +172,71 @@ class KanbanViewModel(
         val savedSlug = preferences.getSelectedBoard(endpoint)
         val previouslySelectedId = _uiState.value.selectedBoard?.id ?: savedSlug
 
-        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        val hasExistingContent = _uiState.value.columns.isNotEmpty() || _uiState.value.tasks.isNotEmpty()
+        if (!hasExistingContent) {
+            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        }
         loadProfiles()
         loadProjects()
         loadOrchestration()
         loadModelOptions()
         viewModelScope.launch {
-            when (val result = repository.getBoards(includeArchived = false)) {
-                is NetworkResult.Success -> {
-                    val boards = result.data.boards
-                    _uiState.update { it.copy(isLoading = false, boards = boards) }
-                    val targetBoard =
-                        boards.find { it.id == previouslySelectedId }
-                            ?: boards.find { it.id == result.data.current }
-                            ?: boards.find { it.id.equals("default", ignoreCase = true) }
-                            ?: boards.firstOrNull()
-                    if (targetBoard != null) {
-                        selectBoard(targetBoard)
+            coroutineScope {
+                val prefetchedBoardDeferred =
+                    if (previouslySelectedId != null) {
+                        async(Dispatchers.IO) {
+                            repository.getBoard(
+                                board = previouslySelectedId,
+                                includeArchived = _uiState.value.includeArchived,
+                            )
+                        }
                     } else {
-                        _uiState.update { it.copy(selectedBoard = null, columns = emptyList(), tasks = emptyList()) }
+                        null
                     }
-                }
 
-                is NetworkResult.Failure -> {
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            errorMessage = "Failed to load Kanban boards: ${result.error.message}",
-                        )
+                when (val result = repository.getBoards(includeArchived = false)) {
+                    is NetworkResult.Success -> {
+                        val boards = result.data.boards
+                        val targetBoard =
+                            boards.find { it.id == previouslySelectedId }
+                                ?: boards.find { it.id == result.data.current }
+                                ?: boards.find { it.id.equals("default", ignoreCase = true) }
+                                ?: boards.firstOrNull()
+
+                        _uiState.update { it.copy(boards = boards) }
+
+                        if (targetBoard != null) {
+                            if (prefetchedBoardDeferred != null && targetBoard.id == previouslySelectedId) {
+                                preferences.setSelectedBoard(endpoint, targetBoard.id)
+                                val gen = ++currentLoadGen
+                                _uiState.update { it.copy(selectedBoard = targetBoard) }
+                                val prefetchedResult = prefetchedBoardDeferred.await()
+                                applyBoardResult(targetBoard, prefetchedResult, gen)
+                                connectEvents(targetBoard)
+                            } else {
+                                selectBoard(targetBoard)
+                            }
+                        } else {
+                            _uiState.update {
+                                it.copy(
+                                    isLoading = false,
+                                    selectedBoard = null,
+                                    columns = emptyList(),
+                                    tasks = emptyList(),
+                                )
+                            }
+                        }
+                    }
+
+                    is NetworkResult.Failure -> {
+                        if (!hasExistingContent) {
+                            _uiState.update {
+                                it.copy(
+                                    isLoading = false,
+                                    errorMessage = "Failed to load Kanban boards: ${result.error.message}",
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -906,15 +947,11 @@ class KanbanViewModel(
         }
     }
 
-    private suspend fun loadBoardIntoState(
+    private fun applyBoardResult(
         board: KanbanBoard,
-        gen: Int = currentLoadGen,
+        result: NetworkResult<KanbanBoardResponse>,
+        gen: Int,
     ) {
-        val result =
-            repository.getBoard(
-                board = board.id,
-                includeArchived = _uiState.value.includeArchived,
-            )
         if (gen != currentLoadGen) return
         when (result) {
             is NetworkResult.Success -> {
@@ -928,6 +965,7 @@ class KanbanViewModel(
                             isLoading = false,
                             columns = body.columns,
                             tasks = allTasks,
+                            errorMessage = null,
                         )
                     }
                 }
@@ -946,6 +984,18 @@ class KanbanViewModel(
                 }
             }
         }
+    }
+
+    private suspend fun loadBoardIntoState(
+        board: KanbanBoard,
+        gen: Int = currentLoadGen,
+    ) {
+        val result =
+            repository.getBoard(
+                board = board.id,
+                includeArchived = _uiState.value.includeArchived,
+            )
+        applyBoardResult(board, result, gen)
     }
 
     fun showToast(message: String) {

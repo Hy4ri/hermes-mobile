@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.OAuthProvider
 import com.m57.hermescontrol.data.model.OAuthStartResponse
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
@@ -65,9 +66,13 @@ fun ProvidersScreen(
     viewModel: ProvidersViewModel = viewModel { ProvidersViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val dataScope by AuthManager.dataScopeFlow.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
-    LaunchedEffect(Unit) { viewModel.load() }
+    LaunchedEffect(dataScope) {
+        viewModel.clearScopeOwnedState()
+        viewModel.load()
+    }
 
     ToastEffect(toastMessage = state.toastMessage, onClearToast = viewModel::clearToast)
 
@@ -98,7 +103,7 @@ fun ProvidersScreen(
         title = { Text(stringResource(R.string.screen_providers)) },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
-        onRefresh = { viewModel.load() },
+        onRefresh = { viewModel.load(forceRefresh = true) },
     ) { paddingValues ->
         when {
             state.isLoading && state.providers.isEmpty() -> {

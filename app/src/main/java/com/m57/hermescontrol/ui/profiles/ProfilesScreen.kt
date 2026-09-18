@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
@@ -83,6 +84,7 @@ fun ProfilesScreen(
     viewModel: ProfilesViewModel = viewModel { ProfilesViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val dataScope by AuthManager.dataScopeFlow.collectAsStateWithLifecycle()
 
     var soulEditProfileName by remember { mutableStateOf<String?>(null) }
     var modelEditProfileName by remember { mutableStateOf<String?>(null) }
@@ -106,7 +108,8 @@ fun ProfilesScreen(
 
     var isBuildingProfile by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(dataScope) {
+        viewModel.clearScopeOwnedState()
         viewModel.loadProfiles()
     }
 
@@ -133,7 +136,7 @@ fun ProfilesScreen(
             if (isBuildingProfile) {
                 null
             } else {
-                { viewModel.loadProfiles() }
+                { viewModel.loadProfiles(forceRefresh = true) }
             },
         actions = {
             if (!isBuildingProfile) {

@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,6 +28,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Error
@@ -43,6 +45,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -57,6 +60,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -65,13 +69,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.theme.CodeTerminalBg
+import com.m57.hermescontrol.theme.CodeTerminalBorder
+import com.m57.hermescontrol.theme.CodeTerminalMuted
+import com.m57.hermescontrol.theme.CodeTerminalText
 import com.m57.hermescontrol.theme.HermesStatusColors
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.chat.components.DiffViewCard
+import com.m57.hermescontrol.ui.chat.components.highlightSyntax
+import com.m57.hermescontrol.ui.chat.tool.ToolJson
 import com.m57.hermescontrol.ui.chat.tool.ToolView
 import com.m57.hermescontrol.ui.chat.tool.ToolViewBuilder
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Composes the collapsed summary lines for a tool card.
@@ -237,34 +249,7 @@ internal fun ToolBubble(
                     Spacer(modifier = Modifier.height(6.dp))
 
                     if (showRawJson) {
-                        // Raw JSON view — selectable + copy button
-                        Box {
-                            SelectionContainer {
-                                Text(
-                                    text = message.content,
-                                    modifier =
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .heightIn(max = 240.dp)
-                                            .verticalScroll(rememberScrollState()),
-                                    style =
-                                        MaterialTheme.typography.bodySmall.copy(
-                                            color = contentColor.copy(alpha = 0.8f),
-                                            fontFamily = FontFamily.Monospace,
-                                            fontSize = 11.sp,
-                                        ),
-                                )
-                            }
-                            CopyButton(
-                                visible = showCopyButton,
-                                textToCopy = message.content,
-                                onCopy = { showCopyButton = false },
-                                modifier =
-                                    Modifier
-                                        .align(Alignment.TopEnd)
-                                        .offset(x = 8.dp, y = (-8).dp),
-                            )
-                        }
+                        ToolRawJsonView(rawContent = message.content)
 
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
@@ -310,34 +295,8 @@ internal fun ToolBubble(
                                     .clickable(role = Role.Button) { showRawJson = true },
                         )
                     } else {
-                        // Unparseable content — show raw JSON, selectable
-                        Box {
-                            SelectionContainer {
-                                Text(
-                                    text = message.content,
-                                    modifier =
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .heightIn(max = 240.dp)
-                                            .verticalScroll(rememberScrollState()),
-                                    style =
-                                        MaterialTheme.typography.bodySmall.copy(
-                                            color = contentColor.copy(alpha = 0.8f),
-                                            fontFamily = FontFamily.Monospace,
-                                            fontSize = 11.sp,
-                                        ),
-                                )
-                            }
-                            CopyButton(
-                                visible = showCopyButton,
-                                textToCopy = message.content,
-                                onCopy = { showCopyButton = false },
-                                modifier =
-                                    Modifier
-                                        .align(Alignment.TopEnd)
-                                        .offset(x = 8.dp, y = (-8).dp),
-                            )
-                        }
+                        // Unparseable content — show raw JSON
+                        ToolRawJsonView(rawContent = message.content)
                     }
                 }
 
@@ -646,6 +605,123 @@ internal fun SecurityRiskChip(
                 style = MaterialTheme.typography.labelSmall,
                 color = chipColor.copy(alpha = 0.7f),
             )
+        }
+    }
+}
+
+@Composable
+private fun ToolRawJsonView(
+    rawContent: String,
+    modifier: Modifier = Modifier,
+) {
+    var formatJson by remember { mutableStateOf(true) }
+    val formattedContent = remember(rawContent) { ToolJson.prettyPrintJson(rawContent) }
+    val isFormatDifferent = formattedContent != rawContent
+    val displayText = if (formatJson && isFormatDifferent) formattedContent else rawContent
+
+    val highlighted by produceState(
+        initialValue = remember(displayText) { AnnotatedString(displayText) },
+        key1 = displayText,
+    ) {
+        value =
+            withContext(Dispatchers.Default) {
+                highlightSyntax(displayText)
+            }
+    }
+
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
+    var copied by remember { mutableStateOf(false) }
+    LaunchedEffect(copied) {
+        if (copied) {
+            delay(2000)
+            copied = false
+        }
+    }
+
+    Surface(
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .testTag("tool_raw_json"),
+        shape = RoundedCornerShape(8.dp),
+        color = CodeTerminalBg,
+        border = BorderStroke(1.dp, CodeTerminalBorder),
+    ) {
+        Column {
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "JSON",
+                    style =
+                        MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = CodeTerminalMuted,
+                        ),
+                )
+                Spacer(Modifier.weight(1f))
+                if (isFormatDifferent) {
+                    Text(
+                        text =
+                            if (formatJson) {
+                                stringResource(R.string.chat_tool_compact_json)
+                            } else {
+                                stringResource(R.string.chat_tool_format_json)
+                            },
+                        style =
+                            MaterialTheme.typography.labelSmall.copy(
+                                color = MaterialTheme.colorScheme.primary,
+                                textDecoration = TextDecoration.Underline,
+                            ),
+                        modifier =
+                            Modifier
+                                .testTag("tool_json_format_toggle")
+                                .clickable(role = Role.Button) { formatJson = !formatJson }
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
+                }
+                IconButton(
+                    onClick = {
+                        scope.launch {
+                            clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, displayText)))
+                        }
+                        copied = true
+                    },
+                    modifier = Modifier.size(28.dp),
+                ) {
+                    Icon(
+                        imageVector = if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
+                        contentDescription =
+                            if (copied) {
+                                stringResource(R.string.content_desc_copied)
+                            } else {
+                                stringResource(R.string.content_desc_copy)
+                            },
+                        tint = CodeTerminalMuted,
+                        modifier = Modifier.size(14.dp),
+                    )
+                }
+            }
+            SelectionContainer {
+                Text(
+                    text = highlighted,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 280.dp)
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    color = CodeTerminalText,
+                    softWrap = true,
+                )
+            }
         }
     }
 }

@@ -347,6 +347,7 @@ private val HIGHLIGHT_TOKENS =
     listOf(
         TokenPattern(Regex("""//[^\n]*"""), CodeComment),
         TokenPattern(Regex("""/\*[\s\S]*?\*/"""), CodeComment),
+        TokenPattern(Regex(""""[^"\\]*(\\.[^"\\]*)*"(?=\s*:)"""), CodeKeyword),
         TokenPattern(Regex(""""[^"\\]*(\\.[^"\\]*)*""""), CodeString),
         TokenPattern(Regex("""'[^'\\]*(\\.[^'\\]*)*'"""), CodeString),
         TokenPattern(Regex("""`[^`\\]*(\\.[^`\\]*)*`"""), CodeString),
@@ -363,7 +364,7 @@ private val HIGHLIGHT_TOKENS =
             ),
             CodeKeyword,
         ),
-        TokenPattern(Regex("""[{}()\[\];,.]"""), CodePunctuation),
+        TokenPattern(Regex("""[{}()\[\];:.]"""), CodePunctuation),
     )
 
 /**

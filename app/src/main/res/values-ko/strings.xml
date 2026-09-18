@@ -161,9 +161,12 @@
     <string name="chat_tool_fallback">도구</string>
     <string name="chat_tool_show_raw">Raw JSON 보기</string>
     <string name="chat_tool_show_parsed">파싱된 결과 보기</string>
+    <string name="chat_tool_format_json">JSON 포맷팅</string>
+    <string name="chat_tool_compact_json">JSON 압축</string>
     <string name="content_desc_new_chat">새 채팅</string>
     <string name="content_desc_scroll_to_bottom">맨 아래로</string>
     <string name="content_desc_copy">복사</string>
+    <string name="content_desc_copied">복사됨</string>
     <string name="content_desc_edit">편집</string>
     <string name="chat_msg_tokens">%1$s 토큰</string>
     <string name="chat_msg_tps">%1$s t/s</string>

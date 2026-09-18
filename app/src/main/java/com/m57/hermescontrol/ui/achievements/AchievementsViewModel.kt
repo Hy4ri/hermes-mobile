@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.ui.achievements
 
 import androidx.lifecycle.ViewModel
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.Achievement
 import com.m57.hermescontrol.data.model.AchievementsResponse
@@ -51,8 +52,23 @@ class AchievementsViewModel :
     private val api get() = ApiClient.hermesApi
     private val achievementsCache = SwrCache<String, AchievementsResponse>()
 
+    fun clearScopeOwnedState() {
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                achievements = emptyList(),
+                unlockedCount = 0,
+                discoveredCount = 0,
+                secretCount = 0,
+                totalCount = 0,
+                categories = emptyList(),
+                recentUnlocks = emptyList(),
+                errorMessage = null,
+            )
+        }
+    }
+
     fun loadAchievements(forceRefresh: Boolean = false) {
-        if (forceRefresh) achievementsCache.clear()
         safeLaunchSwrLoad(
             cache = achievementsCache,
             forceRefresh = forceRefresh,
@@ -132,6 +148,7 @@ class AchievementsViewModel :
     }
 
     fun rescan() {
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
         safeLaunchLoad(
             apiCall = { safeApiCall { api.rescanAchievements() } },
             onStart = {
@@ -143,6 +160,12 @@ class AchievementsViewModel :
                         ?.mapNotNull { it.category }
                         ?.distinct()
                         ?.sorted() ?: emptyList()
+                // A successful rescan is a mutation: publish the fresh payload into the
+                // scoped cache, otherwise the next SWR revisit replays the pre-rescan list.
+                val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+                if (requestScope != null && currentScope == requestScope) {
+                    achievementsCache.put(requestScope.scopedKey("default"), data)
+                }
                 _uiState.update {
                     it.copy(
                         isRescanning = false,

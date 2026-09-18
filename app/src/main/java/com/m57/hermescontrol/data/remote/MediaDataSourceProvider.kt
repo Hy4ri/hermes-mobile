@@ -17,9 +17,15 @@ object MediaDataSourceProvider {
     class SameOriginAuthInterceptor(
         private val baseUrlProvider: () -> String = { AuthManager.baseUrl() },
         private val tokenProvider: () -> String? = { AuthManager.getToken() },
+        private val isGatedModeProvider: () -> Boolean = { AuthManager.isGatedMode() },
     ) : Interceptor {
         override fun intercept(chain: Interceptor.Chain): Response {
             val request = chain.request()
+            // In gated mode (basic auth), the dashboard authenticates via session cookies;
+            // stamping an Authorization: Bearer header causes 401s (issue #470).
+            if (isGatedModeProvider()) {
+                return chain.proceed(request)
+            }
             val url = request.url
             val base = baseUrlProvider().toHttpUrlOrNull()
             val isSameOrigin =

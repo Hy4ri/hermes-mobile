@@ -107,6 +107,17 @@ class MediaViewerDeviceTest {
     fun videoPlaysPausesSeeksReplaysAndCloses() = checkPlayback("player-video.mp4", "video/mp4")
 
     @Test
+    fun saveButtonStreamsToDownloadsWithoutCrash() {
+        open("player-tone.wav", "audio/wav")
+        awaitTag("media_save_button")
+        compose.onNodeWithTag("media_save_button").assertIsDisplayed().performClick()
+        compose.waitUntil(15_000) {
+            compose.onAllNodesWithTag("media_save_button").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithTag("media_close_button").performClick()
+    }
+
+    @Test
     fun invalidSourceShowsRetryAndCanClose() {
         compose.setContent {
             HermesControlTheme {

@@ -3,6 +3,7 @@ package com.m57.hermescontrol.ui.sessions
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.BulkDeleteRequest
 import com.m57.hermescontrol.data.model.ProjectInfo
 import com.m57.hermescontrol.data.model.PruneRequest
@@ -10,6 +11,7 @@ import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.model.SessionLiveStatus
 import com.m57.hermescontrol.data.model.SessionRenameRequest
 import com.m57.hermescontrol.data.model.SessionSearchResult
+import com.m57.hermescontrol.data.model.SessionsResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
@@ -140,6 +142,7 @@ class SessionsViewModel(
     private var liveStatusRefreshPending = false
     private var generation: Long = 0
     private var rawPaginationOffset: Int = 0
+    private val sessionsPageCache = SwrCache<String, SessionsResponse>()
 
     init {
         // Issue #784: gateway broadcasts sessions.changed — refresh the list
@@ -283,9 +286,33 @@ class SessionsViewModel(
     }
 
     /** Load (or reload) sessions from page 0. Used by pull-to-refresh and initial load. */
-    fun loadSessions() {
+    fun loadSessions(forceRefresh: Boolean = false) {
         val requestGeneration = generation
         val section = _uiState.value.section
+        val cacheKey = "${section.name}:${section.source}:${section.excludeSources}"
+        if (forceRefresh) {
+            sessionsPageCache.remove(cacheKey)
+        }
+        val cached = sessionsPageCache.get(cacheKey)
+        if (cached != null) {
+            val sessionsList = cached.sessions.orEmpty()
+            val paging =
+                SessionsPaging.resolveInitialPaging(
+                    receivedCount = minOf(cached.sessions.size, PAGE_SIZE),
+                    pageSize = PAGE_SIZE,
+                    backendTotal = cached.total,
+                    accumulatedCount = sessionsList.size,
+                )
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    sessions = sessionsList,
+                    total = paging.total,
+                    hasMore = paging.hasMore,
+                    errorMessage = null,
+                )
+            }
+        }
         pageJob?.cancel()
         loadEmptyCount()
         if (trackingJob?.isActive == true) {
@@ -306,9 +333,14 @@ class SessionsViewModel(
                         )
                     }
                 },
-                onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
+                onStart = {
+                    if (cached == null) {
+                        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+                    }
+                },
                 onSuccess = { data ->
                     if (requestGeneration != generation) return@safeLaunchLoad
+                    sessionsPageCache.put(cacheKey, data)
                     rawPaginationOffset = data.nextOffset(0)
                     val sessionsList = data.sessions.orEmpty()
                     val paging =
@@ -332,12 +364,14 @@ class SessionsViewModel(
                 },
                 onError = { errorMsg ->
                     if (requestGeneration != generation) return@safeLaunchLoad
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            isLoadingMore = false,
-                            errorMessage = "Failed to load sessions: $errorMsg",
-                        )
+                    if (cached == null) {
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                isLoadingMore = false,
+                                errorMessage = "Failed to load sessions: $errorMsg",
+                            )
+                        }
                     }
                 },
             )

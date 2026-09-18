@@ -129,6 +129,20 @@ class E2eIntegrationTest {
 
     @After
     fun tearDown() {
+        // Restore the GLOBAL Dispatchers object BEFORE resetMain.
+        //
+        // setUp() stubs `Dispatchers.Main` to return the TestMainDispatcher captured
+        // at that moment. unmockkAll() alone -- and it ran AFTER resetMain -- left
+        // that stub live, so Dispatchers.Main kept handing back a TestMainDispatcher
+        // whose delegate had already been reset, and it THROWS on dispatch. Any
+        // later class in this JVM that resumes a continuation onto Main then died
+        // with DispatchException. That is precisely what broke
+        // ProfileSwitchCoordinatorTest (its _switched.tryEmit resumes collectors on
+        // Main) with 2x DispatchException + 2x "test body did not run to completion".
+        //
+        // Verified by repro: E2eIntegrationTest + ProfileSwitchCoordinatorTest
+        // together = 4 failures; ProfileSwitchCoordinatorTest alone = 5/5 pass.
+        unmockkStatic(Dispatchers::class)
         Dispatchers.resetMain()
         unmockkAll()
         NavigationController.backStack = null

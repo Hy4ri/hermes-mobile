@@ -50,31 +50,51 @@ class ConfigViewModel :
     val uiState: StateFlow<ConfigUiState> = _uiState.asStateFlow()
 
     private val pendingChanges = mutableMapOf<String, JsonElement>()
+    private var cachedSchema: ConfigSchemaResponse? = null
+    private var cachedDefaults: Map<String, JsonElement>? = null
 
     init {
         loadAll()
     }
 
-    fun loadAll() {
-        viewModelScope.launch {
+    fun loadAll(forceRefresh: Boolean = false) {
+        if (forceRefresh) {
+            cachedSchema = null
+            cachedDefaults = null
+        }
+        val hasCachedData = _uiState.value.values != null
+        if (!hasCachedData) {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        }
+        viewModelScope.launch {
             try {
                 coroutineScope {
                     val configDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getConfig() } }
-                    val schemaDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getConfigSchema() } }
+                    val schemaDeferred =
+                        if (cachedSchema == null) {
+                            async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getConfigSchema() } }
+                        } else {
+                            null
+                        }
                     val defaultsDeferred =
-                        async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getConfigDefaults() } }
+                        if (cachedDefaults == null) {
+                            async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getConfigDefaults() } }
+                        } else {
+                            null
+                        }
                     val rawDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getRawConfig() } }
 
                     val configResult = configDeferred.await()
-                    val schemaResult = schemaDeferred.await()
-                    val defaultsResult = defaultsDeferred.await()
+                    val schema =
+                        (schemaDeferred?.await() as? NetworkResult.Success)?.data?.also { cachedSchema = it }
+                            ?: cachedSchema
+                    val defaults =
+                        (defaultsDeferred?.await() as? NetworkResult.Success)?.data?.also { cachedDefaults = it }
+                            ?: cachedDefaults
                     val rawResult = rawDeferred.await()
 
                     if (configResult is NetworkResult.Success) {
                         val values = flattenConfig(configResult.data)
-                        val schema = (schemaResult as? NetworkResult.Success)?.data
-                        val defaults = (defaultsResult as? NetworkResult.Success)?.data
                         val path = (rawResult as? NetworkResult.Success)?.data?.path
 
                         _uiState.update {
@@ -90,14 +110,17 @@ class ConfigViewModel :
                                     ),
                                 path = path,
                                 activeCategory =
-                                    if (schema?.category_order?.isNotEmpty() == true) {
+                                    if (it.activeCategory.isNotBlank()) {
+                                        it.activeCategory
+                                    } else if (schema?.category_order?.isNotEmpty() == true) {
                                         schema.category_order.first()
                                     } else {
                                         ""
                                     },
+                                errorMessage = null,
                             )
                         }
-                    } else {
+                    } else if (!hasCachedData) {
                         val errorMsg = (configResult as? NetworkResult.Failure)?.error?.message ?: "Unknown error"
                         _uiState.update {
                             it.copy(isLoading = false, errorMessage = "Failed to load config: $errorMsg")
@@ -105,8 +128,10 @@ class ConfigViewModel :
                     }
                 }
             } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(isLoading = false, errorMessage = "Failed to load config: ${e.message}")
+                if (!hasCachedData) {
+                    _uiState.update {
+                        it.copy(isLoading = false, errorMessage = "Failed to load config: ${e.message}")
+                    }
                 }
             }
         }

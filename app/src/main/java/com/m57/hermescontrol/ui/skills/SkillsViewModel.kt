@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.HubSkill
 import com.m57.hermescontrol.data.model.SaveSkillContentRequest
 import com.m57.hermescontrol.data.model.Skill
@@ -17,6 +18,7 @@ import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
+import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -93,11 +95,17 @@ class SkillsViewModel(
 
     private var loadJob: Job? = null
     private var searchJob: Job? = null
+    private val skillsCache = SwrCache<String, List<Skill>>()
 
-    fun loadSkills() {
+    fun loadSkills(forceRefresh: Boolean = false) {
+        if (forceRefresh) skillsCache.clear()
         loadJob =
-            safeLaunchLoad(
+            safeLaunchSwrLoad(
+                cache = skillsCache,
                 currentJob = loadJob,
+                onCacheHit = { cached ->
+                    _uiState.update { it.copy(isLoading = false, skills = cached, errorMessage = null) }
+                },
                 apiCall = { safeApiCall { ApiClient.hermesApi.getSkills() } },
                 onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
                 onSuccess = { data ->

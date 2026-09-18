@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.cron
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.CreateCronJobRequest
 import com.m57.hermescontrol.data.model.CronBlueprint
 import com.m57.hermescontrol.data.model.CronJob
@@ -16,6 +17,7 @@ import com.m57.hermescontrol.data.ws.toJsonElement
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.refreshOnChange
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
+import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -95,6 +97,7 @@ class CronJobsViewModel :
     val uiState: StateFlow<CronJobsUiState> = _uiState.asStateFlow()
 
     private var loadJob: Job? = null
+    private val jobsCache = SwrCache<String, List<CronJob>>()
 
     init {
         // Issue #784: gateway broadcasts cron.changed — refresh the list
@@ -102,14 +105,23 @@ class CronJobsViewModel :
         refreshOnChange(
             eventType = ChangeEvents.CRON,
             apiCall = { safeApiCall { ApiClient.hermesApi.getCronJobs() } },
-            onSuccess = { data -> _uiState.update { it.copy(jobs = data.orEmpty()) } },
+            onSuccess = { data ->
+                val jobs = data.orEmpty()
+                jobsCache.put("default", jobs)
+                _uiState.update { it.copy(jobs = jobs) }
+            },
         )
     }
 
-    fun loadCronJobs() {
+    fun loadCronJobs(forceRefresh: Boolean = false) {
+        if (forceRefresh) jobsCache.clear()
         loadJob =
-            safeLaunchLoad(
+            safeLaunchSwrLoad(
+                cache = jobsCache,
                 currentJob = loadJob,
+                onCacheHit = { cached ->
+                    _uiState.update { it.copy(isLoading = false, jobs = cached, errorMessage = null) }
+                },
                 apiCall = { safeApiCall { ApiClient.hermesApi.getCronJobs() } },
                 onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
                 onSuccess = { data ->

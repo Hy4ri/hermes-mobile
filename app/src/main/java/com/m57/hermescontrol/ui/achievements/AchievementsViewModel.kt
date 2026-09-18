@@ -1,12 +1,15 @@
 package com.m57.hermescontrol.ui.achievements
 
 import androidx.lifecycle.ViewModel
+import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.Achievement
+import com.m57.hermescontrol.data.model.AchievementsResponse
 import com.m57.hermescontrol.data.model.RecentUnlock
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
+import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -46,9 +49,37 @@ class AchievementsViewModel :
     val uiState: StateFlow<AchievementsUiState> = _uiState.asStateFlow()
 
     private val api get() = ApiClient.hermesApi
+    private val achievementsCache = SwrCache<String, AchievementsResponse>()
 
-    fun loadAchievements() {
-        safeLaunchLoad(
+    fun loadAchievements(forceRefresh: Boolean = false) {
+        if (forceRefresh) achievementsCache.clear()
+        safeLaunchSwrLoad(
+            cache = achievementsCache,
+            onCacheHit = { data ->
+                val categories =
+                    data.achievements
+                        ?.mapNotNull { it.category }
+                        ?.distinct()
+                        ?.sorted() ?: emptyList()
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        achievements = data.achievements.orEmpty(),
+                        unlockedCount = data.unlockedCount,
+                        discoveredCount = data.discoveredCount,
+                        secretCount = data.secretCount,
+                        totalCount = data.totalCount,
+                        isStale = data.isStale,
+                        generatedAt = data.generatedAt,
+                        scanState = data.scanMeta?.status?.state ?: "idle",
+                        scanLastError = data.scanMeta?.status?.lastError,
+                        scanLastDurationMs = data.scanMeta?.status?.lastDurationMs,
+                        scanRunCount = data.scanMeta?.status?.runCount ?: 0,
+                        categories = categories,
+                        errorMessage = null,
+                    )
+                }
+            },
             apiCall = { safeApiCall { api.getAchievements() } },
             onStart = {
                 _uiState.update { it.copy(isLoading = true, errorMessage = null) }

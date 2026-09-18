@@ -2,12 +2,14 @@ package com.m57.hermescontrol.ui.gateway
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.StatusResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
+import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,8 +30,15 @@ class GatewayViewModel :
     private val _uiState = MutableStateFlow(GatewayUiState())
     val uiState: StateFlow<GatewayUiState> = _uiState.asStateFlow()
 
-    fun loadStatus() {
-        safeLaunchLoad(
+    private val statusCache = SwrCache<String, StatusResponse>()
+
+    fun loadStatus(forceRefresh: Boolean = false) {
+        if (forceRefresh) statusCache.clear()
+        safeLaunchSwrLoad(
+            cache = statusCache,
+            onCacheHit = { data ->
+                _uiState.update { it.copy(isLoading = false, status = data, errorMessage = null) }
+            },
             apiCall = { safeApiCall { ApiClient.hermesApi.getStatus() } },
             onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
             onSuccess = { data ->

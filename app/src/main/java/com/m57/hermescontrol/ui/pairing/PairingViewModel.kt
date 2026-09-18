@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.pairing
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.PairingApproveRequest
 import com.m57.hermescontrol.data.model.PairingResponse
 import com.m57.hermescontrol.data.model.PairingRevokeRequest
@@ -12,6 +13,7 @@ import com.m57.hermescontrol.data.ws.ChangeEvents
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.refreshOnChange
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
+import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,6 +39,7 @@ class PairingViewModel :
     val uiState: StateFlow<PairingUiState> = _uiState.asStateFlow()
 
     private var launchJob: Job? = null
+    private val pairingCache = SwrCache<String, PairingResponse>()
 
     init {
         // Issue #784: gateway broadcasts pairing.changed — refresh silently
@@ -44,14 +47,22 @@ class PairingViewModel :
         refreshOnChange(
             eventType = ChangeEvents.PAIRING,
             apiCall = { safeApiCall { ApiClient.hermesApi.getPairing() } },
-            onSuccess = { data -> _uiState.update { it.copy(pairing = data) } },
+            onSuccess = { data ->
+                pairingCache.put("default", data)
+                _uiState.update { it.copy(pairing = data) }
+            },
         )
     }
 
-    fun loadPairing() {
+    fun loadPairing(forceRefresh: Boolean = false) {
+        if (forceRefresh) pairingCache.clear()
         launchJob =
-            safeLaunchLoad(
+            safeLaunchSwrLoad(
+                cache = pairingCache,
                 currentJob = launchJob,
+                onCacheHit = { cached ->
+                    _uiState.update { it.copy(isLoading = false, pairing = cached, errorMessage = null) }
+                },
                 apiCall = { safeApiCall { ApiClient.hermesApi.getPairing() } },
                 onStart = {
                     _uiState.update { it.copy(isLoading = true, errorMessage = null) }

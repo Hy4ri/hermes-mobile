@@ -2,15 +2,18 @@ package com.m57.hermescontrol.ui.webhooks
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.CreateWebhookRequest
 import com.m57.hermescontrol.data.model.WebhookSubscription
 import com.m57.hermescontrol.data.model.WebhookToggleSubscriptionRequest
+import com.m57.hermescontrol.data.model.WebhooksResponse
 import com.m57.hermescontrol.data.model.WebhooksToggleRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
+import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -48,8 +51,23 @@ class WebhooksViewModel :
     private val _uiState = MutableStateFlow(WebhooksUiState())
     val uiState: StateFlow<WebhooksUiState> = _uiState.asStateFlow()
 
-    fun loadWebhooks() {
-        safeLaunchLoad(
+    private val webhooksCache = SwrCache<String, WebhooksResponse>()
+
+    fun loadWebhooks(forceRefresh: Boolean = false) {
+        if (forceRefresh) webhooksCache.clear()
+        safeLaunchSwrLoad(
+            cache = webhooksCache,
+            onCacheHit = { body ->
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        enabled = body.enabled,
+                        baseUrl = body.base_url,
+                        subscriptions = body.subscriptions.orEmpty(),
+                        errorMessage = null,
+                    )
+                }
+            },
             apiCall = { safeApiCall { ApiClient.hermesApi.getWebhooks() } },
             onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
             onSuccess = { data ->

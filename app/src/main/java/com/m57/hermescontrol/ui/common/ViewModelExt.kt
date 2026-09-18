@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.common
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.ws.ChangeEventHub
 import kotlinx.coroutines.Job
@@ -30,6 +31,46 @@ inline fun <T> ViewModel.safeLaunchLoad(
         when (result) {
             is NetworkResult.Success -> onSuccess(result.data)
             is NetworkResult.Failure -> onError(result.error.message)
+        }
+    }
+}
+
+/**
+ * Executes a read-only API call with Stale-While-Revalidate caching.
+ * If cached data exists in [cache] for [cacheKey], [onCacheHit] is invoked immediately
+ * on the caller thread, avoiding full-screen loading spinners on screen revisits.
+ * The network call runs in the background to update the cache and invoke [onSuccess].
+ */
+inline fun <T : Any> ViewModel.safeLaunchSwrLoad(
+    cache: SwrCache<String, T>,
+    cacheKey: String = "default",
+    currentJob: Job? = null,
+    crossinline onCacheHit: (T) -> Unit,
+    crossinline apiCall: suspend () -> NetworkResult<T>,
+    crossinline onStart: () -> Unit,
+    crossinline onSuccess: (T) -> Unit,
+    crossinline onError: (String) -> Unit,
+): Job {
+    if (currentJob?.isActive == true) return currentJob
+    val cached = cache.get(cacheKey)
+    if (cached != null) {
+        onCacheHit(cached)
+    } else {
+        onStart()
+    }
+    return viewModelScope.launch {
+        val result = apiCall()
+        when (result) {
+            is NetworkResult.Success -> {
+                cache.put(cacheKey, result.data)
+                onSuccess(result.data)
+            }
+
+            is NetworkResult.Failure -> {
+                if (cached == null) {
+                    onError(result.error.message)
+                }
+            }
         }
     }
 }

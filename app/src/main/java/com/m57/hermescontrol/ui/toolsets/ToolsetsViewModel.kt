@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.toolsets
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.Toolset
 import com.m57.hermescontrol.data.model.ToolsetToggleRequest
 import com.m57.hermescontrol.data.remote.ApiClient
@@ -9,6 +10,7 @@ import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
+import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,8 +32,15 @@ class ToolsetsViewModel :
     private val _uiState = MutableStateFlow(ToolsetsUiState())
     val uiState: StateFlow<ToolsetsUiState> = _uiState.asStateFlow()
 
-    fun loadToolsets() {
-        safeLaunchLoad(
+    private val toolsetsCache = SwrCache<String, List<Toolset>>()
+
+    fun loadToolsets(forceRefresh: Boolean = false) {
+        if (forceRefresh) toolsetsCache.clear()
+        safeLaunchSwrLoad(
+            cache = toolsetsCache,
+            onCacheHit = { cached ->
+                _uiState.update { it.copy(isLoading = false, toolsets = cached, errorMessage = null) }
+            },
             apiCall = { safeApiCall { ApiClient.hermesApi.getToolsets() } },
             onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
             onSuccess = { data ->

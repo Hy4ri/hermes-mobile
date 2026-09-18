@@ -2,10 +2,12 @@ package com.m57.hermescontrol.ui.plugins
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.AgentPluginInstallBody
 import com.m57.hermescontrol.data.model.PluginCatalogEntry
 import com.m57.hermescontrol.data.model.PluginInfo
 import com.m57.hermescontrol.data.model.PluginProvidersPutRequest
+import com.m57.hermescontrol.data.model.PluginsHubResponse
 import com.m57.hermescontrol.data.model.ProviderOption
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
@@ -13,6 +15,7 @@ import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchAction
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
+import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -73,8 +76,37 @@ class PluginsViewModel :
     private val _uiState = MutableStateFlow(PluginsUiState())
     val uiState: StateFlow<PluginsUiState> = _uiState.asStateFlow()
 
-    fun loadPlugins() {
-        safeLaunchLoad(
+    private val pluginsCache = SwrCache<String, PluginsHubResponse>()
+
+    fun loadPlugins(forceRefresh: Boolean = false) {
+        if (forceRefresh) pluginsCache.clear()
+        safeLaunchSwrLoad(
+            cache = pluginsCache,
+            onCacheHit = { data ->
+                val plugins = data.plugins.orEmpty()
+                val providers = data.providers
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        plugins = plugins,
+                        orphanPlugins =
+                            data.orphanDashboardPlugins.orEmpty().map { orphan ->
+                                PluginInfo(
+                                    name = orphan.name ?: "unknown",
+                                    description = orphan.description ?: orphan.label,
+                                    version = null,
+                                    source = null,
+                                    runtimeStatus = null,
+                                )
+                            },
+                        memoryProvider = providers?.memoryProvider ?: "",
+                        memoryOptions = providers?.memoryOptions.orEmpty(),
+                        contextEngine = providers?.contextEngine ?: "compressor",
+                        contextOptions = providers?.contextOptions.orEmpty(),
+                        errorMessage = null,
+                    )
+                }
+            },
             apiCall = { safeApiCall { ApiClient.hermesApi.getPlugins() } },
             onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
             onSuccess = { data ->
@@ -85,10 +117,10 @@ class PluginsViewModel :
                         isLoading = false,
                         plugins = plugins,
                         orphanPlugins =
-                            data.orphanDashboardPlugins.orEmpty().map {
+                            data.orphanDashboardPlugins.orEmpty().map { orphan ->
                                 PluginInfo(
-                                    name = it.name ?: "unknown",
-                                    description = it.description ?: it.label,
+                                    name = orphan.name ?: "unknown",
+                                    description = orphan.description ?: orphan.label,
                                     version = null,
                                     source = null,
                                     runtimeStatus = null,

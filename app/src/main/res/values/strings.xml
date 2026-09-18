@@ -182,9 +182,12 @@
     <string name="chat_tool_fallback">Tool</string>
     <string name="chat_tool_show_raw">Show Raw JSON</string>
     <string name="chat_tool_show_parsed">Show Parsed Output</string>
+    <string name="chat_tool_format_json">Format JSON</string>
+    <string name="chat_tool_compact_json">Compact JSON</string>
     <string name="content_desc_new_chat">New Chat</string>
     <string name="content_desc_scroll_to_bottom">Scroll to bottom</string>
     <string name="content_desc_copy">Copy</string>
+    <string name="content_desc_copied">Copied</string>
     <string name="content_desc_edit">Edit</string>
     <string name="chat_msg_tokens">%1$s tok</string>
     <string name="chat_msg_tps">%1$s t/s</string>

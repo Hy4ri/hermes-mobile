@@ -6,6 +6,7 @@ import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.model.SessionListResponse
 import io.mockk.every
 import io.mockk.mockk
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -46,7 +47,12 @@ class SessionListCacheStoreTest {
         }
         every { mockEditor.apply() } returns Unit
 
-        SessionListCacheStore.init(mockContext)
+        SessionListCacheStore.resetForTesting(mockPrefs)
+    }
+
+    @After
+    fun tearDown() {
+        SessionListCacheStore.resetForTesting(null)
     }
 
     @Test
@@ -78,17 +84,41 @@ class SessionListCacheStoreTest {
     }
 
     @Test
-    fun testRemove() {
-        val sample = SessionListResponse(sessions = emptyList(), total = 0)
-        SessionListCacheStore.put("k1", sample)
-        assertNotNull(SessionListCacheStore.get("k1"))
-
-        SessionListCacheStore.remove("k1")
-        assertNull(SessionListCacheStore.get("k1"))
+    fun testCorruptedJsonReturnsNull() {
+        prefStorage["sessions_page_corrupt"] = "{ not valid json }"
+        assertNull(SessionListCacheStore.get("corrupt"))
     }
 
     @Test
-    fun testClear() {
+    fun testScopePartitioningCoexistence() {
+        val scopeA = DataScope("conn-a", "http://server-a", "profile-a")
+        val scopeB = DataScope("conn-b", "http://server-b", "profile-b")
+
+        val keyA = scopeA.persistentKey("recent")
+        val keyB = scopeB.persistentKey("recent")
+
+        val responseA = SessionListResponse(sessions = listOf(SessionInfo(id = "a-1", title = "Session A")), total = 1)
+        val responseB = SessionListResponse(sessions = listOf(SessionInfo(id = "b-1", title = "Session B")), total = 1)
+
+        SessionListCacheStore.put(keyA, responseA)
+        SessionListCacheStore.put(keyB, responseB)
+
+        val loadedA = SessionListCacheStore.get(keyA)
+        val loadedB = SessionListCacheStore.get(keyB)
+
+        assertNotNull(loadedA)
+        assertNotNull(loadedB)
+        assertEquals("Session A", loadedA?.sessions?.first()?.title)
+        assertEquals("Session B", loadedB?.sessions?.first()?.title)
+
+        // Removing keyA does not remove keyB
+        SessionListCacheStore.remove(keyA)
+        assertNull(SessionListCacheStore.get(keyA))
+        assertNotNull(SessionListCacheStore.get(keyB))
+    }
+
+    @Test
+    fun testClearRemovesAll() {
         val sample = SessionListResponse(sessions = emptyList(), total = 0)
         SessionListCacheStore.put("k1", sample)
         SessionListCacheStore.put("k2", sample)

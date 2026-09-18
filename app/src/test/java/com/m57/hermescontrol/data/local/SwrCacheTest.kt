@@ -65,4 +65,21 @@ class SwrCacheTest {
         assertEquals(0, cache.size)
         assertNull(cache.get("k2"))
     }
+
+    @Test
+    fun testThreadSafetyConcurrentAccess() {
+        val cache = SwrCache<String, Int>(maxCapacity = 100)
+        val threads =
+            List(10) { threadIdx ->
+                Thread {
+                    for (i in 0 until 500) {
+                        cache.put("k-$threadIdx-$i", i)
+                        cache.get("k-$threadIdx-$i")
+                        if (i % 5 == 0) cache.remove("k-$threadIdx-$i")
+                    }
+                }
+            }
+        threads.forEach { it.start() }
+        threads.forEach { it.join() }
+    }
 }

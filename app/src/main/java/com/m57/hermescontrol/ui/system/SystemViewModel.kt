@@ -195,7 +195,7 @@ class SystemViewModel(
                 launch {
                     val credResult = credDeferred.await()
                     if (credResult is NetworkResult.Success) {
-                        _uiState.update { it.copy(credentials = credResult.data.providers) }
+                        _uiState.update { it.copy(credentials = credResult.data.providers.orEmpty()) }
                     } else if (BuildConfig.DEBUG && credResult is NetworkResult.Failure) {
                         Log.w(TAG, "credentials endpoint: ${credResult.error.message}")
                     }

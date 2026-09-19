@@ -22,6 +22,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
 import androidx.test.platform.app.InstrumentationRegistry
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.model.SessionMessage
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.notification.ChatNotificationService
 import com.m57.hermescontrol.notification.ReplyNotificationTracker
@@ -30,7 +31,9 @@ import com.m57.hermescontrol.ui.chat.components.rememberChatScrollController
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.serialization.json.JsonPrimitive
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -95,6 +98,7 @@ class ChatReadNotificationTest {
         sessionId: String = "session-1",
         completionId: String = "comp-1",
         textSnippet: String = "Here is the reply",
+        serverMessageId: Int? = null,
     ): Long {
         val gen =
             if (kind == ReplyNotificationTracker.KIND_REPLY) {
@@ -122,6 +126,9 @@ class ChatReadNotificationTest {
                         putString(ReplyNotificationTracker.EXTRA_COMPLETION_ID, completionId)
                         putString(ReplyNotificationTracker.EXTRA_TEXT_SNIPPET, textSnippet)
                         putLong(ReplyNotificationTracker.EXTRA_GENERATION, gen)
+                        serverMessageId?.let {
+                            putInt(ReplyNotificationTracker.EXTRA_SERVER_MESSAGE_ID, it)
+                        }
                     },
                 ).build()
 
@@ -207,6 +214,87 @@ class ChatReadNotificationTest {
             awaitNotification { sbns -> sbns.none { it.id == ChatNotificationService.PENDING_NOTIFICATION_ID } }
         assertTrue(
             "Notification ID 2 must be dismissed from real system notifications when message is viewed",
+            dismissed,
+        )
+    }
+
+    /**
+     * The mobile-produced durable row id must survive in the real posted
+     * notification; after a process death it is the only thing that can name the
+     * row whose visibility dismisses this notification.
+     */
+    @Test
+    fun serverRowIdSurvivesProcessDeathThroughRealNotificationExtras() {
+        val sessionId = "session-exact-row-test"
+        val replyText = "Done"
+
+        postRealNotification(
+            kind = ReplyNotificationTracker.KIND_REPLY,
+            scopeId = AuthManager.activeProfileId.value.orEmpty(),
+            sessionId = sessionId,
+            completionId = "comp-exact-row",
+            textSnippet = replyText,
+            serverMessageId = 52,
+        )
+
+        // Simulate process death: nothing in memory, only the posted extras.
+        ReplyNotificationTracker.resetForTest()
+        val recovered = ReplyNotificationTracker.getActiveTarget(context)
+        assertEquals(
+            "Recovered target must carry the durable row id from the notification extras",
+            52,
+            recovered?.serverMessageId,
+        )
+
+        val history =
+            listOf(
+                SessionMessage(id = 10, role = "assistant", content = JsonPrimitive("Done")),
+                SessionMessage(id = 52, role = "assistant", content = JsonPrimitive("Done")),
+            )
+        val messages = mapServerMessages(sessionId, history, 0, true, emptyList(), context = context)
+        assertEquals("Older duplicate must stay unmapped", null, messages[0].completionId)
+        assertEquals("Exact row must receive the completion id", "comp-exact-row", messages[1].completionId)
+
+        val mockVm = mockk<ChatViewModel>(relaxed = true)
+        composeTestRule.setContent {
+            val listState = rememberLazyListState()
+            val scrollScope = remember { CoroutineScope(Dispatchers.Main) }
+            val scrollController = rememberChatScrollController(listState, scrollScope)
+            val snackbarHostState = remember { SnackbarHostState() }
+
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.size(300.dp, 600.dp),
+            ) {
+                items(messages, key = { "prose-${it.id}" }) {
+                    Text(it.content)
+                }
+            }
+
+            ChatLifecycleEffects(
+                sessionId = sessionId,
+                connectionStatus = ConnectionStatus.CONNECTED,
+                currentSessionId = sessionId,
+                messages = messages,
+                errorMessage = null,
+                backgroundCompleteMessage = null,
+                openError = null,
+                clarifyRequest = null,
+                sudoPrompt = null,
+                secretPrompt = null,
+                listState = listState,
+                scrollController = scrollController,
+                snackbarHostState = snackbarHostState,
+                viewModel = mockVm,
+            )
+        }
+
+        composeTestRule.waitForIdle()
+
+        val dismissed =
+            awaitNotification { sbns -> sbns.none { it.id == ChatNotificationService.PENDING_NOTIFICATION_ID } }
+        assertTrue(
+            "Viewing the exact hydrated row must dismiss the real system notification",
             dismissed,
         )
     }

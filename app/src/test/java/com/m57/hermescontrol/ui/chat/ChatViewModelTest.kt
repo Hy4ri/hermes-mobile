@@ -10,6 +10,9 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.AttachmentSource
+import com.m57.hermescontrol.data.model.PaginationInfo
+import com.m57.hermescontrol.data.model.SessionMessage
+import com.m57.hermescontrol.data.model.SessionMessagesResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.GatewayFile
 import com.m57.hermescontrol.data.remote.GatewayFileClient
@@ -21,6 +24,7 @@ import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.JsonRpcError
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
+import com.m57.hermescontrol.notification.TurnCorrelationTracker
 import com.m57.hermescontrol.ui.chat.fakes.FakeChatPersistenceRepository
 import com.m57.hermescontrol.ui.chat.fakes.FakeSlashUsageStore
 import io.mockk.*
@@ -52,6 +56,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -5589,5 +5594,151 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             io.mockk.verify { AuthManager.setLastOpenedSessionId("session-other-456") }
+        }
+
+    // ── Turn-boundary capture ordering (reply-notification correlation) ───────
+
+    /**
+     * Turn boundaries are keyed by the active profile, so these tests need one.
+     * Scoped per test rather than added to setUp: a non-blank profile is also
+     * appended to `session.resume` params, which the older resume/switch tests
+     * assert exactly.
+     */
+    private fun stubActiveProfile() {
+        every { AuthManager.activeProfileId } returns MutableStateFlow<String?>("default")
+    }
+
+    /**
+     * The REST high-watermark must be read BEFORE prompt.submit leaves the
+     * device. Capturing it afterwards lets a fast turn persist its assistant row
+     * first, and a lower bound that already contains the reply can never exclude
+     * a historical duplicate.
+     */
+    @Test
+    fun sendMessage_readsTurnBoundaryBeforeSubmittingPrompt() =
+        runTest {
+            TurnCorrelationTracker.resetForTest()
+            stubActiveProfile()
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val events = mutableListOf<String>()
+            val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+            every { ApiClient.hermesApi } returns api
+            coEvery { api.getSessionMessages(any(), any(), any(), any(), any(), any()) } answers {
+                // Only the boundary probe asks for a single newest row.
+                if (arg<Int?>(1) == 1 && arg<String?>(3) == "latest") events += "boundary"
+                retrofit2.Response.success(
+                    SessionMessagesResponse(
+                        messages = listOf(SessionMessage(id = 41, role = "user", content = JsonPrimitive("hi"))),
+                        pagination = PaginationInfo(limit = 1, offset = 0, order = "latest", returned = 1),
+                    ),
+                )
+            }
+            every { HermesWsClient.sendMessage(any(), any(), any(), any()) } answers {
+                events += "submit"
+                reqCount++
+                val id = "req-msg-$reqCount"
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            viewModel.sendMessage("hello there")
+            advanceUntilIdle()
+
+            assertEquals(listOf("boundary", "submit"), events)
+            assertEquals(41, TurnCorrelationTracker.boundaryFor("default", sessionId)?.beforeMessageId)
+        }
+
+    @Test
+    fun sendMessage_stillSubmitsWhenBoundaryReadFails() =
+        runTest {
+            TurnCorrelationTracker.resetForTest()
+            stubActiveProfile()
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+            every { ApiClient.hermesApi } returns api
+            coEvery { api.getSessionMessages(any(), any(), any(), any(), any(), any()) } returns
+                retrofit2.Response.error(500, "boom".toResponseBody())
+            var submits = 0
+            every { HermesWsClient.sendMessage(any(), any(), any(), any()) } answers {
+                submits++
+                reqCount++
+                val id = "req-msg-$reqCount"
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            viewModel.sendMessage("hello there")
+            advanceUntilIdle()
+
+            assertEquals("REST health must never block sending chat", 1, submits)
+            assertNull(TurnCorrelationTracker.boundaryFor("default", sessionId))
+        }
+
+    /**
+     * A gateway that ignores `order=latest` answers a `limit=1` probe with the
+     * OLDEST row; trusting that number would arm a boundary that is far too low
+     * and let historical duplicates win. Without the pagination proof the turn is
+     * left uncorrelatable, and the prompt still goes out.
+     */
+    @Test
+    fun sendMessage_leavesTurnUncorrelatableWhenGatewayCannotConfirmOrder() =
+        runTest {
+            TurnCorrelationTracker.resetForTest()
+            stubActiveProfile()
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+            every { ApiClient.hermesApi } returns api
+            coEvery { api.getSessionMessages(any(), any(), any(), any(), any(), any()) } answers {
+                retrofit2.Response.success(
+                    SessionMessagesResponse(
+                        messages = listOf(SessionMessage(id = 1, role = "user", content = JsonPrimitive("oldest"))),
+                    ),
+                )
+            }
+            var submits = 0
+            every { HermesWsClient.sendMessage(any(), any(), any(), any()) } answers {
+                submits++
+                reqCount++
+                val id = "req-msg-$reqCount"
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            viewModel.sendMessage("hello there")
+            advanceUntilIdle()
+
+            assertEquals(1, submits)
+            assertNull(
+                "Unconfirmed row order must not produce a boundary",
+                TurnCorrelationTracker.boundaryFor("default", sessionId),
+            )
+        }
+
+    /**
+     * A queued prompt runs behind a turn that is already in flight, so no clean
+     * lower bound exists for it — it must not borrow the running turn's boundary.
+     */
+    @Test
+    fun queuedPromptNeverArmsATurnBoundary() =
+        runTest {
+            TurnCorrelationTracker.resetForTest()
+            stubActiveProfile()
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+            every { ApiClient.hermesApi } returns api
+            every { HermesWsClient.sendMessage(any(), any(), any(), any()) } answers {
+                reqCount++
+                val id = "req-msg-$reqCount"
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            viewModel.sendMessage("/queue do the thing")
+            advanceUntilIdle()
+
+            io.mockk.coVerify(exactly = 0) {
+                api.getSessionMessages(any(), any(), any(), any(), any(), any())
+            }
+            assertNull(TurnCorrelationTracker.boundaryFor("default", sessionId))
         }
 }

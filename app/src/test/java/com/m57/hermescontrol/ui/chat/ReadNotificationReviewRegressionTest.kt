@@ -14,12 +14,16 @@ import com.m57.hermescontrol.notification.ActiveReplyInfo
 import com.m57.hermescontrol.notification.ChatNotificationService
 import com.m57.hermescontrol.notification.ReplyNotificationTarget
 import com.m57.hermescontrol.notification.ReplyNotificationTracker
+import com.m57.hermescontrol.notification.TurnCorrelationTracker
+import com.m57.hermescontrol.notification.TurnRowResolver
+import com.m57.hermescontrol.notification.correlateCompletedTurnRow
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkObject
 import io.mockk.verify
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.After
@@ -33,6 +37,22 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
+/**
+ * Regression matrix for reply-notification read dismissal.
+ *
+ * Split by design:
+ * - The `alreadyResolvedServerId*` cases start from a durable server row id that
+ *   the notification already carries, and prove hydration binds it to that exact
+ *   row only — the downstream half of the contract.
+ * - [mobileTurnBoundaryResolvesTheExactRowThenOnlyThatRowDismisses] covers the
+ *   production path that PRODUCES that id (turn boundary → unique row).
+ * - The mobile-side resolution rules themselves live in
+ *   `TurnCorrelationTrackerTest`, and the send-order guarantee in
+ *   `ChatViewModelTest`.
+ *
+ * Nothing here compares Android notification time with Hermes server time;
+ * server row timestamps are not identity.
+ */
 class ReadNotificationReviewRegressionTest {
     private lateinit var context: Context
     private lateinit var manager: NotificationManager
@@ -462,9 +482,8 @@ class ReadNotificationReviewRegressionTest {
     }
 
     @Test
-    fun duplicateShortRepliesOnlyNewestDismissesNotification() {
+    fun alreadyResolvedServerIdBindsOnlyTheExactRowAmongShortDuplicates() {
         ReplyNotificationTracker.resetForTest()
-        val notifTimestamp = System.currentTimeMillis()
         val activeInfo =
             ActiveReplyInfo(
                 id = ChatNotificationService.PENDING_NOTIFICATION_ID,
@@ -475,24 +494,23 @@ class ReadNotificationReviewRegressionTest {
                 serverMessageId = 2,
                 textSnippet = "Done",
                 generation = 5L,
-                timestamp = notifTimestamp,
+                timestamp = System.currentTimeMillis(),
             )
         ReplyNotificationTracker.activeNotificationProvider = { activeInfo }
 
-        // Two identical "Done" messages in history: one at T-30s, one at T
+        // Two identical "Done" rows. The durable id (row 2) is what decides —
+        // there is no server row timestamp comparison anywhere in the mapper.
         val history =
             listOf(
                 SessionMessage(
                     id = 1,
                     role = "assistant",
                     content = JsonPrimitive("Done"),
-                    timestamp = JsonPrimitive((notifTimestamp - 30_000L) / 1000.0),
                 ),
                 SessionMessage(
                     id = 2,
                     role = "assistant",
                     content = JsonPrimitive("Done"),
-                    timestamp = JsonPrimitive(notifTimestamp / 1000.0),
                 ),
             )
 
@@ -525,9 +543,8 @@ class ReadNotificationReviewRegressionTest {
     }
 
     @Test
-    fun duplicateLongRepliesSharingPrefixOnlyNewestDismissesNotification() {
+    fun alreadyResolvedServerIdIgnoresSharedHundredCharacterPrefix() {
         ReplyNotificationTracker.resetForTest()
-        val notifTimestamp = System.currentTimeMillis()
         val textPrefix = "x".repeat(100)
         val text1 = textPrefix + "A"
         val text2 = textPrefix + "B"
@@ -541,7 +558,7 @@ class ReadNotificationReviewRegressionTest {
                 serverMessageId = 10,
                 textSnippet = text2.take(100),
                 generation = 5L,
-                timestamp = notifTimestamp,
+                timestamp = System.currentTimeMillis(),
             )
         ReplyNotificationTracker.activeNotificationProvider = { activeInfo }
 
@@ -551,13 +568,11 @@ class ReadNotificationReviewRegressionTest {
                     id = 10,
                     role = "assistant",
                     content = JsonPrimitive(text1),
-                    timestamp = JsonPrimitive(notifTimestamp / 1000.0),
                 ),
                 SessionMessage(
                     id = 20,
                     role = "assistant",
                     content = JsonPrimitive(text2),
-                    timestamp = JsonPrimitive((notifTimestamp + 60_000L) / 1000.0),
                 ),
             )
 
@@ -585,9 +600,8 @@ class ReadNotificationReviewRegressionTest {
     }
 
     @Test
-    fun mediaReplyColdStartReconcilesTargetAndDismissesOnVisible() {
+    fun alreadyResolvedServerIdBindsMediaRowAndDismissesOnVisible() {
         ReplyNotificationTracker.resetForTest()
-        val notifTimestamp = System.currentTimeMillis()
         val activeInfo =
             ActiveReplyInfo(
                 id = ChatNotificationService.PENDING_NOTIFICATION_ID,
@@ -598,7 +612,7 @@ class ReadNotificationReviewRegressionTest {
                 serverMessageId = 100,
                 textSnippet = "Here is the image MEDIA:/opt/hermes/image.png",
                 generation = 5L,
-                timestamp = notifTimestamp,
+                timestamp = System.currentTimeMillis(),
             )
         ReplyNotificationTracker.activeNotificationProvider = { activeInfo }
 
@@ -629,9 +643,8 @@ class ReadNotificationReviewRegressionTest {
     }
 
     @Test
-    fun mediaOnlyReplyColdStartReconcilesTargetAndDismissesOnVisible() {
+    fun alreadyResolvedServerIdBindsMediaOnlyRowAndDismissesOnVisible() {
         ReplyNotificationTracker.resetForTest()
-        val notifTimestamp = System.currentTimeMillis()
         val activeInfo =
             ActiveReplyInfo(
                 id = ChatNotificationService.PENDING_NOTIFICATION_ID,
@@ -642,7 +655,7 @@ class ReadNotificationReviewRegressionTest {
                 serverMessageId = 100,
                 textSnippet = "MEDIA:/opt/hermes/image.png",
                 generation = 5L,
-                timestamp = notifTimestamp,
+                timestamp = System.currentTimeMillis(),
             )
         ReplyNotificationTracker.activeNotificationProvider = { activeInfo }
 
@@ -673,9 +686,8 @@ class ReadNotificationReviewRegressionTest {
     }
 
     @Test
-    fun duplicateMediaRepliesOnlyNewestDismissesNotification() {
+    fun alreadyResolvedServerIdBindsOnlyTheExactMediaRowAmongDuplicates() {
         ReplyNotificationTracker.resetForTest()
-        val notifTimestamp = System.currentTimeMillis()
         val activeInfo =
             ActiveReplyInfo(
                 id = ChatNotificationService.PENDING_NOTIFICATION_ID,
@@ -686,7 +698,7 @@ class ReadNotificationReviewRegressionTest {
                 serverMessageId = 1,
                 textSnippet = "MEDIA:/opt/hermes/image.png",
                 generation = 5L,
-                timestamp = notifTimestamp,
+                timestamp = System.currentTimeMillis(),
             )
         ReplyNotificationTracker.activeNotificationProvider = { activeInfo }
 
@@ -696,13 +708,11 @@ class ReadNotificationReviewRegressionTest {
                     id = 1,
                     role = "assistant",
                     content = JsonPrimitive("MEDIA:/opt/hermes/image.png"),
-                    timestamp = JsonPrimitive(notifTimestamp / 1000.0),
                 ),
                 SessionMessage(
                     id = 2,
                     role = "assistant",
                     content = JsonPrimitive("MEDIA:/opt/hermes/image.png"),
-                    timestamp = JsonPrimitive((notifTimestamp + 60_000L) / 1000.0),
                 ),
             )
 
@@ -727,6 +737,66 @@ class ReadNotificationReviewRegressionTest {
                 mapped[1].completionId,
             ),
         )
+    }
+
+    /**
+     * The path production actually runs, end to end: the turn boundary armed
+     * before the prompt names exactly one REST row above it, that row id travels
+     * in the notification, only that row is hydrated with the completion id, and
+     * only that row dismisses the notification.
+     */
+    @Test
+    fun mobileTurnBoundaryResolvesTheExactRowThenOnlyThatRowDismisses() {
+        ReplyNotificationTracker.resetForTest()
+        TurnCorrelationTracker.resetForTest()
+        TurnCorrelationTracker.armBoundary("default", "session", 50)
+
+        val history =
+            listOf(
+                SessionMessage(id = 10, role = "assistant", content = JsonPrimitive("Done")),
+                SessionMessage(id = 51, role = "user", content = JsonPrimitive("next")),
+                SessionMessage(id = 52, role = "assistant", content = JsonPrimitive("Done")),
+            )
+        val resolved =
+            runBlocking {
+                correlateCompletedTurnRow(
+                    scopeId = "default",
+                    sessionId = "session",
+                    completionText = "Done",
+                    resolver = TurnRowResolver({ history }, listOf(0L)),
+                )
+            }
+        assertEquals("The historical duplicate below the boundary must not win", 52, resolved)
+
+        // The service stores that id in the notification extras; after process
+        // death the extras are all the tracker can recover from.
+        ReplyNotificationTracker.activeNotificationProvider = {
+            ActiveReplyInfo(
+                id = ChatNotificationService.PENDING_NOTIFICATION_ID,
+                kind = ReplyNotificationTracker.KIND_REPLY,
+                scopeId = "default",
+                sessionId = "session",
+                completionId = "comp-turn",
+                textSnippet = "Done",
+                generation = 5L,
+                timestamp = 0L,
+                serverMessageId = resolved,
+            )
+        }
+
+        val mapped =
+            mapServerMessages("session", history, 0, true, emptyList(), isPagingOlder = false, context = context)
+        assertEquals(listOf(null, null, "comp-turn"), mapped.map { it.completionId })
+
+        assertFalse(
+            "Viewing the older duplicate must not dismiss",
+            ReplyNotificationTracker.onMessageVisible(context, "default", "session", mapped[0].completionId),
+        )
+        assertTrue(
+            "Viewing the turn's own row must dismiss",
+            ReplyNotificationTracker.onMessageVisible(context, "default", "session", mapped[2].completionId),
+        )
+        verify(exactly = 1) { manager.cancel(ChatNotificationService.PENDING_NOTIFICATION_ID) }
     }
 
     @Test

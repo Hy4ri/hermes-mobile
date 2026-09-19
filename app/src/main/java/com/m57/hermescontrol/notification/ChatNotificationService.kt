@@ -218,6 +218,11 @@ class ChatNotificationService : Service() {
             val replyIntent =
                 Intent(this, NotificationReplyReceiver::class.java).apply {
                     action = "$packageName.ACTION_NOTIFICATION_REPLY"
+                    component =
+                        android.content.ComponentName(
+                            this@ChatNotificationService,
+                            NotificationReplyReceiver::class.java,
+                        )
                     setPackage(packageName)
                     putExtra(NotificationReplyReceiver.EXTRA_SESSION_ID, sessionId)
                 }
@@ -261,11 +266,13 @@ class ChatNotificationService : Service() {
         val intent =
             Intent(this, MainActivity::class.java).apply {
                 action = MainActivity.ACTION_OPEN_CHAT_FROM_NOTIFICATION
+                component = android.content.ComponentName(this@ChatNotificationService, MainActivity::class.java)
+                setPackage(packageName)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                if (!sessionId.isNullOrBlank()) {
+                    putExtra(NotificationReplyReceiver.EXTRA_SESSION_ID, sessionId)
+                }
             }
-        if (!sessionId.isNullOrBlank()) {
-            intent.putExtra(NotificationReplyReceiver.EXTRA_SESSION_ID, sessionId)
-        }
         return PendingIntent.getActivity(
             this,
             sessionId?.hashCode() ?: 0,

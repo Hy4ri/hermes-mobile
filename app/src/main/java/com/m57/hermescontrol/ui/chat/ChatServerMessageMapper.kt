@@ -5,6 +5,7 @@ import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.AttachmentSource
 import com.m57.hermescontrol.data.model.SessionMessage
 import com.m57.hermescontrol.data.remote.GatewayFileClient
+import com.m57.hermescontrol.notification.ReplyNotificationTracker
 
 /**
  * Maps REST transcript rows ([SessionMessage]) into UI [ChatMessage]s.
@@ -80,6 +81,25 @@ internal fun mapServerMessages(
             if (wsIdx >= 0) {
                 remainingWs.removeAt(wsIdx).completionId?.let { compId ->
                     wsCompletionIdByRestIndex[i] = compId
+                }
+            } else if (!isPagingOlder && wsCompletionIdByRestIndex.isEmpty()) {
+                val activeTarget = ReplyNotificationTracker.getActiveTarget()
+                if (activeTarget != null &&
+                    activeTarget.sessionId == sessionId &&
+                    activeTarget.completionId.isNotBlank() &&
+                    activeTarget.matches(
+                        candidateScopeId = activeTarget.scopeId,
+                        candidateSessionId = sessionId,
+                        candidateCompletionId = null,
+                        candidateContent = canonicalContent,
+                        candidateTimestamp =
+                            m.timestampText
+                                ?.toDoubleOrNull()
+                                ?.times(1000)
+                                ?.toLong(),
+                    )
+                ) {
+                    wsCompletionIdByRestIndex[i] = activeTarget.completionId
                 }
             }
         }
@@ -178,8 +198,8 @@ internal fun mapServerMessages(
         if (role == MessageRole.ASSISTANT && rawContent.contains("MEDIA:")) {
             val items = HostMediaExtractor.extract(rawContent)
             if (items.isNotEmpty()) {
-                val baseUrl = runCatching { AuthManager.getBaseUrl() }.getOrDefault("http://localhost:8080")
-                val token = runCatching { AuthManager.getToken().orEmpty() }.getOrDefault("")
+                val baseUrl = AuthManager.getBaseUrl()
+                val token = AuthManager.getToken().orEmpty()
                 finalContent = HostMediaExtractor.strip(rawContent)
                 attachments =
                     items

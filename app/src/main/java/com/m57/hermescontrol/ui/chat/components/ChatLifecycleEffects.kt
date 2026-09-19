@@ -115,6 +115,7 @@ fun ChatLifecycleEffects(
                             sessionId = currentSessionId,
                             completionId = msg.completionId,
                             content = msg.content,
+                            timestamp = msg.timestamp,
                         )
                     }
                 }

@@ -19,6 +19,7 @@ data class ReplyNotificationTarget(
         candidateSessionId: String?,
         candidateCompletionId: String? = null,
         candidateContent: String? = null,
+        candidateTimestamp: Long? = null,
     ): Boolean {
         if (scopeId.isNotBlank() && scopeId != candidateScopeId) {
             return false
@@ -26,15 +27,27 @@ data class ReplyNotificationTarget(
         if (candidateSessionId.isNullOrBlank() || sessionId != candidateSessionId) {
             return false
         }
-        if (completionId.isNotBlank()) {
+        if (!candidateCompletionId.isNullOrBlank()) {
             return candidateCompletionId == completionId
         }
         if (!candidateContent.isNullOrBlank() && textSnippet.isNotBlank()) {
             val normalizedSnippet = textSnippet.trim()
             val normalizedCandidate = candidateContent.trim()
-            return normalizedCandidate.startsWith(normalizedSnippet) ||
-                normalizedCandidate.contains(normalizedSnippet) ||
-                normalizedCandidate.take(100).replace("\n", " ").trim() == normalizedSnippet
+            val matchesText =
+                if (normalizedSnippet.length <= 15) {
+                    normalizedCandidate == normalizedSnippet
+                } else {
+                    normalizedCandidate == normalizedSnippet ||
+                        normalizedCandidate.startsWith(normalizedSnippet) ||
+                        normalizedCandidate.take(100).replace("\n", " ").trim() == normalizedSnippet
+                }
+            if (!matchesText) return false
+            if (candidateTimestamp != null && timestamp > 0L) {
+                if (candidateTimestamp < timestamp - 120_000L) {
+                    return false
+                }
+            }
+            return true
         }
         return false
     }
@@ -97,7 +110,10 @@ object ReplyNotificationTracker {
 
     internal var activeNotificationProvider: (Context) -> ActiveReplyInfo? = defaultActiveNotificationProvider
 
-    fun nextGeneration(): Long = generationCounter.incrementAndGet()
+    fun nextGeneration(): Long {
+        val floor = maxOf(generationCounter.get(), tombstoneGeneration.get())
+        return generationCounter.updateAndGet { maxOf(it, floor) + 1 }
+    }
 
     @Synchronized
     fun registerPendingReply(
@@ -107,7 +123,7 @@ object ReplyNotificationTracker {
         textSnippet: String,
         timestamp: Long = System.currentTimeMillis(),
     ): Long {
-        val generation = generationCounter.incrementAndGet()
+        val generation = nextGeneration()
         activeTarget =
             ReplyNotificationTarget(
                 scopeId = scopeId,
@@ -145,7 +161,8 @@ object ReplyNotificationTracker {
         context: Context,
         notification: Notification,
     ): Boolean {
-        tombstoneGeneration.set(generationCounter.incrementAndGet())
+        val nextGen = nextGeneration()
+        tombstoneGeneration.updateAndGet { maxOf(it, nextGen) }
         activeTarget = null
         val manager =
             context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
@@ -159,7 +176,8 @@ object ReplyNotificationTracker {
         context: Context,
         notification: Notification,
     ): Boolean {
-        tombstoneGeneration.set(generationCounter.incrementAndGet())
+        val nextGen = nextGeneration()
+        tombstoneGeneration.updateAndGet { maxOf(it, nextGen) }
         activeTarget = null
         val manager =
             context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
@@ -178,6 +196,7 @@ object ReplyNotificationTracker {
         timestamp: Long = System.currentTimeMillis(),
     ) {
         if (generation <= tombstoneGeneration.get()) return
+        generationCounter.updateAndGet { maxOf(it, generation) }
         activeTarget =
             ReplyNotificationTarget(
                 scopeId = scopeId,
@@ -191,7 +210,8 @@ object ReplyNotificationTracker {
 
     @Synchronized
     fun onNonReplyNotificationPosted() {
-        tombstoneGeneration.set(generationCounter.incrementAndGet())
+        val nextGen = nextGeneration()
+        tombstoneGeneration.updateAndGet { maxOf(it, nextGen) }
         activeTarget = null
     }
 
@@ -205,10 +225,11 @@ object ReplyNotificationTracker {
         sessionId: String?,
         completionId: String?,
         content: String?,
+        timestamp: Long? = null,
     ): Boolean {
         if (sessionId.isNullOrBlank()) return false
         val target = resolveTarget(context) ?: return false
-        if (target.matches(scopeId, sessionId, completionId, content)) {
+        if (target.matches(scopeId, sessionId, completionId, content, timestamp)) {
             return cancelReplyNotification(context, target.generation)
         }
         return false
@@ -254,6 +275,7 @@ object ReplyNotificationTracker {
 
         val activeInfo = activeNotificationProvider(context) ?: return null
         if (activeInfo.kind != KIND_REPLY) return null
+        generationCounter.updateAndGet { maxOf(it, activeInfo.generation) }
         if (activeInfo.generation <= tombstoneGeneration.get()) return null
         val sessionId = activeInfo.sessionId.orEmpty()
         if (sessionId.isBlank()) return null

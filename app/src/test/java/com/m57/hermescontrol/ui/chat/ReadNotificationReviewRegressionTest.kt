@@ -402,6 +402,113 @@ class ReadNotificationReviewRegressionTest {
     }
 
     @Test
+    fun coldStartRecoveredGenerationMustAdvanceCounterAndAllowFutureReplies() {
+        ReplyNotificationTracker.resetForTest()
+        // Active notification in system with generation 37
+        val activeInfo =
+            ActiveReplyInfo(
+                id = ChatNotificationService.PENDING_NOTIFICATION_ID,
+                kind = ReplyNotificationTracker.KIND_REPLY,
+                scopeId = "default",
+                sessionId = "session",
+                completionId = "comp-37",
+                textSnippet = "Reply 37",
+                generation = 37L,
+                timestamp = System.currentTimeMillis(),
+            )
+        ReplyNotificationTracker.activeNotificationProvider = { activeInfo }
+
+        // User views message -> recovers and cancels generation 37
+        val cancelled = ReplyNotificationTracker.onMessageVisible(context, "default", "session", "comp-37", "Reply 37")
+        assertTrue("Generation 37 should be recovered and cancelled", cancelled)
+
+        // New reply arrives
+        val newGen = ReplyNotificationTracker.registerPendingReply("default", "session", "comp-38", "Reply 38")
+        assertTrue("New generation must exceed recovered generation (was $newGen)", newGen > 37L)
+
+        val replyNotif = mockk<Notification>()
+        val posted = ReplyNotificationTracker.postReplyNotification(context, replyNotif, newGen)
+        assertTrue("New reply notification must be accepted and posted", posted)
+        verify { manager.notify(ChatNotificationService.PENDING_NOTIFICATION_ID, replyNotif) }
+    }
+
+    @Test
+    fun recoveredGenerationFollowedByActionAndReplyMustRemainStrictlyMonotonic() {
+        ReplyNotificationTracker.resetForTest()
+        val activeInfo =
+            ActiveReplyInfo(
+                id = ChatNotificationService.PENDING_NOTIFICATION_ID,
+                kind = ReplyNotificationTracker.KIND_REPLY,
+                scopeId = "default",
+                sessionId = "session",
+                completionId = "comp-37",
+                textSnippet = "Reply 37",
+                generation = 37L,
+                timestamp = System.currentTimeMillis(),
+            )
+        ReplyNotificationTracker.activeNotificationProvider = { activeInfo }
+
+        // Recover and cancel 37
+        assertTrue(ReplyNotificationTracker.onMessageVisible(context, "default", "session", "comp-37", "Reply 37"))
+
+        // Post action
+        val actionNotif = mockk<Notification>()
+        assertTrue(ReplyNotificationTracker.postActionNotification(context, actionNotif))
+
+        // Register new reply
+        val newGen = ReplyNotificationTracker.registerPendingReply("default", "session", "comp-39", "Reply 39")
+        assertTrue("New generation must strictly exceed 37 and action tombstone", newGen > 38L)
+
+        val replyNotif = mockk<Notification>()
+        assertTrue(ReplyNotificationTracker.postReplyNotification(context, replyNotif, newGen))
+    }
+
+    @Test
+    fun backgroundServiceOnlyNotificationDismissesWhenRestTranscriptHydratesWithoutWsMessage() {
+        ReplyNotificationTracker.resetForTest()
+        val notifTimestamp = System.currentTimeMillis()
+        val replyText = "Background completed task"
+        val activeInfo =
+            ActiveReplyInfo(
+                id = ChatNotificationService.PENDING_NOTIFICATION_ID,
+                kind = ReplyNotificationTracker.KIND_REPLY,
+                scopeId = "default",
+                sessionId = "session",
+                completionId = "uuid-bg-only",
+                textSnippet = replyText,
+                generation = 5L,
+                timestamp = notifTimestamp,
+            )
+        ReplyNotificationTracker.activeNotificationProvider = { activeInfo }
+
+        // REST transcript has no completionId, and liveMessages has no WS copy
+        val history =
+            listOf(
+                SessionMessage(
+                    id = 100,
+                    role = "assistant",
+                    content = JsonPrimitive(replyText),
+                    timestamp = JsonPrimitive(notifTimestamp / 1000.0),
+                ),
+            )
+        val mapped = mapServerMessages("session", history, 0, true, emptyList(), isPagingOlder = false)
+        val restoredMessage = mapped.single()
+
+        // Restored message should either inherit completionId from active target, or dismiss via text fallback
+        val dismissed =
+            ReplyNotificationTracker.onMessageVisible(
+                context = context,
+                scopeId = "default",
+                sessionId = "session",
+                completionId = restoredMessage.completionId,
+                content = restoredMessage.content,
+                timestamp = restoredMessage.timestamp,
+            )
+        assertTrue("Notification posted by background service must dismiss on REST-only hydration", dismissed)
+        verify { manager.cancel(ChatNotificationService.PENDING_NOTIFICATION_ID) }
+    }
+
+    @Test
     fun unknownScopeMustNotAcknowledgeScopedReply() {
         val target = ReplyNotificationTarget("other-profile", "session", "completion", 1L, "Done")
         assertFalse(target.matches(null, "session", "completion", "Done"))

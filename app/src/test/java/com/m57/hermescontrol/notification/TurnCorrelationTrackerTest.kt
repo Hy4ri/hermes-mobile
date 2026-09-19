@@ -1,6 +1,10 @@
 package com.m57.hermescontrol.notification
 
 import com.m57.hermescontrol.data.model.SessionMessage
+import com.m57.hermescontrol.data.remote.ApiClient
+import io.mockk.every
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.After
@@ -379,5 +383,29 @@ class TurnCorrelationTrackerTest {
         // above 0, and there are no historical duplicates to exclude.
         assertNotNull(TurnCorrelationTracker.armBoundary("default", "session", 0))
         assertEquals(0, TurnCorrelationTracker.boundaryFor("default", "session")?.beforeMessageId)
+    }
+
+    /**
+     * The probe is best-effort by contract and must never fail the caller's turn.
+     *
+     * A gateway-layer `Error` (uninitialised client, NoClassDefFound) is not an
+     * `Exception`, so it used to escape the caller's `catch (Exception)`, abort
+     * the notification-reply send, and leak out of a background scope — which CI
+     * then reported as `UncaughtExceptionsBeforeTest` in an unrelated later test
+     * class. Encode that as a regression so it cannot come back.
+     */
+    @Test
+    fun boundaryProbeSwallowsEvenGatewayLayerErrors() {
+        mockkObject(ApiClient)
+        try {
+            every { ApiClient.hermesApi } throws ExceptionInInitializerError("ApiClient unavailable")
+            assertFalse(
+                "A broken gateway layer must not fail the turn",
+                runBlocking { captureTurnBoundary("default", "session") },
+            )
+            assertNull(TurnCorrelationTracker.boundaryFor("default", "session"))
+        } finally {
+            unmockkObject(ApiClient)
+        }
     }
 }

@@ -25,8 +25,12 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
         const val EXTRA_SESSION_ID = "extra_session_id"
         private const val REPLY_TIMEOUT_MS = 5_000L
 
-        /** Turn-boundary read budget inside the reply deadline. */
-        private const val BOUNDARY_TIMEOUT_MS = 800L
+        /**
+         * Turn-boundary read budget inside the reply deadline. Deliberately tight:
+         * the probe sits on the reply path, so a slow or unreachable gateway must
+         * cost the user's reply only a sliver of its 5s deadline.
+         */
+        private const val BOUNDARY_TIMEOUT_MS = 250L
     }
 
     // Reusable scope for async reply processing — avoids creating a new

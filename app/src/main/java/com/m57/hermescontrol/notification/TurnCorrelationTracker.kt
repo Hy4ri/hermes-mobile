@@ -300,7 +300,14 @@ internal suspend fun captureTurnBoundary(
             withTimeoutOrNull(timeoutMs) { fetchBoundaryTailId(sessionId) }
         } catch (e: CancellationException) {
             throw e
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
+            // Total by contract: this probe is best-effort identity for a
+            // notification convenience and must NEVER fail the caller's turn.
+            // Swallowing Throwable (not just Exception) is deliberate — a
+            // gateway-layer Error (uninitialised client, NoClassDefFound) used to
+            // escape past the caller's `catch (Exception)` and get thrown inside
+            // a background scope, which aborted the send and leaked as an
+            // uncaught exception attributed to an unrelated later test.
             null
         } ?: return false
     return TurnCorrelationTracker.armBoundary(scopeId, sessionId, maxMessageId) != null

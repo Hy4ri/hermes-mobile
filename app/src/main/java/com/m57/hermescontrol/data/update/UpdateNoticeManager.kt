@@ -2,6 +2,7 @@ package com.m57.hermescontrol.data.update
 
 import com.m57.hermescontrol.BuildConfig
 import com.m57.hermescontrol.data.local.AuthManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -55,12 +56,19 @@ object UpdateNoticeManager {
             val result =
                 try {
                     checker.fetchLatestRelease(includeReleaseCandidates)
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: IOException) {
                     return@launch
                 } catch (e: Exception) {
                     return@launch
                 }
             val info = result ?: return@launch
+            // The user may have switched back to stable while this request was in
+            // flight — an RC result must never be published on the stable channel.
+            if (isReleaseCandidateVersion(info.tagName) && !AuthManager.isCheckingReleaseCandidateUpdates()) {
+                return@launch
+            }
             val apk = info.apkAsset ?: return@launch
             val state =
                 if (isNewerVersion(info.tagName, currentVersion)) {

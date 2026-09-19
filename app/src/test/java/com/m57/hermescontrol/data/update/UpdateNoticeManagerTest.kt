@@ -323,4 +323,23 @@ class UpdateNoticeManagerTest {
 
         assertNull(UpdateNoticeManager.noticeTag(currentVersion))
     }
+
+    @Test
+    fun checkOnLaunch_discardsRcResultWhenChannelFlippedMidRequest() =
+        runTest {
+            every { AuthManager.isCheckingReleaseCandidateUpdates() } returns true
+            val checker = mockk<AppUpdateChecker>()
+            coEvery { checker.fetchLatestRelease(true) } coAnswers {
+                // The user turns the RC channel off while the request is in flight.
+                every { AuthManager.isCheckingReleaseCandidateUpdates() } returns false
+                updateInfo(tag = "v1.25.0-rc.3")
+            }
+
+            UpdateNoticeManager.checkOnLaunch(checker, currentVersion, testDispatcher)
+            advanceUntilIdle()
+
+            // The late RC result must not reach the cache or the persisted tag.
+            assertEquals(AppUpdateState.Idle, AppUpdateCache.state.value)
+            verify(exactly = 0) { AuthManager.setLastKnownLatestTag(any()) }
+        }
 }

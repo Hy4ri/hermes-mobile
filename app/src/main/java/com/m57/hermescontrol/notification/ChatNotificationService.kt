@@ -69,6 +69,12 @@ class ChatNotificationService : Service() {
         private val isAppInForeground = AtomicBoolean(false)
         internal val lifecycle = ForegroundServiceLifecycle()
 
+        /**
+         * Turn-row correlation used when a reply completes in the background.
+         * Injectable so the resolution path can be exercised without REST.
+         */
+        internal var turnRowResolver: TurnRowResolver = defaultTurnRowResolver
+
         @Volatile
         internal var activeServiceInstance: ChatNotificationService? = null
 
@@ -119,7 +125,15 @@ class ChatNotificationService : Service() {
                                             sessionId = targetSessionId,
                                             isReplyMessage = true,
                                             completionId = event.completionId,
-                                            serverMessageId = event.serverMessageId,
+                                            // The durable REST row for this turn, when the
+                                            // boundary armed before the prompt was submitted
+                                            // still lets us name it unambiguously. Null is a
+                                            // normal, safe outcome: the notification is then
+                                            // never auto-dismissed from REST hydration, which
+                                            // is strictly better than dismissing the wrong
+                                            // duplicate reply.
+                                            serverMessageId =
+                                                coalesceTurnRow(targetSessionId, event.text),
                                         )
                                         // The wait is over — retire the foreground
                                         // service. The reply notification above
@@ -170,6 +184,31 @@ class ChatNotificationService : Service() {
                     }
                 }
             }
+    }
+
+    /**
+     * Names the exact REST row this completion produced, using the turn
+     * boundary armed before the prompt was submitted. Any failure to prove that
+     * identity returns null — the notification is still posted, it just will not
+     * be auto-dismissed from REST hydration.
+     */
+    private suspend fun coalesceTurnRow(
+        sessionId: String?,
+        completionText: String,
+    ): Int? {
+        if (sessionId.isNullOrBlank()) return null
+        return try {
+            correlateCompletedTurnRow(
+                scopeId = AuthManager.activeProfileId.value.orEmpty(),
+                sessionId = sessionId,
+                completionText = completionText,
+                resolver = turnRowResolver,
+            )
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
     }
 
     private fun showReplyNotification(

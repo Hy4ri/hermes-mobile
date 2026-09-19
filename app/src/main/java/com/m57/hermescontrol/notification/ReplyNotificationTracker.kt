@@ -13,6 +13,13 @@ data class ReplyNotificationTarget(
     val generation: Long,
     val textSnippet: String = "",
     val timestamp: Long = System.currentTimeMillis(),
+    /**
+     * Durable REST `messages.id` of the row this reply produced. Resolved by
+     * [TurnCorrelationTracker] from the boundary armed before the prompt was
+     * submitted — never taken from the completion event, text, or a clock. Null
+     * means the turn could not be correlated, and then hydration must not touch
+     * this notification at all (fail closed).
+     */
     val serverMessageId: Int? = null,
 ) {
     fun matches(

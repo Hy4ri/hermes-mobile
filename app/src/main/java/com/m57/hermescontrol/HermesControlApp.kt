@@ -14,6 +14,7 @@ import com.m57.hermescontrol.data.local.SessionListCacheStore
 import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.update.UpdateNoticeManager
+import com.m57.hermescontrol.notification.TurnCorrelationTracker
 import com.m57.hermescontrol.ui.analytics.AnalyticsPreloader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,6 +32,9 @@ class HermesControlApp :
         AuthManager.init(this)
         NetworkMonitor.init(this)
         SessionListCacheStore.init(this)
+        // Reply-notification turn boundaries survive process death (armed before
+        // each mobile prompt, consumed by the matching completion).
+        TurnCorrelationTracker.attach(this)
         appScope.launch {
             AuthManager.initializationState.first { it == AuthManager.InitializationState.Ready }
             // Issue #537 follow-up (A): preload analytics in the background after launch

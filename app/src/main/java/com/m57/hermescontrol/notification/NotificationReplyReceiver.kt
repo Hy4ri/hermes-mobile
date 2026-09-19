@@ -24,6 +24,9 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
         const val KEY_TEXT_REPLY = "key_text_reply"
         const val EXTRA_SESSION_ID = "extra_session_id"
         private const val REPLY_TIMEOUT_MS = 5_000L
+
+        /** Turn-boundary read budget inside the reply deadline. */
+        private const val BOUNDARY_TIMEOUT_MS = 800L
     }
 
     // Reusable scope for async reply processing — avoids creating a new
@@ -81,6 +84,17 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
                                 )
                                 return@withContext
                             }
+
+                            // Mobile-originated follow-up turn: arm its durable
+                            // boundary BEFORE prompt.submit. Budgeted tighter
+                            // than the chat composer's — this receiver has its
+                            // own 5s deadline and a failed capture must only
+                            // make the reply uncorrelatable, never lose it.
+                            captureTurnBoundary(
+                                scopeId = AuthManager.activeProfileId.value.orEmpty(),
+                                sessionId = sessionId,
+                                timeoutMs = BOUNDARY_TIMEOUT_MS,
+                            )
 
                             val runtimeSessionId =
                                 ActiveSessionHolder.resolveRuntimeSessionId(sessionId)

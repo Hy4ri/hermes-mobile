@@ -354,6 +354,14 @@ object HermesWsClient {
         wsScope.launch {
             events.collect { event ->
                 if (event is WsEvent.GatewayReady) {
+                    // Advertise support for gateway server→client requests (issue #1197).
+                    // Older gateways may reject this method; that is harmless.
+                    runCatching {
+                        send(
+                            WsMethods.CLIENT_CAPABILITIES,
+                            mapOf("server_requests" to true),
+                        )
+                    }
                     val epoch = event.data?.get("replay_epoch") as? String
                     if (!epoch.isNullOrEmpty()) {
                         if (replayEpoch != null && replayEpoch != epoch) {

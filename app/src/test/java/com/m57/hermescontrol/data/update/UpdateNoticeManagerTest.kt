@@ -62,6 +62,8 @@ class UpdateNoticeManagerTest {
         every { AuthManager.setLastUpdateCheckTimestamp(any()) } returns Unit
         every { AuthManager.getDismissedUpdateTag() } returns null
         every { AuthManager.setDismissedUpdateTag(any()) } returns Unit
+        every { AuthManager.isCheckingReleaseCandidateUpdates() } returns false
+        every { AuthManager.setCheckReleaseCandidateUpdates(any()) } returns Unit
     }
 
     @After
@@ -256,6 +258,68 @@ class UpdateNoticeManagerTest {
             ),
         )
         every { AuthManager.getLastKnownLatestTag() } returns "v1.22.0"
+
+        assertNull(UpdateNoticeManager.noticeTag(currentVersion))
+    }
+
+    // ── Release candidate channel (opt-in) ──────────────────────────────
+
+    @Test
+    fun checkOnLaunch_staysOnStableChannelByDefault() =
+        runTest {
+            val checker = mockk<AppUpdateChecker>()
+            coEvery { checker.fetchLatestRelease(false) } returns updateInfo()
+
+            UpdateNoticeManager.checkOnLaunch(checker, currentVersion, testDispatcher)
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { checker.fetchLatestRelease(false) }
+            coVerify(exactly = 0) { checker.fetchLatestRelease(true) }
+        }
+
+    @Test
+    fun checkOnLaunch_scansReleaseCandidatesWhenOptedIn() =
+        runTest {
+            every { AuthManager.isCheckingReleaseCandidateUpdates() } returns true
+            val checker = mockk<AppUpdateChecker>()
+            coEvery { checker.fetchLatestRelease(true) } returns updateInfo(tag = "v1.25.0-rc.3")
+
+            UpdateNoticeManager.checkOnLaunch(checker, currentVersion, testDispatcher)
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { checker.fetchLatestRelease(true) }
+            assertEquals(
+                "v1.25.0-rc.3",
+                (AppUpdateCache.state.value as AppUpdateState.UpdateAvailable).latestTag,
+            )
+        }
+
+    @Test
+    fun noticeTag_suppressesPersistedRcTagOnStableChannel() {
+        every { AuthManager.getLastKnownLatestTag() } returns "v1.25.0-rc.3"
+        every { AuthManager.isCheckingReleaseCandidateUpdates() } returns false
+
+        assertNull(UpdateNoticeManager.noticeTag(currentVersion))
+    }
+
+    @Test
+    fun noticeTag_advertisesPersistedRcTagWhenOptedIn() {
+        every { AuthManager.getLastKnownLatestTag() } returns "v1.25.0-rc.3"
+        every { AuthManager.isCheckingReleaseCandidateUpdates() } returns true
+
+        assertEquals("v1.25.0-rc.3", UpdateNoticeManager.noticeTag(currentVersion))
+    }
+
+    @Test
+    fun noticeTag_suppressesCachedRcOfferOnStableChannel() {
+        AppUpdateCache.update(
+            AppUpdateState.UpdateAvailable(
+                latestTag = "v1.25.0-rc.3",
+                apkUrl = "https://example.com/apk",
+                sizeBytes = 1L,
+            ),
+        )
+        every { AuthManager.isCheckingReleaseCandidateUpdates() } returns false
 
         assertNull(UpdateNoticeManager.noticeTag(currentVersion))
     }

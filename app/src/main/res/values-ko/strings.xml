@@ -246,6 +246,8 @@
     <string name="settings_about_update_allow_sources">이 소스의 설치 허용</string>
     <string name="settings_about_update_open_settings">설정 열기</string>
     <string name="settings_about_update_retry">다시 시도</string>
+    <string name="settings_about_rc_updates_title">릴리스 후보 업데이트 확인</string>
+    <string name="settings_about_rc_updates_desc">사전 출시(RC) 빌드를 설치합니다. 안정성이 낮을 수 있습니다.</string>
     <string name="action_save">저장</string>
     <string name="settings_action_add_profile">프로필 추가</string>
     <string name="settings_action_edit_profile">프로필 편집</string>

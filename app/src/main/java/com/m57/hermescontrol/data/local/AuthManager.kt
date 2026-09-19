@@ -873,6 +873,16 @@ object AuthManager {
 
     // ── In-app update check (issue #867) ─────────────────────────────────
 
+    /**
+     * Whether the user opted into release-candidate updates. Stable-only by
+     * default; when true the update check also considers pre-release RC tags.
+     */
+    fun isCheckingReleaseCandidateUpdates(): Boolean = serverStore.getLatestState().checkReleaseCandidateUpdates
+
+    fun setCheckReleaseCandidateUpdates(enabled: Boolean) {
+        serverStore.update { it.copy(checkReleaseCandidateUpdates = enabled) }
+    }
+
     /** App version the silent update check last completed for (null = never). */
     fun getUpdateCheckDoneForVersion(): String? = serverStore.getLatestState().updateCheckDoneForVersion
 

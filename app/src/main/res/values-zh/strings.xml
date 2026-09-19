@@ -244,6 +244,8 @@
     <string name="settings_about_update_allow_sources">允许安装来自此来源的应用</string>
     <string name="settings_about_update_open_settings">打开设置</string>
     <string name="settings_about_update_retry">重试</string>
+    <string name="settings_about_rc_updates_title">检查候选版本更新</string>
+    <string name="settings_about_rc_updates_desc">安装预发布候选版本 (RC)。稳定性可能较低。</string>
     <string name="settings_summary_profiles">已保存 %1$d 个</string>
     <string name="settings_summary_typing_on">打字效果已开启</string>
     <string name="settings_summary_typing_off">打字效果已关闭</string>

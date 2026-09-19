@@ -451,6 +451,25 @@ class ChatWsEventReducerTest {
     }
 
     @Test
+    fun testMessageComplete_setsCompletionIdOnAssistantMessage() {
+        val event =
+            WsEvent.MessageComplete(
+                text = "hello from assistant",
+                sessionId = "session-1",
+                completionId = "comp-123",
+            )
+        val result =
+            ChatWsEventReducer.reduce(
+                state = ChatUiState(),
+                streamingState = StreamingState(),
+                event = event,
+                currentSessionId = "session-1",
+            )
+        val msg = result.state.messages.single()
+        assertEquals("comp-123", msg.completionId)
+    }
+
+    @Test
     fun testMessageStart_prunesCompletedSubagents() {
         val completedSubagent =
             SubagentIndicator(

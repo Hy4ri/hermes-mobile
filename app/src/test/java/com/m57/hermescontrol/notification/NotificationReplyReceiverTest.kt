@@ -25,6 +25,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -63,6 +64,7 @@ class NotificationReplyReceiverTest {
     fun setUp() {
         upsertCallCount = 0
         ActiveSessionHolder.clear()
+        ReplyNotificationTracker.resetForTest()
 
         // Mock Android framework statics (same pattern as HermesWsClientTest)
         mockkStatic(android.util.Log::class)
@@ -128,6 +130,7 @@ class NotificationReplyReceiverTest {
     @After
     fun tearDown() {
         ActiveSessionHolder.clear()
+        ReplyNotificationTracker.resetForTest()
         HermesDatabase.setForTest(null)
         unmockkAll()
     }
@@ -184,6 +187,24 @@ class NotificationReplyReceiverTest {
                 any(),
             )
         }
+    }
+
+    @Test
+    fun `valid reply clears active reply notification target`() {
+        ReplyNotificationTracker.onReplyNotificationPosted(
+            scopeId = "prof-1",
+            sessionId = "session-abc",
+            completionId = "comp-1",
+            textSnippet = "old reply",
+            generation = 1L,
+        )
+        assertNotNull(ReplyNotificationTracker.getActiveTarget())
+
+        givenValidReply("session-abc", "Hello")
+        receiver.onReceive(mockContext, mockIntent)
+        Thread.sleep(500)
+
+        assertNull(ReplyNotificationTracker.getActiveTarget())
     }
 
     @Test

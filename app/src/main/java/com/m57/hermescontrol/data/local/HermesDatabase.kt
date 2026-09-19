@@ -14,7 +14,7 @@ import java.io.File
 
 @Database(
     entities = [ChatMessageEntity::class],
-    version = 7,
+    version = 8,
     exportSchema = true,
 )
 abstract class HermesDatabase : RoomDatabase() {
@@ -81,6 +81,15 @@ abstract class HermesDatabase : RoomDatabase() {
                 }
             }
 
+        val MIGRATION_7_8: Migration =
+            object : Migration(7, 8) {
+                override suspend fun migrate(connection: SQLiteConnection) {
+                    connection.execSQL(
+                        "ALTER TABLE `chat_messages` ADD COLUMN `completion_id` TEXT",
+                    )
+                }
+            }
+
         suspend fun get(context: Context): HermesDatabase =
             withContext(Dispatchers.IO) {
                 instance?.let { return@withContext it }
@@ -116,6 +125,7 @@ abstract class HermesDatabase : RoomDatabase() {
                             MIGRATION_4_5,
                             MIGRATION_5_6,
                             MIGRATION_6_7,
+                            MIGRATION_7_8,
                         ).fallbackToDestructiveMigration(false)
                         .build()
                         .also { instance = it }

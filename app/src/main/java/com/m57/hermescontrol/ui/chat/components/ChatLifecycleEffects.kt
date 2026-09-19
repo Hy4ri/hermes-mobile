@@ -10,18 +10,24 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import com.m57.hermescontrol.NavigationController
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.ws.ConnectionStatus
+import com.m57.hermescontrol.notification.ReplyNotificationTracker
 import com.m57.hermescontrol.ui.chat.ChatMessage
 import com.m57.hermescontrol.ui.chat.ChatViewModel
 import com.m57.hermescontrol.ui.chat.ClarifyUi
 import com.m57.hermescontrol.ui.chat.SecretPromptUi
 import com.m57.hermescontrol.ui.chat.SudoPromptUi
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 @Composable
 fun ChatLifecycleEffects(
@@ -39,6 +45,7 @@ fun ChatLifecycleEffects(
     scrollController: ChatScrollController,
     snackbarHostState: SnackbarHostState,
     viewModel: ChatViewModel,
+    isOverlayActive: Boolean = false,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -85,6 +92,32 @@ fun ChatLifecycleEffects(
             }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    val messageMap = remember(messages) { messages.associateBy { it.id } }
+
+    // Auto-dismiss reply notifications when their message is displayed in the viewport
+    LaunchedEffect(lifecycleOwner, currentSessionId, messageMap, listState, isOverlayActive) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            snapshotFlow<List<ChatMessage>> {
+                if (currentSessionId.isNullOrBlank() || isOverlayActive) {
+                    emptyList()
+                } else {
+                    ChatReadObserver.findVisibleAssistantMessages(listState.layoutInfo, messageMap)
+                }
+            }.distinctUntilChanged()
+                .collect { visibleAssistantMsgs ->
+                    val scopeId = AuthManager.activeProfileId.value.orEmpty()
+                    for (msg in visibleAssistantMsgs) {
+                        ReplyNotificationTracker.onMessageVisible(
+                            context = context,
+                            scopeId = scopeId,
+                            sessionId = currentSessionId,
+                            completionId = msg.completionId,
+                        )
+                    }
+                }
+        }
     }
 
     // Request POST_NOTIFICATIONS permission on Android 13+

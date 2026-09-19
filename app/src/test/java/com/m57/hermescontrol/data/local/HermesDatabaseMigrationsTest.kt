@@ -85,4 +85,16 @@ class HermesDatabaseMigrationsTest {
                 )
             }
         }
+
+    @Test
+    fun migration7to8_executesCompletionIdColumnAdditionOnSQLiteConnection() =
+        runBlocking {
+            val connection = mockk<SQLiteConnection>(relaxed = true)
+            HermesDatabase.MIGRATION_7_8.migrate(connection)
+            verify(exactly = 1) {
+                connection.execSQL(
+                    "ALTER TABLE `chat_messages` ADD COLUMN `completion_id` TEXT",
+                )
+            }
+        }
 }

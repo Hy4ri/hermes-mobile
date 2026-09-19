@@ -63,6 +63,11 @@ sealed class WsEvent {
         val storedSessionId: String? = null,
         /** Full raw payload map (including usage/avg_tps) emitted with message.complete. */
         val rawPayload: Map<String, Any?>? = null,
+        /** Stable completion identity for notification and read-tracking correlation. */
+        val completionId: String =
+            java.util.UUID
+                .randomUUID()
+                .toString(),
     ) : WsEvent()
 
     data class MessageDone(

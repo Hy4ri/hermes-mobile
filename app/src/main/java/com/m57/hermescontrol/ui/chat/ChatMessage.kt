@@ -85,6 +85,8 @@ data class ChatMessage(
     val tokenCount: Int? = null,
     /** Tokens per second generation speed (persisted to SQLite). */
     val tps: Double? = null,
+    /** Stable completion identity correlating with reply notifications for read tracking. */
+    val completionId: String? = null,
 )
 
 /**

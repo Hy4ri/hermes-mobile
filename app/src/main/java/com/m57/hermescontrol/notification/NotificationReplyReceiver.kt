@@ -24,6 +24,9 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
         const val KEY_TEXT_REPLY = "key_text_reply"
         const val EXTRA_SESSION_ID = "extra_session_id"
         private const val REPLY_TIMEOUT_MS = 5_000L
+
+        /** Turn-boundary read budget inside the reply deadline. */
+        private const val BOUNDARY_TIMEOUT_MS = 800L
     }
 
     // Reusable scope for async reply processing — avoids creating a new
@@ -50,7 +53,11 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
             .setContentText("Replied")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
-            .build()
+            .addExtras(
+                android.os.Bundle().apply {
+                    putString(ReplyNotificationTracker.EXTRA_NOTIF_KIND, ReplyNotificationTracker.KIND_REPLIED)
+                },
+            ).build()
 
     override fun onReceive(
         context: Context,
@@ -78,6 +85,17 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
                                 return@withContext
                             }
 
+                            // Mobile-originated follow-up turn: arm its durable
+                            // boundary BEFORE prompt.submit. Budgeted tighter
+                            // than the chat composer's — this receiver has its
+                            // own 5s deadline and a failed capture must only
+                            // make the reply uncorrelatable, never lose it.
+                            captureTurnBoundary(
+                                scopeId = AuthManager.activeProfileId.value.orEmpty(),
+                                sessionId = sessionId,
+                                timeoutMs = BOUNDARY_TIMEOUT_MS,
+                            )
+
                             val runtimeSessionId =
                                 ActiveSessionHolder.resolveRuntimeSessionId(sessionId)
                                     ?: resumeSession(sessionId)
@@ -102,8 +120,7 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
                             dao.upsert(entity)
 
                             val repliedNotification = buildReplyNotification(context)
-                            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                            manager.notify(ChatNotificationService.PENDING_NOTIFICATION_ID, repliedNotification)
+                            ReplyNotificationTracker.postRepliedNotification(context, repliedNotification)
 
                             // The follow-up turn is now pending — keep the
                             // foreground service alive if it retired after the

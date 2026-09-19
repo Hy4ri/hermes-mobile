@@ -3,7 +3,6 @@ package com.m57.hermescontrol.notification
 import android.util.Log
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.NetworkMonitor
-import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 
 /**
@@ -33,21 +32,25 @@ class BackgroundConnectionController(
         val default: BackgroundConnectionController by lazy { BackgroundConnectionController() }
 
         fun defaultSnapshot(isDeparting: Boolean = false): BackgroundConnectionSnapshot {
+            if (AuthManager.initializationState.value != AuthManager.InitializationState.Ready) {
+                return BackgroundConnectionSnapshot.ineligible(
+                    appInForeground = ChatNotificationService.isAppInForeground(),
+                    isDeparting = isDeparting,
+                )
+            }
+
             val status = HermesWsClient.connectionStatus.value
-            val isEligible =
-                AuthManager.initializationState.value == AuthManager.InitializationState.Ready &&
-                    (AuthManager.isGatedMode() || !AuthManager.getToken().isNullOrBlank())
+            val isEligible = AuthManager.isGatedMode() || !AuthManager.getToken().isNullOrBlank()
+
             return BackgroundConnectionSnapshot(
                 appInForeground = ChatNotificationService.isAppInForeground(),
                 isDeparting = isDeparting,
                 keepConnectedOptIn = AuthManager.isKeepConnectedInBackground(),
                 pendingReply = HermesWsClient.pendingReply,
                 isEligibleForConnection = isEligible,
-                isAuthExpired = status == ConnectionStatus.AUTH_EXPIRED,
+                status = status,
                 isAutoReconnect = AuthManager.isAutoReconnect(),
                 hasActiveNetwork = NetworkMonitor.isConnected.value,
-                isConnected = HermesWsClient.isConnected,
-                isReconnecting = status == ConnectionStatus.RECONNECTING,
             )
         }
     }
@@ -68,8 +71,8 @@ class BackgroundConnectionController(
 
         try {
             requestServiceStart(startServiceAction)
-        } catch (t: Throwable) {
-            Log.w(TAG, "Failed to start background service, rolling back lease", t)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to start background service, rolling back lease", e)
             if (decision.shouldHoldPersistentLease) {
                 releaseLease()
             }

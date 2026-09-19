@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.notification
 
+import com.m57.hermescontrol.data.ws.ConnectionStatus
+
 /**
  * Snapshot of runtime state required to determine background connection policy.
  */
@@ -9,12 +11,27 @@ data class BackgroundConnectionSnapshot(
     val keepConnectedOptIn: Boolean,
     val pendingReply: Boolean,
     val isEligibleForConnection: Boolean,
-    val isAuthExpired: Boolean = false,
+    val status: ConnectionStatus,
     val isAutoReconnect: Boolean = true,
     val hasActiveNetwork: Boolean = true,
-    val isConnected: Boolean = false,
-    val isReconnecting: Boolean = false,
-)
+) {
+    companion object {
+        fun ineligible(
+            appInForeground: Boolean = false,
+            isDeparting: Boolean = false,
+        ): BackgroundConnectionSnapshot =
+            BackgroundConnectionSnapshot(
+                appInForeground = appInForeground,
+                isDeparting = isDeparting,
+                keepConnectedOptIn = false,
+                pendingReply = false,
+                isEligibleForConnection = false,
+                status = ConnectionStatus.DISCONNECTED,
+                isAutoReconnect = false,
+                hasActiveNetwork = false,
+            )
+    }
+}
 
 /**
  * User-visible state of the ongoing background notification.
@@ -41,7 +58,8 @@ data class BackgroundConnectionDecision(
  */
 object BackgroundConnectionPolicy {
     fun evaluate(snapshot: BackgroundConnectionSnapshot): BackgroundConnectionDecision {
-        if (!snapshot.isEligibleForConnection || snapshot.isAuthExpired) {
+        // Terminal failure / unauthenticated / ineligible state
+        if (!snapshot.isEligibleForConnection || snapshot.status == ConnectionStatus.AUTH_EXPIRED) {
             return BackgroundConnectionDecision(
                 shouldHoldService = false,
                 shouldHoldPersistentLease = false,
@@ -49,8 +67,7 @@ object BackgroundConnectionPolicy {
             )
         }
 
-        // When the app is in foreground and not in the process of departing to background,
-        // no background service or background lease is needed.
+        // When the app is in foreground and not departing, background service/lease are not needed
         if (snapshot.appInForeground && !snapshot.isDeparting) {
             return BackgroundConnectionDecision(
                 shouldHoldService = false,
@@ -59,6 +76,7 @@ object BackgroundConnectionPolicy {
             )
         }
 
+        // Demand check: need either a pending reply or persistent opt-in
         val hasDemand = snapshot.pendingReply || snapshot.keepConnectedOptIn
         if (!hasDemand) {
             return BackgroundConnectionDecision(
@@ -68,24 +86,49 @@ object BackgroundConnectionPolicy {
             )
         }
 
-        // If disconnected and no reply is pending, and auto-reconnect is disabled,
-        // HermesWsClient will not schedule a reconnect. Do not hold the service or
-        // show a fake "Reconnecting" notification.
-        if (!snapshot.isConnected && !snapshot.pendingReply && !snapshot.isAutoReconnect) {
-            return BackgroundConnectionDecision(
-                shouldHoldService = false,
-                shouldHoldPersistentLease = false,
-                notificationState = BackgroundNotificationState.None,
-            )
+        // When Auto-Reconnect is disabled, HermesWsClient will not reconnect once disconnected or offline.
+        // Even if a reply was pending, it can never arrive without reconnecting.
+        if (!snapshot.isAutoReconnect) {
+            when (snapshot.status) {
+                ConnectionStatus.DISCONNECTED,
+                ConnectionStatus.NO_NETWORK,
+                -> {
+                    return BackgroundConnectionDecision(
+                        shouldHoldService = false,
+                        shouldHoldPersistentLease = false,
+                        notificationState = BackgroundNotificationState.None,
+                    )
+                }
+
+                else -> { /* CONNECTED, CONNECTING, RECONNECTING can proceed */ }
+            }
         }
 
         val notificationState =
             when {
-                !snapshot.hasActiveNetwork -> BackgroundNotificationState.WaitingForNetwork
-                snapshot.isReconnecting -> BackgroundNotificationState.Reconnecting
-                snapshot.pendingReply -> BackgroundNotificationState.WaitingForReplies
-                snapshot.isConnected -> BackgroundNotificationState.ConnectedInBackground
-                else -> BackgroundNotificationState.Reconnecting
+                !snapshot.hasActiveNetwork || snapshot.status == ConnectionStatus.NO_NETWORK -> {
+                    BackgroundNotificationState.WaitingForNetwork
+                }
+
+                snapshot.status == ConnectionStatus.RECONNECTING -> {
+                    BackgroundNotificationState.Reconnecting
+                }
+
+                snapshot.pendingReply -> {
+                    BackgroundNotificationState.WaitingForReplies
+                }
+
+                snapshot.status == ConnectionStatus.CONNECTED -> {
+                    BackgroundNotificationState.ConnectedInBackground
+                }
+
+                snapshot.status == ConnectionStatus.CONNECTING -> {
+                    BackgroundNotificationState.ConnectedInBackground
+                }
+
+                else -> {
+                    BackgroundNotificationState.Reconnecting
+                }
             }
 
         return BackgroundConnectionDecision(

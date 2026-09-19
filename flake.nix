@@ -93,6 +93,17 @@
             # Writable gradle home
             mkdir -p "$GRADLE_USER_HOME"
 
+            # Enable host keyboard input for the project's existing AVD.
+            hermesAvdConfig="''${ANDROID_AVD_HOME:-''${ANDROID_USER_HOME:-$HOME/.android}/avd}/hermes_dev.avd/config.ini"
+            if [ -f "$hermesAvdConfig" ]; then
+              if ${pkgs.gnugrep}/bin/grep -q '^hw\.keyboard[[:space:]]*=' "$hermesAvdConfig"; then
+                ${pkgs.gnused}/bin/sed -i 's/^hw\.keyboard[[:space:]]*=.*/hw.keyboard=yes/' "$hermesAvdConfig"
+              else
+                printf '\nhw.keyboard=yes\n' >> "$hermesAvdConfig"
+              fi
+            fi
+            unset hermesAvdConfig
+
             # ADB Screen Resolution Aliases
             alias avd-phone='adb shell wm size 1440x3120 && adb shell wm density 500'
             alias avd-phone-fhd='adb shell wm size 1080x2400 && adb shell wm density 420'

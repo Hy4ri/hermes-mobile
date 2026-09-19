@@ -91,6 +91,21 @@ If Hermes Mobile is useful to you, consider supporting its development on [Ko-fi
 
 _Note: For release builds, ensure keystore environment variables (`KEYSTORE_PATH`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`) are configured, or let the GitHub Actions release workflow handle it on tag push (`v*`)._
 
+### Nix emulator
+
+The Nix development shell enables physical keyboard input in an existing
+`hermes_dev` AVD configuration. It respects `ANDROID_AVD_HOME` and
+`ANDROID_USER_HOME`, defaulting to `~/.android/avd`.
+
+Close any running emulator, then cold boot once to apply the setting:
+
+```bash
+nix develop --command emulator -avd hermes_dev -no-snapshot-load
+```
+
+Subsequent launches can omit `-no-snapshot-load`. Create the `hermes_dev` AVD
+first if it does not exist; the shell does not create one.
+
 ---
 
 ## Authentication

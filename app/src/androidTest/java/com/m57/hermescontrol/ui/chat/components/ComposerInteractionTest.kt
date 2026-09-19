@@ -362,4 +362,13 @@ class ComposerInteractionTest {
         composeTestRule.onNodeWithText("openai/gpt-5.5").assertIsDisplayed()
         composeTestRule.onNodeWithText("gpt-5.5").assertDoesNotExist()
     }
+
+    @Test
+    fun defaultComposer_showsOnlyFinalModelSegmentForNestedProvider() {
+        setComposer(model = "openrouter/openai/gpt-5", showModelProvider = false)
+
+        composeTestRule.onNodeWithText("gpt-5").assertIsDisplayed()
+        composeTestRule.onNodeWithText("openai/gpt-5").assertDoesNotExist()
+        composeTestRule.onNodeWithText("openrouter/openai/gpt-5").assertDoesNotExist()
+    }
 }

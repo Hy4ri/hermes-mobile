@@ -479,7 +479,8 @@ internal fun composerModelLabel(
     if (rawProvider == CUSTOM_PROVIDER_PREFIX) return sessionModel
 
     if (!showProvider) {
-        return model
+        val leaf = sessionModel.substringAfterLast('/')
+        return if (leaf.isNotBlank()) leaf else sessionModel
     }
 
     val provider =

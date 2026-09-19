@@ -9,6 +9,8 @@ data class BackgroundConnectionSnapshot(
     val keepConnectedOptIn: Boolean,
     val pendingReply: Boolean,
     val isEligibleForConnection: Boolean,
+    val isAuthExpired: Boolean = false,
+    val isAutoReconnect: Boolean = true,
     val hasActiveNetwork: Boolean = true,
     val isConnected: Boolean = false,
     val isReconnecting: Boolean = false,
@@ -39,7 +41,7 @@ data class BackgroundConnectionDecision(
  */
 object BackgroundConnectionPolicy {
     fun evaluate(snapshot: BackgroundConnectionSnapshot): BackgroundConnectionDecision {
-        if (!snapshot.isEligibleForConnection) {
+        if (!snapshot.isEligibleForConnection || snapshot.isAuthExpired) {
             return BackgroundConnectionDecision(
                 shouldHoldService = false,
                 shouldHoldPersistentLease = false,
@@ -59,6 +61,17 @@ object BackgroundConnectionPolicy {
 
         val hasDemand = snapshot.pendingReply || snapshot.keepConnectedOptIn
         if (!hasDemand) {
+            return BackgroundConnectionDecision(
+                shouldHoldService = false,
+                shouldHoldPersistentLease = false,
+                notificationState = BackgroundNotificationState.None,
+            )
+        }
+
+        // If disconnected and no reply is pending, and auto-reconnect is disabled,
+        // HermesWsClient will not schedule a reconnect. Do not hold the service or
+        // show a fake "Reconnecting" notification.
+        if (!snapshot.isConnected && !snapshot.pendingReply && !snapshot.isAutoReconnect) {
             return BackgroundConnectionDecision(
                 shouldHoldService = false,
                 shouldHoldPersistentLease = false,

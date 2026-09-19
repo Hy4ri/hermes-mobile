@@ -33,6 +33,7 @@ class BackgroundConnectionController(
         val default: BackgroundConnectionController by lazy { BackgroundConnectionController() }
 
         fun defaultSnapshot(isDeparting: Boolean = false): BackgroundConnectionSnapshot {
+            val status = HermesWsClient.connectionStatus.value
             val isEligible =
                 AuthManager.initializationState.value == AuthManager.InitializationState.Ready &&
                     (AuthManager.isGatedMode() || !AuthManager.getToken().isNullOrBlank())
@@ -42,9 +43,11 @@ class BackgroundConnectionController(
                 keepConnectedOptIn = AuthManager.isKeepConnectedInBackground(),
                 pendingReply = HermesWsClient.pendingReply,
                 isEligibleForConnection = isEligible,
+                isAuthExpired = status == ConnectionStatus.AUTH_EXPIRED,
+                isAutoReconnect = AuthManager.isAutoReconnect(),
                 hasActiveNetwork = NetworkMonitor.isConnected.value,
                 isConnected = HermesWsClient.isConnected,
-                isReconnecting = HermesWsClient.connectionStatus.value == ConnectionStatus.RECONNECTING,
+                isReconnecting = status == ConnectionStatus.RECONNECTING,
             )
         }
     }
@@ -70,7 +73,6 @@ class BackgroundConnectionController(
             if (decision.shouldHoldPersistentLease) {
                 releaseLease()
             }
-            throw t
         }
     }
 

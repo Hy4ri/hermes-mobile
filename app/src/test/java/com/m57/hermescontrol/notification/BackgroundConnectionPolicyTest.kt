@@ -173,4 +173,66 @@ class BackgroundConnectionPolicyTest {
         assertTrue(decision.shouldHoldService)
         assertEquals(BackgroundNotificationState.Reconnecting, decision.notificationState)
     }
+
+    @Test
+    fun testAuthExpired_releasesServiceAndLease_showsNone() {
+        val state =
+            BackgroundConnectionSnapshot(
+                appInForeground = false,
+                isDeparting = false,
+                keepConnectedOptIn = true,
+                pendingReply = true,
+                isEligibleForConnection = true,
+                isAuthExpired = true,
+                hasActiveNetwork = true,
+                isConnected = false,
+                isReconnecting = false,
+            )
+        val decision = BackgroundConnectionPolicy.evaluate(state)
+        assertFalse(decision.shouldHoldService)
+        assertFalse(decision.shouldHoldPersistentLease)
+        assertEquals(BackgroundNotificationState.None, decision.notificationState)
+    }
+
+    @Test
+    fun testDisconnected_whenAutoReconnectDisabled_releasesServiceAndLease_showsNone() {
+        val state =
+            BackgroundConnectionSnapshot(
+                appInForeground = false,
+                isDeparting = false,
+                keepConnectedOptIn = true,
+                pendingReply = false,
+                isEligibleForConnection = true,
+                isAuthExpired = false,
+                isAutoReconnect = false,
+                hasActiveNetwork = true,
+                isConnected = false,
+                isReconnecting = false,
+            )
+        val decision = BackgroundConnectionPolicy.evaluate(state)
+        assertFalse(decision.shouldHoldService)
+        assertFalse(decision.shouldHoldPersistentLease)
+        assertEquals(BackgroundNotificationState.None, decision.notificationState)
+    }
+
+    @Test
+    fun testDisconnected_whenAutoReconnectEnabled_holdsServiceAndShowsReconnecting() {
+        val state =
+            BackgroundConnectionSnapshot(
+                appInForeground = false,
+                isDeparting = false,
+                keepConnectedOptIn = true,
+                pendingReply = false,
+                isEligibleForConnection = true,
+                isAuthExpired = false,
+                isAutoReconnect = true,
+                hasActiveNetwork = true,
+                isConnected = false,
+                isReconnecting = false,
+            )
+        val decision = BackgroundConnectionPolicy.evaluate(state)
+        assertTrue(decision.shouldHoldService)
+        assertTrue(decision.shouldHoldPersistentLease)
+        assertEquals(BackgroundNotificationState.Reconnecting, decision.notificationState)
+    }
 }

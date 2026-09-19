@@ -71,7 +71,7 @@ class BackgroundConnectionControllerTest {
     }
 
     @Test
-    fun testOnAppPause_whenStartThrows_rollsBackLease() {
+    fun testOnAppPause_whenStartThrows_rollsBackLeaseAndDoesNotRethrow() {
         var leaseAcquired = false
         var leaseReleased = false
 
@@ -97,14 +97,9 @@ class BackgroundConnectionControllerTest {
                 },
             )
 
-        var thrown = false
-        try {
-            controller.onAppPause {}
-        } catch (_: IllegalStateException) {
-            thrown = true
-        }
+        // Must not rethrow into Activity.onPause, but must roll back acquired lease
+        controller.onAppPause {}
 
-        assertTrue(thrown)
         assertTrue(leaseAcquired)
         assertTrue(leaseReleased)
     }
@@ -256,6 +251,7 @@ class BackgroundConnectionControllerTest {
             every { AuthManager.isGatedMode() } returns true
             every { AuthManager.getToken() } returns null
             every { AuthManager.isKeepConnectedInBackground() } returns true
+            every { AuthManager.isAutoReconnect() } returns true
             every { ChatNotificationService.isAppInForeground() } returns false
             every { HermesWsClient.pendingReply } returns false
             every { HermesWsClient.isConnected } returns true
@@ -287,6 +283,7 @@ class BackgroundConnectionControllerTest {
             every { AuthManager.isGatedMode() } returns false
             every { AuthManager.getToken() } returns null
             every { AuthManager.isKeepConnectedInBackground() } returns true
+            every { AuthManager.isAutoReconnect() } returns true
             every { ChatNotificationService.isAppInForeground() } returns false
             every { HermesWsClient.pendingReply } returns false
             every { HermesWsClient.isConnected } returns false
@@ -299,6 +296,75 @@ class BackgroundConnectionControllerTest {
             val decision = BackgroundConnectionPolicy.evaluate(snapshot)
             assertFalse(decision.shouldHoldService)
             assertFalse(decision.shouldHoldPersistentLease)
+        } finally {
+            unmockkObject(AuthManager)
+            unmockkObject(ChatNotificationService)
+            unmockkObject(HermesWsClient)
+            unmockkObject(NetworkMonitor)
+        }
+    }
+
+    @Test
+    fun testDefaultSnapshot_whenAuthExpired_isAuthExpiredTrueAndPolicyReleasesService() {
+        mockkObject(AuthManager)
+        mockkObject(ChatNotificationService)
+        mockkObject(HermesWsClient)
+        mockkObject(NetworkMonitor)
+        try {
+            every { AuthManager.initializationState } returns MutableStateFlow(AuthManager.InitializationState.Ready)
+            every { AuthManager.isGatedMode() } returns false
+            every { AuthManager.getToken() } returns "some-token"
+            every { AuthManager.isKeepConnectedInBackground() } returns true
+            every { AuthManager.isAutoReconnect() } returns true
+            every { ChatNotificationService.isAppInForeground() } returns false
+            every { HermesWsClient.pendingReply } returns false
+            every { HermesWsClient.isConnected } returns false
+            every { HermesWsClient.connectionStatus } returns MutableStateFlow(ConnectionStatus.AUTH_EXPIRED)
+            every { NetworkMonitor.isConnected } returns MutableStateFlow(true)
+
+            val snapshot = BackgroundConnectionController.defaultSnapshot()
+            assertTrue(snapshot.isEligibleForConnection)
+            assertTrue(snapshot.isAuthExpired)
+
+            val decision = BackgroundConnectionPolicy.evaluate(snapshot)
+            assertFalse(decision.shouldHoldService)
+            assertFalse(decision.shouldHoldPersistentLease)
+            assertEquals(BackgroundNotificationState.None, decision.notificationState)
+        } finally {
+            unmockkObject(AuthManager)
+            unmockkObject(ChatNotificationService)
+            unmockkObject(HermesWsClient)
+            unmockkObject(NetworkMonitor)
+        }
+    }
+
+    @Test
+    fun testDefaultSnapshot_whenAutoReconnectDisabledAndDisconnected_policyReleasesService() {
+        mockkObject(AuthManager)
+        mockkObject(ChatNotificationService)
+        mockkObject(HermesWsClient)
+        mockkObject(NetworkMonitor)
+        try {
+            every { AuthManager.initializationState } returns MutableStateFlow(AuthManager.InitializationState.Ready)
+            every { AuthManager.isGatedMode() } returns false
+            every { AuthManager.getToken() } returns "some-token"
+            every { AuthManager.isKeepConnectedInBackground() } returns true
+            every { AuthManager.isAutoReconnect() } returns false
+            every { ChatNotificationService.isAppInForeground() } returns false
+            every { HermesWsClient.pendingReply } returns false
+            every { HermesWsClient.isConnected } returns false
+            every { HermesWsClient.connectionStatus } returns MutableStateFlow(ConnectionStatus.DISCONNECTED)
+            every { NetworkMonitor.isConnected } returns MutableStateFlow(true)
+
+            val snapshot = BackgroundConnectionController.defaultSnapshot()
+            assertTrue(snapshot.isEligibleForConnection)
+            assertFalse(snapshot.isAuthExpired)
+            assertFalse(snapshot.isAutoReconnect)
+
+            val decision = BackgroundConnectionPolicy.evaluate(snapshot)
+            assertFalse(decision.shouldHoldService)
+            assertFalse(decision.shouldHoldPersistentLease)
+            assertEquals(BackgroundNotificationState.None, decision.notificationState)
         } finally {
             unmockkObject(AuthManager)
             unmockkObject(ChatNotificationService)

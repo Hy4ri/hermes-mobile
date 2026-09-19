@@ -114,7 +114,9 @@ fun SettingsScreen(
                             icon = Icons.Filled.Tune,
                             label = stringResource(R.string.settings_sec_behavior),
                             summary =
-                                if (state.autoReconnect || state.restoreLastSession) {
+                                if (state.autoReconnect || state.restoreLastSession ||
+                                    state.keepConnectedInBackground
+                                ) {
                                     stringResource(R.string.settings_summary_on)
                                 } else {
                                     stringResource(R.string.settings_summary_off)

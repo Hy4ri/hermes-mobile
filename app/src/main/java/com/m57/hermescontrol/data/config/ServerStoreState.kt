@@ -29,6 +29,7 @@ data class ServerStoreState(
     val showAssistantMessageTokens: Boolean = true,
     val showTokensPerSecond: Boolean = true,
     val showModelProvider: Boolean = false,
+    val keepConnectedInBackground: Boolean = false,
     // App display language. "system" = follow device locale; otherwise a BCP-47
     // language code such as "en" or "ko". Applied via ContextWrapper in MainActivity.
     val appLanguage: String = "system",

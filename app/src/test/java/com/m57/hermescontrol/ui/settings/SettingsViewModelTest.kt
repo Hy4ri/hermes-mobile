@@ -78,6 +78,7 @@ class SettingsViewModelTest {
         every { AuthManager.isAssistantMessageTokensEnabled() } returns true
         every { AuthManager.isTokensPerSecondEnabled() } returns true
         every { AuthManager.isModelProviderShown() } returns false
+        every { AuthManager.isKeepConnectedInBackground() } returns false
         every { AuthManager.getConnectionProfiles() } returns emptyList()
         every { AuthManager.getSelectedProfileId() } answers { storedSelectedProfileId }
         every { AuthManager.baseUrl() } returns "http://127.0.0.1:9119/"
@@ -95,6 +96,7 @@ class SettingsViewModelTest {
         every { AuthManager.setAssistantMessageTokensEnabled(any()) } returns Unit
         every { AuthManager.setTokensPerSecondEnabled(any()) } returns Unit
         every { AuthManager.setModelProviderShown(any()) } returns Unit
+        every { AuthManager.setKeepConnectedInBackground(any()) } returns Unit
         every { AuthManager.setSelectedProfileId(any()) } answers {
             storedSelectedProfileId = firstArg()
         }
@@ -360,6 +362,38 @@ class SettingsViewModelTest {
             testDispatcher.scheduler.advanceUntilIdle()
 
             verify { AuthManager.setModelProviderShown(true) }
+            assertEquals(true, viewModel.uiState.value.isSaved)
+        }
+
+    @Test
+    fun testKeepConnectedInBackground_loadsAndToggles() =
+        runTest {
+            every { AuthManager.isKeepConnectedInBackground() } returns false
+
+            val viewModel = SettingsViewModel(ioDispatcher = testDispatcher)
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(false, viewModel.uiState.value.keepConnectedInBackground)
+
+            viewModel.onKeepConnectedInBackgroundChange(true)
+            assertEquals(true, viewModel.uiState.value.keepConnectedInBackground)
+            verify { AuthManager.setKeepConnectedInBackground(true) }
+
+            viewModel.onKeepConnectedInBackgroundChange(false)
+            assertEquals(false, viewModel.uiState.value.keepConnectedInBackground)
+            verify { AuthManager.setKeepConnectedInBackground(false) }
+        }
+
+    @Test
+    fun testSave_persistsKeepConnectedInBackground() =
+        runTest {
+            val viewModel = SettingsViewModel(ioDispatcher = testDispatcher)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            viewModel.onKeepConnectedInBackgroundChange(true)
+            viewModel.save()
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            verify { AuthManager.setKeepConnectedInBackground(true) }
             assertEquals(true, viewModel.uiState.value.isSaved)
         }
 }

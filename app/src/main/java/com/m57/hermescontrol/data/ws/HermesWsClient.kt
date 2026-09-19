@@ -123,6 +123,7 @@ object HermesWsClient {
     private val acceptQueuedMessages = AtomicBoolean(true)
     private val appInForeground = AtomicBoolean(true)
     private val externalActivityConnectionLease = AtomicBoolean(false)
+    private val backgroundConnectionLease = AtomicBoolean(false)
     private val messageQueue = ConcurrentLinkedQueue<String>()
     private val queuedMessagesById = ConcurrentHashMap<String, String>()
     private val outboundLock = Any()
@@ -433,10 +434,23 @@ object HermesWsClient {
         disconnectIfIdleInBackground()
     }
 
+    fun acquireBackgroundConnectionLease() {
+        backgroundConnectionLease.set(true)
+    }
+
+    fun releaseBackgroundConnectionLease() {
+        backgroundConnectionLease.set(false)
+        disconnectIfIdleInBackground()
+    }
+
+    @VisibleForTesting
+    internal fun hasBackgroundConnectionLease(): Boolean = backgroundConnectionLease.get()
+
     private fun disconnectIfIdleInBackground() {
         synchronized(outboundLock) {
             if (!appInForeground.get() &&
                 !externalActivityConnectionLease.get() &&
+                !backgroundConnectionLease.get() &&
                 !pendingReply &&
                 pendingCalls.isEmpty() &&
                 messageQueue.isEmpty()
@@ -708,6 +722,7 @@ object HermesWsClient {
             webSocket = null
             closingSocket = null
             if (clearPendingMessages) {
+                backgroundConnectionLease.set(false)
                 messageQueue.clear()
                 queuedMessagesById.clear()
                 pendingPromptSubmits.clear()

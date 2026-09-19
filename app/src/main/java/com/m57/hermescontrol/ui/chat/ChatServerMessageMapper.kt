@@ -20,17 +20,59 @@ internal fun mapServerMessages(
     offset: Int,
     latestPaging: Boolean,
     liveMessages: List<ChatMessage>,
+    isPagingOlder: Boolean = false,
 ): List<ChatMessage> {
     val existingReasoningMap =
         liveMessages
             .filter { it.reasoningText.isNotBlank() }
             .associateBy { it.content }
 
-    val liveAssistantQueueByContent =
+    val liveByExactId =
         liveMessages
-            .filter { it.role == MessageRole.ASSISTANT && !it.completionId.isNullOrBlank() }
-            .groupBy { it.content.trim() }
-            .mapValues { it.value.toMutableList() }
+            .filter { !it.completionId.isNullOrBlank() }
+            .associateBy { it.id }
+
+    val unmappedLiveWsAssistants =
+        if (isPagingOlder) {
+            emptyList()
+        } else {
+            liveMessages
+                .filter {
+                    it.role == MessageRole.ASSISTANT && !it.id.startsWith("rest-") &&
+                        !it.completionId.isNullOrBlank()
+                }
+        }
+
+    val wsCompletionIdByRestIndex = mutableMapOf<Int, String>()
+    if (unmappedLiveWsAssistants.isNotEmpty()) {
+        val remainingWs = unmappedLiveWsAssistants.toMutableList()
+        for (i in messages.indices.reversed()) {
+            if (remainingWs.isEmpty()) break
+            val m = messages[i]
+            val r =
+                when (m.role?.lowercase()) {
+                    "user" -> MessageRole.USER
+                    "system" -> MessageRole.SYSTEM
+                    "tool" -> MessageRole.TOOL
+                    else -> MessageRole.ASSISTANT
+                }
+            if (r != MessageRole.ASSISTANT) continue
+            val restId =
+                if (latestPaging) {
+                    m.id?.let { "rest-$sessionId-$it" } ?: "rest-$sessionId-${offset + i}"
+                } else {
+                    "rest-$sessionId-${offset + i}"
+                }
+            if (liveByExactId.containsKey(restId)) continue
+            val content = m.contentText.trim()
+            val wsIdx = remainingWs.indexOfLast { it.content.trim() == content }
+            if (wsIdx >= 0) {
+                remainingWs.removeAt(wsIdx).completionId?.let { compId ->
+                    wsCompletionIdByRestIndex[i] = compId
+                }
+            }
+        }
+    }
 
     // Tool rows in the REST transcript carry NO tool name — the live WS
     // stream was the only source of `toolName`. Match each REST tool row
@@ -179,12 +221,7 @@ internal fun mapServerMessages(
 
         val completionId =
             if (role == MessageRole.ASSISTANT) {
-                val queue = liveAssistantQueueByContent[finalContent.trim()]
-                if (!queue.isNullOrEmpty()) {
-                    queue.removeAt(0).completionId
-                } else {
-                    null
-                }
+                liveByExactId[restId]?.completionId ?: wsCompletionIdByRestIndex[index]
             } else {
                 null
             }

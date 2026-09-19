@@ -3211,6 +3211,7 @@ class ChatViewModel(
                             returnedOffset,
                             latestPaging,
                             _uiState.value.messages,
+                            isPagingOlder = true,
                         )
                     loadedMessageOffset = returnedOffset
                     withContext(ioDispatcher) { repo.persistMessages(older, sessionId) }
@@ -3295,6 +3296,7 @@ class ChatViewModel(
                                 nextOffset,
                                 latestPaging,
                                 _uiState.value.messages,
+                                isPagingOlder = true,
                             )
                         if (incoming.isEmpty()) return@launch
                         withContext(ioDispatcher) { repo.persistMessages(incoming, sessionId) }

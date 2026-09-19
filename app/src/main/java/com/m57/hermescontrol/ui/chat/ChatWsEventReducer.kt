@@ -429,6 +429,9 @@ object ChatWsEventReducer {
         // above before this return because the final snapshot is still needed
         // as the next turn's cumulative baseline.
         if (text.isBlank()) {
+            val effects = mutableListOf<ReducerEffect>()
+            val sid = state.currentSessionId
+            var updatedTargetMsg: ChatMessage? = null
             val updatedMessages =
                 if (!event.completionId.isNullOrBlank()) {
                     val lastAssistantIdx =
@@ -440,8 +443,9 @@ object ChatWsEventReducer {
                             ?: usageState.messages.indexOfLast { it.role == MessageRole.ASSISTANT }
                     if (lastAssistantIdx >= 0) {
                         usageState.messages.toMutableList().also { list ->
-                            list[lastAssistantIdx] =
-                                list[lastAssistantIdx].copy(completionId = event.completionId)
+                            val updated = list[lastAssistantIdx].copy(completionId = event.completionId)
+                            list[lastAssistantIdx] = updated
+                            updatedTargetMsg = updated
                         }
                     } else {
                         usageState.messages
@@ -449,9 +453,15 @@ object ChatWsEventReducer {
                 } else {
                     usageState.messages
                 }
+            if (sid != null && updatedTargetMsg != null) {
+                effects.add(ReducerEffect.PersistMessage(updatedTargetMsg, sid))
+            }
+            effects.add(ReducerEffect.RefreshSessions)
+            effects.add(ReducerEffect.RefreshContextUsage)
             return ReducerResult(
                 state = usageState.copy(messages = updatedMessages, isAgentTyping = false),
                 streamingState = StreamingState(),
+                effects = effects,
             )
         }
         val tps = turnUsage?.avgTps.validTpsOrNull() ?: usageState.latestTps.validTpsOrNull()

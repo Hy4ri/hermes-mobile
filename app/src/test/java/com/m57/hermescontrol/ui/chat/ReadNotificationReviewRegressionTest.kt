@@ -107,6 +107,62 @@ class ReadNotificationReviewRegressionTest {
                 .single()
                 .completionId,
         )
+        val persistEffect =
+            result.effects.filterIsInstance<ReducerEffect.PersistMessage>().singleOrNull()
+        assertEquals(
+            "PersistMessage effect must be emitted for the sealed orphan bubble so Room persists it",
+            "new-completion",
+            persistEffect?.message?.completionId,
+        )
+    }
+
+    @Test
+    fun loadOlderMessagesMustNotStealCompletionIdFromLiveMessage() {
+        val live =
+            listOf(
+                ChatMessage(
+                    id = "ws-1",
+                    role = MessageRole.ASSISTANT,
+                    content = "Done",
+                    completionId = "new-completion",
+                ),
+            )
+        val olderHistory =
+            listOf(
+                SessionMessage(id = 50, role = "assistant", content = JsonPrimitive("Done")),
+            )
+        val mapped = mapServerMessages("session", olderHistory, 50, true, live, isPagingOlder = true)
+        assertEquals("Older paged message must not steal live completionId", null, mapped.single().completionId)
+    }
+
+    @Test
+    fun duplicateTextOutsideFetchedPageMustNotShiftCompletionId() {
+        val live =
+            listOf(
+                ChatMessage(
+                    id = "rest-session-10",
+                    role = MessageRole.ASSISTANT,
+                    content = "Done",
+                    completionId = null,
+                ),
+                ChatMessage(
+                    id = "rest-session-20",
+                    role = MessageRole.ASSISTANT,
+                    content = "Done",
+                    completionId = "new-completion",
+                ),
+            )
+        // Page only includes message 20 (message 10 is outside this page)
+        val history =
+            listOf(
+                SessionMessage(id = 20, role = "assistant", content = JsonPrimitive("Done")),
+            )
+        val mapped = mapServerMessages("session", history, 0, true, live, isPagingOlder = false)
+        assertEquals(
+            "Exact REST id match must preserve identity regardless of older duplicates",
+            "new-completion",
+            mapped.single().completionId,
+        )
     }
 
     @Test

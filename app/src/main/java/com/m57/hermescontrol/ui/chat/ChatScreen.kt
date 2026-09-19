@@ -155,6 +155,7 @@ fun ChatScreen(
     val credentialWarning by HermesWsClient.credentialWarning.collectAsStateWithLifecycle()
     val connectorsViewModel: ChatConnectorsViewModel = viewModel()
     val connectorsState by connectorsViewModel.uiState.collectAsStateWithLifecycle()
+    val actionProgressState by viewModel.actionProgress.state.collectAsStateWithLifecycle()
     // Snapshot-backed search state — read directly so only the scopes that
     // read its fields recompose on search changes (bar, matched bubbles).
     val searchState = viewModel.searchState
@@ -426,12 +427,17 @@ fun ChatScreen(
             context = context,
         )
 
-    val isOverlayActive =
-        (showContextSheet && state.contextBreakdown != null) ||
-            showSubagentInspectionSheet ||
-            state.btwState != null ||
-            viewingImage != null ||
-            connectorsState.isVisible
+    val isChatContentReadable =
+        !showReloginDialog &&
+            !state.updateConfirmOpen &&
+            !actionProgressState.visible &&
+            !state.showModelPicker &&
+            state.modelSwitchConfirmMessage == null &&
+            !(showContextSheet && state.contextBreakdown != null) &&
+            !showSubagentInspectionSheet &&
+            state.btwState == null &&
+            viewingImage == null &&
+            !connectorsState.isVisible
 
     // Lifecycle effects, permissions, session switching, auto-scroll, errors
     ChatLifecycleEffects(
@@ -449,7 +455,7 @@ fun ChatScreen(
         scrollController = scrollController,
         snackbarHostState = snackbarHostState,
         viewModel = viewModel,
-        isOverlayActive = isOverlayActive,
+        isOverlayActive = !isChatContentReadable,
     )
 
     HermesScaffold(

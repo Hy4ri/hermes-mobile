@@ -265,6 +265,8 @@
     <string name="settings_about_update_allow_sources">Allow installs from this source</string>
     <string name="settings_about_update_open_settings">Open settings</string>
     <string name="settings_about_update_retry">Retry</string>
+    <string name="settings_about_rc_updates_title">Check release candidate updates</string>
+    <string name="settings_about_rc_updates_desc">Install pre-release RC builds. They may be less stable.</string>
     <string name="settings_support_title">Support Hermes Mobile</string>
     <string name="settings_support_message">If Hermes Mobile saves you time, you can support its development.</string>
     <string name="settings_support_action">Support me on Ko-fi</string>

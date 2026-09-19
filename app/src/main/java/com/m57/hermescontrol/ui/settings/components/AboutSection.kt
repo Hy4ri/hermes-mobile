@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.ui.settings.components
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,6 +13,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -28,8 +31,10 @@ import com.m57.hermescontrol.ui.settings.SectionCard
 @Composable
 internal fun AboutSection(
     updateState: AppUpdateState = AppUpdateState.Idle,
+    checkReleaseCandidateUpdates: Boolean = false,
     onCheckUpdate: () -> Unit = {},
     onStartUpdate: () -> Unit = {},
+    onCheckReleaseCandidateUpdatesChange: (Boolean) -> Unit = {},
     onOpenInstallSettings: () -> Unit = {},
 ) {
     SectionCard {
@@ -56,6 +61,15 @@ internal fun AboutSection(
             onCheckUpdate = onCheckUpdate,
             onStartUpdate = onStartUpdate,
             onOpenInstallSettings = onOpenInstallSettings,
+        )
+        ReleaseCandidateRow(
+            checked = checkReleaseCandidateUpdates,
+            // Mid-download / mid-install the channel must not flip under the
+            // in-flight APK.
+            enabled =
+                updateState !is AppUpdateState.Downloading &&
+                    updateState !is AppUpdateState.Installing,
+            onCheckedChange = onCheckReleaseCandidateUpdatesChange,
         )
         InfoRow(
             label = stringResource(R.string.settings_about_build),
@@ -222,4 +236,45 @@ private fun ValueText(text: String) {
                 color = MaterialTheme.colorScheme.onSurface,
             ),
     )
+}
+
+/**
+ * Opt-in switch for pre-release (release candidate) updates. Stable-only is
+ * the default; enabling this makes the update check consider RC tags too.
+ */
+@Composable
+private fun ReleaseCandidateRow(
+    checked: Boolean,
+    enabled: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stringResource(R.string.settings_about_rc_updates_title),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                text = stringResource(R.string.settings_about_rc_updates_desc),
+                style =
+                    MaterialTheme.typography.bodySmall.copy(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
+            )
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            enabled = enabled,
+            colors =
+                SwitchDefaults.colors(
+                    checkedThumbColor = MaterialTheme.colorScheme.primary,
+                    checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
+                ),
+        )
+    }
 }

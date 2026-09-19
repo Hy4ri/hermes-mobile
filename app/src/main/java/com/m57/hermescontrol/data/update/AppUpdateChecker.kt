@@ -18,6 +18,9 @@ import java.io.IOException
 data class UpdateInfo(
     val tagName: String = "",
     val body: String = "",
+    /** GitHub release flags: a draft is unpublished, a prerelease is pre-stable. */
+    val draft: Boolean = false,
+    val prerelease: Boolean = false,
     val assets: List<Asset> = emptyList(),
 ) {
     @Serializable
@@ -61,6 +64,32 @@ fun isNewerVersion(
     return a.prerelease.size > b.prerelease.size
 }
 
+/**
+ * Pick the newest installable release out of a GitHub `releases` list payload.
+ *
+ * Drafts and releases without an APK asset are always ignored. Pre-releases are
+ * only eligible when [includeReleaseCandidates] is set *and* the tag is a
+ * release candidate — alpha/beta/dev pre-releases stay out of the RC channel.
+ *
+ * Selection uses [isNewerVersion] rather than list order because the API orders
+ * releases by publication date, which is not a version oracle.
+ */
+fun selectLatestUpdate(
+    releases: List<UpdateInfo>,
+    includeReleaseCandidates: Boolean = false,
+): UpdateInfo? =
+    releases
+        .filter { !it.draft && it.apkAsset != null }
+        .filter {
+            if (!it.prerelease) {
+                true
+            } else {
+                includeReleaseCandidates && isReleaseCandidateVersion(it.tagName)
+            }
+        }.reduceOrNull { best, candidate ->
+            if (isNewerVersion(candidate.tagName, best.tagName)) candidate else best
+        }
+
 private data class ParsedVersion(
     val core: List<Int>,
     val prerelease: List<String>,
@@ -96,6 +125,19 @@ private fun comparePrereleaseIdentifier(
     return x.length.compareTo(y.length).takeIf { it != 0 } ?: x.compareTo(y)
 }
 
+/** `rc`, `rc1`, `RC2` — but never alpha/beta/dev. */
+private val RC_IDENTIFIER = Regex("^rc[0-9]*$", RegexOption.IGNORE_CASE)
+
+/**
+ * True when [tag] is a release-candidate version such as "v1.25.0-rc.1",
+ * "v1.25-rc1", or the legacy dot form "v1.25.rc.1".
+ *
+ * Only the first pre-release identifier is inspected, so alpha/beta builds are
+ * never treated as release candidates.
+ */
+fun isReleaseCandidateVersion(tag: String): Boolean =
+    parseVersion(tag)?.prerelease?.firstOrNull()?.let(RC_IDENTIFIER::matches) == true
+
 /**
  * Talks to the GitHub releases API and downloads the release APK (issue
  * #867). Network methods are `open` so tests can fake them; the pure logic
@@ -104,26 +146,43 @@ private fun comparePrereleaseIdentifier(
  */
 open class AppUpdateChecker(
     private val client: OkHttpClient = OkHttpProvider.base,
+    private val apiBaseUrl: String = "https://api.github.com/repos/Hy4ri/hermes-mobile",
 ) {
     /**
-     * Fetch the latest release metadata. Returns null when there is no
-     * release yet (404) or the body can't be parsed. Throws [IOException]
-     * on network failure so the caller can surface a friendly error.
+     * Fetch the newest installable release metadata.
+     *
+     * Stable-only by default: the `releases/latest` endpoint deliberately
+     * excludes pre-releases. With [includeReleaseCandidates] the releases list
+     * is scanned instead so a newer release-candidate tag becomes eligible.
+     *
+     * Returns null when there is no usable release (404) or the body can't be
+     * parsed. Throws [IOException] on network failure so the caller can
+     * surface a friendly error.
      */
-    open suspend fun fetchLatestRelease(): UpdateInfo? =
+    open suspend fun fetchLatestRelease(includeReleaseCandidates: Boolean = false): UpdateInfo? =
         withContext(Dispatchers.IO) {
-            val request =
-                Request
-                    .Builder()
-                    .url("https://api.github.com/repos/Hy4ri/hermes-mobile/releases/latest")
-                    .header("Accept", "application/vnd.github+json")
-                    .build()
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return@use null
-                val body = response.body.string().orEmpty()
+            if (includeReleaseCandidates) {
+                val body = get("$apiBaseUrl/releases?per_page=$RELEASE_LIST_PAGE_SIZE") ?: return@withContext null
+                selectLatestUpdate(parseReleaseList(body).orEmpty(), includeReleaseCandidates = true)
+            } else {
+                val body = get("$apiBaseUrl/releases/latest") ?: return@withContext null
                 parseUpdateInfo(body)
             }
         }
+
+    /** GET [url] as JSON text, or null on any non-2xx response. */
+    private fun get(url: String): String? {
+        val request =
+            Request
+                .Builder()
+                .url(url)
+                .header("Accept", "application/vnd.github+json")
+                .build()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) return null
+            return response.body.string().orEmpty()
+        }
+    }
 
     /**
      * Stream a release APK asset to [dest], reporting progress 0..1 via
@@ -167,6 +226,9 @@ open class AppUpdateChecker(
 
     private companion object {
         const val DEFAULT_BUFFER_SIZE = 8192
+
+        /** How many recent releases the opt-in RC scan inspects. */
+        const val RELEASE_LIST_PAGE_SIZE = 20
     }
 }
 
@@ -174,4 +236,10 @@ open class AppUpdateChecker(
 fun parseUpdateInfo(json: String): UpdateInfo? =
     runCatching {
         OkHttpProvider.json.decodeFromString<UpdateInfo>(json)
+    }.getOrNull()
+
+/** Parse a GitHub `releases` list JSON body into [UpdateInfo]s, or null. */
+fun parseReleaseList(json: String): List<UpdateInfo>? =
+    runCatching {
+        OkHttpProvider.json.decodeFromString<List<UpdateInfo>>(json)
     }.getOrNull()

@@ -117,6 +117,7 @@ object HermesWsClient {
     // ── Internal state (all access through synchronized / atomic) ────────
 
     private val requestId = AtomicInteger(0)
+    private val capabilityRequestIds = ConcurrentHashMap.newKeySet<String>()
     private val connectionGeneration = AtomicInteger(0)
     private val connected = AtomicBoolean(false)
     private val intentionalClose = AtomicBoolean(false)
@@ -360,6 +361,8 @@ object HermesWsClient {
                         send(
                             WsMethods.CLIENT_CAPABILITIES,
                             mapOf("server_requests" to true),
+                            onSent = { id -> capabilityRequestIds.add(id) },
+                            queueIfDisconnected = false,
                         )
                     }
                     val epoch = event.data?.get("replay_epoch") as? String
@@ -729,6 +732,7 @@ object HermesWsClient {
             webSocket?.close(1000, "Client closed")
             webSocket = null
             closingSocket = null
+            capabilityRequestIds.clear()
             if (clearPendingMessages) {
                 backgroundConnectionLease.set(false)
                 messageQueue.clear()
@@ -917,6 +921,13 @@ object HermesWsClient {
         method: String,
         params: Map<String, Any> = emptyMap(),
         onSent: ((String) -> Unit)? = null,
+    ): String = send(method, params, onSent, true)
+
+    private fun send(
+        method: String,
+        params: Map<String, Any>,
+        onSent: ((String) -> Unit)?,
+        queueIfDisconnected: Boolean,
     ): String {
         val id = requestId.incrementAndGet().toString()
         val decoratedParams = WsProfileParams.decorate(method, params)
@@ -936,13 +947,15 @@ object HermesWsClient {
                 pendingPromptSubmits.add(id)
                 pendingReply = true
             }
-            onSent?.invoke(id)
             val ws = webSocket
             if (ws != null && connected.get()) {
                 // Never replay send(true): the server may have executed it even if its response is lost.
-                if (!ws.send(json)) {
+                if (ws.send(json)) {
+                    onSent?.invoke(id)
+                } else {
                     if (webSocket !== ws || !acceptQueuedMessages.get()) return@synchronized
-                    if (isRetryableMessage(json)) {
+                    if (queueIfDisconnected && isRetryableMessage(json)) {
+                        onSent?.invoke(id)
                         Log.w(TAG, "WS rejected outgoing message — queuing for reconnect")
                         queueMessage(id, json)
                         recoverRejectedSocket(ws)
@@ -950,8 +963,9 @@ object HermesWsClient {
                         Log.w(TAG, "WS rejected oversized outgoing message — not retrying")
                     }
                 }
-            } else if (acceptQueuedMessages.get()) {
+            } else if (acceptQueuedMessages.get() && queueIfDisconnected) {
                 if (isRetryableMessage(json)) {
+                    onSent?.invoke(id)
                     Log.d(TAG, "WS disconnected — queuing message")
                     queueMessage(id, json)
                     reconnect = true
@@ -1287,6 +1301,26 @@ object HermesWsClient {
     ) : WebSocketListener() {
         private fun isCurrent(): Boolean = isCurrentGeneration(generation)
 
+        private fun consumeCapabilityResponse(event: WsEvent): Boolean {
+            val id =
+                when (event) {
+                    is WsEvent.RpcResult -> event.id
+                    is WsEvent.RpcError -> event.id
+                    else -> return false
+                }
+            // send() registers capability request IDs via onSent while holding
+            // outboundLock. Take the same lock here so a very fast gateway
+            // response cannot be consumed before its ID has been registered.
+            val isCapabilityResponse =
+                synchronized(outboundLock) {
+                    capabilityRequestIds.remove(id)
+                }
+            if (!isCapabilityResponse) return false
+
+            removeQueuedMessage(id)
+            return true
+        }
+
         override fun onOpen(
             webSocket: WebSocket,
             response: Response,
@@ -1407,6 +1441,7 @@ object HermesWsClient {
                     Log.e(TAG, "Failed to parse message: ${e.javaClass.simpleName}")
                     WsEvent.Unknown(text)
                 }
+            if (consumeCapabilityResponse(event)) return
             when (event) {
                 is WsEvent.RpcResult -> {
                     synchronized(outboundLock) { pendingPromptSubmits.remove(event.id) }
@@ -1473,6 +1508,7 @@ object HermesWsClient {
                 connected.set(false)
                 ActiveSessionHolder.clear()
                 stopHealthTracking()
+                capabilityRequestIds.clear()
                 if (isTerminalAuthClose(code, reason)) {
                     _connectionStatus.value = ConnectionStatus.AUTH_EXPIRED
                 } else if (_connectionStatus.value != ConnectionStatus.AUTH_EXPIRED) {
@@ -1501,6 +1537,7 @@ object HermesWsClient {
                 connected.set(false)
                 ActiveSessionHolder.clear()
                 stopHealthTracking()
+                capabilityRequestIds.clear()
                 val code = response?.code ?: 0
                 if (code == 401 || code == 4401 || code == 4403 ||
                     t.message?.contains("401") == true ||

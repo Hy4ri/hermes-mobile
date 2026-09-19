@@ -100,6 +100,7 @@ fun ChatInputBar(
     fastSupported: Boolean = false,
     isFastModeChanging: Boolean = false,
     onToggleFastMode: () -> Unit = {},
+    showModelProvider: Boolean = false,
 ) {
     // Allow sending while the agent is mid-turn or awaiting approval: the
     // gateway's prompt.submit busy-input policy queues it as the next turn
@@ -327,6 +328,7 @@ fun ChatInputBar(
                     fastSupported = fastSupported,
                     isFastModeChanging = isFastModeChanging,
                     onToggleFastMode = onToggleFastMode,
+                    showModelProvider = showModelProvider,
                 )
 
                 AttachmentTray(

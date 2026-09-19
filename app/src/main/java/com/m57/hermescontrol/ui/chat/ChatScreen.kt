@@ -790,6 +790,7 @@ fun ChatScreen(
                 },
                 // Composer toolbar wiring (PR 1)
                 currentSessionModel = state.currentSessionModel,
+                showModelProvider = state.showModelProvider,
                 reasoningLevel = state.reasoningLevel,
                 onModelTap = { viewModel.openModelPicker() },
                 onReasoningTap = { level -> viewModel.setReasoningLevel(level) },

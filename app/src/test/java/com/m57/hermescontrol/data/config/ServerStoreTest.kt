@@ -2,6 +2,7 @@ package com.m57.hermescontrol.data.config
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -16,6 +17,7 @@ class ServerStoreTest {
         assertTrue(state.autoReconnect)
         assertEquals("token", state.wsAuthParam)
         assertEquals(1.0f, state.chatFontScale)
+        assertFalse(state.showModelProvider)
         assertTrue(state.connectionProfiles.isEmpty())
         assertNull(state.selectedProfileId)
     }
@@ -66,5 +68,13 @@ class ServerStoreTest {
         val unselectedState = state.copy(selectedProfileId = null)
         assertEquals("127.0.0.1", unselectedState.resolvedHost)
         assertEquals(9119, unselectedState.resolvedPort)
+    }
+
+    @Test
+    fun testShowModelProviderUpdate() {
+        val state = ServerStoreState()
+        assertFalse(state.showModelProvider)
+        val updated = state.copy(showModelProvider = true)
+        assertTrue(updated.showModelProvider)
     }
 }

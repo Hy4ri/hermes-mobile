@@ -43,6 +43,7 @@ data class SettingsUiState(
     val showUserMessageTokens: Boolean = true,
     val showAssistantMessageTokens: Boolean = true,
     val showTokensPerSecond: Boolean = true,
+    val showModelProvider: Boolean = false,
     val profiles: List<ConnectionProfile> = emptyList(),
     val selectedProfileId: String? = null,
     val renameProfileName: String = "",
@@ -89,6 +90,7 @@ class SettingsViewModel(
         val showUserMessageTokens = AuthManager.isUserMessageTokensEnabled()
         val showAssistantMessageTokens = AuthManager.isAssistantMessageTokensEnabled()
         val showTokensPerSecond = AuthManager.isTokensPerSecondEnabled()
+        val showModelProvider = AuthManager.isModelProviderShown()
         val profiles = AuthManager.getConnectionProfiles()
         val appLanguage = AuthManager.getAppLanguage()
         val renameProfileName =
@@ -114,6 +116,7 @@ class SettingsViewModel(
                 showUserMessageTokens = showUserMessageTokens,
                 showAssistantMessageTokens = showAssistantMessageTokens,
                 showTokensPerSecond = showTokensPerSecond,
+                showModelProvider = showModelProvider,
                 profiles = profiles,
                 selectedProfileId = selectedId,
                 renameProfileName = renameProfileName,
@@ -360,6 +363,11 @@ class SettingsViewModel(
         AuthManager.setTokensPerSecondEnabled(enabled)
     }
 
+    fun onShowModelProviderChange(enabled: Boolean) {
+        _uiState.update { it.copy(showModelProvider = enabled, isSaved = false) }
+        AuthManager.setModelProviderShown(enabled)
+    }
+
     /** Clear all auth credentials — logs out and returns to landing screen. */
     fun logout() {
         AuthManager.setToken(null)
@@ -393,6 +401,7 @@ class SettingsViewModel(
         AuthManager.setUserMessageTokensEnabled(state.showUserMessageTokens)
         AuthManager.setAssistantMessageTokensEnabled(state.showAssistantMessageTokens)
         AuthManager.setTokensPerSecondEnabled(state.showTokensPerSecond)
+        AuthManager.setModelProviderShown(state.showModelProvider)
         ApiClient.rebuild()
 
         viewModelScope.launch(ioDispatcher) {

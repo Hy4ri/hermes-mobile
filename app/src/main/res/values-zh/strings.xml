@@ -192,6 +192,8 @@
     <string name="settings_item_user_message_tokens">用户消息令牌</string>
     <string name="settings_item_assistant_message_tokens">助手消息令牌</string>
     <string name="settings_item_tokens_per_second">每秒令牌数 (TPS)</string>
+    <string name="settings_item_show_model_provider">显示提供商名称</string>
+    <string name="settings_desc_show_model_provider">在聊天输入栏的模型名称前显示提供商。</string>
     <string name="chat_agent_status_typing">助手正在输入</string>
     <string name="chat_agent_status_thinking">正在思考…</string>
     <string name="chat_agent_status_searching">正在搜索…</string>

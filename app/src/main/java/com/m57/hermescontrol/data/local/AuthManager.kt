@@ -850,6 +850,12 @@ object AuthManager {
         serverStore.update { it.copy(showTokensPerSecond = enabled) }
     }
 
+    fun isModelProviderShown(): Boolean = serverStore.getLatestState().showModelProvider
+
+    fun setModelProviderShown(shown: Boolean) {
+        serverStore.update { it.copy(showModelProvider = shown) }
+    }
+
     // ── Chat Font Scale (issue #1004) ───────────────────────────────────
 
     fun getChatFontScale(): Float = serverStore.getLatestState().chatFontScale

@@ -195,6 +195,8 @@
     <string name="settings_item_user_message_tokens">사용자 메시지 토큰</string>
     <string name="settings_item_assistant_message_tokens">어시스턴트 메시지 토큰</string>
     <string name="settings_item_tokens_per_second">초당 토큰 수 (TPS)</string>
+    <string name="settings_item_show_model_provider">제공자 이름 표시</string>
+    <string name="settings_desc_show_model_provider">채팅 작성창에서 모델 이름 앞에 제공자를 표시합니다.</string>
     <string name="chat_agent_status_typing">에이전트 입력 중</string>
     <string name="chat_agent_status_thinking">생각 중…</string>
     <string name="chat_agent_status_searching">검색 중…</string>

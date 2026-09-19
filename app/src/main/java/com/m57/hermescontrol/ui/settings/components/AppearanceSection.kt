@@ -213,6 +213,8 @@ internal fun ChatSection(
     onAssistantMessageTokensChange: (Boolean) -> Unit = {},
     showTokensPerSecond: Boolean = true,
     onTokensPerSecondChange: (Boolean) -> Unit = {},
+    showModelProvider: Boolean = false,
+    onShowModelProviderChange: (Boolean) -> Unit = {},
 ) {
     val fontScaleOptions = listOf(0.85f, 1.0f, 1.15f, 1.30f, 1.50f)
     val currentIndex =
@@ -422,6 +424,38 @@ internal fun ChatSection(
             onCheckedChange = onTokensPerSecondChange,
             testTag = "settings_tps",
         )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                Text(
+                    text = stringResource(R.string.settings_item_show_model_provider),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    text = stringResource(R.string.settings_desc_show_model_provider),
+                    style =
+                        MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        ),
+                )
+            }
+            Switch(
+                checked = showModelProvider,
+                onCheckedChange = onShowModelProviderChange,
+                modifier = Modifier.testTag("settings_show_model_provider"),
+                colors =
+                    SwitchDefaults.colors(
+                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
+                    ),
+            )
+        }
 
         Spacer(modifier = Modifier.height(20.dp))
 

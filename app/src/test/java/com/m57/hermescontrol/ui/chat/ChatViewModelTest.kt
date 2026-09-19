@@ -171,6 +171,7 @@ class ChatViewModelTest {
         every { AuthManager.isUserMessageTokensEnabled() } returns true
         every { AuthManager.isAssistantMessageTokensEnabled() } returns true
         every { AuthManager.isTokensPerSecondEnabled() } returns true
+        every { AuthManager.isModelProviderShown() } returns false
         every { AuthManager.isAutoReconnect() } returns false
         every { AuthManager.isRestoreLastSession() } returns false
         every { AuthManager.getLastOpenedSessionId() } returns null
@@ -4335,6 +4336,7 @@ class ChatViewModelTest {
                 assertTrue(showUserMessageTokens)
                 assertTrue(showAssistantMessageTokens)
                 assertTrue(showTokensPerSecond)
+                assertFalse(showModelProvider)
             }
 
             // When settings change after construction and refreshSettings() is re-invoked,
@@ -4346,6 +4348,7 @@ class ChatViewModelTest {
             every { AuthManager.isUserMessageTokensEnabled() } returns false
             every { AuthManager.isAssistantMessageTokensEnabled() } returns false
             every { AuthManager.isTokensPerSecondEnabled() } returns false
+            every { AuthManager.isModelProviderShown() } returns true
             viewModel.refreshSettings()
             advanceUntilIdle()
 
@@ -4357,6 +4360,7 @@ class ChatViewModelTest {
             assertFalse(state.showUserMessageTokens)
             assertFalse(state.showAssistantMessageTokens)
             assertFalse(state.showTokensPerSecond)
+            assertTrue(state.showModelProvider)
         }
 
     @Test

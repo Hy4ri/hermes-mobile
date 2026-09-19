@@ -46,12 +46,15 @@ object UpdateNoticeManager {
         val versionChanged = AuthManager.getUpdateCheckDoneForVersion() != currentVersion
         if (!versionChanged && (now - lastCheck < CHECK_INTERVAL_MS)) return
 
+        // Captured once so the check and the notice path agree on the channel.
+        val includeReleaseCandidates = AuthManager.isCheckingReleaseCandidateUpdates()
+
         scope.launch(ioDispatcher) {
             AuthManager.setUpdateCheckDoneForVersion(currentVersion)
             AuthManager.setLastUpdateCheckTimestamp(now)
             val result =
                 try {
-                    checker.fetchLatestRelease()
+                    checker.fetchLatestRelease(includeReleaseCandidates)
                 } catch (e: IOException) {
                     return@launch
                 } catch (e: Exception) {
@@ -77,7 +80,8 @@ object UpdateNoticeManager {
 
     /**
      * The tag the chat banner should advertise, or null when nothing newer is
-     * known or if the user explicitly dismissed this tag.
+     * known, if the user explicitly dismissed this tag, or if it is a
+     * release-candidate tag while the user is on the stable channel.
      */
     fun noticeTag(currentVersion: String = BuildConfig.VERSION_NAME): String? {
         if (!enabled) return null
@@ -88,6 +92,9 @@ object UpdateNoticeManager {
                 ?: return null
 
         if (candidateTag == dismissed) return null
+        if (isReleaseCandidateVersion(candidateTag) && !AuthManager.isCheckingReleaseCandidateUpdates()) {
+            return null
+        }
         return candidateTag.takeIf { isNewerVersion(it, currentVersion) }
     }
 }

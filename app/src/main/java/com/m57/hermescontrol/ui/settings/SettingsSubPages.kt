@@ -262,6 +262,7 @@ internal fun SettingsAboutPage(
         },
 ) {
     val updateState by viewModel.state.collectAsStateWithLifecycle()
+    val checkReleaseCandidateUpdates by viewModel.checkReleaseCandidateUpdates.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
 
@@ -294,8 +295,10 @@ internal fun SettingsAboutPage(
         ) {
             AboutSection(
                 updateState = updateState,
+                checkReleaseCandidateUpdates = checkReleaseCandidateUpdates,
                 onCheckUpdate = viewModel::checkForUpdate,
                 onStartUpdate = viewModel::startUpdate,
+                onCheckReleaseCandidateUpdatesChange = viewModel::setCheckReleaseCandidateUpdates,
                 onOpenInstallSettings = {
                     val intent =
                         Intent(

@@ -12,6 +12,7 @@ import com.m57.hermescontrol.data.update.AppUpdateCache
 import com.m57.hermescontrol.data.update.AppUpdateChecker
 import com.m57.hermescontrol.data.update.AppUpdateState
 import com.m57.hermescontrol.data.update.isNewerVersion
+import com.m57.hermescontrol.data.update.isReleaseCandidateVersion
 import com.m57.hermescontrol.data.update.releaseTag
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -42,15 +43,28 @@ class AppUpdateViewModel(
     private val _state = MutableStateFlow<AppUpdateState>(AppUpdateState.Idle)
     val state: StateFlow<AppUpdateState> = _state.asStateFlow()
 
+    private val _checkReleaseCandidateUpdates =
+        MutableStateFlow(AuthManager.isCheckingReleaseCandidateUpdates())
+
+    /** Whether the RC update channel is enabled (issue: RC update toggle). */
+    val checkReleaseCandidateUpdates: StateFlow<Boolean> = _checkReleaseCandidateUpdates.asStateFlow()
+
+    private var checkJob: kotlinx.coroutines.Job? = null
     private var downloadJob: kotlinx.coroutines.Job? = null
     private var lastAvailable: AppUpdateState.UpdateAvailable? = null
 
     init {
         val cached = AppUpdateCache.state.value
-        if (cached is AppUpdateState.UpdateAvailable) {
+        // An RC offer cached while the RC channel was on must not be adopted
+        // after the user switched back to stable-only.
+        val blocked =
+            !_checkReleaseCandidateUpdates.value &&
+                cached.releaseTag()?.let(::isReleaseCandidateVersion) == true
+        if (blocked) AppUpdateCache.reset()
+        if (cached is AppUpdateState.UpdateAvailable && !blocked) {
             lastAvailable = cached
             _state.value = cached
-        } else if (cached is AppUpdateState.UpToDate) {
+        } else if (cached is AppUpdateState.UpToDate && !blocked) {
             _state.value = cached
         } else {
             checkForUpdate()
@@ -60,47 +74,71 @@ class AppUpdateViewModel(
     /** Manual check from the About row or dialog. */
     fun checkForUpdate() {
         if (_state.value is AppUpdateState.Checking) return
-        _state.value = AppUpdateState.Checking
-        viewModelScope.launch(ioDispatcher) {
-            val now = System.currentTimeMillis()
-            AuthManager.setUpdateCheckDoneForVersion(currentVersion)
-            AuthManager.setLastUpdateCheckTimestamp(now)
-            val result =
-                try {
-                    checker.fetchLatestRelease()
-                } catch (e: IOException) {
-                    _state.value = AppUpdateState.Error(NETWORK_ERROR)
-                    return@launch
-                } catch (e: Exception) {
-                    _state.value = AppUpdateState.Error(GENERIC_CHECK_ERROR)
-                    return@launch
-                }
-            val info =
-                result ?: run {
-                    _state.value = AppUpdateState.Error(NO_RELEASE_ERROR)
-                    return@launch
-                }
-            val apk =
-                info.apkAsset ?: run {
-                    _state.value = AppUpdateState.Error(NO_APK_ERROR)
-                    return@launch
-                }
-            _state.value =
-                if (isNewerVersion(info.tagName, currentVersion)) {
-                    AppUpdateState
-                        .UpdateAvailable(
-                            latestTag = info.tagName,
-                            apkUrl = apk.browserDownloadUrl,
-                            sizeBytes = apk.size,
-                            releaseNotes = info.body,
-                        ).also { lastAvailable = it }
-                } else {
-                    AppUpdateState.UpToDate(latestTag = info.tagName)
-                }
-            // Keep the launch notice (issue #890) in sync with manual checks.
-            AppUpdateCache.update(_state.value)
-            _state.value.releaseTag()?.let { AuthManager.setLastKnownLatestTag(it) }
+        runCheck()
+    }
+
+    /**
+     * Opt in/out of release-candidate updates and immediately re-check on the
+     * newly selected channel. Switching back to stable drops any cached RC
+     * offer so [startUpdate] cannot install it anyway.
+     */
+    fun setCheckReleaseCandidateUpdates(enabled: Boolean) {
+        if (_checkReleaseCandidateUpdates.value == enabled) return
+        AuthManager.setCheckReleaseCandidateUpdates(enabled)
+        _checkReleaseCandidateUpdates.value = enabled
+        if (!enabled) {
+            lastAvailable = null
+            AppUpdateCache.reset()
         }
+        // A check already in flight captured the previous channel — restart it.
+        checkJob?.cancel()
+        runCheck()
+    }
+
+    private fun runCheck() {
+        val includeReleaseCandidates = _checkReleaseCandidateUpdates.value
+        _state.value = AppUpdateState.Checking
+        checkJob =
+            viewModelScope.launch(ioDispatcher) {
+                val now = System.currentTimeMillis()
+                AuthManager.setUpdateCheckDoneForVersion(currentVersion)
+                AuthManager.setLastUpdateCheckTimestamp(now)
+                val result =
+                    try {
+                        checker.fetchLatestRelease(includeReleaseCandidates)
+                    } catch (e: IOException) {
+                        _state.value = AppUpdateState.Error(NETWORK_ERROR)
+                        return@launch
+                    } catch (e: Exception) {
+                        _state.value = AppUpdateState.Error(GENERIC_CHECK_ERROR)
+                        return@launch
+                    }
+                val info =
+                    result ?: run {
+                        _state.value = AppUpdateState.Error(NO_RELEASE_ERROR)
+                        return@launch
+                    }
+                val apk =
+                    info.apkAsset ?: run {
+                        _state.value = AppUpdateState.Error(NO_APK_ERROR)
+                        return@launch
+                    }
+                _state.value =
+                    if (isNewerVersion(info.tagName, currentVersion)) {
+                        AppUpdateState
+                            .UpdateAvailable(
+                                latestTag = info.tagName,
+                                apkUrl = apk.browserDownloadUrl,
+                                sizeBytes = apk.size,
+                                releaseNotes = info.body,
+                            ).also { lastAvailable = it }
+                    } else {
+                        AppUpdateState.UpToDate(latestTag = info.tagName)
+                    }
+                // Keep the launch notice (issue #890) in sync with manual checks.
+                AppUpdateCache.update(_state.value)
+                _state.value.releaseTag()?.let { AuthManager.setLastKnownLatestTag(it) }
+            }
     }
 
     /** Download the release APK and launch the system installer. */

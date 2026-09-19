@@ -93,4 +93,18 @@ class ServerStoreTest {
         val decoded = json.decodeFromString<ServerStoreState>("{}")
         assertFalse(decoded.keepConnectedInBackground)
     }
+
+    @Test
+    fun testCheckReleaseCandidateUpdatesDefaultsToStableOnly() {
+        val state = ServerStoreState()
+        assertFalse(state.checkReleaseCandidateUpdates)
+        assertTrue(state.copy(checkReleaseCandidateUpdates = true).checkReleaseCandidateUpdates)
+    }
+
+    @Test
+    fun testCheckReleaseCandidateUpdates_deserializationDefault() {
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        val decoded = json.decodeFromString<ServerStoreState>("{}")
+        assertFalse(decoded.checkReleaseCandidateUpdates)
+    }
 }

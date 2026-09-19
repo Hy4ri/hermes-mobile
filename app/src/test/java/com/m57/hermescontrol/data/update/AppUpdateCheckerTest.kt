@@ -175,4 +175,159 @@ class AppUpdateCheckerTest {
         assertNull(parseUpdateInfo("not json at all"))
         assertNull(parseUpdateInfo(""))
     }
+
+    // ── Release candidate channel (opt-in) ──────────────────────────────
+
+    private fun release(
+        tag: String,
+        draft: Boolean = false,
+        prerelease: Boolean = false,
+        withApk: Boolean = true,
+    ): UpdateInfo =
+        UpdateInfo(
+            tagName = tag,
+            draft = draft,
+            prerelease = prerelease,
+            assets =
+                if (withApk) {
+                    listOf(
+                        UpdateInfo.Asset(
+                            name = "hermes-mobile-$tag.apk",
+                            size = 1L,
+                            browserDownloadUrl = "https://example.com/$tag.apk",
+                        ),
+                    )
+                } else {
+                    listOf(
+                        UpdateInfo.Asset(
+                            name = "version.txt",
+                            size = 1L,
+                            browserDownloadUrl = "https://example.com/version.txt",
+                        ),
+                    )
+                },
+        )
+
+    @Test
+    fun isReleaseCandidateVersion_acceptsRcTagForms() {
+        listOf("v1.25.0-rc.1", "1.25-rc.1", "1.25.rc.1", "v1.25.0-rc", "1.25-rc1", "v1.25.0-RC.2").forEach {
+            assertTrue(it, isReleaseCandidateVersion(it))
+        }
+    }
+
+    @Test
+    fun isReleaseCandidateVersion_rejectsStableAndNonRcPrereleases() {
+        listOf("1.25", "v1.25.0", "1.25-alpha", "1.25-alpha.1", "1.25-beta.2", "1.25-dev", "garbage", "").forEach {
+            assertFalse(it, isReleaseCandidateVersion(it))
+        }
+    }
+
+    @Test
+    fun selectLatestUpdate_skipsDraftsAndReleasesWithoutApk() {
+        val releases =
+            listOf(
+                release("v1.30.0", draft = true),
+                release("v1.29.0", withApk = false),
+                release("v1.28.0"),
+            )
+
+        assertEquals("v1.28.0", selectLatestUpdate(releases)?.tagName)
+    }
+
+    @Test
+    fun selectLatestUpdate_excludesRcUnlessOptedIn() {
+        val releases =
+            listOf(
+                release("v1.25.0-rc.3", prerelease = true),
+                release("v1.24.2"),
+            )
+
+        assertEquals("v1.24.2", selectLatestUpdate(releases)?.tagName)
+        assertEquals("v1.25.0-rc.3", selectLatestUpdate(releases, includeReleaseCandidates = true)?.tagName)
+    }
+
+    @Test
+    fun selectLatestUpdate_neverOffersAlphaOrBetaEvenWhenOptedIn() {
+        val releases =
+            listOf(
+                release("v1.30.0-alpha.1", prerelease = true),
+                release("v1.29.0-beta.4", prerelease = true),
+                release("v1.28.0-rc.1", prerelease = true),
+            )
+
+        assertEquals("v1.28.0-rc.1", selectLatestUpdate(releases, includeReleaseCandidates = true)?.tagName)
+        assertNull(selectLatestUpdate(releases))
+    }
+
+    @Test
+    fun selectLatestUpdate_prefersStableWhenItIsNewerThanTheRc() {
+        val releases =
+            listOf(
+                release("v1.26.0"),
+                release("v1.25.0-rc.3", prerelease = true),
+            )
+
+        // List order is publication order, not version order — the stable
+        // release must win on semantics, not on position.
+        assertEquals("v1.26.0", selectLatestUpdate(releases, includeReleaseCandidates = true)?.tagName)
+    }
+
+    @Test
+    fun selectLatestUpdate_prefersNewerRcOverOlderStable() {
+        val releases =
+            listOf(
+                release("v1.24.2"),
+                release("v1.25.0-rc.3", prerelease = true),
+            )
+
+        assertEquals("v1.25.0-rc.3", selectLatestUpdate(releases, includeReleaseCandidates = true)?.tagName)
+    }
+
+    @Test
+    fun selectLatestUpdate_nullWhenNothingInstallable() {
+        assertNull(selectLatestUpdate(emptyList()))
+        assertNull(selectLatestUpdate(listOf(release("v1.25.0", draft = true), release("v1.24.0", withApk = false))))
+    }
+
+    @Test
+    fun parseReleaseList_readsDraftAndPrereleaseFlags() {
+        val json =
+            """
+            [
+              {
+                "tag_name": "v1.25.0-rc.3",
+                "prerelease": true,
+                "draft": false,
+                "assets": [
+                  {
+                    "name": "hermes-mobile-v1.25.0-rc.3.apk",
+                    "size": 999,
+                    "browser_download_url": "https://example.com/rc.apk"
+                  }
+                ]
+              },
+              {
+                "tag_name": "v1.24.2",
+                "assets": []
+              }
+            ]
+            """.trimIndent()
+
+        val releases = parseReleaseList(json)
+        assertNotNull(releases)
+        assertEquals(2, releases!!.size)
+        assertEquals("v1.25.0-rc.3", releases[0].tagName)
+        assertTrue(releases[0].prerelease)
+        assertFalse(releases[0].draft)
+        assertNotNull(releases[0].apkAsset)
+        // Absent flags default to a plain stable release with no APK.
+        assertFalse(releases[1].prerelease)
+        assertNull(releases[1].apkAsset)
+    }
+
+    @Test
+    fun parseReleaseList_malformedJson_yieldsNull() {
+        assertNull(parseReleaseList("not json at all"))
+        assertNull(parseReleaseList("{}"))
+    }
 }

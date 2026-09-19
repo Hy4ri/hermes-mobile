@@ -244,6 +244,8 @@
     <string name="settings_about_update_allow_sources">السماح بتثبيت التطبيقات من هذا المصدر</string>
     <string name="settings_about_update_open_settings">فتح الإعدادات</string>
     <string name="settings_about_update_retry">إعادة المحاولة</string>
+    <string name="settings_about_rc_updates_title">التحقق من الإصدارات المرشّحة (RC)</string>
+    <string name="settings_about_rc_updates_desc">تثبيت إصدارات ما قبل الإطلاق. قد تكون أقل استقرارًا.</string>
     <string name="settings_summary_profiles">تم حفظ %1$d</string>
     <string name="settings_summary_typing_on">تأثير الكتابة مفعّل</string>
     <string name="settings_summary_typing_off">تأثير الكتابة معطّل</string>

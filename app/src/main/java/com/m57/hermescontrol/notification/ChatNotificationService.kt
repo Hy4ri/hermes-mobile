@@ -119,6 +119,7 @@ class ChatNotificationService : Service() {
                                             sessionId = targetSessionId,
                                             isReplyMessage = true,
                                             completionId = event.completionId,
+                                            serverMessageId = event.serverMessageId,
                                         )
                                         // The wait is over — retire the foreground
                                         // service. The reply notification above

@@ -68,6 +68,8 @@ sealed class WsEvent {
             java.util.UUID
                 .randomUUID()
                 .toString(),
+        /** Exact persisted REST transcript row ID when supplied by the gateway. */
+        val serverMessageId: Int? = null,
     ) : WsEvent()
 
     data class MessageDone(

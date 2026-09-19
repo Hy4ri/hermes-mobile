@@ -248,6 +248,6 @@ class BackgroundConnectionPolicyTest {
         val decision = BackgroundConnectionPolicy.evaluate(state)
         assertTrue(decision.shouldHoldService)
         assertTrue(decision.shouldHoldPersistentLease)
-        assertEquals(BackgroundNotificationState.ConnectedInBackground, decision.notificationState)
+        assertEquals(BackgroundNotificationState.Connecting, decision.notificationState)
     }
 }

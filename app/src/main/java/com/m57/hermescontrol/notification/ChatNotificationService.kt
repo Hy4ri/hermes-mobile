@@ -44,16 +44,16 @@ import java.util.concurrent.atomic.AtomicBoolean
  * message notifications, which is correct.
  *
  * Lifecycle:
- * - Started by [NotificationHelper.start] when the app goes to the
- *   background while a reply is still pending (the user sent a message or
- *   replied from a notification and the agent has not finished yet).
- *   [NotificationHelper.start] is a no-op when nothing is pending, so the
- *   service — and its mandatory persistent notification — only exists
- *   while the user is actually waiting for a reply (issue #794).
- * - Stopped by [NotificationHelper.stop] when the app returns to the
- *   foreground (called from MainActivity.onStart), or by the
- *   service itself once the pending reply completes in the background
- *   (the reply notification replaces the persistent "waiting" one).
+ * - Started by [NotificationHelper.start] when the app goes to the background
+ *   either while a reply is still pending (issue #794) or when persistent background
+ *   connection ([com.m57.hermescontrol.data.local.AuthManager.isKeepConnectedInBackground])
+ *   is enabled.
+ * - In persistent keep-connected mode, the service stays alive across idle states
+ *   and updates its ongoing notification truthfully ([BackgroundNotificationState]).
+ * - In replies-only mode (default), the service retires itself once the pending reply
+ *   completes in the background.
+ * - Stopped by [NotificationHelper.stop] when the app returns to the foreground, or
+ *   retired automatically upon auth expiry or terminal disconnection.
  *
  * The service collects [WsEvent]s from [HermesWsClient] — the same stream
  * the ChatViewModel collects — and watches for [WsEvent.MessageComplete]
@@ -338,6 +338,7 @@ class ChatNotificationService : Service() {
     private fun resolveNotificationText(state: BackgroundNotificationState): String =
         when (state) {
             BackgroundNotificationState.WaitingForNetwork -> getString(R.string.notif_waiting_network)
+            BackgroundNotificationState.Connecting -> getString(R.string.notif_connecting)
             BackgroundNotificationState.Reconnecting -> getString(R.string.notif_reconnecting)
             BackgroundNotificationState.WaitingForReplies -> getString(R.string.notif_waiting_replies)
             BackgroundNotificationState.ConnectedInBackground -> getString(R.string.notif_connected_in_background)

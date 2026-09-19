@@ -39,6 +39,7 @@ data class BackgroundConnectionSnapshot(
 enum class BackgroundNotificationState {
     None,
     WaitingForNetwork,
+    Connecting,
     Reconnecting,
     WaitingForReplies,
     ConnectedInBackground,
@@ -123,7 +124,7 @@ object BackgroundConnectionPolicy {
                 }
 
                 snapshot.status == ConnectionStatus.CONNECTING -> {
-                    BackgroundNotificationState.ConnectedInBackground
+                    BackgroundNotificationState.Connecting
                 }
 
                 else -> {

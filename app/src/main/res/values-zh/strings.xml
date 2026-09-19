@@ -129,6 +129,7 @@
     <string name="notif_title">Hermes</string>
     <string name="notif_waiting_replies">等待 Hermes 回复</string>
     <string name="notif_connected_in_background">在后台保持连接</string>
+    <string name="notif_connecting">正在连接…</string>
     <string name="notif_waiting_network">等待网络连接</string>
     <string name="notif_reconnecting">正在重新连接</string>
     <string name="notif_new_message">新消息</string>

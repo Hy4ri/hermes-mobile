@@ -126,6 +126,7 @@
     <string name="notif_title">헤르메스</string>
     <string name="notif_waiting_replies">헤르메스 응답 대기 중</string>
     <string name="notif_connected_in_background">백그라운드에서 연결됨</string>
+    <string name="notif_connecting">연결 중…</string>
     <string name="notif_waiting_network">네트워크 대기 중</string>
     <string name="notif_reconnecting">재연결 중</string>
     <string name="notif_new_message">새 메시지</string>

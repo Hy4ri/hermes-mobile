@@ -110,7 +110,18 @@ object EventParser {
             "message.complete" -> {
                 val text = payload?.get("text") as? String ?: ""
                 val reasoning = payload?.get("reasoning") as? String
-                WsEvent.MessageComplete(text, sessionId, reasoning, rawPayload = payload)
+                val completionId =
+                    payload?.get("completion_id") as? String
+                        ?: java.util.UUID
+                            .randomUUID()
+                            .toString()
+                WsEvent.MessageComplete(
+                    text,
+                    sessionId,
+                    reasoning,
+                    rawPayload = payload,
+                    completionId = completionId,
+                )
             }
 
             "message.done" -> {

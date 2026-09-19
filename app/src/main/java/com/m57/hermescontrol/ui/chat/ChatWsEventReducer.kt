@@ -449,6 +449,7 @@ object ChatWsEventReducer {
                 finishTimestamp = System.currentTimeMillis(),
                 tokenCount = tokenCount,
                 tps = tps,
+                completionId = event.completionId,
             ) ?: ChatMessage(
                 role = MessageRole.ASSISTANT,
                 content = text,
@@ -456,6 +457,7 @@ object ChatWsEventReducer {
                 finishTimestamp = System.currentTimeMillis(),
                 tokenCount = tokenCount,
                 tps = tps,
+                completionId = event.completionId,
             )
         val effects = mutableListOf<ReducerEffect>()
         val sid = state.currentSessionId

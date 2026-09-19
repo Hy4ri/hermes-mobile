@@ -25,6 +25,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -184,6 +185,24 @@ class NotificationReplyReceiverTest {
                 any(),
             )
         }
+    }
+
+    @Test
+    fun `valid reply clears active reply notification target`() {
+        ReplyNotificationTracker.onReplyNotificationPosted(
+            scopeId = "prof-1",
+            sessionId = "session-abc",
+            completionId = "comp-1",
+            textSnippet = "old reply",
+            generation = 1L,
+        )
+        assertNotNull(ReplyNotificationTracker.getActiveTarget())
+
+        givenValidReply("session-abc", "Hello")
+        receiver.onReceive(mockContext, mockIntent)
+        Thread.sleep(500)
+
+        assertNull(ReplyNotificationTracker.getActiveTarget())
     }
 
     @Test

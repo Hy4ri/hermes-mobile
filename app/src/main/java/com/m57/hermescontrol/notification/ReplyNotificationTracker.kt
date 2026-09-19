@@ -1,0 +1,201 @@
+package com.m57.hermescontrol.notification
+
+import android.app.NotificationManager
+import android.content.Context
+import androidx.annotation.VisibleForTesting
+import java.util.concurrent.atomic.AtomicLong
+
+data class ReplyNotificationTarget(
+    val scopeId: String,
+    val sessionId: String,
+    val completionId: String,
+    val generation: Long,
+    val textSnippet: String = "",
+    val timestamp: Long = System.currentTimeMillis(),
+) {
+    fun matches(
+        candidateScopeId: String?,
+        candidateSessionId: String?,
+        candidateCompletionId: String? = null,
+        candidateContent: String? = null,
+    ): Boolean {
+        if (!candidateScopeId.isNullOrBlank() && scopeId.isNotBlank() && scopeId != candidateScopeId) {
+            return false
+        }
+        if (candidateSessionId.isNullOrBlank() || sessionId != candidateSessionId) {
+            return false
+        }
+        if (!candidateCompletionId.isNullOrBlank() && completionId.isNotBlank()) {
+            return candidateCompletionId == completionId
+        }
+        if (!candidateContent.isNullOrBlank() && textSnippet.isNotBlank()) {
+            val normalizedSnippet = textSnippet.trim()
+            val normalizedCandidate = candidateContent.trim()
+            return normalizedCandidate.startsWith(normalizedSnippet) ||
+                normalizedCandidate.contains(normalizedSnippet) ||
+                normalizedCandidate.take(100).replace("\n", " ").trim() == normalizedSnippet
+        }
+        return false
+    }
+}
+
+internal data class ActiveReplyInfo(
+    val id: Int,
+    val kind: String?,
+    val scopeId: String?,
+    val sessionId: String?,
+    val completionId: String?,
+    val textSnippet: String?,
+    val generation: Long,
+    val timestamp: Long,
+)
+
+object ReplyNotificationTracker {
+    const val EXTRA_NOTIF_KIND = "hermes_notif_kind"
+    const val EXTRA_SCOPE_ID = "hermes_scope_id"
+    const val EXTRA_SESSION_ID = "hermes_session_id"
+    const val EXTRA_COMPLETION_ID = "hermes_completion_id"
+    const val EXTRA_TEXT_SNIPPET = "hermes_text_snippet"
+    const val EXTRA_GENERATION = "hermes_generation"
+
+    const val KIND_REPLY = "reply"
+    const val KIND_ACTION = "action"
+    const val KIND_REPLIED = "replied"
+
+    private val generationCounter = AtomicLong(0L)
+
+    @Volatile
+    private var activeTarget: ReplyNotificationTarget? = null
+
+    internal var activeNotificationProvider: (Context) -> ActiveReplyInfo? = { context ->
+        runCatching {
+            val manager =
+                context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            val sbn =
+                manager?.activeNotifications?.firstOrNull {
+                    it.id == ChatNotificationService.PENDING_NOTIFICATION_ID
+                }
+            if (sbn != null) {
+                val extras = sbn.notification?.extras
+                ActiveReplyInfo(
+                    id = sbn.id,
+                    kind = extras?.getString(EXTRA_NOTIF_KIND),
+                    scopeId = extras?.getString(EXTRA_SCOPE_ID),
+                    sessionId = extras?.getString(EXTRA_SESSION_ID),
+                    completionId = extras?.getString(EXTRA_COMPLETION_ID),
+                    textSnippet = extras?.getString(EXTRA_TEXT_SNIPPET),
+                    generation = extras?.getLong(EXTRA_GENERATION, 0L) ?: 0L,
+                    timestamp = sbn.postTime,
+                )
+            } else {
+                null
+            }
+        }.getOrNull()
+    }
+
+    fun nextGeneration(): Long = generationCounter.incrementAndGet()
+
+    @Synchronized
+    fun onReplyNotificationPosted(
+        scopeId: String,
+        sessionId: String,
+        completionId: String,
+        textSnippet: String,
+        generation: Long,
+        timestamp: Long = System.currentTimeMillis(),
+    ) {
+        activeTarget =
+            ReplyNotificationTarget(
+                scopeId = scopeId,
+                sessionId = sessionId,
+                completionId = completionId,
+                generation = generation,
+                textSnippet = textSnippet,
+                timestamp = timestamp,
+            )
+    }
+
+    @Synchronized
+    fun onNonReplyNotificationPosted() {
+        activeTarget = null
+    }
+
+    @Synchronized
+    fun getActiveTarget(): ReplyNotificationTarget? = activeTarget
+
+    @Synchronized
+    fun onMessageVisible(
+        context: Context,
+        scopeId: String?,
+        sessionId: String?,
+        completionId: String?,
+        content: String?,
+    ): Boolean {
+        if (sessionId.isNullOrBlank()) return false
+        val target = resolveTarget(context) ?: return false
+        if (target.matches(scopeId, sessionId, completionId, content)) {
+            return cancelReplyNotification(context, target.generation)
+        }
+        return false
+    }
+
+    @Synchronized
+    fun cancelReplyNotification(
+        context: Context,
+        expectedGeneration: Long,
+    ): Boolean {
+        val target = resolveTarget(context)
+        if (target != null && target.generation > expectedGeneration) {
+            return false
+        }
+        val manager =
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+                ?: return false
+
+        val activeInfo = activeNotificationProvider(context)
+        if (activeInfo != null) {
+            if (activeInfo.kind != null && activeInfo.kind != KIND_REPLY) {
+                activeTarget = null
+                return false
+            }
+            if (activeInfo.generation > expectedGeneration) {
+                return false
+            }
+        }
+
+        manager.cancel(ChatNotificationService.PENDING_NOTIFICATION_ID)
+        activeTarget = null
+        return true
+    }
+
+    private fun resolveTarget(context: Context): ReplyNotificationTarget? {
+        val inMemory = activeTarget
+        if (inMemory != null) return inMemory
+
+        val activeInfo = activeNotificationProvider(context) ?: return null
+        if (activeInfo.kind != KIND_REPLY) return null
+        val sessionId = activeInfo.sessionId.orEmpty()
+        if (sessionId.isBlank()) return null
+
+        return ReplyNotificationTarget(
+            scopeId = activeInfo.scopeId.orEmpty(),
+            sessionId = sessionId,
+            completionId = activeInfo.completionId.orEmpty(),
+            generation = activeInfo.generation,
+            textSnippet = activeInfo.textSnippet.orEmpty(),
+            timestamp = activeInfo.timestamp,
+        ).also { activeTarget = it }
+    }
+
+    @VisibleForTesting
+    fun resetForTest() {
+        activeTarget = null
+        generationCounter.set(0L)
+        activeNotificationProvider = { null }
+    }
+
+    @VisibleForTesting
+    fun setTargetForTest(target: ReplyNotificationTarget?) {
+        activeTarget = target
+    }
+}

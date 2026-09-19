@@ -10,18 +10,23 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import com.m57.hermescontrol.NavigationController
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.ws.ConnectionStatus
+import com.m57.hermescontrol.notification.ReplyNotificationTracker
 import com.m57.hermescontrol.ui.chat.ChatMessage
 import com.m57.hermescontrol.ui.chat.ChatViewModel
 import com.m57.hermescontrol.ui.chat.ClarifyUi
 import com.m57.hermescontrol.ui.chat.SecretPromptUi
 import com.m57.hermescontrol.ui.chat.SudoPromptUi
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 @Composable
 fun ChatLifecycleEffects(
@@ -85,6 +90,31 @@ fun ChatLifecycleEffects(
             }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // Auto-dismiss reply notifications when their message is displayed in the viewport
+    LaunchedEffect(lifecycleOwner, currentSessionId, messages, listState) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            snapshotFlow {
+                if (currentSessionId.isNullOrBlank()) {
+                    emptyList()
+                } else {
+                    ChatReadObserver.findVisibleAssistantMessages(listState.layoutInfo, messages)
+                }
+            }.distinctUntilChanged()
+                .collect { visibleAssistantMsgs ->
+                    val scopeId = AuthManager.activeProfileId.value.orEmpty()
+                    for (msg in visibleAssistantMsgs) {
+                        ReplyNotificationTracker.onMessageVisible(
+                            context = context,
+                            scopeId = scopeId,
+                            sessionId = currentSessionId,
+                            completionId = msg.completionId,
+                            content = msg.content,
+                        )
+                    }
+                }
+        }
     }
 
     // Request POST_NOTIFICATIONS permission on Android 13+

@@ -100,10 +100,14 @@ class ChatNotificationService : Service() {
                                                 .take(100)
                                                 .replace("\n", " ")
                                                 .ifBlank { getString(R.string.notif_new_message) }
-                                        showReplyNotification(
-                                            preview,
+                                        val targetSessionId =
                                             event.storedSessionId
-                                                ?: ActiveSessionHolder.resolveStoredSessionId(event.sessionId),
+                                                ?: ActiveSessionHolder.resolveStoredSessionId(event.sessionId)
+                                        showReplyNotification(
+                                            text = preview,
+                                            sessionId = targetSessionId,
+                                            isReplyMessage = true,
+                                            completionId = event.completionId,
                                         )
                                         // The wait is over — retire the foreground
                                         // service. The reply notification above
@@ -159,6 +163,8 @@ class ChatNotificationService : Service() {
     private fun showReplyNotification(
         text: String,
         sessionId: String?,
+        isReplyMessage: Boolean = false,
+        completionId: String? = null,
     ) {
         val builder =
             NotificationCompat
@@ -171,6 +177,35 @@ class ChatNotificationService : Service() {
                 .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
                 .setAutoCancel(true)
                 .setContentIntent(buildContentIntent(sessionId))
+
+        if (isReplyMessage && !sessionId.isNullOrBlank() && !completionId.isNullOrBlank()) {
+            val scopeId = AuthManager.activeProfileId.value.orEmpty()
+            val generation = ReplyNotificationTracker.nextGeneration()
+            builder.addExtras(
+                android.os.Bundle().apply {
+                    putString(ReplyNotificationTracker.EXTRA_NOTIF_KIND, ReplyNotificationTracker.KIND_REPLY)
+                    putString(ReplyNotificationTracker.EXTRA_SCOPE_ID, scopeId)
+                    putString(ReplyNotificationTracker.EXTRA_SESSION_ID, sessionId)
+                    putString(ReplyNotificationTracker.EXTRA_COMPLETION_ID, completionId)
+                    putString(ReplyNotificationTracker.EXTRA_TEXT_SNIPPET, text)
+                    putLong(ReplyNotificationTracker.EXTRA_GENERATION, generation)
+                },
+            )
+            ReplyNotificationTracker.onReplyNotificationPosted(
+                scopeId = scopeId,
+                sessionId = sessionId,
+                completionId = completionId,
+                textSnippet = text,
+                generation = generation,
+            )
+        } else {
+            builder.addExtras(
+                android.os.Bundle().apply {
+                    putString(ReplyNotificationTracker.EXTRA_NOTIF_KIND, ReplyNotificationTracker.KIND_ACTION)
+                },
+            )
+            ReplyNotificationTracker.onNonReplyNotificationPosted()
+        }
 
         if (!sessionId.isNullOrBlank()) {
             val replyLabel = getString(R.string.notif_reply_placeholder)

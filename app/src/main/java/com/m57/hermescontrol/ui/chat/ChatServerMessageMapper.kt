@@ -26,6 +26,11 @@ internal fun mapServerMessages(
             .filter { it.reasoningText.isNotBlank() }
             .associateBy { it.content }
 
+    val existingCompletionIdMap =
+        liveMessages
+            .filter { it.role == MessageRole.ASSISTANT && !it.completionId.isNullOrBlank() }
+            .associateBy { it.content.trim() }
+
     // Tool rows in the REST transcript carry NO tool name — the live WS
     // stream was the only source of `toolName`. Match each REST tool row
     // to its WS counterpart by RESULT CONTENT (not position — pagination
@@ -171,6 +176,12 @@ internal fun mapServerMessages(
             }
         }
 
+        val completionId =
+            if (role == MessageRole.ASSISTANT) {
+                existingCompletionIdMap[finalContent.trim()]?.completionId
+            } else {
+                null
+            }
         val tokenCount = msg.tokenCount ?: TokenEstimator.estimate(finalContent).takeIf { it > 0 }
         mapped.add(
             ChatMessage(
@@ -184,6 +195,7 @@ internal fun mapServerMessages(
                 isStreaming = false,
                 displayKind = msg.display_kind,
                 tokenCount = tokenCount,
+                completionId = completionId,
             ),
         )
     }

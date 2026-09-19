@@ -50,7 +50,11 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
             .setContentText("Replied")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
-            .build()
+            .addExtras(
+                android.os.Bundle().apply {
+                    putString(ReplyNotificationTracker.EXTRA_NOTIF_KIND, ReplyNotificationTracker.KIND_REPLIED)
+                },
+            ).build()
 
     override fun onReceive(
         context: Context,
@@ -102,6 +106,7 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
                             dao.upsert(entity)
 
                             val repliedNotification = buildReplyNotification(context)
+                            ReplyNotificationTracker.onNonReplyNotificationPosted()
                             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                             manager.notify(ChatNotificationService.PENDING_NOTIFICATION_ID, repliedNotification)
 

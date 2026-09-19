@@ -18,6 +18,7 @@ class ServerStoreTest {
         assertEquals("token", state.wsAuthParam)
         assertEquals(1.0f, state.chatFontScale)
         assertFalse(state.showModelProvider)
+        assertFalse(state.keepConnectedInBackground)
         assertTrue(state.connectionProfiles.isEmpty())
         assertNull(state.selectedProfileId)
     }
@@ -76,5 +77,20 @@ class ServerStoreTest {
         assertFalse(state.showModelProvider)
         val updated = state.copy(showModelProvider = true)
         assertTrue(updated.showModelProvider)
+    }
+
+    @Test
+    fun testKeepConnectedInBackgroundUpdate() {
+        val state = ServerStoreState()
+        assertFalse(state.keepConnectedInBackground)
+        val updated = state.copy(keepConnectedInBackground = true)
+        assertTrue(updated.keepConnectedInBackground)
+    }
+
+    @Test
+    fun testKeepConnectedInBackground_deserializationDefault() {
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        val decoded = json.decodeFromString<ServerStoreState>("{}")
+        assertFalse(decoded.keepConnectedInBackground)
     }
 }

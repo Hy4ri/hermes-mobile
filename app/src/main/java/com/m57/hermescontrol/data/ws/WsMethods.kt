@@ -66,6 +66,7 @@ object WsMethods {
 
     /** Inline WebSocket read-loop ping, bypasses server thread pool dispatch. */
     const val GATEWAY_PING = "gateway.ping"
+    const val CLIENT_CAPABILITIES = "client.capabilities"
 
     // ── Commands catalog ──────────────────────────────────────────────────
     const val COMMANDS_CATALOG = "commands.catalog"

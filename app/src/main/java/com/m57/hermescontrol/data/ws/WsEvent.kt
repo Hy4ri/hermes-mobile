@@ -63,6 +63,11 @@ sealed class WsEvent {
         val storedSessionId: String? = null,
         /** Full raw payload map (including usage/avg_tps) emitted with message.complete. */
         val rawPayload: Map<String, Any?>? = null,
+        /** Stable completion identity for notification and read-tracking correlation. */
+        val completionId: String =
+            java.util.UUID
+                .randomUUID()
+                .toString(),
     ) : WsEvent()
 
     data class MessageDone(
@@ -104,23 +109,25 @@ sealed class WsEvent {
      * Live tool execution progress with optional preview content.
      *
      * Events: `tool.progress`
-     * Payload: `{ name?: string, preview?: string }`
+     * Payload: `{ tool_id?: string, name?: string, preview?: string }`
      */
     data class ToolProgress(
         val name: String? = null,
         val preview: String? = null,
         val sessionId: String? = null,
+        val toolId: String? = null,
     ) : WsEvent()
 
     /**
      * Tool generation active state.
      *
      * Events: `tool.generating`
-     * Payload: `{ name?: string }`
+     * Payload: `{ tool_id?: string, name?: string }`
      */
     data class ToolGenerating(
         val name: String? = null,
         val sessionId: String? = null,
+        val toolId: String? = null,
     ) : WsEvent()
 
     /**

@@ -17,10 +17,19 @@ import org.junit.Test
  */
 class ChatInputPolicyTest {
     @Test
+    fun canSend_requiresReadySessionForTextCommandsAndAttachments() {
+        assertFalse(ChatInputPolicy.canSend("draft", emptyList(), true, false))
+        assertFalse(ChatInputPolicy.canSend("/queue draft", emptyList(), true, false))
+        assertFalse(ChatInputPolicy.canSend("", listOf(Any()), true, false))
+        assertTrue(ChatInputPolicy.canSend("draft", emptyList(), true, true))
+        assertTrue(ChatInputPolicy.canSend("", listOf(Any()), true, true))
+    }
+
+    @Test
     fun canSend_allowsRegularPromptWhileAgentTyping() {
         assertTrue(
             "regular prompt must be sendable while agent is typing",
-            ChatInputPolicy.canSend("next task", emptyList(), isConnected = true),
+            ChatInputPolicy.canSend("next task", emptyList(), isConnected = true, isSessionReady = true),
         )
     }
 
@@ -31,7 +40,7 @@ class ChatInputPolicyTest {
         // text are the only gates, so it must be allowed.
         assertTrue(
             "regular prompt must be sendable while an approval is pending",
-            ChatInputPolicy.canSend("yes, proceed", emptyList(), isConnected = true),
+            ChatInputPolicy.canSend("yes, proceed", emptyList(), isConnected = true, isSessionReady = true),
         )
     }
 
@@ -39,7 +48,7 @@ class ChatInputPolicyTest {
     fun canSend_blocksWhenDisconnected() {
         assertFalse(
             "no sends while disconnected",
-            ChatInputPolicy.canSend("next task", emptyList(), isConnected = false),
+            ChatInputPolicy.canSend("next task", emptyList(), isConnected = false, isSessionReady = true),
         )
     }
 
@@ -47,7 +56,7 @@ class ChatInputPolicyTest {
     fun canSend_blocksWhenInputEmptyAndNoAttachments() {
         assertFalse(
             "empty input with no attachments must not enable send",
-            ChatInputPolicy.canSend("", emptyList(), isConnected = true),
+            ChatInputPolicy.canSend("", emptyList(), isConnected = true, isSessionReady = true),
         )
     }
 
@@ -55,7 +64,7 @@ class ChatInputPolicyTest {
     fun canSend_allowsAttachmentWithEmptyText() {
         assertTrue(
             "a pending attachment enables send even with empty text",
-            ChatInputPolicy.canSend("", listOf("att"), isConnected = true),
+            ChatInputPolicy.canSend("", listOf("att"), isConnected = true, isSessionReady = true),
         )
     }
 
@@ -89,7 +98,7 @@ class ChatInputPolicyTest {
         // not regress that by blocking a non-blank slash command.
         assertTrue(
             "/stop must remain sendable while typing",
-            ChatInputPolicy.canSend("/stop", emptyList(), isConnected = true),
+            ChatInputPolicy.canSend("/stop", emptyList(), isConnected = true, isSessionReady = true),
         )
     }
 

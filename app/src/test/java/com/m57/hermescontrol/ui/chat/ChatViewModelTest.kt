@@ -10,6 +10,9 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.AttachmentSource
+import com.m57.hermescontrol.data.model.PaginationInfo
+import com.m57.hermescontrol.data.model.SessionMessage
+import com.m57.hermescontrol.data.model.SessionMessagesResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.GatewayFile
 import com.m57.hermescontrol.data.remote.GatewayFileClient
@@ -21,6 +24,7 @@ import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.JsonRpcError
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
+import com.m57.hermescontrol.notification.TurnCorrelationTracker
 import com.m57.hermescontrol.ui.chat.fakes.FakeChatPersistenceRepository
 import com.m57.hermescontrol.ui.chat.fakes.FakeSlashUsageStore
 import io.mockk.*
@@ -52,6 +56,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -171,6 +176,7 @@ class ChatViewModelTest {
         every { AuthManager.isUserMessageTokensEnabled() } returns true
         every { AuthManager.isAssistantMessageTokensEnabled() } returns true
         every { AuthManager.isTokensPerSecondEnabled() } returns true
+        every { AuthManager.isModelProviderShown() } returns false
         every { AuthManager.isAutoReconnect() } returns false
         every { AuthManager.isRestoreLastSession() } returns false
         every { AuthManager.getLastOpenedSessionId() } returns null
@@ -2695,6 +2701,138 @@ class ChatViewModelTest {
     // ── Session resume recovery (desktop parity: warm cache + bounded retry) ──
 
     /** Override the send stub to capture (method → id) pairs. */
+    @Test
+    fun testSendReadiness_restBeforeResume_preservesDraftUntilAck() =
+        runTest {
+            stubSession456Rests(success = true)
+            val (viewModel, _) = createViewModelWithSession()
+            assertTrue(viewModel.uiState.value.isSessionReady)
+            val captured = captureSends()
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+            val before = viewModel.uiState.value
+            assertFalse(before.isSessionReady)
+            assertFalse(viewModel.sendMessage("keep this draft"))
+            assertEquals(before.messages, viewModel.uiState.value.messages)
+            assertEquals(before.pendingAttachments, viewModel.uiState.value.pendingAttachments)
+            assertFalse(viewModel.uiState.value.isAgentTyping)
+            val id = captured.last { it.first == WsMethods.SESSION_RESUME }.second
+            mockEventsFlow.emit(WsEvent.RpcResult(id, mapOf("session_id" to "runtime-456")))
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isSessionReady)
+            assertTrue(viewModel.sendMessage("keep this draft"))
+            advanceUntilIdle()
+            assertEquals(
+                1,
+                viewModel.uiState.value.messages
+                    .count { it.content == "keep this draft" },
+            )
+        }
+
+    @Test
+    fun testSendReadiness_resumeBeforeRest_waitsForHydration() =
+        runTest {
+            stubSession456Rests(success = true)
+            val response =
+                CompletableDeferred<retrofit2.Response<com.m57.hermescontrol.data.model.SessionMessagesResponse>>()
+            coEvery {
+                ApiClient.hermesApi.getSessionMessages("session-456", any(), any(), any(), any())
+            } coAnswers { response.await() }
+            val (viewModel, _) = createViewModelWithSession()
+            val captured = captureSends()
+            viewModel.switchSession("session-456")
+            runCurrent()
+            val id = captured.last { it.first == WsMethods.SESSION_RESUME }.second
+            mockEventsFlow.emit(WsEvent.RpcResult(id, mapOf("session_id" to "runtime-456")))
+            runCurrent()
+            assertFalse(viewModel.uiState.value.isSessionReady)
+            assertFalse(viewModel.sendMessage("/queue draft"))
+            response.complete(
+                retrofit2.Response.success(
+                    com.m57.hermescontrol.data.model
+                        .SessionMessagesResponse(messages = emptyList()),
+                ),
+            )
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isSessionReady)
+        }
+
+    @Test
+    fun testSendReadiness_reconnectRejectsOldAckAndRequiresFreshHydration() =
+        runTest {
+            stubSession456Rests(success = true)
+            val (viewModel, _) = createViewModelWithSession()
+            val captured = captureSends()
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+            val oldId = captured.last { it.first == WsMethods.SESSION_RESUME }.second
+            mockConnectionStatus.value = ConnectionStatus.RECONNECTING
+            runCurrent()
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.RpcResult(oldId, mapOf("session_id" to "stale-runtime")))
+            runCurrent()
+            assertFalse(viewModel.uiState.value.isSessionReady)
+            assertFalse(viewModel.sendMessage("draft"))
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.isSessionReady)
+            val freshId = captured.last { it.first == WsMethods.SESSION_RESUME }.second
+            mockEventsFlow.emit(WsEvent.RpcResult(freshId, mapOf("session_id" to "fresh-runtime")))
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isSessionReady)
+            viewModel.retryResumeSession()
+            runCurrent()
+            assertFalse(viewModel.uiState.value.isSessionReady)
+        }
+
+    @Test
+    fun testSendReadiness_malformedAckNeverEnablesSend() =
+        runTest {
+            stubSession456Rests(success = true)
+            val (viewModel, _) = createViewModelWithSession()
+            val captured = captureSends()
+            viewModel.switchSession("session-456")
+            runCurrent()
+            val id = captured.last { it.first == WsMethods.SESSION_RESUME }.second
+            mockEventsFlow.emit(WsEvent.RpcResult(id, mapOf("session_id" to "")))
+            runCurrent()
+            assertFalse(viewModel.uiState.value.isSessionReady)
+            assertFalse(viewModel.sendMessage("draft"))
+            assertTrue(viewModel.uiState.value.isResumeRetrying)
+        }
+
+    @Test
+    fun testSendReadiness_abandonedCreateCannotAcceptDraft() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+            mockConnectionStatus.value = ConnectionStatus.RECONNECTING
+            runCurrent()
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            runCurrent()
+            assertFalse(viewModel.sendMessage("retain me"))
+            assertFalse(viewModel.uiState.value.isAgentTyping)
+        }
+
+    @Test
+    fun testSendReadiness_pendingCreateAppliesBackpressure() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+            assertTrue(viewModel.sendMessage("first"))
+            assertFalse(viewModel.sendMessage("second"))
+            assertFalse(
+                viewModel.uiState.value.messages
+                    .any { it.content == "second" },
+            )
+        }
+
     private fun captureSends(): MutableList<Pair<String, String>> {
         val captured = mutableListOf<Pair<String, String>>()
         every { HermesWsClient.send(any(), any(), any()) } answers {
@@ -4203,6 +4341,7 @@ class ChatViewModelTest {
                 assertTrue(showUserMessageTokens)
                 assertTrue(showAssistantMessageTokens)
                 assertTrue(showTokensPerSecond)
+                assertFalse(showModelProvider)
             }
 
             // When settings change after construction and refreshSettings() is re-invoked,
@@ -4214,6 +4353,7 @@ class ChatViewModelTest {
             every { AuthManager.isUserMessageTokensEnabled() } returns false
             every { AuthManager.isAssistantMessageTokensEnabled() } returns false
             every { AuthManager.isTokensPerSecondEnabled() } returns false
+            every { AuthManager.isModelProviderShown() } returns true
             viewModel.refreshSettings()
             advanceUntilIdle()
 
@@ -4225,6 +4365,7 @@ class ChatViewModelTest {
             assertFalse(state.showUserMessageTokens)
             assertFalse(state.showAssistantMessageTokens)
             assertFalse(state.showTokensPerSecond)
+            assertTrue(state.showModelProvider)
         }
 
     @Test
@@ -5453,5 +5594,235 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             io.mockk.verify { AuthManager.setLastOpenedSessionId("session-other-456") }
+        }
+
+    // ── Turn-boundary capture ordering (reply-notification correlation) ───────
+
+    /**
+     * Turn boundaries are keyed by the active profile, so these tests need one.
+     * Scoped per test rather than added to setUp: a non-blank profile is also
+     * appended to `session.resume` params, which the older resume/switch tests
+     * assert exactly.
+     */
+    private fun stubActiveProfile() {
+        every { AuthManager.activeProfileId } returns MutableStateFlow<String?>("default")
+    }
+
+    /**
+     * The REST high-watermark must be read BEFORE prompt.submit leaves the
+     * device. Capturing it afterwards lets a fast turn persist its assistant row
+     * first, and a lower bound that already contains the reply can never exclude
+     * a historical duplicate.
+     */
+    @Test
+    fun sendMessage_readsTurnBoundaryBeforeSubmittingPrompt() =
+        runTest {
+            TurnCorrelationTracker.resetForTest()
+            stubActiveProfile()
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val events = mutableListOf<String>()
+            val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+            every { ApiClient.hermesApi } returns api
+            coEvery { api.getSessionMessages(any(), any(), any(), any(), any(), any()) } answers {
+                // Only the boundary probe asks for a single newest row.
+                if (arg<Int?>(1) == 1 && arg<String?>(3) == "latest") events += "boundary"
+                retrofit2.Response.success(
+                    SessionMessagesResponse(
+                        messages = listOf(SessionMessage(id = 41, role = "user", content = JsonPrimitive("hi"))),
+                        pagination = PaginationInfo(limit = 1, offset = 0, order = "latest", returned = 1),
+                    ),
+                )
+            }
+            every { HermesWsClient.sendMessage(any(), any(), any(), any()) } answers {
+                events += "submit"
+                reqCount++
+                val id = "req-msg-$reqCount"
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            viewModel.sendMessage("hello there")
+            advanceUntilIdle()
+
+            assertEquals(listOf("boundary", "submit"), events)
+            assertEquals(41, TurnCorrelationTracker.boundaryFor("default", sessionId)?.beforeMessageId)
+        }
+
+    @Test
+    fun sendMessage_stillSubmitsWhenBoundaryReadFails() =
+        runTest {
+            TurnCorrelationTracker.resetForTest()
+            stubActiveProfile()
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+            every { ApiClient.hermesApi } returns api
+            coEvery { api.getSessionMessages(any(), any(), any(), any(), any(), any()) } returns
+                retrofit2.Response.error(500, "boom".toResponseBody())
+            var submits = 0
+            every { HermesWsClient.sendMessage(any(), any(), any(), any()) } answers {
+                submits++
+                reqCount++
+                val id = "req-msg-$reqCount"
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            viewModel.sendMessage("hello there")
+            advanceUntilIdle()
+
+            assertEquals("REST health must never block sending chat", 1, submits)
+            assertNull(TurnCorrelationTracker.boundaryFor("default", sessionId))
+        }
+
+    /**
+     * A gateway that ignores `order=latest` answers a `limit=1` probe with the
+     * OLDEST row; trusting that number would arm a boundary that is far too low
+     * and let historical duplicates win. Without the pagination proof the turn is
+     * left uncorrelatable, and the prompt still goes out.
+     */
+    @Test
+    fun sendMessage_leavesTurnUncorrelatableWhenGatewayCannotConfirmOrder() =
+        runTest {
+            TurnCorrelationTracker.resetForTest()
+            stubActiveProfile()
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+            every { ApiClient.hermesApi } returns api
+            coEvery { api.getSessionMessages(any(), any(), any(), any(), any(), any()) } answers {
+                retrofit2.Response.success(
+                    SessionMessagesResponse(
+                        messages = listOf(SessionMessage(id = 1, role = "user", content = JsonPrimitive("oldest"))),
+                    ),
+                )
+            }
+            var submits = 0
+            every { HermesWsClient.sendMessage(any(), any(), any(), any()) } answers {
+                submits++
+                reqCount++
+                val id = "req-msg-$reqCount"
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            viewModel.sendMessage("hello there")
+            advanceUntilIdle()
+
+            assertEquals(1, submits)
+            assertNull(
+                "Unconfirmed row order must not produce a boundary",
+                TurnCorrelationTracker.boundaryFor("default", sessionId),
+            )
+        }
+
+    /**
+     * `AuthManager.activeProfileId` is null until a server profile is explicitly
+     * selected, and the rest of AuthManager treats that as
+     * [AuthManager.DEFAULT_PROFILE_ID]. A raw `.orEmpty()` made the whole feature
+     * a no-op on a normal install: no boundary armed, so no reply notification
+     * could ever be REST-auto-dismissed.
+     */
+    @Test
+    fun sendMessage_nullActiveProfileArmsBoundaryUnderTheDefaultScope() =
+        runTest {
+            TurnCorrelationTracker.resetForTest()
+            every { AuthManager.activeProfileId } returns MutableStateFlow<String?>(null)
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+            every { ApiClient.hermesApi } returns api
+            coEvery { api.getSessionMessages(any(), any(), any(), any(), any(), any()) } answers {
+                retrofit2.Response.success(
+                    SessionMessagesResponse(
+                        messages = listOf(SessionMessage(id = 41, role = "user", content = JsonPrimitive("hi"))),
+                        pagination = PaginationInfo(limit = 1, offset = 0, order = "latest", returned = 1),
+                    ),
+                )
+            }
+            var submits = 0
+            every { HermesWsClient.sendMessage(any(), any(), any(), any()) } answers {
+                submits++
+                reqCount++
+                val id = "req-msg-$reqCount"
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            viewModel.sendMessage("hello there")
+            advanceUntilIdle()
+
+            assertEquals(1, submits)
+            assertEquals(
+                "A default-profile install must still be correlatable",
+                41,
+                TurnCorrelationTracker.boundaryFor(AuthManager.DEFAULT_PROFILE_ID, sessionId)?.beforeMessageId,
+            )
+        }
+
+    /**
+     * `pagination.order` is the only proof the gateway honoured `order=latest`.
+     * A gateway that reports `oldest` answered the `limit=1` probe with the
+     * OLDEST row, and that as a lower bound would sit below the whole transcript
+     * — exactly what lets a historical duplicate win.
+     */
+    @Test
+    fun sendMessage_leavesTurnUncorrelatableWhenGatewayReportsOldestOrder() =
+        runTest {
+            TurnCorrelationTracker.resetForTest()
+            stubActiveProfile()
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+            every { ApiClient.hermesApi } returns api
+            coEvery { api.getSessionMessages(any(), any(), any(), any(), any(), any()) } answers {
+                retrofit2.Response.success(
+                    SessionMessagesResponse(
+                        messages = listOf(SessionMessage(id = 1, role = "user", content = JsonPrimitive("oldest"))),
+                        pagination = PaginationInfo(limit = 1, offset = 0, order = "oldest", returned = 1),
+                    ),
+                )
+            }
+            var submits = 0
+            every { HermesWsClient.sendMessage(any(), any(), any(), any()) } answers {
+                submits++
+                reqCount++
+                val id = "req-msg-$reqCount"
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            viewModel.sendMessage("hello there")
+            advanceUntilIdle()
+
+            assertEquals(1, submits)
+            assertNull(
+                "An unproven row order must not produce a boundary",
+                TurnCorrelationTracker.boundaryFor("default", sessionId),
+            )
+        }
+
+    /**
+     * A queued prompt runs behind a turn that is already in flight, so no clean
+     * lower bound exists for it — it must not borrow the running turn's boundary.
+     */
+    @Test
+    fun queuedPromptNeverArmsATurnBoundary() =
+        runTest {
+            TurnCorrelationTracker.resetForTest()
+            stubActiveProfile()
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+            every { ApiClient.hermesApi } returns api
+            every { HermesWsClient.sendMessage(any(), any(), any(), any()) } answers {
+                reqCount++
+                val id = "req-msg-$reqCount"
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            viewModel.sendMessage("/queue do the thing")
+            advanceUntilIdle()
+
+            io.mockk.coVerify(exactly = 0) {
+                api.getSessionMessages(any(), any(), any(), any(), any(), any())
+            }
+            assertNull(TurnCorrelationTracker.boundaryFor("default", sessionId))
         }
 }

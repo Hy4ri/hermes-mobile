@@ -102,6 +102,13 @@ fun Any?.toJsonElement(): JsonElement =
         }
     }
 
+// Issue #1163: scalar conversion preserves toAny() type semantics without copying JSON containers.
+internal fun JsonElement?.eventStringOrNull(): String? = (this as? JsonPrimitive)?.toAny() as? String
+
+internal fun JsonObject.eventSessionId(): String? =
+    get("session_id").eventStringOrNull()
+        ?: (get("payload") as? JsonObject)?.get("session_id").eventStringOrNull()
+
 fun JsonElement.toAny(): Any? =
     when (this) {
         is JsonNull -> {

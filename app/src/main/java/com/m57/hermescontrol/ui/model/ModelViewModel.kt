@@ -13,6 +13,7 @@ import com.m57.hermescontrol.data.model.UpdateProfileModelRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.ws.ModelOptionsRepository
 import com.m57.hermescontrol.ui.common.ToastHost
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -41,6 +42,7 @@ val AUX_TASKS =
 
 data class ModelUiState(
     val isLoading: Boolean = false,
+    val catalogLoading: Boolean = false,
     val providers: List<ModelProvider> = emptyList(),
     val activeProfile: ProfileInfo? = null,
     val errorMessage: String? = null,
@@ -66,8 +68,9 @@ data class ModelUiState(
     val pendingModelPickerResolve: ((Boolean) -> Unit)? = null,
 )
 
-class ModelViewModel :
-    ViewModel(),
+class ModelViewModel(
+    private val modelOptionsRepository: ModelOptionsRepository = ModelOptionsRepository(),
+) : ViewModel(),
     ToastHost {
     private val _uiState = MutableStateFlow(ModelUiState())
     val uiState: StateFlow<ModelUiState> = _uiState.asStateFlow()
@@ -77,7 +80,7 @@ class ModelViewModel :
     }
 
     fun loadAll(refresh: Boolean = false) {
-        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        _uiState.update { it.copy(isLoading = true, catalogLoading = true, errorMessage = null) }
         viewModelScope.launch {
             // Phase 1: Launch fast lightweight calls first (profiles, aux, moa)
             val activeProfileDeferred =
@@ -100,7 +103,7 @@ class ModelViewModel :
             // Phase 2: Launch model options concurrently
             val optionsDeferred =
                 async(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.getModelOptions(refresh = refresh, includeUnconfigured = false) }
+                    modelOptionsRepository.load(refresh)
                 }
 
             // Await Phase 1 calls (~40-190ms total) and update UI immediately with available state
@@ -143,6 +146,7 @@ class ModelViewModel :
             // Render Phase 1 results right away so UI controls update without waiting for model options
             _uiState.update {
                 it.copy(
+                    isLoading = false,
                     activeProfile = activeProfile ?: it.activeProfile,
                     pinnedModels = AuthManager.getPinnedModels(),
                     mainModelProvider = mainModel.first,
@@ -158,7 +162,7 @@ class ModelViewModel :
                 is NetworkResult.Success -> {
                     _uiState.update {
                         it.copy(
-                            isLoading = false,
+                            catalogLoading = false,
                             providers = optionsResult.data.providers.orEmpty(),
                         )
                     }
@@ -167,9 +171,9 @@ class ModelViewModel :
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
-                            isLoading = false,
+                            catalogLoading = false,
                             errorMessage =
-                                if (it.providers.isEmpty()) {
+                                if (it.providers.isEmpty() && it.mainModelProvider.isEmpty()) {
                                     "Failed to load model options: ${optionsResult.error.message}"
                                 } else {
                                     null

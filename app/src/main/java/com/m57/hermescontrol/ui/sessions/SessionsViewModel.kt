@@ -3,16 +3,21 @@ package com.m57.hermescontrol.ui.sessions
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
+import com.m57.hermescontrol.data.local.SessionListCacheStore
+import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.BulkDeleteRequest
 import com.m57.hermescontrol.data.model.ProjectInfo
 import com.m57.hermescontrol.data.model.PruneRequest
 import com.m57.hermescontrol.data.model.SessionInfo
+import com.m57.hermescontrol.data.model.SessionListResponse
 import com.m57.hermescontrol.data.model.SessionLiveStatus
 import com.m57.hermescontrol.data.model.SessionRenameRequest
 import com.m57.hermescontrol.data.model.SessionSearchResult
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.data.ws.ChangeEventHub
 import com.m57.hermescontrol.data.ws.ChangeEvents
 import com.m57.hermescontrol.data.ws.ConnectionStatus
@@ -99,6 +104,10 @@ data class SessionsUiState(
     val isSearching: Boolean = false,
     val searchResults: List<SessionSearchResult> = emptyList(),
     val searchError: String? = null,
+    val isLoadingMoreSearch: Boolean = false,
+    val searchHasMore: Boolean = false,
+    val searchNextOffset: Int? = null,
+    val searchLoadMoreError: String? = null,
     val showHidden: Boolean = false,
     val pinnedExpanded: Boolean = true,
     val liveStatuses: Map<String, SessionLiveStatus> = emptyMap(),
@@ -136,15 +145,31 @@ class SessionsViewModel(
     private var liveStatusRefreshPending = false
     private var generation: Long = 0
     private var rawPaginationOffset: Int = 0
+    private val sessionsPageCache = SwrCache<String, SessionListResponse>()
 
     init {
+        // Scope transitions are driven by ProfileSwitchCoordinator (profile switch and
+        // connection switch). An additional AuthManager.dataScopeFlow collector would
+        // double-fire on the same transition and reset/refetch History twice.
+        viewModelScope.launch {
+            ProfileSwitchCoordinator.switched.collect {
+                onDataScopeChanged(AuthManager.currentDataScope())
+            }
+        }
+        viewModelScope.launch {
+            ProfileSwitchCoordinator.connectionSwitched.collect {
+                onDataScopeChanged(AuthManager.currentDataScope())
+            }
+        }
+
         // Issue #784: gateway broadcasts sessions.changed — refresh the list
         // silently (no spinner, no selection reset) instead of blind polling.
         refreshOnChange(
             eventType = ChangeEvents.SESSIONS,
             apiCall = {
                 val requestGeneration = generation
-                val section = _uiState.value.section
+                val capturedSection = _uiState.value.section
+                val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
                 when (
                     val result =
                         safeApiCall {
@@ -152,17 +177,31 @@ class SessionsViewModel(
                                 limit = PAGE_SIZE,
                                 offset = 0,
                                 order = "recent",
-                                source = section.source,
-                                excludeSources = section.excludeSources,
+                                source = capturedSection.source,
+                                excludeSources = capturedSection.excludeSources,
                             )
                         }
                 ) {
-                    is NetworkResult.Success -> NetworkResult.Success(requestGeneration to result.data)
-                    is NetworkResult.Failure -> result
+                    is NetworkResult.Success -> {
+                        NetworkResult.Success(
+                            Triple(requestGeneration, Pair(requestScope, capturedSection), result.data),
+                        )
+                    }
+
+                    is NetworkResult.Failure -> {
+                        result
+                    }
                 }
             },
-            onSuccess = { (requestGeneration, data) ->
-                if (requestGeneration == generation) {
+            onSuccess = { (requestGeneration, scopeAndSection, data) ->
+                val (requestScope, capturedSection) = scopeAndSection
+                val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+                if (requestGeneration == generation && currentScope == requestScope) {
+                    val localKey = "${capturedSection.name}:${capturedSection.source}:${capturedSection.excludeSources}"
+                    val inMemoryKey = requestScope?.inMemoryKey(localKey)
+                    val persistentKey = requestScope?.persistentKey(localKey)
+                    if (inMemoryKey != null) sessionsPageCache.put(inMemoryKey, data)
+                    if (persistentKey != null) SessionListCacheStore.put(persistentKey, data)
                     rawPaginationOffset = data.nextOffset(0)
                     _uiState.update {
                         val newSessions = data.sessions.orEmpty()
@@ -183,6 +222,41 @@ class SessionsViewModel(
                 }
             },
         )
+    }
+
+    private fun onDataScopeChanged(newScope: DataScope? = AuthManager.currentDataScope()) {
+        generation++
+        searchGeneration++
+        trackingGeneration++
+        loadJob?.cancel()
+        pageJob?.cancel()
+        statsJob?.cancel()
+        searchJob?.cancel()
+        searchPageJob?.cancel()
+        projectsJob?.cancel()
+        rawPaginationOffset = 0
+        resolvedParentCache.clear()
+        _uiState.update {
+            it.copy(
+                sessions = emptyList(),
+                total = 0,
+                hasMore = false,
+                selectedIds = emptySet(),
+                isSelecting = false,
+                errorMessage = null,
+                searchResults = emptyList(),
+                searchError = null,
+                searchLoadMoreError = null,
+                searchHasMore = false,
+                searchNextOffset = null,
+                isSearching = false,
+                isLoadingMoreSearch = false,
+                stats = SessionStats(),
+                emptyCount = 0,
+                projects = emptyList(),
+            )
+        }
+        loadSessions()
     }
 
     /**
@@ -255,6 +329,8 @@ class SessionsViewModel(
         loadJob?.cancel()
         pageJob?.cancel()
         searchJob?.cancel()
+        searchPageJob?.cancel()
+        searchGeneration++
         rawPaginationOffset = 0
         val query = _uiState.value.searchQuery
         _uiState.update {
@@ -277,9 +353,43 @@ class SessionsViewModel(
     }
 
     /** Load (or reload) sessions from page 0. Used by pull-to-refresh and initial load. */
-    fun loadSessions() {
+    fun loadSessions(forceRefresh: Boolean = false) {
         val requestGeneration = generation
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
         val section = _uiState.value.section
+        val localKey = "${section.name}:${section.source}:${section.excludeSources}"
+        val inMemoryKey = requestScope?.inMemoryKey(localKey)
+        val persistentKey = requestScope?.persistentKey(localKey)
+        if (forceRefresh) {
+            if (inMemoryKey != null) sessionsPageCache.remove(inMemoryKey)
+            if (persistentKey != null) SessionListCacheStore.remove(persistentKey)
+        }
+        val cached =
+            if (!forceRefresh && inMemoryKey != null && persistentKey != null) {
+                sessionsPageCache.get(inMemoryKey)
+                    ?: SessionListCacheStore.get(persistentKey)?.also { sessionsPageCache.put(inMemoryKey, it) }
+            } else {
+                null
+            }
+        if (cached != null) {
+            val sessionsList = cached.sessions.orEmpty()
+            val paging =
+                SessionsPaging.resolveInitialPaging(
+                    receivedCount = minOf(cached.sessions.size, PAGE_SIZE),
+                    pageSize = PAGE_SIZE,
+                    backendTotal = cached.total,
+                    accumulatedCount = sessionsList.size,
+                )
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    sessions = sessionsList,
+                    total = paging.total,
+                    hasMore = paging.hasMore,
+                    errorMessage = null,
+                )
+            }
+        }
         pageJob?.cancel()
         loadEmptyCount()
         if (trackingJob?.isActive == true) {
@@ -300,9 +410,16 @@ class SessionsViewModel(
                         )
                     }
                 },
-                onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
+                onStart = {
+                    if (cached == null) {
+                        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+                    }
+                },
                 onSuccess = { data ->
-                    if (requestGeneration != generation) return@safeLaunchLoad
+                    val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+                    if (requestGeneration != generation || currentScope != requestScope) return@safeLaunchLoad
+                    if (inMemoryKey != null) sessionsPageCache.put(inMemoryKey, data)
+                    if (persistentKey != null) SessionListCacheStore.put(persistentKey, data)
                     rawPaginationOffset = data.nextOffset(0)
                     val sessionsList = data.sessions.orEmpty()
                     val paging =
@@ -325,13 +442,15 @@ class SessionsViewModel(
                     stitchMissingParents(requestGeneration)
                 },
                 onError = { errorMsg ->
-                    if (requestGeneration != generation) return@safeLaunchLoad
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            isLoadingMore = false,
-                            errorMessage = "Failed to load sessions: $errorMsg",
-                        )
+                    val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+                    if (requestGeneration != generation || currentScope != requestScope) return@safeLaunchLoad
+                    if (cached == null || forceRefresh) {
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                errorMessage = "Failed to load sessions: $errorMsg",
+                            )
+                        }
                     }
                 },
             )
@@ -355,6 +474,7 @@ class SessionsViewModel(
         val state = _uiState.value
         if (state.isLoading || state.isLoadingMore || !state.hasMore || state.isSearchMode) return
         val requestGeneration = generation
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
         val offset = rawPaginationOffset
 
         _uiState.update { it.copy(isLoadingMore = true) }
@@ -370,7 +490,8 @@ class SessionsViewModel(
                             excludeSources = state.section.excludeSources,
                         )
                     }
-                if (requestGeneration != generation) return@launch
+                val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+                if (requestGeneration != generation || currentScope != requestScope) return@launch
                 when (result) {
                     is NetworkResult.Success -> {
                         val data = result.data
@@ -413,6 +534,8 @@ class SessionsViewModel(
     // ── Search (server-backed FTS5) ──────────────────────────────────
 
     private var searchJob: Job? = null
+    private var searchPageJob: Job? = null
+    private var searchGeneration = 0L
 
     /**
      * Debounced server-side session search. A non-blank query schedules a search
@@ -420,53 +543,107 @@ class SessionsViewModel(
      * paginated list mode.
      */
     fun setSearchQuery(query: String) {
-        val requestGeneration = generation
+        val requestGeneration = ++searchGeneration
         val section = _uiState.value.section
-        _uiState.update { it.copy(searchQuery = query, searchResults = emptyList()) }
         searchJob?.cancel()
+        searchPageJob?.cancel()
+        _uiState.update {
+            it.copy(
+                searchQuery = query,
+                searchResults = emptyList(),
+                isSearching = query.isNotBlank(),
+                searchError = null,
+                isLoadingMoreSearch = false,
+                searchHasMore = false,
+                searchNextOffset = null,
+                searchLoadMoreError = null,
+                isSelecting = false,
+                selectedIds = emptySet(),
+            )
+        }
         if (query.isBlank()) {
-            _uiState.update {
-                it.copy(searchResults = emptyList(), searchError = null, isSearching = false)
-            }
             if (_uiState.value.sessions.isEmpty()) loadSessions()
             return
         }
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
         searchJob =
             viewModelScope.launch {
                 delay(SEARCH_DEBOUNCE_MS)
-                _uiState.update { it.copy(isSearching = true, searchError = null) }
-                val result =
-                    safeApiCall {
-                        ApiClient.hermesApi.searchSessions(
-                            q = query,
-                            profile = null,
-                            source = section.source,
-                            excludeSources = section.excludeSources,
-                        )
-                    }
-                if (requestGeneration != generation || _uiState.value.searchQuery != query) return@launch
-                when (result) {
-                    is NetworkResult.Success -> {
-                        _uiState.update {
-                            it.copy(
-                                isSearching = false,
-                                searchResults = result.data.results.orEmpty(),
-                                searchError = null,
-                            )
-                        }
-                    }
+                requestSearchPage(query, section, requestGeneration, requestScope, 0)
+            }
+    }
 
-                    is NetworkResult.Failure -> {
-                        _uiState.update {
-                            it.copy(
-                                isSearching = false,
-                                searchResults = emptyList(),
-                                searchError = "Search failed: ${result.error.message}",
-                            )
+    fun loadMoreSearch() {
+        val state = _uiState.value
+        val offset = state.searchNextOffset ?: return
+        if (!state.isSearchMode || state.isSearching || state.isLoadingMoreSearch || !state.searchHasMore) return
+        val requestGeneration = searchGeneration
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+        _uiState.update { it.copy(isLoadingMoreSearch = true, searchLoadMoreError = null) }
+        searchPageJob =
+            viewModelScope.launch {
+                requestSearchPage(state.searchQuery, state.section, requestGeneration, requestScope, offset)
+            }
+    }
+
+    private suspend fun requestSearchPage(
+        query: String,
+        section: HistorySection,
+        requestGeneration: Long,
+        requestScope: DataScope?,
+        offset: Int,
+    ) {
+        val result =
+            safeApiCall {
+                ApiClient.hermesApi.searchSessions(
+                    q = query,
+                    profile = null,
+                    source = section.source,
+                    excludeSources = section.excludeSources,
+                    limit = 20,
+                    offset = offset,
+                )
+            }
+        val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+        if (requestGeneration != searchGeneration || _uiState.value.section != section ||
+            currentScope != requestScope
+        ) {
+            return
+        }
+        when (result) {
+            is NetworkResult.Success -> {
+                _uiState.update { state ->
+                    val previous = if (offset == 0) emptyList() else state.searchResults
+                    // Dedup by final surfaced session id: legacy backends can return
+                    // the same continuation twice (distinct lineage roots), and
+                    // LazyList keys session ids — duplicates crash the screen.
+                    val results = (previous + result.data.results).distinctBy { it.session_id }
+                    val next =
+                        result.data.next_offset?.takeIf {
+                            result.data.hasMore && it > offset && results.size > previous.size
                         }
+                    state.copy(
+                        isSearching = false,
+                        isLoadingMoreSearch = false,
+                        searchResults = results,
+                        searchError = null,
+                        searchLoadMoreError = null,
+                        searchHasMore = next != null,
+                        searchNextOffset = next,
+                    )
+                }
+            }
+
+            is NetworkResult.Failure -> {
+                _uiState.update {
+                    if (offset == 0) {
+                        it.copy(isSearching = false, searchError = "Search failed: ${result.error.message}")
+                    } else {
+                        it.copy(isLoadingMoreSearch = false, searchLoadMoreError = "Failed to load more")
                     }
                 }
             }
+        }
     }
 
     // ── Stats ────────────────────────────────────────────────────────────
@@ -580,6 +757,10 @@ class SessionsViewModel(
                             sessions =
                                 it.sessions.map { s ->
                                     if (s.id == sessionId) s.copy(title = newTitle) else s
+                                },
+                            searchResults =
+                                it.searchResults.map { s ->
+                                    if (s.session_id == sessionId) s.copy(title = newTitle) else s
                                 },
                             toastMessage = "Session renamed",
                         )
@@ -780,6 +961,7 @@ class SessionsViewModel(
                             isDeletingBulk = false,
                             isSelecting = false,
                             selectedIds = emptySet(),
+                            searchResults = it.searchResults.filter { hit -> hit.session_id !in ids },
                             toastMessage = toastMsg,
                         )
                     }
@@ -847,11 +1029,15 @@ class SessionsViewModel(
 
     /** Refresh the empty-session count (REST; auxiliary — failures are silent). */
     fun loadEmptyCount() {
+        val requestGeneration = generation
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
         viewModelScope.launch {
             val result =
                 runCatching {
                     safeApiCall { ApiClient.hermesApi.getEmptySessionCount() }
                 }.getOrNull()
+            val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+            if (requestGeneration != generation || currentScope != requestScope) return@launch
             val count = (result as? NetworkResult.Success)?.data?.count
             if (count != null) {
                 _uiState.update { it.copy(emptyCount = count) }

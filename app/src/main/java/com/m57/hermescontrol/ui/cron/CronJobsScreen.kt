@@ -55,6 +55,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.CronBlueprint
 import com.m57.hermescontrol.data.model.CronBlueprintField
 import com.m57.hermescontrol.data.model.CronJob
@@ -82,10 +83,12 @@ fun CronJobsScreen(
     viewModel: CronJobsViewModel = viewModel { CronJobsViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val dataScope by AuthManager.dataScopeFlow.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
     var selectedJob by remember { mutableStateOf<CronJob?>(null) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(dataScope) {
+        viewModel.clearScopeOwnedState()
         viewModel.loadCronJobs()
     }
 
@@ -95,7 +98,7 @@ fun CronJobsScreen(
         title = { Text(stringResource(R.string.screen_cron)) },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
-        onRefresh = { viewModel.loadCronJobs() },
+        onRefresh = { viewModel.loadCronJobs(forceRefresh = true) },
         actions = {
             IconButton(onClick = { viewModel.openNewJobDialog() }) {
                 Icon(

@@ -13,7 +13,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
 import com.m57.hermescontrol.MainActivity
 import com.m57.hermescontrol.R
-import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsEvent
@@ -43,16 +43,16 @@ import java.util.concurrent.atomic.AtomicBoolean
  * message notifications, which is correct.
  *
  * Lifecycle:
- * - Started by [NotificationHelper.start] when the app goes to the
- *   background while a reply is still pending (the user sent a message or
- *   replied from a notification and the agent has not finished yet).
- *   [NotificationHelper.start] is a no-op when nothing is pending, so the
- *   service — and its mandatory persistent notification — only exists
- *   while the user is actually waiting for a reply (issue #794).
- * - Stopped by [NotificationHelper.stop] when the app returns to the
- *   foreground (called from MainActivity.onStart), or by the
- *   service itself once the pending reply completes in the background
- *   (the reply notification replaces the persistent "waiting" one).
+ * - Started by [NotificationHelper.start] when the app goes to the background
+ *   either while a reply is still pending (issue #794) or when persistent background
+ *   connection ([com.m57.hermescontrol.data.local.AuthManager.isKeepConnectedInBackground])
+ *   is enabled.
+ * - In persistent keep-connected mode, the service stays alive across idle states
+ *   and updates its ongoing notification truthfully ([BackgroundNotificationState]).
+ * - In replies-only mode (default), the service retires itself once the pending reply
+ *   completes in the background.
+ * - Stopped by [NotificationHelper.stop] when the app returns to the foreground, or
+ *   retired automatically upon auth expiry or terminal disconnection.
  *
  * The service collects [WsEvent]s from [HermesWsClient] — the same stream
  * the ChatViewModel collects — and watches for [WsEvent.MessageComplete]
@@ -68,20 +68,36 @@ class ChatNotificationService : Service() {
         private val isAppInForeground = AtomicBoolean(false)
         internal val lifecycle = ForegroundServiceLifecycle()
 
+        /**
+         * Turn-row correlation used when a reply completes in the background.
+         * Injectable so the resolution path can be exercised without REST.
+         */
+        internal var turnRowResolver: TurnRowResolver = defaultTurnRowResolver
+
+        @Volatile
+        internal var activeServiceInstance: ChatNotificationService? = null
+
         fun setAppForeground(foreground: Boolean) {
             isAppInForeground.set(foreground)
         }
 
         fun isAppInForeground(): Boolean = isAppInForeground.get()
+
+        fun updateForegroundNotification(state: BackgroundNotificationState) {
+            activeServiceInstance?.updateNotification(state)
+        }
     }
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var eventCollector: Job? = null
+    private var statusCollector: Job? = null
 
     override fun onCreate() {
         super.onCreate()
+        activeServiceInstance = this
         createNotificationChannels()
         startEventCollection()
+        startStatusCollection()
     }
 
     private fun startEventCollection() {
@@ -100,10 +116,23 @@ class ChatNotificationService : Service() {
                                                 .take(100)
                                                 .replace("\n", " ")
                                                 .ifBlank { getString(R.string.notif_new_message) }
-                                        showReplyNotification(
-                                            preview,
+                                        val targetSessionId =
                                             event.storedSessionId
-                                                ?: ActiveSessionHolder.resolveStoredSessionId(event.sessionId),
+                                                ?: ActiveSessionHolder.resolveStoredSessionId(event.sessionId)
+                                        showReplyNotification(
+                                            text = preview,
+                                            sessionId = targetSessionId,
+                                            isReplyMessage = true,
+                                            completionId = event.completionId,
+                                            // The durable REST row for this turn, when the
+                                            // boundary armed before the prompt was submitted
+                                            // still lets us name it unambiguously. Null is a
+                                            // normal, safe outcome: the notification is then
+                                            // never auto-dismissed from REST hydration, which
+                                            // is strictly better than dismissing the wrong
+                                            // duplicate reply.
+                                            serverMessageId =
+                                                coalesceTurnRow(targetSessionId, event.text),
                                         )
                                         // The wait is over — retire the foreground
                                         // service. The reply notification above
@@ -113,7 +142,7 @@ class ChatNotificationService : Service() {
                                         // service is not restarted on the next
                                         // ON_STOP (issue #794).
                                         // A delayed completion must not retire a newer turn/start.
-                                        if (!HermesWsClient.pendingReply) lifecycle.complete(generation)
+                                        BackgroundConnectionController.default.onReplyCompleted(generation)
                                     }
 
                                     is WsEvent.ClarifyRequest -> {
@@ -156,9 +185,37 @@ class ChatNotificationService : Service() {
             }
     }
 
+    /**
+     * Names the exact REST row this completion produced, using the turn
+     * boundary armed before the prompt was submitted. Any failure to prove that
+     * identity returns null — the notification is still posted, it just will not
+     * be auto-dismissed from REST hydration.
+     */
+    private suspend fun coalesceTurnRow(
+        sessionId: String?,
+        completionText: String,
+    ): Int? {
+        if (sessionId.isNullOrBlank()) return null
+        return try {
+            correlateCompletedTurnRow(
+                scopeId = correlationScopeId(),
+                sessionId = sessionId,
+                completionText = completionText,
+                resolver = turnRowResolver,
+            )
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     private fun showReplyNotification(
         text: String,
         sessionId: String?,
+        isReplyMessage: Boolean = false,
+        completionId: String? = null,
+        serverMessageId: Int? = null,
     ) {
         val builder =
             NotificationCompat
@@ -172,6 +229,39 @@ class ChatNotificationService : Service() {
                 .setAutoCancel(true)
                 .setContentIntent(buildContentIntent(sessionId))
 
+        var replyGeneration: Long? = null
+        if (isReplyMessage && !sessionId.isNullOrBlank() && !completionId.isNullOrBlank()) {
+            val scopeId = correlationScopeId()
+            val generation =
+                ReplyNotificationTracker.registerPendingReply(
+                    scopeId = scopeId,
+                    sessionId = sessionId,
+                    completionId = completionId,
+                    textSnippet = text,
+                    serverMessageId = serverMessageId,
+                )
+            replyGeneration = generation
+            builder.addExtras(
+                android.os.Bundle().apply {
+                    putString(ReplyNotificationTracker.EXTRA_NOTIF_KIND, ReplyNotificationTracker.KIND_REPLY)
+                    putString(ReplyNotificationTracker.EXTRA_SCOPE_ID, scopeId)
+                    putString(ReplyNotificationTracker.EXTRA_SESSION_ID, sessionId)
+                    putString(ReplyNotificationTracker.EXTRA_COMPLETION_ID, completionId)
+                    putString(ReplyNotificationTracker.EXTRA_TEXT_SNIPPET, text)
+                    putLong(ReplyNotificationTracker.EXTRA_GENERATION, generation)
+                    serverMessageId?.let {
+                        putInt(ReplyNotificationTracker.EXTRA_SERVER_MESSAGE_ID, it)
+                    }
+                },
+            )
+        } else {
+            builder.addExtras(
+                android.os.Bundle().apply {
+                    putString(ReplyNotificationTracker.EXTRA_NOTIF_KIND, ReplyNotificationTracker.KIND_ACTION)
+                },
+            )
+        }
+
         if (!sessionId.isNullOrBlank()) {
             val replyLabel = getString(R.string.notif_reply_placeholder)
             val remoteInput =
@@ -183,6 +273,11 @@ class ChatNotificationService : Service() {
             val replyIntent =
                 Intent(this, NotificationReplyReceiver::class.java).apply {
                     action = "$packageName.ACTION_NOTIFICATION_REPLY"
+                    component =
+                        android.content.ComponentName(
+                            this@ChatNotificationService,
+                            NotificationReplyReceiver::class.java,
+                        )
                     setPackage(packageName)
                     putExtra(NotificationReplyReceiver.EXTRA_SESSION_ID, sessionId)
                 }
@@ -207,19 +302,32 @@ class ChatNotificationService : Service() {
             builder.addAction(action)
         }
 
-        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(PENDING_NOTIFICATION_ID, builder.build())
+        val notification = builder.build()
+        if (replyGeneration != null) {
+            ReplyNotificationTracker.postReplyNotification(
+                context = this,
+                notification = notification,
+                generation = replyGeneration,
+            )
+        } else {
+            ReplyNotificationTracker.postActionNotification(
+                context = this,
+                notification = notification,
+            )
+        }
     }
 
     private fun buildContentIntent(sessionId: String?): PendingIntent {
         val intent =
             Intent(this, MainActivity::class.java).apply {
                 action = MainActivity.ACTION_OPEN_CHAT_FROM_NOTIFICATION
+                component = android.content.ComponentName(this@ChatNotificationService, MainActivity::class.java)
+                setPackage(packageName)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                if (!sessionId.isNullOrBlank()) {
+                    putExtra(NotificationReplyReceiver.EXTRA_SESSION_ID, sessionId)
+                }
             }
-        if (!sessionId.isNullOrBlank()) {
-            intent.putExtra(NotificationReplyReceiver.EXTRA_SESSION_ID, sessionId)
-        }
         return PendingIntent.getActivity(
             this,
             sessionId?.hashCode() ?: 0,
@@ -269,10 +377,13 @@ class ChatNotificationService : Service() {
         flags: Int,
         startId: Int,
     ): Int {
+        val initialDecision =
+            BackgroundConnectionPolicy.evaluate(BackgroundConnectionController.defaultSnapshot(isDeparting = true))
+        val initialText = resolveNotificationText(initialDecision.notificationState)
         lifecycle.onStart(
             owner = this,
             promote = {
-                startForeground(NOTIFICATION_ID, buildForegroundNotification(getString(R.string.notif_waiting_replies)))
+                startForeground(NOTIFICATION_ID, buildForegroundNotification(initialText))
             },
             // Do not remove foreground status before Android accepts retirement:
             // a newer start may already be queued, but not delivered to us yet.
@@ -284,11 +395,52 @@ class ChatNotificationService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        if (activeServiceInstance === this) {
+            activeServiceInstance = null
+        }
         lifecycle.onDestroyed(this)
         eventCollector?.cancel()
+        statusCollector?.cancel()
         serviceScope.cancel()
         super.onDestroy()
     }
+
+    private fun startStatusCollection() {
+        statusCollector =
+            serviceScope.launch {
+                launch {
+                    NetworkMonitor.networkChanges.collect {
+                        if (!isAppInForeground.get()) {
+                            BackgroundConnectionController.default.reconcileState()
+                        }
+                    }
+                }
+                launch {
+                    HermesWsClient.connectionStatus.collect {
+                        if (!isAppInForeground.get()) {
+                            BackgroundConnectionController.default.reconcileState()
+                        }
+                    }
+                }
+            }
+    }
+
+    internal fun updateNotification(state: BackgroundNotificationState) {
+        if (isAppInForeground.get()) return
+        val text = resolveNotificationText(state)
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+        manager.notify(NOTIFICATION_ID, buildForegroundNotification(text))
+    }
+
+    private fun resolveNotificationText(state: BackgroundNotificationState): String =
+        when (state) {
+            BackgroundNotificationState.WaitingForNetwork -> getString(R.string.notif_waiting_network)
+            BackgroundNotificationState.Connecting -> getString(R.string.notif_connecting)
+            BackgroundNotificationState.Reconnecting -> getString(R.string.notif_reconnecting)
+            BackgroundNotificationState.WaitingForReplies -> getString(R.string.notif_waiting_replies)
+            BackgroundNotificationState.ConnectedInBackground -> getString(R.string.notif_connected_in_background)
+            BackgroundNotificationState.None -> getString(R.string.notif_waiting_replies)
+        }
 }
 
 /**
@@ -296,14 +448,8 @@ class ChatNotificationService : Service() {
  */
 object NotificationHelper {
     fun start(context: Context) {
-        if (AuthManager.getToken().isNullOrBlank()) return
-        // Only run the foreground service while a reply is actually pending
-        // (issue #794) — otherwise the mandatory persistent "Waiting for
-        // Hermes replies" notification appears on every background even
-        // when nothing is in flight.
-        if (!HermesWsClient.pendingReply) return
         val intent = Intent(context, ChatNotificationService::class.java)
-        ChatNotificationService.lifecycle.start {
+        BackgroundConnectionController.default.onAppPause {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {
@@ -313,9 +459,7 @@ object NotificationHelper {
     }
 
     fun stop(context: Context) {
-        // Rotation can resume the activity before the queued service is created.
-        // Direct stopService here crashes Android while foreground promotion is owed.
-        ChatNotificationService.lifecycle.stop()
+        BackgroundConnectionController.default.onAppResume()
     }
 
     fun setAppForeground(
@@ -324,6 +468,9 @@ object NotificationHelper {
     ) {
         ChatNotificationService.setAppForeground(foreground)
         HermesWsClient.setAppForeground(foreground)
+        if (!foreground) {
+            BackgroundConnectionController.default.reconcileState()
+        }
     }
 
     fun isAppInForeground(): Boolean = ChatNotificationService.isAppInForeground()

@@ -314,4 +314,27 @@ internal object ToolJson {
 
         return formatDurationSeconds(seconds)
     }
+
+    private val PRETTY_JSON =
+        Json {
+            prettyPrint = true
+            prettyPrintIndent = "  "
+        }
+
+    /**
+     * Pretty-prints a raw JSON string with 2-space indentation.
+     * Returns the original string if [raw] is not valid JSON.
+     */
+    fun prettyPrintJson(raw: String): String {
+        val trimmed = raw.trim()
+        if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+            return raw
+        }
+        return try {
+            val element = Json.parseToJsonElement(trimmed)
+            PRETTY_JSON.encodeToString(JsonElement.serializer(), element)
+        } catch (_: Exception) {
+            raw
+        }
+    }
 }

@@ -125,6 +125,10 @@
     <!-- Notifications -->
     <string name="notif_title">헤르메스</string>
     <string name="notif_waiting_replies">헤르메스 응답 대기 중</string>
+    <string name="notif_connected_in_background">백그라운드에서 연결됨</string>
+    <string name="notif_connecting">연결 중…</string>
+    <string name="notif_waiting_network">네트워크 대기 중</string>
+    <string name="notif_reconnecting">재연결 중</string>
     <string name="notif_new_message">새 메시지</string>
     <string name="notif_clarification_needed">헤르메스의 확인이 필요합니다</string>
     <string name="notif_reply_placeholder">답변 입력…</string>
@@ -161,9 +165,12 @@
     <string name="chat_tool_fallback">도구</string>
     <string name="chat_tool_show_raw">Raw JSON 보기</string>
     <string name="chat_tool_show_parsed">파싱된 결과 보기</string>
+    <string name="chat_tool_format_json">JSON 포맷팅</string>
+    <string name="chat_tool_compact_json">JSON 압축</string>
     <string name="content_desc_new_chat">새 채팅</string>
     <string name="content_desc_scroll_to_bottom">맨 아래로</string>
     <string name="content_desc_copy">복사</string>
+    <string name="content_desc_copied">복사됨</string>
     <string name="content_desc_edit">편집</string>
     <string name="chat_msg_tokens">%1$s 토큰</string>
     <string name="chat_msg_tps">%1$s t/s</string>
@@ -177,6 +184,8 @@
     <!-- Settings Screen -->
     <string name="settings_sec_connection">연결</string>
     <string name="settings_field_token">인증 토큰</string>
+    <string name="settings_keep_connected_in_background_title">백그라운드에서 연결 유지</string>
+    <string name="settings_keep_connected_in_background_desc">다른 앱을 사용하는 동안 Hermes 연결을 유지합니다. 상시 알림이 표시되며 배터리를 더 소모할 수 있습니다.</string>
     <string name="settings_sec_behavior">동작</string>
     <string name="settings_item_auto_reconnect">자동 재연결</string>
     <string name="settings_desc_auto_reconnect">연결 끊김 시 자동 재연결</string>
@@ -192,6 +201,8 @@
     <string name="settings_item_user_message_tokens">사용자 메시지 토큰</string>
     <string name="settings_item_assistant_message_tokens">어시스턴트 메시지 토큰</string>
     <string name="settings_item_tokens_per_second">초당 토큰 수 (TPS)</string>
+    <string name="settings_item_show_model_provider">제공자 이름 표시</string>
+    <string name="settings_desc_show_model_provider">채팅 작성창에서 모델 이름 앞에 제공자를 표시합니다.</string>
     <string name="chat_agent_status_typing">에이전트 입력 중</string>
     <string name="chat_agent_status_thinking">생각 중…</string>
     <string name="chat_agent_status_searching">검색 중…</string>
@@ -235,6 +246,8 @@
     <string name="settings_about_update_allow_sources">이 소스의 설치 허용</string>
     <string name="settings_about_update_open_settings">설정 열기</string>
     <string name="settings_about_update_retry">다시 시도</string>
+    <string name="settings_about_rc_updates_title">릴리스 후보 업데이트 확인</string>
+    <string name="settings_about_rc_updates_desc">사전 출시(RC) 빌드를 설치합니다. 안정성이 낮을 수 있습니다.</string>
     <string name="action_save">저장</string>
     <string name="settings_action_add_profile">프로필 추가</string>
     <string name="settings_action_edit_profile">프로필 편집</string>
@@ -1008,7 +1021,8 @@
     <string name="landing_subtitle">Hermes Agent 제어판</string>
     <string name="landing_action_auth_login">인증 로그인</string>
 
-    <!-- Loading State -->
+    <!-- Loading / Startup State (issue #1171) -->
+    <string name="auth_init_failed">앱 설정을 초기화하지 못했습니다</string>
 
     <!-- Providers Screen -->
     <string name="providers_empty_title">OAuth 제공자가 없습니다</string>
@@ -1158,4 +1172,26 @@
     <string name="session_integrations_retry">다시 시도</string>
     <string name="session_integrations_close">닫기</string>
     <string name="session_integrations_menu_item">세션 연동</string>
+
+    <!-- Media Player -->
+    <string name="media_player_play">재생</string>
+    <string name="media_player_pause">일시중지</string>
+    <string name="media_player_replay">다시 재생</string>
+    <string name="media_player_retry">다시 시도</string>
+    <string name="media_player_audio">오디오</string>
+    <string name="media_player_video">비디오</string>
+    <string name="media_player_close">닫기</string>
+    <string name="media_player_save">기기에 저장</string>
+    <string name="media_player_share">공유</string>
+    <string name="media_player_share_title">미디어 공유</string>
+    <string name="media_player_saved">미디어가 저장되었습니다</string>
+    <string name="media_player_save_failed">미디어를 저장할 수 없습니다</string>
+    <string name="media_player_load_failed">미디어를 불러올 수 없습니다: %1$s</string>
+    <string name="media_player_share_failed">미디어를 공유할 수 없습니다</string>
+    <string name="media_player_buffering">로딩 중…</string>
+    <string name="media_player_seek">탐색</string>
+    <string name="media_player_play_audio">오디오 재생</string>
+    <string name="media_player_play_video">비디오 재생</string>
+    <string name="chat_session_preparing">세션 준비 중…</string>
+    <string name="chat_session_not_ready">세션이 준비되지 않았습니다. 다시 시도하세요</string>
 </resources>

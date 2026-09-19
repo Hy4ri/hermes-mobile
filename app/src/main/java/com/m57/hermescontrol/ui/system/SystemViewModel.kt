@@ -154,48 +154,86 @@ class SystemViewModel(
                 val statsResult = statsDeferred.await()
                 val statusResult = statusDeferred.await()
 
-                val portalResult = portalDeferred.await()
-                val curatorResult = curatorDeferred.await()
-
-                val credResult = credDeferred.await()
-                val checkpointsResult = checkpointsDeferred.await()
-                val hooksResult = hooksDeferred.await()
-                val updateResult = updateDeferred.await()
-                val doctorResult = doctorDeferred.await()
-
+                // Phase 1: Un-gate UI immediately with fast host stats & gateway status (~100-200ms)
                 _uiState.update { state ->
                     state.copy(
                         isLoading = false,
-                        stats = (statsResult as? NetworkResult.Success)?.data,
-                        status = (statusResult as? NetworkResult.Success)?.data,
-                        portal = (portalResult as? NetworkResult.Success)?.data,
-                        curator = (curatorResult as? NetworkResult.Success)?.data,
-                        credentials =
-                            ((credResult as? NetworkResult.Success)?.data)?.providers ?: emptyList(),
-                        checkpoints = (checkpointsResult as? NetworkResult.Success)?.data,
-                        hooks = (hooksResult as? NetworkResult.Success)?.data,
-                        updateInfo = (updateResult as? NetworkResult.Success)?.data,
-                        doctorReport = (doctorResult as? NetworkResult.Success)?.data,
+                        stats = (statsResult as? NetworkResult.Success)?.data ?: state.stats,
+                        status = (statusResult as? NetworkResult.Success)?.data ?: state.status,
                         errorMessage = null,
                     )
                 }
 
-                // Log failures in debug builds
                 if (BuildConfig.DEBUG) {
-                    listOf(
-                        "stats" to statsResult,
-                        "status" to statusResult,
-                        "portal" to portalResult,
-                        "curator" to curatorResult,
-                        "credentials" to credResult,
-                        "checkpoints" to checkpointsResult,
-                        "hooks" to hooksResult,
-                        "update" to updateResult,
-                        "doctor" to doctorResult,
-                    ).forEach { (name, result) ->
-                        if (result is NetworkResult.Failure) {
-                            Log.w(TAG, "$name endpoint: ${result.error.message}")
-                        }
+                    if (statsResult is NetworkResult.Failure) {
+                        Log.w(TAG, "stats endpoint: ${statsResult.error.message}")
+                    }
+                    if (statusResult is NetworkResult.Failure) {
+                        Log.w(TAG, "status endpoint: ${statusResult.error.message}")
+                    }
+                }
+
+                // Phase 2: Progressively hydrate remaining sections as each endpoint resolves
+                launch {
+                    val portalResult = portalDeferred.await()
+                    if (portalResult is NetworkResult.Success) {
+                        _uiState.update { it.copy(portal = portalResult.data) }
+                    } else if (BuildConfig.DEBUG && portalResult is NetworkResult.Failure) {
+                        Log.w(TAG, "portal endpoint: ${portalResult.error.message}")
+                    }
+                }
+
+                launch {
+                    val curatorResult = curatorDeferred.await()
+                    if (curatorResult is NetworkResult.Success) {
+                        _uiState.update { it.copy(curator = curatorResult.data) }
+                    } else if (BuildConfig.DEBUG && curatorResult is NetworkResult.Failure) {
+                        Log.w(TAG, "curator endpoint: ${curatorResult.error.message}")
+                    }
+                }
+
+                launch {
+                    val credResult = credDeferred.await()
+                    if (credResult is NetworkResult.Success) {
+                        _uiState.update { it.copy(credentials = credResult.data.providers.orEmpty()) }
+                    } else if (BuildConfig.DEBUG && credResult is NetworkResult.Failure) {
+                        Log.w(TAG, "credentials endpoint: ${credResult.error.message}")
+                    }
+                }
+
+                launch {
+                    val checkpointsResult = checkpointsDeferred.await()
+                    if (checkpointsResult is NetworkResult.Success) {
+                        _uiState.update { it.copy(checkpoints = checkpointsResult.data) }
+                    } else if (BuildConfig.DEBUG && checkpointsResult is NetworkResult.Failure) {
+                        Log.w(TAG, "checkpoints endpoint: ${checkpointsResult.error.message}")
+                    }
+                }
+
+                launch {
+                    val hooksResult = hooksDeferred.await()
+                    if (hooksResult is NetworkResult.Success) {
+                        _uiState.update { it.copy(hooks = hooksResult.data) }
+                    } else if (BuildConfig.DEBUG && hooksResult is NetworkResult.Failure) {
+                        Log.w(TAG, "hooks endpoint: ${hooksResult.error.message}")
+                    }
+                }
+
+                launch {
+                    val updateResult = updateDeferred.await()
+                    if (updateResult is NetworkResult.Success) {
+                        _uiState.update { it.copy(updateInfo = updateResult.data) }
+                    } else if (BuildConfig.DEBUG && updateResult is NetworkResult.Failure) {
+                        Log.w(TAG, "update endpoint: ${updateResult.error.message}")
+                    }
+                }
+
+                launch {
+                    val doctorResult = doctorDeferred.await()
+                    if (doctorResult is NetworkResult.Success) {
+                        _uiState.update { it.copy(doctorReport = doctorResult.data) }
+                    } else if (BuildConfig.DEBUG && doctorResult is NetworkResult.Failure) {
+                        Log.w(TAG, "doctor endpoint: ${doctorResult.error.message}")
                     }
                 }
             }

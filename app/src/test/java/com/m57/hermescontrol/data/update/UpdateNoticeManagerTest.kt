@@ -62,6 +62,8 @@ class UpdateNoticeManagerTest {
         every { AuthManager.setLastUpdateCheckTimestamp(any()) } returns Unit
         every { AuthManager.getDismissedUpdateTag() } returns null
         every { AuthManager.setDismissedUpdateTag(any()) } returns Unit
+        every { AuthManager.isCheckingReleaseCandidateUpdates() } returns false
+        every { AuthManager.setCheckReleaseCandidateUpdates(any()) } returns Unit
     }
 
     @After
@@ -129,6 +131,27 @@ class UpdateNoticeManagerTest {
         every { AuthManager.getLastKnownLatestTag() } returns "v1.22.0"
 
         assertNull(UpdateNoticeManager.noticeTag(currentVersion))
+    }
+
+    @Test
+    fun checkOnLaunch_stableReleasePromptsInstalledRc() =
+        runTest {
+            val checker = mockk<AppUpdateChecker>()
+            coEvery { checker.fetchLatestRelease() } returns updateInfo(tag = "v1.25")
+
+            UpdateNoticeManager.checkOnLaunch(checker, "1.25.0-rc.1", testDispatcher)
+            advanceUntilIdle()
+
+            assertTrue(AppUpdateCache.state.value is AppUpdateState.UpdateAvailable)
+            assertEquals("v1.25", UpdateNoticeManager.noticeTag("1.25.0-rc.1"))
+            verify { AuthManager.setLastKnownLatestTag("v1.25") }
+        }
+
+    @Test
+    fun noticeTag_stableReleasePromptsDotRcFromPersistedCache() {
+        every { AuthManager.getLastKnownLatestTag() } returns "v1.25"
+        assertEquals("v1.25", UpdateNoticeManager.noticeTag("1.25.rc.1"))
+        assertNull(UpdateNoticeManager.noticeTag("1.25"))
     }
 
     @Test
@@ -238,4 +261,85 @@ class UpdateNoticeManagerTest {
 
         assertNull(UpdateNoticeManager.noticeTag(currentVersion))
     }
+
+    // ── Release candidate channel (opt-in) ──────────────────────────────
+
+    @Test
+    fun checkOnLaunch_staysOnStableChannelByDefault() =
+        runTest {
+            val checker = mockk<AppUpdateChecker>()
+            coEvery { checker.fetchLatestRelease(false) } returns updateInfo()
+
+            UpdateNoticeManager.checkOnLaunch(checker, currentVersion, testDispatcher)
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { checker.fetchLatestRelease(false) }
+            coVerify(exactly = 0) { checker.fetchLatestRelease(true) }
+        }
+
+    @Test
+    fun checkOnLaunch_scansReleaseCandidatesWhenOptedIn() =
+        runTest {
+            every { AuthManager.isCheckingReleaseCandidateUpdates() } returns true
+            val checker = mockk<AppUpdateChecker>()
+            coEvery { checker.fetchLatestRelease(true) } returns updateInfo(tag = "v1.25.0-rc.3")
+
+            UpdateNoticeManager.checkOnLaunch(checker, currentVersion, testDispatcher)
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { checker.fetchLatestRelease(true) }
+            assertEquals(
+                "v1.25.0-rc.3",
+                (AppUpdateCache.state.value as AppUpdateState.UpdateAvailable).latestTag,
+            )
+        }
+
+    @Test
+    fun noticeTag_suppressesPersistedRcTagOnStableChannel() {
+        every { AuthManager.getLastKnownLatestTag() } returns "v1.25.0-rc.3"
+        every { AuthManager.isCheckingReleaseCandidateUpdates() } returns false
+
+        assertNull(UpdateNoticeManager.noticeTag(currentVersion))
+    }
+
+    @Test
+    fun noticeTag_advertisesPersistedRcTagWhenOptedIn() {
+        every { AuthManager.getLastKnownLatestTag() } returns "v1.25.0-rc.3"
+        every { AuthManager.isCheckingReleaseCandidateUpdates() } returns true
+
+        assertEquals("v1.25.0-rc.3", UpdateNoticeManager.noticeTag(currentVersion))
+    }
+
+    @Test
+    fun noticeTag_suppressesCachedRcOfferOnStableChannel() {
+        AppUpdateCache.update(
+            AppUpdateState.UpdateAvailable(
+                latestTag = "v1.25.0-rc.3",
+                apkUrl = "https://example.com/apk",
+                sizeBytes = 1L,
+            ),
+        )
+        every { AuthManager.isCheckingReleaseCandidateUpdates() } returns false
+
+        assertNull(UpdateNoticeManager.noticeTag(currentVersion))
+    }
+
+    @Test
+    fun checkOnLaunch_discardsRcResultWhenChannelFlippedMidRequest() =
+        runTest {
+            every { AuthManager.isCheckingReleaseCandidateUpdates() } returns true
+            val checker = mockk<AppUpdateChecker>()
+            coEvery { checker.fetchLatestRelease(true) } coAnswers {
+                // The user turns the RC channel off while the request is in flight.
+                every { AuthManager.isCheckingReleaseCandidateUpdates() } returns false
+                updateInfo(tag = "v1.25.0-rc.3")
+            }
+
+            UpdateNoticeManager.checkOnLaunch(checker, currentVersion, testDispatcher)
+            advanceUntilIdle()
+
+            // The late RC result must not reach the cache or the persisted tag.
+            assertEquals(AppUpdateState.Idle, AppUpdateCache.state.value)
+            verify(exactly = 0) { AuthManager.setLastKnownLatestTag(any()) }
+        }
 }

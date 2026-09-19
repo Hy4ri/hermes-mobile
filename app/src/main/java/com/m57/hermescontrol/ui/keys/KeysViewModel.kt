@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.keys
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.EnvVarConfig
 import com.m57.hermescontrol.data.model.EnvVarDeleteRequest
 import com.m57.hermescontrol.data.model.EnvVarRevealRequest
@@ -11,6 +12,7 @@ import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
+import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -55,6 +57,19 @@ class KeysViewModel :
     private val _uiState = MutableStateFlow(KeysUiState())
     val uiState: StateFlow<KeysUiState> = _uiState.asStateFlow()
 
+    private val keysCache = SwrCache<String, Map<String, EnvVarConfig>>()
+
+    fun clearScopeOwnedState() {
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                categories = emptyList(),
+                revealedValues = emptyMap(),
+                errorMessage = null,
+            )
+        }
+    }
+
     private fun buildCategoryList(
         envVars: Map<String, EnvVarConfig>,
         expandedCategories: Set<String> =
@@ -89,8 +104,21 @@ class KeysViewModel :
         }
     }
 
-    fun loadKeys() {
-        safeLaunchLoad(
+    fun loadKeys(forceRefresh: Boolean = false) {
+        safeLaunchSwrLoad(
+            cache = keysCache,
+            forceRefresh = forceRefresh,
+            onCacheHit = { envVars ->
+                val currentCategories = _uiState.value.categories
+                val expandedCategories = currentCategories.map { it.name to it.expanded }.toMap()
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        categories = buildCategoryList(envVars, expandedCategories.keys),
+                        errorMessage = null,
+                    )
+                }
+            },
             apiCall = { safeApiCall { ApiClient.hermesApi.getEnvVars() } },
             onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
             onSuccess = { data ->
@@ -178,7 +206,7 @@ class KeysViewModel :
                             toastMessage = "Key added successfully",
                         )
                     }
-                    loadKeys()
+                    loadKeys(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -223,7 +251,7 @@ class KeysViewModel :
                             toastMessage = "Key deleted successfully",
                         )
                     }
-                    loadKeys()
+                    loadKeys(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {
@@ -281,7 +309,7 @@ class KeysViewModel :
             when (result) {
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(keysChanged = true, toastMessage = "Key updated successfully") }
-                    loadKeys()
+                    loadKeys(forceRefresh = true)
                 }
 
                 is NetworkResult.Failure -> {

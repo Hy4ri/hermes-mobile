@@ -80,6 +80,8 @@ fun ChatInputBar(
     isAgentTyping: Boolean,
     isConnected: Boolean,
     commandCatalog: CommandCatalog,
+    isSessionReady: Boolean,
+    sessionPreparationFailed: Boolean = false,
     slashUsageCounts: Map<String, Int> = emptyMap(),
     pendingAttachments: List<Attachment> = emptyList(),
     onCameraTap: () -> Unit = {},
@@ -98,12 +100,13 @@ fun ChatInputBar(
     fastSupported: Boolean = false,
     isFastModeChanging: Boolean = false,
     onToggleFastMode: () -> Unit = {},
+    showModelProvider: Boolean = false,
 ) {
     // Allow sending while the agent is mid-turn or awaiting approval: the
     // gateway's prompt.submit busy-input policy queues it as the next turn
     // (tui_gateway/server.py:_handle_busy_submit), so the message is never
     // dropped. Slash commands were already allowed; regular prompts now are too.
-    val canSend = ChatInputPolicy.canSend(inputFieldValue.text, pendingAttachments, isConnected)
+    val canSend = ChatInputPolicy.canSend(inputFieldValue.text, pendingAttachments, isConnected, isSessionReady)
 
     // Attachment tray state
     var showAttachmentTray by remember { mutableStateOf(false) }
@@ -203,6 +206,22 @@ fun ChatInputBar(
                     }
                 }
 
+                if (isConnected && !isSessionReady) {
+                    Text(
+                        text =
+                            stringResource(
+                                if (sessionPreparationFailed) {
+                                    R.string.chat_session_not_ready
+                                } else {
+                                    R.string.chat_session_preparing
+                                },
+                            ),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = palette.placeholder,
+                        modifier = Modifier.padding(horizontal = 20.dp).testTag("chat_session_preparing"),
+                    )
+                }
+
                 // ── TOP ROW: Borderless input field ──
                 Row(
                     modifier =
@@ -296,6 +315,7 @@ fun ChatInputBar(
                     reasoningLevel = reasoningLevel,
                     isListening = isListening,
                     canSend = canSend,
+                    showSend = inputFieldValue.text.isNotBlank() || pendingAttachments.isNotEmpty(),
                     onSend = onSend,
                     onAttachTap = { showAttachmentTray = !showAttachmentTray },
                     onModelTap = onModelTap,
@@ -308,6 +328,7 @@ fun ChatInputBar(
                     fastSupported = fastSupported,
                     isFastModeChanging = isFastModeChanging,
                     onToggleFastMode = onToggleFastMode,
+                    showModelProvider = showModelProvider,
                 )
 
                 AttachmentTray(

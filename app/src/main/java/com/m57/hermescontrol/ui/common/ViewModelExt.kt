@@ -2,9 +2,13 @@ package com.m57.hermescontrol.ui.common
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
+import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.ws.ChangeEventHub
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 
@@ -30,6 +34,69 @@ inline fun <T> ViewModel.safeLaunchLoad(
         when (result) {
             is NetworkResult.Success -> onSuccess(result.data)
             is NetworkResult.Failure -> onError(result.error.message)
+        }
+    }
+}
+
+/**
+ * Executes a read-only API call with Stale-While-Revalidate caching.
+ * If cached data exists in [cache] for [cacheKey] and [forceRefresh] is false, [onCacheHit] is invoked immediately
+ * on the caller thread, avoiding full-screen loading spinners on screen revisits.
+ * The network call runs in the background to update the cache and invoke [onSuccess].
+ * If a previous request is active:
+ *  - when [forceRefresh] is false, the active job is returned to avoid duplicate in-flight work
+ *  - when [forceRefresh] is true, the active job is cancelled and superseded by the new forced refresh
+ * Results are checked against [requestScope] and coroutine cancellation so late-arriving responses
+ * cannot overwrite newer state.
+ */
+inline fun <T : Any> ViewModel.safeLaunchSwrLoad(
+    cache: SwrCache<String, T>,
+    cacheKey: String = "default",
+    forceRefresh: Boolean = false,
+    currentJob: Job? = null,
+    requestScope: DataScope? = runCatching { AuthManager.currentDataScope() }.getOrNull(),
+    crossinline scopeIsCurrent: () -> Boolean = {
+        requestScope == null || AuthManager.currentDataScope() == requestScope
+    },
+    crossinline onCacheHit: (T) -> Unit,
+    crossinline apiCall: suspend () -> NetworkResult<T>,
+    crossinline onStart: () -> Unit,
+    crossinline onSuccess: (T) -> Unit,
+    crossinline onError: (String) -> Unit,
+): Job {
+    if (currentJob?.isActive == true) {
+        if (!forceRefresh) return currentJob
+        currentJob.cancel()
+    }
+    val scopedKey = requestScope?.scopedKey(cacheKey)
+    if (forceRefresh && scopedKey != null) {
+        cache.remove(scopedKey)
+    }
+    val cached = if (!forceRefresh && scopedKey != null) cache.get(scopedKey) else null
+    if (cached != null) {
+        onCacheHit(cached)
+    } else {
+        onStart()
+    }
+    return viewModelScope.launch {
+        val result = apiCall()
+        coroutineContext.ensureActive()
+        if (!scopeIsCurrent()) {
+            return@launch
+        }
+        when (result) {
+            is NetworkResult.Success -> {
+                if (scopedKey != null) {
+                    cache.put(scopedKey, result.data)
+                }
+                onSuccess(result.data)
+            }
+
+            is NetworkResult.Failure -> {
+                if (cached == null || forceRefresh) {
+                    onError(result.error.message)
+                }
+            }
         }
     }
 }
@@ -86,9 +153,12 @@ inline fun <T> ViewModel.refreshOnChange(
             .collect { _ ->
                 if (refreshInFlight) return@collect
                 refreshInFlight = true
+                val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
                 try {
-                    // No Dispatchers.IO hop — see safeLaunchLoad.
                     val result = apiCall()
+                    coroutineContext.ensureActive()
+                    val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+                    if (requestScope != null && currentScope != requestScope) return@collect
                     if (result is NetworkResult.Success) {
                         onSuccess(result.data)
                     }

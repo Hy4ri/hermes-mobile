@@ -10,29 +10,24 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import java.io.InputStream
 import java.io.OutputStream
 
-class ServerStore(
+class ServerStore private constructor(
     private val dataStore: DataStore<ServerStoreState>,
     private val scope: CoroutineScope,
+    initial: ServerStoreState,
 ) {
-    private val _stateFlow: MutableStateFlow<ServerStoreState>
-    val stateFlow: StateFlow<ServerStoreState>
+    private val _stateFlow = MutableStateFlow(initial)
+    val stateFlow: StateFlow<ServerStoreState> = _stateFlow.asStateFlow()
 
-    init {
-        val initial =
-            runBlocking(Dispatchers.IO) {
-                try {
-                    dataStore.data.first().selfHealed()
-                } catch (e: Exception) {
-                    ServerStoreSerializer.defaultValue
-                }
-            }
-        _stateFlow = MutableStateFlow(initial)
-        stateFlow = _stateFlow.asStateFlow()
+    companion object {
+        // Do not expose a default snapshot before disk/migrations finish (issue #1171).
+        suspend fun create(
+            dataStore: DataStore<ServerStoreState>,
+            scope: CoroutineScope,
+        ): ServerStore = ServerStore(dataStore, scope, dataStore.data.first().selfHealed())
     }
 
     fun getLatestState(): ServerStoreState = _stateFlow.value

@@ -79,7 +79,7 @@ internal object FileEditSupport {
         var added = 0
         var removed = 0
 
-        for (line in diff.split("\n")) {
+        for (line in diff.lineSequence()) {
             when {
                 line.startsWith("+") && !line.startsWith("+++") -> added += 1
                 line.startsWith("-") && !line.startsWith("---") -> removed += 1

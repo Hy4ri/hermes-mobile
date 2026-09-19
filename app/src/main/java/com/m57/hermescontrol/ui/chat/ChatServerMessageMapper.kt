@@ -5,6 +5,7 @@ import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.AttachmentSource
 import com.m57.hermescontrol.data.model.SessionMessage
 import com.m57.hermescontrol.data.remote.GatewayFileClient
+import com.m57.hermescontrol.notification.ReplyNotificationTracker
 
 /**
  * Maps REST transcript rows ([SessionMessage]) into UI [ChatMessage]s.
@@ -20,11 +21,92 @@ internal fun mapServerMessages(
     offset: Int,
     latestPaging: Boolean,
     liveMessages: List<ChatMessage>,
+    isPagingOlder: Boolean = false,
+    context: android.content.Context? = null,
 ): List<ChatMessage> {
     val existingReasoningMap =
         liveMessages
             .filter { it.reasoningText.isNotBlank() }
             .associateBy { it.content }
+
+    val liveByExactId =
+        liveMessages
+            .filter { !it.completionId.isNullOrBlank() }
+            .associateBy { it.id }
+
+    val unmappedLiveWsAssistants =
+        if (isPagingOlder) {
+            emptyList()
+        } else {
+            liveMessages
+                .filter {
+                    it.role == MessageRole.ASSISTANT && !it.id.startsWith("rest-") &&
+                        !it.completionId.isNullOrBlank()
+                }
+        }
+
+    val wsCompletionIdByRestIndex = mutableMapOf<Int, String>()
+    if (!isPagingOlder) {
+        if (unmappedLiveWsAssistants.isNotEmpty()) {
+            val remainingWs = unmappedLiveWsAssistants.toMutableList()
+            for (i in messages.indices.reversed()) {
+                if (remainingWs.isEmpty()) break
+                val m = messages[i]
+                val r =
+                    when (m.role?.lowercase()) {
+                        "user" -> MessageRole.USER
+                        "system" -> MessageRole.SYSTEM
+                        "tool" -> MessageRole.TOOL
+                        else -> MessageRole.ASSISTANT
+                    }
+                if (r != MessageRole.ASSISTANT) continue
+                val rawContent = m.contentText
+                // Reasoning-only or empty tool placeholder: skip, does not become visible prose
+                if (rawContent.isBlank() && !rawContent.contains("MEDIA:")) continue
+
+                val restId =
+                    if (latestPaging) {
+                        m.id?.let { "rest-$sessionId-$it" } ?: "rest-$sessionId-${offset + i}"
+                    } else {
+                        "rest-$sessionId-${offset + i}"
+                    }
+                if (liveByExactId.containsKey(restId)) continue
+
+                val canonicalContent =
+                    if (rawContent.contains("MEDIA:")) {
+                        HostMediaExtractor.strip(rawContent).trim()
+                    } else {
+                        rawContent.trim()
+                    }
+
+                val wsIdx = remainingWs.indexOfLast { it.content.trim() == canonicalContent }
+                if (wsIdx >= 0) {
+                    remainingWs.removeAt(wsIdx).completionId?.let { compId ->
+                        wsCompletionIdByRestIndex[i] = compId
+                    }
+                }
+            }
+        }
+
+        // REST-only recovery is fail-closed: only a durable server row ID may
+        // transfer notification identity after the WebSocket copy is gone.
+        val activeTarget = ReplyNotificationTracker.getActiveTarget(context)
+        if (
+            activeTarget != null &&
+            activeTarget.sessionId == sessionId &&
+            activeTarget.serverMessageId != null &&
+            wsCompletionIdByRestIndex.values.none { it == activeTarget.completionId }
+        ) {
+            val exactIndex =
+                messages.indexOfFirst { message ->
+                    message.id == activeTarget.serverMessageId &&
+                        message.role.equals("assistant", ignoreCase = true)
+                }
+            if (exactIndex >= 0 && !liveByExactId.containsKey("rest-$sessionId-${activeTarget.serverMessageId}")) {
+                wsCompletionIdByRestIndex[exactIndex] = activeTarget.completionId
+            }
+        }
+    }
 
     // Tool rows in the REST transcript carry NO tool name — the live WS
     // stream was the only source of `toolName`. Match each REST tool row
@@ -171,6 +253,12 @@ internal fun mapServerMessages(
             }
         }
 
+        val completionId =
+            if (role == MessageRole.ASSISTANT) {
+                liveByExactId[restId]?.completionId ?: wsCompletionIdByRestIndex[index]
+            } else {
+                null
+            }
         val tokenCount = msg.tokenCount ?: TokenEstimator.estimate(finalContent).takeIf { it > 0 }
         mapped.add(
             ChatMessage(
@@ -184,6 +272,7 @@ internal fun mapServerMessages(
                 isStreaming = false,
                 displayKind = msg.display_kind,
                 tokenCount = tokenCount,
+                completionId = completionId,
             ),
         )
     }

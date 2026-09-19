@@ -20,9 +20,12 @@ import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,7 +35,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 
 /**
  * Singleton that manages encrypted storage of the Hermes dashboard token
@@ -124,37 +127,83 @@ object AuthManager {
             initialValue = null,
         )
 
+    private val _authGenerationFlow = MutableStateFlow(0L)
+    val authGenerationFlow: StateFlow<Long> = _authGenerationFlow.asStateFlow()
+
+    fun invalidateAuthGeneration() {
+        _authGenerationFlow.value = _authGenerationFlow.value + 1
+    }
+
+    /**
+     * Canonical observable data-scope identity covering connection profile, base URL,
+     * active server-side Hermes profile, and in-memory auth generation.
+     */
+    val dataScopeFlow: StateFlow<DataScope?> =
+        combine(
+            selectedProfileFlow,
+            baseUrlFlow,
+            activeProfileId,
+            authGenerationFlow,
+        ) { selectedProfile, baseUrl, activeProfile, authGen ->
+            val cleanUrl = baseUrl.trimEnd('/')
+            if (cleanUrl.isBlank()) {
+                null
+            } else {
+                DataScope(
+                    connectionProfileId = selectedProfile ?: DEFAULT_PROFILE_ID,
+                    baseUrl = cleanUrl,
+                    activeProfileId = activeProfile?.takeIf { it.isNotBlank() } ?: DEFAULT_PROFILE_ID,
+                    inMemoryAuthGeneration = authGen,
+                )
+            }
+        }.stateIn(
+            scope = contextScope,
+            started = SharingStarted.Eagerly,
+            initialValue = null,
+        )
+
     /**
      * Initialise the encrypted preferences.
      * Call this once from Application.onCreate() or MainActivity.onCreate().
      */
+    enum class InitializationState { Loading, Ready, Failed }
+
+    private val _initializationState = MutableStateFlow(InitializationState.Loading)
+    val initializationState: StateFlow<InitializationState> = _initializationState.asStateFlow()
+
+    @Volatile
+    private var initialization: Deferred<Unit>? = null
+
+    @Volatile
+    private var readyPrefs: SharedPreferences? = null
+
+    private var cachedDatabasePassword: ByteArray? = null
+
+    // Issue #1171: publish readiness only after persisted profiles and credentials are loaded.
     fun init(context: Context) {
-        if (_serverStore != null) return
         synchronized(this) {
-            if (_serverStore != null) return
-
-            val dataStore =
-                androidx.datastore.core.DataStoreFactory.create(
-                    serializer = ServerStoreSerializer,
-                    migrations =
-                        listOf(
-                            ServerStoreMigration(context),
-                            ServerUrlMigration(),
-                        ),
-                ) {
-                    context.filesDir.resolve("server_store.json")
-                }
-
-            val scope = CoroutineScope(Dispatchers.IO)
+            if (initialization != null && _initializationState.value != InitializationState.Failed) return
+            val previousJob = appScope?.coroutineContext?.get(kotlinx.coroutines.Job)
+            appScope?.cancel()
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
             appScope = scope
-            val store = ServerStore(dataStore, scope)
-            _serverStore = store
-            _selectedProfileFlow.value = store.getLatestState().selectedProfileId
-            _baseUrlFlow.value = store.getLatestState().resolvedBaseUrl
-
-            if (prefsDeferred == null) {
-                prefsDeferred =
-                    CoroutineScope(Dispatchers.IO).async {
+            _initializationState.value = InitializationState.Loading
+            readyPrefs = null
+            val prefs = CompletableDeferred<SharedPreferences>(scope.coroutineContext[kotlinx.coroutines.Job])
+            prefsDeferred = prefs
+            initialization =
+                scope.async {
+                    try {
+                        previousJob?.join()
+                        val dataStore =
+                            androidx.datastore.core.DataStoreFactory.create(
+                                serializer = ServerStoreSerializer,
+                                migrations = listOf(ServerStoreMigration(context), ServerUrlMigration()),
+                                scope = scope,
+                            ) { context.filesDir.resolve("server_store.json") }
+                        val store = ServerStore.create(dataStore, scope)
+                        _serverStore = store
+                        ensureDefaultProfile()
                         val masterKey = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
                         val p =
                             EncryptedSharedPreferences.create(
@@ -165,52 +214,60 @@ object AuthManager {
                                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
                             )
                         migrateLegacyDefaultIfNeeded(p)
-                        _tokenFlow.value = getTokenInternal(p)
-                        _activeProfileId.value = p.getString(KEY_ACTIVE_PROFILE_ID, null)?.takeIf { it.isNotBlank() }
-                        p
+                        synchronized(this@AuthManager) {
+                            readyPrefs = p
+                            cachedToken = getTokenInternal(p)
+                            tokenInitialized = true
+                            _tokenFlow.value = cachedToken
+                            _activeProfileId.value =
+                                p.getString(KEY_ACTIVE_PROFILE_ID, null)?.takeIf { it.isNotBlank() }
+                        }
+                        prefs.complete(p)
+                        val state = store.getLatestState()
+                        _selectedProfileFlow.value = state.selectedProfileId
+                        _baseUrlFlow.value = state.resolvedBaseUrl
+                        val profileId = normalizedProfileId(state.selectedProfileId)
+                        CookieManager.initialize(context, prefs, profileId)
+                        CookieManager.useStore(profileId)
+                        _themePreferenceFlow.value = state.themePreference
+                        _useDynamicColorsFlow.value = state.useDynamicColors
+                        _themePresetFlow.value = state.themePreset
+                        _chatFontScaleFlow.value = state.chatFontScale
+                        scope.launch {
+                            store.stateFlow.collect { latest ->
+                                _themePreferenceFlow.value = latest.themePreference
+                                _useDynamicColorsFlow.value = latest.useDynamicColors
+                                _themePresetFlow.value = latest.themePreset
+                                _chatFontScaleFlow.value = latest.chatFontScale
+                                syncCookieStoreForProfile(latest.selectedProfileId)
+                            }
+                        }
+                        _initializationState.value = InitializationState.Ready
+                    } catch (e: CancellationException) {
+                        prefs.cancel(e)
+                        throw e
+                    } catch (e: Exception) {
+                        prefs.completeExceptionally(e)
+                        _initializationState.value = InitializationState.Failed
+                        throw e
                     }
-            }
-
-            // Initialize the encrypted cookie store (issue #470). The legacy
-            // session-cookie prefs are passed as a Deferred so existing gated
-            // sessions can be migrated on first load WITHOUT blocking startup.
-            // The Deferred is created above, before this call.
-            val initialProfileId =
-                store.getLatestState().selectedProfileId?.takeIf { it.isNotBlank() } ?: DEFAULT_PROFILE_ID
-            CookieManager.initialize(context, prefsDeferred, initialProfileId)
-
-            scope.launch {
-                store.stateFlow.collect { state ->
-                    _themePreferenceFlow.value = state.themePreference
-                    _useDynamicColorsFlow.value = state.useDynamicColors
-                    _themePresetFlow.value = state.themePreset
-                    _chatFontScaleFlow.value = state.chatFontScale
-                    // B7 (Jul 08 2026, kanban t_470): keep cookie scope aligned with active profile.
-                    appScope?.launch { syncCookieStoreForProfile(state.selectedProfileId) }
                 }
-            }
         }
     }
 
-    /**
-     * Retrieves the initialized [SharedPreferences] instance.
-     *
-     * WARNING: This method is synchronous and will block the caller thread (using [runBlocking])
-     * if the asynchronous initialization is still in progress. Callers should avoid invoking this
-     * on the main thread during early startup to prevent frame drops or potential ANRs.
-     *
-     * Times out and throws [IllegalStateException] if initialization takes longer than 2 seconds.
-     */
+    /** Suspend without blocking the caller or imposing a keystore startup deadline. */
+    suspend fun awaitInitialization() {
+        checkNotNull(initialization) { "AuthManager.init(context) must be called first" }.await()
+    }
+
+    internal suspend fun awaitPrefs(): SharedPreferences {
+        awaitInitialization()
+        return requirePrefs()
+    }
+
+    /** Synchronous APIs are ready-only; entry points must await initialization first. */
     private fun requirePrefs(): SharedPreferences =
-        runBlocking {
-            val deferred =
-                prefsDeferred ?: throw IllegalStateException(
-                    "AuthManager not initialized. Call init(context) first.",
-                )
-            kotlinx.coroutines.withTimeoutOrNull(2000) {
-                deferred.await()
-            } ?: throw IllegalStateException("AuthManager initialization timed out after 2 seconds.")
-        }
+        checkNotNull(readyPrefs) { "AuthManager is not ready. Await initialization before accessing credentials." }
 
     fun setWsAuthParam(param: String) {
         serverStore.update { it.copy(wsAuthParam = param) }
@@ -259,18 +316,34 @@ object AuthManager {
 
     // ── Database Master Password ─────────────────────────────────────────
 
-    fun getDatabasePassword(): ByteArray {
-        val prefs = requirePrefs()
-        var dbPasswordBase64 = prefs.getString("db_password", null)
-        if (dbPasswordBase64 == null) {
-            val random = java.security.SecureRandom()
-            val newPassword = ByteArray(32)
-            random.nextBytes(newPassword)
-            dbPasswordBase64 = android.util.Base64.encodeToString(newPassword, android.util.Base64.NO_WRAP)
-            prefs.edit().putString("db_password", dbPasswordBase64).apply()
+    suspend fun getDatabasePassword(): ByteArray =
+        withContext(Dispatchers.IO) {
+            val prefs = awaitPrefs()
+            synchronized(this@AuthManager) {
+                cachedDatabasePassword?.let { return@synchronized it.copyOf() }
+                val stored = prefs.getString("db_password", null)
+                val password =
+                    if (stored == null) {
+                        ByteArray(32).also { bytes ->
+                            java.security.SecureRandom().nextBytes(bytes)
+                            val encoded =
+                                java.util.Base64
+                                    .getEncoder()
+                                    .encodeToString(bytes)
+                            // Never create a database using a key that was not durably saved.
+                            check(prefs.edit().putString("db_password", encoded).commit()) {
+                                "Unable to persist database key"
+                            }
+                        }
+                    } else {
+                        java.util.Base64
+                            .getDecoder()
+                            .decode(stored)
+                    }
+                cachedDatabasePassword = password
+                password.copyOf()
+            }
         }
-        return android.util.Base64.decode(dbPasswordBase64, android.util.Base64.NO_WRAP)
-    }
 
     // ── Connection Profiles ──────────────────────────────────────────────
 
@@ -387,15 +460,15 @@ object AuthManager {
         token: String?,
     ) {
         requirePrefs().edit().putString("token_$profileId", token).apply()
-        if (getSelectedProfileId() == profileId) {
+        if (getSelectedProfileId() == profileId || profileId == DEFAULT_PROFILE_ID) {
             if (token == null) ActiveSessionHolder.clear()
             // B7 (Jul 08 2026, kanban t_470): sync in-memory cachedToken
             // to prevent stale tokens during ticket refresh
             synchronized(this) {
-                cachedToken = token
+                cachedToken = if (getSelectedProfileId() == profileId) token else getTokenInternal(requirePrefs())
                 tokenInitialized = true
+                _tokenFlow.value = cachedToken
             }
-            _tokenFlow.value = token
         }
     }
 
@@ -439,6 +512,9 @@ object AuthManager {
      */
     fun setActiveProfileId(id: String?) {
         val normalized = id?.takeIf { it.isNotBlank() }
+        // Flow first, persistence best-effort: a caller racing cold startup
+        // still gets the correct in-memory scope instead of an exception, and
+        // the write lands once initialization is Ready (#1171).
         _activeProfileId.value = normalized
         runCatching {
             requirePrefs().edit().putString(KEY_ACTIVE_PROFILE_ID, normalized).apply()
@@ -482,6 +558,13 @@ object AuthManager {
         }
     }
 
+    @VisibleForTesting
+    suspend fun resetAndAwaitForTest() {
+        val previousJob = appScope?.coroutineContext?.get(kotlinx.coroutines.Job)
+        resetAuthStateForTest()
+        previousJob?.join()
+    }
+
     // For testing purposes
     fun resetAuthStateForTest() {
         synchronized(this) {
@@ -489,6 +572,14 @@ object AuthManager {
             tokenInitialized = false
             _serverStore = null
             prefsDeferred = null
+            initialization?.cancel()
+            initialization = null
+            readyPrefs = null
+            cachedDatabasePassword?.fill(0)
+            cachedDatabasePassword = null
+            _initializationState.value = InitializationState.Loading
+            _tokenFlow.value = null
+            _selectedProfileFlow.value = null
             appScope?.let {
                 try {
                     it.cancel()
@@ -539,6 +630,9 @@ object AuthManager {
     }
 
     fun setToken(token: String?) {
+        if (token == null) {
+            invalidateAuthGeneration()
+        }
         val selectedId =
             getSelectedProfileId() ?: run {
                 ensureDefaultSelected()
@@ -554,6 +648,23 @@ object AuthManager {
     // ── Server endpoint ──────────────────────────────────────────────────
 
     fun getBaseUrl(): String = serverStore.getLatestState().resolvedBaseUrl
+
+    fun currentDataScope(): DataScope? {
+        val rawUrl = runCatching { getBaseUrl() }.getOrNull() ?: _baseUrlFlow.value
+        val cleanUrl = rawUrl.trimEnd('/')
+        if (cleanUrl.isBlank()) return null
+        val connectionProfileId =
+            runCatching { getSelectedProfileId() }.getOrNull()
+                ?: _selectedProfileFlow.value
+                ?: DEFAULT_PROFILE_ID
+        val activeProfile = _activeProfileId.value?.takeIf { it.isNotBlank() } ?: DEFAULT_PROFILE_ID
+        return DataScope(
+            connectionProfileId = connectionProfileId,
+            baseUrl = cleanUrl,
+            activeProfileId = activeProfile,
+            inMemoryAuthGeneration = _authGenerationFlow.value,
+        )
+    }
 
     fun endpoint(): ServerEndpoint =
         ServerEndpoint.parse(
@@ -739,6 +850,18 @@ object AuthManager {
         serverStore.update { it.copy(showTokensPerSecond = enabled) }
     }
 
+    fun isModelProviderShown(): Boolean = serverStore.getLatestState().showModelProvider
+
+    fun setModelProviderShown(shown: Boolean) {
+        serverStore.update { it.copy(showModelProvider = shown) }
+    }
+
+    fun isKeepConnectedInBackground(): Boolean = serverStore.getLatestState().keepConnectedInBackground
+
+    fun setKeepConnectedInBackground(enabled: Boolean) {
+        serverStore.update { it.copy(keepConnectedInBackground = enabled) }
+    }
+
     // ── Chat Font Scale (issue #1004) ───────────────────────────────────
 
     fun getChatFontScale(): Float = serverStore.getLatestState().chatFontScale
@@ -749,6 +872,16 @@ object AuthManager {
     }
 
     // ── In-app update check (issue #867) ─────────────────────────────────
+
+    /**
+     * Whether the user opted into release-candidate updates. Stable-only by
+     * default; when true the update check also considers pre-release RC tags.
+     */
+    fun isCheckingReleaseCandidateUpdates(): Boolean = serverStore.getLatestState().checkReleaseCandidateUpdates
+
+    fun setCheckReleaseCandidateUpdates(enabled: Boolean) {
+        serverStore.update { it.copy(checkReleaseCandidateUpdates = enabled) }
+    }
 
     /** App version the silent update check last completed for (null = never). */
     fun getUpdateCheckDoneForVersion(): String? = serverStore.getLatestState().updateCheckDoneForVersion

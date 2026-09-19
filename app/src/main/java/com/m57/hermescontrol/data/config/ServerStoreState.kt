@@ -28,6 +28,11 @@ data class ServerStoreState(
     val showUserMessageTokens: Boolean = true,
     val showAssistantMessageTokens: Boolean = true,
     val showTokensPerSecond: Boolean = true,
+    val showModelProvider: Boolean = false,
+    val keepConnectedInBackground: Boolean = false,
+    // Opt-in update channel: when true the in-app update check also considers
+    // pre-release release-candidate GitHub releases, not just stable ones.
+    val checkReleaseCandidateUpdates: Boolean = false,
     // App display language. "system" = follow device locale; otherwise a BCP-47
     // language code such as "en" or "ko". Applied via ContextWrapper in MainActivity.
     val appLanguage: String = "system",

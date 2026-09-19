@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.ToastEffect
@@ -43,11 +44,13 @@ fun SkillsScreen(
     viewModel: SkillsViewModel = viewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val dataScope by AuthManager.dataScopeFlow.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
     var selectedStatus by remember { mutableStateOf(SkillFilter.ALL_STATUSES) }
     var selectedCategory by remember { mutableStateOf(CATEGORY_ALL) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(dataScope) {
+        viewModel.clearScopeOwnedState()
         viewModel.loadSkills()
     }
 
@@ -58,7 +61,7 @@ fun SkillsScreen(
         isRefreshing = state.isLoading,
         onRefresh = {
             if (state.viewMode == SkillsViewMode.INSTALLED) {
-                viewModel.loadSkills()
+                viewModel.loadSkills(forceRefresh = true)
             } else {
                 viewModel.loadHubSources()
             }

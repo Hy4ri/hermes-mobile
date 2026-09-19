@@ -282,6 +282,35 @@ class ToolViewBuilderTest {
     }
 
     @Test
+    fun `running process_manage shows pending detail instead of completion`() {
+        val view =
+            build(
+                "process_manage",
+                """{"action":"wait","session_id":"proc-1"}""",
+                """{"tool_id":"call-1","name":"process_manage","args":{"action":"wait"}}""",
+                running = true,
+            )
+
+        assertEquals(ToolViewStatus.RUNNING, view.status)
+        assertEquals("⏳ wait in progress", view.detail)
+        assertFalse(view.detail.contains("done"))
+    }
+
+    @Test
+    fun `process_manage poll renders output_preview`() {
+        val view =
+            build(
+                "process_manage",
+                """{"action":"poll","session_id":"proc-1"}""",
+                """{"status":"running","output_preview":"listening on port 8080"}""",
+            )
+
+        assertEquals("poll: proc-1", view.subtitle)
+        assertTrue(view.detail.contains("Status: running"))
+        assertTrue(view.detail.contains("listening on port 8080"))
+    }
+
+    @Test
     fun `todo_list alias activates TodoRenderer`() {
         val view =
             build(

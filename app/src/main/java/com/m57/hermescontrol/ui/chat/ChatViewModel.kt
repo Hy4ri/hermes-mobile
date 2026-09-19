@@ -28,6 +28,8 @@ import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.data.ws.toJsonElement
+import com.m57.hermescontrol.notification.captureTurnBoundary
+import com.m57.hermescontrol.notification.correlationScopeId
 import com.m57.hermescontrol.ui.common.ActionProgressController
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -118,6 +120,7 @@ data class ChatUiState(
     val showUserMessageTokens: Boolean = true,
     val showAssistantMessageTokens: Boolean = true,
     val showTokensPerSecond: Boolean = true,
+    val showModelProvider: Boolean = false,
     // Commands catalog
     val commandCatalog: CommandCatalog = CommandCatalog(),
     // Per-command usage counts for the slash-autocomplete ranking (issue
@@ -181,6 +184,7 @@ data class ChatUiState(
     /** Agent todo / plan items (issue #736). */
     val todos: List<TodoItem> = emptyList(),
     // Session resume recovery (desktop parity: bounded auto-retry + error UI)
+    val isSessionReady: Boolean = false,
     val resumeError: String? = null,
     val isResumeRetrying: Boolean = false,
     /** Text staged to prefill the composer (e.g. from /undo). */
@@ -322,9 +326,9 @@ class ChatViewModel(
     application: Application,
     private val startCleanup: Boolean,
     repo: ChatPersistenceRepository =
-        ChatPersistenceRepository(
-            HermesDatabase.get(application).chatMessageDao(),
-        ),
+        ChatPersistenceRepository {
+            HermesDatabase.get(application).chatMessageDao()
+        },
     slashUsageStore: SlashUsageStore = SlashUsageStore(application.applicationContext),
     searchDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.Default,
     private val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.IO,
@@ -587,6 +591,13 @@ class ChatViewModel(
                     // fire with a stale id and 4001 "session not found";
                     // handleGatewayReady rebinds it on the re-resume.
                     runtimeSessionId = null
+                    resumedGeneration = -1L
+                    hydratedGeneration = -1L
+                    activeResumeRequestSequence = ++resumeRequestSequence
+                    activeHydrationRequestSequence = ++hydrationRequestSequence
+                    // Preserve metadata so late results and errors are rejected as stale.
+                    sessionGeneration++
+                    _uiState.update { it.copy(isSessionReady = false) }
                     // Fail any in-flight awaited RPCs so callers don't hang
                     // across the disconnect (delegated to HermesWsClient, issue #526).
                     wsClient.rejectAllPending()
@@ -766,43 +777,7 @@ class ChatViewModel(
         _streamingState.update { result.streamingState }
 
         // Process side-effects from the reducer
-        for (effect in result.effects) {
-            when (effect) {
-                is ReducerEffect.PersistMessage -> {
-                    viewModelScope.launch(ioDispatcher) {
-                        repo.persistMessage(effect.message, effect.sessionId)
-                    }
-                }
-
-                is ReducerEffect.CreateNewSession -> {
-                    createNewSession()
-                }
-
-                is ReducerEffect.LoadSessions -> {
-                    loadSessions()
-                }
-
-                is ReducerEffect.RefreshSessions -> {
-                    loadSessions()
-                }
-
-                is ReducerEffect.RefreshContextUsage -> {
-                    // Streaming finished — refresh the context meter now rather
-                    // than waiting up to 5s for the next session-sync poll.
-                    viewModelScope.launch { fetchContextUsage() }
-                }
-
-                is ReducerEffect.AttachHostMedia -> {
-                    // Issue #724: turn host-path MEDIA: directives into real
-                    // attachments (images inline, every other file tappable)
-                    // via the gateway /api/files/download endpoint. Works on a
-                    // remote phone too.
-                    viewModelScope.launch(ioDispatcher) {
-                        mediaDelegate.attachHostMedia(effect.sessionId, effect.messageId)
-                    }
-                }
-            }
-        }
+        dispatchReducerEffects(result.effects)
 
         // Handle complex events that need ViewModel-specific context
         when (event) {
@@ -811,84 +786,7 @@ class ChatViewModel(
             }
 
             is WsEvent.SessionInfo -> {
-                // Session info pushed by backend when config changes
-                // (model switch, reasoning level, etc.)
-                val info = event.data
-                if (info != null) {
-                    val model = info["model"] as? String
-                    val provider = info["provider"] as? String
-                    val reasoningEffort = info["reasoning_effort"] as? String
-                    val terminalBackend = info["terminal_backend"] as? String
-                    val serviceTier = (info["service_tier"] as? String)?.trim()?.lowercase()
-                    val fastFlag =
-                        (info["fast"] as? Boolean)
-                            ?: (if (serviceTier != null) serviceTier == "priority" else null)
-                    val newModelLabel =
-                        if (model != null && provider != null) {
-                            "$provider/$model"
-                        } else {
-                            model
-                        }
-                    // Issue #817 & #1103: on a REAL model swap the meter's denominator
-                    // still belongs to the old model until the next fetch.
-                    // Check against both lastConfirmedSessionModel and optimisticPreviousModel
-                    // so optimistic model updates in sendSlashModel don't defeat swap detection.
-                    val optimisticPrevious = modelSwitchDelegate.consumeOptimisticPreviousModel()
-                    val previousModel =
-                        lastConfirmedSessionModel
-                            ?: optimisticPrevious
-                            ?: _uiState.value.currentSessionModel
-                    val modelSwapped =
-                        previousModel != null &&
-                            newModelLabel != null &&
-                            !newModelLabel.equals(previousModel, ignoreCase = true)
-                    val initialHydration = previousModel == null && newModelLabel != null
-                    val meterEmpty = _uiState.value.fullContextTokens == null
-                    lastConfirmedSessionModel = newModelLabel ?: lastConfirmedSessionModel
-                    if (newModelLabel != null) {
-                        modelSwitchDelegate.onModelConfirmed(newModelLabel)
-                    }
-                    _uiState.update { state ->
-                        state.copy(
-                            currentSessionModel = newModelLabel ?: state.currentSessionModel,
-                            reasoningLevel =
-                                if (reasoningEffort.isNullOrEmpty()) {
-                                    null
-                                } else {
-                                    reasoningEffort
-                                },
-                            fastMode = fastFlag ?: state.fastMode,
-                            isFastModeChanging = if (fastFlag != null) false else state.isFastModeChanging,
-                            terminalBackend = terminalBackend ?: state.terminalBackend,
-                            fullContextTokens = if (modelSwapped) null else state.fullContextTokens,
-                        )
-                    }
-                    modelSwitchDelegate.syncCurrentModelCapabilities()
-                    if (modelSwapped) {
-                        modelGeneration++
-                        contextUsageJob?.cancel()
-                        contextUsageJob = null
-                        // Issue #817 & #1103: after a swap the REST model/info window is
-                        // PROFILE-scoped and may describe the old model (e.g. a
-                        // session-scoped swap) — the meter must not fall back to
-                        // it. Wait for the RPC's live context_max instead; the
-                        // chip stays hidden until the real window lands.
-                        viewModelScope.launch { fetchContextUsage(skipRestFallback = true) }
-                    } else if ((initialHydration || meterEmpty) && newModelLabel != null &&
-                        contextUsageJob?.isActive != true
-                    ) {
-                        viewModelScope.launch { fetchContextUsage() }
-                    }
-                    // Session.info can carry `pending_approval` (reconnect
-                    // reconciliation) — surface it unless already on screen.
-                    val pendingApproval = info["pending_approval"] as? Map<*, *>
-                    if (pendingApproval != null) {
-                        approvalsDelegate.maybeSurfacePendingApproval(
-                            pendingApproval,
-                            runtimeSessionId ?: _uiState.value.currentSessionId,
-                        )
-                    }
-                }
+                handleSessionInfo(event.data)
             }
 
             is WsEvent.MessageToken -> {
@@ -1231,6 +1129,126 @@ class ChatViewModel(
         return eventSessionId == runtimeSessionId || eventSessionId == _uiState.value.currentSessionId
     }
 
+    private fun dispatchReducerEffects(effects: List<ReducerEffect>) {
+        for (effect in effects) {
+            when (effect) {
+                is ReducerEffect.PersistMessage -> {
+                    viewModelScope.launch(ioDispatcher) {
+                        repo.persistMessage(effect.message, effect.sessionId)
+                    }
+                }
+
+                is ReducerEffect.CreateNewSession -> {
+                    createNewSession()
+                }
+
+                is ReducerEffect.LoadSessions -> {
+                    loadSessions()
+                }
+
+                is ReducerEffect.RefreshSessions -> {
+                    loadSessions()
+                }
+
+                is ReducerEffect.RefreshContextUsage -> {
+                    // Streaming finished — refresh the context meter now rather
+                    // than waiting up to 5s for the next session-sync poll.
+                    viewModelScope.launch { fetchContextUsage() }
+                }
+
+                is ReducerEffect.AttachHostMedia -> {
+                    // Issue #724: turn host-path MEDIA: directives into real
+                    // attachments (images inline, every other file tappable)
+                    // via the gateway /api/files/download endpoint. Works on a
+                    // remote phone too.
+                    viewModelScope.launch(ioDispatcher) {
+                        mediaDelegate.attachHostMedia(effect.sessionId, effect.messageId)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun handleSessionInfo(info: Map<String, Any?>?) {
+        // Session info pushed by backend when config changes
+        // (model switch, reasoning level, etc.)
+        if (info != null) {
+            val model = info["model"] as? String
+            val provider = info["provider"] as? String
+            val reasoningEffort = info["reasoning_effort"] as? String
+            val terminalBackend = info["terminal_backend"] as? String
+            val serviceTier = (info["service_tier"] as? String)?.trim()?.lowercase()
+            val fastFlag =
+                (info["fast"] as? Boolean)
+                    ?: (if (serviceTier != null) serviceTier == "priority" else null)
+            val newModelLabel =
+                if (model != null && provider != null) {
+                    "$provider/$model"
+                } else {
+                    model
+                }
+            // Issue #817 & #1103: on a REAL model swap the meter's denominator
+            // still belongs to the old model until the next fetch.
+            // Check against both lastConfirmedSessionModel and optimisticPreviousModel
+            // so optimistic model updates in sendSlashModel don't defeat swap detection.
+            val optimisticPrevious = modelSwitchDelegate.consumeOptimisticPreviousModel()
+            val previousModel =
+                lastConfirmedSessionModel
+                    ?: optimisticPrevious
+                    ?: _uiState.value.currentSessionModel
+            val modelSwapped =
+                previousModel != null &&
+                    newModelLabel != null &&
+                    !newModelLabel.equals(previousModel, ignoreCase = true)
+            val initialHydration = previousModel == null && newModelLabel != null
+            val meterEmpty = _uiState.value.fullContextTokens == null
+            lastConfirmedSessionModel = newModelLabel ?: lastConfirmedSessionModel
+            if (newModelLabel != null) {
+                modelSwitchDelegate.onModelConfirmed(newModelLabel)
+            }
+            _uiState.update { state ->
+                state.copy(
+                    currentSessionModel = newModelLabel ?: state.currentSessionModel,
+                    reasoningLevel =
+                        if (reasoningEffort.isNullOrEmpty()) {
+                            null
+                        } else {
+                            reasoningEffort
+                        },
+                    fastMode = fastFlag ?: state.fastMode,
+                    isFastModeChanging = if (fastFlag != null) false else state.isFastModeChanging,
+                    terminalBackend = terminalBackend ?: state.terminalBackend,
+                    fullContextTokens = if (modelSwapped) null else state.fullContextTokens,
+                )
+            }
+            modelSwitchDelegate.syncCurrentModelCapabilities()
+            if (modelSwapped) {
+                modelGeneration++
+                contextUsageJob?.cancel()
+                contextUsageJob = null
+                // Issue #817 & #1103: after a swap the REST model/info window is
+                // PROFILE-scoped and may describe the old model (e.g. a
+                // session-scoped swap) — the meter must not fall back to
+                // it. Wait for the RPC's live context_max instead; the
+                // chip stays hidden until the real window lands.
+                viewModelScope.launch { fetchContextUsage(skipRestFallback = true) }
+            } else if ((initialHydration || meterEmpty) && newModelLabel != null &&
+                contextUsageJob?.isActive != true
+            ) {
+                viewModelScope.launch { fetchContextUsage() }
+            }
+            // Session.info can carry `pending_approval` (reconnect
+            // reconciliation) — surface it unless already on screen.
+            val pendingApproval = info["pending_approval"] as? Map<*, *>
+            if (pendingApproval != null) {
+                approvalsDelegate.maybeSurfacePendingApproval(
+                    pendingApproval,
+                    runtimeSessionId ?: _uiState.value.currentSessionId,
+                )
+            }
+        }
+    }
+
     // ── RPC response handling ────────────────────────────────────────────
 
     @Suppress("UNCHECKED_CAST")
@@ -1243,8 +1261,14 @@ class ChatViewModel(
         if (request != null && isStaleSessionRequest(request)) return
         when (method) {
             WsMethods.SESSION_CREATE -> {
-                val resultMap = result as? Map<String, Any?> ?: return
-                val runtimeId = resultMap["session_id"] as? String ?: return
+                val resultMap = result as? Map<String, Any?>
+                val runtimeId = (resultMap?.get("session_id") as? String)?.takeIf { it.isNotBlank() }
+                if (runtimeId == null) {
+                    _uiState.update {
+                        it.copy(isLoading = false, resumeError = "Invalid session creation response")
+                    }
+                    return
+                }
                 val storageId = resultMap["stored_session_id"] as? String ?: runtimeId
                 runtimeSessionId = runtimeId
                 // The gateway persists the row lazily on the first prompt —
@@ -1254,6 +1278,7 @@ class ChatViewModel(
                 _uiState.update {
                     it.copy(
                         currentSessionId = storageId,
+                        isSessionReady = true,
                         isLoading = false,
                         messages = if (pendingInitialPrompt != null) it.messages else emptyList(),
                         chatTitle = "Hermes",
@@ -1301,7 +1326,7 @@ class ChatViewModel(
                 // must stay the storage key — storing the runtime id here made
                 // every later resume 4007 "session not found" (the DB lookup
                 // misses) and the REST transcript 404.
-                val runtimeId = resultMap["session_id"] as? String ?: return
+                val runtimeId = (resultMap["session_id"] as? String)?.takeIf { it.isNotBlank() } ?: return
                 val storageId = resultMap["stored_session_id"] as? String ?: runtimeId
                 val generation =
                     resetSessionState(
@@ -1310,6 +1335,7 @@ class ChatViewModel(
                         isLoading = false,
                     )
                 runtimeSessionId = runtimeId
+                resumedGeneration = generation
                 ActiveSessionHolder.set(runtimeId, storageId)
                 sessionHasServerPresence = false
                 sessionGoneRecoveryInFlight = false
@@ -1341,16 +1367,22 @@ class ChatViewModel(
 
             WsMethods.SESSION_RESUME -> {
                 val resultMap = result as? Map<String, Any?>
-                runtimeSessionId = resultMap?.get("session_id") as? String
+                val runtimeId = (resultMap?.get("session_id") as? String)?.takeIf { it.isNotBlank() }
+                if (runtimeId == null) {
+                    val sessionId = request?.sessionId ?: _uiState.value.currentSessionId ?: return
+                    handleResumeFailure(sessionId, sessionGeneration, "Invalid session resume response")
+                    return
+                }
+                runtimeSessionId = runtimeId
                 // Resume succeeded — the gateway confirmed the DB row.
                 sessionHasServerPresence = true
                 val sessionId =
                     request?.sessionId
-                        ?: (resultMap?.get("resumed") as? String)
+                        ?: (resultMap["resumed"] as? String)
                         ?: _uiState.value.currentSessionId
 
                 // Parse session info from backend — model, provider, reasoning_effort
-                val infoMap = resultMap?.get("info") as? Map<String, Any?>
+                val infoMap = resultMap["info"] as? Map<String, Any?>
                 val model = infoMap?.get("model") as? String
                 val provider = infoMap?.get("provider") as? String
                 val reasoningEffort = infoMap?.get("reasoning_effort") as? String
@@ -1416,7 +1448,7 @@ class ChatViewModel(
                 // Reconnect replay: resume payload can carry `pending_approval`
                 // (server `_session_info_payload`); surface it, then ask for
                 // the full queue in case more are parked.
-                val pendingApproval = resultMap?.get("pending_approval") as? Map<*, *>
+                val pendingApproval = resultMap["pending_approval"] as? Map<*, *>
                 if (pendingApproval != null) {
                     approvalsDelegate.maybeSurfacePendingApproval(
                         pendingApproval,
@@ -1575,6 +1607,7 @@ class ChatViewModel(
             it.copy(
                 isLoading = false,
                 errorMessage = "Error ($method): $errorMsg",
+                resumeError = if (method == WsMethods.SESSION_CREATE) errorMsg else it.resumeError,
             )
         }
     }
@@ -1596,8 +1629,9 @@ class ChatViewModel(
      * 6. For each file → await `file.attach` (requires session_id), collect @file: refs
      * 7. Send `prompt.submit` with text + @file: refs — images auto-picked up by backend
      */
-    fun sendMessage(text: String) {
-        if (text.isBlank() && _uiState.value.pendingAttachments.isEmpty()) return
+    fun sendMessage(text: String): Boolean {
+        if (!canSubmitMessage()) return false
+        if (text.isBlank() && _uiState.value.pendingAttachments.isEmpty()) return false
 
         val trimmed = text.trim()
         if (trimmed.startsWith("/", ignoreCase = true)) {
@@ -1605,10 +1639,10 @@ class ChatViewModel(
             // of requiring the user to hand-type the provider/model.
             if (modelSwitchDelegate.isModelPickerCommand(trimmed)) {
                 openModelPicker()
-                return
+                return true
             }
             handleSlashCommand(trimmed)
-            return
+            return true
         }
 
         val oversizedAttachment =
@@ -1622,7 +1656,7 @@ class ChatViewModel(
                     composerTextToRestore = text,
                 )
             }
-            return
+            return true
         }
 
         // Snapshot + clear attachments so the input bar empties immediately
@@ -1654,7 +1688,7 @@ class ChatViewModel(
             // Issue #969: Session creation is still in-flight. Hold the prompt
             // so it is dispatched automatically the moment SESSION_CREATE lands.
             pendingInitialPrompt = PendingPrompt(text, attachments, wasStreaming, userMessage)
-            return
+            return true
         }
 
         dispatchPrompt(
@@ -1665,7 +1699,22 @@ class ChatViewModel(
             agentSessionId = agentSessionId,
             userMessage = userMessage,
         )
+        return true
     }
+
+    private fun canSubmitMessage(): Boolean =
+        wsClient.connectionStatus.value == ConnectionStatus.CONNECTED &&
+            (
+                (_uiState.value.isSessionReady && runtimeSessionId != null) ||
+                    (
+                        _uiState.value.currentSessionId == null &&
+                            pendingInitialPrompt == null &&
+                            idToMethod.any { (id, method) ->
+                                method == WsMethods.SESSION_CREATE &&
+                                    sessionRequestById[id]?.let { !isStaleSessionRequest(it) } == true
+                            }
+                    )
+            )
 
     private fun dispatchPrompt(
         text: String,
@@ -1832,6 +1881,15 @@ class ChatViewModel(
                         },
                     )
                 } else {
+                    // Arm the durable turn boundary BEFORE prompt.submit leaves
+                    // the device: the REST high-watermark has to be read while
+                    // the reply row cannot exist yet. A failed capture is
+                    // non-fatal — the prompt is still sent, the turn just
+                    // becomes uncorrelatable and its reply notification is never
+                    // auto-dismissed from hydration instead of being bound to a
+                    // guessed row.
+                    prepareTurnCorrelation(storageSessionId)
+                    if (dispatchGeneration != sessionGeneration) return@launch
                     wsClient.sendMessage(
                         agentSessionId,
                         fullText,
@@ -1849,6 +1907,17 @@ class ChatViewModel(
                 preparedAttachments.forEach { it.encodedFile.delete() }
             }
         }
+    }
+
+    /**
+     * Arms the reply-notification turn boundary for a prompt about to be
+     * submitted. Best-effort by design: sending chat never depends on REST
+     * health, so a failed read only makes this turn's reply notification
+     * uncorrelatable — it stays active instead of being dismissed by a guess.
+     */
+    private suspend fun prepareTurnCorrelation(storageSessionId: String?) {
+        if (storageSessionId.isNullOrBlank()) return
+        captureTurnBoundary(scopeId = correlationScopeId(), sessionId = storageSessionId)
     }
 
     private fun captureTurnUsageBaselineIfNeeded() {
@@ -2307,8 +2376,15 @@ class ChatViewModel(
     ) {
         if (text.isBlank()) return
         val sessionId = runtimeSessionId ?: return
+        val storageSessionId = _uiState.value.currentSessionId
         _uiState.update { it.copy(isAgentTyping = true) }
         viewModelScope.launch(ioDispatcher) {
+            // A queued prompt runs behind a turn that is already in flight, so
+            // no clean lower bound exists for it (see /queue). It stays
+            // uncorrelated rather than borrowing the running turn's boundary.
+            if (!queued) {
+                prepareTurnCorrelation(storageSessionId)
+            }
             wsClient.sendMessage(
                 sessionId,
                 text,
@@ -2559,6 +2635,7 @@ class ChatViewModel(
                 showUserMessageTokens = AuthManager.isUserMessageTokensEnabled(),
                 showAssistantMessageTokens = AuthManager.isAssistantMessageTokensEnabled(),
                 showTokensPerSecond = AuthManager.isTokensPerSecondEnabled(),
+                showModelProvider = AuthManager.isModelProviderShown(),
             )
         }
     }
@@ -2730,6 +2807,7 @@ class ChatViewModel(
                             serverOffset,
                             latestPaging,
                             _uiState.value.messages,
+                            context = getApplication(),
                         )
                     loadedMessageOffset = serverOffset
                     withContext(ioDispatcher) {
@@ -2860,6 +2938,7 @@ class ChatViewModel(
         _uiState.update {
             it.copy(
                 messages = emptyList(),
+                isSessionReady = false,
                 currentSessionId = sessionId,
                 chatTitle = title,
                 isAgentTyping = false,
@@ -2906,6 +2985,9 @@ class ChatViewModel(
         sessionId: String,
         generation: Long,
     ) {
+        resumedGeneration = -1L
+        hydratedGeneration = -1L
+        _uiState.update { it.copy(isSessionReady = false) }
         val requestSequence = ++resumeRequestSequence
         activeResumeRequestSequence = requestSequence
         val profile = AuthManager.activeProfileId.value
@@ -2956,6 +3038,7 @@ class ChatViewModel(
                 isResumeRetrying = false,
                 resumeError = null,
                 errorMessage = null,
+                isSessionReady = runtimeSessionId != null,
             )
         }
     }
@@ -3030,7 +3113,7 @@ class ChatViewModel(
     ) {
         // Only handle if still on this session.
         if (!isCurrentSessionRequest(sessionId, generation)) return
-        _uiState.update { it.copy(errorMessage = null) }
+        _uiState.update { it.copy(errorMessage = null, isSessionReady = false) }
 
         // New session → reset the counter for a fresh backoff cycle.
         if (resumeRetrySessionId != sessionId) {
@@ -3101,7 +3184,11 @@ class ChatViewModel(
      * resumeSession: reconnect / reselect / Retry all reset the counter).
      */
     fun retryResumeSession() {
-        val sessionId = _uiState.value.currentSessionId ?: return
+        val sessionId = _uiState.value.currentSessionId
+        if (sessionId == null) {
+            createNewSession()
+            return
+        }
         val generation = sessionGeneration
         cancelResumeRetry()
         _uiState.update {
@@ -3154,6 +3241,7 @@ class ChatViewModel(
                             returnedOffset,
                             latestPaging,
                             _uiState.value.messages,
+                            isPagingOlder = true,
                         )
                     loadedMessageOffset = returnedOffset
                     withContext(ioDispatcher) { repo.persistMessages(older, sessionId) }
@@ -3238,6 +3326,7 @@ class ChatViewModel(
                                 nextOffset,
                                 latestPaging,
                                 _uiState.value.messages,
+                                isPagingOlder = true,
                             )
                         if (incoming.isEmpty()) return@launch
                         withContext(ioDispatcher) { repo.persistMessages(incoming, sessionId) }

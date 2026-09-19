@@ -593,16 +593,20 @@ internal fun InlineAttachment(
     val isSaving = savingPath != null && savingPath == attachmentPath
     val isOpening = openingPath != null && openingPath == attachmentPath
     val clickable = Modifier.clickable { onOpen(attachment) }
-    if (attachment.isVideo) {
-        var showVideoDialog by remember { mutableStateOf(false) }
-        com.m57.hermescontrol.ui.chat.components.InlineVideoPlayer(
-            videoUri = attachment.uri,
-            onFullScreenClick = { showVideoDialog = true },
+    if (attachment.isVideo || attachment.isAudio) {
+        var showMediaDialog by remember(attachment.uri) { mutableStateOf(false) }
+        com.m57.hermescontrol.ui.chat.components.InlineMediaPlayer(
+            uri = attachment.gatewayUrl ?: attachment.uri,
+            title = attachment.name,
+            mimeType = attachment.mimeType,
+            onFullScreenClick = { showMediaDialog = true },
         )
-        if (showVideoDialog) {
-            com.m57.hermescontrol.ui.chat.components.VideoViewerDialog(
-                videoUri = attachment.uri,
-                onDismissRequest = { showVideoDialog = false },
+        if (showMediaDialog) {
+            com.m57.hermescontrol.ui.chat.components.MediaViewerDialog(
+                mediaUri = attachment.gatewayUrl ?: attachment.uri,
+                title = attachment.name,
+                mimeType = attachment.mimeType,
+                onDismissRequest = { showMediaDialog = false },
             )
         }
     } else if (attachment.isImage) {

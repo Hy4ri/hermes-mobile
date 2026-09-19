@@ -28,6 +28,7 @@ object WsMethods {
     const val SESSION_USAGE = "session.usage"
     const val PROFILES_CONFIGURE = "profiles.configure"
     const val PROFILES_LIST = "profiles.list"
+    const val MODEL_OPTIONS = "model.options"
 
     // ── Projects ──────────────────────────────────────────────────────────
 
@@ -65,6 +66,7 @@ object WsMethods {
 
     /** Inline WebSocket read-loop ping, bypasses server thread pool dispatch. */
     const val GATEWAY_PING = "gateway.ping"
+    const val CLIENT_CAPABILITIES = "client.capabilities"
 
     // ── Commands catalog ──────────────────────────────────────────────────
     const val COMMANDS_CATALOG = "commands.catalog"
@@ -154,6 +156,7 @@ object WsMethods {
             // Evidence: methods_session.py lines 42, 164, 232, 317, 845
             SESSION_CREATE, // session.create
             SESSION_LIST, // session.list
+            MODEL_OPTIONS, // model.options: @_profile_scoped
             SESSION_RESUME, // session.resume
             SESSION_DELETE, // session.delete
             SESSION_STATUS, // session.status

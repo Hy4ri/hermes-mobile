@@ -189,6 +189,8 @@ interface HermesApiService : KanbanApiService {
         @Query("profile") profile: String? = null,
         @Query("source") source: String? = null,
         @Query("exclude_sources") excludeSources: String? = null,
+        @Query("limit") limit: Int = 20,
+        @Query("offset") offset: Int = 0,
     ): Response<SessionSearchResponse>
 
     @GET("api/sessions/{id}/messages")

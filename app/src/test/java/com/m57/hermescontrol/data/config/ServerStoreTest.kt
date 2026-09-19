@@ -2,6 +2,7 @@ package com.m57.hermescontrol.data.config
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -16,6 +17,8 @@ class ServerStoreTest {
         assertTrue(state.autoReconnect)
         assertEquals("token", state.wsAuthParam)
         assertEquals(1.0f, state.chatFontScale)
+        assertFalse(state.showModelProvider)
+        assertFalse(state.keepConnectedInBackground)
         assertTrue(state.connectionProfiles.isEmpty())
         assertNull(state.selectedProfileId)
     }
@@ -66,5 +69,42 @@ class ServerStoreTest {
         val unselectedState = state.copy(selectedProfileId = null)
         assertEquals("127.0.0.1", unselectedState.resolvedHost)
         assertEquals(9119, unselectedState.resolvedPort)
+    }
+
+    @Test
+    fun testShowModelProviderUpdate() {
+        val state = ServerStoreState()
+        assertFalse(state.showModelProvider)
+        val updated = state.copy(showModelProvider = true)
+        assertTrue(updated.showModelProvider)
+    }
+
+    @Test
+    fun testKeepConnectedInBackgroundUpdate() {
+        val state = ServerStoreState()
+        assertFalse(state.keepConnectedInBackground)
+        val updated = state.copy(keepConnectedInBackground = true)
+        assertTrue(updated.keepConnectedInBackground)
+    }
+
+    @Test
+    fun testKeepConnectedInBackground_deserializationDefault() {
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        val decoded = json.decodeFromString<ServerStoreState>("{}")
+        assertFalse(decoded.keepConnectedInBackground)
+    }
+
+    @Test
+    fun testCheckReleaseCandidateUpdatesDefaultsToStableOnly() {
+        val state = ServerStoreState()
+        assertFalse(state.checkReleaseCandidateUpdates)
+        assertTrue(state.copy(checkReleaseCandidateUpdates = true).checkReleaseCandidateUpdates)
+    }
+
+    @Test
+    fun testCheckReleaseCandidateUpdates_deserializationDefault() {
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        val decoded = json.decodeFromString<ServerStoreState>("{}")
+        assertFalse(decoded.checkReleaseCandidateUpdates)
     }
 }

@@ -2,10 +2,12 @@ package com.m57.hermescontrol.ui.logs
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.SwrCache
+import com.m57.hermescontrol.data.model.LogResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.ui.common.ToastHost
-import com.m57.hermescontrol.ui.common.safeLaunchLoad
+import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,43 +42,51 @@ class LogsViewModel :
     private val _uiState = MutableStateFlow(LogsUiState())
     val uiState: StateFlow<LogsUiState> = _uiState.asStateFlow()
 
-    @Volatile
-    private var loadInProgress = false
-
+    private var loadJob: Job? = null
     private var autoRefreshJob: Job? = null
+    private val logsCache = SwrCache<String, LogResponse>()
 
-    fun loadLogs() {
-        if (loadInProgress) return
-        loadInProgress = true
+    fun clearScopeOwnedState() {
+        _uiState.update { it.copy(isLoading = false, logs = emptyList(), errorMessage = null) }
+    }
+
+    fun loadLogs(forceRefresh: Boolean = false) {
         val filters = _uiState.value.filters
-        safeLaunchLoad(
-            apiCall = {
-                safeApiCall {
-                    ApiClient.hermesApi.getLogs(
-                        file = filters.file,
-                        lines = filters.lines,
-                        level = filters.level,
-                        component = filters.component,
-                    )
-                }
-            },
-            onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
-            onSuccess = { data ->
-                val body = data
-                val logsList = body.lines ?: body.logs ?: emptyList()
-                _uiState.update { it.copy(isLoading = false, logs = logsList) }
-                loadInProgress = false
-            },
-            onError = { errorMsg ->
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        errorMessage = "Failed to load logs: $errorMsg",
-                    )
-                }
-                loadInProgress = false
-            },
-        )
+        val cacheKey = "${filters.file}:${filters.level}:${filters.component}:${filters.lines}"
+        loadJob =
+            safeLaunchSwrLoad(
+                cache = logsCache,
+                cacheKey = cacheKey,
+                forceRefresh = forceRefresh,
+                currentJob = loadJob,
+                onCacheHit = { data ->
+                    val logsList = data.lines ?: data.logs ?: emptyList()
+                    _uiState.update { it.copy(isLoading = false, logs = logsList, errorMessage = null) }
+                },
+                apiCall = {
+                    safeApiCall {
+                        ApiClient.hermesApi.getLogs(
+                            file = filters.file,
+                            lines = filters.lines,
+                            level = filters.level,
+                            component = filters.component,
+                        )
+                    }
+                },
+                onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
+                onSuccess = { data ->
+                    val logsList = data.lines ?: data.logs ?: emptyList()
+                    _uiState.update { it.copy(isLoading = false, logs = logsList) }
+                },
+                onError = { errorMsg ->
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = "Failed to load logs: $errorMsg",
+                        )
+                    }
+                },
+            )
     }
 
     /** Update the server-side filters and immediately reload. */

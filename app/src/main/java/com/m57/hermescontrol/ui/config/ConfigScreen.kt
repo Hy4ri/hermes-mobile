@@ -99,7 +99,7 @@ fun ConfigScreen(
         title = { Text(stringResource(R.string.config_screen_title)) },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
-        onRefresh = { viewModel.loadAll() },
+        onRefresh = { viewModel.loadAll(forceRefresh = true) },
         actions = {
             if (!state.yamlMode && state.modifiedKeys.isNotEmpty()) {
                 IconButton(onClick = { viewModel.saveConfig() }) {

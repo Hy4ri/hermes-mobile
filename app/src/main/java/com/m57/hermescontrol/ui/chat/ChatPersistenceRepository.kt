@@ -11,14 +11,16 @@ import com.m57.hermescontrol.data.local.toUiModel
  * UI state management and WebSocket event handling.
  */
 open class ChatPersistenceRepository(
-    private val dao: ChatMessageDao,
+    private val daoProvider: suspend () -> ChatMessageDao,
 ) {
+    constructor(dao: ChatMessageDao) : this({ dao })
+
     /** Persist a single message for the given session. */
     suspend fun persistMessage(
         message: ChatMessage,
         sessionId: String,
     ) {
-        dao.upsert(message.toEntity(sessionId))
+        daoProvider().upsert(message.toEntity(sessionId))
     }
 
     /** Persist multiple messages in one transaction. */
@@ -27,15 +29,15 @@ open class ChatPersistenceRepository(
         sessionId: String,
     ) {
         val entities = messages.map { it.toEntity(sessionId) }
-        dao.upsertAll(entities)
+        daoProvider().upsertAll(entities)
     }
 
     /** Load cached messages for a session from Room. */
     suspend fun loadMessages(sessionId: String): List<ChatMessage> =
-        dao.getMessagesForSession(sessionId).map { it.toUiModel() }
+        daoProvider().getMessagesForSession(sessionId).map { it.toUiModel() }
 
     /** Clear all cached messages for a session (e.g. after /undo rewind). */
     suspend fun clearMessagesForSession(sessionId: String) {
-        dao.deleteMessagesForSession(sessionId)
+        daoProvider().deleteMessagesForSession(sessionId)
     }
 }

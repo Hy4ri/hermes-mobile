@@ -143,6 +143,10 @@
     <!-- Notifications -->
     <string name="notif_title">Hermes</string>
     <string name="notif_waiting_replies">Waiting for Hermes replies</string>
+    <string name="notif_connected_in_background">Connected in background</string>
+    <string name="notif_connecting">Connecting…</string>
+    <string name="notif_waiting_network">Waiting for network</string>
+    <string name="notif_reconnecting">Reconnecting</string>
     <string name="notif_new_message">New message</string>
     <string name="notif_clarification_needed">Hermes needs a clarification</string>
     <string name="notif_input_needed">Hermes needs your input</string>
@@ -182,9 +186,12 @@
     <string name="chat_tool_fallback">Tool</string>
     <string name="chat_tool_show_raw">Show Raw JSON</string>
     <string name="chat_tool_show_parsed">Show Parsed Output</string>
+    <string name="chat_tool_format_json">Format JSON</string>
+    <string name="chat_tool_compact_json">Compact JSON</string>
     <string name="content_desc_new_chat">New Chat</string>
     <string name="content_desc_scroll_to_bottom">Scroll to bottom</string>
     <string name="content_desc_copy">Copy</string>
+    <string name="content_desc_copied">Copied</string>
     <string name="content_desc_edit">Edit</string>
     <string name="chat_msg_tokens">%1$s tok</string>
     <string name="chat_msg_tps">%1$s t/s</string>
@@ -198,6 +205,8 @@
     <!-- Settings Screen -->
     <string name="settings_sec_connection">Connection</string>
     <string name="settings_field_token">Auth Token</string>
+    <string name="settings_keep_connected_in_background_title">Stay connected in background</string>
+    <string name="settings_keep_connected_in_background_desc">Keep Hermes connected while using other apps. Shows an ongoing notification and may use more battery.</string>
     <string name="settings_sec_behavior">Behavior</string>
     <string name="settings_item_auto_reconnect">Auto-Reconnect</string>
     <string name="settings_desc_auto_reconnect">Automatically reconnect on disconnect</string>
@@ -213,6 +222,8 @@
     <string name="settings_item_user_message_tokens">User message tokens</string>
     <string name="settings_item_assistant_message_tokens">Assistant message tokens</string>
     <string name="settings_item_tokens_per_second">Tokens per second (TPS)</string>
+    <string name="settings_item_show_model_provider">Show provider name</string>
+    <string name="settings_desc_show_model_provider">Show the provider before the model name in the chat composer.</string>
     <string name="chat_agent_status_typing">Agent is typing</string>
     <string name="chat_agent_status_thinking">Thinking…</string>
     <string name="chat_agent_status_searching">Searching…</string>
@@ -254,6 +265,8 @@
     <string name="settings_about_update_allow_sources">Allow installs from this source</string>
     <string name="settings_about_update_open_settings">Open settings</string>
     <string name="settings_about_update_retry">Retry</string>
+    <string name="settings_about_rc_updates_title">Check release candidate updates</string>
+    <string name="settings_about_rc_updates_desc">Install pre-release RC builds. They may be less stable.</string>
     <string name="settings_support_title">Support Hermes Mobile</string>
     <string name="settings_support_message">If Hermes Mobile saves you time, you can support its development.</string>
     <string name="settings_support_action">Support me on Ko-fi</string>
@@ -1303,7 +1316,8 @@
     <string name="landing_subtitle">Control panel for Hermes Agent</string>
     <string name="landing_action_auth_login">Auth Login</string>
 
-    <!-- Loading State -->
+    <!-- Loading / Startup State (issue #1171) -->
+    <string name="auth_init_failed">Failed to initialize app settings</string>
 
     <!-- Providers Screen (issue #534) -->
     <string name="providers_empty_title">No OAuth providers</string>
@@ -1641,4 +1655,26 @@
     <string name="session_integrations_retry">Retry</string>
     <string name="session_integrations_close">Close</string>
     <string name="session_integrations_menu_item">Session Integrations</string>
+
+    <!-- Media Player -->
+    <string name="media_player_play">Play</string>
+    <string name="media_player_pause">Pause</string>
+    <string name="media_player_replay">Replay</string>
+    <string name="media_player_retry">Retry</string>
+    <string name="media_player_audio">Audio</string>
+    <string name="media_player_video">Video</string>
+    <string name="media_player_close">Close</string>
+    <string name="media_player_save">Save to device</string>
+    <string name="media_player_share">Share</string>
+    <string name="media_player_share_title">Share media</string>
+    <string name="media_player_saved">Media saved</string>
+    <string name="media_player_save_failed">Could not save media</string>
+    <string name="media_player_load_failed">Could not load media: %1$s</string>
+    <string name="media_player_share_failed">Could not share media</string>
+    <string name="media_player_buffering">Loading…</string>
+    <string name="media_player_seek">Seek</string>
+    <string name="media_player_play_audio">Play audio</string>
+    <string name="media_player_play_video">Play video</string>
+    <string name="chat_session_preparing">Preparing session…</string>
+    <string name="chat_session_not_ready">Session not ready — retry to continue</string>
 </resources>

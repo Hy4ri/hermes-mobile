@@ -10,28 +10,41 @@ import coil3.gif.GifDecoder
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.SessionListCacheStore
 import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.update.UpdateNoticeManager
+import com.m57.hermescontrol.notification.TurnCorrelationTracker
 import com.m57.hermescontrol.ui.analytics.AnalyticsPreloader
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 class HermesControlApp :
     Application(),
     SingletonImageLoader.Factory {
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
     override fun onCreate() {
         super.onCreate()
         AuthManager.init(this)
-        // Issue #478: guarantee a "Default" profile is always selected so there is no
-        // separate standalone/default code path anywhere in the app.
-        AuthManager.ensureDefaultProfile()
         NetworkMonitor.init(this)
-        // Issue #537 follow-up (A): preload analytics in the background after launch
-        // so the tab renders instantly when opened (the usage endpoint is slow on a
-        // cold backend). Fire-and-forget; never blocks UI startup.
-        AnalyticsPreloader.preload(this)
-        // Issue #890: silent once-per-version update check right after launch,
-        // so the chat screen can show an update banner without user interaction.
-        UpdateNoticeManager.checkOnLaunch()
+        SessionListCacheStore.init(this)
+        // Reply-notification turn boundaries survive process death (armed before
+        // each mobile prompt, consumed by the matching completion).
+        TurnCorrelationTracker.attach(this)
+        appScope.launch {
+            AuthManager.initializationState.first { it == AuthManager.InitializationState.Ready }
+            // Issue #537 follow-up (A): preload analytics in the background after launch
+            // so the tab renders instantly when opened (the usage endpoint is slow on a
+            // cold backend). Fire-and-forget; never blocks UI startup.
+            AnalyticsPreloader.preload(this@HermesControlApp)
+            // Issue #890: silent once-per-version update check right after launch,
+            // so the chat screen can show an update banner without user interaction.
+            UpdateNoticeManager.checkOnLaunch()
+        }
     }
 
     override fun newImageLoader(context: PlatformContext): ImageLoader =

@@ -128,6 +128,10 @@
 <string name="screen_files">الملفات</string>
 <string name="notif_title">Hermes</string>
 <string name="notif_waiting_replies">بانتظار ردود Hermes</string>
+<string name="notif_connected_in_background">متصل في الخلفية</string>
+<string name="notif_connecting">جارٍ الاتصال…</string>
+<string name="notif_waiting_network">في انتظار الشبكة</string>
+<string name="notif_reconnecting">جارٍ إعادة الاتصال</string>
 <string name="notif_new_message">رسالة جديدة</string>
 <string name="notif_clarification_needed">يحتاج Hermes إلى توضيح</string>
 <string name="notif_reply_placeholder">اكتب ردك\u2026</string>
@@ -164,9 +168,12 @@
 <string name="chat_tool_fallback">أداة</string>
 <string name="chat_tool_show_raw">عرض ملف JSON الأولي</string>
 <string name="chat_tool_show_parsed">عرض المخرجات المعالجة</string>
+<string name="chat_tool_format_json">تنسيق JSON</string>
+<string name="chat_tool_compact_json">ضغط JSON</string>
 <string name="content_desc_new_chat">محادثة جديدة</string>
 <string name="content_desc_scroll_to_bottom">التمرير إلى الأسفل</string>
 <string name="content_desc_copy">نسخ</string>
+<string name="content_desc_copied">تم النسخ</string>
 <string name="content_desc_edit">تعديل</string>
 <string name="chat_msg_tokens">%1$s رمز</string>
 <string name="chat_msg_tps">%1$s رمز/ث</string>
@@ -174,6 +181,8 @@
 <string name="chat_camera_error">تعذر التقاط الصورة</string>
 <string name="settings_sec_connection">الاتصال</string>
 <string name="settings_field_token">رمز المصادقة (Token)</string>
+<string name="settings_keep_connected_in_background_title">البقاء متصلاً في الخلفية</string>
+<string name="settings_keep_connected_in_background_desc">إبقاء هيرمس متصلاً أثناء استخدام تطبيقات أخرى. يعرض إشعاراً مستمراً وقد يستهلك المزيد من البطارية.</string>
 <string name="settings_sec_behavior">السلوك</string>
 <string name="settings_item_auto_reconnect">إعادة الاتصال التلقائي</string>
 <string name="settings_desc_auto_reconnect">إعادة الاتصال تلقائيًا عند انقطاعه</string>
@@ -189,6 +198,8 @@
 <string name="settings_item_user_message_tokens">رموز رسالة المستخدم</string>
 <string name="settings_item_assistant_message_tokens">رموز رسالة المساعد</string>
 <string name="settings_item_tokens_per_second">الرموز في الثانية (TPS)</string>
+    <string name="settings_item_show_model_provider">إظهار اسم المزود</string>
+    <string name="settings_desc_show_model_provider">إظهار المزود قبل اسم النموذج في شريط كتابة المحادثة.</string>
 <string name="chat_agent_status_typing">الوكيل يكتب</string>
 <string name="chat_agent_status_thinking">يفكّر…</string>
 <string name="chat_agent_status_searching">يبحث…</string>
@@ -233,6 +244,8 @@
     <string name="settings_about_update_allow_sources">السماح بتثبيت التطبيقات من هذا المصدر</string>
     <string name="settings_about_update_open_settings">فتح الإعدادات</string>
     <string name="settings_about_update_retry">إعادة المحاولة</string>
+    <string name="settings_about_rc_updates_title">التحقق من الإصدارات المرشّحة (RC)</string>
+    <string name="settings_about_rc_updates_desc">تثبيت إصدارات ما قبل الإطلاق. قد تكون أقل استقرارًا.</string>
     <string name="settings_summary_profiles">تم حفظ %1$d</string>
     <string name="settings_summary_typing_on">تأثير الكتابة مفعّل</string>
     <string name="settings_summary_typing_off">تأثير الكتابة معطّل</string>
@@ -1189,6 +1202,7 @@
 <string name="landing_title">Hermes Mobile</string>
 <string name="landing_subtitle">لوحة التحكم لـ Hermes Agent</string>
 <string name="landing_action_auth_login">تسجيل الدخول والمصادقة</string>
+<string name="auth_init_failed">فشل في تهيئة إعدادات التطبيق</string>
 <string name="providers_empty_title">لا يوجد موفرو OAuth</string>
 <string name="providers_empty_desc">سيظهر موفرو خدمة OAuth المهيؤون هنا. قم بربط حساب لاستخدامه من التطبيق.</string>
 <string name="providers_action_connect">اتصال</string>
@@ -1474,4 +1488,26 @@
     <string name="session_integrations_retry">إعادة المحاولة</string>
     <string name="session_integrations_close">إغلاق</string>
     <string name="session_integrations_menu_item">تكاملات الجلسة</string>
+
+    <!-- Media Player -->
+    <string name="media_player_play">تشغيل</string>
+    <string name="media_player_pause">إيقاف مؤقت</string>
+    <string name="media_player_replay">إعادة التشغيل</string>
+    <string name="media_player_retry">إعادة المحاولة</string>
+    <string name="media_player_audio">صوت</string>
+    <string name="media_player_video">فيديو</string>
+    <string name="media_player_close">إغلاق</string>
+    <string name="media_player_save">حفظ في الجهاز</string>
+    <string name="media_player_share">مشاركة</string>
+    <string name="media_player_share_title">مشاركة الوسائط</string>
+    <string name="media_player_saved">تم حفظ الوسائط</string>
+    <string name="media_player_save_failed">تعذر حفظ الوسائط</string>
+    <string name="media_player_load_failed">تعذر تحميل الوسائط: %1$s</string>
+    <string name="media_player_share_failed">تعذر مشاركة الوسائط</string>
+    <string name="media_player_buffering">جار التحميل…</string>
+    <string name="media_player_seek">تقديم/ترجيع</string>
+    <string name="media_player_play_audio">تشغيل الصوت</string>
+    <string name="media_player_play_video">تشغيل الفيديو</string>
+    <string name="chat_session_preparing">جارٍ تجهيز الجلسة…</string>
+    <string name="chat_session_not_ready">الجلسة غير جاهزة — أعد المحاولة للمتابعة</string>
 </resources>

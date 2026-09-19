@@ -221,6 +221,11 @@ internal object ProcessRenderer : ToolRenderer {
         return if (procId.isNotEmpty()) "$action: $procId" else action
     }
 
+    override fun pendingDetail(call: ToolCall): String {
+        val action = ToolJson.firstString(call.args, listOf("action"))
+        return "⏳ ${action.ifEmpty { "Process operation" }} in progress"
+    }
+
     override fun detail(call: ToolCall): String {
         val result = call.result
         val error = ToolJson.firstString(result, listOf("error"))
@@ -248,7 +253,7 @@ internal object ProcessRenderer : ToolRenderer {
                 }.joinToString("\n\n")
         }
 
-        val output = ToolJson.firstString(result, listOf("output"))
+        val output = ToolJson.firstString(result, listOf("output", "output_preview"))
         if (output.isNotEmpty()) {
             val status = ToolJson.firstString(result, listOf("status"))
             return "${status.takeIf { it.isNotEmpty() }?.let { "Status: $it\n" } ?: ""}$output"

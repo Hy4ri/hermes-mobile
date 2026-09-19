@@ -50,6 +50,7 @@ import com.m57.hermescontrol.data.remote.CleartextPolicy
 import com.m57.hermescontrol.data.remote.HermesApiService
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.ws.KanbanEventsClient
+import com.m57.hermescontrol.data.ws.ModelOptionsRepository
 import com.m57.hermescontrol.ui.channels.ChannelsViewModel
 import com.m57.hermescontrol.ui.connect.ConnectViewModel
 import com.m57.hermescontrol.ui.cron.CronJobsViewModel
@@ -128,6 +129,20 @@ class E2eIntegrationTest {
 
     @After
     fun tearDown() {
+        // Restore the GLOBAL Dispatchers object BEFORE resetMain.
+        //
+        // setUp() stubs `Dispatchers.Main` to return the TestMainDispatcher captured
+        // at that moment. unmockkAll() alone -- and it ran AFTER resetMain -- left
+        // that stub live, so Dispatchers.Main kept handing back a TestMainDispatcher
+        // whose delegate had already been reset, and it THROWS on dispatch. Any
+        // later class in this JVM that resumes a continuation onto Main then died
+        // with DispatchException. That is precisely what broke
+        // ProfileSwitchCoordinatorTest (its _switched.tryEmit resumes collectors on
+        // Main) with 2x DispatchException + 2x "test body did not run to completion".
+        //
+        // Verified by repro: E2eIntegrationTest + ProfileSwitchCoordinatorTest
+        // together = 4 failures; ProfileSwitchCoordinatorTest alone = 5/5 pass.
+        unmockkStatic(Dispatchers::class)
         Dispatchers.resetMain()
         unmockkAll()
         NavigationController.backStack = null
@@ -1293,7 +1308,8 @@ class E2eIntegrationTest {
                     ),
                 )
 
-            val viewModel = ModelViewModel()
+            // Issue #1164: keep the real WS singleton off this test's mocked IO dispatcher.
+            val viewModel = ModelViewModel(ModelOptionsRepository(connected = { false }))
             viewModel.loadAll()
             advanceUntilIdle()
 
@@ -1352,7 +1368,8 @@ class E2eIntegrationTest {
             }
 
             // Default loadAll() must call getModelOptions with refresh = false
-            val viewModel = ModelViewModel()
+            // Issue #1164: keep the real WS singleton off this test's mocked IO dispatcher.
+            val viewModel = ModelViewModel(ModelOptionsRepository(connected = { false }))
             viewModel.loadAll()
             advanceUntilIdle()
 

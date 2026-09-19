@@ -90,13 +90,10 @@ class Issue647ProfileUrlTest {
         storeField.isAccessible = true
         storeField.set(AuthManager, null)
 
-        AuthManager.resetAuthStateForTest()
+        kotlinx.coroutines.runBlocking { AuthManager.resetAndAwaitForTest() }
         AuthManager.init(testContext)
 
-        kotlinx.coroutines.runBlocking {
-            val deferred = field.get(AuthManager) as? kotlinx.coroutines.Deferred<*>
-            deferred?.await()
-        }
+        kotlinx.coroutines.runBlocking { AuthManager.awaitInitialization() }
         AuthManager.serverStore.getLatestState()
     }
 
@@ -106,7 +103,7 @@ class Issue647ProfileUrlTest {
         // into later classes — leaked collectors re-touch deleted/recreated
         // server_store.json and surface as UncaughtExceptionsBeforeTest
         // phantoms in whichever test class runs next.
-        AuthManager.resetAuthStateForTest()
+        kotlinx.coroutines.runBlocking { AuthManager.resetAndAwaitForTest() }
         val tempDir = java.io.File(System.getProperty("java.io.tmpdir") ?: "/tmp")
         val tempFile = java.io.File(tempDir, "server_store.json")
         if (tempFile.exists()) tempFile.delete()

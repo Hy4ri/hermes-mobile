@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.Achievement
 import com.m57.hermescontrol.data.model.RecentUnlock
 import com.m57.hermescontrol.ui.common.EmptyState
@@ -72,6 +73,7 @@ fun AchievementsScreen(
     viewModel: AchievementsViewModel = viewModel { AchievementsViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val dataScope by AuthManager.dataScopeFlow.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
     var showMenu by remember { mutableStateOf(false) }
     var showResetDialog by remember { mutableStateOf(false) }
@@ -92,7 +94,8 @@ fun AchievementsScreen(
             }
         }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(dataScope) {
+        viewModel.clearScopeOwnedState()
         viewModel.loadAchievements()
         viewModel.loadRecentUnlocks()
     }
@@ -129,7 +132,10 @@ fun AchievementsScreen(
         title = { Text(stringResource(R.string.screen_achievements)) },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
-        onRefresh = { viewModel.loadAchievements() },
+        onRefresh = {
+            viewModel.loadAchievements(forceRefresh = true)
+            viewModel.loadRecentUnlocks()
+        },
         modifier = modifier,
         actions = {
             Box {

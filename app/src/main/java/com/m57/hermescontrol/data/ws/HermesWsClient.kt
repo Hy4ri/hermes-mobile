@@ -8,6 +8,7 @@ import com.m57.hermescontrol.data.remote.CookieManager
 import com.m57.hermescontrol.data.remote.DashboardSessionTokenRefresher
 import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.remote.OkHttpProvider
+import com.m57.hermescontrol.data.remote.await
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -106,21 +107,24 @@ object HermesWsClient {
 
     /**
      * Liveness thresholds aligned with reference clients (desktop/web):
-     * Ping every 15s using gateway.ping; 45s inbound silence deadline.
+     * Ping every 15s using gateway.ping; 30s inbound silence deadline (issue #1165)
+     * as mobile secondary safety net for faster half-open socket recovery.
      */
     private const val HEARTBEAT_INTERVAL_MS = 15_000L
-    private const val STALE_THRESHOLD_MS = 45_000L
+    private const val STALE_THRESHOLD_MS = 30_000L
     private const val LIVENESS_PROBE_TIMEOUT_MS = 5_000L
 
     // ── Internal state (all access through synchronized / atomic) ────────
 
     private val requestId = AtomicInteger(0)
+    private val capabilityRequestIds = ConcurrentHashMap.newKeySet<String>()
     private val connectionGeneration = AtomicInteger(0)
     private val connected = AtomicBoolean(false)
     private val intentionalClose = AtomicBoolean(false)
     private val acceptQueuedMessages = AtomicBoolean(true)
     private val appInForeground = AtomicBoolean(true)
     private val externalActivityConnectionLease = AtomicBoolean(false)
+    private val backgroundConnectionLease = AtomicBoolean(false)
     private val messageQueue = ConcurrentLinkedQueue<String>()
     private val queuedMessagesById = ConcurrentHashMap<String, String>()
     private val outboundLock = Any()
@@ -351,6 +355,16 @@ object HermesWsClient {
         wsScope.launch {
             events.collect { event ->
                 if (event is WsEvent.GatewayReady) {
+                    // Advertise support for gateway server→client requests (issue #1197).
+                    // Older gateways may reject this method; that is harmless.
+                    runCatching {
+                        send(
+                            WsMethods.CLIENT_CAPABILITIES,
+                            mapOf("server_requests" to true),
+                            onSent = { id -> capabilityRequestIds.add(id) },
+                            queueIfDisconnected = false,
+                        )
+                    }
                     val epoch = event.data?.get("replay_epoch") as? String
                     if (!epoch.isNullOrEmpty()) {
                         if (replayEpoch != null && replayEpoch != epoch) {
@@ -369,6 +383,7 @@ object HermesWsClient {
     val isConnected: Boolean get() = connected.get()
 
     private var foregroundProbeJob: Job? = null
+    private var transportProbeJob: Job? = null
 
     fun setAppForeground(foreground: Boolean) {
         appInForeground.set(foreground)
@@ -398,6 +413,29 @@ object HermesWsClient {
             }
     }
 
+    @VisibleForTesting
+    internal fun probeLivenessOnTransportChange(
+        onFailureAction: () -> Unit = {
+            synchronized(outboundLock) {
+                if (connected.get()) webSocket?.cancel()
+            }
+        },
+    ) {
+        if (!connected.get()) return
+        transportProbeJob?.cancel()
+        transportProbeJob =
+            wsScope.launch {
+                Log.d(TAG, "Network transport changed — probing WebSocket liveness")
+                val alive = runCatching { ping(LIVENESS_PROBE_TIMEOUT_MS) }.isSuccess
+                if (alive) {
+                    Log.d(TAG, "WebSocket liveness probe succeeded on new transport")
+                    return@launch
+                }
+                Log.w(TAG, "Transport change liveness probe failed — cancelling socket")
+                onFailureAction()
+            }
+    }
+
     fun acquireExternalActivityConnectionLease() {
         externalActivityConnectionLease.set(true)
     }
@@ -407,10 +445,23 @@ object HermesWsClient {
         disconnectIfIdleInBackground()
     }
 
+    fun acquireBackgroundConnectionLease() {
+        backgroundConnectionLease.set(true)
+    }
+
+    fun releaseBackgroundConnectionLease() {
+        backgroundConnectionLease.set(false)
+        disconnectIfIdleInBackground()
+    }
+
+    @VisibleForTesting
+    internal fun hasBackgroundConnectionLease(): Boolean = backgroundConnectionLease.get()
+
     private fun disconnectIfIdleInBackground() {
         synchronized(outboundLock) {
             if (!appInForeground.get() &&
                 !externalActivityConnectionLease.get() &&
+                !backgroundConnectionLease.get() &&
                 !pendingReply &&
                 pendingCalls.isEmpty() &&
                 messageQueue.isEmpty()
@@ -426,6 +477,11 @@ object HermesWsClient {
             wsScope.launch {
                 NetworkMonitor.networkChanges.collect { networkAvailable ->
                     reconnectForNetworkChange(networkAvailable)
+                }
+            }
+            wsScope.launch {
+                NetworkMonitor.transportChanges.collect {
+                    probeLivenessOnTransportChange()
                 }
             }
         }
@@ -517,7 +573,7 @@ object HermesWsClient {
      * or because ticket refresh succeeded). Returns false if we are in gated mode
      * and ticket refresh failed or cannot be performed.
      */
-    internal fun refreshWsTicketIfNeeded(generation: Int): Boolean {
+    internal suspend fun refreshWsTicketIfNeeded(generation: Int): Boolean {
         val isGated =
             try {
                 AuthManager.serverStore.getLatestState().wsAuthParam == "ticket"
@@ -533,11 +589,9 @@ object HermesWsClient {
             // restart. Refresh it before each WebSocket handshake so automatic
             // reconnect does not get stuck in AUTH_EXPIRED with a stale token.
             val token =
-                synchronized(DashboardSessionTokenRefresher) {
-                    runCatching {
-                        DashboardSessionTokenRefresher.fetch(AuthManager.baseUrl(), OkHttpProvider.probe)
-                    }.getOrNull()
-                }
+                runCatching {
+                    DashboardSessionTokenRefresher.refreshAsync()
+                }.getOrNull()
             synchronized(outboundLock) {
                 if (isCurrentGeneration(generation) && token != null) {
                     runCatching { AuthManager.setToken(token) }
@@ -580,7 +634,7 @@ object HermesWsClient {
      * ticket. Loopback mode: refresh the dashboard token and return it.
      * Returns null when a ticket could not be obtained.
      */
-    internal fun mintWsTicket(): String? {
+    internal suspend fun mintWsTicket(): String? {
         val isGated =
             try {
                 AuthManager.serverStore.getLatestState().wsAuthParam == "ticket"
@@ -588,7 +642,7 @@ object HermesWsClient {
                 false
             }
         if (!isGated) {
-            DashboardSessionTokenRefresher.refresh()
+            DashboardSessionTokenRefresher.refreshAsync()
             return AuthManager.getToken()
         }
         return requestWsTicket().ticket
@@ -601,7 +655,7 @@ object HermesWsClient {
     )
 
     /** POST /api/auth/ws-ticket (cookie-auth'd via the shared CookieJar) and parse the ticket. */
-    private fun requestWsTicket(): TicketRequestResult {
+    private suspend fun requestWsTicket(): TicketRequestResult {
         try {
             val client = OkHttpProvider.probe
             val request =
@@ -611,16 +665,12 @@ object HermesWsClient {
                     .post("{}".toRequestBody())
                     .build()
 
-            // Run the ENTIRE call on Dispatchers.IO — execute() already hops,
-            // but ResponseBody.string() reads the socket on the CALLING
-            // thread. When the caller is main (kanban events connect), that
-            // read throws NetworkOnMainThreadException and the mint fails.
             val (code, body) =
-                kotlinx.coroutines.runBlocking(Dispatchers.IO) {
+                withContext(Dispatchers.IO) {
                     if (CookieManager.isInitialized()) {
                         CookieManager.useStore(CookieManager.cookieJar.currentServer())
                     }
-                    client.newCall(request).execute().use { resp ->
+                    client.newCall(request).await().use { resp ->
                         resp.code to resp.body.string()
                     }
                 }
@@ -682,7 +732,9 @@ object HermesWsClient {
             webSocket?.close(1000, "Client closed")
             webSocket = null
             closingSocket = null
+            capabilityRequestIds.clear()
             if (clearPendingMessages) {
+                backgroundConnectionLease.set(false)
                 messageQueue.clear()
                 queuedMessagesById.clear()
                 pendingPromptSubmits.clear()
@@ -869,6 +921,13 @@ object HermesWsClient {
         method: String,
         params: Map<String, Any> = emptyMap(),
         onSent: ((String) -> Unit)? = null,
+    ): String = send(method, params, onSent, true)
+
+    private fun send(
+        method: String,
+        params: Map<String, Any>,
+        onSent: ((String) -> Unit)?,
+        queueIfDisconnected: Boolean,
     ): String {
         val id = requestId.incrementAndGet().toString()
         val decoratedParams = WsProfileParams.decorate(method, params)
@@ -888,13 +947,15 @@ object HermesWsClient {
                 pendingPromptSubmits.add(id)
                 pendingReply = true
             }
-            onSent?.invoke(id)
             val ws = webSocket
             if (ws != null && connected.get()) {
                 // Never replay send(true): the server may have executed it even if its response is lost.
-                if (!ws.send(json)) {
+                if (ws.send(json)) {
+                    onSent?.invoke(id)
+                } else {
                     if (webSocket !== ws || !acceptQueuedMessages.get()) return@synchronized
-                    if (isRetryableMessage(json)) {
+                    if (queueIfDisconnected && isRetryableMessage(json)) {
+                        onSent?.invoke(id)
                         Log.w(TAG, "WS rejected outgoing message — queuing for reconnect")
                         queueMessage(id, json)
                         recoverRejectedSocket(ws)
@@ -902,8 +963,9 @@ object HermesWsClient {
                         Log.w(TAG, "WS rejected oversized outgoing message — not retrying")
                     }
                 }
-            } else if (acceptQueuedMessages.get()) {
+            } else if (acceptQueuedMessages.get() && queueIfDisconnected) {
                 if (isRetryableMessage(json)) {
+                    onSent?.invoke(id)
                     Log.d(TAG, "WS disconnected — queuing message")
                     queueMessage(id, json)
                     reconnect = true
@@ -1154,22 +1216,24 @@ object HermesWsClient {
                 if (intentionalClose.get()) return
                 connectionGeneration.incrementAndGet()
             }
-        if (!refreshWsTicketIfNeeded(generation)) {
-            Log.w(TAG, "Aborting openSocket: WS ticket refresh failed")
-            return
-        }
-        if (!isCurrentGeneration(generation)) return
-        val url = AuthManager.wsUrl()
-        val safeUrl = url.replace(Regex("token=[^&]+"), "token=REDACTED")
-        if (BuildConfig.DEBUG) Log.d(TAG, "Connecting to $safeUrl")
+        wsScope.launch(Dispatchers.IO) {
+            if (!refreshWsTicketIfNeeded(generation)) {
+                Log.w(TAG, "Aborting openSocket: WS ticket refresh failed")
+                return@launch
+            }
+            if (!isCurrentGeneration(generation)) return@launch
+            val url = AuthManager.wsUrl()
+            val safeUrl = url.replace(Regex("token=[^&]+"), "token=REDACTED")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Connecting to $safeUrl")
 
-        val request = Request.Builder().url(url).build()
-        val newSocket = OkHttpProvider.websocket.newWebSocket(request, WsListenerImpl(generation))
-        synchronized(outboundLock) {
-            if (connectionGeneration.get() == generation && !intentionalClose.get()) {
-                webSocket = newSocket
-            } else {
-                newSocket.cancel()
+            val request = Request.Builder().url(url).build()
+            val newSocket = OkHttpProvider.websocket.newWebSocket(request, WsListenerImpl(generation))
+            synchronized(outboundLock) {
+                if (connectionGeneration.get() == generation && !intentionalClose.get()) {
+                    webSocket = newSocket
+                } else {
+                    newSocket.cancel()
+                }
             }
         }
     }
@@ -1236,6 +1300,26 @@ object HermesWsClient {
         private val generation: Int,
     ) : WebSocketListener() {
         private fun isCurrent(): Boolean = isCurrentGeneration(generation)
+
+        private fun consumeCapabilityResponse(event: WsEvent): Boolean {
+            val id =
+                when (event) {
+                    is WsEvent.RpcResult -> event.id
+                    is WsEvent.RpcError -> event.id
+                    else -> return false
+                }
+            // send() registers capability request IDs via onSent while holding
+            // outboundLock. Take the same lock here so a very fast gateway
+            // response cannot be consumed before its ID has been registered.
+            val isCapabilityResponse =
+                synchronized(outboundLock) {
+                    capabilityRequestIds.remove(id)
+                }
+            if (!isCapabilityResponse) return false
+
+            removeQueuedMessage(id)
+            return true
+        }
 
         override fun onOpen(
             webSocket: WebSocket,
@@ -1316,12 +1400,9 @@ object HermesWsClient {
                     }
 
                     if (rpc.id == null) {
-                        @Suppress("UNCHECKED_CAST")
-                        val params = rpc.params?.toAny() as? Map<String, Any?>
-                        val sid =
-                            (params?.get("session_id") as? String)
-                                ?: ((params?.get("payload") as? Map<*, *>)?.get("session_id") as? String)
-                        val seq = (params?.get("seq") as? Number)?.toInt()
+                        // Issue #1163: inspect scalars, not a throwaway copy of the whole params tree.
+                        val sid = rpc.params?.eventSessionId()
+                        val seq = ((rpc.params?.get("seq") as? JsonPrimitive)?.toAny() as? Number)?.toInt()
 
                         if (!sid.isNullOrBlank() && seq != null) {
                             val prev = lastSeenSeq[sid] ?: 0
@@ -1360,6 +1441,7 @@ object HermesWsClient {
                     Log.e(TAG, "Failed to parse message: ${e.javaClass.simpleName}")
                     WsEvent.Unknown(text)
                 }
+            if (consumeCapabilityResponse(event)) return
             when (event) {
                 is WsEvent.RpcResult -> {
                     synchronized(outboundLock) { pendingPromptSubmits.remove(event.id) }
@@ -1426,6 +1508,7 @@ object HermesWsClient {
                 connected.set(false)
                 ActiveSessionHolder.clear()
                 stopHealthTracking()
+                capabilityRequestIds.clear()
                 if (isTerminalAuthClose(code, reason)) {
                     _connectionStatus.value = ConnectionStatus.AUTH_EXPIRED
                 } else if (_connectionStatus.value != ConnectionStatus.AUTH_EXPIRED) {
@@ -1454,6 +1537,7 @@ object HermesWsClient {
                 connected.set(false)
                 ActiveSessionHolder.clear()
                 stopHealthTracking()
+                capabilityRequestIds.clear()
                 val code = response?.code ?: 0
                 if (code == 401 || code == 4401 || code == 4403 ||
                     t.message?.contains("401") == true ||

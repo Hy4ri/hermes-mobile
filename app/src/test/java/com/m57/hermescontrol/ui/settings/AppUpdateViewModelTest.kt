@@ -18,13 +18,17 @@ import io.mockk.mockkObject
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withContext
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -75,6 +79,8 @@ class AppUpdateViewModelTest {
         every { AuthManager.setLastUpdateCheckTimestamp(any()) } returns Unit
         every { AuthManager.getDismissedUpdateTag() } returns null
         every { AuthManager.setDismissedUpdateTag(any()) } returns Unit
+        every { AuthManager.isCheckingReleaseCandidateUpdates() } returns false
+        every { AuthManager.setCheckReleaseCandidateUpdates(any()) } returns Unit
 
         app = mockk(relaxed = true)
         every { app.cacheDir } returns File(System.getProperty("java.io.tmpdir"))
@@ -165,6 +171,21 @@ class AppUpdateViewModelTest {
         }
 
     // ── Manual check ────────────────────────────────────────────────────
+
+    @Test
+    fun checkForUpdate_stableReleasePromptsInstalledRc() =
+        runTest {
+            coEvery { checker.fetchLatestRelease() } returns updateInfo(tag = "v1.25")
+            val vm = AppUpdateViewModel(app, checker, "1.25.rc.1", testDispatcher)
+            advanceUntilIdle()
+
+            vm.checkForUpdate()
+            advanceUntilIdle()
+
+            assertTrue(vm.state.value is AppUpdateState.UpdateAvailable)
+            assertEquals("v1.25", (vm.state.value as AppUpdateState.UpdateAvailable).latestTag)
+            assertEquals(vm.state.value, AppUpdateCache.state.value)
+        }
 
     @Test
     fun checkForUpdate_upToDateWhenSameVersion() =
@@ -332,5 +353,245 @@ class AppUpdateViewModelTest {
             verify(exactly = 1) { AuthManager.setDismissedUpdateTag("v1.22.0") }
             assertTrue(AppUpdateCache.dismissed)
             assertFalse(AppUpdateCache.isDialogVisible)
+        }
+
+    // ── Release candidate channel (opt-in) ──────────────────────────────
+
+    @Test
+    fun init_checkUsesStableChannelByDefault() =
+        runTest {
+            val vm = createViewModel()
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { checker.fetchLatestRelease(false) }
+            coVerify(exactly = 0) { checker.fetchLatestRelease(true) }
+            assertFalse(vm.checkReleaseCandidateUpdates.value)
+        }
+
+    @Test
+    fun init_doesNotAdoptCachedRcOfferOnStableChannel() =
+        runTest {
+            AppUpdateCache.update(
+                AppUpdateState.UpdateAvailable("v1.25.0-rc.3", "https://example.com/rc.apk", 1L),
+            )
+
+            val vm = createViewModel()
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { checker.fetchLatestRelease(false) }
+            assertEquals(
+                AppUpdateState.UpdateAvailable(
+                    "v1.22.0",
+                    "https://example.com/hermes-mobile-v1.22.0.apk",
+                    12345678L,
+                ),
+                vm.state.value,
+            )
+        }
+
+    @Test
+    fun init_adoptsCachedRcOfferWhenOptedIn() =
+        runTest {
+            every { AuthManager.isCheckingReleaseCandidateUpdates() } returns true
+            AppUpdateCache.update(
+                AppUpdateState.UpdateAvailable("v1.25.0-rc.3", "https://example.com/rc.apk", 1L),
+            )
+
+            val vm = createViewModel()
+            advanceUntilIdle()
+
+            coVerify(exactly = 0) { checker.fetchLatestRelease(any()) }
+            assertEquals(
+                AppUpdateState.UpdateAvailable("v1.25.0-rc.3", "https://example.com/rc.apk", 1L),
+                vm.state.value,
+            )
+            assertTrue(vm.checkReleaseCandidateUpdates.value)
+        }
+
+    @Test
+    fun setCheckReleaseCandidateUpdates_persistsAndRechecksOnRcChannel() =
+        runTest {
+            val vm = createViewModel()
+            advanceUntilIdle()
+            coEvery { checker.fetchLatestRelease(true) } returns updateInfo(tag = "v1.25.0-rc.3")
+
+            vm.setCheckReleaseCandidateUpdates(true)
+            advanceUntilIdle()
+
+            assertTrue(vm.checkReleaseCandidateUpdates.value)
+            verify(exactly = 1) { AuthManager.setCheckReleaseCandidateUpdates(true) }
+            coVerify(exactly = 1) { checker.fetchLatestRelease(true) }
+            assertEquals("v1.25.0-rc.3", (vm.state.value as AppUpdateState.UpdateAvailable).latestTag)
+            assertEquals(vm.state.value, AppUpdateCache.state.value)
+        }
+
+    @Test
+    fun setCheckReleaseCandidateUpdates_sameValueDoesNotRecheckOrPersist() =
+        runTest {
+            val vm = createViewModel()
+            advanceUntilIdle()
+
+            vm.setCheckReleaseCandidateUpdates(false)
+            advanceUntilIdle()
+
+            verify(exactly = 0) { AuthManager.setCheckReleaseCandidateUpdates(any()) }
+            coVerify(exactly = 1) { checker.fetchLatestRelease(false) }
+        }
+
+    @Test
+    fun setCheckReleaseCandidateUpdates_offDropsStaleRcBeforeCheckingStable() =
+        runTest {
+            every { AuthManager.isCheckingReleaseCandidateUpdates() } returns true
+            coEvery { checker.fetchLatestRelease(true) } returns updateInfo(tag = "v1.25.0-rc.3")
+
+            val vm = createViewModel()
+            advanceUntilIdle()
+            assertEquals("v1.25.0-rc.3", (vm.state.value as AppUpdateState.UpdateAvailable).latestTag)
+
+            // Back on the stable channel the installed version is current.
+            coEvery { checker.fetchLatestRelease(false) } returns updateInfo(tag = "1.21.0")
+            vm.setCheckReleaseCandidateUpdates(false)
+            advanceUntilIdle()
+
+            assertFalse(vm.checkReleaseCandidateUpdates.value)
+            assertEquals(AppUpdateState.UpToDate("1.21.0"), vm.state.value)
+            assertEquals(AppUpdateState.UpToDate("1.21.0"), AppUpdateCache.state.value)
+            // The RC offer must be gone everywhere, so startUpdate() is a no-op.
+            vm.startUpdate()
+            advanceUntilIdle()
+            coVerify(exactly = 0) { checker.downloadApk(any(), any(), any()) }
+        }
+
+    @Test
+    fun checkForUpdate_afterOptInUsesRcChannel() =
+        runTest {
+            val vm = createViewModel()
+            advanceUntilIdle()
+            coEvery { checker.fetchLatestRelease(true) } returns updateInfo(tag = "v1.25.0-rc.3")
+
+            vm.setCheckReleaseCandidateUpdates(true)
+            advanceUntilIdle()
+            vm.checkForUpdate()
+            advanceUntilIdle()
+
+            coVerify(exactly = 2) { checker.fetchLatestRelease(true) }
+        }
+
+    // ── Channel-switch races ────────────────────────────────────────────
+    //
+    // The real fetch bottoms out in a blocking OkHttp `execute()`, which cannot
+    // be interrupted by coroutine cancellation. `withContext(NonCancellable)`
+    // models that faithfully: the job is cancelled, the call still finishes, and
+    // its result must not be published.
+
+    @Test
+    fun lateRcResultAfterOptOut_neverPublishesRcOrInstalls() =
+        runTest {
+            every { AuthManager.isCheckingReleaseCandidateUpdates() } returns true
+            val rcGate = CompletableDeferred<Unit>()
+            coEvery { checker.fetchLatestRelease(true) } coAnswers {
+                withContext(NonCancellable) { rcGate.await() }
+                updateInfo(tag = "v1.25.0-rc.3")
+            }
+            coEvery { checker.fetchLatestRelease(false) } returns updateInfo(tag = "1.21.0")
+
+            val vm = createViewModel()
+            advanceUntilIdle()
+            assertTrue("RC check must start in flight", vm.state.value is AppUpdateState.Checking)
+
+            // User opts out while the RC check is still mid-request.
+            vm.setCheckReleaseCandidateUpdates(false)
+            // Let the un-interruptible RC request finish AFTER the channel switch.
+            rcGate.complete(Unit)
+            advanceUntilIdle()
+
+            assertFalse(vm.checkReleaseCandidateUpdates.value)
+            assertEquals(AppUpdateState.UpToDate("1.21.0"), vm.state.value)
+            assertEquals(AppUpdateState.UpToDate("1.21.0"), AppUpdateCache.state.value)
+            verify(exactly = 1) { AuthManager.setLastKnownLatestTag("1.21.0") }
+            verify(exactly = 0) { AuthManager.setLastKnownLatestTag("v1.25.0-rc.3") }
+
+            // And the stale RC offer must not be installable.
+            vm.startUpdate()
+            advanceUntilIdle()
+            coVerify(exactly = 0) { checker.downloadApk(any(), any(), any()) }
+        }
+
+    @Test
+    fun cancelledCheck_neverSurfacesAnErrorState() =
+        runTest {
+            val gate = CompletableDeferred<Unit>()
+            coEvery { checker.fetchLatestRelease(false) } coAnswers {
+                gate.await()
+                updateInfo()
+            }
+            coEvery { checker.fetchLatestRelease(true) } returns updateInfo()
+
+            val vm = createViewModel()
+            val seen = mutableListOf<AppUpdateState>()
+            backgroundScope.launch { vm.state.collect { seen += it } }
+            advanceUntilIdle()
+            assertTrue(vm.state.value is AppUpdateState.Checking)
+
+            // Switching channels cancels the in-flight stable check.
+            vm.setCheckReleaseCandidateUpdates(true)
+            advanceUntilIdle()
+
+            // A cancelled check must never be reported as a failed one — not even
+            // momentarily, because the next legitimate result would mask it.
+            assertTrue(
+                "cancellation must not emit an error state: $seen",
+                seen.none { it is AppUpdateState.Error },
+            )
+            assertEquals(
+                AppUpdateState.UpdateAvailable(
+                    "v1.22.0",
+                    "https://example.com/hermes-mobile-v1.22.0.apk",
+                    12345678L,
+                ),
+                vm.state.value,
+            )
+            coVerify(exactly = 1) { checker.fetchLatestRelease(true) }
+        }
+
+    @Test
+    fun startUpdate_refusesCachedRcOfferOnStableChannel() =
+        runTest {
+            coEvery { checker.fetchLatestRelease(false) } returns updateInfo(tag = "1.21.0")
+            val vm = createViewModel()
+            advanceUntilIdle()
+            assertEquals(AppUpdateState.UpToDate("1.21.0"), vm.state.value)
+
+            // A late RC result lands in the shared cache behind this ViewModel's
+            // back while the user is on the stable channel.
+            AppUpdateCache.update(
+                AppUpdateState.UpdateAvailable("v1.25.0-rc.3", "https://example.com/rc.apk", 1L),
+            )
+
+            vm.startUpdate()
+            advanceUntilIdle()
+
+            coVerify(exactly = 0) { checker.downloadApk(any(), any(), any()) }
+            // Refusal clears the stale offer and re-checks instead of dead-ending.
+            assertEquals(AppUpdateState.UpToDate("1.21.0"), vm.state.value)
+            assertEquals(AppUpdateState.UpToDate("1.21.0"), AppUpdateCache.state.value)
+        }
+
+    @Test
+    fun resumeInstallAfterPermission_refusesStaleRcOffer() =
+        runTest {
+            coEvery { checker.fetchLatestRelease(false) } returns updateInfo(tag = "1.21.0")
+            val vm = createViewModel()
+            advanceUntilIdle()
+
+            AppUpdateCache.update(
+                AppUpdateState.UpdateAvailable("v1.25.0-rc.3", "https://example.com/rc.apk", 1L),
+            )
+
+            vm.resumeInstallAfterPermission()
+            advanceUntilIdle()
+
+            coVerify(exactly = 0) { checker.downloadApk(any(), any(), any()) }
+            verify(exactly = 0) { app.startActivity(any()) }
         }
 }

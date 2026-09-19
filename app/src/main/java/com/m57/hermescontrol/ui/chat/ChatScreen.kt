@@ -155,6 +155,7 @@ fun ChatScreen(
     val credentialWarning by HermesWsClient.credentialWarning.collectAsStateWithLifecycle()
     val connectorsViewModel: ChatConnectorsViewModel = viewModel()
     val connectorsState by connectorsViewModel.uiState.collectAsStateWithLifecycle()
+    val actionProgressState by viewModel.actionProgress.state.collectAsStateWithLifecycle()
     // Snapshot-backed search state — read directly so only the scopes that
     // read its fields recompose on search changes (bar, matched bubbles).
     val searchState = viewModel.searchState
@@ -426,6 +427,20 @@ fun ChatScreen(
             context = context,
         )
 
+    val isChatContentReadable =
+        !showReloginDialog &&
+            !state.updateConfirmOpen &&
+            !actionProgressState.visible &&
+            !state.showModelPicker &&
+            state.modelSwitchConfirmMessage == null &&
+            state.sudoPrompt == null &&
+            state.secretPrompt == null &&
+            !(showContextSheet && state.contextBreakdown != null) &&
+            !showSubagentInspectionSheet &&
+            state.btwState == null &&
+            viewingImage == null &&
+            !connectorsState.isVisible
+
     // Lifecycle effects, permissions, session switching, auto-scroll, errors
     ChatLifecycleEffects(
         sessionId = sessionId,
@@ -442,6 +457,7 @@ fun ChatScreen(
         scrollController = scrollController,
         snackbarHostState = snackbarHostState,
         viewModel = viewModel,
+        isOverlayActive = !isChatContentReadable,
     )
 
     HermesScaffold(
@@ -503,22 +519,6 @@ fun ChatScreen(
             }
         },
         actions = {
-            // Search toggle
-            IconButton(onClick = { viewModel.toggleSearch() }) {
-                Icon(
-                    imageVector =
-                        if (searchState.isActive) Icons.Filled.Close else Icons.Filled.Search,
-                    contentDescription =
-                        if (searchState.isActive) {
-                            stringResource(
-                                R.string.chat_action_close_search,
-                            )
-                        } else {
-                            stringResource(R.string.chat_action_search)
-                        },
-                )
-            }
-
             IconButton(onClick = { viewModel.createNewSession() }) {
                 Icon(
                     imageVector = Icons.Filled.Add,
@@ -542,6 +542,33 @@ fun ChatScreen(
                     expanded = showSessionMenu,
                     onDismissRequest = { showSessionMenu = false },
                 ) {
+                    // Chat search lives in this overflow menu (moved from the top bar)
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                stringResource(
+                                    if (searchState.isActive) {
+                                        R.string.chat_action_close_search
+                                    } else {
+                                        R.string.chat_action_search
+                                    },
+                                ),
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector =
+                                    if (searchState.isActive) Icons.Filled.Close else Icons.Filled.Search,
+                                contentDescription = null,
+                            )
+                        },
+                        onClick = {
+                            showSessionMenu = false
+                            viewModel.toggleSearch()
+                        },
+                        modifier = Modifier.testTag("chat_menu_search"),
+                    )
+
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.session_integrations_menu_item)) },
                         leadingIcon = {
@@ -748,15 +775,18 @@ fun ChatScreen(
                 inputFieldValue = inputFieldValue,
                 onInputChange = { inputFieldValue = it },
                 onSend = {
-                    viewModel.sendMessage(inputFieldValue.text)
-                    inputFieldValue = TextFieldValue("")
-                    // Jump to bottom after send (serialized through the controller).
-                    scrollController.jumpToBottom(animated = true)
+                    if (viewModel.sendMessage(inputFieldValue.text)) {
+                        inputFieldValue = TextFieldValue("")
+                        // Jump only after an accepted send. A readiness race keeps the draft intact.
+                        scrollController.jumpToBottom(animated = true)
+                    }
                 },
                 onMicTap = mediaLaunchers.onMicTap,
                 isListening = mediaLaunchers.isListening,
                 isAgentTyping = state.isAgentTyping,
                 isConnected = state.isConnected,
+                isSessionReady = state.isSessionReady,
+                sessionPreparationFailed = state.resumeError != null,
                 commandCatalog = state.commandCatalog,
                 slashUsageCounts = state.slashUsageCounts,
                 pendingAttachments = state.pendingAttachments,
@@ -776,6 +806,7 @@ fun ChatScreen(
                 },
                 // Composer toolbar wiring (PR 1)
                 currentSessionModel = state.currentSessionModel,
+                showModelProvider = state.showModelProvider,
                 reasoningLevel = state.reasoningLevel,
                 onModelTap = { viewModel.openModelPicker() },
                 onReasoningTap = { level -> viewModel.setReasoningLevel(level) },

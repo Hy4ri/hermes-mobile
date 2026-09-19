@@ -5,6 +5,7 @@ import io.mockk.every
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
 import io.mockk.verify
+import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -32,48 +33,66 @@ class DashboardSessionTokenRefresherTest {
     }
 
     @Test
-    fun fetchExtractsInjectedDashboardToken() {
+    fun fetchExtractsInjectedDashboardToken() =
+        runBlocking {
+            server.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody("""<script>window.__HERMES_SESSION_TOKEN__ = "new-token";</script>"""),
+            )
+
+            val token = DashboardSessionTokenRefresher.fetch(server.url("/").toString(), OkHttpClient())
+
+            assertEquals("new-token", token)
+            assertEquals("/", server.takeRequest().path)
+        }
+
+    @Test
+    fun fetchReturnsNullWhenDashboardDoesNotInjectToken() =
+        runBlocking {
+            server.enqueue(MockResponse().setResponseCode(200).setBody("<html></html>"))
+
+            val token = DashboardSessionTokenRefresher.fetch(server.url("/").toString(), OkHttpClient())
+
+            assertNull(token)
+        }
+
+    @Test
+    fun fetchReturnsNullForFailedResponse() =
+        runBlocking {
+            server.enqueue(MockResponse().setResponseCode(500))
+
+            val token = DashboardSessionTokenRefresher.fetch(server.url("/").toString(), OkHttpClient())
+
+            assertNull(token)
+        }
+
+    @Test
+    fun fetchReturnsNullWhenTokenIsBlank() =
+        runBlocking {
+            server.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody("""<script>window.__HERMES_SESSION_TOKEN__ = "";</script>"""),
+            )
+
+            val token = DashboardSessionTokenRefresher.fetch(server.url("/").toString(), OkHttpClient())
+
+            assertNull(token)
+        }
+
+    @Test
+    fun fetchSyncExtractsInjectedDashboardToken() {
         server.enqueue(
             MockResponse()
                 .setResponseCode(200)
-                .setBody("""<script>window.__HERMES_SESSION_TOKEN__ = "new-token";</script>"""),
+                .setBody("""<script>window.__HERMES_SESSION_TOKEN__ = "sync-token";</script>"""),
         )
 
-        val token = DashboardSessionTokenRefresher.fetch(server.url("/").toString(), OkHttpClient())
+        val token = DashboardSessionTokenRefresher.fetchSync(server.url("/").toString(), OkHttpClient())
 
-        assertEquals("new-token", token)
+        assertEquals("sync-token", token)
         assertEquals("/", server.takeRequest().path)
-    }
-
-    @Test
-    fun fetchReturnsNullWhenDashboardDoesNotInjectToken() {
-        server.enqueue(MockResponse().setResponseCode(200).setBody("<html></html>"))
-
-        val token = DashboardSessionTokenRefresher.fetch(server.url("/").toString(), OkHttpClient())
-
-        assertNull(token)
-    }
-
-    @Test
-    fun fetchReturnsNullForFailedResponse() {
-        server.enqueue(MockResponse().setResponseCode(500))
-
-        val token = DashboardSessionTokenRefresher.fetch(server.url("/").toString(), OkHttpClient())
-
-        assertNull(token)
-    }
-
-    @Test
-    fun fetchReturnsNullWhenTokenIsBlank() {
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setBody("""<script>window.__HERMES_SESSION_TOKEN__ = "";</script>"""),
-        )
-
-        val token = DashboardSessionTokenRefresher.fetch(server.url("/").toString(), OkHttpClient())
-
-        assertNull(token)
     }
 
     @Test
@@ -93,6 +112,25 @@ class DashboardSessionTokenRefresherTest {
         assertEquals("mocked-token", token)
         verify { AuthManager.setToken("mocked-token") }
     }
+
+    @Test
+    fun refreshAsyncUpdatesAuthManagerOnSuccess() =
+        runBlocking {
+            mockkObject(AuthManager)
+            every { AuthManager.baseUrl() } returns server.url("/").toString()
+            every { AuthManager.setToken(any()) } returns Unit
+
+            server.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody("""<script>window.__HERMES_SESSION_TOKEN__ = "async-token";</script>"""),
+            )
+
+            val token = DashboardSessionTokenRefresher.refreshAsync()
+
+            assertEquals("async-token", token)
+            verify { AuthManager.setToken("async-token") }
+        }
 
     @Test
     fun refreshReturnsNullOnException() {

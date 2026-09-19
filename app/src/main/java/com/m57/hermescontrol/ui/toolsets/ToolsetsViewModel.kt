@@ -2,6 +2,9 @@ package com.m57.hermescontrol.ui.toolsets
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
+import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.Toolset
 import com.m57.hermescontrol.data.model.ToolsetToggleRequest
 import com.m57.hermescontrol.data.remote.ApiClient
@@ -9,6 +12,7 @@ import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
+import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,8 +34,19 @@ class ToolsetsViewModel :
     private val _uiState = MutableStateFlow(ToolsetsUiState())
     val uiState: StateFlow<ToolsetsUiState> = _uiState.asStateFlow()
 
-    fun loadToolsets() {
-        safeLaunchLoad(
+    private val toolsetsCache = SwrCache<String, List<Toolset>>()
+
+    fun clearScopeOwnedState() {
+        _uiState.update { it.copy(isLoading = false, toolsets = emptyList(), errorMessage = null) }
+    }
+
+    fun loadToolsets(forceRefresh: Boolean = false) {
+        safeLaunchSwrLoad(
+            cache = toolsetsCache,
+            forceRefresh = forceRefresh,
+            onCacheHit = { cached ->
+                _uiState.update { it.copy(isLoading = false, toolsets = cached, errorMessage = null) }
+            },
             apiCall = { safeApiCall { ApiClient.hermesApi.getToolsets() } },
             onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
             onSuccess = { data ->
@@ -51,6 +66,7 @@ class ToolsetsViewModel :
     fun toggleToolset(toolset: Toolset) {
         val originalEnabled = toolset.enabled
         val targetEnabled = !originalEnabled
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
 
         // Optimistic UI update
         _uiState.update { state ->
@@ -67,8 +83,19 @@ class ToolsetsViewModel :
                 withContext(Dispatchers.IO) {
                     safeApiCall { ApiClient.hermesApi.toggleToolset(toolset.name, ToolsetToggleRequest(targetEnabled)) }
                 }
-            if (result is NetworkResult.Failure) {
+            val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+            if (requestScope != null && currentScope != requestScope) return@launch
+            if (result is NetworkResult.Success) {
+                val updated = _uiState.value.toolsets
+                if (requestScope != null) {
+                    toolsetsCache.put(requestScope.scopedKey("default"), updated)
+                }
+            } else if (result is NetworkResult.Failure) {
                 revertToggle(toolset.name, originalEnabled, "Failed to toggle toolset: ${result.error.message}")
+                val reverted = _uiState.value.toolsets
+                if (requestScope != null) {
+                    toolsetsCache.put(requestScope.scopedKey("default"), reverted)
+                }
             }
         }
     }

@@ -207,6 +207,8 @@ internal fun SettingsChatPage(
                 onAssistantMessageTokensChange = viewModel::onAssistantMessageTokensChange,
                 showTokensPerSecond = state.showTokensPerSecond,
                 onTokensPerSecondChange = viewModel::onTokensPerSecondChange,
+                showModelProvider = state.showModelProvider,
+                onShowModelProviderChange = viewModel::onShowModelProviderChange,
             )
         }
     }
@@ -235,6 +237,8 @@ internal fun SettingsBehaviorPage(
             BehaviorSection(
                 autoReconnect = state.autoReconnect,
                 onAutoReconnectChange = viewModel::onAutoReconnectChange,
+                keepConnectedInBackground = state.keepConnectedInBackground,
+                onKeepConnectedInBackgroundChange = viewModel::onKeepConnectedInBackgroundChange,
                 restoreLastSession = state.restoreLastSession,
                 onRestoreLastSessionChange = viewModel::onRestoreLastSessionChange,
             )
@@ -258,6 +262,7 @@ internal fun SettingsAboutPage(
         },
 ) {
     val updateState by viewModel.state.collectAsStateWithLifecycle()
+    val checkReleaseCandidateUpdates by viewModel.checkReleaseCandidateUpdates.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
 
@@ -290,8 +295,10 @@ internal fun SettingsAboutPage(
         ) {
             AboutSection(
                 updateState = updateState,
+                checkReleaseCandidateUpdates = checkReleaseCandidateUpdates,
                 onCheckUpdate = viewModel::checkForUpdate,
                 onStartUpdate = viewModel::startUpdate,
+                onCheckReleaseCandidateUpdatesChange = viewModel::setCheckReleaseCandidateUpdates,
                 onOpenInstallSettings = {
                     val intent =
                         Intent(

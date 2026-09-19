@@ -12,9 +12,12 @@ import com.m57.hermescontrol.data.update.AppUpdateCache
 import com.m57.hermescontrol.data.update.AppUpdateChecker
 import com.m57.hermescontrol.data.update.AppUpdateState
 import com.m57.hermescontrol.data.update.isNewerVersion
+import com.m57.hermescontrol.data.update.isReleaseCandidateVersion
 import com.m57.hermescontrol.data.update.releaseTag
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -42,15 +45,35 @@ class AppUpdateViewModel(
     private val _state = MutableStateFlow<AppUpdateState>(AppUpdateState.Idle)
     val state: StateFlow<AppUpdateState> = _state.asStateFlow()
 
+    private val _checkReleaseCandidateUpdates =
+        MutableStateFlow(AuthManager.isCheckingReleaseCandidateUpdates())
+
+    /** Whether the RC update channel is enabled (issue: RC update toggle). */
+    val checkReleaseCandidateUpdates: StateFlow<Boolean> = _checkReleaseCandidateUpdates.asStateFlow()
+
+    private var checkJob: kotlinx.coroutines.Job? = null
     private var downloadJob: kotlinx.coroutines.Job? = null
     private var lastAvailable: AppUpdateState.UpdateAvailable? = null
 
+    /**
+     * Bumped by every check. The blocking OkHttp call underneath cannot be
+     * interrupted, so a cancelled check may still be running; results are only
+     * published when this token is unchanged (and the channel still matches).
+     */
+    private var checkGeneration = 0
+
     init {
         val cached = AppUpdateCache.state.value
-        if (cached is AppUpdateState.UpdateAvailable) {
+        // An RC offer cached while the RC channel was on must not be adopted
+        // after the user switched back to stable-only.
+        val blocked =
+            !_checkReleaseCandidateUpdates.value &&
+                cached.releaseTag()?.let(::isReleaseCandidateVersion) == true
+        if (blocked) AppUpdateCache.reset()
+        if (cached is AppUpdateState.UpdateAvailable && !blocked) {
             lastAvailable = cached
             _state.value = cached
-        } else if (cached is AppUpdateState.UpToDate) {
+        } else if (cached is AppUpdateState.UpToDate && !blocked) {
             _state.value = cached
         } else {
             checkForUpdate()
@@ -60,56 +83,132 @@ class AppUpdateViewModel(
     /** Manual check from the About row or dialog. */
     fun checkForUpdate() {
         if (_state.value is AppUpdateState.Checking) return
+        runCheck()
+    }
+
+    /**
+     * Opt in/out of release-candidate updates and immediately re-check on the
+     * newly selected channel. Switching back to stable drops any cached RC
+     * offer, and [updateAvailableForInstall] refuses an RC on the stable channel,
+     * so a stale offer can never be installed.
+     */
+    fun setCheckReleaseCandidateUpdates(enabled: Boolean) {
+        if (_checkReleaseCandidateUpdates.value == enabled) return
+        AuthManager.setCheckReleaseCandidateUpdates(enabled)
+        _checkReleaseCandidateUpdates.value = enabled
+        if (!enabled) {
+            lastAvailable = null
+            AppUpdateCache.reset()
+        }
+        // A check already in flight captured the previous channel — cancel it and
+        // bump the generation so a late result can never be published.
+        checkJob?.cancel()
+        runCheck()
+    }
+
+    private fun runCheck() {
+        val generation = ++checkGeneration
+        val includeReleaseCandidates = _checkReleaseCandidateUpdates.value
         _state.value = AppUpdateState.Checking
-        viewModelScope.launch(ioDispatcher) {
-            val now = System.currentTimeMillis()
-            AuthManager.setUpdateCheckDoneForVersion(currentVersion)
-            AuthManager.setLastUpdateCheckTimestamp(now)
-            val result =
-                try {
-                    checker.fetchLatestRelease()
-                } catch (e: IOException) {
-                    _state.value = AppUpdateState.Error(NETWORK_ERROR)
-                    return@launch
-                } catch (e: Exception) {
-                    _state.value = AppUpdateState.Error(GENERIC_CHECK_ERROR)
-                    return@launch
-                }
-            val info =
-                result ?: run {
-                    _state.value = AppUpdateState.Error(NO_RELEASE_ERROR)
-                    return@launch
-                }
-            val apk =
-                info.apkAsset ?: run {
-                    _state.value = AppUpdateState.Error(NO_APK_ERROR)
-                    return@launch
-                }
-            _state.value =
-                if (isNewerVersion(info.tagName, currentVersion)) {
-                    AppUpdateState
-                        .UpdateAvailable(
+        checkJob =
+            viewModelScope.launch(ioDispatcher) {
+                val now = System.currentTimeMillis()
+                AuthManager.setUpdateCheckDoneForVersion(currentVersion)
+                AuthManager.setLastUpdateCheckTimestamp(now)
+                val result =
+                    try {
+                        checker.fetchLatestRelease(includeReleaseCandidates)
+                    } catch (e: CancellationException) {
+                        // Cancellation is control flow — it must never be reported
+                        // as a failed check.
+                        throw e
+                    } catch (e: IOException) {
+                        if (isCurrentCheck(generation, includeReleaseCandidates)) {
+                            _state.value = AppUpdateState.Error(NETWORK_ERROR)
+                        }
+                        return@launch
+                    } catch (e: Exception) {
+                        if (isCurrentCheck(generation, includeReleaseCandidates)) {
+                            _state.value = AppUpdateState.Error(GENERIC_CHECK_ERROR)
+                        }
+                        return@launch
+                    }
+
+                // The OkHttp call underneath blocks and cannot be interrupted, so a
+                // newer check — or a channel switch — may have happened while it ran.
+                ensureActive()
+                if (!isCurrentCheck(generation, includeReleaseCandidates)) return@launch
+
+                val info =
+                    result ?: run {
+                        _state.value = AppUpdateState.Error(NO_RELEASE_ERROR)
+                        return@launch
+                    }
+                val apk =
+                    info.apkAsset ?: run {
+                        _state.value = AppUpdateState.Error(NO_APK_ERROR)
+                        return@launch
+                    }
+                val state =
+                    if (isNewerVersion(info.tagName, currentVersion)) {
+                        AppUpdateState.UpdateAvailable(
                             latestTag = info.tagName,
                             apkUrl = apk.browserDownloadUrl,
                             sizeBytes = apk.size,
                             releaseNotes = info.body,
-                        ).also { lastAvailable = it }
-                } else {
-                    AppUpdateState.UpToDate(latestTag = info.tagName)
-                }
-            // Keep the launch notice (issue #890) in sync with manual checks.
-            AppUpdateCache.update(_state.value)
-            _state.value.releaseTag()?.let { AuthManager.setLastKnownLatestTag(it) }
-        }
+                        )
+                    } else {
+                        AppUpdateState.UpToDate(latestTag = info.tagName)
+                    }
+                // Fail closed: a release-candidate result is never published once
+                // the RC channel is off, however it reached this point.
+                if (!isAdmissibleOnCurrentChannel(state.releaseTag())) return@launch
+                if (state is AppUpdateState.UpdateAvailable) lastAvailable = state
+                _state.value = state
+                // Keep the launch notice (issue #890) in sync with manual checks.
+                AppUpdateCache.update(state)
+                state.releaseTag()?.let { AuthManager.setLastKnownLatestTag(it) }
+            }
     }
 
-    /** Download the release APK and launch the system installer. */
-    fun startUpdate() {
+    /**
+     * True when [generation] is still the newest check *and* the channel that
+     * check was started for is still the selected one.
+     */
+    private fun isCurrentCheck(
+        generation: Int,
+        includeReleaseCandidates: Boolean,
+    ): Boolean = generation == checkGeneration && includeReleaseCandidates == _checkReleaseCandidateUpdates.value
+
+    /** A release-candidate tag may only be used while the RC channel is on. */
+    private fun isAdmissibleOnCurrentChannel(tag: String?): Boolean =
+        tag == null || !isReleaseCandidateVersion(tag) || _checkReleaseCandidateUpdates.value
+
+    /**
+     * The update this ViewModel may install right now, or null.
+     *
+     * Fails closed: a release-candidate offer is refused while the RC channel is
+     * off, however it reached held state. A refusal drops the stale offer and
+     * re-checks on the current channel instead of dead-ending.
+     */
+    private fun updateAvailableForInstall(): AppUpdateState.UpdateAvailable? {
         val available =
             (_state.value as? AppUpdateState.UpdateAvailable)
                 ?: lastAvailable
                 ?: (AppUpdateCache.state.value as? AppUpdateState.UpdateAvailable)
-                ?: return
+                ?: return null
+        if (!isAdmissibleOnCurrentChannel(available.latestTag)) {
+            lastAvailable = null
+            AppUpdateCache.reset()
+            checkForUpdate()
+            return null
+        }
+        return available
+    }
+
+    /** Download the release APK and launch the system installer. */
+    fun startUpdate() {
+        val available = updateAvailableForInstall() ?: return
         lastAvailable = available
         if (!canRequestInstalls()) {
             _state.value = AppUpdateState.NeedsUnknownSourcesPermission
@@ -166,10 +265,7 @@ class AppUpdateViewModel(
     fun resumeInstallAfterPermission() {
         if (canRequestInstalls()) {
             val dest = File(getApplication<Application>().cacheDir, APK_FILE_NAME)
-            val available =
-                (_state.value as? AppUpdateState.UpdateAvailable)
-                    ?: lastAvailable
-                    ?: (AppUpdateCache.state.value as? AppUpdateState.UpdateAvailable)
+            val available = updateAvailableForInstall()
             if (dest.exists() && dest.length() > 0 && available != null) {
                 _state.value = AppUpdateState.Installing(available.latestTag)
                 launchInstaller(dest)

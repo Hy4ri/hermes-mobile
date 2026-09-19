@@ -5,6 +5,7 @@ import com.m57.hermescontrol.BuildConfig
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -163,86 +164,89 @@ class KanbanEventsClient {
     ) {
         if (closed || gen != generation) return
 
-        val credential = HermesWsClient.mintWsTicket()
-        if (credential.isNullOrBlank()) {
-            onStatus(KanbanLiveStatus.AUTH_FAILED)
-            return
-        }
+        scope.launch(Dispatchers.IO) {
+            val credential = HermesWsClient.mintWsTicket()
+            if (closed || gen != generation) return@launch
+            if (credential.isNullOrBlank()) {
+                scope.launch { onStatus(KanbanLiveStatus.AUTH_FAILED) }
+                return@launch
+            }
 
-        val rawAuthParam = AuthManager.serverStore.getLatestState().wsAuthParam
-        val authParam = if (rawAuthParam.isBlank()) "token" else rawAuthParam
-        val url =
-            AuthManager.endpointForBuild().webSocketUrl(
-                path = KANBAN_EVENTS_PATH,
-                authParameter = authParam,
-                credential = credential,
-                extraParams = mapOf("since" to cursor.toString(), "board" to board),
-            )
-        val safeUrl = url.replace(Regex("(token|ticket)=[^&]+"), "$1=REDACTED")
-        if (BuildConfig.DEBUG) Log.d(TAG, "Connecting to $safeUrl")
+            val rawAuthParam = AuthManager.serverStore.getLatestState().wsAuthParam
+            val authParam = if (rawAuthParam.isBlank()) "token" else rawAuthParam
+            val url =
+                AuthManager.endpointForBuild().webSocketUrl(
+                    path = KANBAN_EVENTS_PATH,
+                    authParameter = authParam,
+                    credential = credential,
+                    extraParams = mapOf("since" to cursor.toString(), "board" to board),
+                )
+            val safeUrl = url.replace(Regex("(token|ticket)=[^&]+"), "$1=REDACTED")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Connecting to $safeUrl")
 
-        val request = Request.Builder().url(url).build()
-        webSocket =
-            httpClient.newWebSocket(
-                request,
-                object : WebSocketListener() {
-                    override fun onOpen(
-                        webSocket: WebSocket,
-                        response: Response,
-                    ) {
-                        if (closed || gen != generation) return
-                        backoffMs = INITIAL_BACKOFF_MS
-                        scope.launch { onStatus(KanbanLiveStatus.CONNECTED) }
-                    }
-
-                    override fun onMessage(
-                        webSocket: WebSocket,
-                        text: String,
-                    ) {
-                        if (closed || gen != generation) return
-                        val envelope = parseKanbanEventsFrame(text) ?: return
-                        if (envelope.events.isEmpty()) return
-                        envelope.cursor?.let { cursor = it }
-                        scope.launch { onEvents(envelope) }
-                    }
-
-                    override fun onMessage(
-                        webSocket: WebSocket,
-                        bytes: ByteString,
-                    ) = Unit
-
-                    override fun onClosing(
-                        webSocket: WebSocket,
-                        code: Int,
-                        reason: String,
-                    ) {
-                        webSocket.close(code, reason)
-                    }
-
-                    override fun onClosed(
-                        webSocket: WebSocket,
-                        code: Int,
-                        reason: String,
-                    ) {
-                        if (closed || gen != generation) return
-                        if (code == WS_1008_POLICY_VIOLATION) {
-                            scope.launch { onStatus(KanbanLiveStatus.AUTH_FAILED) }
-                            return
+            val request = Request.Builder().url(url).build()
+            webSocket =
+                httpClient.newWebSocket(
+                    request,
+                    object : WebSocketListener() {
+                        override fun onOpen(
+                            webSocket: WebSocket,
+                            response: Response,
+                        ) {
+                            if (closed || gen != generation) return
+                            backoffMs = INITIAL_BACKOFF_MS
+                            scope.launch { onStatus(KanbanLiveStatus.CONNECTED) }
                         }
-                        scheduleReconnect(scope, gen, board, onEvents, onStatus)
-                    }
 
-                    override fun onFailure(
-                        webSocket: WebSocket,
-                        t: Throwable,
-                        response: Response?,
-                    ) {
-                        if (closed || gen != generation) return
-                        if (BuildConfig.DEBUG) Log.d(TAG, "Stream failure: ${t.javaClass.simpleName}")
-                        scheduleReconnect(scope, gen, board, onEvents, onStatus)
-                    }
-                },
-            )
+                        override fun onMessage(
+                            webSocket: WebSocket,
+                            text: String,
+                        ) {
+                            if (closed || gen != generation) return
+                            val envelope = parseKanbanEventsFrame(text) ?: return
+                            if (envelope.events.isEmpty()) return
+                            envelope.cursor?.let { cursor = it }
+                            scope.launch { onEvents(envelope) }
+                        }
+
+                        override fun onMessage(
+                            webSocket: WebSocket,
+                            bytes: ByteString,
+                        ) = Unit
+
+                        override fun onClosing(
+                            webSocket: WebSocket,
+                            code: Int,
+                            reason: String,
+                        ) {
+                            webSocket.close(code, reason)
+                        }
+
+                        override fun onClosed(
+                            webSocket: WebSocket,
+                            code: Int,
+                            reason: String,
+                        ) {
+                            if (closed || gen != generation) return
+                            if (code == WS_1008_POLICY_VIOLATION) {
+                                scope.launch { onStatus(KanbanLiveStatus.AUTH_FAILED) }
+                                return
+                            }
+                            scheduleReconnect(scope, gen, board, onEvents, onStatus)
+                        }
+
+                        override fun onFailure(
+                            webSocket: WebSocket,
+                            t: Throwable,
+                            response: Response?,
+                        ) {
+                            if (closed || gen != generation) return
+                            if (BuildConfig.DEBUG) Log.d(TAG, "Stream failure: ${t.javaClass.simpleName}")
+                            scheduleReconnect(scope, gen, board, onEvents, onStatus)
+                        }
+                    },
+                )
+        }
     }
 
     private fun scheduleReconnect(

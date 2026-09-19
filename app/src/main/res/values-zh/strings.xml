@@ -128,6 +128,10 @@
     <string name="screen_files">文件</string>
     <string name="notif_title">Hermes</string>
     <string name="notif_waiting_replies">等待 Hermes 回复</string>
+    <string name="notif_connected_in_background">在后台保持连接</string>
+    <string name="notif_connecting">正在连接…</string>
+    <string name="notif_waiting_network">等待网络连接</string>
+    <string name="notif_reconnecting">正在重新连接</string>
     <string name="notif_new_message">新消息</string>
     <string name="notif_clarification_needed">Hermes 需要确认</string>
     <string name="notif_reply_placeholder">输入回复…</string>
@@ -164,9 +168,12 @@
     <string name="chat_tool_fallback">工具</string>
     <string name="chat_tool_show_raw">显示原始 JSON</string>
     <string name="chat_tool_show_parsed">显示解析输出</string>
+    <string name="chat_tool_format_json">格式化 JSON</string>
+    <string name="chat_tool_compact_json">压缩 JSON</string>
     <string name="content_desc_new_chat">新建对话</string>
     <string name="content_desc_scroll_to_bottom">滚动到底部</string>
     <string name="content_desc_copy">复制</string>
+    <string name="content_desc_copied">已复制</string>
     <string name="content_desc_edit">编辑</string>
     <string name="chat_msg_tokens">%1$s tok</string>
     <string name="chat_msg_tps">%1$s t/s</string>
@@ -174,6 +181,8 @@
     <string name="chat_camera_error">拍照失败</string>
     <string name="settings_sec_connection">连接</string>
     <string name="settings_field_token">认证令牌</string>
+    <string name="settings_keep_connected_in_background_title">在后台保持连接</string>
+    <string name="settings_keep_connected_in_background_desc">在使用其他应用时保持 Hermes 连接。会显示常驻通知，并可能消耗更多电量。</string>
     <string name="settings_sec_behavior">行为</string>
     <string name="settings_item_auto_reconnect">自动重连</string>
     <string name="settings_desc_auto_reconnect">断开后自动重新连接</string>
@@ -189,6 +198,8 @@
     <string name="settings_item_user_message_tokens">用户消息令牌</string>
     <string name="settings_item_assistant_message_tokens">助手消息令牌</string>
     <string name="settings_item_tokens_per_second">每秒令牌数 (TPS)</string>
+    <string name="settings_item_show_model_provider">显示提供商名称</string>
+    <string name="settings_desc_show_model_provider">在聊天输入栏的模型名称前显示提供商。</string>
     <string name="chat_agent_status_typing">助手正在输入</string>
     <string name="chat_agent_status_thinking">正在思考…</string>
     <string name="chat_agent_status_searching">正在搜索…</string>
@@ -233,6 +244,8 @@
     <string name="settings_about_update_allow_sources">允许安装来自此来源的应用</string>
     <string name="settings_about_update_open_settings">打开设置</string>
     <string name="settings_about_update_retry">重试</string>
+    <string name="settings_about_rc_updates_title">检查候选版本更新</string>
+    <string name="settings_about_rc_updates_desc">安装预发布候选版本 (RC)。稳定性可能较低。</string>
     <string name="settings_summary_profiles">已保存 %1$d 个</string>
     <string name="settings_summary_typing_on">打字效果已开启</string>
     <string name="settings_summary_typing_off">打字效果已关闭</string>
@@ -1156,6 +1169,7 @@
     <string name="landing_title">Hermes Mobile</string>
     <string name="landing_subtitle">Hermes Agent 控制面板</string>
     <string name="landing_action_auth_login">认证登录</string>
+    <string name="auth_init_failed">应用设置初始化失败</string>
     <string name="providers_empty_title">没有 OAuth 提供商</string>
     <string name="providers_empty_desc">已配置的 OAuth 提供商将显示在这里。连接账户即可在应用中使用。</string>
     <string name="providers_action_connect">连接</string>
@@ -1427,4 +1441,26 @@
     <string name="session_integrations_retry">重试</string>
     <string name="session_integrations_close">关闭</string>
     <string name="session_integrations_menu_item">会话集成</string>
+
+    <!-- Media Player -->
+    <string name="media_player_play">播放</string>
+    <string name="media_player_pause">暂停</string>
+    <string name="media_player_replay">重播</string>
+    <string name="media_player_retry">重试</string>
+    <string name="media_player_audio">音频</string>
+    <string name="media_player_video">视频</string>
+    <string name="media_player_close">关闭</string>
+    <string name="media_player_save">保存到设备</string>
+    <string name="media_player_share">分享</string>
+    <string name="media_player_share_title">分享媒体</string>
+    <string name="media_player_saved">媒体已保存</string>
+    <string name="media_player_save_failed">无法保存媒体</string>
+    <string name="media_player_load_failed">无法加载媒体: %1$s</string>
+    <string name="media_player_share_failed">无法分享媒体</string>
+    <string name="media_player_buffering">正在加载…</string>
+    <string name="media_player_seek">跳转进度</string>
+    <string name="media_player_play_audio">播放音频</string>
+    <string name="media_player_play_video">播放视频</string>
+    <string name="chat_session_preparing">正在准备会话…</string>
+    <string name="chat_session_not_ready">会话未就绪，请重试以继续</string>
 </resources>

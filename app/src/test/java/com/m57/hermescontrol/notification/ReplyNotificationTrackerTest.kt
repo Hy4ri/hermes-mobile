@@ -60,22 +60,22 @@ class ReplyNotificationTrackerTest {
                 textSnippet = "Answer text",
             )
 
-        assertTrue(target.matches("prof-1", "sess-123", "comp-456", null))
+        assertTrue(target.matches("prof-1", "sess-123", "comp-456"))
         // Scoped target rejects blank or null scope
-        assertFalse(target.matches("", "sess-123", "comp-456", null))
-        assertFalse(target.matches(null, "sess-123", "comp-456", null))
+        assertFalse(target.matches("", "sess-123", "comp-456"))
+        assertFalse(target.matches(null, "sess-123", "comp-456"))
 
         // Target with blank scope matches unspecified scope
         val unscopedTarget = target.copy(scopeId = "")
-        assertTrue(unscopedTarget.matches("", "sess-123", "comp-456", null))
-        assertTrue(unscopedTarget.matches(null, "sess-123", "comp-456", null))
+        assertTrue(unscopedTarget.matches("", "sess-123", "comp-456"))
+        assertTrue(unscopedTarget.matches(null, "sess-123", "comp-456"))
 
         // Wrong session fails
-        assertFalse(target.matches("prof-1", "other-sess", "comp-456", null))
+        assertFalse(target.matches("prof-1", "other-sess", "comp-456"))
         // Wrong scope fails
-        assertFalse(target.matches("prof-2", "sess-123", "comp-456", null))
+        assertFalse(target.matches("prof-2", "sess-123", "comp-456"))
         // Wrong completionId fails
-        assertFalse(target.matches("prof-1", "sess-123", "other-comp", null))
+        assertFalse(target.matches("prof-1", "sess-123", "other-comp"))
     }
 
     @Test
@@ -94,7 +94,6 @@ class ReplyNotificationTrackerTest {
                 candidateScopeId = "prof-1",
                 candidateSessionId = "sess-123",
                 candidateCompletionId = "comp-456",
-                candidateContent = "Here is the full summary of the changes",
             ),
         )
 
@@ -104,7 +103,6 @@ class ReplyNotificationTrackerTest {
                 candidateScopeId = "prof-1",
                 candidateSessionId = "sess-123",
                 candidateCompletionId = null,
-                candidateContent = "Here is the full summary of the changes",
             ),
         )
 
@@ -114,7 +112,6 @@ class ReplyNotificationTrackerTest {
                 candidateScopeId = "prof-1",
                 candidateSessionId = "sess-123",
                 candidateCompletionId = "other-comp",
-                candidateContent = "Here is the full summary of the changes",
             ),
         )
     }
@@ -150,7 +147,6 @@ class ReplyNotificationTrackerTest {
                 scopeId = "prof-1",
                 sessionId = "sess-123",
                 completionId = "comp-456",
-                content = "Reply text",
             )
 
         assertTrue(cancelled)
@@ -174,7 +170,6 @@ class ReplyNotificationTrackerTest {
                 scopeId = "prof-1",
                 sessionId = "different-session",
                 completionId = "comp-456",
-                content = "Reply text",
             )
 
         assertFalse(cancelled)
@@ -250,7 +245,6 @@ class ReplyNotificationTrackerTest {
                 scopeId = "prof-recovered",
                 sessionId = "sess-recovered",
                 completionId = "comp-recovered",
-                content = "recovered snippet",
             )
 
         assertTrue(cancelled)

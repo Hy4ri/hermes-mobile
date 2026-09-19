@@ -96,7 +96,6 @@ class ChatReadNotificationIntegrationTest {
                     scopeId = scopeId,
                     sessionId = sessionId,
                     completionId = msg.completionId,
-                    content = msg.content,
                 )
             ) {
                 wasCancelled = true
@@ -158,7 +157,6 @@ class ChatReadNotificationIntegrationTest {
                     scopeId = scopeId,
                     sessionId = sessionId,
                     completionId = msg.completionId,
-                    content = msg.content,
                 )
             ) {
                 wasCancelledWhenScrolledUp = true
@@ -186,7 +184,6 @@ class ChatReadNotificationIntegrationTest {
                     scopeId = scopeId,
                     sessionId = sessionId,
                     completionId = msg.completionId,
-                    content = msg.content,
                 )
             ) {
                 wasCancelledWhenScrolledDown = true
@@ -235,7 +232,6 @@ class ChatReadNotificationIntegrationTest {
                     scopeId = scopeId,
                     sessionId = "different-session-id",
                     completionId = msg.completionId,
-                    content = msg.content,
                 )
             ) {
                 wasCancelled = true
@@ -288,7 +284,6 @@ class ChatReadNotificationIntegrationTest {
                     scopeId = scopeId,
                     sessionId = sessionId,
                     completionId = msg.completionId,
-                    content = msg.content,
                 )
             ) {
                 wasCancelled = true

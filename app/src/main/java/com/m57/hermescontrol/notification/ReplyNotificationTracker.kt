@@ -207,8 +207,6 @@ object ReplyNotificationTracker {
         scopeId: String?,
         sessionId: String?,
         completionId: String?,
-        content: String?,
-        timestamp: Long? = null,
     ): Boolean {
         if (sessionId.isNullOrBlank()) return false
         val target = resolveTarget(context) ?: return false

@@ -97,7 +97,6 @@ class ReadNotificationReviewRegressionTest {
                 "default",
                 "session",
                 old.completionId,
-                old.content,
             )
         assertFalse("Old text incorrectly acknowledged the new reply", cancelled)
         verify(exactly = 0) { manager.cancel(any()) }
@@ -186,7 +185,7 @@ class ReadNotificationReviewRegressionTest {
         ReplyNotificationTracker.activeNotificationProvider = {
             ActiveReplyInfo(2, null, null, null, null, null, 0L, 1L)
         }
-        assertFalse(ReplyNotificationTracker.onMessageVisible(context, "default", "session", "new-completion", "Done"))
+        assertFalse(ReplyNotificationTracker.onMessageVisible(context, "default", "session", "new-completion"))
         verify(exactly = 0) { manager.cancel(any()) }
     }
 
@@ -234,7 +233,7 @@ class ReadNotificationReviewRegressionTest {
             snapshot
         }
         try {
-            ReplyNotificationTracker.onMessageVisible(context, "default", "session", "new-completion", "Done")
+            ReplyNotificationTracker.onMessageVisible(context, "default", "session", "new-completion")
         } finally {
             allowNotify.countDown()
             writer.join(6000)
@@ -287,7 +286,6 @@ class ReadNotificationReviewRegressionTest {
                 "default",
                 "session",
                 "comp-1",
-                "Pending Reply",
             )
         assertTrue("Message visibility should cancel the pending reply target", cancelled)
 
@@ -419,7 +417,7 @@ class ReadNotificationReviewRegressionTest {
         ReplyNotificationTracker.activeNotificationProvider = { activeInfo }
 
         // User views message -> recovers and cancels generation 37
-        val cancelled = ReplyNotificationTracker.onMessageVisible(context, "default", "session", "comp-37", "Reply 37")
+        val cancelled = ReplyNotificationTracker.onMessageVisible(context, "default", "session", "comp-37")
         assertTrue("Generation 37 should be recovered and cancelled", cancelled)
 
         // New reply arrives
@@ -449,7 +447,7 @@ class ReadNotificationReviewRegressionTest {
         ReplyNotificationTracker.activeNotificationProvider = { activeInfo }
 
         // Recover and cancel 37
-        assertTrue(ReplyNotificationTracker.onMessageVisible(context, "default", "session", "comp-37", "Reply 37"))
+        assertTrue(ReplyNotificationTracker.onMessageVisible(context, "default", "session", "comp-37"))
 
         // Post action
         val actionNotif = mockk<Notification>()
@@ -509,8 +507,6 @@ class ReadNotificationReviewRegressionTest {
                 scopeId = "default",
                 sessionId = "session",
                 completionId = mapped[0].completionId,
-                content = mapped[0].content,
-                timestamp = mapped[0].timestamp,
             )
         assertFalse("Viewing older duplicate message must NOT cancel notification", cancelledOld)
         verify(exactly = 0) { manager.cancel(ChatNotificationService.PENDING_NOTIFICATION_ID) }
@@ -522,8 +518,6 @@ class ReadNotificationReviewRegressionTest {
                 scopeId = "default",
                 sessionId = "session",
                 completionId = mapped[1].completionId,
-                content = mapped[1].content,
-                timestamp = mapped[1].timestamp,
             )
         assertTrue("Viewing newest message must cancel notification", cancelledNew)
         verify(exactly = 1) { manager.cancel(ChatNotificationService.PENDING_NOTIFICATION_ID) }
@@ -565,8 +559,6 @@ class ReadNotificationReviewRegressionTest {
                 "default",
                 "session",
                 mapped[0].completionId,
-                mapped[0].content,
-                mapped[0].timestamp,
             ),
         )
         assertTrue(
@@ -575,8 +567,6 @@ class ReadNotificationReviewRegressionTest {
                 "default",
                 "session",
                 mapped[1].completionId,
-                mapped[1].content,
-                mapped[1].timestamp,
             ),
         )
     }
@@ -619,8 +609,6 @@ class ReadNotificationReviewRegressionTest {
                 scopeId = "default",
                 sessionId = "session",
                 completionId = row.completionId,
-                content = row.content,
-                timestamp = row.timestamp,
             )
         assertTrue("Viewing hydrated MEDIA row must dismiss notification", dismissed)
         verify { manager.cancel(ChatNotificationService.PENDING_NOTIFICATION_ID) }
@@ -664,8 +652,6 @@ class ReadNotificationReviewRegressionTest {
                 scopeId = "default",
                 sessionId = "session",
                 completionId = row.completionId,
-                content = row.content,
-                timestamp = row.timestamp,
             )
         assertTrue("Viewing hydrated MEDIA-only row must dismiss notification", dismissed)
         verify { manager.cancel(ChatNotificationService.PENDING_NOTIFICATION_ID) }
@@ -705,8 +691,6 @@ class ReadNotificationReviewRegressionTest {
                 "default",
                 "session",
                 mapped[0].completionId,
-                mapped[0].content,
-                mapped[0].timestamp,
             ),
         )
         assertTrue(
@@ -715,8 +699,6 @@ class ReadNotificationReviewRegressionTest {
                 "default",
                 "session",
                 mapped[1].completionId,
-                mapped[1].content,
-                mapped[1].timestamp,
             ),
         )
     }
@@ -724,6 +706,6 @@ class ReadNotificationReviewRegressionTest {
     @Test
     fun unknownScopeMustNotAcknowledgeScopedReply() {
         val target = ReplyNotificationTarget("other-profile", "session", "completion", 1L, "Done")
-        assertFalse(target.matches(null, "session", "completion", "Done"))
+        assertFalse(target.matches(null, "session", "completion"))
     }
 }

@@ -106,9 +106,7 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
                             dao.upsert(entity)
 
                             val repliedNotification = buildReplyNotification(context)
-                            ReplyNotificationTracker.onNonReplyNotificationPosted()
-                            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                            manager.notify(ChatNotificationService.PENDING_NOTIFICATION_ID, repliedNotification)
+                            ReplyNotificationTracker.postRepliedNotification(context, repliedNotification)
 
                             // The follow-up turn is now pending — keep the
                             // foreground service alive if it retired after the

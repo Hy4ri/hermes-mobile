@@ -57,6 +57,10 @@ internal fun mapServerMessages(
                     else -> MessageRole.ASSISTANT
                 }
             if (r != MessageRole.ASSISTANT) continue
+            val rawContent = m.contentText
+            // Reasoning-only or empty tool placeholder: skip, does not become visible prose
+            if (rawContent.isBlank()) continue
+
             val restId =
                 if (latestPaging) {
                     m.id?.let { "rest-$sessionId-$it" } ?: "rest-$sessionId-${offset + i}"
@@ -64,8 +68,15 @@ internal fun mapServerMessages(
                     "rest-$sessionId-${offset + i}"
                 }
             if (liveByExactId.containsKey(restId)) continue
-            val content = m.contentText.trim()
-            val wsIdx = remainingWs.indexOfLast { it.content.trim() == content }
+
+            val canonicalContent =
+                if (rawContent.contains("MEDIA:")) {
+                    HostMediaExtractor.strip(rawContent).trim()
+                } else {
+                    rawContent.trim()
+                }
+
+            val wsIdx = remainingWs.indexOfLast { it.content.trim() == canonicalContent }
             if (wsIdx >= 0) {
                 remainingWs.removeAt(wsIdx).completionId?.let { compId ->
                     wsCompletionIdByRestIndex[i] = compId
@@ -167,8 +178,8 @@ internal fun mapServerMessages(
         if (role == MessageRole.ASSISTANT && rawContent.contains("MEDIA:")) {
             val items = HostMediaExtractor.extract(rawContent)
             if (items.isNotEmpty()) {
-                val baseUrl = AuthManager.getBaseUrl()
-                val token = AuthManager.getToken().orEmpty()
+                val baseUrl = runCatching { AuthManager.getBaseUrl() }.getOrDefault("http://localhost:8080")
+                val token = runCatching { AuthManager.getToken().orEmpty() }.getOrDefault("")
                 finalContent = HostMediaExtractor.strip(rawContent)
                 attachments =
                     items

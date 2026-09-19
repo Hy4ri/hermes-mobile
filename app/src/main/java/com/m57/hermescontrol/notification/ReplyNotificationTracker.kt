@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.notification
 
+import android.app.Notification
 import android.app.NotificationManager
 import android.content.Context
 import androidx.annotation.VisibleForTesting
@@ -68,7 +69,7 @@ object ReplyNotificationTracker {
     @Volatile
     private var activeTarget: ReplyNotificationTarget? = null
 
-    internal var activeNotificationProvider: (Context) -> ActiveReplyInfo? = { context ->
+    private val defaultActiveNotificationProvider: (Context) -> ActiveReplyInfo? = { context ->
         runCatching {
             val manager =
                 context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
@@ -94,7 +95,78 @@ object ReplyNotificationTracker {
         }.getOrNull()
     }
 
+    internal var activeNotificationProvider: (Context) -> ActiveReplyInfo? = defaultActiveNotificationProvider
+
     fun nextGeneration(): Long = generationCounter.incrementAndGet()
+
+    @Synchronized
+    fun registerPendingReply(
+        scopeId: String,
+        sessionId: String,
+        completionId: String,
+        textSnippet: String,
+        timestamp: Long = System.currentTimeMillis(),
+    ): Long {
+        val generation = generationCounter.incrementAndGet()
+        activeTarget =
+            ReplyNotificationTarget(
+                scopeId = scopeId,
+                sessionId = sessionId,
+                completionId = completionId,
+                generation = generation,
+                textSnippet = textSnippet,
+                timestamp = timestamp,
+            )
+        return generation
+    }
+
+    @Synchronized
+    fun postReplyNotification(
+        context: Context,
+        notification: Notification,
+        generation: Long,
+    ): Boolean {
+        if (generation <= tombstoneGeneration.get()) {
+            return false
+        }
+        val current = activeTarget
+        if (current != null && current.generation > generation) {
+            return false
+        }
+        val manager =
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+                ?: return false
+        manager.notify(ChatNotificationService.PENDING_NOTIFICATION_ID, notification)
+        return true
+    }
+
+    @Synchronized
+    fun postActionNotification(
+        context: Context,
+        notification: Notification,
+    ): Boolean {
+        tombstoneGeneration.set(generationCounter.incrementAndGet())
+        activeTarget = null
+        val manager =
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+                ?: return false
+        manager.notify(ChatNotificationService.PENDING_NOTIFICATION_ID, notification)
+        return true
+    }
+
+    @Synchronized
+    fun postRepliedNotification(
+        context: Context,
+        notification: Notification,
+    ): Boolean {
+        tombstoneGeneration.set(generationCounter.incrementAndGet())
+        activeTarget = null
+        val manager =
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+                ?: return false
+        manager.notify(ChatNotificationService.PENDING_NOTIFICATION_ID, notification)
+        return true
+    }
 
     @Synchronized
     fun onReplyNotificationPosted(
@@ -105,7 +177,7 @@ object ReplyNotificationTracker {
         generation: Long,
         timestamp: Long = System.currentTimeMillis(),
     ) {
-        tombstoneGeneration.set(0L)
+        if (generation <= tombstoneGeneration.get()) return
         activeTarget =
             ReplyNotificationTarget(
                 scopeId = scopeId,
@@ -170,6 +242,7 @@ object ReplyNotificationTracker {
             }
         }
 
+        tombstoneGeneration.updateAndGet { maxOf(it, expectedGeneration) }
         manager.cancel(ChatNotificationService.PENDING_NOTIFICATION_ID)
         activeTarget = null
         return true
@@ -200,7 +273,7 @@ object ReplyNotificationTracker {
         activeTarget = null
         generationCounter.set(0L)
         tombstoneGeneration.set(0L)
-        activeNotificationProvider = { null }
+        activeNotificationProvider = defaultActiveNotificationProvider
     }
 
     @VisibleForTesting

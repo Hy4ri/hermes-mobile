@@ -10,6 +10,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
@@ -93,14 +94,16 @@ fun ChatLifecycleEffects(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    val messageMap = remember(messages) { messages.associateBy { it.id } }
+
     // Auto-dismiss reply notifications when their message is displayed in the viewport
-    LaunchedEffect(lifecycleOwner, currentSessionId, messages, listState, isOverlayActive) {
+    LaunchedEffect(lifecycleOwner, currentSessionId, messageMap, listState, isOverlayActive) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            snapshotFlow {
+            snapshotFlow<List<ChatMessage>> {
                 if (currentSessionId.isNullOrBlank() || isOverlayActive) {
                     emptyList()
                 } else {
-                    ChatReadObserver.findVisibleAssistantMessages(listState.layoutInfo, messages)
+                    ChatReadObserver.findVisibleAssistantMessages(listState.layoutInfo, messageMap)
                 }
             }.distinctUntilChanged()
                 .collect { visibleAssistantMsgs ->

@@ -433,6 +433,8 @@ fun ChatScreen(
             !actionProgressState.visible &&
             !state.showModelPicker &&
             state.modelSwitchConfirmMessage == null &&
+            state.sudoPrompt == null &&
+            state.secretPrompt == null &&
             !(showContextSheet && state.contextBreakdown != null) &&
             !showSubagentInspectionSheet &&
             state.btwState == null &&

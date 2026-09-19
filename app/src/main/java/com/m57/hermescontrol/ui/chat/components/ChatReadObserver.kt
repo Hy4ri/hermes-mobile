@@ -16,14 +16,13 @@ object ChatReadObserver {
      */
     fun findVisibleAssistantMessages(
         layoutInfo: LazyListLayoutInfo,
-        messages: List<ChatMessage>,
+        messageMap: Map<String, ChatMessage>,
     ): List<ChatMessage> {
         val visible = layoutInfo.visibleItemsInfo
-        if (visible.isEmpty() || messages.isEmpty()) return emptyList()
+        if (visible.isEmpty() || messageMap.isEmpty()) return emptyList()
 
         val start = layoutInfo.viewportStartOffset
         val end = layoutInfo.viewportEndOffset
-        val messageMap = messages.associateBy { it.id }
 
         return visible
             .filter { it.offset + it.size > start && it.offset < end }
@@ -42,4 +41,9 @@ object ChatReadObserver {
                 }
             }
     }
+
+    fun findVisibleAssistantMessages(
+        layoutInfo: LazyListLayoutInfo,
+        messages: List<ChatMessage>,
+    ): List<ChatMessage> = findVisibleAssistantMessages(layoutInfo, messages.associateBy { it.id })
 }

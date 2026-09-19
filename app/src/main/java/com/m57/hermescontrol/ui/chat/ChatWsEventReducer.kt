@@ -440,8 +440,7 @@ object ChatWsEventReducer {
                                 it.role == MessageRole.ASSISTANT &&
                                     (streamingState.sealedOrphanIds.contains(it.id) || it.id == streaming?.id)
                             }.takeIf { it >= 0 }
-                            ?: usageState.messages.indexOfLast { it.role == MessageRole.ASSISTANT }
-                    if (lastAssistantIdx >= 0) {
+                    if (lastAssistantIdx != null) {
                         usageState.messages.toMutableList().also { list ->
                             val updated = list[lastAssistantIdx].copy(completionId = event.completionId)
                             list[lastAssistantIdx] = updated

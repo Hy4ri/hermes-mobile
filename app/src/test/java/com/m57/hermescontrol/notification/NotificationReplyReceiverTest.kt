@@ -64,6 +64,7 @@ class NotificationReplyReceiverTest {
     fun setUp() {
         upsertCallCount = 0
         ActiveSessionHolder.clear()
+        ReplyNotificationTracker.resetForTest()
 
         // Mock Android framework statics (same pattern as HermesWsClientTest)
         mockkStatic(android.util.Log::class)
@@ -129,6 +130,7 @@ class NotificationReplyReceiverTest {
     @After
     fun tearDown() {
         ActiveSessionHolder.clear()
+        ReplyNotificationTracker.resetForTest()
         HermesDatabase.setForTest(null)
         unmockkAll()
     }

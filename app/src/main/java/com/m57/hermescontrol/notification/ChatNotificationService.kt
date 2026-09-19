@@ -178,9 +178,17 @@ class ChatNotificationService : Service() {
                 .setAutoCancel(true)
                 .setContentIntent(buildContentIntent(sessionId))
 
+        var replyGeneration: Long? = null
         if (isReplyMessage && !sessionId.isNullOrBlank() && !completionId.isNullOrBlank()) {
             val scopeId = AuthManager.activeProfileId.value.orEmpty()
-            val generation = ReplyNotificationTracker.nextGeneration()
+            val generation =
+                ReplyNotificationTracker.registerPendingReply(
+                    scopeId = scopeId,
+                    sessionId = sessionId,
+                    completionId = completionId,
+                    textSnippet = text,
+                )
+            replyGeneration = generation
             builder.addExtras(
                 android.os.Bundle().apply {
                     putString(ReplyNotificationTracker.EXTRA_NOTIF_KIND, ReplyNotificationTracker.KIND_REPLY)
@@ -191,20 +199,12 @@ class ChatNotificationService : Service() {
                     putLong(ReplyNotificationTracker.EXTRA_GENERATION, generation)
                 },
             )
-            ReplyNotificationTracker.onReplyNotificationPosted(
-                scopeId = scopeId,
-                sessionId = sessionId,
-                completionId = completionId,
-                textSnippet = text,
-                generation = generation,
-            )
         } else {
             builder.addExtras(
                 android.os.Bundle().apply {
                     putString(ReplyNotificationTracker.EXTRA_NOTIF_KIND, ReplyNotificationTracker.KIND_ACTION)
                 },
             )
-            ReplyNotificationTracker.onNonReplyNotificationPosted()
         }
 
         if (!sessionId.isNullOrBlank()) {
@@ -242,8 +242,19 @@ class ChatNotificationService : Service() {
             builder.addAction(action)
         }
 
-        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(PENDING_NOTIFICATION_ID, builder.build())
+        val notification = builder.build()
+        if (replyGeneration != null) {
+            ReplyNotificationTracker.postReplyNotification(
+                context = this,
+                notification = notification,
+                generation = replyGeneration,
+            )
+        } else {
+            ReplyNotificationTracker.postActionNotification(
+                context = this,
+                notification = notification,
+            )
+        }
     }
 
     private fun buildContentIntent(sessionId: String?): PendingIntent {

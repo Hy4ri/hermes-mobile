@@ -3,6 +3,9 @@ package com.m57.hermescontrol.ui.chat
 import android.app.Notification
 import android.app.NotificationManager
 import android.content.Context
+import com.m57.hermescontrol.data.config.ServerStore
+import com.m57.hermescontrol.data.config.ServerStoreState
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.toEntity
 import com.m57.hermescontrol.data.local.toUiModel
 import com.m57.hermescontrol.data.model.SessionMessage
@@ -13,11 +16,16 @@ import com.m57.hermescontrol.notification.ReplyNotificationTarget
 import com.m57.hermescontrol.notification.ReplyNotificationTracker
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
 import io.mockk.verify
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -34,12 +42,19 @@ class ReadNotificationReviewRegressionTest {
         context = mockk(relaxed = true)
         manager = mockk(relaxed = true)
         every { context.getSystemService(Context.NOTIFICATION_SERVICE) } returns manager
+        mockkObject(AuthManager)
+        val mockStore = mockk<ServerStore>(relaxed = true)
+        every { mockStore.getLatestState() } returns ServerStoreState(baseUrl = "http://localhost:8080")
+        every { AuthManager.serverStore } returns mockStore
+        every { AuthManager.getToken() } returns "token"
+        every { AuthManager.activeProfileId } returns MutableStateFlow("default")
         ReplyNotificationTracker.resetForTest()
     }
 
     @After
     fun tearDown() {
         ReplyNotificationTracker.resetForTest()
+        unmockkObject(AuthManager)
     }
 
     private fun postTarget(text: String = "Done") {
@@ -225,6 +240,165 @@ class ReadNotificationReviewRegressionTest {
             writer.join(6000)
         }
         assertEquals("New action notification was cancelled by the old read", "action", actualSlot.get())
+    }
+
+    @Test
+    fun oldReplyRacingNewerActionMustNotPostOrOverwriteAction() {
+        val gen1 = ReplyNotificationTracker.registerPendingReply("default", "session", "comp-1", "Old Reply")
+        val actionNotif = mockk<Notification>()
+        val replyNotif = mockk<Notification>()
+
+        // Action arrives and posts
+        assertTrue(ReplyNotificationTracker.postActionNotification(context, actionNotif))
+        verify(exactly = 1) { manager.notify(ChatNotificationService.PENDING_NOTIFICATION_ID, actionNotif) }
+
+        // Stale reply 1 tries to post after action arrived
+        val posted = ReplyNotificationTracker.postReplyNotification(context, replyNotif, gen1)
+        assertFalse("Stale reply must be rejected after action notification was posted", posted)
+        verify(exactly = 0) { manager.notify(ChatNotificationService.PENDING_NOTIFICATION_ID, replyNotif) }
+        assertNull("Active target must remain null for action", ReplyNotificationTracker.getActiveTarget())
+    }
+
+    @Test
+    fun oldReplyRacingNewerReplyMustNotOverwriteNewerReply() {
+        val gen1 = ReplyNotificationTracker.registerPendingReply("default", "session", "comp-1", "Old Reply")
+        val gen2 = ReplyNotificationTracker.registerPendingReply("default", "session", "comp-2", "New Reply")
+        val replyNotif1 = mockk<Notification>()
+        val replyNotif2 = mockk<Notification>()
+
+        // Gen 2 posts successfully
+        assertTrue(ReplyNotificationTracker.postReplyNotification(context, replyNotif2, gen2))
+        assertEquals("comp-2", ReplyNotificationTracker.getActiveTarget()?.completionId)
+
+        // Stale Gen 1 tries to post
+        assertFalse(ReplyNotificationTracker.postReplyNotification(context, replyNotif1, gen1))
+        assertEquals("comp-2", ReplyNotificationTracker.getActiveTarget()?.completionId)
+    }
+
+    @Test
+    fun readCancelRacingReplyPublicationMustPreventZombieNotification() {
+        val gen1 = ReplyNotificationTracker.registerPendingReply("default", "session", "comp-1", "Pending Reply")
+        val replyNotif = mockk<Notification>()
+
+        // User views message in foreground chat before background service calls postReplyNotification
+        val cancelled =
+            ReplyNotificationTracker.onMessageVisible(
+                context,
+                "default",
+                "session",
+                "comp-1",
+                "Pending Reply",
+            )
+        assertTrue("Message visibility should cancel the pending reply target", cancelled)
+
+        // Delayed background service finally tries to post reply
+        val posted = ReplyNotificationTracker.postReplyNotification(context, replyNotif, gen1)
+        assertFalse("Tombstoned/cancelled generation must not post notification ID 2", posted)
+        verify(exactly = 0) { manager.notify(ChatNotificationService.PENDING_NOTIFICATION_ID, replyNotif) }
+    }
+
+    @Test
+    fun mediaRepliesRetainCompletionIdAcrossRestRehydration() {
+        val live =
+            listOf(
+                ChatMessage(
+                    id = "ws-media",
+                    role = MessageRole.ASSISTANT,
+                    content = "Here is your chart",
+                    completionId = "comp-media-123",
+                ),
+            )
+        val history =
+            listOf(
+                SessionMessage(
+                    id = 1,
+                    role = "assistant",
+                    content = JsonPrimitive("Here is your chart MEDIA:/opt/hermes/chart.png"),
+                ),
+            )
+        val mapped = mapServerMessages("session", history, 0, true, live, isPagingOlder = false)
+        assertEquals("comp-media-123", mapped.single().completionId)
+    }
+
+    @Test
+    fun mediaOnlyReplyRetainsCompletionIdAcrossRestRehydration() {
+        val live =
+            listOf(
+                ChatMessage(
+                    id = "ws-media-only",
+                    role = MessageRole.ASSISTANT,
+                    content = "",
+                    completionId = "comp-media-only",
+                ),
+            )
+        val history =
+            listOf(
+                SessionMessage(
+                    id = 1,
+                    role = "assistant",
+                    content = JsonPrimitive("MEDIA:/opt/hermes/photo.jpg"),
+                ),
+            )
+        val mapped = mapServerMessages("session", history, 0, true, live, isPagingOlder = false)
+        assertEquals("comp-media-only", mapped.single().completionId)
+    }
+
+    @Test
+    fun mediaReplyWithReasoningOnlyRowBeforeItRetainsCompletionId() {
+        val live =
+            listOf(
+                ChatMessage(
+                    id = "ws-media-reasoning",
+                    role = MessageRole.ASSISTANT,
+                    content = "The result",
+                    completionId = "comp-reasoning-media",
+                ),
+            )
+        val history =
+            listOf(
+                SessionMessage(
+                    id = 1,
+                    role = "assistant",
+                    content = JsonPrimitive(""),
+                    reasoning = JsonPrimitive("thinking step"),
+                ),
+                SessionMessage(id = 2, role = "assistant", content = JsonPrimitive("The result MEDIA:/opt/pic.png")),
+            )
+        val mapped = mapServerMessages("session", history, 0, true, live, isPagingOlder = false)
+        assertEquals("comp-reasoning-media", mapped.single().completionId)
+    }
+
+    @Test
+    fun blankMessageCompleteMustNotCorruptHistoricalAssistantMessage() {
+        val oldAssistant =
+            ChatMessage(
+                id = "old-assistant",
+                role = MessageRole.ASSISTANT,
+                content = "Old reply from yesterday",
+                completionId = "old-comp",
+            )
+        val state = ChatUiState(currentSessionId = "session", messages = listOf(oldAssistant))
+        val streaming = StreamingState() // No current streaming message or sealed orphans
+
+        val result =
+            ChatWsEventReducer.reduce(
+                state,
+                streaming,
+                WsEvent.MessageComplete("", "session", completionId = "new-unrelated-completion"),
+                "session",
+            )
+
+        // Historical assistant message must be completely untouched
+        assertEquals(
+            "old-comp",
+            result.state.messages
+                .single()
+                .completionId,
+        )
+        assertFalse(
+            "PersistMessage effect must not be emitted for unrelated historical messages",
+            result.effects.any { it is ReducerEffect.PersistMessage },
+        )
     }
 
     @Test

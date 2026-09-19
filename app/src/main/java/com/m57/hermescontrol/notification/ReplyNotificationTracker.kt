@@ -17,9 +17,7 @@ data class ReplyNotificationTarget(
     fun matches(
         candidateScopeId: String?,
         candidateSessionId: String?,
-        candidateCompletionId: String? = null,
-        candidateContent: String? = null,
-        candidateTimestamp: Long? = null,
+        candidateCompletionId: String?,
     ): Boolean {
         if (scopeId.isNotBlank() && scopeId != candidateScopeId) {
             return false
@@ -214,7 +212,7 @@ object ReplyNotificationTracker {
     ): Boolean {
         if (sessionId.isNullOrBlank()) return false
         val target = resolveTarget(context) ?: return false
-        if (target.matches(scopeId, sessionId, completionId, content, timestamp)) {
+        if (target.matches(scopeId, sessionId, completionId)) {
             return cancelReplyNotification(context, target.generation)
         }
         return false

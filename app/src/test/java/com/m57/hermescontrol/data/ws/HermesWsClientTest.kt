@@ -177,6 +177,51 @@ class HermesWsClientTest {
     }
 
     @Test
+    fun gatewayReadyAdvertisesServerRequestCapability() {
+        val capabilityLatch = CountDownLatch(1)
+        var capabilityFrame: String? = null
+
+        mockWebServer.enqueue(
+            MockResponse().withWebSocketUpgrade(
+                object : WebSocketListener() {
+                    override fun onOpen(
+                        webSocket: WebSocket,
+                        response: okhttp3.Response,
+                    ) {
+                        webSocket.send(
+                            """{"jsonrpc":"2.0","method":"event","params":{"type":"gateway.ready","payload":{}}}""",
+                        )
+                    }
+
+                    override fun onMessage(
+                        webSocket: WebSocket,
+                        text: String,
+                    ) {
+                        val frame = Json.parseToJsonElement(text).jsonObject
+                        if (frame["method"]?.jsonPrimitive?.content == WsMethods.CLIENT_CAPABILITIES) {
+                            capabilityFrame = text
+                            capabilityLatch.countDown()
+                        }
+                    }
+                },
+            ),
+        )
+
+        HermesWsClient.connect()
+
+        assertTrue("Capability advertisement not sent", capabilityLatch.await(5, TimeUnit.SECONDS))
+        val frame = Json.parseToJsonElement(capabilityFrame ?: "{}").jsonObject
+        assertEquals(WsMethods.CLIENT_CAPABILITIES, frame["method"]?.jsonPrimitive?.content)
+        assertTrue(
+            frame["params"]
+                ?.jsonObject
+                ?.get("server_requests")
+                ?.jsonPrimitive
+                ?.content == "true",
+        )
+    }
+
+    @Test
     fun testOpenRequestsReplayUsesTheLiveServerRequestDispatcher() =
         runBlocking {
             mockWebServer.enqueue(

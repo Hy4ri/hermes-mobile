@@ -23,6 +23,8 @@ import com.m57.hermescontrol.ui.settings.SectionCard
 internal fun BehaviorSection(
     autoReconnect: Boolean,
     onAutoReconnectChange: (Boolean) -> Unit,
+    keepConnectedInBackground: Boolean,
+    onKeepConnectedInBackgroundChange: (Boolean) -> Unit,
     restoreLastSession: Boolean,
     onRestoreLastSessionChange: (Boolean) -> Unit,
 ) {
@@ -48,6 +50,39 @@ internal fun BehaviorSection(
             Switch(
                 checked = autoReconnect,
                 onCheckedChange = onAutoReconnectChange,
+                colors =
+                    SwitchDefaults.colors(
+                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
+                    ),
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.settings_keep_connected_in_background_title),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    text = stringResource(R.string.settings_keep_connected_in_background_desc),
+                    style =
+                        MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        ),
+                )
+            }
+            Switch(
+                checked = keepConnectedInBackground,
+                onCheckedChange = onKeepConnectedInBackgroundChange,
                 colors =
                     SwitchDefaults.colors(
                         checkedThumbColor = MaterialTheme.colorScheme.primary,

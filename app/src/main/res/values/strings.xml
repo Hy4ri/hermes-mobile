@@ -143,6 +143,9 @@
     <!-- Notifications -->
     <string name="notif_title">Hermes</string>
     <string name="notif_waiting_replies">Waiting for Hermes replies</string>
+    <string name="notif_connected_in_background">Connected in background</string>
+    <string name="notif_waiting_network">Waiting for network</string>
+    <string name="notif_reconnecting">Reconnecting</string>
     <string name="notif_new_message">New message</string>
     <string name="notif_clarification_needed">Hermes needs a clarification</string>
     <string name="notif_input_needed">Hermes needs your input</string>
@@ -201,6 +204,8 @@
     <!-- Settings Screen -->
     <string name="settings_sec_connection">Connection</string>
     <string name="settings_field_token">Auth Token</string>
+    <string name="settings_keep_connected_in_background_title">Stay connected in background</string>
+    <string name="settings_keep_connected_in_background_desc">Keep Hermes connected while using other apps. Shows an ongoing notification and may use more battery.</string>
     <string name="settings_sec_behavior">Behavior</string>
     <string name="settings_item_auto_reconnect">Auto-Reconnect</string>
     <string name="settings_desc_auto_reconnect">Automatically reconnect on disconnect</string>

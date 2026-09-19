@@ -856,6 +856,12 @@ object AuthManager {
         serverStore.update { it.copy(showModelProvider = shown) }
     }
 
+    fun isKeepConnectedInBackground(): Boolean = serverStore.getLatestState().keepConnectedInBackground
+
+    fun setKeepConnectedInBackground(enabled: Boolean) {
+        serverStore.update { it.copy(keepConnectedInBackground = enabled) }
+    }
+
     // ── Chat Font Scale (issue #1004) ───────────────────────────────────
 
     fun getChatFontScale(): Float = serverStore.getLatestState().chatFontScale

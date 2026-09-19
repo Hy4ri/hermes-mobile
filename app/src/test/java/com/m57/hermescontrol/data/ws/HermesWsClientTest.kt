@@ -18,6 +18,7 @@ import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -220,6 +221,93 @@ class HermesWsClientTest {
                 ?.content == "true",
         )
     }
+
+    @Test
+    fun gatewayReadyCapabilityResponsesAreNotPublished() =
+        runBlocking {
+            val capabilityLatch = CountDownLatch(1)
+            val capabilitySuccessLatch = CountDownLatch(1)
+            val ordinaryErrorLatch = CountDownLatch(1)
+            var serverWebSocket: WebSocket? = null
+            var ordinaryRequestId: String? = null
+            val capabilityResponseCount = AtomicInteger(0)
+
+            mockWebServer.enqueue(
+                MockResponse().withWebSocketUpgrade(
+                    object : WebSocketListener() {
+                        override fun onOpen(
+                            webSocket: WebSocket,
+                            response: okhttp3.Response,
+                        ) {
+                            serverWebSocket = webSocket
+                            webSocket.send(
+                                """{"jsonrpc":"2.0","method":"event","params":{"type":"gateway.ready","payload":{}}}""",
+                            )
+                        }
+
+                        override fun onMessage(
+                            webSocket: WebSocket,
+                            text: String,
+                        ) {
+                            val frame = Json.parseToJsonElement(text).jsonObject
+                            val method = frame["method"]?.jsonPrimitive?.content
+                            val id = frame["id"]?.jsonPrimitive?.content ?: return
+                            when (method) {
+                                WsMethods.CLIENT_CAPABILITIES -> {
+                                    if (capabilityResponseCount.getAndIncrement() == 0) {
+                                        webSocket.send(
+                                            """{"jsonrpc":"2.0","id":"$id","error":{"code":-32601,"message":"unknown method: client.capabilities"}}""",
+                                        )
+                                        capabilityLatch.countDown()
+                                    } else {
+                                        webSocket.send(
+                                            """{"jsonrpc":"2.0","id":"$id","result":{"server_requests":["clarify"]}}""",
+                                        )
+                                        capabilitySuccessLatch.countDown()
+                                    }
+                                }
+
+                                "ordinary_method" -> {
+                                    ordinaryRequestId = id
+                                    webSocket.send(
+                                        """{"jsonrpc":"2.0","id":"$id","error":{"code":4000,"message":"ordinary test failure"}}""",
+                                    )
+                                    ordinaryErrorLatch.countDown()
+                                }
+                            }
+                        }
+                    },
+                ),
+            )
+
+            val firstRpcResponse =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    withTimeout(5_000) {
+                        HermesWsClient.events.first { it is WsEvent.RpcError || it is WsEvent.RpcResult }
+                    }
+                }
+
+            HermesWsClient.connect()
+
+            assertTrue("Capability request not rejected", capabilityLatch.await(5, TimeUnit.SECONDS))
+            assertTrue(
+                "Second gateway.ready was not sent",
+                serverWebSocket?.send(
+                    """{"jsonrpc":"2.0","method":"event","params":{"type":"gateway.ready","payload":{}}}""",
+                ) == true,
+            )
+            assertTrue("Capability success was not received", capabilitySuccessLatch.await(5, TimeUnit.SECONDS))
+            val sentOrdinaryRequestId = HermesWsClient.send("ordinary_method")
+            assertTrue("Ordinary request not rejected", ordinaryErrorLatch.await(5, TimeUnit.SECONDS))
+
+            val publishedEvent = firstRpcResponse.await()
+            assertTrue("Capability response leaked into the event stream", publishedEvent is WsEvent.RpcError)
+            val publishedError = publishedEvent as WsEvent.RpcError
+            assertEquals(sentOrdinaryRequestId, publishedError.id)
+            assertEquals(ordinaryRequestId, publishedError.id)
+            assertEquals(4000, publishedError.error.code)
+            assertEquals("ordinary test failure", publishedError.error.message)
+        }
 
     @Test
     fun testOpenRequestsReplayUsesTheLiveServerRequestDispatcher() =

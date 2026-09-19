@@ -19,13 +19,13 @@ data class ReplyNotificationTarget(
         candidateCompletionId: String? = null,
         candidateContent: String? = null,
     ): Boolean {
-        if (!candidateScopeId.isNullOrBlank() && scopeId.isNotBlank() && scopeId != candidateScopeId) {
+        if (scopeId.isNotBlank() && scopeId != candidateScopeId) {
             return false
         }
         if (candidateSessionId.isNullOrBlank() || sessionId != candidateSessionId) {
             return false
         }
-        if (!candidateCompletionId.isNullOrBlank() && completionId.isNotBlank()) {
+        if (completionId.isNotBlank()) {
             return candidateCompletionId == completionId
         }
         if (!candidateContent.isNullOrBlank() && textSnippet.isNotBlank()) {
@@ -63,6 +63,7 @@ object ReplyNotificationTracker {
     const val KIND_REPLIED = "replied"
 
     private val generationCounter = AtomicLong(0L)
+    private val tombstoneGeneration = AtomicLong(0L)
 
     @Volatile
     private var activeTarget: ReplyNotificationTarget? = null
@@ -104,6 +105,7 @@ object ReplyNotificationTracker {
         generation: Long,
         timestamp: Long = System.currentTimeMillis(),
     ) {
+        tombstoneGeneration.set(0L)
         activeTarget =
             ReplyNotificationTarget(
                 scopeId = scopeId,
@@ -117,6 +119,7 @@ object ReplyNotificationTracker {
 
     @Synchronized
     fun onNonReplyNotificationPosted() {
+        tombstoneGeneration.set(generationCounter.incrementAndGet())
         activeTarget = null
     }
 
@@ -154,7 +157,11 @@ object ReplyNotificationTracker {
 
         val activeInfo = activeNotificationProvider(context)
         if (activeInfo != null) {
-            if (activeInfo.kind != null && activeInfo.kind != KIND_REPLY) {
+            if (activeInfo.kind != KIND_REPLY) {
+                activeTarget = null
+                return false
+            }
+            if (activeInfo.generation <= tombstoneGeneration.get()) {
                 activeTarget = null
                 return false
             }
@@ -174,6 +181,7 @@ object ReplyNotificationTracker {
 
         val activeInfo = activeNotificationProvider(context) ?: return null
         if (activeInfo.kind != KIND_REPLY) return null
+        if (activeInfo.generation <= tombstoneGeneration.get()) return null
         val sessionId = activeInfo.sessionId.orEmpty()
         if (sessionId.isBlank()) return null
 
@@ -191,6 +199,7 @@ object ReplyNotificationTracker {
     fun resetForTest() {
         activeTarget = null
         generationCounter.set(0L)
+        tombstoneGeneration.set(0L)
         activeNotificationProvider = { null }
     }
 

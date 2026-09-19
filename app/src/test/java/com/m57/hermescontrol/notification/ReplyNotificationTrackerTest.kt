@@ -61,9 +61,14 @@ class ReplyNotificationTrackerTest {
             )
 
         assertTrue(target.matches("prof-1", "sess-123", "comp-456", null))
-        // Blank scope matches if not specified
-        assertTrue(target.matches("", "sess-123", "comp-456", null))
-        assertTrue(target.matches(null, "sess-123", "comp-456", null))
+        // Scoped target rejects blank or null scope
+        assertFalse(target.matches("", "sess-123", "comp-456", null))
+        assertFalse(target.matches(null, "sess-123", "comp-456", null))
+
+        // Target with blank scope matches unspecified scope
+        val unscopedTarget = target.copy(scopeId = "")
+        assertTrue(unscopedTarget.matches("", "sess-123", "comp-456", null))
+        assertTrue(unscopedTarget.matches(null, "sess-123", "comp-456", null))
 
         // Wrong session fails
         assertFalse(target.matches("prof-1", "other-sess", "comp-456", null))
@@ -79,7 +84,7 @@ class ReplyNotificationTrackerTest {
             ReplyNotificationTarget(
                 scopeId = "prof-1",
                 sessionId = "sess-123",
-                completionId = "comp-456",
+                completionId = "",
                 generation = 1L,
                 textSnippet = "Here is the full summary of the changes",
             )

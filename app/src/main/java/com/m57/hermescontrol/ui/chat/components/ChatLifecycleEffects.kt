@@ -44,6 +44,7 @@ fun ChatLifecycleEffects(
     scrollController: ChatScrollController,
     snackbarHostState: SnackbarHostState,
     viewModel: ChatViewModel,
+    isOverlayActive: Boolean = false,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -93,10 +94,10 @@ fun ChatLifecycleEffects(
     }
 
     // Auto-dismiss reply notifications when their message is displayed in the viewport
-    LaunchedEffect(lifecycleOwner, currentSessionId, messages, listState) {
+    LaunchedEffect(lifecycleOwner, currentSessionId, messages, listState, isOverlayActive) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             snapshotFlow {
-                if (currentSessionId.isNullOrBlank()) {
+                if (currentSessionId.isNullOrBlank() || isOverlayActive) {
                     emptyList()
                 } else {
                     ChatReadObserver.findVisibleAssistantMessages(listState.layoutInfo, messages)

@@ -429,8 +429,28 @@ object ChatWsEventReducer {
         // above before this return because the final snapshot is still needed
         // as the next turn's cumulative baseline.
         if (text.isBlank()) {
+            val updatedMessages =
+                if (!event.completionId.isNullOrBlank()) {
+                    val lastAssistantIdx =
+                        usageState.messages
+                            .indexOfLast {
+                                it.role == MessageRole.ASSISTANT &&
+                                    (streamingState.sealedOrphanIds.contains(it.id) || it.id == streaming?.id)
+                            }.takeIf { it >= 0 }
+                            ?: usageState.messages.indexOfLast { it.role == MessageRole.ASSISTANT }
+                    if (lastAssistantIdx >= 0) {
+                        usageState.messages.toMutableList().also { list ->
+                            list[lastAssistantIdx] =
+                                list[lastAssistantIdx].copy(completionId = event.completionId)
+                        }
+                    } else {
+                        usageState.messages
+                    }
+                } else {
+                    usageState.messages
+                }
             return ReducerResult(
-                state = usageState.copy(isAgentTyping = false),
+                state = usageState.copy(messages = updatedMessages, isAgentTyping = false),
                 streamingState = StreamingState(),
             )
         }

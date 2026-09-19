@@ -426,6 +426,13 @@ fun ChatScreen(
             context = context,
         )
 
+    val isOverlayActive =
+        (showContextSheet && state.contextBreakdown != null) ||
+            showSubagentInspectionSheet ||
+            state.btwState != null ||
+            viewingImage != null ||
+            connectorsState.isVisible
+
     // Lifecycle effects, permissions, session switching, auto-scroll, errors
     ChatLifecycleEffects(
         sessionId = sessionId,
@@ -442,6 +449,7 @@ fun ChatScreen(
         scrollController = scrollController,
         snackbarHostState = snackbarHostState,
         viewModel = viewModel,
+        isOverlayActive = isOverlayActive,
     )
 
     HermesScaffold(

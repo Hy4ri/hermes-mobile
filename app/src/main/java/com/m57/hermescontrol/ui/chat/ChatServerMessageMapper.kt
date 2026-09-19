@@ -26,10 +26,11 @@ internal fun mapServerMessages(
             .filter { it.reasoningText.isNotBlank() }
             .associateBy { it.content }
 
-    val existingCompletionIdMap =
+    val liveAssistantQueueByContent =
         liveMessages
             .filter { it.role == MessageRole.ASSISTANT && !it.completionId.isNullOrBlank() }
-            .associateBy { it.content.trim() }
+            .groupBy { it.content.trim() }
+            .mapValues { it.value.toMutableList() }
 
     // Tool rows in the REST transcript carry NO tool name — the live WS
     // stream was the only source of `toolName`. Match each REST tool row
@@ -178,7 +179,12 @@ internal fun mapServerMessages(
 
         val completionId =
             if (role == MessageRole.ASSISTANT) {
-                existingCompletionIdMap[finalContent.trim()]?.completionId
+                val queue = liveAssistantQueueByContent[finalContent.trim()]
+                if (!queue.isNullOrEmpty()) {
+                    queue.removeAt(0).completionId
+                } else {
+                    null
+                }
             } else {
                 null
             }

@@ -37,6 +37,7 @@ fun ChatMessageEntity.toUiModel(): ChatMessage =
         displayKind = displayKind,
         tokenCount = tokenCount,
         tps = tps,
+        completionId = completionId,
     )
 
 fun ChatMessage.toEntity(sessionId: String): ChatMessageEntity =
@@ -54,4 +55,5 @@ fun ChatMessage.toEntity(sessionId: String): ChatMessageEntity =
         displayKind = displayKind,
         tokenCount = tokenCount,
         tps = tps,
+        completionId = completionId,
     )

@@ -46,4 +46,6 @@ data class ChatMessageEntity(
     val tokenCount: Int? = null,
     @ColumnInfo(name = "tps")
     val tps: Double? = null,
+    @ColumnInfo(name = "completion_id")
+    val completionId: String? = null,
 )

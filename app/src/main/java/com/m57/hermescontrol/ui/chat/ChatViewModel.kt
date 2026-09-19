@@ -28,6 +28,8 @@ import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.data.ws.toJsonElement
+import com.m57.hermescontrol.notification.captureTurnBoundary
+import com.m57.hermescontrol.notification.correlationScopeId
 import com.m57.hermescontrol.ui.common.ActionProgressController
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -1879,6 +1881,15 @@ class ChatViewModel(
                         },
                     )
                 } else {
+                    // Arm the durable turn boundary BEFORE prompt.submit leaves
+                    // the device: the REST high-watermark has to be read while
+                    // the reply row cannot exist yet. A failed capture is
+                    // non-fatal — the prompt is still sent, the turn just
+                    // becomes uncorrelatable and its reply notification is never
+                    // auto-dismissed from hydration instead of being bound to a
+                    // guessed row.
+                    prepareTurnCorrelation(storageSessionId)
+                    if (dispatchGeneration != sessionGeneration) return@launch
                     wsClient.sendMessage(
                         agentSessionId,
                         fullText,
@@ -1896,6 +1907,17 @@ class ChatViewModel(
                 preparedAttachments.forEach { it.encodedFile.delete() }
             }
         }
+    }
+
+    /**
+     * Arms the reply-notification turn boundary for a prompt about to be
+     * submitted. Best-effort by design: sending chat never depends on REST
+     * health, so a failed read only makes this turn's reply notification
+     * uncorrelatable — it stays active instead of being dismissed by a guess.
+     */
+    private suspend fun prepareTurnCorrelation(storageSessionId: String?) {
+        if (storageSessionId.isNullOrBlank()) return
+        captureTurnBoundary(scopeId = correlationScopeId(), sessionId = storageSessionId)
     }
 
     private fun captureTurnUsageBaselineIfNeeded() {
@@ -2354,8 +2376,15 @@ class ChatViewModel(
     ) {
         if (text.isBlank()) return
         val sessionId = runtimeSessionId ?: return
+        val storageSessionId = _uiState.value.currentSessionId
         _uiState.update { it.copy(isAgentTyping = true) }
         viewModelScope.launch(ioDispatcher) {
+            // A queued prompt runs behind a turn that is already in flight, so
+            // no clean lower bound exists for it (see /queue). It stays
+            // uncorrelated rather than borrowing the running turn's boundary.
+            if (!queued) {
+                prepareTurnCorrelation(storageSessionId)
+            }
             wsClient.sendMessage(
                 sessionId,
                 text,
@@ -2778,6 +2807,7 @@ class ChatViewModel(
                             serverOffset,
                             latestPaging,
                             _uiState.value.messages,
+                            context = getApplication(),
                         )
                     loadedMessageOffset = serverOffset
                     withContext(ioDispatcher) {
@@ -3211,6 +3241,7 @@ class ChatViewModel(
                             returnedOffset,
                             latestPaging,
                             _uiState.value.messages,
+                            isPagingOlder = true,
                         )
                     loadedMessageOffset = returnedOffset
                     withContext(ioDispatcher) { repo.persistMessages(older, sessionId) }
@@ -3295,6 +3326,7 @@ class ChatViewModel(
                                 nextOffset,
                                 latestPaging,
                                 _uiState.value.messages,
+                                isPagingOlder = true,
                             )
                         if (incoming.isEmpty()) return@launch
                         withContext(ioDispatcher) { repo.persistMessages(incoming, sessionId) }

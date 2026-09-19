@@ -696,6 +696,11 @@ class GroupChatViewModel(
             storedId?.let { inFlightTurns[it] = turnDeferred }
 
             try {
+                // Bot-group turns are orchestrated across per-bot sessions that
+                // are created and swapped mid-flight, so no clean pre-submit
+                // turn boundary can be proven for them. They stay uncorrelated
+                // (reply notifications from group turns are never auto-dismissed
+                // from REST hydration) instead of borrowing another turn's bound.
                 HermesWsClient
                     .request(
                         WsMethods.PROMPT_SUBMIT,

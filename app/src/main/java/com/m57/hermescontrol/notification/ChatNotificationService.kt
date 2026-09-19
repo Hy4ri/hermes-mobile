@@ -370,9 +370,7 @@ object NotificationHelper {
     ) {
         ChatNotificationService.setAppForeground(foreground)
         HermesWsClient.setAppForeground(foreground)
-        if (foreground) {
-            BackgroundConnectionController.default.onAppResume()
-        } else {
+        if (!foreground) {
             BackgroundConnectionController.default.reconcileState()
         }
     }

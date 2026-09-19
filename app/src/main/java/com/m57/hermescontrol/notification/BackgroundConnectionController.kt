@@ -35,7 +35,7 @@ class BackgroundConnectionController(
         fun defaultSnapshot(isDeparting: Boolean = false): BackgroundConnectionSnapshot {
             val isEligible =
                 AuthManager.initializationState.value == AuthManager.InitializationState.Ready &&
-                    !AuthManager.getToken().isNullOrBlank()
+                    (AuthManager.isGatedMode() || !AuthManager.getToken().isNullOrBlank())
             return BackgroundConnectionSnapshot(
                 appInForeground = ChatNotificationService.isAppInForeground(),
                 isDeparting = isDeparting,

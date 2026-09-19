@@ -1,9 +1,16 @@
 package com.m57.hermescontrol.notification
 
 import android.util.Log
+import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.remote.NetworkMonitor
+import com.m57.hermescontrol.data.ws.ConnectionStatus
+import com.m57.hermescontrol.data.ws.HermesWsClient
 import io.mockk.every
+import io.mockk.mockkObject
 import io.mockk.mockkStatic
+import io.mockk.unmockkObject
 import io.mockk.unmockkStatic
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -236,5 +243,67 @@ class BackgroundConnectionControllerTest {
         controller.onReplyCompleted(42L)
 
         assertEquals(42L, completedGeneration)
+    }
+
+    @Test
+    fun testDefaultSnapshot_whenGatedModeWithNullToken_isEligibleForConnection() {
+        mockkObject(AuthManager)
+        mockkObject(ChatNotificationService)
+        mockkObject(HermesWsClient)
+        mockkObject(NetworkMonitor)
+        try {
+            every { AuthManager.initializationState } returns MutableStateFlow(AuthManager.InitializationState.Ready)
+            every { AuthManager.isGatedMode() } returns true
+            every { AuthManager.getToken() } returns null
+            every { AuthManager.isKeepConnectedInBackground() } returns true
+            every { ChatNotificationService.isAppInForeground() } returns false
+            every { HermesWsClient.pendingReply } returns false
+            every { HermesWsClient.isConnected } returns true
+            every { HermesWsClient.connectionStatus } returns MutableStateFlow(ConnectionStatus.CONNECTED)
+            every { NetworkMonitor.isConnected } returns MutableStateFlow(true)
+
+            val snapshot = BackgroundConnectionController.defaultSnapshot()
+            assertTrue(snapshot.isEligibleForConnection)
+
+            val decision = BackgroundConnectionPolicy.evaluate(snapshot)
+            assertTrue(decision.shouldHoldService)
+            assertTrue(decision.shouldHoldPersistentLease)
+        } finally {
+            unmockkObject(AuthManager)
+            unmockkObject(ChatNotificationService)
+            unmockkObject(HermesWsClient)
+            unmockkObject(NetworkMonitor)
+        }
+    }
+
+    @Test
+    fun testDefaultSnapshot_whenNotGatedModeAndNullToken_isNotEligible() {
+        mockkObject(AuthManager)
+        mockkObject(ChatNotificationService)
+        mockkObject(HermesWsClient)
+        mockkObject(NetworkMonitor)
+        try {
+            every { AuthManager.initializationState } returns MutableStateFlow(AuthManager.InitializationState.Ready)
+            every { AuthManager.isGatedMode() } returns false
+            every { AuthManager.getToken() } returns null
+            every { AuthManager.isKeepConnectedInBackground() } returns true
+            every { ChatNotificationService.isAppInForeground() } returns false
+            every { HermesWsClient.pendingReply } returns false
+            every { HermesWsClient.isConnected } returns false
+            every { HermesWsClient.connectionStatus } returns MutableStateFlow(ConnectionStatus.DISCONNECTED)
+            every { NetworkMonitor.isConnected } returns MutableStateFlow(true)
+
+            val snapshot = BackgroundConnectionController.defaultSnapshot()
+            assertFalse(snapshot.isEligibleForConnection)
+
+            val decision = BackgroundConnectionPolicy.evaluate(snapshot)
+            assertFalse(decision.shouldHoldService)
+            assertFalse(decision.shouldHoldPersistentLease)
+        } finally {
+            unmockkObject(AuthManager)
+            unmockkObject(ChatNotificationService)
+            unmockkObject(HermesWsClient)
+            unmockkObject(NetworkMonitor)
+        }
     }
 }

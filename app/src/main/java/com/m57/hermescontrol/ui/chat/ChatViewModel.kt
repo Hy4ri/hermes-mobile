@@ -29,6 +29,7 @@ import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.data.ws.toJsonElement
 import com.m57.hermescontrol.notification.captureTurnBoundary
+import com.m57.hermescontrol.notification.correlationScopeId
 import com.m57.hermescontrol.ui.common.ActionProgressController
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -1915,9 +1916,8 @@ class ChatViewModel(
      * uncorrelatable — it stays active instead of being dismissed by a guess.
      */
     private suspend fun prepareTurnCorrelation(storageSessionId: String?) {
-        val scopeId = AuthManager.activeProfileId.value.orEmpty()
-        if (storageSessionId.isNullOrBlank() || scopeId.isBlank()) return
-        captureTurnBoundary(scopeId = scopeId, sessionId = storageSessionId)
+        if (storageSessionId.isNullOrBlank()) return
+        captureTurnBoundary(scopeId = correlationScopeId(), sessionId = storageSessionId)
     }
 
     private fun captureTurnUsageBaselineIfNeeded() {

@@ -2,6 +2,7 @@ package com.m57.hermescontrol.notification
 
 import android.content.Context
 import androidx.annotation.VisibleForTesting
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.SessionMessage
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
@@ -137,7 +138,9 @@ object TurnCorrelationTracker {
             // degrades to in-memory boundaries.
             val prefsStore = runCatching { PrefsTurnBoundaryStore(context) }.getOrNull() ?: return
             store = prefsStore
-            cache = prune(runCatching { prefsStore.read() }.getOrDefault(emptyList()))
+            val restored = prune(runCatching { prefsStore.read() }.getOrDefault(emptyList()))
+            cache = restored
+            reserveGenerationFloor(restored)
         }
     }
 
@@ -146,7 +149,9 @@ object TurnCorrelationTracker {
     internal fun attachStore(store: TurnBoundaryStore?) {
         synchronized(lock) {
             this.store = store
-            cache = store?.let { prune(it.read()) } ?: emptyList()
+            val restored = store?.let { prune(it.read()) } ?: emptyList()
+            cache = restored
+            reserveGenerationFloor(restored)
         }
     }
 
@@ -217,6 +222,21 @@ object TurnCorrelationTracker {
             .sortedByDescending { it.armedAt }
             .take(MAX_ENTRIES)
 
+    /**
+     * Keeps generations unique across process death.
+     *
+     * The counter lives in memory only, so after a restart a restored boundary
+     * (generation N) and the next armed boundary would both be N — and the
+     * stale-clear guard, which exists precisely to stop an old completion's
+     * clear from removing a newer turn's boundary, would stop protecting
+     * anything. Lifting the counter above the recovered generations keeps the
+     * guard meaningful.
+     */
+    private fun reserveGenerationFloor(restored: List<TurnBoundary>) {
+        val maxRestored = restored.maxOfOrNull { it.generation } ?: 0L
+        generationCounter.updateAndGet { maxOf(it, maxRestored) }
+    }
+
     private fun isFresh(
         boundary: TurnBoundary,
         now: Long,
@@ -234,6 +254,24 @@ object TurnCorrelationTracker {
 
 /** How long the pre-submit boundary read may take before the turn goes uncorrelatable. */
 private const val TURN_BOUNDARY_TIMEOUT_MS = 1_500L
+
+/**
+ * Correlation scope for the active connection profile.
+ *
+ * `AuthManager.activeProfileId` stays null until a server profile is explicitly
+ * selected, and the rest of AuthManager treats that as
+ * [AuthManager.DEFAULT_PROFILE_ID] (see `currentDataScope()`). Collapsing
+ * null/blank here gives this feature ONE scope identity — a raw `.orEmpty()`
+ * would reject the default profile, so a normal install would arm no boundary,
+ * resolve no row, and silently never auto-dismiss a reply notification.
+ *
+ * The arming side (prompt submit), the resolution side (completion), the
+ * notification extras, and the chat viewport observer must ALL use this, or the
+ * two halves disagree on the scope and dismissal stops working.
+ */
+internal fun correlationScopeId(): String =
+    AuthManager.activeProfileId.value?.takeIf { it.isNotBlank() }
+        ?: AuthManager.DEFAULT_PROFILE_ID
 
 /** Rows scanned when correlating a completed turn (newest-first page). */
 private const val TURN_ROW_SCAN_LIMIT = 20
@@ -288,7 +326,12 @@ private suspend fun fetchBoundaryTailId(sessionId: String): Int? {
             )
         }
     val body = (result as? NetworkResult.Success)?.data ?: return null
-    if (body.pagination == null) return null
+    // The whole safety property rests on this single row being the HIGHEST id in
+    // the transcript. Require the gateway to confirm it honoured order=latest
+    // (same proof the chat hydration uses) — a backend that ignores the param
+    // answers with the OLDEST row, and a lower bound that is too low is exactly
+    // what lets a historical duplicate win.
+    if (body.pagination?.order != "latest") return null
     return body.messages.mapNotNull { it.id }.maxOrNull() ?: 0
 }
 

@@ -19,9 +19,9 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import com.m57.hermescontrol.NavigationController
-import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.notification.ReplyNotificationTracker
+import com.m57.hermescontrol.notification.correlationScopeId
 import com.m57.hermescontrol.ui.chat.ChatMessage
 import com.m57.hermescontrol.ui.chat.ChatViewModel
 import com.m57.hermescontrol.ui.chat.ClarifyUi
@@ -107,7 +107,7 @@ fun ChatLifecycleEffects(
                 }
             }.distinctUntilChanged()
                 .collect { visibleAssistantMsgs ->
-                    val scopeId = AuthManager.activeProfileId.value.orEmpty()
+                    val scopeId = correlationScopeId()
                     for (msg in visibleAssistantMsgs) {
                         ReplyNotificationTracker.onMessageVisible(
                             context = context,

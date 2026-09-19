@@ -314,6 +314,40 @@ class TurnCorrelationTrackerTest {
         assertEquals(41, TurnCorrelationTracker.boundaryFor("default", "session")?.beforeMessageId)
     }
 
+    /**
+     * The generation counter is in-memory only, so a restart must lift it above
+     * whatever the restored boundaries already used. Otherwise an old
+     * completion's clear (generation N) matches the NEW boundary (also N) and the
+     * stale-clear guard stops protecting the newer turn.
+     */
+    @Test
+    fun restoredBoundaryGenerationAdvancesTheCounterPastIt() {
+        storedBoundaries =
+            listOf(
+                TurnBoundary(
+                    scopeId = "default",
+                    sessionId = "session",
+                    beforeMessageId = 10,
+                    generation = 37L,
+                    armedAt = System.currentTimeMillis(),
+                ),
+            )
+        TurnCorrelationTracker.resetForTest()
+        TurnCorrelationTracker.attachStore(recordingStore())
+        assertEquals(37L, TurnCorrelationTracker.boundaryFor("default", "session")?.generation)
+
+        val next = TurnCorrelationTracker.armBoundary("default", "session", 25)
+        assertNotNull(next)
+        assertTrue(
+            "A post-restart boundary must not reuse a recovered generation (got ${next?.generation})",
+            (next?.generation ?: 0L) > 37L,
+        )
+
+        // The old completion, still holding generation 37, must not clear it.
+        assertFalse(TurnCorrelationTracker.clearBoundary("default", "session", 37L))
+        assertEquals(25, TurnCorrelationTracker.boundaryFor("default", "session")?.beforeMessageId)
+    }
+
     @Test
     fun reArmingForTheSameSessionReplacesTheBoundary() {
         TurnCorrelationTracker.armBoundary("default", "session", 10)

@@ -13,7 +13,6 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
 import com.m57.hermescontrol.MainActivity
 import com.m57.hermescontrol.R
-import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.HermesWsClient
@@ -199,7 +198,7 @@ class ChatNotificationService : Service() {
         if (sessionId.isNullOrBlank()) return null
         return try {
             correlateCompletedTurnRow(
-                scopeId = AuthManager.activeProfileId.value.orEmpty(),
+                scopeId = correlationScopeId(),
                 sessionId = sessionId,
                 completionText = completionText,
                 resolver = turnRowResolver,
@@ -232,7 +231,7 @@ class ChatNotificationService : Service() {
 
         var replyGeneration: Long? = null
         if (isReplyMessage && !sessionId.isNullOrBlank() && !completionId.isNullOrBlank()) {
-            val scopeId = AuthManager.activeProfileId.value.orEmpty()
+            val scopeId = correlationScopeId()
             val generation =
                 ReplyNotificationTracker.registerPendingReply(
                     scopeId = scopeId,

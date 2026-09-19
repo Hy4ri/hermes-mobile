@@ -5715,6 +5715,90 @@ class ChatViewModelTest {
         }
 
     /**
+     * `AuthManager.activeProfileId` is null until a server profile is explicitly
+     * selected, and the rest of AuthManager treats that as
+     * [AuthManager.DEFAULT_PROFILE_ID]. A raw `.orEmpty()` made the whole feature
+     * a no-op on a normal install: no boundary armed, so no reply notification
+     * could ever be REST-auto-dismissed.
+     */
+    @Test
+    fun sendMessage_nullActiveProfileArmsBoundaryUnderTheDefaultScope() =
+        runTest {
+            TurnCorrelationTracker.resetForTest()
+            every { AuthManager.activeProfileId } returns MutableStateFlow<String?>(null)
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+            every { ApiClient.hermesApi } returns api
+            coEvery { api.getSessionMessages(any(), any(), any(), any(), any(), any()) } answers {
+                retrofit2.Response.success(
+                    SessionMessagesResponse(
+                        messages = listOf(SessionMessage(id = 41, role = "user", content = JsonPrimitive("hi"))),
+                        pagination = PaginationInfo(limit = 1, offset = 0, order = "latest", returned = 1),
+                    ),
+                )
+            }
+            var submits = 0
+            every { HermesWsClient.sendMessage(any(), any(), any(), any()) } answers {
+                submits++
+                reqCount++
+                val id = "req-msg-$reqCount"
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            viewModel.sendMessage("hello there")
+            advanceUntilIdle()
+
+            assertEquals(1, submits)
+            assertEquals(
+                "A default-profile install must still be correlatable",
+                41,
+                TurnCorrelationTracker.boundaryFor(AuthManager.DEFAULT_PROFILE_ID, sessionId)?.beforeMessageId,
+            )
+        }
+
+    /**
+     * `pagination.order` is the only proof the gateway honoured `order=latest`.
+     * A gateway that reports `oldest` answered the `limit=1` probe with the
+     * OLDEST row, and that as a lower bound would sit below the whole transcript
+     * — exactly what lets a historical duplicate win.
+     */
+    @Test
+    fun sendMessage_leavesTurnUncorrelatableWhenGatewayReportsOldestOrder() =
+        runTest {
+            TurnCorrelationTracker.resetForTest()
+            stubActiveProfile()
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+            every { ApiClient.hermesApi } returns api
+            coEvery { api.getSessionMessages(any(), any(), any(), any(), any(), any()) } answers {
+                retrofit2.Response.success(
+                    SessionMessagesResponse(
+                        messages = listOf(SessionMessage(id = 1, role = "user", content = JsonPrimitive("oldest"))),
+                        pagination = PaginationInfo(limit = 1, offset = 0, order = "oldest", returned = 1),
+                    ),
+                )
+            }
+            var submits = 0
+            every { HermesWsClient.sendMessage(any(), any(), any(), any()) } answers {
+                submits++
+                reqCount++
+                val id = "req-msg-$reqCount"
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            viewModel.sendMessage("hello there")
+            advanceUntilIdle()
+
+            assertEquals(1, submits)
+            assertNull(
+                "An unproven row order must not produce a boundary",
+                TurnCorrelationTracker.boundaryFor("default", sessionId),
+            )
+        }
+
+    /**
      * A queued prompt runs behind a turn that is already in flight, so no clean
      * lower bound exists for it — it must not borrow the running turn's boundary.
      */

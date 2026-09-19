@@ -91,7 +91,7 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
                             // own 5s deadline and a failed capture must only
                             // make the reply uncorrelatable, never lose it.
                             captureTurnBoundary(
-                                scopeId = AuthManager.activeProfileId.value.orEmpty(),
+                                scopeId = correlationScopeId(),
                                 sessionId = sessionId,
                                 timeoutMs = BOUNDARY_TIMEOUT_MS,
                             )

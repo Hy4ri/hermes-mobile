@@ -22,6 +22,7 @@ internal fun mapServerMessages(
     latestPaging: Boolean,
     liveMessages: List<ChatMessage>,
     isPagingOlder: Boolean = false,
+    context: android.content.Context? = null,
 ): List<ChatMessage> {
     val existingReasoningMap =
         liveMessages
@@ -45,61 +46,110 @@ internal fun mapServerMessages(
         }
 
     val wsCompletionIdByRestIndex = mutableMapOf<Int, String>()
-    if (unmappedLiveWsAssistants.isNotEmpty()) {
-        val remainingWs = unmappedLiveWsAssistants.toMutableList()
-        for (i in messages.indices.reversed()) {
-            if (remainingWs.isEmpty()) break
-            val m = messages[i]
-            val r =
-                when (m.role?.lowercase()) {
-                    "user" -> MessageRole.USER
-                    "system" -> MessageRole.SYSTEM
-                    "tool" -> MessageRole.TOOL
-                    else -> MessageRole.ASSISTANT
-                }
-            if (r != MessageRole.ASSISTANT) continue
-            val rawContent = m.contentText
-            // Reasoning-only or empty tool placeholder: skip, does not become visible prose
-            if (rawContent.isBlank()) continue
+    if (!isPagingOlder) {
+        if (unmappedLiveWsAssistants.isNotEmpty()) {
+            val remainingWs = unmappedLiveWsAssistants.toMutableList()
+            for (i in messages.indices.reversed()) {
+                if (remainingWs.isEmpty()) break
+                val m = messages[i]
+                val r =
+                    when (m.role?.lowercase()) {
+                        "user" -> MessageRole.USER
+                        "system" -> MessageRole.SYSTEM
+                        "tool" -> MessageRole.TOOL
+                        else -> MessageRole.ASSISTANT
+                    }
+                if (r != MessageRole.ASSISTANT) continue
+                val rawContent = m.contentText
+                // Reasoning-only or empty tool placeholder: skip, does not become visible prose
+                if (rawContent.isBlank() && !rawContent.contains("MEDIA:")) continue
 
-            val restId =
-                if (latestPaging) {
-                    m.id?.let { "rest-$sessionId-$it" } ?: "rest-$sessionId-${offset + i}"
+                val restId =
+                    if (latestPaging) {
+                        m.id?.let { "rest-$sessionId-$it" } ?: "rest-$sessionId-${offset + i}"
+                    } else {
+                        "rest-$sessionId-${offset + i}"
+                    }
+                if (liveByExactId.containsKey(restId)) continue
+
+                val canonicalContent =
+                    if (rawContent.contains("MEDIA:")) {
+                        HostMediaExtractor.strip(rawContent).trim()
+                    } else {
+                        rawContent.trim()
+                    }
+
+                val wsIdx = remainingWs.indexOfLast { it.content.trim() == canonicalContent }
+                if (wsIdx >= 0) {
+                    remainingWs.removeAt(wsIdx).completionId?.let { compId ->
+                        wsCompletionIdByRestIndex[i] = compId
+                    }
+                }
+            }
+        }
+
+        // Cold-start / REST-only active notification target reconciliation (independent of unmappedLiveWsAssistants)
+        val activeTarget = ReplyNotificationTracker.getActiveTarget(context)
+        if (activeTarget != null &&
+            activeTarget.sessionId == sessionId &&
+            activeTarget.completionId.isNotBlank() &&
+            wsCompletionIdByRestIndex.values.none { it == activeTarget.completionId }
+        ) {
+            val targetCanonical =
+                if (activeTarget.textSnippet.contains("MEDIA:")) {
+                    HostMediaExtractor.strip(activeTarget.textSnippet).trim()
                 } else {
-                    "rest-$sessionId-${offset + i}"
-                }
-            if (liveByExactId.containsKey(restId)) continue
-
-            val canonicalContent =
-                if (rawContent.contains("MEDIA:")) {
-                    HostMediaExtractor.strip(rawContent).trim()
-                } else {
-                    rawContent.trim()
+                    activeTarget.textSnippet.trim()
                 }
 
-            val wsIdx = remainingWs.indexOfLast { it.content.trim() == canonicalContent }
-            if (wsIdx >= 0) {
-                remainingWs.removeAt(wsIdx).completionId?.let { compId ->
-                    wsCompletionIdByRestIndex[i] = compId
-                }
-            } else if (!isPagingOlder && wsCompletionIdByRestIndex.isEmpty()) {
-                val activeTarget = ReplyNotificationTracker.getActiveTarget()
-                if (activeTarget != null &&
-                    activeTarget.sessionId == sessionId &&
-                    activeTarget.completionId.isNotBlank() &&
-                    activeTarget.matches(
-                        candidateScopeId = activeTarget.scopeId,
-                        candidateSessionId = sessionId,
-                        candidateCompletionId = null,
-                        candidateContent = canonicalContent,
-                        candidateTimestamp =
-                            m.timestampText
-                                ?.toDoubleOrNull()
-                                ?.times(1000)
-                                ?.toLong(),
-                    )
-                ) {
+            for (i in messages.indices.reversed()) {
+                val m = messages[i]
+                val r =
+                    when (m.role?.lowercase()) {
+                        "user" -> MessageRole.USER
+                        "system" -> MessageRole.SYSTEM
+                        "tool" -> MessageRole.TOOL
+                        else -> MessageRole.ASSISTANT
+                    }
+                if (r != MessageRole.ASSISTANT) continue
+                val rawContent = m.contentText
+                if (rawContent.isBlank() && !rawContent.contains("MEDIA:")) continue
+
+                val restId =
+                    if (latestPaging) {
+                        m.id?.let { "rest-$sessionId-$it" } ?: "rest-$sessionId-${offset + i}"
+                    } else {
+                        "rest-$sessionId-${offset + i}"
+                    }
+                if (liveByExactId.containsKey(restId)) continue
+                if (wsCompletionIdByRestIndex.containsKey(i)) continue
+
+                val canonicalContent =
+                    if (rawContent.contains("MEDIA:")) {
+                        HostMediaExtractor.strip(rawContent).trim()
+                    } else {
+                        rawContent.trim()
+                    }
+
+                val matches =
+                    canonicalContent == targetCanonical ||
+                        (targetCanonical.isNotBlank() && canonicalContent.startsWith(targetCanonical)) ||
+                        (
+                            rawContent.isNotBlank() &&
+                                rawContent.take(100).replace("\n", " ").trim() ==
+                                activeTarget.textSnippet
+                                    .take(100)
+                                    .replace("\n", " ")
+                                    .trim()
+                        ) ||
+                        (
+                            canonicalContent.isBlank() && rawContent.contains("MEDIA:") &&
+                                activeTarget.textSnippet.contains("MEDIA:")
+                        )
+
+                if (matches) {
                     wsCompletionIdByRestIndex[i] = activeTarget.completionId
+                    break // Single newest matching row only!
                 }
             }
         }

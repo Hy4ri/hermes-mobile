@@ -79,12 +79,12 @@ class ReplyNotificationTrackerTest {
     }
 
     @Test
-    fun `matches falls back to content snippet when completionId is null`() {
+    fun `matches requires exact completionId match and rejects null or blank`() {
         val target =
             ReplyNotificationTarget(
                 scopeId = "prof-1",
                 sessionId = "sess-123",
-                completionId = "",
+                completionId = "comp-456",
                 generation = 1L,
                 textSnippet = "Here is the full summary of the changes",
             )
@@ -93,17 +93,28 @@ class ReplyNotificationTrackerTest {
             target.matches(
                 candidateScopeId = "prof-1",
                 candidateSessionId = "sess-123",
-                candidateCompletionId = null,
-                candidateContent = "Here is the full summary of the changes with more text at the end",
+                candidateCompletionId = "comp-456",
+                candidateContent = "Here is the full summary of the changes",
             ),
         )
 
         assertFalse(
+            "Missing candidate completionId must not match target",
             target.matches(
                 candidateScopeId = "prof-1",
                 candidateSessionId = "sess-123",
                 candidateCompletionId = null,
-                candidateContent = "Completely different text",
+                candidateContent = "Here is the full summary of the changes",
+            ),
+        )
+
+        assertFalse(
+            "Different candidate completionId must not match target",
+            target.matches(
+                candidateScopeId = "prof-1",
+                candidateSessionId = "sess-123",
+                candidateCompletionId = "other-comp",
+                candidateContent = "Here is the full summary of the changes",
             ),
         )
     }

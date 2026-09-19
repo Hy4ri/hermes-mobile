@@ -27,29 +27,10 @@ data class ReplyNotificationTarget(
         if (candidateSessionId.isNullOrBlank() || sessionId != candidateSessionId) {
             return false
         }
-        if (!candidateCompletionId.isNullOrBlank()) {
-            return candidateCompletionId == completionId
+        if (candidateCompletionId.isNullOrBlank() || completionId.isBlank()) {
+            return false
         }
-        if (!candidateContent.isNullOrBlank() && textSnippet.isNotBlank()) {
-            val normalizedSnippet = textSnippet.trim()
-            val normalizedCandidate = candidateContent.trim()
-            val matchesText =
-                if (normalizedSnippet.length <= 15) {
-                    normalizedCandidate == normalizedSnippet
-                } else {
-                    normalizedCandidate == normalizedSnippet ||
-                        normalizedCandidate.startsWith(normalizedSnippet) ||
-                        normalizedCandidate.take(100).replace("\n", " ").trim() == normalizedSnippet
-                }
-            if (!matchesText) return false
-            if (candidateTimestamp != null && timestamp > 0L) {
-                if (candidateTimestamp < timestamp - 120_000L) {
-                    return false
-                }
-            }
-            return true
-        }
-        return false
+        return candidateCompletionId == completionId
     }
 }
 
@@ -216,7 +197,11 @@ object ReplyNotificationTracker {
     }
 
     @Synchronized
-    fun getActiveTarget(): ReplyNotificationTarget? = activeTarget
+    fun getActiveTarget(context: Context? = null): ReplyNotificationTarget? {
+        val inMemory = activeTarget
+        if (inMemory != null) return inMemory
+        return if (context != null) resolveTarget(context) else null
+    }
 
     @Synchronized
     fun onMessageVisible(

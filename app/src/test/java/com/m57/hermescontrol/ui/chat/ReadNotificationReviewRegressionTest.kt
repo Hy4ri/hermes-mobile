@@ -464,48 +464,261 @@ class ReadNotificationReviewRegressionTest {
     }
 
     @Test
-    fun backgroundServiceOnlyNotificationDismissesWhenRestTranscriptHydratesWithoutWsMessage() {
+    fun duplicateShortRepliesOnlyNewestDismissesNotification() {
         ReplyNotificationTracker.resetForTest()
         val notifTimestamp = System.currentTimeMillis()
-        val replyText = "Background completed task"
         val activeInfo =
             ActiveReplyInfo(
                 id = ChatNotificationService.PENDING_NOTIFICATION_ID,
                 kind = ReplyNotificationTracker.KIND_REPLY,
                 scopeId = "default",
                 sessionId = "session",
-                completionId = "uuid-bg-only",
-                textSnippet = replyText,
+                completionId = "comp-newest-done",
+                textSnippet = "Done",
                 generation = 5L,
                 timestamp = notifTimestamp,
             )
         ReplyNotificationTracker.activeNotificationProvider = { activeInfo }
 
-        // REST transcript has no completionId, and liveMessages has no WS copy
+        // Two identical "Done" messages in history: one at T-30s, one at T
+        val history =
+            listOf(
+                SessionMessage(
+                    id = 1,
+                    role = "assistant",
+                    content = JsonPrimitive("Done"),
+                    timestamp = JsonPrimitive((notifTimestamp - 30_000L) / 1000.0),
+                ),
+                SessionMessage(
+                    id = 2,
+                    role = "assistant",
+                    content = JsonPrimitive("Done"),
+                    timestamp = JsonPrimitive(notifTimestamp / 1000.0),
+                ),
+            )
+
+        val mapped =
+            mapServerMessages("session", history, 0, true, emptyList(), isPagingOlder = false, context = context)
+        assertEquals("Older message must have null completionId", null, mapped[0].completionId)
+        assertEquals("Newest message must receive target completionId", "comp-newest-done", mapped[1].completionId)
+
+        // Showing ONLY the older Done must NOT cancel the notification
+        val cancelledOld =
+            ReplyNotificationTracker.onMessageVisible(
+                context = context,
+                scopeId = "default",
+                sessionId = "session",
+                completionId = mapped[0].completionId,
+                content = mapped[0].content,
+                timestamp = mapped[0].timestamp,
+            )
+        assertFalse("Viewing older duplicate message must NOT cancel notification", cancelledOld)
+        verify(exactly = 0) { manager.cancel(ChatNotificationService.PENDING_NOTIFICATION_ID) }
+
+        // Showing the newest Done MUST cancel the notification
+        val cancelledNew =
+            ReplyNotificationTracker.onMessageVisible(
+                context = context,
+                scopeId = "default",
+                sessionId = "session",
+                completionId = mapped[1].completionId,
+                content = mapped[1].content,
+                timestamp = mapped[1].timestamp,
+            )
+        assertTrue("Viewing newest message must cancel notification", cancelledNew)
+        verify(exactly = 1) { manager.cancel(ChatNotificationService.PENDING_NOTIFICATION_ID) }
+    }
+
+    @Test
+    fun duplicateLongRepliesSharingPrefixOnlyNewestDismissesNotification() {
+        ReplyNotificationTracker.resetForTest()
+        val notifTimestamp = System.currentTimeMillis()
+        val text1 = "Long response with identical prefix content abcdefghijklmnopqrstuvwxyz 1"
+        val text2 = "Long response with identical prefix content abcdefghijklmnopqrstuvwxyz 2"
+        val activeInfo =
+            ActiveReplyInfo(
+                id = ChatNotificationService.PENDING_NOTIFICATION_ID,
+                kind = ReplyNotificationTracker.KIND_REPLY,
+                scopeId = "default",
+                sessionId = "session",
+                completionId = "comp-long-2",
+                textSnippet = text2.take(100),
+                generation = 5L,
+                timestamp = notifTimestamp,
+            )
+        ReplyNotificationTracker.activeNotificationProvider = { activeInfo }
+
+        val history =
+            listOf(
+                SessionMessage(id = 10, role = "assistant", content = JsonPrimitive(text1)),
+                SessionMessage(id = 20, role = "assistant", content = JsonPrimitive(text2)),
+            )
+
+        val mapped =
+            mapServerMessages("session", history, 0, true, emptyList(), isPagingOlder = false, context = context)
+        assertEquals(null, mapped[0].completionId)
+        assertEquals("comp-long-2", mapped[1].completionId)
+
+        assertFalse(
+            ReplyNotificationTracker.onMessageVisible(
+                context,
+                "default",
+                "session",
+                mapped[0].completionId,
+                mapped[0].content,
+                mapped[0].timestamp,
+            ),
+        )
+        assertTrue(
+            ReplyNotificationTracker.onMessageVisible(
+                context,
+                "default",
+                "session",
+                mapped[1].completionId,
+                mapped[1].content,
+                mapped[1].timestamp,
+            ),
+        )
+    }
+
+    @Test
+    fun mediaReplyColdStartReconcilesTargetAndDismissesOnVisible() {
+        ReplyNotificationTracker.resetForTest()
+        val notifTimestamp = System.currentTimeMillis()
+        val activeInfo =
+            ActiveReplyInfo(
+                id = ChatNotificationService.PENDING_NOTIFICATION_ID,
+                kind = ReplyNotificationTracker.KIND_REPLY,
+                scopeId = "default",
+                sessionId = "session",
+                completionId = "comp-media-cold",
+                textSnippet = "Here is the image MEDIA:/opt/hermes/image.png",
+                generation = 5L,
+                timestamp = notifTimestamp,
+            )
+        ReplyNotificationTracker.activeNotificationProvider = { activeInfo }
+
         val history =
             listOf(
                 SessionMessage(
                     id = 100,
                     role = "assistant",
-                    content = JsonPrimitive(replyText),
-                    timestamp = JsonPrimitive(notifTimestamp / 1000.0),
+                    content = JsonPrimitive("Here is the image MEDIA:/opt/hermes/image.png"),
                 ),
             )
-        val mapped = mapServerMessages("session", history, 0, true, emptyList(), isPagingOlder = false)
-        val restoredMessage = mapped.single()
 
-        // Restored message should either inherit completionId from active target, or dismiss via text fallback
+        val mapped =
+            mapServerMessages("session", history, 0, true, emptyList(), isPagingOlder = false, context = context)
+        val row = mapped.single()
+        assertEquals("comp-media-cold", row.completionId)
+        assertEquals("Here is the image", row.content)
+
         val dismissed =
             ReplyNotificationTracker.onMessageVisible(
                 context = context,
                 scopeId = "default",
                 sessionId = "session",
-                completionId = restoredMessage.completionId,
-                content = restoredMessage.content,
-                timestamp = restoredMessage.timestamp,
+                completionId = row.completionId,
+                content = row.content,
+                timestamp = row.timestamp,
             )
-        assertTrue("Notification posted by background service must dismiss on REST-only hydration", dismissed)
+        assertTrue("Viewing hydrated MEDIA row must dismiss notification", dismissed)
         verify { manager.cancel(ChatNotificationService.PENDING_NOTIFICATION_ID) }
+    }
+
+    @Test
+    fun mediaOnlyReplyColdStartReconcilesTargetAndDismissesOnVisible() {
+        ReplyNotificationTracker.resetForTest()
+        val notifTimestamp = System.currentTimeMillis()
+        val activeInfo =
+            ActiveReplyInfo(
+                id = ChatNotificationService.PENDING_NOTIFICATION_ID,
+                kind = ReplyNotificationTracker.KIND_REPLY,
+                scopeId = "default",
+                sessionId = "session",
+                completionId = "comp-media-only-cold",
+                textSnippet = "MEDIA:/opt/hermes/image.png",
+                generation = 5L,
+                timestamp = notifTimestamp,
+            )
+        ReplyNotificationTracker.activeNotificationProvider = { activeInfo }
+
+        val history =
+            listOf(
+                SessionMessage(
+                    id = 100,
+                    role = "assistant",
+                    content = JsonPrimitive("MEDIA:/opt/hermes/image.png"),
+                ),
+            )
+
+        val mapped =
+            mapServerMessages("session", history, 0, true, emptyList(), isPagingOlder = false, context = context)
+        val row = mapped.single()
+        assertEquals("comp-media-only-cold", row.completionId)
+        assertEquals("", row.content)
+
+        val dismissed =
+            ReplyNotificationTracker.onMessageVisible(
+                context = context,
+                scopeId = "default",
+                sessionId = "session",
+                completionId = row.completionId,
+                content = row.content,
+                timestamp = row.timestamp,
+            )
+        assertTrue("Viewing hydrated MEDIA-only row must dismiss notification", dismissed)
+        verify { manager.cancel(ChatNotificationService.PENDING_NOTIFICATION_ID) }
+    }
+
+    @Test
+    fun duplicateMediaRepliesOnlyNewestDismissesNotification() {
+        ReplyNotificationTracker.resetForTest()
+        val notifTimestamp = System.currentTimeMillis()
+        val activeInfo =
+            ActiveReplyInfo(
+                id = ChatNotificationService.PENDING_NOTIFICATION_ID,
+                kind = ReplyNotificationTracker.KIND_REPLY,
+                scopeId = "default",
+                sessionId = "session",
+                completionId = "comp-media-dup-2",
+                textSnippet = "MEDIA:/opt/hermes/image.png",
+                generation = 5L,
+                timestamp = notifTimestamp,
+            )
+        ReplyNotificationTracker.activeNotificationProvider = { activeInfo }
+
+        val history =
+            listOf(
+                SessionMessage(id = 1, role = "assistant", content = JsonPrimitive("MEDIA:/opt/hermes/image.png")),
+                SessionMessage(id = 2, role = "assistant", content = JsonPrimitive("MEDIA:/opt/hermes/image.png")),
+            )
+
+        val mapped =
+            mapServerMessages("session", history, 0, true, emptyList(), isPagingOlder = false, context = context)
+        assertEquals(null, mapped[0].completionId)
+        assertEquals("comp-media-dup-2", mapped[1].completionId)
+
+        assertFalse(
+            ReplyNotificationTracker.onMessageVisible(
+                context,
+                "default",
+                "session",
+                mapped[0].completionId,
+                mapped[0].content,
+                mapped[0].timestamp,
+            ),
+        )
+        assertTrue(
+            ReplyNotificationTracker.onMessageVisible(
+                context,
+                "default",
+                "session",
+                mapped[1].completionId,
+                mapped[1].content,
+                mapped[1].timestamp,
+            ),
+        )
     }
 
     @Test

@@ -2778,6 +2778,7 @@ class ChatViewModel(
                             serverOffset,
                             latestPaging,
                             _uiState.value.messages,
+                            context = getApplication(),
                         )
                     loadedMessageOffset = serverOffset
                     withContext(ioDispatcher) {

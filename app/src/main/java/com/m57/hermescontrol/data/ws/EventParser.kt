@@ -115,14 +115,12 @@ object EventParser {
                         ?: java.util.UUID
                             .randomUUID()
                             .toString()
-                val serverMessageId = (payload?.get("server_message_id") as? Number)?.toInt()
                 WsEvent.MessageComplete(
                     text,
                     sessionId,
                     reasoning,
                     rawPayload = payload,
                     completionId = completionId,
-                    serverMessageId = serverMessageId,
                 )
             }
 

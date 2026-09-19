@@ -769,16 +769,11 @@ class EventParserTest {
                 result = null,
                 error = null,
                 method = "event",
-                params =
-                    mapOf(
-                        "type" to "message.complete",
-                        "payload" to mapOf("text" to "full text", "server_message_id" to 123),
-                    ),
+                params = mapOf("type" to "message.complete", "payload" to mapOf("text" to "full text")),
             )
         val event = EventParser.parse(response)
         assertTrue(event is WsEvent.MessageComplete)
         assertEquals("full text", (event as WsEvent.MessageComplete).text)
-        assertEquals(123, event.serverMessageId)
     }
 
     @Test

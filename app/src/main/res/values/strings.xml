@@ -216,6 +216,8 @@
     <string name="settings_item_user_message_tokens">User message tokens</string>
     <string name="settings_item_assistant_message_tokens">Assistant message tokens</string>
     <string name="settings_item_tokens_per_second">Tokens per second (TPS)</string>
+    <string name="settings_item_show_model_provider">Show provider name</string>
+    <string name="settings_desc_show_model_provider">Show the provider before the model name in the chat composer.</string>
     <string name="chat_agent_status_typing">Agent is typing</string>
     <string name="chat_agent_status_thinking">Thinking…</string>
     <string name="chat_agent_status_searching">Searching…</string>

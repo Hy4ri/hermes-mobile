@@ -207,6 +207,8 @@ internal fun SettingsChatPage(
                 onAssistantMessageTokensChange = viewModel::onAssistantMessageTokensChange,
                 showTokensPerSecond = state.showTokensPerSecond,
                 onTokensPerSecondChange = viewModel::onTokensPerSecondChange,
+                showModelProvider = state.showModelProvider,
+                onShowModelProviderChange = viewModel::onShowModelProviderChange,
             )
         }
     }

@@ -77,6 +77,7 @@ class SettingsViewModelTest {
         every { AuthManager.isUserMessageTokensEnabled() } returns true
         every { AuthManager.isAssistantMessageTokensEnabled() } returns true
         every { AuthManager.isTokensPerSecondEnabled() } returns true
+        every { AuthManager.isModelProviderShown() } returns false
         every { AuthManager.getConnectionProfiles() } returns emptyList()
         every { AuthManager.getSelectedProfileId() } answers { storedSelectedProfileId }
         every { AuthManager.baseUrl() } returns "http://127.0.0.1:9119/"
@@ -93,6 +94,7 @@ class SettingsViewModelTest {
         every { AuthManager.setUserMessageTokensEnabled(any()) } returns Unit
         every { AuthManager.setAssistantMessageTokensEnabled(any()) } returns Unit
         every { AuthManager.setTokensPerSecondEnabled(any()) } returns Unit
+        every { AuthManager.setModelProviderShown(any()) } returns Unit
         every { AuthManager.setSelectedProfileId(any()) } answers {
             storedSelectedProfileId = firstArg()
         }
@@ -327,4 +329,37 @@ class SettingsViewModelTest {
 
         verify { AuthManager.clearLastOpenedSessionIdsForConnection("prof-1") }
     }
+
+    @Test
+    fun testShowModelProvider_loadsAndTogglesImmediately() =
+        runTest {
+            every { AuthManager.isModelProviderShown() } returns false
+
+            val viewModel = SettingsViewModel(ioDispatcher = testDispatcher)
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(false, viewModel.uiState.value.showModelProvider)
+
+            viewModel.onShowModelProviderChange(true)
+            assertEquals(true, viewModel.uiState.value.showModelProvider)
+            assertEquals(false, viewModel.uiState.value.isSaved)
+            verify { AuthManager.setModelProviderShown(true) }
+
+            viewModel.onShowModelProviderChange(false)
+            assertEquals(false, viewModel.uiState.value.showModelProvider)
+            verify { AuthManager.setModelProviderShown(false) }
+        }
+
+    @Test
+    fun testSave_persistsShowModelProvider() =
+        runTest {
+            val viewModel = SettingsViewModel(ioDispatcher = testDispatcher)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            viewModel.onShowModelProviderChange(true)
+            viewModel.save()
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            verify { AuthManager.setModelProviderShown(true) }
+            assertEquals(true, viewModel.uiState.value.isSaved)
+        }
 }

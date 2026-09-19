@@ -93,6 +93,7 @@ class ChatUpdateCommandTest {
         every { AuthManager.isUserMessageTokensEnabled() } returns true
         every { AuthManager.isAssistantMessageTokensEnabled() } returns true
         every { AuthManager.isTokensPerSecondEnabled() } returns true
+        every { AuthManager.isModelProviderShown() } returns false
         every { AuthManager.isAutoReconnect() } returns false
         every { AuthManager.isRestoreLastSession() } returns false
         every { AuthManager.getLastOpenedSessionId() } returns null

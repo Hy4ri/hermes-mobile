@@ -5,31 +5,36 @@ import org.junit.Test
 
 /**
  * Unit tests for [composerModelLabel] — the label shown in the composer's
- * model/reasoning pill. Only the "custom:" provider marker is dropped; the
- * provider stays so the same model from different providers never collides.
+ * model/reasoning pill.
+ * By default ([showProvider] = false), only the model name is shown.
+ * When [showProvider] = true, the provider is kept (with "custom:" stripped).
  */
 class ComposerToolbarTest {
     @Test
-    fun composerModelLabel_keepsProviderToDisambiguateSameModel() {
-        assertEquals("openai/gpt-5.5", composerModelLabel("openai/gpt-5.5"))
-        assertEquals("copilot/gpt-5.5", composerModelLabel("copilot/gpt-5.5"))
-    }
-
-    @Test
-    fun composerModelLabel_dropsOnlyTheCustomMarker() {
-        assertEquals("my-provider/glm-5.3", composerModelLabel("custom:my-provider/glm-5.3"))
-        assertEquals("openrouter/openai/gpt-5.5", composerModelLabel("openrouter/openai/gpt-5.5"))
-    }
-
-    @Test
-    fun composerModelLabel_leavesModelTagsAndPlainIdsAlone() {
-        assertEquals("ollama/llama3:8b", composerModelLabel("ollama/llama3:8b"))
+    fun composerModelLabel_defaultsToModelOnly() {
+        assertEquals("gpt-5.5", composerModelLabel("openai/gpt-5.5"))
+        assertEquals("gpt-5.5", composerModelLabel("copilot/gpt-5.5"))
+        assertEquals("glm-5.3", composerModelLabel("custom:my-provider/glm-5.3"))
+        assertEquals("openai/gpt-5.5", composerModelLabel("openrouter/openai/gpt-5.5"))
+        assertEquals("llama3:8b", composerModelLabel("ollama/llama3:8b"))
         assertEquals("llama3:8b", composerModelLabel("llama3:8b"))
         assertEquals("gpt-5", composerModelLabel("gpt-5"))
+        assertEquals("custom:/glm-5.3", composerModelLabel("custom:/glm-5.3"))
+        assertEquals("openai/", composerModelLabel("openai/"))
+        assertEquals("/gpt-5", composerModelLabel("/gpt-5"))
     }
 
     @Test
-    fun composerModelLabel_bareCustomMarker_fallsBackToFullId() {
-        assertEquals("custom:/glm-5.3", composerModelLabel("custom:/glm-5.3"))
+    fun composerModelLabel_keepsProviderWhenEnabled() {
+        assertEquals("openai/gpt-5.5", composerModelLabel("openai/gpt-5.5", showProvider = true))
+        assertEquals("copilot/gpt-5.5", composerModelLabel("copilot/gpt-5.5", showProvider = true))
+        assertEquals("my-provider/glm-5.3", composerModelLabel("custom:my-provider/glm-5.3", showProvider = true))
+        assertEquals("openrouter/openai/gpt-5.5", composerModelLabel("openrouter/openai/gpt-5.5", showProvider = true))
+        assertEquals("ollama/llama3:8b", composerModelLabel("ollama/llama3:8b", showProvider = true))
+        assertEquals("llama3:8b", composerModelLabel("llama3:8b", showProvider = true))
+        assertEquals("gpt-5", composerModelLabel("gpt-5", showProvider = true))
+        assertEquals("custom:/glm-5.3", composerModelLabel("custom:/glm-5.3", showProvider = true))
+        assertEquals("openai/", composerModelLabel("openai/", showProvider = true))
+        assertEquals("/gpt-5", composerModelLabel("/gpt-5", showProvider = true))
     }
 }

@@ -59,6 +59,7 @@ class ComposerInteractionTest {
         composerWidth: Dp? = null,
         modelAfterTap: String? = null,
         layoutDirection: LayoutDirection = LayoutDirection.Ltr,
+        showModelProvider: Boolean = false,
     ) {
         composeTestRule.setContent {
             var input by remember { mutableStateOf(TextFieldValue("")) }
@@ -93,6 +94,7 @@ class ComposerInteractionTest {
                         onCameraTap = { cameraTaps++ },
                         onImageTap = { photosTaps++ },
                         onFileTap = { fileTaps++ },
+                        showModelProvider = showModelProvider,
                     )
                 }
                 if (composerWidth == null) {
@@ -206,9 +208,9 @@ class ComposerInteractionTest {
     }
 
     @Test
-    fun longModelName_narrowComposer_scrollsWithoutOpeningPicker_orHidingControls() {
+    fun longModelName_remainsScrollableAndDoesNotTriggerPicker() {
         val longModel = "openrouter/some-extremely-long-model-name-preview-2026-with-extra-characters"
-        setComposer(model = longModel, composerWidth = 280.dp)
+        setComposer(model = longModel, composerWidth = 280.dp, showModelProvider = true)
 
         composeTestRule.onNodeWithTag("reasoning_chip").assertIsDisplayed()
         composeTestRule.onNodeWithTag("mic_button").assertIsDisplayed()
@@ -252,7 +254,7 @@ class ComposerInteractionTest {
     fun changingModel_resetsScrolledLabelToTheStart() {
         val firstModel = "openrouter/some-extremely-long-model-name-preview-2026-with-extra-characters"
         val secondModel = "anthropic/another-extremely-long-model-name-preview-2026-with-extra-characters"
-        setComposer(model = firstModel, modelAfterTap = secondModel, composerWidth = 280.dp)
+        setComposer(model = firstModel, modelAfterTap = secondModel, composerWidth = 280.dp, showModelProvider = true)
 
         val firstText = composeTestRule.onNodeWithText(firstModel)
         val leftBefore = firstText.getUnclippedBoundsInRoot().left
@@ -343,5 +345,21 @@ class ComposerInteractionTest {
         composeTestRule.mainClock.advanceTimeBy(300)
 
         composeTestRule.onNodeWithTag("attachment_tray").assertDoesNotExist()
+    }
+
+    @Test
+    fun defaultComposer_showsOnlyModelNameWithoutProvider() {
+        setComposer(model = "openai/gpt-5.5", showModelProvider = false)
+
+        composeTestRule.onNodeWithText("gpt-5.5").assertIsDisplayed()
+        composeTestRule.onNodeWithText("openai/gpt-5.5").assertDoesNotExist()
+    }
+
+    @Test
+    fun enabledComposer_showsProviderAndModelName() {
+        setComposer(model = "openai/gpt-5.5", showModelProvider = true)
+
+        composeTestRule.onNodeWithText("openai/gpt-5.5").assertIsDisplayed()
+        composeTestRule.onNodeWithText("gpt-5.5").assertDoesNotExist()
     }
 }

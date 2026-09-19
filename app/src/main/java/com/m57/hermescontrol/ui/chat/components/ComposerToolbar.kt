@@ -103,6 +103,7 @@ fun ComposerToolbar(
     fastSupported: Boolean = false,
     isFastModeChanging: Boolean = false,
     onToggleFastMode: () -> Unit = {},
+    showModelProvider: Boolean = false,
 ) {
     var showReasoningMenu by remember { mutableStateOf(false) }
     val palette = composerPalette()
@@ -135,7 +136,11 @@ fun ComposerToolbar(
         // Model + reasoning pill — wraps its content inside the free space,
         // pushing the mic/action buttons to the far end
         val modelScrollState = rememberScrollState()
-        LaunchedEffect(currentSessionModel) {
+        val modelLabel =
+            currentSessionModel?.let { model ->
+                composerModelLabel(model, showProvider = showModelProvider)
+            } ?: "Model"
+        LaunchedEffect(modelLabel) {
             modelScrollState.scrollTo(0)
         }
         Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
@@ -159,9 +164,7 @@ fun ComposerToolbar(
                             .testTag("model_chip"),
                 ) {
                     Text(
-                        // Keeps the provider so same-named models from different providers
-                        // stay distinguishable while allowing the full label to be revealed.
-                        text = currentSessionModel?.let(::composerModelLabel) ?: "Model",
+                        text = modelLabel,
                         style = MaterialTheme.typography.bodyMedium,
                         color = palette.onControl,
                         maxLines = 1,
@@ -454,19 +457,38 @@ private fun listeningIconButtonColors(): IconButtonColors =
     )
 
 /**
- * Model label for the composer pill: the session's "provider/model" id with
+ * Model label for the composer pill:
+ * When [showProvider] is true, shows the session's "provider/model" id with
  * only the "custom:" marker removed from the provider ("custom:acme/glm-5.3"
- * → "acme/glm-5.3"). The provider itself is kept so the same model served by
+ * → "acme/glm-5.3"). The provider is kept so the same model served by
  * different providers never renders identically.
+ * When [showProvider] is false (default), shows only the model name ("openai/gpt-5"
+ * → "gpt-5", "custom:acme/glm-5.3" → "glm-5.3").
  */
-internal fun composerModelLabel(sessionModel: String): String {
+internal fun composerModelLabel(
+    sessionModel: String,
+    showProvider: Boolean = false,
+): String {
     val slash = sessionModel.indexOf('/')
     if (slash <= 0) return sessionModel
-    val provider = sessionModel.substring(0, slash)
-    if (!provider.startsWith(CUSTOM_PROVIDER_PREFIX) || provider.length == CUSTOM_PROVIDER_PREFIX.length) {
-        return sessionModel
+
+    val rawProvider = sessionModel.substring(0, slash)
+    val model = sessionModel.substring(slash + 1)
+    if (model.isBlank()) return sessionModel
+
+    if (rawProvider == CUSTOM_PROVIDER_PREFIX) return sessionModel
+
+    if (!showProvider) {
+        return model
     }
-    return provider.removePrefix(CUSTOM_PROVIDER_PREFIX) + sessionModel.substring(slash)
+
+    val provider =
+        if (rawProvider.startsWith(CUSTOM_PROVIDER_PREFIX) && rawProvider.length > CUSTOM_PROVIDER_PREFIX.length) {
+            rawProvider.removePrefix(CUSTOM_PROVIDER_PREFIX)
+        } else {
+            rawProvider
+        }
+    return "$provider/$model"
 }
 
 private const val CUSTOM_PROVIDER_PREFIX = "custom:"

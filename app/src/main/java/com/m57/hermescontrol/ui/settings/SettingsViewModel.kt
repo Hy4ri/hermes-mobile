@@ -44,6 +44,7 @@ data class SettingsUiState(
     val showAssistantMessageTokens: Boolean = true,
     val showTokensPerSecond: Boolean = true,
     val showModelProvider: Boolean = false,
+    val keepConnectedInBackground: Boolean = false,
     val profiles: List<ConnectionProfile> = emptyList(),
     val selectedProfileId: String? = null,
     val renameProfileName: String = "",
@@ -91,6 +92,7 @@ class SettingsViewModel(
         val showAssistantMessageTokens = AuthManager.isAssistantMessageTokensEnabled()
         val showTokensPerSecond = AuthManager.isTokensPerSecondEnabled()
         val showModelProvider = AuthManager.isModelProviderShown()
+        val keepConnectedInBackground = AuthManager.isKeepConnectedInBackground()
         val profiles = AuthManager.getConnectionProfiles()
         val appLanguage = AuthManager.getAppLanguage()
         val renameProfileName =
@@ -117,6 +119,7 @@ class SettingsViewModel(
                 showAssistantMessageTokens = showAssistantMessageTokens,
                 showTokensPerSecond = showTokensPerSecond,
                 showModelProvider = showModelProvider,
+                keepConnectedInBackground = keepConnectedInBackground,
                 profiles = profiles,
                 selectedProfileId = selectedId,
                 renameProfileName = renameProfileName,
@@ -368,6 +371,11 @@ class SettingsViewModel(
         AuthManager.setModelProviderShown(enabled)
     }
 
+    fun onKeepConnectedInBackgroundChange(enabled: Boolean) {
+        _uiState.update { it.copy(keepConnectedInBackground = enabled) }
+        AuthManager.setKeepConnectedInBackground(enabled)
+    }
+
     /** Clear all auth credentials — logs out and returns to landing screen. */
     fun logout() {
         AuthManager.setToken(null)
@@ -402,6 +410,7 @@ class SettingsViewModel(
         AuthManager.setAssistantMessageTokensEnabled(state.showAssistantMessageTokens)
         AuthManager.setTokensPerSecondEnabled(state.showTokensPerSecond)
         AuthManager.setModelProviderShown(state.showModelProvider)
+        AuthManager.setKeepConnectedInBackground(state.keepConnectedInBackground)
         ApiClient.rebuild()
 
         viewModelScope.launch(ioDispatcher) {

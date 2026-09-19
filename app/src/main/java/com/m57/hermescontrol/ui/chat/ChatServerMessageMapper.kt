@@ -102,7 +102,12 @@ internal fun mapServerMessages(
                     activeTarget.textSnippet.trim()
                 }
 
-            for (i in messages.indices.reversed()) {
+            val notificationTimestamp = activeTarget.timestamp
+            val timestampToleranceMs = 5_000L
+            var selectedIndex: Int? = null
+            var selectedTimestamp: Long? = null
+
+            for (i in messages.indices) {
                 val m = messages[i]
                 val r =
                     when (m.role?.lowercase()) {
@@ -123,6 +128,15 @@ internal fun mapServerMessages(
                     }
                 if (liveByExactId.containsKey(restId)) continue
                 if (wsCompletionIdByRestIndex.containsKey(i)) continue
+
+                val candidateTimestamp = m.timestampEpochMs
+                if (
+                    notificationTimestamp > 0L &&
+                    candidateTimestamp != null &&
+                    candidateTimestamp > notificationTimestamp + timestampToleranceMs
+                ) {
+                    continue
+                }
 
                 val canonicalContent =
                     if (rawContent.contains("MEDIA:")) {
@@ -147,11 +161,35 @@ internal fun mapServerMessages(
                                 activeTarget.textSnippet.contains("MEDIA:")
                         )
 
-                if (matches) {
-                    wsCompletionIdByRestIndex[i] = activeTarget.completionId
-                    break // Single newest matching row only!
+                if (!matches) continue
+
+                val previousIndex = selectedIndex
+                val previousTimestamp = selectedTimestamp
+                val shouldSelect =
+                    when {
+                        previousIndex == null -> {
+                            true
+                        }
+
+                        candidateTimestamp != null && previousTimestamp == null -> {
+                            true
+                        }
+
+                        candidateTimestamp != null && previousTimestamp != null -> {
+                            candidateTimestamp > previousTimestamp
+                        }
+
+                        else -> {
+                            i > previousIndex
+                        }
+                    }
+                if (shouldSelect) {
+                    selectedIndex = i
+                    selectedTimestamp = candidateTimestamp
                 }
             }
+
+            selectedIndex?.let { wsCompletionIdByRestIndex[it] = activeTarget.completionId }
         }
     }
 

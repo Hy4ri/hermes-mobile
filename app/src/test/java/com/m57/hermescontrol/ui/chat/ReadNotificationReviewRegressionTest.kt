@@ -527,8 +527,9 @@ class ReadNotificationReviewRegressionTest {
     fun duplicateLongRepliesSharingPrefixOnlyNewestDismissesNotification() {
         ReplyNotificationTracker.resetForTest()
         val notifTimestamp = System.currentTimeMillis()
-        val text1 = "Long response with identical prefix content abcdefghijklmnopqrstuvwxyz 1"
-        val text2 = "Long response with identical prefix content abcdefghijklmnopqrstuvwxyz 2"
+        val textPrefix = "x".repeat(100)
+        val text1 = textPrefix + "A"
+        val text2 = textPrefix + "B"
         val activeInfo =
             ActiveReplyInfo(
                 id = ChatNotificationService.PENDING_NOTIFICATION_ID,
@@ -544,16 +545,26 @@ class ReadNotificationReviewRegressionTest {
 
         val history =
             listOf(
-                SessionMessage(id = 10, role = "assistant", content = JsonPrimitive(text1)),
-                SessionMessage(id = 20, role = "assistant", content = JsonPrimitive(text2)),
+                SessionMessage(
+                    id = 10,
+                    role = "assistant",
+                    content = JsonPrimitive(text1),
+                    timestamp = JsonPrimitive(notifTimestamp / 1000.0),
+                ),
+                SessionMessage(
+                    id = 20,
+                    role = "assistant",
+                    content = JsonPrimitive(text2),
+                    timestamp = JsonPrimitive((notifTimestamp + 60_000L) / 1000.0),
+                ),
             )
 
         val mapped =
             mapServerMessages("session", history, 0, true, emptyList(), isPagingOlder = false, context = context)
-        assertEquals(null, mapped[0].completionId)
-        assertEquals("comp-long-2", mapped[1].completionId)
+        assertEquals("comp-long-2", mapped[0].completionId)
+        assertEquals(null, mapped[1].completionId)
 
-        assertFalse(
+        assertTrue(
             ReplyNotificationTracker.onMessageVisible(
                 context,
                 "default",
@@ -561,7 +572,7 @@ class ReadNotificationReviewRegressionTest {
                 mapped[0].completionId,
             ),
         )
-        assertTrue(
+        assertFalse(
             ReplyNotificationTracker.onMessageVisible(
                 context,
                 "default",
@@ -676,16 +687,26 @@ class ReadNotificationReviewRegressionTest {
 
         val history =
             listOf(
-                SessionMessage(id = 1, role = "assistant", content = JsonPrimitive("MEDIA:/opt/hermes/image.png")),
-                SessionMessage(id = 2, role = "assistant", content = JsonPrimitive("MEDIA:/opt/hermes/image.png")),
+                SessionMessage(
+                    id = 1,
+                    role = "assistant",
+                    content = JsonPrimitive("MEDIA:/opt/hermes/image.png"),
+                    timestamp = JsonPrimitive(notifTimestamp / 1000.0),
+                ),
+                SessionMessage(
+                    id = 2,
+                    role = "assistant",
+                    content = JsonPrimitive("MEDIA:/opt/hermes/image.png"),
+                    timestamp = JsonPrimitive((notifTimestamp + 60_000L) / 1000.0),
+                ),
             )
 
         val mapped =
             mapServerMessages("session", history, 0, true, emptyList(), isPagingOlder = false, context = context)
-        assertEquals(null, mapped[0].completionId)
-        assertEquals("comp-media-dup-2", mapped[1].completionId)
+        assertEquals("comp-media-dup-2", mapped[0].completionId)
+        assertEquals(null, mapped[1].completionId)
 
-        assertFalse(
+        assertTrue(
             ReplyNotificationTracker.onMessageVisible(
                 context,
                 "default",
@@ -693,7 +714,7 @@ class ReadNotificationReviewRegressionTest {
                 mapped[0].completionId,
             ),
         )
-        assertTrue(
+        assertFalse(
             ReplyNotificationTracker.onMessageVisible(
                 context,
                 "default",

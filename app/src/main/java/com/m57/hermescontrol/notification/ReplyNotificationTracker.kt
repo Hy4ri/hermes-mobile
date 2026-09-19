@@ -13,6 +13,7 @@ data class ReplyNotificationTarget(
     val generation: Long,
     val textSnippet: String = "",
     val timestamp: Long = System.currentTimeMillis(),
+    val serverMessageId: Int? = null,
 ) {
     fun matches(
         candidateScopeId: String?,
@@ -41,6 +42,7 @@ internal data class ActiveReplyInfo(
     val textSnippet: String?,
     val generation: Long,
     val timestamp: Long,
+    val serverMessageId: Int? = null,
 )
 
 object ReplyNotificationTracker {
@@ -50,6 +52,7 @@ object ReplyNotificationTracker {
     const val EXTRA_COMPLETION_ID = "hermes_completion_id"
     const val EXTRA_TEXT_SNIPPET = "hermes_text_snippet"
     const val EXTRA_GENERATION = "hermes_generation"
+    const val EXTRA_SERVER_MESSAGE_ID = "hermes_server_message_id"
 
     const val KIND_REPLY = "reply"
     const val KIND_ACTION = "action"
@@ -80,6 +83,7 @@ object ReplyNotificationTracker {
                     textSnippet = extras?.getString(EXTRA_TEXT_SNIPPET),
                     generation = extras?.getLong(EXTRA_GENERATION, 0L) ?: 0L,
                     timestamp = sbn.postTime,
+                    serverMessageId = extras?.getInt(EXTRA_SERVER_MESSAGE_ID, -1)?.takeIf { it >= 0 },
                 )
             } else {
                 null
@@ -101,6 +105,7 @@ object ReplyNotificationTracker {
         completionId: String,
         textSnippet: String,
         timestamp: Long = System.currentTimeMillis(),
+        serverMessageId: Int? = null,
     ): Long {
         val generation = nextGeneration()
         activeTarget =
@@ -111,6 +116,7 @@ object ReplyNotificationTracker {
                 generation = generation,
                 textSnippet = textSnippet,
                 timestamp = timestamp,
+                serverMessageId = serverMessageId,
             )
         return generation
     }
@@ -173,6 +179,7 @@ object ReplyNotificationTracker {
         textSnippet: String,
         generation: Long,
         timestamp: Long = System.currentTimeMillis(),
+        serverMessageId: Int? = null,
     ) {
         if (generation <= tombstoneGeneration.get()) return
         generationCounter.updateAndGet { maxOf(it, generation) }
@@ -184,6 +191,7 @@ object ReplyNotificationTracker {
                 generation = generation,
                 textSnippet = textSnippet,
                 timestamp = timestamp,
+                serverMessageId = serverMessageId,
             )
     }
 
@@ -268,6 +276,7 @@ object ReplyNotificationTracker {
             generation = activeInfo.generation,
             textSnippet = activeInfo.textSnippet.orEmpty(),
             timestamp = activeInfo.timestamp,
+            serverMessageId = activeInfo.serverMessageId,
         ).also { activeTarget = it }
     }
 

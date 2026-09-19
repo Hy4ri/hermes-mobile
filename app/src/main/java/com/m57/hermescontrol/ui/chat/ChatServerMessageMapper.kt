@@ -88,108 +88,23 @@ internal fun mapServerMessages(
             }
         }
 
-        // Cold-start / REST-only active notification target reconciliation (independent of unmappedLiveWsAssistants)
+        // REST-only recovery is fail-closed: only a durable server row ID may
+        // transfer notification identity after the WebSocket copy is gone.
         val activeTarget = ReplyNotificationTracker.getActiveTarget(context)
-        if (activeTarget != null &&
+        if (
+            activeTarget != null &&
             activeTarget.sessionId == sessionId &&
-            activeTarget.completionId.isNotBlank() &&
+            activeTarget.serverMessageId != null &&
             wsCompletionIdByRestIndex.values.none { it == activeTarget.completionId }
         ) {
-            val targetCanonical =
-                if (activeTarget.textSnippet.contains("MEDIA:")) {
-                    HostMediaExtractor.strip(activeTarget.textSnippet).trim()
-                } else {
-                    activeTarget.textSnippet.trim()
+            val exactIndex =
+                messages.indexOfFirst { message ->
+                    message.id == activeTarget.serverMessageId &&
+                        message.role.equals("assistant", ignoreCase = true)
                 }
-
-            val notificationTimestamp = activeTarget.timestamp
-            val timestampToleranceMs = 5_000L
-            var selectedIndex: Int? = null
-            var selectedTimestamp: Long? = null
-
-            for (i in messages.indices) {
-                val m = messages[i]
-                val r =
-                    when (m.role?.lowercase()) {
-                        "user" -> MessageRole.USER
-                        "system" -> MessageRole.SYSTEM
-                        "tool" -> MessageRole.TOOL
-                        else -> MessageRole.ASSISTANT
-                    }
-                if (r != MessageRole.ASSISTANT) continue
-                val rawContent = m.contentText
-                if (rawContent.isBlank() && !rawContent.contains("MEDIA:")) continue
-
-                val restId =
-                    if (latestPaging) {
-                        m.id?.let { "rest-$sessionId-$it" } ?: "rest-$sessionId-${offset + i}"
-                    } else {
-                        "rest-$sessionId-${offset + i}"
-                    }
-                if (liveByExactId.containsKey(restId)) continue
-                if (wsCompletionIdByRestIndex.containsKey(i)) continue
-
-                val candidateTimestamp = m.timestampEpochMs
-                if (
-                    notificationTimestamp > 0L &&
-                    candidateTimestamp != null &&
-                    candidateTimestamp > notificationTimestamp + timestampToleranceMs
-                ) {
-                    continue
-                }
-
-                val canonicalContent =
-                    if (rawContent.contains("MEDIA:")) {
-                        HostMediaExtractor.strip(rawContent).trim()
-                    } else {
-                        rawContent.trim()
-                    }
-
-                val matches =
-                    canonicalContent == targetCanonical ||
-                        (targetCanonical.isNotBlank() && canonicalContent.startsWith(targetCanonical)) ||
-                        (
-                            rawContent.isNotBlank() &&
-                                rawContent.take(100).replace("\n", " ").trim() ==
-                                activeTarget.textSnippet
-                                    .take(100)
-                                    .replace("\n", " ")
-                                    .trim()
-                        ) ||
-                        (
-                            canonicalContent.isBlank() && rawContent.contains("MEDIA:") &&
-                                activeTarget.textSnippet.contains("MEDIA:")
-                        )
-
-                if (!matches) continue
-
-                val previousIndex = selectedIndex
-                val previousTimestamp = selectedTimestamp
-                val shouldSelect =
-                    when {
-                        previousIndex == null -> {
-                            true
-                        }
-
-                        candidateTimestamp != null && previousTimestamp == null -> {
-                            true
-                        }
-
-                        candidateTimestamp != null && previousTimestamp != null -> {
-                            candidateTimestamp > previousTimestamp
-                        }
-
-                        else -> {
-                            i > previousIndex
-                        }
-                    }
-                if (shouldSelect) {
-                    selectedIndex = i
-                    selectedTimestamp = candidateTimestamp
-                }
+            if (exactIndex >= 0 && !liveByExactId.containsKey("rest-$sessionId-${activeTarget.serverMessageId}")) {
+                wsCompletionIdByRestIndex[exactIndex] = activeTarget.completionId
             }
-
-            selectedIndex?.let { wsCompletionIdByRestIndex[it] = activeTarget.completionId }
         }
     }
 

@@ -14,6 +14,7 @@ import androidx.core.app.RemoteInput
 import com.m57.hermescontrol.MainActivity
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.HermesWsClient
@@ -119,6 +120,8 @@ class ChatNotificationService : Service() {
                                             sessionId = targetSessionId,
                                             isReplyMessage = true,
                                             completionId = event.completionId,
+                                            serverMessageId =
+                                                resolveServerMessageId(targetSessionId, event.text),
                                         )
                                         // The wait is over — retire the foreground
                                         // service. The reply notification above
@@ -176,6 +179,7 @@ class ChatNotificationService : Service() {
         sessionId: String?,
         isReplyMessage: Boolean = false,
         completionId: String? = null,
+        serverMessageId: Int? = null,
     ) {
         val builder =
             NotificationCompat
@@ -198,6 +202,7 @@ class ChatNotificationService : Service() {
                     sessionId = sessionId,
                     completionId = completionId,
                     textSnippet = text,
+                    serverMessageId = serverMessageId,
                 )
             replyGeneration = generation
             builder.addExtras(
@@ -208,6 +213,9 @@ class ChatNotificationService : Service() {
                     putString(ReplyNotificationTracker.EXTRA_COMPLETION_ID, completionId)
                     putString(ReplyNotificationTracker.EXTRA_TEXT_SNIPPET, text)
                     putLong(ReplyNotificationTracker.EXTRA_GENERATION, generation)
+                    serverMessageId?.let {
+                        putInt(ReplyNotificationTracker.EXTRA_SERVER_MESSAGE_ID, it)
+                    }
                 },
             )
         } else {
@@ -271,6 +279,39 @@ class ChatNotificationService : Service() {
                 notification = notification,
             )
         }
+    }
+
+    private suspend fun resolveServerMessageId(
+        sessionId: String?,
+        text: String,
+    ): Int? {
+        if (sessionId.isNullOrBlank() || text.isBlank()) return null
+        repeat(3) { attempt ->
+            val response =
+                runCatching {
+                    ApiClient.hermesApi.getSessionMessages(
+                        sessionId = sessionId,
+                        limit = 20,
+                        offset = 0,
+                        order = "latest",
+                        profile = AuthManager.activeProfileId.value,
+                    )
+                }.getOrNull()
+            val match =
+                response
+                    ?.takeIf { it.isSuccessful }
+                    ?.body()
+                    ?.messages
+                    .orEmpty()
+                    .asReversed()
+                    .firstOrNull { message ->
+                        message.role.equals("assistant", ignoreCase = true) &&
+                            message.contentText == text
+                    }?.id
+            if (match != null) return match
+            if (attempt < 2) delay(250)
+        }
+        return null
     }
 
     private fun buildContentIntent(sessionId: String?): PendingIntent {

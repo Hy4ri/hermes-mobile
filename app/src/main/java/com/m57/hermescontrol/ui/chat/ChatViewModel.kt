@@ -479,7 +479,9 @@ class ChatViewModel(
             handleSlashCommand = { cmd -> handleSlashCommand(cmd) },
             fetchContextUsage = { fetchContextUsage() },
             onModelSwitchInitiated = { onModelSwitchInitiated() },
-        )
+        ).apply {
+            attachScopeObserver(viewModelScope)
+        }
 
     private val credentialPromptsDelegate =
         ChatCredentialPromptsDelegate(

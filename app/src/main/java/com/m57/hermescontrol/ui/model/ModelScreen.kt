@@ -104,11 +104,13 @@ fun ModelScreen(
         onRefresh = { viewModel.loadAll(refresh = true) },
     ) { paddingValues ->
         when {
-            state.isLoading && state.mainModelProvider.isEmpty() && state.providers.isEmpty() -> {
+            state.isLoading && state.mainModelProvider.isEmpty() && state.providers.isEmpty() &&
+                state.pinnedModels.isEmpty() -> {
                 SkeletonListState(modifier = Modifier.padding(paddingValues))
             }
 
-            state.errorMessage != null && state.providers.isEmpty() && state.mainModelProvider.isEmpty() -> {
+            state.errorMessage != null && state.providers.isEmpty() && state.mainModelProvider.isEmpty() &&
+                state.pinnedModels.isEmpty() -> {
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.loadAll() },
@@ -119,7 +121,8 @@ fun ModelScreen(
             !state.isLoading &&
                 !state.catalogLoading &&
                 state.providers.isEmpty() &&
-                state.mainModelProvider.isEmpty() -> {
+                state.mainModelProvider.isEmpty() &&
+                state.pinnedModels.isEmpty() -> {
                 EmptyState(
                     title = stringResource(R.string.model_empty_title),
                     subtitle = stringResource(R.string.model_empty_desc),

@@ -13,6 +13,7 @@ import com.m57.hermescontrol.data.model.UpdateProfileModelRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.ws.ModelCatalogStore
 import com.m57.hermescontrol.data.ws.ModelOptionsRepository
 import com.m57.hermescontrol.ui.common.ToastHost
 import kotlinx.coroutines.Dispatchers
@@ -69,14 +70,28 @@ data class ModelUiState(
 )
 
 class ModelViewModel(
-    private val modelOptionsRepository: ModelOptionsRepository = ModelOptionsRepository(),
+    private val catalogStore: ModelCatalogStore = ModelCatalogStore.shared,
 ) : ViewModel(),
     ToastHost {
+    constructor(repository: ModelOptionsRepository) : this(ModelCatalogStore(repository = repository))
+
     private val _uiState = MutableStateFlow(ModelUiState())
     val uiState: StateFlow<ModelUiState> = _uiState.asStateFlow()
 
     init {
         _uiState.update { it.copy(pinnedModels = AuthManager.getPinnedModels()) }
+        viewModelScope.launch {
+            catalogStore.state.collect { catalogState ->
+                if (catalogState.hasLoaded || catalogState.providers.isNotEmpty()) {
+                    _uiState.update {
+                        it.copy(
+                            providers = catalogState.providers,
+                            catalogLoading = catalogState.isRefreshing,
+                        )
+                    }
+                }
+            }
+        }
     }
 
     fun loadAll(refresh: Boolean = false) {
@@ -100,10 +115,10 @@ class ModelViewModel(
                     safeApiCall { ApiClient.hermesApi.getMoaModels() }
                 }
 
-            // Phase 2: Launch model options concurrently
+            // Phase 2: Launch model options concurrently via shared catalog store
             val optionsDeferred =
-                async(Dispatchers.IO) {
-                    modelOptionsRepository.load(refresh)
+                async {
+                    catalogStore.ensureLoaded(forceRefresh = refresh)
                 }
 
             // Await Phase 1 calls (~40-190ms total) and update UI immediately with available state

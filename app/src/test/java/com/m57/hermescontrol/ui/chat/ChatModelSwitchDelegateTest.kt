@@ -4,13 +4,16 @@ import com.m57.hermescontrol.data.model.ModelCapabilities
 import com.m57.hermescontrol.data.model.ModelOptionsResponse
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
+import com.m57.hermescontrol.data.remote.NetworkError
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.ws.WsMethods
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -32,6 +35,9 @@ class ChatModelSwitchDelegateTest {
     private var contextRefetched = 0
     private var modelSwitchInitiated = 0
     private var pinnedList = mutableListOf(PinnedModel("anthropic", "claude-3"))
+    private val modelRequests = mutableListOf<Boolean>()
+    private var modelResponseGate: CompletableDeferred<Unit>? = null
+    private var modelFailure: NetworkResult.Failure? = null
 
     private val fakeResponse =
         ModelOptionsResponse(
@@ -62,7 +68,11 @@ class ChatModelSwitchDelegateTest {
             handleSlashCommand = { slashCommands.add(it) },
             fetchContextUsage = { contextRefetched++ },
             onModelSwitchInitiated = { modelSwitchInitiated++ },
-            getModelOptionsCall = { NetworkResult.Success(fakeResponse) },
+            getModelOptionsCall = { refresh ->
+                modelRequests.add(refresh)
+                modelResponseGate?.await()
+                modelFailure ?: NetworkResult.Success(fakeResponse)
+            },
             getPinnedModels = { pinnedList },
             savePinnedModels = { pinnedList = it.toMutableList() },
         )
@@ -86,6 +96,97 @@ class ChatModelSwitchDelegateTest {
             assertTrue(uiState.value.showModelPicker)
             assertEquals(1, uiState.value.modelPickerProviders.size)
             assertFalse(uiState.value.modelPickerLoading)
+        }
+
+    @Test
+    fun openModelPicker_duringPreload_reusesRequestAndPublishesResult() =
+        testScope.runTest {
+            modelResponseGate = CompletableDeferred()
+            delegate.preloadModelOptions()
+            runCurrent()
+            delegate.openModelPicker()
+            runCurrent()
+
+            val requestsWhileLoading = modelRequests.toList()
+            modelResponseGate?.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(listOf(false), requestsWhileLoading)
+            assertEquals(fakeResponse.providers, uiState.value.modelPickerProviders)
+            assertFalse(uiState.value.modelPickerLoading)
+        }
+
+    @Test
+    fun coldOpen_usesServerCache_andReopenUsesMemoryCache() =
+        testScope.runTest {
+            delegate.openModelPicker()
+            advanceUntilIdle()
+            delegate.closeModelPicker()
+            delegate.openModelPicker()
+            assertFalse(uiState.value.modelPickerLoading)
+            advanceUntilIdle()
+            assertEquals(listOf(false), modelRequests)
+            assertEquals(fakeResponse.providers, uiState.value.modelPickerProviders)
+        }
+
+    @Test
+    fun closeAndReopenDuringPreload_doesNotDuplicateOrReopenAfterDismiss() =
+        testScope.runTest {
+            modelResponseGate = CompletableDeferred()
+            delegate.preloadModelOptions()
+            runCurrent()
+            delegate.openModelPicker()
+            delegate.closeModelPicker()
+            delegate.openModelPicker()
+            delegate.closeModelPicker()
+            runCurrent()
+            modelResponseGate?.complete(Unit)
+            advanceUntilIdle()
+            assertEquals(listOf(false), modelRequests)
+            assertFalse(uiState.value.showModelPicker)
+            assertFalse(uiState.value.modelPickerLoading)
+            assertEquals(fakeResponse.providers, uiState.value.modelPickerProviders)
+        }
+
+    @Test
+    fun explicitRefresh_supersedesPreload() =
+        testScope.runTest {
+            modelResponseGate = CompletableDeferred()
+            delegate.preloadModelOptions()
+            runCurrent()
+            delegate.refreshModelOptions()
+            runCurrent()
+            modelResponseGate?.complete(Unit)
+            advanceUntilIdle()
+            assertEquals(listOf(false, true), modelRequests)
+            assertEquals(fakeResponse.providers, uiState.value.modelPickerProviders)
+            assertFalse(uiState.value.modelPickerLoading)
+        }
+
+    @Test
+    fun failedPreload_isSilentAndCanRetryOnOpen() =
+        testScope.runTest {
+            modelFailure = NetworkResult.Failure(NetworkError.Http(503, "Unavailable"))
+            delegate.preloadModelOptions()
+            advanceUntilIdle()
+            assertNull(uiState.value.errorMessage)
+            assertFalse(uiState.value.modelPickerLoading)
+
+            modelFailure = null
+            delegate.openModelPicker()
+            advanceUntilIdle()
+            assertEquals(listOf(false, false), modelRequests)
+            assertEquals(fakeResponse.providers, uiState.value.modelPickerProviders)
+        }
+
+    @Test
+    fun failedOpen_clearsLoadingAndReportsError() =
+        testScope.runTest {
+            modelFailure = NetworkResult.Failure(NetworkError.Http(503, "Unavailable"))
+            delegate.openModelPicker()
+            advanceUntilIdle()
+            assertFalse(uiState.value.modelPickerLoading)
+            assertEquals("Failed to load models: Unavailable", uiState.value.errorMessage)
         }
 
     @Test

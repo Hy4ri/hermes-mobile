@@ -7,12 +7,15 @@ import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.ws.ModelCatalogStore
 import com.m57.hermescontrol.data.ws.WsMethods
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -49,7 +52,7 @@ class ChatModelSwitchDelegate(
     private val getModelOptionsCall: suspend (
         refresh: Boolean,
     ) -> NetworkResult<com.m57.hermescontrol.data.model.ModelOptionsResponse> =
-        { refresh -> safeApiCall { ApiClient.hermesApi.getModelOptions(refresh = refresh) } },
+        { refresh -> ModelCatalogStore.shared.ensureLoaded(forceRefresh = refresh) },
     private val getPinnedModels: () -> List<PinnedModel> = { AuthManager.getPinnedModels() },
     private val savePinnedModels: (List<PinnedModel>) -> Unit = { AuthManager.savePinnedModels(it) },
 ) {
@@ -62,6 +65,7 @@ class ChatModelSwitchDelegate(
     private var unconfirmedTargetModel: String? = null
     private var modelSwitchSequence: Long = 0L
     private var cachedModelOptions: List<ModelProvider> = emptyList()
+    private var modelOptionsJob: Job? = null
 
     fun isModelPickerCommand(command: String): Boolean {
         val trimmed = command.trim()
@@ -75,14 +79,7 @@ class ChatModelSwitchDelegate(
     }
 
     fun preloadModelOptions() {
-        scope.launch(ioDispatcher) {
-            val result = getModelOptionsCall(false)
-            if (result is NetworkResult.Success) {
-                cachedModelOptions = result.data.providers.orEmpty()
-                uiState.update { it.copy(modelPickerPinned = getPinnedModels()) }
-                syncCurrentModelCapabilities()
-            }
-        }
+        loadModelOptions(refresh = false)
     }
 
     fun openModelPicker() {
@@ -96,36 +93,52 @@ class ChatModelSwitchDelegate(
             )
         }
         if (!hasCached) {
-            refreshModelOptions()
+            loadModelOptions(refresh = false)
         }
     }
 
     fun refreshModelOptions() {
-        uiState.update { it.copy(modelPickerLoading = true) }
-        scope.launch(ioDispatcher) {
-            val result = getModelOptionsCall(true)
-            when (result) {
-                is NetworkResult.Success -> {
-                    cachedModelOptions = result.data.providers.orEmpty()
-                    uiState.update {
-                        it.copy(
-                            modelPickerProviders = cachedModelOptions,
-                            modelPickerLoading = false,
-                        )
-                    }
-                    syncCurrentModelCapabilities()
-                }
+        loadModelOptions(refresh = true)
+    }
 
-                is NetworkResult.Failure -> {
-                    uiState.update {
-                        it.copy(
-                            modelPickerLoading = false,
-                            errorMessage = "Failed to load models: ${result.error.message}",
-                        )
+    private fun loadModelOptions(refresh: Boolean) {
+        // Opening during preload must reuse that request, not force another catalog fetch.
+        if (modelOptionsJob?.isActive == true) {
+            if (!refresh) return
+            modelOptionsJob?.cancel()
+        }
+        uiState.update { it.copy(modelPickerLoading = true) }
+        modelOptionsJob =
+            scope.launch {
+                val result = withContext(ioDispatcher) { getModelOptionsCall(refresh) }
+                when (result) {
+                    is NetworkResult.Success -> {
+                        cachedModelOptions = result.data.providers.orEmpty()
+                        uiState.update {
+                            it.copy(
+                                modelPickerProviders = cachedModelOptions,
+                                modelPickerPinned = getPinnedModels(),
+                                modelPickerLoading = false,
+                            )
+                        }
+                        syncCurrentModelCapabilities()
+                    }
+
+                    is NetworkResult.Failure -> {
+                        uiState.update {
+                            it.copy(
+                                modelPickerLoading = false,
+                                errorMessage =
+                                    if (it.showModelPicker || refresh) {
+                                        "Failed to load models: ${result.error.message}"
+                                    } else {
+                                        it.errorMessage
+                                    },
+                            )
+                        }
                     }
                 }
             }
-        }
     }
 
     fun closeModelPicker() {

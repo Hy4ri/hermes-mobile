@@ -27,6 +27,25 @@ class ModelPickerDialogTest {
     val composeTestRule = createComposeRule()
 
     @Test
+    fun pinnedModels_areSelectableWhileCatalogLoads() {
+        var selectedModel = ""
+        composeTestRule.setContent {
+            HermesControlTheme {
+                ModelPickerDialog(
+                    providers = emptyList(),
+                    title = "Choose model",
+                    isLoading = true,
+                    pinnedModels = listOf(PinnedModel("openai", "gpt-4")),
+                    onSelect = { _, model -> selectedModel = model },
+                    onDismiss = {},
+                )
+            }
+        }
+        composeTestRule.onNodeWithText("gpt-4").assertIsDisplayed().performClick()
+        assertEquals("gpt-4", selectedModel)
+    }
+
+    @Test
     fun providers_startCollapsed_andOnlyOneProviderExpands() {
         composeTestRule.setContent {
             HermesControlTheme {

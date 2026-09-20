@@ -102,7 +102,7 @@ fun ModelPickerDialog(
         },
         text = {
             Column {
-                if (isLoading) {
+                if (isLoading && providers.isEmpty() && pinnedModels.isEmpty()) {
                     LoadingState(
                         subtitle = stringResource(R.string.model_picker_loading),
                         modifier = Modifier.fillMaxWidth(),

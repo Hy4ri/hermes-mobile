@@ -1,18 +1,23 @@
 package com.m57.hermescontrol.ui.chat
 
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.model.ModelCapabilities
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.ws.ModelCatalogStore
 import com.m57.hermescontrol.data.ws.WsMethods
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -46,10 +51,11 @@ class ChatModelSwitchDelegate(
     private val handleSlashCommand: (command: String) -> Unit,
     private val fetchContextUsage: () -> Unit,
     private val onModelSwitchInitiated: () -> Unit = {},
+    private val dataScopeFlow: StateFlow<DataScope?> = AuthManager.dataScopeFlow,
     private val getModelOptionsCall: suspend (
         refresh: Boolean,
     ) -> NetworkResult<com.m57.hermescontrol.data.model.ModelOptionsResponse> =
-        { refresh -> safeApiCall { ApiClient.hermesApi.getModelOptions(refresh = refresh) } },
+        { refresh -> ModelCatalogStore.shared.ensureLoaded(forceRefresh = refresh) },
     private val getPinnedModels: () -> List<PinnedModel> = { AuthManager.getPinnedModels() },
     private val savePinnedModels: (List<PinnedModel>) -> Unit = { AuthManager.savePinnedModels(it) },
 ) {
@@ -62,6 +68,43 @@ class ChatModelSwitchDelegate(
     private var unconfirmedTargetModel: String? = null
     private var modelSwitchSequence: Long = 0L
     private var cachedModelOptions: List<ModelProvider> = emptyList()
+    private var cachedModelOptionsScope: DataScope? = dataScopeFlow.value
+    private var modelOptionsJob: Job? = null
+    private var modelOptionsJobScope: DataScope? = null
+
+    fun attachScopeObserver(externalScope: CoroutineScope) {
+        externalScope.launch {
+            dataScopeFlow.collect { newScope ->
+                if (cachedModelOptionsScope == newScope) return@collect
+
+                // A model catalog belongs to exactly one DataScope. Never let
+                // models or capability flags bleed across profile/server/auth
+                // boundaries while the new scope is reconnecting.
+                cachedModelOptions = emptyList()
+                cachedModelOptionsScope = newScope
+                fastRejectedModels.clear()
+
+                if (modelOptionsJobScope != newScope) {
+                    modelOptionsJob?.cancel()
+                    modelOptionsJob = null
+                    modelOptionsJobScope = null
+                }
+
+                val shouldReload = newScope != null && uiState.value.showModelPicker
+                uiState.update {
+                    it.copy(
+                        modelPickerProviders = emptyList(),
+                        modelPickerLoading = shouldReload,
+                        currentModelCapabilities = null,
+                    )
+                }
+
+                if (shouldReload) {
+                    loadModelOptions(refresh = false)
+                }
+            }
+        }
+    }
 
     fun isModelPickerCommand(command: String): Boolean {
         val trimmed = command.trim()
@@ -75,18 +118,13 @@ class ChatModelSwitchDelegate(
     }
 
     fun preloadModelOptions() {
-        scope.launch(ioDispatcher) {
-            val result = getModelOptionsCall(false)
-            if (result is NetworkResult.Success) {
-                cachedModelOptions = result.data.providers.orEmpty()
-                uiState.update { it.copy(modelPickerPinned = getPinnedModels()) }
-                syncCurrentModelCapabilities()
-            }
-        }
+        loadModelOptions(refresh = false)
     }
 
     fun openModelPicker() {
-        val hasCached = cachedModelOptions.isNotEmpty()
+        val currentScope = dataScopeFlow.value
+        val hasCached =
+            cachedModelOptionsScope == currentScope && cachedModelOptions.isNotEmpty()
         uiState.update {
             it.copy(
                 showModelPicker = true,
@@ -96,36 +134,77 @@ class ChatModelSwitchDelegate(
             )
         }
         if (!hasCached) {
-            refreshModelOptions()
+            loadModelOptions(refresh = false)
         }
     }
 
     fun refreshModelOptions() {
+        loadModelOptions(refresh = true)
+    }
+
+    private fun loadModelOptions(refresh: Boolean) {
+        val requestScope = dataScopeFlow.value
+
+        if (cachedModelOptionsScope != requestScope) {
+            cachedModelOptions = emptyList()
+            cachedModelOptionsScope = requestScope
+            fastRejectedModels.clear()
+            uiState.update {
+                it.copy(
+                    modelPickerProviders = emptyList(),
+                    currentModelCapabilities = null,
+                )
+            }
+        }
+
+        // Reuse only work belonging to this exact DataScope. A reconnect into
+        // another profile/server must not inherit the previous preload.
+        if (modelOptionsJob?.isActive == true) {
+            if (modelOptionsJobScope == requestScope && !refresh) return
+            modelOptionsJob?.cancel()
+        }
+
         uiState.update { it.copy(modelPickerLoading = true) }
-        scope.launch(ioDispatcher) {
-            val result = getModelOptionsCall(true)
-            when (result) {
-                is NetworkResult.Success -> {
-                    cachedModelOptions = result.data.providers.orEmpty()
-                    uiState.update {
-                        it.copy(
-                            modelPickerProviders = cachedModelOptions,
-                            modelPickerLoading = false,
-                        )
-                    }
-                    syncCurrentModelCapabilities()
+        modelOptionsJobScope = requestScope
+        modelOptionsJob =
+            scope.launch {
+                val result = withContext(ioDispatcher) { getModelOptionsCall(refresh) }
+
+                // The scope may have changed while IO was in flight. Never
+                // publish that old scope's result into the current picker.
+                if (dataScopeFlow.value != requestScope) {
+                    return@launch
                 }
 
-                is NetworkResult.Failure -> {
-                    uiState.update {
-                        it.copy(
-                            modelPickerLoading = false,
-                            errorMessage = "Failed to load models: ${result.error.message}",
-                        )
+                when (result) {
+                    is NetworkResult.Success -> {
+                        cachedModelOptions = result.data.providers.orEmpty()
+                        cachedModelOptionsScope = requestScope
+                        uiState.update {
+                            it.copy(
+                                modelPickerProviders = cachedModelOptions,
+                                modelPickerPinned = getPinnedModels(),
+                                modelPickerLoading = false,
+                            )
+                        }
+                        syncCurrentModelCapabilities()
+                    }
+
+                    is NetworkResult.Failure -> {
+                        uiState.update {
+                            it.copy(
+                                modelPickerLoading = false,
+                                errorMessage =
+                                    if (it.showModelPicker || refresh) {
+                                        "Failed to load models: ${result.error.message}"
+                                    } else {
+                                        it.errorMessage
+                                    },
+                            )
+                        }
                     }
                 }
             }
-        }
     }
 
     fun closeModelPicker() {
@@ -402,7 +481,13 @@ class ChatModelSwitchDelegate(
     fun getModelCapabilities(
         providerSlug: String,
         modelName: String,
-    ): ModelCapabilities? = cachedModelOptions.find { it.slug == providerSlug }?.capabilities?.get(modelName)
+    ): ModelCapabilities? {
+        if (cachedModelOptionsScope != dataScopeFlow.value) return null
+        return cachedModelOptions
+            .find { it.slug == providerSlug }
+            ?.capabilities
+            ?.get(modelName)
+    }
 
     fun getCurrentModelCapabilities(): ModelCapabilities? {
         val label = uiState.value.currentSessionModel ?: return null
@@ -425,7 +510,7 @@ class ChatModelSwitchDelegate(
                 } else {
                     val provider = label.substring(0, idx)
                     val model = label.substring(idx + 1)
-                    val baseCaps = cachedModelOptions.find { it.slug == provider }?.capabilities?.get(model)
+                    val baseCaps = getModelCapabilities(provider, model)
                     if (fastRejectedModels.contains(label) && baseCaps?.fast == true) {
                         baseCaps.copy(fast = false)
                     } else {

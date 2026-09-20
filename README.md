@@ -45,8 +45,14 @@ If Hermes Mobile is useful to you, consider supporting its development on [Ko-fi
 <p align="center">
   <img src="docs/screenshots/chat.png" width="180" alt="Hermes Mobile chat screen" />
   <img src="docs/screenshots/cron.png" width="180" alt="Hermes Mobile cron jobs screen" />
-  <img src="docs/screenshots/kanban.png" width="180" alt="Hermes Mobile Kanban screen" />
   <img src="docs/screenshots/skills.png" width="180" alt="Hermes Mobile skills screen" />
+  <img src="docs/screenshots/model.png" width="180" alt="Hermes Mobile models screen" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/plugins.png" width="180" alt="Hermes Mobile plugins screen" />
+  <img src="docs/screenshots/sidebar-1.png" width="180" alt="Hermes Mobile primary navigation" />
+  <img src="docs/screenshots/sidebar-2.png" width="180" alt="Hermes Mobile secondary navigation" />
 </p>
 
 <p align="center"><em>Chat, automation, productivity, and agent configuration — from your phone.</em></p>

@@ -120,6 +120,76 @@ class ModelCatalogStoreTest {
         }
 
     @Test
+    fun `forced refresh supersedes normal load without cancelling existing callers`() =
+        testScope.runTest {
+            val normalGate = CompletableDeferred<Unit>()
+            val forcedGate = CompletableDeferred<Unit>()
+            val requests = mutableListOf<Boolean>()
+
+            val forcedResponse =
+                ModelOptionsResponse(
+                    providers =
+                        listOf(
+                            ModelProvider(
+                                slug = "anthropic",
+                                name = "Anthropic",
+                                models = listOf("claude-sonnet"),
+                                capabilities = emptyMap(),
+                            ),
+                        ),
+                )
+
+            val repo =
+                ModelOptionsRepository(
+                    connected = { false },
+                    rest = { refresh ->
+                        requests += refresh
+                        if (refresh) {
+                            forcedGate.await()
+                            NetworkResult.Success(forcedResponse)
+                        } else {
+                            normalGate.await()
+                            NetworkResult.Success(fakeResponse)
+                        }
+                    },
+                )
+
+            val store =
+                ModelCatalogStore(
+                    repository = repo,
+                    getCurrentScope = { sampleScope },
+                    scope = testScope,
+                )
+
+            coroutineScope {
+                val normalCaller = async { store.ensureLoaded(forceRefresh = false) }
+                assertEquals(listOf(false), requests)
+
+                val forcedCaller = async { store.ensureLoaded(forceRefresh = true) }
+                assertEquals(listOf(false, true), requests)
+
+                // The superseded physical normal request may finish, but its
+                // callers remain attached to the logical request and wait for
+                // the authoritative forced result.
+                normalGate.complete(Unit)
+                assertFalse(normalCaller.isCancelled)
+                assertFalse(normalCaller.isCompleted)
+
+                forcedGate.complete(Unit)
+
+                val normalResult = normalCaller.await() as NetworkResult.Success
+                val forcedResult = forcedCaller.await() as NetworkResult.Success
+
+                assertEquals(forcedResponse.providers, normalResult.data.providers)
+                assertEquals(forcedResponse.providers, forcedResult.data.providers)
+            }
+
+            assertEquals(forcedResponse.providers, store.state.value.providers)
+            assertTrue(store.state.value.hasLoaded)
+            assertFalse(store.state.value.isRefreshing)
+        }
+
+    @Test
     fun `scope change invalidates cached state and cancels in-flight work`() =
         testScope.runTest {
             var currentScope = sampleScope

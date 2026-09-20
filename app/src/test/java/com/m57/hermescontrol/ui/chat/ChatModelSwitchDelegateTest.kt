@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.chat
 
+import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.model.ModelCapabilities
 import com.m57.hermescontrol.data.model.ModelOptionsResponse
 import com.m57.hermescontrol.data.model.ModelProvider
@@ -39,6 +40,16 @@ class ChatModelSwitchDelegateTest {
     private var modelResponseGate: CompletableDeferred<Unit>? = null
     private var modelFailure: NetworkResult.Failure? = null
 
+    private val initialDataScope =
+        DataScope(
+            connectionProfileId = "conn-1",
+            baseUrl = "http://localhost:9119",
+            activeProfileId = "default",
+            inMemoryAuthGeneration = 1L,
+        )
+
+    private val dataScope = MutableStateFlow<DataScope?>(initialDataScope)
+
     private val fakeResponse =
         ModelOptionsResponse(
             providers =
@@ -68,6 +79,7 @@ class ChatModelSwitchDelegateTest {
             handleSlashCommand = { slashCommands.add(it) },
             fetchContextUsage = { contextRefetched++ },
             onModelSwitchInitiated = { modelSwitchInitiated++ },
+            dataScopeFlow = dataScope,
             getModelOptionsCall = { refresh ->
                 modelRequests.add(refresh)
                 modelResponseGate?.await()
@@ -127,6 +139,40 @@ class ChatModelSwitchDelegateTest {
             advanceUntilIdle()
             assertEquals(listOf(false), modelRequests)
             assertEquals(fakeResponse.providers, uiState.value.modelPickerProviders)
+        }
+
+    @Test
+    fun scopeSwitch_clearsCachedModelsAndReloadsOpenPicker() =
+        testScope.runTest {
+            val scopeObserverJob = kotlinx.coroutines.Job()
+            val observerScope = kotlinx.coroutines.CoroutineScope(testDispatcher + scopeObserverJob)
+            delegate.attachScopeObserver(observerScope)
+
+            delegate.preloadModelOptions()
+            advanceUntilIdle()
+            delegate.openModelPicker()
+
+            assertEquals(fakeResponse.providers, uiState.value.modelPickerProviders)
+            assertFalse(uiState.value.modelPickerLoading)
+
+            modelResponseGate = CompletableDeferred()
+            dataScope.value = initialDataScope.copy(activeProfileId = "work")
+            runCurrent()
+
+            // Previous-scope rows disappear immediately, before the new
+            // catalog request is allowed to complete.
+            assertTrue(uiState.value.showModelPicker)
+            assertTrue(uiState.value.modelPickerProviders.isEmpty())
+            assertTrue(uiState.value.modelPickerLoading)
+            assertEquals(listOf(false, false), modelRequests)
+
+            modelResponseGate?.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(fakeResponse.providers, uiState.value.modelPickerProviders)
+            assertFalse(uiState.value.modelPickerLoading)
+
+            scopeObserverJob.cancel()
         }
 
     @Test
@@ -362,33 +408,49 @@ class ChatModelSwitchDelegateTest {
                 id = "req-1",
                 result = mapOf("key" to "model", "confirm_required" to true),
             )
-            // Guarded: sequence 1 != current sequence 2, so confirmation is ignored
             assertNull(uiState.value.modelSwitchConfirmMessage)
+        }
+
+    @Test
+    fun handleConfigSetError_staleSequence_isIgnored() =
+        testScope.runTest {
+            delegate.sendSlashModel("openai", "gpt-4o")
+            advanceUntilIdle()
+            delegate.handleModelSwitch("/model gpt-4o --provider openai --session")
+            advanceUntilIdle()
+
+            // Second switch arrives
+            delegate.sendSlashModel("anthropic", "claude-3-5-sonnet")
+            advanceUntilIdle()
+            delegate.handleModelSwitch("/model claude-3-5-sonnet --provider anthropic --session")
+            advanceUntilIdle()
+
+            // First switch fails — should not roll back the second switch
+            delegate.handleConfigSetError("req-1", "First switch failed")
+            assertEquals("anthropic/claude-3-5-sonnet", uiState.value.currentSessionModel)
         }
 
     @Test
     fun rapidPicks_preservesOriginalConfirmedModelForRollback() =
         testScope.runTest {
-            // Initially confirmed model is anthropic/claude-3
-            delegate.onModelConfirmed("anthropic/claude-3")
-            uiState.value = uiState.value.copy(currentSessionModel = "anthropic/claude-3")
-
-            // Pick 1: switch to gpt-4o
+            // Pick model A
             delegate.sendSlashModel("openai", "gpt-4o")
             advanceUntilIdle()
             delegate.handleModelSwitch("/model gpt-4o --provider openai --session")
             advanceUntilIdle()
-            assertEquals("openai/gpt-4o", uiState.value.currentSessionModel)
 
-            // Pick 2: rapidly pick solar without gpt-4o ever confirming
-            delegate.sendSlashModel("nous", "solar")
+            // Pick model B before A confirms
+            delegate.sendSlashModel("anthropic", "claude-3-5-sonnet")
             advanceUntilIdle()
-            delegate.handleModelSwitch("/model solar --provider nous --session")
+            delegate.handleModelSwitch("/model claude-3-5-sonnet --provider anthropic --session")
             advanceUntilIdle()
-            assertEquals("nous/solar", uiState.value.currentSessionModel)
 
-            // Error on second switch (req-2) should roll back to confirmed model, not optimistic gpt-4o
-            delegate.handleConfigSetError("req-2", "Solar failed")
+            // Dismiss confirmation on B — should revert to original model before both switches
+            delegate.handleConfigSetResult(
+                id = "req-2",
+                result = mapOf("key" to "model", "confirm_required" to true),
+            )
+            delegate.dismissModelSwitchConfirm()
             assertEquals("anthropic/claude-3", uiState.value.currentSessionModel)
         }
 }

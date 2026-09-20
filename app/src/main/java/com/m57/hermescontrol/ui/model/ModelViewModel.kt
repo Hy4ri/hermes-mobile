@@ -82,13 +82,13 @@ class ModelViewModel(
         _uiState.update { it.copy(pinnedModels = AuthManager.getPinnedModels()) }
         viewModelScope.launch {
             catalogStore.state.collect { catalogState ->
-                if (catalogState.hasLoaded || catalogState.providers.isNotEmpty()) {
-                    _uiState.update {
-                        it.copy(
-                            providers = catalogState.providers,
-                            catalogLoading = catalogState.isRefreshing,
-                        )
-                    }
+                // Empty state is meaningful: it is how ModelCatalogStore
+                // invalidates the previous DataScope. Never ignore it.
+                _uiState.update {
+                    it.copy(
+                        providers = catalogState.providers,
+                        catalogLoading = catalogState.isRefreshing,
+                    )
                 }
             }
         }
@@ -175,12 +175,9 @@ class ModelViewModel(
             val optionsResult = optionsDeferred.await()
             when (optionsResult) {
                 is NetworkResult.Success -> {
-                    _uiState.update {
-                        it.copy(
-                            catalogLoading = false,
-                            providers = optionsResult.data.providers.orEmpty(),
-                        )
-                    }
+                    // ModelCatalogStore.state is the single source of truth.
+                    // Do not independently republish a result here because a
+                    // DataScope switch may have invalidated it meanwhile.
                 }
 
                 is NetworkResult.Failure -> {

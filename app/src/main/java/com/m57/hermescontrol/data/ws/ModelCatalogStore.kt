@@ -7,11 +7,11 @@ import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.remote.NetworkError
 import com.m57.hermescontrol.data.remote.NetworkResult
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -46,7 +46,8 @@ class ModelCatalogStore(
 
     private val mutex = Mutex()
     private var lastLoadedTime: Long = 0L
-    private var activeJob: Deferred<NetworkResult<ModelOptionsResponse>>? = null
+    private var activeResult: CompletableDeferred<NetworkResult<ModelOptionsResponse>>? = null
+    private val inFlightFetches = mutableListOf<Job>()
     private var activeIsForced: Boolean = false
     private var activeGeneration: Long = 0L
 
@@ -64,77 +65,69 @@ class ModelCatalogStore(
     suspend fun onScopeChanged(newScope: DataScope?) {
         mutex.withLock {
             if (_state.value.scope != newScope) {
-                activeJob?.cancel()
-                activeJob = null
-                activeIsForced = false
-                activeGeneration++
-                lastLoadedTime = 0L
-                _state.value = ModelCatalogState(scope = newScope)
+                resetForScopeLocked(newScope)
             }
         }
     }
 
-    suspend fun ensureLoaded(forceRefresh: Boolean = false): NetworkResult<ModelOptionsResponse> {
-        val currentScope = getCurrentScope()
-        val job: Deferred<NetworkResult<ModelOptionsResponse>>
-        val generation: Long
+    /**
+     * Invalidates all work belonging to the previous data scope.
+     *
+     * Unlike force-refresh supersession, a scope switch really does make the
+     * old network work invalid, so those fetches are cancelled.
+     */
+    private fun resetForScopeLocked(newScope: DataScope?) {
+        inFlightFetches.forEach { it.cancel() }
+        inFlightFetches.clear()
 
-        mutex.withLock {
-            // Scope switch check
-            if (_state.value.scope != currentScope) {
-                activeJob?.cancel()
-                activeJob = null
-                activeIsForced = false
-                activeGeneration++
-                lastLoadedTime = 0L
-                _state.value = ModelCatalogState(scope = currentScope)
-            }
+        activeResult?.cancel()
+        activeResult = null
+        activeIsForced = false
+        activeGeneration++
+        lastLoadedTime = 0L
+        _state.value = ModelCatalogState(scope = newScope)
+    }
 
-            val now = clock()
-            val isFresh = _state.value.hasLoaded && (now - lastLoadedTime < ttlMs)
-
-            if (!forceRefresh && isFresh) {
-                return NetworkResult.Success(ModelOptionsResponse(_state.value.providers))
-            }
-
-            // In-flight request reuse / supersession logic
-            if (activeJob?.isActive == true) {
-                if (!forceRefresh || activeIsForced) {
-                    // Reuse in-flight job
-                    job = activeJob!!
-                    generation = activeGeneration
-                } else {
-                    // Force refresh supersedes normal in-flight
-                    activeJob?.cancel()
-                    generation = ++activeGeneration
-                    activeIsForced = true
-                    _state.update { it.copy(isRefreshing = true) }
-                    val newDeferred =
-                        scope.async {
-                            repository.load(refresh = true)
-                        }
-                    activeJob = newDeferred
-                    job = newDeferred
-                }
-            } else {
-                generation = ++activeGeneration
-                activeIsForced = forceRefresh
-                _state.update { it.copy(isRefreshing = true) }
-                val newDeferred =
-                    scope.async {
-                        repository.load(refresh = forceRefresh)
+    /**
+     * Starts one physical catalog request for the current logical load.
+     *
+     * Multiple callers await [resultGate]. A forced refresh may supersede a
+     * normal physical request without cancelling that gate, so callers already
+     * waiting on the normal request transparently receive the forced result.
+     */
+    private fun startFetchLocked(
+        refresh: Boolean,
+        requestScope: DataScope?,
+        generation: Long,
+        resultGate: CompletableDeferred<NetworkResult<ModelOptionsResponse>>,
+    ) {
+        inFlightFetches.removeAll { it.isCompleted }
+        inFlightFetches +=
+            scope.launch {
+                val result =
+                    try {
+                        repository.load(refresh = refresh)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (t: Throwable) {
+                        NetworkResult.Failure(
+                            NetworkError.Unknown(t.message ?: "Unknown error", t),
+                        )
                     }
-                activeJob = newDeferred
-                job = newDeferred
-            }
-        }
 
-        return try {
-            val result = job.await()
-            mutex.withLock {
-                if (generation == activeGeneration && _state.value.scope == currentScope) {
-                    activeJob = null
+                mutex.withLock {
+                    // A newer forced request or scope switch owns publication.
+                    if (
+                        generation != activeGeneration ||
+                        _state.value.scope != requestScope ||
+                        activeResult !== resultGate
+                    ) {
+                        return@withLock
+                    }
+
+                    activeResult = null
                     activeIsForced = false
+
                     when (result) {
                         is NetworkResult.Success -> {
                             lastLoadedTime = clock()
@@ -157,21 +150,69 @@ class ModelCatalogStore(
                             }
                         }
                     }
+
+                    // Complete only from the authoritative generation.
+                    // Every consumer of this logical load receives the same result.
+                    resultGate.complete(result)
                 }
             }
-            result
-        } catch (e: CancellationException) {
-            throw e
-        } catch (t: Throwable) {
+    }
+
+    suspend fun ensureLoaded(forceRefresh: Boolean = false): NetworkResult<ModelOptionsResponse> {
+        val currentScope = getCurrentScope()
+
+        val resultGate =
             mutex.withLock {
-                if (generation == activeGeneration) {
-                    activeJob = null
-                    activeIsForced = false
-                    _state.update { it.copy(isRefreshing = false) }
+                // Scope switch check
+                if (_state.value.scope != currentScope) {
+                    resetForScopeLocked(currentScope)
+                }
+
+                val now = clock()
+                val isFresh = _state.value.hasLoaded && (now - lastLoadedTime < ttlMs)
+
+                if (!forceRefresh && isFresh) {
+                    return NetworkResult.Success(ModelOptionsResponse(_state.value.providers))
+                }
+
+                val existing = activeResult
+                if (existing?.isActive == true) {
+                    if (forceRefresh && !activeIsForced) {
+                        // Supersede the physical request, but deliberately keep
+                        // the shared result gate alive. Existing consumers must
+                        // not be cancelled just because another screen refreshed.
+                        val generation = ++activeGeneration
+                        activeIsForced = true
+                        _state.update { it.copy(isRefreshing = true) }
+                        startFetchLocked(
+                            refresh = true,
+                            requestScope = currentScope,
+                            generation = generation,
+                            resultGate = existing,
+                        )
+                    }
+
+                    existing
+                } else {
+                    val generation = ++activeGeneration
+                    val newResult = CompletableDeferred<NetworkResult<ModelOptionsResponse>>()
+
+                    activeResult = newResult
+                    activeIsForced = forceRefresh
+                    _state.update { it.copy(isRefreshing = true) }
+
+                    startFetchLocked(
+                        refresh = forceRefresh,
+                        requestScope = currentScope,
+                        generation = generation,
+                        resultGate = newResult,
+                    )
+
+                    newResult
                 }
             }
-            NetworkResult.Failure(NetworkError.Unknown(t.message ?: "Unknown error", t))
-        }
+
+        return resultGate.await()
     }
 
     companion object {

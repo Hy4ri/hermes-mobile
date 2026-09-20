@@ -1,7 +1,13 @@
 package com.m57.hermescontrol.ui.model
 
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
+import com.m57.hermescontrol.data.model.ModelOptionsResponse
+import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
+import com.m57.hermescontrol.data.remote.NetworkResult
+import com.m57.hermescontrol.data.ws.ModelCatalogStore
+import com.m57.hermescontrol.data.ws.ModelOptionsRepository
 import io.mockk.every
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
@@ -11,6 +17,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -147,6 +154,57 @@ class ModelViewModelTest {
 
         verify { AuthManager.savePinnedModels(listOf(PinnedModel("anthropic", "claude-3"))) }
     }
+
+    @Test
+    fun `catalog scope reset clears providers from previous scope`() =
+        runTest(testDispatcher) {
+            var currentScope =
+                DataScope(
+                    connectionProfileId = "conn-1",
+                    baseUrl = "http://localhost:9119",
+                    activeProfileId = "default",
+                    inMemoryAuthGeneration = 1L,
+                )
+
+            val response =
+                ModelOptionsResponse(
+                    providers =
+                        listOf(
+                            ModelProvider(
+                                slug = "openai",
+                                name = "OpenAI",
+                                models = listOf("gpt-4o"),
+                                capabilities = emptyMap(),
+                            ),
+                        ),
+                )
+
+            val store =
+                ModelCatalogStore(
+                    repository =
+                        ModelOptionsRepository(
+                            connected = { false },
+                            rest = { NetworkResult.Success(response) },
+                        ),
+                    getCurrentScope = { currentScope },
+                    scope = this,
+                )
+
+            val viewModel = ModelViewModel(catalogStore = store)
+
+            store.ensureLoaded()
+            advanceUntilIdle()
+            assertEquals(response.providers, viewModel.uiState.value.providers)
+
+            currentScope = currentScope.copy(activeProfileId = "work")
+            store.onScopeChanged(currentScope)
+            advanceUntilIdle()
+
+            assertTrue(
+                viewModel.uiState.value.providers
+                    .isEmpty(),
+            )
+        }
 
     @Test
     fun `pinModel shows toast when max cap reached`() {

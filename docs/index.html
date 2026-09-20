@@ -3,148 +3,43 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Hermes Mobile — Native Android client for Hermes Agent</title>
-  <meta name="description" content="Hermes Mobile is the open-source native Android client for Hermes Agent. Real-time chat, cron management, session resume, Kanban, skills and more — from your pocket. Available on F-Droid and GitHub Releases.">
-  <meta name="keywords" content="Hermes Agent, Android, mobile client, open source, F-Droid, AI assistant, hermes mobile">
+  <title>Hermes Mobile | Your Hermes Agent, in your pocket</title>
+  <meta name="description" content="Hermes Mobile is the open-source native Android client for Hermes Agent. Chat, configure, automate, and manage your agent from your phone.">
+  <meta name="keywords" content="Hermes Agent, Hermes Mobile, Android, AI agent, mobile client, open source, F-Droid">
   <link rel="canonical" href="https://hy4ri.github.io/hermes-mobile/">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="Hermes Mobile — Native Android client for Hermes Agent">
-  <meta property="og:description" content="Chat, automation, productivity, and agent configuration — from your phone.">
+  <meta property="og:title" content="Hermes Mobile">
+  <meta property="og:description" content="Your Hermes Agent, in your pocket. Native Android client for Hermes Agent.">
   <meta property="og:url" content="https://hy4ri.github.io/hermes-mobile/">
   <meta name="theme-color" content="#0d0f12">
   <style>
-    :root {
-      --bg: #0d0f12;
-      --surface: #161a20;
-      --border: #262c36;
-      --text: #e8eaed;
-      --muted: #9aa4b2;
-      --accent: #f5b842;
-      --accent-ink: #14100a;
-    }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans", sans-serif;
-      line-height: 1.6;
-      -webkit-font-smoothing: antialiased;
-    }
-    .wrap { max-width: 960px; margin: 0 auto; padding: 0 24px; }
-    header { padding: 72px 0 40px; text-align: center; }
-    .logo {
-      display: inline-flex; align-items: center; gap: 12px;
-      font-size: 15px; font-weight: 600; color: var(--muted);
-      border: 1px solid var(--border); border-radius: 999px;
-      padding: 8px 18px; margin-bottom: 28px;
-    }
-    .logo .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
-    h1 { font-size: 42px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 14px; }
-    h1 .accent { color: var(--accent); }
-    .tagline { font-size: 18px; color: var(--muted); max-width: 620px; margin: 0 auto 32px; }
-    .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
-    .btn {
-      display: inline-block; padding: 12px 26px; border-radius: 10px;
-      font-size: 15px; font-weight: 600; text-decoration: none;
-      border: 1px solid var(--border); color: var(--text); transition: 0.15s ease;
-    }
-    .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-    .btn:hover { transform: translateY(-1px); filter: brightness(1.08); }
-    section { padding: 44px 0; border-top: 1px solid var(--border); }
-    h2 { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
-    .sub { color: var(--muted); margin-bottom: 28px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
-    .card {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 12px; padding: 20px;
-    }
-    .card h3 { font-size: 16px; margin-bottom: 6px; }
-    .card p { font-size: 14px; color: var(--muted); }
-    .shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; }
-    .shots img {
-      width: 100%; border-radius: 12px; border: 1px solid var(--border);
-      background: var(--surface);
-    }
-    ol.steps { list-style: none; counter-reset: step; }
-    ol.steps li {
-      counter-increment: step; position: relative;
-      padding: 16px 16px 16px 60px; background: var(--surface);
-      border: 1px solid var(--border); border-radius: 12px; margin-bottom: 10px;
-      font-size: 15px;
-    }
-    ol.steps li::before {
-      content: counter(step); position: absolute; left: 16px; top: 14px;
-      width: 28px; height: 28px; border-radius: 50%;
-      background: var(--accent); color: var(--accent-ink);
-      font-weight: 700; font-size: 14px; display: flex;
-      align-items: center; justify-content: center;
-    }
-    code {
-      background: #0d0f12; border: 1px solid var(--border);
-      padding: 2px 8px; border-radius: 6px; font-size: 13px;
-      font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
-    }
-    footer { padding: 36px 0 64px; text-align: center; color: var(--muted); font-size: 14px; }
-    footer a { color: var(--accent); text-decoration: none; }
-    footer a:hover { text-decoration: underline; }
-    @media (max-width: 640px) {
-      h1 { font-size: 30px; }
-      header { padding: 48px 0 28px; }
-    }
+    :root{--bg:#0d0f12;--bg-soft:#111419;--surface:#161a20;--surface-hover:#1b2028;--border:#262c36;--text:#f4f5f6;--muted:#9aa4b2;--muted-strong:#b5bdc8;--accent:#f5b842;--accent-soft:rgba(245,184,66,.12);--accent-border:rgba(245,184,66,.26);--accent-ink:#171109;--radius-md:16px;--radius-lg:24px;--shadow:0 24px 80px rgba(0,0,0,.35)}
+    *{margin:0;padding:0;box-sizing:border-box}html{scroll-behavior:smooth}body{background:radial-gradient(circle at 50% -10%,rgba(245,184,66,.11),transparent 34%),var(--bg);color:var(--text);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.6;-webkit-font-smoothing:antialiased}a{color:inherit}img{display:block;max-width:100%}.wrap{width:min(1120px,calc(100% - 40px));margin:0 auto}
+    nav{display:flex;align-items:center;justify-content:space-between;min-height:72px}.brand{display:flex;align-items:center;gap:10px;color:var(--text);text-decoration:none;font-weight:700;letter-spacing:-.02em}.brand-dot{width:10px;height:10px;background:var(--accent);border-radius:50%;box-shadow:0 0 0 5px rgba(245,184,66,.08),0 0 24px rgba(245,184,66,.35)}.nav-links{display:flex;align-items:center;gap:22px}.nav-links a{color:var(--muted);text-decoration:none;font-size:14px;font-weight:500}.nav-links a:hover{color:var(--text)}
+    .hero{padding:92px 0 70px;text-align:center}.eyebrow{display:inline-flex;align-items:center;gap:8px;padding:7px 13px;margin-bottom:24px;border:1px solid var(--accent-border);border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:13px;font-weight:600}h1{max-width:900px;margin:0 auto;font-size:clamp(46px,8vw,82px);line-height:.98;letter-spacing:-.055em;font-weight:850}.accent{color:var(--accent)}.hero-sub{max-width:650px;margin:26px auto 0;color:var(--muted-strong);font-size:clamp(17px,2.5vw,20px);line-height:1.65}.hero-sub strong{color:var(--text)}.hero-actions{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:12px;margin-top:34px}.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 22px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text);font-size:14px;font-weight:650;text-decoration:none;transition:transform .15s ease,background .15s ease,border-color .15s ease}.btn:hover{transform:translateY(-2px);background:var(--surface-hover);border-color:#39414d}.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}.btn.primary:hover{background:#ffc454;border-color:#ffc454}.hero-note{margin-top:14px;color:var(--muted);font-size:12px}
+    .showcase{position:relative;max-width:900px;margin:74px auto 0;padding:24px;border:1px solid var(--border);border-radius:28px;background:linear-gradient(145deg,rgba(255,255,255,.03),transparent 40%),var(--bg-soft);box-shadow:var(--shadow);overflow:hidden}.showcase:before{content:"";position:absolute;width:420px;height:420px;top:-210px;left:50%;transform:translateX(-50%);border-radius:50%;background:rgba(245,184,66,.12);filter:blur(100px);pointer-events:none}.screens{position:relative;z-index:1;display:grid;grid-template-columns:repeat(4,1fr);align-items:end;gap:14px}.screen{border-radius:20px;overflow:hidden;border:1px solid rgba(255,255,255,.08);background:var(--surface);box-shadow:0 12px 30px rgba(0,0,0,.32)}.screen:nth-child(1),.screen:nth-child(4){transform:translateY(28px) scale(.94);opacity:.82}
+    section{padding:100px 0}.section-head{max-width:680px;margin-bottom:44px}.section-label{color:var(--accent);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;margin-bottom:10px}h2{font-size:clamp(30px,5vw,46px);line-height:1.1;letter-spacing:-.04em;margin-bottom:14px}.section-sub{color:var(--muted);font-size:17px}.pillars{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.pillar{min-height:260px;padding:26px;border:1px solid var(--border);border-radius:var(--radius-lg);background:linear-gradient(150deg,rgba(255,255,255,.025),transparent 50%),var(--surface)}.pillar-icon{display:grid;place-items:center;width:44px;height:44px;margin-bottom:28px;border-radius:12px;background:var(--accent-soft);border:1px solid var(--accent-border);color:var(--accent);font-size:20px}.pillar h3{margin-bottom:9px;font-size:20px;letter-spacing:-.02em}.pillar p{color:var(--muted);font-size:14px;line-height:1.7}.details-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}.detail{padding:22px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface)}.detail h3{margin-bottom:5px;font-size:15px}.detail p{color:var(--muted);font-size:14px}.setup{display:grid;grid-template-columns:.85fr 1.15fr;gap:52px;align-items:start}.steps{display:grid;gap:12px}.step{display:grid;grid-template-columns:42px 1fr;gap:14px;align-items:start;padding:20px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface)}.step-number{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:var(--accent);color:var(--accent-ink);font-weight:800;font-size:14px}.step h3{margin-bottom:4px;font-size:15px}.step p{color:var(--muted);font-size:14px}code{padding:2px 7px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:#d8dde5;font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:12px}.final{padding:94px 30px;text-align:center;border:1px solid var(--border);border-radius:28px;background:radial-gradient(circle at 50% 100%,rgba(245,184,66,.13),transparent 42%),var(--surface)}.final h2{max-width:700px;margin:0 auto 14px}.final p{max-width:560px;margin:0 auto;color:var(--muted);font-size:17px}.final .hero-actions{margin-top:28px}footer{padding:34px 0 56px;color:var(--muted);text-align:center;font-size:13px}footer a{color:var(--muted-strong);text-decoration:none}footer a:hover{color:var(--accent)}
+    @media(max-width:900px){.pillars{grid-template-columns:1fr}.setup{grid-template-columns:1fr;gap:34px}.screens{grid-template-columns:repeat(4,minmax(150px,1fr));overflow-x:auto;padding-bottom:10px}.screen{min-width:150px}}@media(max-width:700px){.nav-links a:not(.github-link){display:none}.hero{padding-top:62px}.hero-sub{font-size:16px}.showcase{margin-top:54px;padding:14px}.details-grid{grid-template-columns:1fr}section{padding:76px 0}.screen:nth-child(1),.screen:nth-child(4){transform:none;opacity:1}.screens{grid-template-columns:repeat(4,170px)}.final{padding:70px 22px}}@media(max-width:480px){.wrap{width:min(100% - 28px,1120px)}nav{min-height:64px}.hero{padding-top:50px}h1{font-size:46px}.hero-actions{display:grid;grid-template-columns:1fr}.btn{width:100%}}
   </style>
 </head>
 <body>
   <div class="wrap">
-    <header>
-      <h1>Hermes <span class="accent">Mobile</span></h1>
-      <div class="logo"><span class="dot"></span> Hermes Agent · Android</div>
-      <p class="tagline">The native Android client for Hermes Agent. Chat, automation, productivity, and agent configuration — from your phone.</p>
-      <div class="cta">
-        <a class="btn primary" href="https://f-droid.org/packages/com.m57.hermescontrol/">Get it on F-Droid</a>
-        <a class="btn" href="https://github.com/Hy4ri/hermes-mobile/releases/latest">Latest release</a>
-        <a class="btn" href="https://github.com/Hy4ri/hermes-mobile">Source code</a>
-      </div>
-    </header>
-
-    <section>
-      <h2>Features</h2>
-      <p class="sub">Everything your agent can do, in your pocket.</p>
-      <div class="grid">
-        <div class="card"><h3>Real-time chat</h3><p>Message your agent with Room-backed local history and inline reply notifications.</p></div>
-        <div class="card"><h3>System config</h3><p>Manage profiles, skills, plugins, toolsets, and LLM model/provider selections.</p></div>
-        <div class="card"><h3>Operations</h3><p>Stream live logs, manage cron jobs, edit environment keys, test webhooks, monitor processes.</p></div>
-        <div class="card"><h3>Gateway status</h3><p>WebSocket connection, MCP servers, messaging channels, and OAuth providers at a glance.</p></div>
-        <div class="card"><h3>Productivity</h3><p>Kanban boards, agent milestones, and session history — all in the app.</p></div>
-        <div class="card"><h3>Analytics &amp; billing</h3><p>Usage analytics dashboard and billing/subscription management.</p></div>
-        <div class="card"><h3>Theming</h3><p>6 built-in color presets plus Material You dynamic colors on supported devices.</p></div>
-        <div class="card"><h3>Modern UX</h3><p>Native Material 3 design with pull-to-refresh and customizable bottom navigation.</p></div>
-      </div>
-    </section>
-
-    <section>
-      <h2>Screenshots</h2>
-      <p class="sub">Chat, cron, Kanban, and skills screens.</p>
-      <div class="shots">
-        <img src="screenshots/chat.png" alt="Hermes Mobile chat screen">
-        <img src="screenshots/cron.png" alt="Hermes Mobile cron jobs screen">
-        <img src="screenshots/kanban.png" alt="Hermes Mobile Kanban screen">
-        <img src="screenshots/skills.png" alt="Hermes Mobile skills screen">
-      </div>
-    </section>
-
-    <section>
-      <h2>Quick start</h2>
-      <p class="sub">Point the app at your Hermes gateway and go.</p>
-      <ol class="steps">
-        <li>Install from <a href="https://f-droid.org/packages/com.m57.hermescontrol/">F-Droid</a>, <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fadd%2Fhttps%3A%2F%2Fgithub.com%2FHy4ri%2Fhermes-mobile">Obtainium</a>, or <a href="https://github.com/Hy4ri/hermes-mobile/releases/latest">GitHub Releases</a>.</li>
-        <li>Start your dashboard on the host: <code>hermes dashboard --host 0.0.0.0</code></li>
-        <li>Tap <strong>Sign in</strong>, enter the host and port — the app auto-detects the auth mode.</li>
-      </ol>
-    </section>
-
-    <footer>
-      <p>Copyright © 2026 M57 (Hy4ri) · <a href="https://github.com/Hy4ri/hermes-mobile/blob/main/LICENSE">Apache License 2.0</a> · <a href="https://github.com/Hy4ri/hermes-mobile">GitHub</a></p>
-    </footer>
+    <nav><a class="brand" href="#"><span class="brand-dot"></span>Hermes Mobile</a><div class="nav-links"><a href="#features">Features</a><a href="#setup">Setup</a><a class="github-link" href="https://github.com/Hy4ri/hermes-mobile">GitHub</a></div></nav>
+    <main>
+      <header class="hero">
+        <div class="eyebrow">Native Android client for Hermes Agent</div>
+        <h1>Your Hermes Agent. <span class="accent">In your pocket.</span></h1>
+        <p class="hero-sub">Chat, configure, automate, and manage your Hermes Agent from a native Android experience built for your phone.</p>
+        <div class="hero-actions"><a class="btn primary" href="https://f-droid.org/packages/com.m57.hermescontrol/">Get it on F-Droid</a><a class="btn" href="https://github.com/Hy4ri/hermes-mobile/releases/latest">Download APK</a><a class="btn" href="https://github.com/Hy4ri/hermes-mobile">View source</a></div>
+        <p class="hero-note">Free, open source, and built specifically for Android.</p>
+        <div class="showcase"><div class="screens"><div class="screen"><img src="screenshots/cron.png" alt="Hermes Mobile cron jobs"></div><div class="screen"><img src="screenshots/chat.png" alt="Hermes Mobile chat"></div><div class="screen"><img src="screenshots/kanban.png" alt="Hermes Mobile Kanban"></div><div class="screen"><img src="screenshots/skills.png" alt="Hermes Mobile skills"></div></div></div>
+      </header>
+      <section id="features"><div class="section-head"><div class="section-label">Built for Hermes</div><h2>More than chat.</h2><p class="section-sub">Hermes Mobile brings the parts of your agent you actually use into one native Android interface.</p></div><div class="pillars"><article class="pillar"><div class="pillar-icon">◉</div><h3>Talk to Hermes</h3><p>Chat with your agent in real time, resume previous sessions, work with attachments, and stay connected through Android notifications.</p></article><article class="pillar"><div class="pillar-icon">⚙</div><h3>Control your agent</h3><p>Manage models, providers, skills, plugins, MCP servers, cron jobs, profiles, environment settings, and other Hermes configuration without returning to your desktop.</p></article><article class="pillar"><div class="pillar-icon">✓</div><h3>Keep work moving</h3><p>Check Kanban boards, inspect sessions, monitor your gateway, view logs, and keep an eye on what your agent is doing wherever you are.</p></article></div></section>
+      <section><div class="section-head"><div class="section-label">Native by design</div><h2>Made for Android. Not squeezed into it.</h2><p class="section-sub">Hermes Mobile is built as an Android app from the ground up, with a UI that belongs on your phone.</p></div><div class="details-grid"><div class="detail"><h3>Material 3 interface</h3><p>A modern native UI designed around Android navigation, gestures, layouts, and system behavior.</p></div><div class="detail"><h3>Material You</h3><p>Use dynamic device colors or choose from built-in Hermes color presets.</p></div><div class="detail"><h3>Live gateway status</h3><p>Keep an eye on your Hermes connection, integrations, channels, services, and agent state.</p></div><div class="detail"><h3>Automation controls</h3><p>Inspect and manage cron jobs, webhooks, processes, configuration, and operational tools.</p></div><div class="detail"><h3>Session continuity</h3><p>Resume your Hermes conversations instead of treating every mobile interaction as a fresh start.</p></div><div class="detail"><h3>Open source</h3><p>No black box. Browse the code, open issues, contribute fixes, or build it yourself.</p></div></div></section>
+      <section id="setup"><div class="setup"><div><div class="section-label">Quick start</div><h2>Connect and go.</h2><p class="section-sub">Hermes Mobile connects to the Hermes dashboard you already run.</p></div><div class="steps"><div class="step"><div class="step-number">1</div><div><h3>Install Hermes Mobile</h3><p>Get it from F-Droid, Obtainium, or the latest GitHub release.</p></div></div><div class="step"><div class="step-number">2</div><div><h3>Start your Hermes dashboard</h3><p>Run <code>hermes dashboard --host 0.0.0.0</code> on the machine hosting Hermes.</p></div></div><div class="step"><div class="step-number">3</div><div><h3>Sign in from your phone</h3><p>Enter the dashboard host and port. Hermes Mobile detects the available authentication method and handles the rest.</p></div></div></div></div></section>
+      <section><div class="final"><div class="section-label">Hermes goes mobile</div><h2>Take your agent with you.</h2><p>Your conversations, automation, configuration, and workflows are no longer tied to your desk.</p><div class="hero-actions"><a class="btn primary" href="https://f-droid.org/packages/com.m57.hermescontrol/">Install Hermes Mobile</a><a class="btn" href="https://github.com/Hy4ri/hermes-mobile/releases/latest">Latest release</a></div></div></section>
+    </main>
+    <footer><p>Hermes Mobile · Open source under the <a href="https://github.com/Hy4ri/hermes-mobile/blob/main/LICENSE">Apache License 2.0</a> · <a href="https://github.com/Hy4ri/hermes-mobile">GitHub</a></p></footer>
   </div>
 </body>
 </html>

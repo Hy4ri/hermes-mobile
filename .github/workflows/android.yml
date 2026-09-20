@@ -57,7 +57,7 @@ jobs:
   ktlint:
     name: ktlint — Code Style
     needs: [changes]
-    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -121,7 +121,7 @@ jobs:
   android-lint:
     name: Android Lint — Static Analysis
     needs: [changes]
-    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -160,7 +160,7 @@ jobs:
   unit-tests:
     name: Unit & Integration Tests
     needs: [changes]
-    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -199,7 +199,7 @@ jobs:
   build:
     name: Build Debug APK
     needs: [changes, ktlint, android-lint, unit-tests]
-    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -242,7 +242,7 @@ jobs:
   release-compile:
     name: Release Compile Check
     needs: [changes, ktlint, android-lint, unit-tests]
-    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -275,7 +275,7 @@ jobs:
   instrumented-tests:
     name: Instrumented Tests
     needs: [changes]
-    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.chat.components
 
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -63,6 +64,7 @@ class ContextUsageComponentsTest {
             .assertIsDisplayed()
     }
 
+    @OptIn(ExperimentalMaterial3Api::class)
     @Test
     fun detailSheet_missingBackendOccupancy_doesNotUseCumulativeInputTokensAsNumerator() {
         composeTestRule.setContent {

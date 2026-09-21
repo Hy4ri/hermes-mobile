@@ -12,12 +12,51 @@ import java.util.concurrent.ConcurrentMap
 class FakeChatMessageDao : ChatMessageDao {
     private val messages: ConcurrentMap<String, ChatMessageEntity> = ConcurrentHashMap()
 
+    var fullSessionReads = 0
+        private set
+
+    var beforeRead: suspend () -> Unit = {}
+
     override suspend fun sessionExists(sessionId: String): Boolean = messages.values.any { it.sessionId == sessionId }
 
-    override suspend fun getMessagesForSession(sessionId: String): List<ChatMessageEntity> =
-        messages.values
+    override suspend fun getMessagesForSession(sessionId: String): List<ChatMessageEntity> {
+        fullSessionReads++
+        beforeRead()
+        return messages.values
             .filter { it.sessionId == sessionId }
             .sortedBy { it.timestamp }
+    }
+
+    val pageLimits = mutableListOf<Int>()
+
+    override suspend fun getLatestMessagePage(
+        sessionId: String,
+        limit: Int,
+    ): List<ChatMessageEntity> {
+        pageLimits += limit
+        beforeRead()
+        return messages.values
+            .filter { it.sessionId == sessionId }
+            .sortedWith(compareByDescending<ChatMessageEntity> { it.timestamp }.thenByDescending { it.id })
+            .take(limit)
+    }
+
+    override suspend fun getMessagePage(
+        sessionId: String,
+        beforeTimestamp: Long,
+        beforeId: String,
+        limit: Int,
+    ): List<ChatMessageEntity> {
+        pageLimits += limit
+        beforeRead()
+        return messages.values
+            .filter {
+                it.sessionId == sessionId &&
+                    it.timestamp <= beforeTimestamp &&
+                    (it.timestamp < beforeTimestamp || it.id < beforeId)
+            }.sortedWith(compareByDescending<ChatMessageEntity> { it.timestamp }.thenByDescending { it.id })
+            .take(limit)
+    }
 
     override suspend fun upsert(message: ChatMessageEntity) {
         messages[message.id] = message
@@ -40,6 +79,9 @@ class FakeChatMessageDao : ChatMessageDao {
     fun clear() {
         messages.clear()
     }
+
+    fun idsForSession(sessionId: String): Set<String> =
+        messages.values.filter { it.sessionId == sessionId }.mapTo(mutableSetOf()) { it.id }
 
     /** Returns the number of stored messages. */
     fun count(): Int = messages.size

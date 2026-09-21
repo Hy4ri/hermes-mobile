@@ -13,6 +13,29 @@ interface ChatMessageDao {
     @Query("SELECT * FROM chat_messages WHERE session_id = :sessionId ORDER BY timestamp ASC")
     suspend fun getMessagesForSession(sessionId: String): List<ChatMessageEntity>
 
+    @Query(
+        "SELECT * FROM chat_messages WHERE session_id = :sessionId " +
+            "ORDER BY timestamp DESC, id DESC LIMIT :limit",
+    )
+    suspend fun getLatestMessagePage(
+        sessionId: String,
+        limit: Int,
+    ): List<ChatMessageEntity>
+
+    // The explicit upper bound allows the existing session/timestamp index to seek.
+    @Query(
+        "SELECT * FROM chat_messages WHERE session_id = :sessionId " +
+            "AND timestamp <= :beforeTimestamp " +
+            "AND (timestamp < :beforeTimestamp OR id < :beforeId) " +
+            "ORDER BY timestamp DESC, id DESC LIMIT :limit",
+    )
+    suspend fun getMessagePage(
+        sessionId: String,
+        beforeTimestamp: Long,
+        beforeId: String,
+        limit: Int,
+    ): List<ChatMessageEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(message: ChatMessageEntity)
 

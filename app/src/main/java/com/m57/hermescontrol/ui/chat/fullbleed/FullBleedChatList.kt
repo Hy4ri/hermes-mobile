@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -12,9 +11,17 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Density
@@ -32,6 +39,7 @@ import com.m57.hermescontrol.ui.chat.ToolCallDivider
 import com.m57.hermescontrol.ui.chat.VaultCodePromptUi
 import com.m57.hermescontrol.ui.chat.VaultSaveLoginPromptUi
 import com.m57.hermescontrol.ui.chat.VaultUnlockPromptUi
+import com.m57.hermescontrol.ui.chat.components.ChatHistoryPrefetch
 import com.m57.hermescontrol.ui.chat.components.ChatScrollController
 import com.m57.hermescontrol.ui.chat.components.ClarifyBubble
 import com.m57.hermescontrol.ui.chat.components.ReasoningCard
@@ -93,6 +101,9 @@ fun FullBleedChatList(
     savingAttachmentPath: String? = null,
     openingAttachmentPath: String? = null,
     onImageClick: (ImageViewerModel) -> Unit = {},
+    hasOlderMessages: Boolean = false,
+    pagingSessionId: String? = null,
+    onLoadOlder: () -> Unit = viewModel::loadOlderMessages,
 ) {
     if (messages.isEmpty() && !isLoading && !isAgentTyping) {
         Box(
@@ -105,19 +116,133 @@ fun FullBleedChatList(
             )
         }
     } else {
-        val toolMilestones = remember(messages) { toolCallMilestones(messages) }
+        // Keep only the incoming older prefix out of layout during a drag/fling.
+        // The input remains authoritative: overlap updates, new messages and streaming
+        // stay live, and a session change resets the boundary immediately.
+        val previousFirstId = remember(listState, pagingSessionId) { mutableStateOf(messages.firstOrNull()?.id) }
+        val firstRenderedId = previousFirstId.value
+        val olderPrefixSize =
+            remember(messages, firstRenderedId) {
+                if (firstRenderedId != null && firstRenderedId != messages.firstOrNull()?.id) {
+                    messages.indexOfFirst { it.id == firstRenderedId }.coerceAtLeast(0)
+                } else {
+                    0
+                }
+            }
+        val hiddenPrefixSize = if (olderPrefixSize > 0 && listState.isScrollInProgress) olderPrefixSize else 0
+        val renderedMessages =
+            remember(messages, hiddenPrefixSize) {
+                if (hiddenPrefixSize > 0) messages.subList(hiddenPrefixSize, messages.size) else messages
+            }
+        val toolMilestones = remember(renderedMessages) { toolCallMilestones(renderedMessages) }
+        val settledTurns = remember(renderedMessages) { groupIntoTurns(renderedMessages) }
+        val settledIds = remember(renderedMessages) { renderedMessages.mapTo(HashSet()) { it.id } }
         val turns =
-            remember(messages, streamingState.streamingMessage) {
-                groupIntoTurnsWithStreaming(messages, streamingState.streamingMessage)
+            remember(settledTurns, streamingState.streamingMessage) {
+                appendStreamingTurn(settledTurns, settledIds, streamingState.streamingMessage)
             }
-        val agentStatus = deriveAgentStatus(isAgentTyping, streamingState, messages)
-        // messageId → LazyColumn item index. The lazy list has EXTRA items
-        // vs the message list (reasoning hoists, tool rows), so search-match
-        // scrolling must resolve the lazy index, not use the message index.
-        val lazyIndexById =
-            remember(turns, isLoadingOlder) {
-                messageIdToLazyIndex(turns, leadingItems = if (isLoadingOlder) 1 else 0)
+        val agentStatus = deriveAgentStatus(isAgentTyping, streamingState, renderedMessages)
+        // A single ordered definition supplies both emitted tail rows and anchor keys.
+        val tailItems =
+            buildMap<String, @Composable () -> Unit> {
+                agentStatus?.let { status ->
+                    put("agent_status") {
+                        AgentStatusIndicator(status = status)
+                    }
+                }
+
+                // Clarify bubble — rendered at the very bottom
+                if (clarifyRequest != null) {
+                    put("clarify_bubble") {
+                        ClarifyBubble(
+                            clarifyRequest = clarifyRequest,
+                            onRespondSingle = { option -> onRespondClarify?.invoke(option) },
+                            onRespondBatch = { answers -> onRespondClarifyBatch?.invoke(answers) },
+                            onDismiss = { onDismissClarify?.invoke() },
+                        )
+                    }
+                }
+
+                if (vaultUnlockPrompt != null) {
+                    put("vault_unlock_card") {
+                        VaultUnlockCard(
+                            prompt = vaultUnlockPrompt,
+                            onConfirm = { password -> onRespondVaultUnlock?.invoke(password) },
+                            onDismiss = { onDismissVaultUnlock?.invoke() },
+                        )
+                    }
+                }
+
+                if (vaultSaveLoginPrompt != null) {
+                    put("vault_save_login_card") {
+                        VaultSaveLoginCard(
+                            prompt = vaultSaveLoginPrompt,
+                            onConfirm = { identifier, password ->
+                                onRespondVaultSaveLogin?.invoke(identifier, password)
+                            },
+                            onDismiss = { onDismissVaultSaveLogin?.invoke() },
+                        )
+                    }
+                }
+
+                if (vaultCodePrompt != null) {
+                    put("vault_code_card") {
+                        VaultCodeCard(
+                            prompt = vaultCodePrompt,
+                            onConfirm = { code -> onRespondVaultCode?.invoke(code) },
+                            onDismiss = { onDismissVaultCode?.invoke() },
+                        )
+                    }
+                }
             }
+        // custom23 prepend regression: a 150-row page can move the anchor beyond
+        // Compose's nearest-key lookup window. Capture the LIVE layout at insertion,
+        // not when fetching starts, and request its new index before the next measure.
+        // A staged prefix only reaches here at idle, so this cannot stop its drag/fling.
+        SideEffect {
+            val oldFirstId = previousFirstId.value
+            val firstId = renderedMessages.firstOrNull()?.id
+            if (oldFirstId != null && oldFirstId != firstId && renderedMessages.any { it.id == oldFirstId }) {
+                val firstVisibleIndex = listState.firstVisibleItemIndex
+                val anchor = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == firstVisibleIndex }
+                if (anchor != null) {
+                    val newIndex = (fullBleedItemKeys(turns) + tailItems.keys).indexOf(anchor.key)
+                    if (newIndex >= 0 && newIndex != anchor.index) {
+                        listState.requestScrollToItem(newIndex, listState.firstVisibleItemScrollOffset)
+                    }
+                }
+            }
+            previousFirstId.value = firstId
+        }
+        val prefetch = remember(pagingSessionId) { ChatHistoryPrefetch() }
+        val canLoad = rememberUpdatedState(hasOlderMessages && !isLoadingOlder && !isLoading)
+        val loadOlder = rememberUpdatedState(onLoadOlder)
+        val prefetchConnection =
+            remember(listState, prefetch, scrollController) {
+                object : NestedScrollConnection {
+                    override fun onPreScroll(
+                        available: Offset,
+                        source: NestedScrollSource,
+                    ): Offset {
+                        if (prefetch.onScroll(
+                                firstVisibleIndex = listState.firstVisibleItemIndex,
+                                deltaY = available.y,
+                                userInput = source == NestedScrollSource.UserInput,
+                                canLoad = canLoad.value,
+                            )
+                        ) {
+                            scrollController.pauseFollowing()
+                            loadOlder.value()
+                        }
+                        return Offset.Zero
+                    }
+                }
+            }
+        LaunchedEffect(listState, prefetch) {
+            snapshotFlow { listState.isScrollInProgress }.collect { scrolling ->
+                if (!scrolling) prefetch.endGesture()
+            }
+        }
 
         // Scroll the current search match into view, word-focused. Lives here
         // (not in ChatLifecycleEffects) because only this composable knows
@@ -128,6 +253,7 @@ fun FullBleedChatList(
             searchState.currentIndex,
             searchState.matchIndices,
             searchState.matchOffsets,
+            renderedMessages.firstOrNull()?.id,
         ) {
             if (searchState.isActive &&
                 searchState.currentIndex >= 0 &&
@@ -135,6 +261,9 @@ fun FullBleedChatList(
             ) {
                 val messageIndex = searchState.matchIndices[searchState.currentIndex]
                 if (messageIndex < 0 || messageIndex >= messages.size) return@LaunchedEffect
+                // Search indices refer to incoming messages; resolve by id into the
+                // rendered rows. A hit in a staged prefix is retried when it becomes visible.
+                val lazyIndexById = messageIdToLazyIndex(turns)
                 val lazyIndex = lazyIndexById[messages[messageIndex].id] ?: return@LaunchedEffect
                 val contentOffset = searchState.matchOffsets.getOrElse(searchState.currentIndex) { 0 }
                 val contentLength = messages[messageIndex].content.length
@@ -153,202 +282,153 @@ fun FullBleedChatList(
             }
 
         CompositionLocalProvider(LocalDensity provides chatDensity) {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(vertical = 8.dp),
-            ) {
-                if (isLoadingOlder) {
-                    item(key = "loading-older") {
-                        Box(
-                            modifier = Modifier.fillMaxWidth().padding(12.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                        }
-                    }
-                }
-
-                turns.forEach { turn ->
-                    when (turn) {
-                        is ChatTurn.User -> {
-                            // Eager captures: item lambda reads these at
-                            // composition time (lazy), so capture now.
-                            val userMessage = turn.message
-                            item(key = "user-${userMessage.id}") {
-                                Column(modifier = Modifier.padding(bottom = 12.dp)) {
-                                    renderChatBubble(
-                                        message = userMessage,
-                                        searchQuery = if (searchState.isActive) searchState.query else "",
-                                        isCurrentMatch =
-                                            searchState.currentMatchId != null &&
-                                                searchState.currentMatchId == userMessage.id,
-                                        onOpenAttachment = viewModel::openAttachment,
-                                        onSaveAttachment = onSaveAttachment,
-                                        savingAttachmentPath = savingAttachmentPath,
-                                        openingAttachmentPath = openingAttachmentPath,
-                                        onImageClick = onImageClick,
-                                        messageStatsEnabled = messageStatsEnabled,
-                                        showUserMessageTokens = showUserMessageTokens,
-                                    )
-                                }
-                            }
-                        }
-
-                        is ChatTurn.Agent -> {
-                            // Reasoning hoist: the turn's reasoning renders at the
-                            // TOP of the turn — above tool rows — so thinking
-                            // leads, then the tool work, then the answer. The
-                            // matching prose entry renders without its own card.
-                            val turnReasoning =
-                                turn.entries
-                                    .filterIsInstance<AgentEntry.Prose>()
-                                    .firstOrNull { it.message.reasoningText.isNotBlank() }
-                            if (turnReasoning != null) {
-                                val reasoning = turnReasoning.message
-                                item(key = "reasoning-${reasoning.id}") {
-                                    Column(modifier = Modifier.padding(bottom = 6.dp)) {
-                                        ReasoningCard(
-                                            reasoningText = reasoning.reasoningText,
-                                            isStreaming = reasoning.isStreaming,
+            Box(Modifier.fillMaxSize()) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize().nestedScroll(prefetchConnection),
+                    contentPadding = PaddingValues(vertical = 8.dp),
+                ) {
+                    turns.forEach { turn ->
+                        when (turn) {
+                            is ChatTurn.User -> {
+                                // Eager captures: item lambda reads these at
+                                // composition time (lazy), so capture now.
+                                val userMessage = turn.message
+                                item(key = "user-${userMessage.id}") {
+                                    Column(modifier = Modifier.padding(bottom = 12.dp)) {
+                                        renderChatBubble(
+                                            message = userMessage,
+                                            searchQuery = if (searchState.isActive) searchState.query else "",
+                                            isCurrentMatch =
+                                                searchState.currentMatchId != null &&
+                                                    searchState.currentMatchId == userMessage.id,
+                                            onOpenAttachment = viewModel::openAttachment,
+                                            onSaveAttachment = onSaveAttachment,
+                                            savingAttachmentPath = savingAttachmentPath,
+                                            openingAttachmentPath = openingAttachmentPath,
+                                            onImageClick = onImageClick,
+                                            messageStatsEnabled = messageStatsEnabled,
+                                            showUserMessageTokens = showUserMessageTokens,
                                         )
                                     }
                                 }
                             }
-                            turn.entries.forEach { entry ->
-                                when (entry) {
-                                    is AgentEntry.Prose -> {
-                                        val proseMessage = entry.message
-                                        val hoistedReasoning =
-                                            turnReasoning != null &&
-                                                proseMessage.id == turnReasoning.message.id
-                                        if (proseMessage.hasVisibleAgentContent()) {
-                                            item(key = "prose-${proseMessage.id}") {
-                                                Column(modifier = Modifier.padding(bottom = 12.dp)) {
-                                                    if (proseMessage.isStreaming && typingEffectEnabled) {
-                                                        StreamingFullBleedWithTypingEffect(
-                                                            streaming = proseMessage,
-                                                            typingDelayMs = typingEffectDelayMs,
-                                                            showReasoning = !hoistedReasoning,
-                                                        )
+
+                            is ChatTurn.Agent -> {
+                                // Reasoning hoist: the turn's reasoning renders at the
+                                // TOP of the turn — above tool rows — so thinking
+                                // leads, then the tool work, then the answer. The
+                                // matching prose entry renders without its own card.
+                                val turnReasoning =
+                                    turn.entries
+                                        .filterIsInstance<AgentEntry.Prose>()
+                                        .firstOrNull { it.message.reasoningText.isNotBlank() }
+                                if (turnReasoning != null) {
+                                    val reasoning = turnReasoning.message
+                                    item(key = "reasoning-${reasoning.id}") {
+                                        Column(modifier = Modifier.padding(bottom = 6.dp)) {
+                                            ReasoningCard(
+                                                reasoningText = reasoning.reasoningText,
+                                                isStreaming = reasoning.isStreaming,
+                                            )
+                                        }
+                                    }
+                                }
+                                turn.entries.forEach { entry ->
+                                    when (entry) {
+                                        is AgentEntry.Prose -> {
+                                            val proseMessage = entry.message
+                                            val hoistedReasoning =
+                                                turnReasoning != null &&
+                                                    proseMessage.id == turnReasoning.message.id
+                                            if (proseMessage.hasVisibleAgentContent()) {
+                                                item(key = "prose-${proseMessage.id}") {
+                                                    Column(modifier = Modifier.padding(bottom = 12.dp)) {
+                                                        if (proseMessage.isStreaming && typingEffectEnabled) {
+                                                            StreamingFullBleedWithTypingEffect(
+                                                                streaming = proseMessage,
+                                                                typingDelayMs = typingEffectDelayMs,
+                                                                showReasoning = !hoistedReasoning,
+                                                            )
+                                                        } else {
+                                                            FullBleedAgentMessage(
+                                                                message = proseMessage,
+                                                                // Highlight only bubbles that actually contain a match —
+                                                                // the rest skip the highlight scan entirely.
+                                                                searchQuery =
+                                                                    if (searchState.isActive &&
+                                                                        proseMessage.id in searchState.matchedIds
+                                                                    ) {
+                                                                        searchState.query
+                                                                    } else {
+                                                                        ""
+                                                                    },
+                                                                isCurrentMatch =
+                                                                    searchState.currentMatchId != null &&
+                                                                        searchState.currentMatchId == proseMessage.id,
+                                                                showReasoning = !hoistedReasoning,
+                                                                onOpenAttachment = viewModel::openAttachment,
+                                                                onSaveAttachment = onSaveAttachment,
+                                                                savingAttachmentPath = savingAttachmentPath,
+                                                                openingAttachmentPath = openingAttachmentPath,
+                                                                canSaveAttachment = savingAttachmentPath == null,
+                                                                onImageClick = onImageClick,
+                                                                messageStatsEnabled = messageStatsEnabled,
+                                                                showAssistantMessageTokens = showAssistantMessageTokens,
+                                                                showTokensPerSecond = showTokensPerSecond,
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        is AgentEntry.ToolRow -> {
+                                            val toolMessage = entry.message
+                                            val milestone = toolMilestones[toolMessage.id]
+                                            item(key = "tool-${toolMessage.id}") {
+                                                Column(modifier = Modifier.padding(bottom = 6.dp)) {
+                                                    FullBleedToolRow(toolMessage)
+                                                    milestone?.let { count ->
+                                                        ToolCallDivider(count = count, maxPerTurn = maxToolCallsPerTurn)
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        is AgentEntry.SystemEvent -> {
+                                            val sysMessage = entry.message
+                                            item(key = "sys-${sysMessage.id}") {
+                                                Column(modifier = Modifier.padding(bottom = 6.dp)) {
+                                                    if (sysMessage.displayKind != null) {
+                                                        // Timeline marker (issue #904):
+                                                        // model/personality switches and
+                                                        // auto-continues render as a chip.
+                                                        TimelineMarkerChip(message = sysMessage)
                                                     } else {
-                                                        FullBleedAgentMessage(
-                                                            message = proseMessage,
-                                                            // Highlight only bubbles that actually contain a match —
-                                                            // the rest skip the highlight scan entirely.
-                                                            searchQuery =
-                                                                if (searchState.isActive &&
-                                                                    proseMessage.id in searchState.matchedIds
-                                                                ) {
-                                                                    searchState.query
-                                                                } else {
-                                                                    ""
-                                                                },
-                                                            isCurrentMatch =
-                                                                searchState.currentMatchId != null &&
-                                                                    searchState.currentMatchId == proseMessage.id,
-                                                            showReasoning = !hoistedReasoning,
-                                                            onOpenAttachment = viewModel::openAttachment,
-                                                            onSaveAttachment = onSaveAttachment,
-                                                            savingAttachmentPath = savingAttachmentPath,
-                                                            openingAttachmentPath = openingAttachmentPath,
-                                                            canSaveAttachment = savingAttachmentPath == null,
-                                                            onImageClick = onImageClick,
-                                                            messageStatsEnabled = messageStatsEnabled,
-                                                            showAssistantMessageTokens = showAssistantMessageTokens,
-                                                            showTokensPerSecond = showTokensPerSecond,
+                                                        FullBleedSystemEvent(
+                                                            message = sysMessage,
+                                                            onRespondApproval = viewModel::respondToApproval,
                                                         )
                                                     }
                                                 }
                                             }
                                         }
                                     }
-
-                                    is AgentEntry.ToolRow -> {
-                                        val toolMessage = entry.message
-                                        val milestone = toolMilestones[toolMessage.id]
-                                        item(key = "tool-${toolMessage.id}") {
-                                            Column(modifier = Modifier.padding(bottom = 6.dp)) {
-                                                FullBleedToolRow(toolMessage)
-                                                milestone?.let { count ->
-                                                    ToolCallDivider(count = count, maxPerTurn = maxToolCallsPerTurn)
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    is AgentEntry.SystemEvent -> {
-                                        val sysMessage = entry.message
-                                        item(key = "sys-${sysMessage.id}") {
-                                            Column(modifier = Modifier.padding(bottom = 6.dp)) {
-                                                if (sysMessage.displayKind != null) {
-                                                    // Timeline marker (issue #904):
-                                                    // model/personality switches and
-                                                    // auto-continues render as a chip.
-                                                    TimelineMarkerChip(message = sysMessage)
-                                                } else {
-                                                    FullBleedSystemEvent(
-                                                        message = sysMessage,
-                                                        onRespondApproval = viewModel::respondToApproval,
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
                                 }
                             }
                         }
                     }
-                }
 
-                agentStatus?.let { status ->
-                    item(key = "agent_status") {
-                        AgentStatusIndicator(status = status)
+                    tailItems.forEach { (key, content) ->
+                        item(key = key) { content() }
                     }
                 }
-
-                // Clarify bubble — rendered at the very bottom
-                if (clarifyRequest != null) {
-                    item(key = "clarify_bubble") {
-                        ClarifyBubble(
-                            clarifyRequest = clarifyRequest,
-                            onRespondSingle = { option -> onRespondClarify?.invoke(option) },
-                            onRespondBatch = { answers -> onRespondClarifyBatch?.invoke(answers) },
-                            onDismiss = { onDismissClarify?.invoke() },
-                        )
-                    }
-                }
-
-                if (vaultUnlockPrompt != null) {
-                    item(key = "vault_unlock_card") {
-                        VaultUnlockCard(
-                            prompt = vaultUnlockPrompt,
-                            onConfirm = { password -> onRespondVaultUnlock?.invoke(password) },
-                            onDismiss = { onDismissVaultUnlock?.invoke() },
-                        )
-                    }
-                }
-
-                if (vaultSaveLoginPrompt != null) {
-                    item(key = "vault_save_login_card") {
-                        VaultSaveLoginCard(
-                            prompt = vaultSaveLoginPrompt,
-                            onConfirm = { identifier, password ->
-                                onRespondVaultSaveLogin?.invoke(identifier, password)
-                            },
-                            onDismiss = { onDismissVaultSaveLogin?.invoke() },
-                        )
-                    }
-                }
-
-                if (vaultCodePrompt != null) {
-                    item(key = "vault_code_card") {
-                        VaultCodeCard(
-                            prompt = vaultCodePrompt,
-                            onConfirm = { code -> onRespondVaultCode?.invoke(code) },
-                            onDismiss = { onDismissVaultCode?.invoke() },
-                        )
-                    }
+                // Loading history must never become the list's first visible anchor.
+                if (isLoadingOlder) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.align(Alignment.TopCenter).padding(12.dp).size(24.dp),
+                    )
                 }
             }
         }

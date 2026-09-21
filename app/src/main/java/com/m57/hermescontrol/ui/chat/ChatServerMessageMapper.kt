@@ -10,10 +10,9 @@ import com.m57.hermescontrol.notification.ReplyNotificationTracker
 /**
  * Maps REST transcript rows ([SessionMessage]) into UI [ChatMessage]s.
  *
- * Verbatim extraction of ChatViewModel.mapServerMessages (corral 2 of the
- * 2026-08 delegate refactor). Pure with respect to the VM: it reads the live
- * message list supplied by the caller and one paging-mode flag — no state
- * mutation, no I/O beyond URL construction.
+ * Reads the supplied transcript snapshot and recovers notification identity through
+ * ReplyNotificationTracker's synchronized lookup. Safe on the history dispatcher;
+ * it never mutates ViewModel state or dismisses a notification.
  */
 internal fun mapServerMessages(
     sessionId: String,
@@ -24,15 +23,16 @@ internal fun mapServerMessages(
     isPagingOlder: Boolean = false,
     context: android.content.Context? = null,
 ): List<ChatMessage> {
+    val existingById = liveMessages.associateBy { it.canonicalRestId ?: it.id }
     val existingReasoningMap =
         liveMessages
             .filter { it.reasoningText.isNotBlank() }
-            .associateBy { it.content }
+            .groupBy { it.content }
 
     val liveByExactId =
         liveMessages
             .filter { !it.completionId.isNullOrBlank() }
-            .associateBy { it.id }
+            .associateBy { it.canonicalRestId ?: it.id }
 
     val unmappedLiveWsAssistants =
         if (isPagingOlder) {
@@ -40,103 +40,60 @@ internal fun mapServerMessages(
         } else {
             liveMessages
                 .filter {
-                    it.role == MessageRole.ASSISTANT && !it.id.startsWith("rest-") &&
+                    it.role == MessageRole.ASSISTANT && it.canonicalRestId == null &&
                         !it.completionId.isNullOrBlank()
                 }
         }
 
-    val wsCompletionIdByRestIndex = mutableMapOf<Int, String>()
-    if (!isPagingOlder) {
-        if (unmappedLiveWsAssistants.isNotEmpty()) {
-            val remainingWs = unmappedLiveWsAssistants.toMutableList()
-            for (i in messages.indices.reversed()) {
-                if (remainingWs.isEmpty()) break
-                val m = messages[i]
-                val r =
-                    when (m.role?.lowercase()) {
-                        "user" -> MessageRole.USER
-                        "system" -> MessageRole.SYSTEM
-                        "tool" -> MessageRole.TOOL
-                        else -> MessageRole.ASSISTANT
-                    }
-                if (r != MessageRole.ASSISTANT) continue
-                val rawContent = m.contentText
-                // Reasoning-only or empty tool placeholder: skip, does not become visible prose
-                if (rawContent.isBlank() && !rawContent.contains("MEDIA:")) continue
-
-                val restId =
-                    if (latestPaging) {
-                        m.id?.let { "rest-$sessionId-$it" } ?: "rest-$sessionId-${offset + i}"
-                    } else {
-                        "rest-$sessionId-${offset + i}"
-                    }
-                if (liveByExactId.containsKey(restId)) continue
-
-                val canonicalContent =
-                    if (rawContent.contains("MEDIA:")) {
-                        HostMediaExtractor.strip(rawContent).trim()
-                    } else {
-                        rawContent.trim()
-                    }
-
-                val wsIdx = remainingWs.indexOfLast { it.content.trim() == canonicalContent }
-                if (wsIdx >= 0) {
-                    remainingWs.removeAt(wsIdx).completionId?.let { compId ->
-                        wsCompletionIdByRestIndex[i] = compId
-                    }
-                }
-            }
+    fun restIdAt(index: Int): String =
+        if (latestPaging) {
+            "rest-$sessionId-${requireNotNull(messages[index].id) { "Latest transcript row has no stable id" }}"
+        } else {
+            "rest-$sessionId-${offset + index}"
         }
 
-        // REST-only recovery is fail-closed: only a durable server row ID may
-        // transfer notification identity after the WebSocket copy is gone.
-        val activeTarget = ReplyNotificationTracker.getActiveTarget(context)
-        if (
-            activeTarget != null &&
-            activeTarget.sessionId == sessionId &&
-            activeTarget.serverMessageId != null &&
-            wsCompletionIdByRestIndex.values.none { it == activeTarget.completionId }
-        ) {
+    val wsCompletionIdByRestIndex = mutableMapOf<Int, String>()
+    if (!isPagingOlder) {
+        // #129: reserve durable identity before matching any repeated live prose.
+        // REST-only recovery remains fail-closed when the target row is absent.
+        val activeTarget = ReplyNotificationTracker.getActiveTarget(context)?.takeIf { it.sessionId == sessionId }
+        val durableTarget = activeTarget?.takeIf { it.serverMessageId != null }
+        if (durableTarget != null) {
             val exactIndex =
                 messages.indexOfFirst { message ->
-                    message.id == activeTarget.serverMessageId &&
+                    message.id == durableTarget.serverMessageId &&
                         message.role.equals("assistant", ignoreCase = true)
                 }
-            if (exactIndex >= 0 && !liveByExactId.containsKey("rest-$sessionId-${activeTarget.serverMessageId}")) {
-                wsCompletionIdByRestIndex[exactIndex] = activeTarget.completionId
+            if (exactIndex >= 0 && !liveByExactId.containsKey(restIdAt(exactIndex))) {
+                wsCompletionIdByRestIndex[exactIndex] = durableTarget.completionId
+            }
+        }
+        val confirmedCompletions =
+            liveMessages.filter { it.canonicalRestId != null }.mapNotNull { it.completionId }.toSet()
+        val remainingWs =
+            unmappedLiveWsAssistants
+                .filter {
+                    it.completionId !in confirmedCompletions && it.completionId != durableTarget?.completionId
+                }.toMutableList()
+        // #129: reserve known completions and live aliases. A metadata-free cached REST
+        // echo must remain eligible for its pending WS completion before older duplicates.
+        val reservedRestIds = liveByExactId.keys + liveMessages.mapNotNull { it.restId }
+        // Retain upstream's newest-to-newest, one-to-one WS echo matching.
+        for (i in messages.indices.reversed()) {
+            if (remainingWs.isEmpty()) break
+            if (i in wsCompletionIdByRestIndex || restIdAt(i) in reservedRestIds) continue
+            val m = messages[i]
+            if (m.role?.lowercase() in listOf("user", "system", "tool")) continue
+            val rawContent = m.contentText
+            if (rawContent.isBlank()) continue
+            val canonicalContent =
+                if (rawContent.contains("MEDIA:")) HostMediaExtractor.strip(rawContent).trim() else rawContent.trim()
+            val wsIdx = remainingWs.indexOfLast { it.content.trim() == canonicalContent }
+            if (wsIdx >= 0) {
+                remainingWs.removeAt(wsIdx).completionId?.let { wsCompletionIdByRestIndex[i] = it }
             }
         }
     }
-
-    // Tool rows in the REST transcript carry NO tool name — the live WS
-    // stream was the only source of `toolName`. Match each REST tool row
-    // to its WS counterpart by RESULT CONTENT (not position — pagination
-    // and mixed cache state make positional mapping misalign, leaving
-    // the newest call with a null name → generic "tool" bubble). When a
-    // match is found the live message is reused wholesale (same id +
-    // toolName + rich payload), so persistence upserts the same row
-    // instead of accumulating a second `rest-` copy in Room. Issue #771.
-    val liveToolByResult = linkedMapOf<String, ChatMessage>()
-    liveMessages
-        .filter { it.role == MessageRole.TOOL }
-        .sortedBy { it.id.startsWith("rest-") } // prefer live WS copies
-        .forEach { msg ->
-            canonicalToolResultKey(msg.content)?.let { key ->
-                liveToolByResult.putIfAbsent(key, msg)
-            }
-        }
-
-    // Issue #842: REST transcript rows carry the gateway's `tool_call_id`
-    // — prefer matching live bubbles by that 1:1 identity. It works for
-    // EVERY tool shape, including MCP/web rows whose REST copy is raw
-    // `<untrusted_tool_result>` text with no JSON key to canonicalize.
-    val liveToolByCallId = linkedMapOf<String, ChatMessage>()
-    liveMessages
-        .filter { it.role == MessageRole.TOOL && it.toolCallId.isNotBlank() }
-        .sortedBy { it.id.startsWith("rest-") } // prefer live WS copies
-        .forEach { msg ->
-            liveToolByCallId.putIfAbsent(msg.toolCallId, msg)
-        }
 
     val mapped = mutableListOf<ChatMessage>()
     // The gateway stores a reasoning-model's thinking as its OWN assistant
@@ -154,23 +111,18 @@ internal fun mapServerMessages(
                 "tool" -> MessageRole.TOOL
                 else -> MessageRole.ASSISTANT
             }
-        val globalIndex = offset + index
         // Issue #859: under newest-anchored paging use the server's
         // AUTOINCREMENT row id as the stable key — from-end positions shift
         // as the transcript grows and would collide across hydrations
         // (distinctBy would silently drop the newest copy). Legacy paging
         // keeps the absolute-position key its count-based sync math needs.
-        val restId =
-            if (latestPaging) {
-                msg.id?.let { "rest-$sessionId-$it" } ?: "rest-$sessionId-$globalIndex"
-            } else {
-                "rest-$sessionId-$globalIndex"
-            }
+        val restId = restIdAt(index)
         val timestamp =
             msg.timestampText
                 ?.toDoubleOrNull()
                 ?.times(1000)
                 ?.toLong()
+                ?: existingById[restId]?.timestamp
                 ?: System.currentTimeMillis()
 
         val rawContent = msg.contentText
@@ -178,7 +130,11 @@ internal fun mapServerMessages(
             if (msg.reasoningText.isNotBlank()) {
                 msg.reasoningText
             } else {
-                existingReasoningMap[rawContent]?.reasoningText.orEmpty()
+                existingById[restId]?.reasoningText
+                    ?: existingReasoningMap[rawContent]
+                        ?.firstOrNull { it.canonicalRestId == null }
+                        ?.reasoningText
+                        .orEmpty()
             }
 
         // Empty assistant row — two cases stored by the gateway:
@@ -234,25 +190,6 @@ internal fun mapServerMessages(
                 ""
             }
 
-        // Tool rows in the REST transcript carry no tool name. When the
-        // result payload matches a live WS tool message, reuse it whole —
-        // keeps the real name, the rich WS payload, AND the same id so
-        // Room upserts instead of accumulating a duplicate `rest-` row.
-        if (role == MessageRole.TOOL) {
-            // Prefer the gateway call id (1:1, works for every tool
-            // shape), then fall back to result-content matching.
-            liveToolByCallId[msg.toolCallId]?.let { live ->
-                mapped.add(live)
-                return@forEachIndexed
-            }
-            canonicalToolResultKey(rawContent)?.let { key ->
-                liveToolByResult[key]?.let { live ->
-                    mapped.add(live)
-                    return@forEachIndexed
-                }
-            }
-        }
-
         val completionId =
             if (role == MessageRole.ASSISTANT) {
                 liveByExactId[restId]?.completionId ?: wsCompletionIdByRestIndex[index]
@@ -289,5 +226,12 @@ internal fun mapServerMessages(
         }
     }
 
-    return mapped
+    // REST echoes must not reserve a match before the richer WS copy of that tool.
+    val liveTools = liveMessages.filter { it.role == MessageRole.TOOL && !it.id.startsWith("rest-") }
+    val mappedTools = mapped.filter { it.role == MessageRole.TOOL }
+    val matches = matchTranscriptMessages(mappedTools, liveTools)
+    val toolsById = mappedTools.indices.associate { index -> mappedTools[index].id to matches[index] }
+    return mapped.map { message ->
+        toolsById[message.id]?.copy(restId = message.canonicalRestId) ?: message
+    }
 }

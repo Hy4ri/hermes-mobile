@@ -46,6 +46,36 @@ class ChatPersistenceRepositoryTest {
             org.junit.Assert.assertSame(failure, runCatching { failing.loadMessages("s") }.exceptionOrNull())
         }
 
+    @Test
+    fun pagedReadWaitsForLazyProviderAndRetainsCompletionIdentity() =
+        runTest {
+            val ready = kotlinx.coroutines.CompletableDeferred<com.m57.hermescontrol.data.local.ChatMessageDao>()
+            var calls = 0
+            val lazyRepository =
+                ChatPersistenceRepository {
+                    calls++
+                    ready.await()
+                }
+            assertEquals(0, calls)
+            val pending = async { lazyRepository.loadPage("s", null, 150) }
+            kotlinx.coroutines.yield()
+            assertEquals(1, calls)
+            org.junit.Assert.assertFalse(pending.isCompleted)
+            repository.persistMessage(
+                ChatMessage(id = "rest-s-1", role = MessageRole.ASSISTANT, content = "Done", completionId = "comp"),
+                "s",
+            )
+            ready.complete(dao)
+            val row = pending.await().messages.single()
+            assertEquals("rest-s-1", row.canonicalRestId)
+            assertEquals("comp", row.completionId)
+            assertEquals(0, dao.fullSessionReads)
+            assertEquals(listOf(151), dao.pageLimits)
+            val failure = IllegalStateException("database unavailable")
+            val failing = ChatPersistenceRepository { throw failure }
+            org.junit.Assert.assertSame(failure, runCatching { failing.loadPage("s", null, 150) }.exceptionOrNull())
+        }
+
     @Before
     fun setup() {
         dao = FakeChatMessageDao()
@@ -145,5 +175,58 @@ class ChatPersistenceRepositoryTest {
             assertEquals(2, loadedB.size)
             assertEquals("msg-B1", loadedB[0].id)
             assertEquals("msg-B2", loadedB[1].id)
+        }
+
+    @Test
+    fun loadPage_usesSeparateInitialAndCursorQueries() =
+        runTest {
+            val tracedDao = io.mockk.spyk(dao)
+            val pagedRepository = ChatPersistenceRepository(tracedDao)
+            (1..3).forEach { index ->
+                pagedRepository.persistMessage(
+                    ChatMessage(id = "row-$index", role = MessageRole.USER, content = "$index", timestamp = 10L),
+                    "session",
+                )
+            }
+
+            val first = pagedRepository.loadPage("session", before = null, limit = 2)
+            val second = pagedRepository.loadPage("session", before = first.cursor, limit = 2)
+
+            assertEquals(listOf("row-2", "row-3"), first.messages.map { it.id })
+            assertEquals(listOf("row-1"), second.messages.map { it.id })
+            assertEquals(true, first.hasOlder)
+            assertEquals(false, second.hasOlder)
+            io.mockk.coVerify(exactly = 1) { tracedDao.getLatestMessagePage("session", 3) }
+            io.mockk.coVerify(exactly = 1) { tracedDao.getMessagePage("session", 10L, "row-2", 3) }
+            io.mockk.coVerify(exactly = 0) { tracedDao.getMessagesForSession(any()) }
+        }
+
+    @Test
+    fun loadPage_equalTimestampsAndLiveInsertKeepCursorDeterministicAndSessionsIsolated() =
+        runTest {
+            val ids = (1..350).map { "row-${it.toString().padStart(4, '0')}" }
+            repository.persistMessages(
+                ids.map { ChatMessage(id = it, role = MessageRole.USER, content = it, timestamp = 10L) },
+                "session",
+            )
+            val first = repository.loadPage("session", before = null, limit = 150)
+            repository.persistMessage(
+                ChatMessage(id = "new", role = MessageRole.USER, content = "new", timestamp = 20L),
+                "session",
+            )
+            repository.persistMessage(
+                ChatMessage(id = "other", role = MessageRole.USER, content = "other", timestamp = 10L),
+                "other-session",
+            )
+            val second = repository.loadPage("session", before = first.cursor, limit = 150)
+            val third = repository.loadPage("session", before = second.cursor, limit = 150)
+
+            assertEquals(ids.takeLast(150), first.messages.map { it.id })
+            assertEquals(ids, (third.messages + second.messages + first.messages).map { it.id })
+            assertEquals(false, third.hasOlder)
+            assertEquals(listOf(151, 151, 151), dao.pageLimits)
+            assertEquals(0, dao.fullSessionReads)
+            assertEquals(ids.toSet() + "new", dao.idsForSession("session"))
+            assertEquals(setOf("other"), dao.idsForSession("other-session"))
         }
 }

@@ -1275,7 +1275,7 @@
     <string name="context_completion_output">补全（输出）</string>
     <string name="context_compressed">已压缩 ×%1$s</string>
     <string name="context_prompt_input">提示词（输入）</string>
-    <string name="context_tokens_note">提示词 token 反映此会话迄今使用的总上下文。</string>
+    <string name="context_tokens_note">下方 token 数为会话累计用量，不代表当前上下文窗口占用。</string>
     <string name="context_window">上下文窗口</string>
     <string name="context_window_usage_unavailable">上下文窗口使用量不可用</string>
     <string name="gif_play">播放 GIF</string>

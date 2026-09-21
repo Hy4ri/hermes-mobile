@@ -1308,7 +1308,7 @@
 <string name="context_completion_output">الإكمال (المخرجات)</string>
 <string name="context_compressed">مضغوط ×%1$s</string>
 <string name="context_prompt_input">المطالبة (المدخلات)</string>
-<string name="context_tokens_note">تعكس رموز المطالبة إجمالي السياق المستخدم في هذه الجلسة حتى الآن.</string>
+<string name="context_tokens_note">أعداد الرموز أدناه تراكمية للجلسة ولا تمثل الاستخدام الحالي لنافذة السياق.</string>
 <string name="context_window">نافذة السياق</string>
 <string name="context_window_usage_unavailable">استخدام نافذة السياق غير متوفر</string>
 <string name="gif_play">تشغيل GIF</string>

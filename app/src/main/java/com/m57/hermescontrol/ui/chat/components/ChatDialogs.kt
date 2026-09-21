@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -20,12 +21,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.BiometricCredentialVault
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 
 /**
@@ -140,11 +145,121 @@ fun ReloginDialog(
     onRelogin: (String, String, (Boolean, String?) -> Unit) -> Unit,
 ) {
     val emptyCredentialsError = stringResource(R.string.chat_relogin_error_empty)
+    val biometricErrorTemplate = stringResource(R.string.chat_relogin_biometric_error)
     val statusColors = LocalHermesStatusColors.current
+    val context = LocalContext.current
+    val activity = context.findFragmentActivity()
+
     var username by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    val biometricAvailable =
+        remember(context) {
+            BiometricCredentialVault.availability(context) is BiometricCredentialVault.Availability.Available
+        }
+    val hasSaved =
+        remember {
+            runCatching { AuthManager.hasBiometricSavedCredentials() }.getOrDefault(false)
+        }
+    val savedUsername =
+        remember {
+            runCatching { AuthManager.biometricSavedUsername() }.getOrNull()
+        }
+
+    fun submit(
+        user: String,
+        pass: String,
+        offerBiometricSave: Boolean,
+    ) {
+        isLoading = true
+        errorMessage = null
+        onRelogin(user, pass) { success, error ->
+            if (!success) {
+                isLoading = false
+                errorMessage = error ?: "Unknown error"
+                return@onRelogin
+            }
+            if (
+                offerBiometricSave &&
+                biometricAvailable &&
+                activity != null
+            ) {
+                runCatching {
+                    val cipher = AuthManager.createBiometricEncryptCipher()
+                    BiometricCredentialVault.authenticate(
+                        activity = activity,
+                        title = context.getString(R.string.auth_login_save_biometric_prompt_title),
+                        subtitle = context.getString(R.string.auth_login_save_biometric_prompt_subtitle),
+                        negativeButton = context.getString(R.string.auth_login_save_biometric_negative),
+                        cipher = cipher,
+                        onSuccess = { authenticatedCipher ->
+                            runCatching {
+                                AuthManager.saveBiometricCredentialsAfterAuth(
+                                    authenticatedCipher,
+                                    user,
+                                    pass,
+                                )
+                            }
+                            isLoading = false
+                            onDismiss()
+                        },
+                        onError = {
+                            isLoading = false
+                            onDismiss()
+                        },
+                        onCancel = {
+                            isLoading = false
+                            onDismiss()
+                        },
+                    )
+                }.onFailure {
+                    isLoading = false
+                    onDismiss()
+                }
+            } else {
+                isLoading = false
+                onDismiss()
+            }
+        }
+    }
+
+    fun unlockWithBiometrics() {
+        val host = activity ?: return
+        isLoading = true
+        errorMessage = null
+        runCatching {
+            val cipher = AuthManager.createBiometricDecryptCipher()
+            BiometricCredentialVault.authenticate(
+                activity = host,
+                title = context.getString(R.string.chat_relogin_biometric_title),
+                subtitle = context.getString(R.string.chat_relogin_biometric_subtitle),
+                negativeButton = context.getString(R.string.chat_relogin_biometric_negative),
+                cipher = cipher,
+                onSuccess = { authenticatedCipher ->
+                    runCatching {
+                        AuthManager.unlockBiometricCredentialsAfterAuth(authenticatedCipher)
+                    }.onSuccess { creds ->
+                        submit(creds.username, creds.password, offerBiometricSave = false)
+                    }.onFailure { e ->
+                        isLoading = false
+                        errorMessage = biometricErrorTemplate.format(e.message ?: "decrypt failed")
+                    }
+                },
+                onError = { msg ->
+                    isLoading = false
+                    errorMessage = biometricErrorTemplate.format(msg)
+                },
+                onCancel = {
+                    isLoading = false
+                },
+            )
+        }.onFailure { e ->
+            isLoading = false
+            errorMessage = biometricErrorTemplate.format(e.message ?: "unavailable")
+        }
+    }
 
     AlertDialog(
         onDismissRequest = { if (!isLoading) onDismiss() },
@@ -154,6 +269,26 @@ fun ReloginDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth(),
             ) {
+                if (hasSaved && biometricAvailable) {
+                    Button(
+                        onClick = { unlockWithBiometrics() },
+                        enabled = !isLoading,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            if (savedUsername != null) {
+                                stringResource(R.string.chat_relogin_biometric_unlock_as, savedUsername)
+                            } else {
+                                stringResource(R.string.chat_relogin_biometric_unlock)
+                            },
+                        )
+                    }
+                    Text(
+                        text = stringResource(R.string.chat_relogin_manual_divider),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 OutlinedTextField(
                     value = username,
                     onValueChange = {
@@ -174,9 +309,7 @@ fun ReloginDialog(
                     label = { Text(stringResource(R.string.chat_relogin_password)) },
                     singleLine = true,
                     enabled = !isLoading,
-                    visualTransformation =
-                        androidx.compose.ui.text.input
-                            .PasswordVisualTransformation(),
+                    visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),
                 )
                 if (errorMessage != null) {
@@ -196,16 +329,7 @@ fun ReloginDialog(
                         errorMessage = emptyCredentialsError
                         return@TextButton
                     }
-                    isLoading = true
-                    errorMessage = null
-                    onRelogin(username, password) { success, error ->
-                        isLoading = false
-                        if (success) {
-                            onDismiss()
-                        } else {
-                            errorMessage = error ?: "Unknown error"
-                        }
-                    }
+                    submit(username.trim(), password, offerBiometricSave = true)
                 },
             ) {
                 if (isLoading) {
@@ -228,4 +352,13 @@ fun ReloginDialog(
             }
         },
     )
+}
+
+private fun android.content.Context.findFragmentActivity(): FragmentActivity? {
+    var current: android.content.Context? = this
+    while (current is android.content.ContextWrapper) {
+        if (current is FragmentActivity) return current
+        current = current.baseContext
+    }
+    return null
 }

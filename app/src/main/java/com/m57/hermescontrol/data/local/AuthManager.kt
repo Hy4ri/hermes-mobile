@@ -645,6 +645,34 @@ object AuthManager {
         }
     }
 
+    // ── Biometric-gated dashboard credentials ─────────────────────────────
+
+    fun hasBiometricSavedCredentials(): Boolean =
+        runCatching { BiometricCredentialVault.hasSavedCredentials(requirePrefs()) }.getOrDefault(false)
+
+    fun biometricSavedUsername(): String? =
+        runCatching { BiometricCredentialVault.savedUsername(requirePrefs()) }.getOrNull()
+
+    fun clearBiometricSavedCredentials() {
+        runCatching { BiometricCredentialVault.clear(requirePrefs()) }
+    }
+
+    fun saveBiometricCredentialsAfterAuth(
+        cipher: javax.crypto.Cipher,
+        username: String,
+        password: String,
+    ) {
+        BiometricCredentialVault.saveAfterAuthenticated(requirePrefs(), cipher, username, password)
+    }
+
+    fun unlockBiometricCredentialsAfterAuth(cipher: javax.crypto.Cipher): BiometricCredentialVault.Credentials =
+        BiometricCredentialVault.unlockAfterAuthenticated(requirePrefs(), cipher)
+
+    fun createBiometricEncryptCipher(): javax.crypto.Cipher = BiometricCredentialVault.createEncryptCipher()
+
+    fun createBiometricDecryptCipher(): javax.crypto.Cipher =
+        BiometricCredentialVault.createDecryptCipher(requirePrefs())
+
     // ── Server endpoint ──────────────────────────────────────────────────
 
     fun getBaseUrl(): String = serverStore.getLatestState().resolvedBaseUrl

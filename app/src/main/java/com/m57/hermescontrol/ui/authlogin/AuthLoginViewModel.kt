@@ -353,6 +353,32 @@ class AuthLoginViewModel(
     }
 
     /**
+     * Biometric unlock path: fill basic-auth credentials and connect without
+     * an intermediate probe. Uses the current URL field, falling back to the
+     * saved AuthManager base URL when blank.
+     */
+    fun connectWithSavedBasicAuth(
+        username: String,
+        password: String,
+    ) {
+        val currentUrl = _uiState.value.baseUrl.trim()
+        val resolvedUrl =
+            currentUrl.ifBlank {
+                runCatching { AuthManager.getBaseUrl() }.getOrDefault(currentUrl)
+            }
+        _uiState.update {
+            it.copy(
+                baseUrl = resolvedUrl,
+                username = username,
+                password = password,
+                authMode = DashboardAuthMode.BASIC_AUTH,
+                errorMessage = null,
+            )
+        }
+        connect()
+    }
+
+    /**
      * Validate the token by calling /api/status with it.
      */
     private suspend fun connectTokenOnly(

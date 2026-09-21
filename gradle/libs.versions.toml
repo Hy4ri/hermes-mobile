@@ -24,6 +24,7 @@ leakcanary = "2.14"
 okhttp = "5.5.0"
 retrofit = "3.0.0"
 securityCrypto = "1.0.0"
+biometric = "1.1.0"
 mockk = "1.14.11"
 turbine = "1.2.1"
 coil = "3.6.2"
@@ -75,6 +76,7 @@ kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 
 # Security
 androidx-security-crypto = { module = "androidx.security:security-crypto", version.ref = "securityCrypto" }
+androidx-biometric = { module = "androidx.biometric:biometric", version.ref = "biometric" }
 androidx-datastore = { module = "androidx.datastore:datastore", version.ref = "datastore" }
 
 # Database (Room 3)

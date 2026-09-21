@@ -181,8 +181,9 @@ dependencies {
     implementation(libs.media3.ui)
     implementation(libs.media3.datasource.okhttp)
 
-    // Encrypted storage
+    // Encrypted storage + biometric unlock for saved dashboard credentials
     implementation(libs.androidx.security.crypto)
+    implementation(libs.androidx.biometric)
     implementation(libs.androidx.datastore)
     implementation("androidx.startup:startup-runtime:1.1.1")
 

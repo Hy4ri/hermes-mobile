@@ -23,6 +23,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -32,6 +33,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.settings.components.AboutSection
@@ -45,6 +47,7 @@ import com.m57.hermescontrol.ui.settings.components.TestResultCard
 import com.m57.hermescontrol.ui.settings.components.VaultItemsSection
 import com.m57.hermescontrol.ui.settings.components.VaultSourcesSection
 import com.m57.hermescontrol.ui.settings.components.VaultUnlockDialog
+import kotlinx.coroutines.launch
 
 /**
  * Drill-down sub-pages for Settings. Each is its own NavKey destination
@@ -64,10 +67,21 @@ internal fun SettingsConnectionPage(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var passwordVisible by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    var biometricLoginVisible by remember {
+        mutableStateOf(
+            runCatching {
+                AuthManager.hasBiometricSavedCredentials()
+            }.getOrDefault(false),
+        )
+    }
+    val forgetDoneMessage = stringResource(R.string.settings_forget_biometric_login_done)
 
     HermesScaffold(
         title = { Text(stringResource(R.string.settings_sec_connection)) },
         navigationIcon = NavIcon.Back(onBack),
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         // Non-primary drill-down: opt out of drawer gestures so the scrim can't
         // get stuck open (issue #619). DrawerGestureController handles the close.
         drawerGesturesEnabled = false,
@@ -92,6 +106,31 @@ internal fun SettingsConnectionPage(
                 isTesting = state.isTesting,
                 onTest = viewModel::testConnection,
             )
+
+            if (biometricLoginVisible) {
+                Text(
+                    text = stringResource(R.string.settings_forget_biometric_login_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Button(
+                    onClick = {
+                        runCatching { AuthManager.clearBiometricSavedCredentials() }
+                        biometricLoginVisible = false
+                        scope.launch {
+                            snackbarHostState.showSnackbar(forgetDoneMessage)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors =
+                        ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        ),
+                ) {
+                    Text(stringResource(R.string.settings_forget_biometric_login))
+                }
+            }
 
             Spacer(modifier = Modifier.height(2.dp))
 

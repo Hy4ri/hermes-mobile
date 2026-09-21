@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <!-- Android 17 (API 37): local-network access is blocked by default.
          Required only for LAN gateway connections (192.168/10/172.16 etc.);
          loopback (127.0.0.1) and public remote hosts are exempt. -->

@@ -36,6 +36,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,9 +48,13 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.BiometricCredentialVault
+import kotlinx.coroutines.launch
 
 @Composable
 fun AuthLoginScreen(
@@ -66,11 +71,61 @@ fun AuthLoginScreen(
         ),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val activity = remember(context) { context.findActivity() }
+    val scope = rememberCoroutineScope()
+    val biometricAvailable =
+        remember(context) {
+            BiometricCredentialVault.availability(context) is BiometricCredentialVault.Availability.Available
+        }
+    val hasSavedCreds =
+        remember {
+            runCatching { AuthManager.hasBiometricSavedCredentials() }.getOrDefault(false)
+        }
+    val savedUsername =
+        remember {
+            runCatching { AuthManager.biometricSavedUsername() }.getOrNull()
+        }
+    var biometricBusy by remember { mutableStateOf(false) }
+    // Skip the post-connect "protect with biometrics" prompt when the
+    // session was restored via biometric unlock — the vault already holds
+    // these credentials and we must not re-prompt immediately.
+    var offerBiometricSave by remember { mutableStateOf(true) }
 
     LaunchedEffect(state.connectionSuccess) {
-        if (state.connectionSuccess) {
-            onConnected()
+        if (!state.connectionSuccess) return@LaunchedEffect
+        val mode = state.authMode
+        val canSave =
+            offerBiometricSave &&
+                activity != null &&
+                (
+                    mode == DashboardAuthMode.BASIC_AUTH ||
+                        mode == DashboardAuthMode.ALL
+                ) &&
+                state.username.isNotBlank() &&
+                state.password.isNotBlank() &&
+                biometricAvailable
+        if (canSave) {
+            runCatching {
+                val cipher = AuthManager.createBiometricEncryptCipher()
+                val authenticated =
+                    BiometricCredentialVault.authenticateSuspend(
+                        activity = activity!!,
+                        title = context.getString(R.string.auth_login_save_biometric_prompt_title),
+                        subtitle = context.getString(R.string.auth_login_save_biometric_prompt_subtitle),
+                        negativeButton = context.getString(R.string.auth_login_save_biometric_negative),
+                        cipher = cipher,
+                    )
+                if (authenticated != null) {
+                    AuthManager.saveBiometricCredentialsAfterAuth(
+                        authenticated,
+                        state.username,
+                        state.password,
+                    )
+                }
+            }
         }
+        onConnected()
     }
 
     // Clear ephemeral connection state when screen leaves composition
@@ -128,6 +183,48 @@ fun AuthLoginScreen(
             )
 
             Spacer(modifier = Modifier.height(8.dp))
+
+            if (hasSavedCreds && biometricAvailable && activity != null) {
+                Button(
+                    onClick = {
+                        if (biometricBusy) return@Button
+                        biometricBusy = true
+                        scope.launch {
+                            runCatching {
+                                val cipher = AuthManager.createBiometricDecryptCipher()
+                                val authenticated =
+                                    BiometricCredentialVault.authenticateSuspend(
+                                        activity = activity,
+                                        title = context.getString(R.string.chat_relogin_biometric_title),
+                                        subtitle = context.getString(R.string.chat_relogin_biometric_subtitle),
+                                        negativeButton = context.getString(R.string.chat_relogin_biometric_negative),
+                                        cipher = cipher,
+                                    ) ?: return@launch
+                                val creds = AuthManager.unlockBiometricCredentialsAfterAuth(authenticated)
+                                offerBiometricSave = false
+                                viewModel.connectWithSavedBasicAuth(creds.username, creds.password)
+                            }
+                            biometricBusy = false
+                        }
+                    },
+                    enabled = !state.isLoading && !state.probing && !biometricBusy,
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                ) {
+                    Text(
+                        if (savedUsername != null) {
+                            stringResource(R.string.chat_relogin_biometric_unlock_as, savedUsername)
+                        } else {
+                            stringResource(R.string.chat_relogin_biometric_unlock)
+                        },
+                    )
+                }
+                Text(
+                    text = stringResource(R.string.chat_relogin_manual_divider),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+            }
 
             if (state.loggedInProfiles.isNotEmpty()) {
                 Text(
@@ -341,4 +438,13 @@ fun AuthLoginScreen(
             }
         }
     }
+}
+
+private fun android.content.Context.findActivity(): FragmentActivity? {
+    var current: android.content.Context? = this
+    while (current is android.content.ContextWrapper) {
+        if (current is FragmentActivity) return current
+        current = current.baseContext
+    }
+    return null
 }

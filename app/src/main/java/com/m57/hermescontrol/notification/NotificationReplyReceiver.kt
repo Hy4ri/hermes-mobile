@@ -12,7 +12,6 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsMethods
-import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -36,9 +35,7 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
 
     // Reusable scope for async reply processing — avoids creating a new
     // unmanaged CoroutineScope per broadcast fire. (PERF-15)
-    internal var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
-    internal var replyScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    internal var nowMs: () -> Long = System::currentTimeMillis
+    private val replyScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /**
      * Test-friendly wrapper for [BroadcastReceiver.goAsync] which is `final`
@@ -66,12 +63,6 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
                 },
             ).build()
 
-    internal open suspend fun captureTurnBoundaryCompat(
-        scopeId: String,
-        sessionId: String,
-        timeoutMs: Long,
-    ): Boolean = captureTurnBoundary(scopeId, sessionId, timeoutMs)
-
     override fun onReceive(
         context: Context,
         intent: Intent,
@@ -85,7 +76,7 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
             replyScope.launch {
                 try {
                     withTimeout(5000L) {
-                        withContext(ioDispatcher) {
+                        withContext(Dispatchers.IO) {
                             val db =
                                 com.m57.hermescontrol.data.local.HermesDatabase
                                     .get(context)
@@ -103,7 +94,7 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
                             // than the chat composer's — this receiver has its
                             // own 5s deadline and a failed capture must only
                             // make the reply uncorrelatable, never lose it.
-                            captureTurnBoundaryCompat(
+                            captureTurnBoundary(
                                 scopeId = correlationScopeId(),
                                 sessionId = sessionId,
                                 timeoutMs = BOUNDARY_TIMEOUT_MS,
@@ -128,7 +119,7 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
                                     sessionId = sessionId,
                                     role = "USER",
                                     content = replyText,
-                                    timestamp = nowMs(),
+                                    timestamp = System.currentTimeMillis(),
                                 )
                             dao.upsert(entity)
 

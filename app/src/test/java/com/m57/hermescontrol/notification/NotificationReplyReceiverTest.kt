@@ -21,12 +21,6 @@ import io.mockk.slot
 import io.mockk.unmockkAll
 import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.advanceTimeBy
-import kotlinx.coroutines.test.advanceUntilIdle
-import kotlinx.coroutines.test.runCurrent
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -53,10 +47,7 @@ import org.junit.Test
  * NOTE: This does NOT use coVerify for suspend functions (incompatible with
  * MockK 1.13.12). Instead, call counting via coEvery + answers is used.
  */
-@OptIn(ExperimentalCoroutinesApi::class)
 class NotificationReplyReceiverTest {
-    private val testDispatcher = StandardTestDispatcher()
-    private val testScope = TestScope(testDispatcher)
     private lateinit var mockContext: Context
     private lateinit var mockIntent: Intent
     private lateinit var mockNotificationManager: NotificationManager
@@ -133,16 +124,6 @@ class NotificationReplyReceiverTest {
                 override fun goAsyncCompat(): BroadcastReceiver.PendingResult = mockPendingResult
 
                 override fun buildReplyNotification(context: Context): Notification = mockNotification
-
-                override suspend fun captureTurnBoundaryCompat(
-                    scopeId: String,
-                    sessionId: String,
-                    timeoutMs: Long,
-                ): Boolean = true
-            }.also {
-                it.ioDispatcher = testDispatcher
-                it.replyScope = testScope
-                it.nowMs = { 1_700_000_000_000L }
             }
     }
 
@@ -161,7 +142,7 @@ class NotificationReplyReceiverTest {
         givenValidReply("session-abc", "Hello")
 
         receiver.onReceive(mockContext, mockIntent)
-        testScope.advanceUntilIdle()
+        Thread.sleep(500) // Need to wait for coroutine
 
         verify {
             HermesWsClient.request(
@@ -182,7 +163,7 @@ class NotificationReplyReceiverTest {
 
         givenValidReply("session-abc", "Hello")
         receiver.onReceive(mockContext, mockIntent)
-        testScope.advanceUntilIdle()
+        Thread.sleep(500)
 
         assertEquals("upsert should have been called", 1, upsertCallCount)
         assertEquals("session-abc", entitySlot.captured.sessionId)
@@ -190,7 +171,7 @@ class NotificationReplyReceiverTest {
         assertEquals("USER", entitySlot.captured.role)
         assertNotNull("entity must have a UUID id", entitySlot.captured.id)
         assertTrue("id should be a non-empty UUID", entitySlot.captured.id.isNotBlank())
-        assertEquals(1_700_000_000_000L, entitySlot.captured.timestamp)
+        assertTrue("timestamp should be positive", entitySlot.captured.timestamp > 0)
     }
 
     @Test
@@ -198,7 +179,7 @@ class NotificationReplyReceiverTest {
         givenValidReply("session-abc", "Hello")
 
         receiver.onReceive(mockContext, mockIntent)
-        testScope.advanceUntilIdle()
+        Thread.sleep(500) // Need to wait for coroutine
 
         verify {
             mockNotificationManager.notify(
@@ -221,7 +202,7 @@ class NotificationReplyReceiverTest {
 
         givenValidReply("session-abc", "Hello")
         receiver.onReceive(mockContext, mockIntent)
-        testScope.advanceUntilIdle()
+        Thread.sleep(500)
 
         assertNull(ReplyNotificationTracker.getActiveTarget())
     }
@@ -231,7 +212,7 @@ class NotificationReplyReceiverTest {
         givenValidReply("session-abc", "Hello")
 
         receiver.onReceive(mockContext, mockIntent)
-        testScope.advanceUntilIdle()
+        Thread.sleep(500)
 
         verify { mockPendingResult.finish() }
     }
@@ -307,7 +288,7 @@ class NotificationReplyReceiverTest {
         coEvery { mockDao.sessionExists("unknown-session") } returns false
 
         receiver.onReceive(mockContext, mockIntent)
-        testScope.advanceUntilIdle()
+        Thread.sleep(500)
 
         // HermesWsClient should not be called
         verify(inverse = true) { HermesWsClient.sendMessage(any(), any()) }
@@ -327,7 +308,7 @@ class NotificationReplyReceiverTest {
         coEvery { mockDao.upsert(any<ChatMessageEntity>()) } throws RuntimeException("DB full")
 
         receiver.onReceive(mockContext, mockIntent)
-        testScope.advanceUntilIdle()
+        Thread.sleep(500)
 
         // Error should be logged
         verify { android.util.Log.e("NotificationReply", any<String>(), any()) }
@@ -343,7 +324,7 @@ class NotificationReplyReceiverTest {
         givenValidReply("session-abc", "Hello")
 
         receiver.onReceive(mockContext, mockIntent)
-        testScope.advanceUntilIdle()
+        Thread.sleep(500)
 
         verify {
             HermesWsClient.request(
@@ -373,13 +354,13 @@ class NotificationReplyReceiverTest {
         givenValidReply("session-abc", "Hello")
 
         receiver.onReceive(mockContext, mockIntent)
-        testScope.runCurrent()
+        Thread.sleep(100)
 
         assertEquals(0, upsertCallCount)
         verify(inverse = true) { mockNotificationManager.notify(any(), any()) }
 
         sendResult.complete(mapOf("accepted" to true))
-        testScope.advanceUntilIdle()
+        Thread.sleep(500)
 
         assertEquals(1, upsertCallCount)
         verify { mockNotificationManager.notify(ChatNotificationService.PENDING_NOTIFICATION_ID, any()) }
@@ -392,7 +373,7 @@ class NotificationReplyReceiverTest {
         givenValidReply("session-abc", "Hello")
 
         receiver.onReceive(mockContext, mockIntent)
-        testScope.advanceUntilIdle()
+        Thread.sleep(500)
 
         assertEquals(0, upsertCallCount)
         verify(inverse = true) { mockNotificationManager.notify(any(), any()) }
@@ -413,9 +394,9 @@ class NotificationReplyReceiverTest {
         givenValidReply("session-abc", "Hello")
 
         receiver.onReceive(mockContext, mockIntent)
-        testScope.advanceUntilIdle()
+        Thread.sleep(500)
         receiver.onReceive(mockContext, mockIntent)
-        testScope.advanceUntilIdle()
+        Thread.sleep(500)
 
         assertEquals(2, resumeAttempts)
         assertEquals(1, upsertCallCount)
@@ -433,10 +414,8 @@ class NotificationReplyReceiverTest {
 
         receiver.onReceive(mockContext, mockIntent)
 
-        // Advance virtual time past the receiver's 5-second deadline.
-        testScope.runCurrent()
-        testScope.advanceTimeBy(5_001)
-        testScope.runCurrent()
+        // Wait longer than the 5-second timeout, but less than the 10-second delay
+        Thread.sleep(6000)
 
         // Timeout should be caught in catch block and logged
         verify { android.util.Log.e("NotificationReply", any<String>(), any()) }

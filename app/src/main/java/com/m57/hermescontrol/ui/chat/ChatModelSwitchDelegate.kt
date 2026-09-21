@@ -10,6 +10,7 @@ import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.ws.ModelCatalogStore
 import com.m57.hermescontrol.data.ws.WsMethods
+import com.m57.hermescontrol.data.ws.toAny
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonElement
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -475,21 +477,37 @@ class ChatModelSwitchDelegate(
         }
     }
 
-    fun setReasoningLevel(level: String?) {
+    fun setReasoningLevel(
+        level: String?,
+        scopeName: String = "session",
+        enforceCapabilities: Boolean = true,
+    ) {
         if (level == null) return
         val currentPending = uiState.value.pendingReasoningLevel
         if (currentPending != null) return // One reasoning write at a time
         val sessionId = runtimeSessionId() ?: return
         if (sessionId.isBlank()) return
+        if (scopeName != "session" && scopeName != "global") return
 
         // Capability validation
-        val caps = uiState.value.currentModelCapabilities
-        if (caps?.reasoning == false) return
-        if (level == "none" && caps?.can_disable_reasoning == false) return
+        if (enforceCapabilities) {
+            val caps = uiState.value.currentModelCapabilities
+            if (caps?.reasoning == false) return
+            if (level == "none" && caps?.can_disable_reasoning == false) return
+        }
 
         val opSeq = ++reasoningOpSequence
         val capturedScope = dataScopeFlow.value
-        uiState.update { it.copy(pendingReasoningLevel = level) }
+        // The old wire value belongs to the previous requested effort. Clear it
+        // before starting the RPC so neither possible ordering can lie:
+        //   ACK first -> wire stays unknown until session.info arrives.
+        //   session.info first -> its fresh wire survives the later ACK.
+        uiState.update {
+            it.copy(
+                pendingReasoningLevel = level,
+                reasoningWireLevel = null,
+            )
+        }
 
         reasoningJob?.cancel()
         reasoningJob =
@@ -500,7 +518,7 @@ class ChatModelSwitchDelegate(
                             "key" to "reasoning",
                             "value" to level,
                             "session_id" to sessionId,
-                            "scope" to "session",
+                            "scope" to scopeName,
                         )
                     val result =
                         if (wsRequest != null) {
@@ -513,10 +531,25 @@ class ChatModelSwitchDelegate(
                         }
 
                     if (opSeq == reasoningOpSequence && capturedScope == dataScopeFlow.value) {
-                        val map = result as? Map<*, *>
-                        val resKey = map?.get("key") as? String
-                        val resVal = map?.get("value") as? String
-                        val ackLevel = if (resKey == "reasoning" && !resVal.isNullOrEmpty()) resVal else level
+                        val ackLevel =
+                            if (wsRequest != null) {
+                                // HermesWsClient.request() completes with the RAW JsonElement.
+                                // Tests and a few injected callers may provide an already-decoded map.
+                                val map =
+                                    when (result) {
+                                        is JsonElement -> result.toAny() as? Map<*, *>
+                                        is Map<*, *> -> result
+                                        else -> null
+                                    }
+                                val resKey = map?.get("key") as? String
+                                val resVal = map?.get("value") as? String
+                                if (resKey != "reasoning" || resVal.isNullOrEmpty()) {
+                                    throw IllegalStateException("Invalid reasoning config.set response")
+                                }
+                                resVal
+                            } else {
+                                level
+                            }
 
                         uiState.update { state ->
                             state.copy(

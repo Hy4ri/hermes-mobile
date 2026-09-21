@@ -109,9 +109,10 @@ sealed class SlashResult {
     data object ModelSwitch : SlashResult()
 
     /**
-     * Set the session's reasoning effort level via the backend `config.set` RPC
-     * (key="reasoning" -> `_set_reasoning`). NOT command.dispatch (4018s on
-     * /reasoning) and updates the composer chip directly.
+     * Handle `/reasoning` through the gateway's first-class config RPCs rather
+     * than command.dispatch (which 4018s on it). [level] intentionally carries
+     * the raw argument tail: it may be an effort, a display word
+     * (`show`/`hide`/`full`/`clamp`), or include `--global` / `--session`.
      */
     data class ReasoningSwitch(
         val level: String,

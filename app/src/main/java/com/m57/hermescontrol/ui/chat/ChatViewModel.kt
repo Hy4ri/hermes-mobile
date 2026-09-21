@@ -27,6 +27,7 @@ import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
+import com.m57.hermescontrol.data.ws.toAny
 import com.m57.hermescontrol.data.ws.toJsonElement
 import com.m57.hermescontrol.notification.captureTurnBoundary
 import com.m57.hermescontrol.notification.correlationScopeId
@@ -45,6 +46,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
@@ -55,6 +57,42 @@ import java.util.concurrent.ConcurrentHashMap
 
 private const val TAG = "ChatViewModel"
 private const val MESSAGE_PAGE_SIZE = 150
+
+private val REASONING_EFFORT_LEVELS =
+    setOf("none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra")
+
+private data class ReasoningSlashArgs(
+    val value: String,
+    val scopeName: String?,
+)
+
+/** Mirrors Desktop's reasoningSlashParams(): flags may appear in any order. */
+private fun parseReasoningSlashArgs(arg: String): ReasoningSlashArgs? {
+    var scopeName: String? = null
+    val values = mutableListOf<String>()
+
+    arg
+        .trim()
+        .split(Regex("\\s+"))
+        .filter { it.isNotBlank() }
+        .forEach { part ->
+            when (part.lowercase()) {
+                "--global", "-g", "global" -> scopeName = "global"
+                "--session", "-s", "session" -> scopeName = "session"
+                else -> values += part
+            }
+        }
+
+    if (values.isEmpty()) return null
+    return ReasoningSlashArgs(values.joinToString(" "), scopeName)
+}
+
+private fun rpcResultMap(result: Any?): Map<*, *>? =
+    when (result) {
+        is JsonElement -> result.toAny() as? Map<*, *>
+        is Map<*, *> -> result
+        else -> null
+    }
 
 private data class PreparedAttachment(
     val attachment: Attachment,
@@ -2207,29 +2245,94 @@ class ChatViewModel(
     }
 
     private fun handleReasoningSlashCommand(arg: String) {
-        val level = arg.trim().lowercase()
-        if (level.isEmpty()) {
-            val current = _uiState.value.reasoningLevel ?: "default"
-            addAssistantMessage(
-                "Current reasoning effort: $current\nUsage: `/reasoning <none|minimal|low|medium|high|xhigh|max|ultra>`",
+        val sessionId = runtimeSessionId
+        if (sessionId.isNullOrBlank()) {
+            addAssistantMessage("Reasoning controls require an active session.")
+            return
+        }
+
+        val parsed = parseReasoningSlashArgs(arg)
+
+        // Bare `/reasoning` is a status query, matching Desktop/TUI semantics.
+        if (parsed == null) {
+            viewModelScope.launch(ioDispatcher) {
+                try {
+                    val result =
+                        wsClient
+                            .request(
+                                WsMethods.CONFIG_GET,
+                                mapOf(
+                                    "key" to "reasoning",
+                                    "session_id" to sessionId,
+                                ),
+                            ).await()
+                    val map = rpcResultMap(result) ?: error("Invalid reasoning config.get response")
+                    val value = (map["value"] as? String)?.takeIf { it.isNotBlank() } ?: "unknown"
+                    val display = (map["display"] as? String)?.takeIf { it.isNotBlank() } ?: "unknown"
+                    addAssistantMessage("reasoning: $value · display $display")
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    addAssistantMessage("Could not read reasoning status: ${e.message ?: e.toString()}")
+                }
+            }
+            return
+        }
+
+        val value = parsed.value.trim().lowercase()
+
+        // Effort changes use the acknowledged delegate so the composer shows
+        // pending state and prompt submission remains gated until config.set
+        // succeeds. A global preference may target a future model, so do not
+        // reject it based on only the current model's capabilities.
+        if (value in REASONING_EFFORT_LEVELS) {
+            if (parsed.scopeName != "global") {
+                val caps = _uiState.value.currentModelCapabilities
+                if (caps?.reasoning == false) {
+                    addAssistantMessage("Reasoning is not supported for the current model.")
+                    return
+                }
+                if (value == "none" && caps?.can_disable_reasoning == false) {
+                    addAssistantMessage("Reasoning cannot be disabled for this model (always on).")
+                    return
+                }
+            }
+            modelSwitchDelegate.setReasoningLevel(
+                value,
+                scopeName = parsed.scopeName ?: "session",
+                enforceCapabilities = parsed.scopeName != "global",
             )
             return
         }
-        val validLevels = setOf("none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra")
-        if (!validLevels.contains(level)) {
-            addAssistantMessage("Unknown reasoning level: '$arg'. Valid levels: ${validLevels.joinToString(", ")}")
-            return
+
+        // Display controls (`show`/`hide`/`full`/`clamp` and backend aliases)
+        // and future config.set reasoning values go through the canonical
+        // backend parser instead of a client-maintained allowlist. Invalid
+        // values therefore surface the real 4002 error instead of being eaten
+        // locally. Scope flags are forwarded exactly like Desktop.
+        viewModelScope.launch(ioDispatcher) {
+            try {
+                val params =
+                    buildMap<String, Any> {
+                        put("key", "reasoning")
+                        put("value", parsed.value)
+                        put("session_id", sessionId)
+                        parsed.scopeName?.let { put("scope", it) }
+                    }
+                val result = wsClient.request(WsMethods.CONFIG_SET, params).await()
+                val map = rpcResultMap(result) ?: error("Invalid reasoning config.set response")
+                val responseKey = map["key"] as? String
+                val responseValue = map["value"] as? String
+                if (responseKey != "reasoning" || responseValue.isNullOrBlank()) {
+                    error("Invalid reasoning config.set response")
+                }
+                addAssistantMessage("reasoning: $responseValue")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                addAssistantMessage("Could not change reasoning: ${e.message ?: e.toString()}")
+            }
         }
-        val caps = _uiState.value.currentModelCapabilities
-        if (caps?.reasoning == false) {
-            addAssistantMessage("Reasoning is not supported for the current model.")
-            return
-        }
-        if (level == "none" && caps?.can_disable_reasoning == false) {
-            addAssistantMessage("Reasoning cannot be disabled for this model (always on).")
-            return
-        }
-        setReasoningLevel(level)
     }
 
     // ── Side Questions via /btw (issue #1015) ─────────────────────────────

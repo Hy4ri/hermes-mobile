@@ -433,7 +433,7 @@ class ChatModelSwitchDelegateTest {
     @Test
     fun setReasoningLevel_awaitsRequest_updatesOnAck_andPreventsConcurrentPick() =
         testScope.runTest {
-            var gate = CompletableDeferred<Any?>()
+            val gate = CompletableDeferred<Any?>()
             val reqMethods = mutableListOf<String>()
             val reqParams = mutableListOf<Map<String, Any>>()
 
@@ -456,12 +456,16 @@ class ChatModelSwitchDelegateTest {
                     },
                 )
 
+            uiState.value = uiState.value.copy(reasoningLevel = "ultra", reasoningWireLevel = "max")
+
             customDelegate.setReasoningLevel("high")
             runCurrent()
 
-            // Confirmed level remains null until acknowledged; pending level is "high"
-            assertNull(uiState.value.reasoningLevel)
+            // Confirmed level remains unchanged until acknowledged. The stale
+            // wire is cleared immediately so "High→Max" can never be painted.
+            assertEquals("ultra", uiState.value.reasoningLevel)
             assertEquals("high", uiState.value.pendingReasoningLevel)
+            assertNull(uiState.value.reasoningWireLevel)
             assertEquals(listOf(WsMethods.CONFIG_SET), reqMethods)
             assertEquals("session", reqParams.first()["scope"])
             assertEquals("high", reqParams.first()["value"])
@@ -471,12 +475,23 @@ class ChatModelSwitchDelegateTest {
             runCurrent()
             assertEquals(1, reqMethods.size)
 
-            // Complete RPC request
-            gate.complete(mapOf("key" to "reasoning", "value" to "high"))
+            // Simulate session.info winning the race and publishing the fresh
+            // authoritative wire before the RPC ACK resumes the delegate.
+            uiState.value = uiState.value.copy(reasoningWireLevel = "high")
+
+            // Production request() returns a raw JsonObject, not a Map.
+            gate.complete(
+                kotlinx.serialization.json.buildJsonObject {
+                    put("key", kotlinx.serialization.json.JsonPrimitive("reasoning"))
+                    put("value", kotlinx.serialization.json.JsonPrimitive("high"))
+                },
+            )
             advanceUntilIdle()
 
             assertEquals("high", uiState.value.reasoningLevel)
             assertNull(uiState.value.pendingReasoningLevel)
+            // ACK must not erase a fresh wire that arrived first.
+            assertEquals("high", uiState.value.reasoningWireLevel)
         }
 
     @Test
@@ -570,5 +585,29 @@ class ChatModelSwitchDelegateTest {
 
             assertNull(uiState.value.reasoningLevel)
             assertNull(uiState.value.pendingReasoningLevel)
+        }
+
+    @Test
+    fun rapidPicks_preservesOriginalConfirmedModelForRollback() =
+        testScope.runTest {
+            // Pick model A
+            delegate.sendSlashModel("openai", "gpt-4o")
+            advanceUntilIdle()
+            delegate.handleModelSwitch("/model gpt-4o --provider openai --session")
+            advanceUntilIdle()
+
+            // Pick model B before A confirms
+            delegate.sendSlashModel("anthropic", "claude-3-5-sonnet")
+            advanceUntilIdle()
+            delegate.handleModelSwitch("/model claude-3-5-sonnet --provider anthropic --session")
+            advanceUntilIdle()
+
+            // Dismiss confirmation on B — should revert to original model before both switches
+            delegate.handleConfigSetResult(
+                id = "req-2",
+                result = mapOf("key" to "model", "confirm_required" to true),
+            )
+            delegate.dismissModelSwitchConfirm()
+            assertEquals("anthropic/claude-3", uiState.value.currentSessionModel)
         }
 }

@@ -1982,6 +1982,34 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun sendMessage_rawJsonFileAttachmentRetainsReference() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            val uriString = "content://test/note"
+            val uri = mockk<Uri>()
+            val resolver = mockk<ContentResolver>()
+            mockkStatic(Uri::class)
+            every { Uri.parse(uriString) } returns uri
+            every { app.contentResolver } returns resolver
+            every { resolver.openInputStream(uri) } answers { "hello".byteInputStream() }
+            every { HermesWsClient.request(WsMethods.FILE_ATTACH, any(), any()) } returns
+                CompletableDeferred<Any?>(
+                    buildJsonObject {
+                        put("attached", true)
+                        put("ref_text", "@file:attachments/note.txt")
+                    },
+                )
+            viewModel.addAttachment(uriString, "note.txt", "text/plain", 5)
+
+            viewModel.sendMessage("Inspect file")
+            advanceUntilIdle()
+
+            verify {
+                HermesWsClient.sendMessage(any(), "@file:attachments/note.txt\n\nInspect file", any(), any())
+            }
+        }
+
+    @Test
     fun sendMessage_laterGrowingAttachmentDoesNotPartiallyUploadEarlierAttachments() =
         runTest {
             val (viewModel, _) = createViewModelWithSession()

@@ -1140,6 +1140,9 @@
     <string name="chat_fast_mode_label">빠름</string>
     <string name="chat_fast_mode_desc">빠른 모드</string>
     <string name="chat_fast_mode_unavailable">이 모델에서는 빠른 모드를 사용할 수 없습니다</string>
+    <string name="chat_reasoning_default">기본값</string>
+    <string name="chat_reasoning_applying">추론 설정 적용 중…</string>
+    <string name="chat_reasoning_clamped_desc">요청 %1$s, 경로 전송 %2$s</string>
 
     <!-- Session Integrations (issue #1091) -->
     <string name="session_integrations_title">연동</string>

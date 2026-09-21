@@ -1294,6 +1294,9 @@
 <string name="chat_fast_mode_label">سريع</string>
 <string name="chat_fast_mode_desc">الوضع السريع</string>
 <string name="chat_fast_mode_unavailable">الوضع السريع غير مدعوم لهذا النموذج</string>
+<string name="chat_reasoning_default">الافتراضي</string>
+<string name="chat_reasoning_applying">جارٍ تطبيق الاستدلال…</string>
+<string name="chat_reasoning_clamped_desc">المطلوب %1$s، يرسل المسار %2$s</string>
 <string name="chat_save_attachment">حفظ %1$s</string>
 <string name="chat_switch_model_title">تبديل النموذج (لهذه المحادثة)</string>
 <string name="config_clear_value">مسح القيمة</string>

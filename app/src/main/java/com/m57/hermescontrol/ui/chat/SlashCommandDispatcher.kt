@@ -42,6 +42,11 @@ class SlashCommandDispatcher {
                 SlashResult.ModelSwitch
             }
 
+            "/reasoning" -> {
+                val arg = command.split(" ", limit = 2).getOrElse(1) { "" }.trim()
+                SlashResult.ReasoningSwitch(level = arg)
+            }
+
             "/update" -> {
                 SlashResult.Update
             }
@@ -102,6 +107,16 @@ sealed class SlashResult {
      * `/model <model> --provider <slug> --session`.
      */
     data object ModelSwitch : SlashResult()
+
+    /**
+     * Handle `/reasoning` through the gateway's first-class config RPCs rather
+     * than command.dispatch (which 4018s on it). [level] intentionally carries
+     * the raw argument tail: it may be an effort, a display word
+     * (`show`/`hide`/`full`/`clamp`), or include `--global` / `--session`.
+     */
+    data class ReasoningSwitch(
+        val level: String,
+    ) : SlashResult()
 
     /**
      * Trigger the backend update via the REST action API

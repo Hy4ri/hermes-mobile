@@ -72,6 +72,7 @@ object WsMethods {
     const val COMMANDS_CATALOG = "commands.catalog"
     const val COMMAND_DISPATCH = "command.dispatch"
     const val SLASH_EXEC = "slash.exec"
+    const val CONFIG_GET = "config.get"
     const val CONFIG_SET = "config.set"
 
     // ── Attachments ───────────────────────────────────────────────────────
@@ -166,6 +167,8 @@ object WsMethods {
             // Evidence: methods_session.py @_profile_scoped at each @method
             // Binds HERMES_HOME so config/skills/pets resolve to the
             // focused profile.
+            CONFIG_GET, // methods_config.py: @method("config.get") + @_profile_scoped
+            CONFIG_SET, // methods_config_set.py: @method("config.set") + @_profile_scoped
             "verification.status", // line 282
             PROJECTS_LIST, // methods_projects.py: @_registry.profile_scoped
             "pet.info", // line 1253

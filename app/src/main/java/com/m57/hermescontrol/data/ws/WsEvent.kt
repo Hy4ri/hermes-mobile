@@ -14,6 +14,7 @@ sealed class WsEvent {
 
     data class SessionInfo(
         val data: Map<String, Any?>?,
+        val sessionId: String? = null,
     ) : WsEvent()
 
     // ── Message streaming ────────────────────────────────────────────────

@@ -56,12 +56,12 @@ fun ContextUsageChip(
     val full = fullTokens
     if (full == null || full <= 0L) return
 
-    val used = usedTokens ?: 0L
-    val fraction = min(1f, used.toFloat() / full.toFloat())
+    val fraction = if (usedTokens != null) min(1f, usedTokens.toFloat() / full.toFloat()) else 0f
     val pct = (fraction * 100).toInt()
     val statusColors = LocalHermesStatusColors.current
     val barColor =
         when {
+            usedTokens == null -> MaterialTheme.colorScheme.primary
             pct >= 90 -> statusColors.error
             pct >= 70 -> statusColors.warning
             else -> MaterialTheme.colorScheme.primary
@@ -90,7 +90,7 @@ fun ContextUsageChip(
             Text(
                 text =
                     if (usedTokens != null) {
-                        "${formatTokens(used)} / ${formatTokens(full)} context"
+                        "${formatTokens(usedTokens)} / ${formatTokens(full)} context"
                     } else {
                         "— / ${formatTokens(full)} context"
                     },
@@ -111,12 +111,14 @@ fun ContextUsageChip(
                         maxLines = 1,
                     )
                 }
-                Text(
-                    text = "$pct%",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = barColor,
-                    maxLines = 1,
-                )
+                if (usedTokens != null) {
+                    Text(
+                        text = "$pct%",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = barColor,
+                        maxLines = 1,
+                    )
+                }
             }
         }
         Box(

@@ -1437,6 +1437,7 @@
     <string name="context_prompt_input">Prompt (input)</string>
     <string name="context_tokens_note">Prompt tokens reflect total context used by this session so far.</string>
     <string name="context_window">Context window</string>
+    <string name="context_window_usage_unavailable">Context window usage unavailable</string>
     <string name="gif_play">Play GIF</string>
     <string name="kanban_filter_placeholder">Filter tasks by title, status, or assignee...</string>
     <string name="logs_clipboard_label">Hermes Logs</string>

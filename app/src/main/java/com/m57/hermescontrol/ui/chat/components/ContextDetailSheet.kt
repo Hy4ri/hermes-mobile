@@ -51,12 +51,12 @@ fun ContextDetailSheet(
         sheetState = sheetState,
     ) {
         val full = fullTokens ?: 0L
-        val used = usedTokens ?: breakdown.inputTokens
-        val fraction = if (full > 0L) min(1f, used.toFloat() / full.toFloat()) else 0f
+        val fraction = if (full > 0L && usedTokens != null) min(1f, usedTokens.toFloat() / full.toFloat()) else 0f
         val pct = (fraction * 100).toInt()
         val statusColors = LocalHermesStatusColors.current
         val barColor =
             when {
+                usedTokens == null -> MaterialTheme.colorScheme.primary
                 pct >= 90 -> statusColors.error
                 pct >= 70 -> statusColors.warning
                 else -> MaterialTheme.colorScheme.primary
@@ -83,7 +83,7 @@ fun ContextDetailSheet(
                 verticalAlignment = Alignment.Bottom,
             ) {
                 Text(
-                    text = formatTokens(used),
+                    text = if (usedTokens != null) formatTokens(usedTokens) else "—",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = barColor,
@@ -115,7 +115,12 @@ fun ContextDetailSheet(
                 )
             }
             Text(
-                text = "$pct% of context window used",
+                text =
+                    if (usedTokens != null) {
+                        "$pct% of context window used"
+                    } else {
+                        stringResource(R.string.context_window_usage_unavailable)
+                    },
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

@@ -1277,6 +1277,7 @@
     <string name="context_prompt_input">提示词（输入）</string>
     <string name="context_tokens_note">提示词 token 反映此会话迄今使用的总上下文。</string>
     <string name="context_window">上下文窗口</string>
+    <string name="context_window_usage_unavailable">上下文窗口使用量不可用</string>
     <string name="gif_play">播放 GIF</string>
     <string name="kanban_filter_placeholder">按标题、状态或负责人筛选任务…</string>
     <string name="logs_clipboard_label">Hermes 日志</string>

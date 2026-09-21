@@ -26,15 +26,7 @@ class LogsViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private val mockApi = mockk<HermesApiService>(relaxed = true)
 
-    /**
-     * Pump the test scheduler while letting the real Dispatchers.IO hops
-     * (safeLaunchLoad / withContext(IO)) land their resumptions.
-     */
     private fun settle() {
-        repeat(20) {
-            testDispatcher.scheduler.advanceUntilIdle()
-            Thread.sleep(10)
-        }
         testDispatcher.scheduler.advanceUntilIdle()
     }
 

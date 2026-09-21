@@ -12,6 +12,7 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsMethods
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -35,7 +36,9 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
 
     // Reusable scope for async reply processing — avoids creating a new
     // unmanaged CoroutineScope per broadcast fire. (PERF-15)
-    private val replyScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    internal var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    internal var replyScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    internal var nowMs: () -> Long = System::currentTimeMillis
 
     /**
      * Test-friendly wrapper for [BroadcastReceiver.goAsync] which is `final`
@@ -76,7 +79,7 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
             replyScope.launch {
                 try {
                     withTimeout(5000L) {
-                        withContext(Dispatchers.IO) {
+                        withContext(ioDispatcher) {
                             val db =
                                 com.m57.hermescontrol.data.local.HermesDatabase
                                     .get(context)
@@ -119,7 +122,7 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
                                     sessionId = sessionId,
                                     role = "USER",
                                     content = replyText,
-                                    timestamp = System.currentTimeMillis(),
+                                    timestamp = nowMs(),
                                 )
                             dao.upsert(entity)
 

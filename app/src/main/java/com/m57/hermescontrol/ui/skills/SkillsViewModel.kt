@@ -21,6 +21,7 @@ import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -98,6 +99,7 @@ class SkillsViewModel(
     private var loadJob: Job? = null
     private var searchJob: Job? = null
     private val skillsCache = SwrCache<String, List<Skill>>()
+    internal var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 
     fun clearScopeOwnedState() {
         _uiState.update {
@@ -252,7 +254,7 @@ class SkillsViewModel(
         }
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     safeApiCall { ApiClient.hermesApi.scanHubSkill(identifier = identifier) }
                 }
             when (result) {
@@ -307,7 +309,7 @@ class SkillsViewModel(
         }
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     safeApiCall { ApiClient.hermesApi.previewHubSkill(identifier = identifier) }
                 }
             when (result) {
@@ -343,7 +345,7 @@ class SkillsViewModel(
         }
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     safeApiCall { ApiClient.hermesApi.installHubSkill(SkillHubInstallRequest(identifier = identifier)) }
                 }
             when (result) {
@@ -381,7 +383,7 @@ class SkillsViewModel(
         }
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     safeApiCall { ApiClient.hermesApi.uninstallHubSkill(SkillHubUninstallRequest(name = name)) }
                 }
             when (result) {
@@ -438,7 +440,7 @@ class SkillsViewModel(
 
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     safeApiCall { ApiClient.hermesApi.toggleSkill(ToggleSkillRequest(skill.name, targetEnabled)) }
                 }
             val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
@@ -489,7 +491,7 @@ class SkillsViewModel(
         }
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     safeApiCall { ApiClient.hermesApi.getSkillContent(skillName) }
                 }
             when (result) {
@@ -522,7 +524,7 @@ class SkillsViewModel(
         _uiState.update { it.copy(isSavingContent = true, saveContentSuccess = false) }
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     safeApiCall {
                         ApiClient.hermesApi.saveSkillContent(
                             SaveSkillContentRequest(
@@ -560,7 +562,7 @@ class SkillsViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(toastMessage = "Updating skills from hub…") }
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     safeApiCall { ApiClient.hermesApi.updateSkillsFromHub() }
                 }
             when (result) {

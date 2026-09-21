@@ -89,6 +89,21 @@ class WsProfileParamsTest {
     }
 
     @Test
+    fun `config get and set are profile scoped`() {
+        AuthManager.setActiveProfileId("work")
+
+        val getResult = WsProfileParams.decorate(WsMethods.CONFIG_GET, mapOf("key" to "reasoning"))
+        val setResult =
+            WsProfileParams.decorate(
+                WsMethods.CONFIG_SET,
+                mapOf("key" to "reasoning", "value" to "high"),
+            )
+
+        assertEquals("work", getResult["profile"])
+        assertEquals("work", setResult["profile"])
+    }
+
+    @Test
     fun `profile_scoped decorator method gets profile injected`() {
         AuthManager.setActiveProfileId("meow")
 

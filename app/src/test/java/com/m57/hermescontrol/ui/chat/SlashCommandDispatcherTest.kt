@@ -54,6 +54,14 @@ class SlashCommandDispatcherTest {
     }
 
     @Test
+    fun `reasoning routes to ReasoningSwitch`() {
+        assertEquals(SlashResult.ReasoningSwitch(""), dispatcher.dispatch("/reasoning"))
+        assertEquals(SlashResult.ReasoningSwitch("high"), dispatcher.dispatch("/reasoning high"))
+        assertEquals(SlashResult.ReasoningSwitch("HIGH"), dispatcher.dispatch("/REASONING HIGH"))
+        assertEquals(SlashResult.ReasoningSwitch("ultra"), dispatcher.dispatch("/Reasoning ultra"))
+    }
+
+    @Test
     fun `update routes to Update`() {
         // /update's backend handler is interactive + session-exiting and can
         // never answer the slash worker (45s timeout, issue #862) — it must be

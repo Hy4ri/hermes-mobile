@@ -715,11 +715,17 @@ class EventParserTest {
                 result = null,
                 error = null,
                 method = "event",
-                params = mapOf("type" to "session.info", "payload" to mapOf("session_id" to "sess-1")),
+                params =
+                    mapOf(
+                        "type" to "session.info",
+                        "session_id" to "sess-1",
+                        "payload" to mapOf("session_id" to "sess-1"),
+                    ),
             )
         val event = EventParser.parse(response)
         assertTrue(event is WsEvent.SessionInfo)
         assertEquals(mapOf("session_id" to "sess-1"), (event as WsEvent.SessionInfo).data)
+        assertEquals("sess-1", event.sessionId)
     }
 
     @Test

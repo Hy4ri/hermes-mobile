@@ -33,6 +33,7 @@ import com.m57.hermescontrol.data.repository.KanbanRepositoryImpl
 import com.m57.hermescontrol.data.ws.KanbanEventsClient
 import com.m57.hermescontrol.data.ws.KanbanLiveStatus
 import com.m57.hermescontrol.ui.common.ToastHost
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -166,6 +167,7 @@ class KanbanViewModel(
     private var eventsBoard: String? = null
     private var reloadJob: Job? = null
     private var currentLoadGen: Int = 0
+    internal var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 
     fun loadBoards() {
         val endpoint = endpointProvider()
@@ -184,7 +186,7 @@ class KanbanViewModel(
             coroutineScope {
                 val prefetchedBoardDeferred =
                     if (previouslySelectedId != null) {
-                        async(Dispatchers.IO) {
+                        async(ioDispatcher) {
                             repository.getBoard(
                                 board = previouslySelectedId,
                                 includeArchived = _uiState.value.includeArchived,

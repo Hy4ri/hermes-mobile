@@ -1420,6 +1420,9 @@
     <string name="chat_fast_mode_label">Fast</string>
     <string name="chat_fast_mode_desc">Fast mode</string>
     <string name="chat_fast_mode_unavailable">Fast mode unavailable for this model</string>
+    <string name="chat_reasoning_default">Default</string>
+    <string name="chat_reasoning_applying">Applying reasoning…</string>
+    <string name="chat_reasoning_clamped_desc">Requested %1$s, route sends %2$s</string>
     <string name="chat_reasoning_menu_desc">Reasoning options</string>
     <string name="chat_save_attachment">Save %1$s</string>
     <string name="chat_switch_model_title">Switch model (this chat)</string>
@@ -1435,8 +1438,9 @@
     <string name="context_completion_output">Completion (output)</string>
     <string name="context_compressed">compressed ×%1$s</string>
     <string name="context_prompt_input">Prompt (input)</string>
-    <string name="context_tokens_note">Prompt tokens reflect total context used by this session so far.</string>
+    <string name="context_tokens_note">Token counts below are cumulative session accounting and do not represent current context-window occupancy.</string>
     <string name="context_window">Context window</string>
+    <string name="context_window_usage_unavailable">Context window usage unavailable</string>
     <string name="gif_play">Play GIF</string>
     <string name="kanban_filter_placeholder">Filter tasks by title, status, or assignee...</string>
     <string name="logs_clipboard_label">Hermes Logs</string>

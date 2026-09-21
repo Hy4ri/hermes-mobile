@@ -8,6 +8,8 @@ import com.m57.hermescontrol.data.model.KanbanTask
 import com.m57.hermescontrol.data.model.UpdateTaskResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.KanbanApiService
+import com.m57.hermescontrol.data.repository.KanbanDispatcherNudger
+import com.m57.hermescontrol.data.repository.KanbanRepositoryImpl
 import com.m57.hermescontrol.data.ws.KanbanEvent
 import com.m57.hermescontrol.data.ws.KanbanEventsClient
 import com.m57.hermescontrol.data.ws.KanbanEventsEnvelope
@@ -42,20 +44,24 @@ class KanbanViewModelTest {
     private val mockEventsClient = mockk<KanbanEventsClient>(relaxed = true)
 
     private fun createViewModel(): KanbanViewModel {
-        val vm = KanbanViewModel(eventsClientProvider = { mockEventsClient })
+        val mockNudger = mockk<KanbanDispatcherNudger>(relaxed = true)
+        val repo =
+            KanbanRepositoryImpl(
+                apiProvider = { mockApi },
+                ioDispatcher = testDispatcher,
+                nudger = mockNudger,
+            )
+        val vm =
+            KanbanViewModel(
+                repository = repo,
+                eventsClientProvider = { mockEventsClient },
+            )
+        vm.ioDispatcher = testDispatcher
         testDispatcher.scheduler.advanceUntilIdle()
         return vm
     }
 
-    /**
-     * Pump the test scheduler while letting the real Dispatchers.IO hops
-     * (safeLaunchLoad / withContext(IO)) land their resumptions.
-     */
     private fun settle() {
-        repeat(20) {
-            testDispatcher.scheduler.advanceUntilIdle()
-            Thread.sleep(10)
-        }
         testDispatcher.scheduler.advanceUntilIdle()
     }
 

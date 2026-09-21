@@ -238,6 +238,121 @@ class SlashCommandDispatchRpcTest {
         }
 
     @Test
+    fun `reasoning effort with global flag uses acknowledged CONFIG_SET`() =
+        runTest {
+            val (vm, sessionId) = createViewModelWithSession()
+
+            val methodCalls = mutableListOf<String>()
+            val paramsCalls = mutableListOf<Map<String, Any>>()
+            every {
+                HermesWsClient.request(capture(methodCalls), capture(paramsCalls), any())
+            } answers {
+                val result =
+                    if (arg<String>(0) == WsMethods.CONFIG_SET) {
+                        kotlinx.serialization.json.buildJsonObject {
+                            put("key", kotlinx.serialization.json.JsonPrimitive("reasoning"))
+                            put("value", kotlinx.serialization.json.JsonPrimitive("high"))
+                        }
+                    } else {
+                        kotlinx.serialization.json.JsonNull
+                    }
+                CompletableDeferred<Any?>(result)
+            }
+
+            vm.sendMessage("/reasoning high --global")
+            advanceUntilIdle()
+
+            val configIndex = methodCalls.indexOf(WsMethods.CONFIG_SET)
+            assertTrue("expected CONFIG_SET, got $methodCalls", configIndex >= 0)
+            val params = paramsCalls[configIndex]
+            assertEquals("reasoning", params["key"])
+            assertEquals("high", params["value"])
+            assertEquals(sessionId, params["session_id"])
+            assertEquals("global", params["scope"])
+            assertEquals("high", vm.uiState.value.reasoningLevel)
+            assertTrue(WsMethods.COMMAND_DISPATCH !in methodCalls)
+        }
+
+    @Test
+    fun `reasoning display word uses CONFIG_SET instead of rejecting locally`() =
+        runTest {
+            val (vm, sessionId) = createViewModelWithSession()
+
+            val methodCalls = mutableListOf<String>()
+            val paramsCalls = mutableListOf<Map<String, Any>>()
+            every {
+                HermesWsClient.request(capture(methodCalls), capture(paramsCalls), any())
+            } answers {
+                val result =
+                    if (arg<String>(0) == WsMethods.CONFIG_SET) {
+                        kotlinx.serialization.json.buildJsonObject {
+                            put("key", kotlinx.serialization.json.JsonPrimitive("reasoning"))
+                            put("value", kotlinx.serialization.json.JsonPrimitive("show"))
+                        }
+                    } else {
+                        kotlinx.serialization.json.JsonNull
+                    }
+                CompletableDeferred<Any?>(result)
+            }
+
+            vm.sendMessage("/reasoning show")
+            advanceUntilIdle()
+
+            val configIndex = methodCalls.indexOf(WsMethods.CONFIG_SET)
+            assertTrue("expected CONFIG_SET, got $methodCalls", configIndex >= 0)
+            val params = paramsCalls[configIndex]
+            assertEquals("reasoning", params["key"])
+            assertEquals("show", params["value"])
+            assertEquals(sessionId, params["session_id"])
+            assertTrue(WsMethods.COMMAND_DISPATCH !in methodCalls)
+            assertEquals(
+                "reasoning: show",
+                vm.uiState.value.messages
+                    .lastOrNull { it.role == MessageRole.ASSISTANT }
+                    ?.content,
+            )
+        }
+
+    @Test
+    fun `bare reasoning reads canonical CONFIG_GET status`() =
+        runTest {
+            val (vm, sessionId) = createViewModelWithSession()
+
+            val methodCalls = mutableListOf<String>()
+            val paramsCalls = mutableListOf<Map<String, Any>>()
+            every {
+                HermesWsClient.request(capture(methodCalls), capture(paramsCalls), any())
+            } answers {
+                val result =
+                    if (arg<String>(0) == WsMethods.CONFIG_GET) {
+                        kotlinx.serialization.json.buildJsonObject {
+                            put("value", kotlinx.serialization.json.JsonPrimitive("ultra"))
+                            put("display", kotlinx.serialization.json.JsonPrimitive("hide"))
+                        }
+                    } else {
+                        kotlinx.serialization.json.JsonNull
+                    }
+                CompletableDeferred<Any?>(result)
+            }
+
+            vm.sendMessage("/reasoning")
+            advanceUntilIdle()
+
+            val configIndex = methodCalls.indexOf(WsMethods.CONFIG_GET)
+            assertTrue("expected CONFIG_GET, got $methodCalls", configIndex >= 0)
+            val params = paramsCalls[configIndex]
+            assertEquals("reasoning", params["key"])
+            assertEquals(sessionId, params["session_id"])
+            assertTrue(WsMethods.COMMAND_DISPATCH !in methodCalls)
+            assertEquals(
+                "reasoning: ultra · display hide",
+                vm.uiState.value.messages
+                    .lastOrNull { it.role == MessageRole.ASSISTANT }
+                    ?.content,
+            )
+        }
+
+    @Test
     fun `slash queue with no arg shows usage and sends nothing`() =
         runTest {
             val (vm, _) = createViewModelWithSession()

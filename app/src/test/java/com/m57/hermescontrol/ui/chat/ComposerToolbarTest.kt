@@ -38,4 +38,16 @@ class ComposerToolbarTest {
         assertEquals("openai/", composerModelLabel("openai/", showProvider = true))
         assertEquals("/gpt-5", composerModelLabel("/gpt-5", showProvider = true))
     }
+
+    @Test
+    fun buildReasoningLabel_formatsRequestedAndClampedWire() {
+        assertEquals("Default", buildReasoningLabel(null, defaultLabel = "Default"))
+        assertEquals("الافتراضي", buildReasoningLabel(null, defaultLabel = "الافتراضي"))
+        assertEquals("None", buildReasoningLabel("none"))
+        assertEquals("High", buildReasoningLabel("high"))
+        assertEquals("Ultra", buildReasoningLabel("ultra"))
+        assertEquals("Ultra→Max", buildReasoningLabel("ultra", wireLevel = "max"))
+        assertEquals("High", buildReasoningLabel("high", wireLevel = "high"))
+        assertEquals("None", buildReasoningLabel("none", wireLevel = "low"))
+    }
 }

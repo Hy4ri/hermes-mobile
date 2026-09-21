@@ -15,6 +15,7 @@ import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.refreshOnChange
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,6 +41,7 @@ class PairingViewModel :
     val uiState: StateFlow<PairingUiState> = _uiState.asStateFlow()
 
     private var launchJob: Job? = null
+    internal var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
     private val pairingCache = SwrCache<String, PairingResponse>()
 
     fun clearScopeOwnedState() {
@@ -140,7 +142,7 @@ class PairingViewModel :
         if (_uiState.value.actionKey != null) return
         _uiState.update { it.copy(actionKey = actionKey) }
         viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) { apiCall() }
+            val result = withContext(ioDispatcher) { apiCall() }
             when (result) {
                 is NetworkResult.Success -> {
                     _uiState.update { onSuccess(it.copy(actionKey = null)) }

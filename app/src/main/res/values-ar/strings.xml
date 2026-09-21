@@ -1294,6 +1294,9 @@
 <string name="chat_fast_mode_label">سريع</string>
 <string name="chat_fast_mode_desc">الوضع السريع</string>
 <string name="chat_fast_mode_unavailable">الوضع السريع غير مدعوم لهذا النموذج</string>
+<string name="chat_reasoning_default">الافتراضي</string>
+<string name="chat_reasoning_applying">جارٍ تطبيق الاستدلال…</string>
+<string name="chat_reasoning_clamped_desc">المطلوب %1$s، يرسل المسار %2$s</string>
 <string name="chat_save_attachment">حفظ %1$s</string>
 <string name="chat_switch_model_title">تبديل النموذج (لهذه المحادثة)</string>
 <string name="config_clear_value">مسح القيمة</string>
@@ -1308,8 +1311,9 @@
 <string name="context_completion_output">الإكمال (المخرجات)</string>
 <string name="context_compressed">مضغوط ×%1$s</string>
 <string name="context_prompt_input">المطالبة (المدخلات)</string>
-<string name="context_tokens_note">تعكس رموز المطالبة إجمالي السياق المستخدم في هذه الجلسة حتى الآن.</string>
+<string name="context_tokens_note">أعداد الرموز أدناه تراكمية للجلسة ولا تمثل الاستخدام الحالي لنافذة السياق.</string>
 <string name="context_window">نافذة السياق</string>
+<string name="context_window_usage_unavailable">استخدام نافذة السياق غير متوفر</string>
 <string name="gif_play">تشغيل GIF</string>
 <string name="kanban_filter_placeholder">تصفية المهام حسب العنوان أو الحالة أو المسؤول...</string>
 <string name="logs_clipboard_label">سجلات Hermes</string>

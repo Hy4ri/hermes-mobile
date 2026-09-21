@@ -133,6 +133,12 @@ class NotificationReplyReceiverTest {
                 override fun goAsyncCompat(): BroadcastReceiver.PendingResult = mockPendingResult
 
                 override fun buildReplyNotification(context: Context): Notification = mockNotification
+
+                override suspend fun captureTurnBoundaryCompat(
+                    scopeId: String,
+                    sessionId: String,
+                    timeoutMs: Long,
+                ): Boolean = true
             }.also {
                 it.ioDispatcher = testDispatcher
                 it.replyScope = testScope

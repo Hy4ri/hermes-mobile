@@ -66,6 +66,12 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
                 },
             ).build()
 
+    internal open suspend fun captureTurnBoundaryCompat(
+        scopeId: String,
+        sessionId: String,
+        timeoutMs: Long,
+    ): Boolean = captureTurnBoundary(scopeId, sessionId, timeoutMs)
+
     override fun onReceive(
         context: Context,
         intent: Intent,
@@ -97,7 +103,7 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
                             // than the chat composer's — this receiver has its
                             // own 5s deadline and a failed capture must only
                             // make the reply uncorrelatable, never lose it.
-                            captureTurnBoundary(
+                            captureTurnBoundaryCompat(
                                 scopeId = correlationScopeId(),
                                 sessionId = sessionId,
                                 timeoutMs = BOUNDARY_TIMEOUT_MS,

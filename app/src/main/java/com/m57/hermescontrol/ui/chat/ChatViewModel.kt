@@ -145,6 +145,10 @@ data class ChatUiState(
     val currentModelCapabilities: ModelCapabilities? = null,
     // Reasoning effort level for the current session
     val reasoningLevel: String? = null,
+    // Gateway-reported effective effort on the active route (clamped level, e.g. "max" when requested was "ultra")
+    val reasoningWireLevel: String? = null,
+    // In-flight reasoning effort currently applying via config.set
+    val pendingReasoningLevel: String? = null,
     // Fast mode / Priority processing state for the current session
     val fastMode: Boolean = false,
     val isFastModeChanging: Boolean = false,
@@ -479,6 +483,7 @@ class ChatViewModel(
             handleSlashCommand = { cmd -> handleSlashCommand(cmd) },
             fetchContextUsage = { fetchContextUsage() },
             onModelSwitchInitiated = { onModelSwitchInitiated() },
+            wsRequest = { method, params -> wsClient.request(method, params).await() },
         ).apply {
             attachScopeObserver(viewModelScope)
         }
@@ -788,7 +793,11 @@ class ChatViewModel(
             }
 
             is WsEvent.SessionInfo -> {
-                handleSessionInfo(event.data)
+                val current = runtimeSessionId ?: _uiState.value.currentSessionId
+                // Ignore session.info events clearly tagged for a different session
+                if (event.sessionId == null || current == null || event.sessionId == current) {
+                    handleSessionInfo(event.data)
+                }
             }
 
             is WsEvent.MessageToken -> {
@@ -1178,6 +1187,7 @@ class ChatViewModel(
             val model = info["model"] as? String
             val provider = info["provider"] as? String
             val reasoningEffort = info["reasoning_effort"] as? String
+            val reasoningEffortWire = info["reasoning_effort_wire"] as? String
             val terminalBackend = info["terminal_backend"] as? String
             val serviceTier = (info["service_tier"] as? String)?.trim()?.lowercase()
             val fastFlag =
@@ -1209,14 +1219,24 @@ class ChatViewModel(
                 modelSwitchDelegate.onModelConfirmed(newModelLabel)
             }
             _uiState.update { state ->
+                val newEffort =
+                    if (reasoningEffort != null) {
+                        if (reasoningEffort.isEmpty()) null else reasoningEffort
+                    } else {
+                        state.reasoningLevel
+                    }
+                val newWire =
+                    if (reasoningEffortWire != null) {
+                        if (reasoningEffortWire.isEmpty()) null else reasoningEffortWire
+                    } else if (newEffort != state.reasoningLevel || modelSwapped) {
+                        null
+                    } else {
+                        state.reasoningWireLevel
+                    }
                 state.copy(
                     currentSessionModel = newModelLabel ?: state.currentSessionModel,
-                    reasoningLevel =
-                        if (reasoningEffort.isNullOrEmpty()) {
-                            null
-                        } else {
-                            reasoningEffort
-                        },
+                    reasoningLevel = newEffort,
+                    reasoningWireLevel = newWire,
                     fastMode = fastFlag ?: state.fastMode,
                     isFastModeChanging = if (fastFlag != null) false else state.isFastModeChanging,
                     terminalBackend = terminalBackend ?: state.terminalBackend,
@@ -1388,6 +1408,7 @@ class ChatViewModel(
                 val model = infoMap?.get("model") as? String
                 val provider = infoMap?.get("provider") as? String
                 val reasoningEffort = infoMap?.get("reasoning_effort") as? String
+                val reasoningEffortWire = infoMap?.get("reasoning_effort_wire") as? String
                 val terminalBackend = infoMap?.get("terminal_backend") as? String
                 val serviceTier = (infoMap?.get("service_tier") as? String)?.trim()?.lowercase()
                 val fastFlag =
@@ -1415,6 +1436,12 @@ class ChatViewModel(
                                 null
                             } else {
                                 reasoningEffort
+                            },
+                        reasoningWireLevel =
+                            if (reasoningEffortWire.isNullOrEmpty()) {
+                                null
+                            } else {
+                                reasoningEffortWire
                             },
                         fastMode = fastFlag ?: false,
                         isFastModeChanging = false,
@@ -1705,7 +1732,8 @@ class ChatViewModel(
     }
 
     private fun canSubmitMessage(): Boolean =
-        wsClient.connectionStatus.value == ConnectionStatus.CONNECTED &&
+        _uiState.value.pendingReasoningLevel == null &&
+            wsClient.connectionStatus.value == ConnectionStatus.CONNECTED &&
             (
                 (_uiState.value.isSessionReady && runtimeSessionId != null) ||
                     (
@@ -2127,6 +2155,10 @@ class ChatViewModel(
                 modelSwitchDelegate.handleModelSwitch(command)
             }
 
+            is SlashResult.ReasoningSwitch -> {
+                handleReasoningSlashCommand(result.level)
+            }
+
             is SlashResult.Update -> {
                 openUpdateConfirm()
             }
@@ -2172,6 +2204,32 @@ class ChatViewModel(
             return
         }
         submitPrompt(arg, queued = true)
+    }
+
+    private fun handleReasoningSlashCommand(arg: String) {
+        val level = arg.trim().lowercase()
+        if (level.isEmpty()) {
+            val current = _uiState.value.reasoningLevel ?: "default"
+            addAssistantMessage(
+                "Current reasoning effort: $current\nUsage: `/reasoning <none|minimal|low|medium|high|xhigh|max|ultra>`",
+            )
+            return
+        }
+        val validLevels = setOf("none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra")
+        if (!validLevels.contains(level)) {
+            addAssistantMessage("Unknown reasoning level: '$arg'. Valid levels: ${validLevels.joinToString(", ")}")
+            return
+        }
+        val caps = _uiState.value.currentModelCapabilities
+        if (caps?.reasoning == false) {
+            addAssistantMessage("Reasoning is not supported for the current model.")
+            return
+        }
+        if (level == "none" && caps?.can_disable_reasoning == false) {
+            addAssistantMessage("Reasoning cannot be disabled for this model (always on).")
+            return
+        }
+        setReasoningLevel(level)
     }
 
     // ── Side Questions via /btw (issue #1015) ─────────────────────────────
@@ -2962,6 +3020,8 @@ class ChatViewModel(
                 currentSessionModel = null,
                 currentModelCapabilities = null,
                 reasoningLevel = null,
+                reasoningWireLevel = null,
+                pendingReasoningLevel = null,
                 fastMode = false,
                 isFastModeChanging = false,
                 terminalBackend = null,

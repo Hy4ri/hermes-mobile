@@ -10,6 +10,7 @@ import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.ws.ModelCatalogStore
 import com.m57.hermescontrol.data.ws.WsMethods
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -58,6 +59,7 @@ class ChatModelSwitchDelegate(
         { refresh -> ModelCatalogStore.shared.ensureLoaded(forceRefresh = refresh) },
     private val getPinnedModels: () -> List<PinnedModel> = { AuthManager.getPinnedModels() },
     private val savePinnedModels: (List<PinnedModel>) -> Unit = { AuthManager.savePinnedModels(it) },
+    private val wsRequest: (suspend (method: String, params: Map<String, Any>) -> Any?)? = null,
 ) {
     private val pendingModelSwitchRequests = ConcurrentHashMap<String, ActiveModelSwitch>()
     private val pendingFastSwitchRequests = ConcurrentHashMap<String, ActiveFastSwitch>()
@@ -67,6 +69,8 @@ class ChatModelSwitchDelegate(
     private var lastConfirmedModel: String? = null
     private var unconfirmedTargetModel: String? = null
     private var modelSwitchSequence: Long = 0L
+    private var reasoningOpSequence: Long = 0L
+    private var reasoningJob: Job? = null
     private var cachedModelOptions: List<ModelProvider> = emptyList()
     private var cachedModelOptionsScope: DataScope? = dataScopeFlow.value
     private var modelOptionsJob: Job? = null
@@ -460,22 +464,80 @@ class ChatModelSwitchDelegate(
         optimisticPreviousModel = null
         lastConfirmedModel = null
         unconfirmedTargetModel = null
+        reasoningOpSequence++
+        reasoningJob?.cancel()
+        reasoningJob = null
+        uiState.update {
+            it.copy(
+                pendingReasoningLevel = null,
+                reasoningWireLevel = null,
+            )
+        }
     }
 
     fun setReasoningLevel(level: String?) {
-        uiState.update { it.copy(reasoningLevel = level) }
-        val sessionId = runtimeSessionId() ?: return
         if (level == null) return
-        scope.launch(ioDispatcher) {
-            wsSend(
-                WsMethods.CONFIG_SET,
-                mapOf(
-                    "key" to "reasoning",
-                    "value" to level,
-                    "session_id" to sessionId,
-                ),
-            ) { id -> trackRequest(id, WsMethods.CONFIG_SET) }
-        }
+        val currentPending = uiState.value.pendingReasoningLevel
+        if (currentPending != null) return // One reasoning write at a time
+        val sessionId = runtimeSessionId() ?: return
+        if (sessionId.isBlank()) return
+
+        // Capability validation
+        val caps = uiState.value.currentModelCapabilities
+        if (caps?.reasoning == false) return
+        if (level == "none" && caps?.can_disable_reasoning == false) return
+
+        val opSeq = ++reasoningOpSequence
+        val capturedScope = dataScopeFlow.value
+        uiState.update { it.copy(pendingReasoningLevel = level) }
+
+        reasoningJob?.cancel()
+        reasoningJob =
+            scope.launch(ioDispatcher) {
+                try {
+                    val params =
+                        mapOf(
+                            "key" to "reasoning",
+                            "value" to level,
+                            "session_id" to sessionId,
+                            "scope" to "session",
+                        )
+                    val result =
+                        if (wsRequest != null) {
+                            wsRequest.invoke(WsMethods.CONFIG_SET, params)
+                        } else {
+                            wsSend(WsMethods.CONFIG_SET, params) { reqId ->
+                                trackRequest(reqId, WsMethods.CONFIG_SET)
+                            }
+                            null
+                        }
+
+                    if (opSeq == reasoningOpSequence && capturedScope == dataScopeFlow.value) {
+                        val map = result as? Map<*, *>
+                        val resKey = map?.get("key") as? String
+                        val resVal = map?.get("value") as? String
+                        val ackLevel = if (resKey == "reasoning" && !resVal.isNullOrEmpty()) resVal else level
+
+                        uiState.update { state ->
+                            state.copy(
+                                reasoningLevel = ackLevel,
+                                pendingReasoningLevel = null,
+                            )
+                        }
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    if (opSeq == reasoningOpSequence && capturedScope == dataScopeFlow.value) {
+                        uiState.update { state ->
+                            state.copy(
+                                pendingReasoningLevel = null,
+                                errorMessage = "Could not confirm reasoning change: ${e.message ?: e.toString()}",
+                            )
+                        }
+                    }
+                }
+            }
     }
 
     fun getModelCapabilities(

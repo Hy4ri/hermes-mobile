@@ -42,6 +42,11 @@ class SlashCommandDispatcher {
                 SlashResult.ModelSwitch
             }
 
+            "/reasoning" -> {
+                val arg = command.split(" ", limit = 2).getOrElse(1) { "" }.trim()
+                SlashResult.ReasoningSwitch(level = arg)
+            }
+
             "/update" -> {
                 SlashResult.Update
             }
@@ -102,6 +107,15 @@ sealed class SlashResult {
      * `/model <model> --provider <slug> --session`.
      */
     data object ModelSwitch : SlashResult()
+
+    /**
+     * Set the session's reasoning effort level via the backend `config.set` RPC
+     * (key="reasoning" -> `_set_reasoning`). NOT command.dispatch (4018s on
+     * /reasoning) and updates the composer chip directly.
+     */
+    data class ReasoningSwitch(
+        val level: String,
+    ) : SlashResult()
 
     /**
      * Trigger the backend update via the REST action API

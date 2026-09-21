@@ -431,26 +431,144 @@ class ChatModelSwitchDelegateTest {
         }
 
     @Test
-    fun rapidPicks_preservesOriginalConfirmedModelForRollback() =
+    fun setReasoningLevel_awaitsRequest_updatesOnAck_andPreventsConcurrentPick() =
         testScope.runTest {
-            // Pick model A
-            delegate.sendSlashModel("openai", "gpt-4o")
-            advanceUntilIdle()
-            delegate.handleModelSwitch("/model gpt-4o --provider openai --session")
+            var gate = CompletableDeferred<Any?>()
+            val reqMethods = mutableListOf<String>()
+            val reqParams = mutableListOf<Map<String, Any>>()
+
+            val customDelegate =
+                ChatModelSwitchDelegate(
+                    scope = testScope,
+                    ioDispatcher = testDispatcher,
+                    uiState = uiState,
+                    runtimeSessionId = { runtimeId },
+                    wsSend = { _, _, _ -> },
+                    trackRequest = { _, _ -> },
+                    addAssistantMessage = {},
+                    handleSlashCommand = {},
+                    fetchContextUsage = {},
+                    dataScopeFlow = dataScope,
+                    wsRequest = { method, params ->
+                        reqMethods.add(method)
+                        reqParams.add(params)
+                        gate.await()
+                    },
+                )
+
+            customDelegate.setReasoningLevel("high")
+            runCurrent()
+
+            // Confirmed level remains null until acknowledged; pending level is "high"
+            assertNull(uiState.value.reasoningLevel)
+            assertEquals("high", uiState.value.pendingReasoningLevel)
+            assertEquals(listOf(WsMethods.CONFIG_SET), reqMethods)
+            assertEquals("session", reqParams.first()["scope"])
+            assertEquals("high", reqParams.first()["value"])
+
+            // Second pick while in-flight is rejected (serialized)
+            customDelegate.setReasoningLevel("low")
+            runCurrent()
+            assertEquals(1, reqMethods.size)
+
+            // Complete RPC request
+            gate.complete(mapOf("key" to "reasoning", "value" to "high"))
             advanceUntilIdle()
 
-            // Pick model B before A confirms
-            delegate.sendSlashModel("anthropic", "claude-3-5-sonnet")
-            advanceUntilIdle()
-            delegate.handleModelSwitch("/model claude-3-5-sonnet --provider anthropic --session")
+            assertEquals("high", uiState.value.reasoningLevel)
+            assertNull(uiState.value.pendingReasoningLevel)
+        }
+
+    @Test
+    fun setReasoningLevel_onFailure_clearsPendingAndSurfacesError() =
+        testScope.runTest {
+            val customDelegate =
+                ChatModelSwitchDelegate(
+                    scope = testScope,
+                    ioDispatcher = testDispatcher,
+                    uiState = uiState,
+                    runtimeSessionId = { runtimeId },
+                    wsSend = { _, _, _ -> },
+                    trackRequest = { _, _ -> },
+                    addAssistantMessage = {},
+                    handleSlashCommand = {},
+                    fetchContextUsage = {},
+                    dataScopeFlow = dataScope,
+                    wsRequest = { _, _ -> throw RuntimeException("4002 unknown reasoning value") },
+                )
+
+            customDelegate.setReasoningLevel("ultra")
             advanceUntilIdle()
 
-            // Dismiss confirmation on B — should revert to original model before both switches
-            delegate.handleConfigSetResult(
-                id = "req-2",
-                result = mapOf("key" to "model", "confirm_required" to true),
-            )
-            delegate.dismissModelSwitchConfirm()
-            assertEquals("anthropic/claude-3", uiState.value.currentSessionModel)
+            assertNull(uiState.value.reasoningLevel)
+            assertNull(uiState.value.pendingReasoningLevel)
+            assertTrue(uiState.value.errorMessage?.contains("4002") == true)
+        }
+
+    @Test
+    fun setReasoningLevel_whenRuntimeSessionNullOrBlank_doesNotSend() =
+        testScope.runTest {
+            val reqMethods = mutableListOf<String>()
+            runtimeId = null
+
+            val customDelegate =
+                ChatModelSwitchDelegate(
+                    scope = testScope,
+                    ioDispatcher = testDispatcher,
+                    uiState = uiState,
+                    runtimeSessionId = { runtimeId },
+                    wsSend = { _, _, _ -> },
+                    trackRequest = { _, _ -> },
+                    addAssistantMessage = {},
+                    handleSlashCommand = {},
+                    fetchContextUsage = {},
+                    dataScopeFlow = dataScope,
+                    wsRequest = { method, _ ->
+                        reqMethods.add(method)
+                        null
+                    },
+                )
+
+            customDelegate.setReasoningLevel("high")
+            advanceUntilIdle()
+
+            assertTrue(reqMethods.isEmpty())
+            assertNull(uiState.value.pendingReasoningLevel)
+            assertNull(uiState.value.reasoningLevel)
+        }
+
+    @Test
+    fun setReasoningLevel_staleScopeOrReset_dropsLateAck() =
+        testScope.runTest {
+            val gate = CompletableDeferred<Any?>()
+            val customDelegate =
+                ChatModelSwitchDelegate(
+                    scope = testScope,
+                    ioDispatcher = testDispatcher,
+                    uiState = uiState,
+                    runtimeSessionId = { runtimeId },
+                    wsSend = { _, _, _ -> },
+                    trackRequest = { _, _ -> },
+                    addAssistantMessage = {},
+                    handleSlashCommand = {},
+                    fetchContextUsage = {},
+                    dataScopeFlow = dataScope,
+                    wsRequest = { _, _ -> gate.await() },
+                )
+
+            customDelegate.setReasoningLevel("high")
+            runCurrent()
+            assertEquals("high", uiState.value.pendingReasoningLevel)
+
+            // Reset called while in-flight
+            customDelegate.reset()
+            assertNull(uiState.value.pendingReasoningLevel)
+
+            // Late RPC response arrives
+            gate.complete(mapOf("key" to "reasoning", "value" to "high"))
+            advanceUntilIdle()
+
+            assertNull(uiState.value.reasoningLevel)
+            assertNull(uiState.value.pendingReasoningLevel)
         }
 }

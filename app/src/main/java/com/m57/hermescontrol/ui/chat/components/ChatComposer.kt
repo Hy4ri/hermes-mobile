@@ -101,12 +101,16 @@ fun ChatInputBar(
     isFastModeChanging: Boolean = false,
     onToggleFastMode: () -> Unit = {},
     showModelProvider: Boolean = false,
+    reasoningWireLevel: String? = null,
+    pendingReasoningLevel: String? = null,
 ) {
     // Allow sending while the agent is mid-turn or awaiting approval: the
     // gateway's prompt.submit busy-input policy queues it as the next turn
     // (tui_gateway/server.py:_handle_busy_submit), so the message is never
     // dropped. Slash commands were already allowed; regular prompts now are too.
-    val canSend = ChatInputPolicy.canSend(inputFieldValue.text, pendingAttachments, isConnected, isSessionReady)
+    val canSend =
+        pendingReasoningLevel == null &&
+            ChatInputPolicy.canSend(inputFieldValue.text, pendingAttachments, isConnected, isSessionReady)
 
     // Attachment tray state
     var showAttachmentTray by remember { mutableStateOf(false) }
@@ -329,6 +333,9 @@ fun ChatInputBar(
                     isFastModeChanging = isFastModeChanging,
                     onToggleFastMode = onToggleFastMode,
                     showModelProvider = showModelProvider,
+                    reasoningWireLevel = reasoningWireLevel,
+                    pendingReasoningLevel = pendingReasoningLevel,
+                    isSessionReady = isSessionReady,
                 )
 
                 AttachmentTray(

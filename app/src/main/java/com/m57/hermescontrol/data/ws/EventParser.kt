@@ -80,7 +80,7 @@ object EventParser {
             }
 
             "session.info" -> {
-                WsEvent.SessionInfo(payload)
+                WsEvent.SessionInfo(payload, sessionId)
             }
 
             "message.start" -> {

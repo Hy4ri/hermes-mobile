@@ -2651,7 +2651,48 @@ class ChatViewModelTest {
             assertNull(state.sudoPrompt)
             assertNull(state.errorMessage)
             assertNull(state.resumeError)
+            assertNull(state.pendingReasoningLevel)
+            assertNull(state.reasoningWireLevel)
             assertTrue(state.isLoading)
+        }
+
+    @Test
+    fun testSessionInfo_reconcilesRequestedAndWireReasoningEffort() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            mockEventsFlow.emit(
+                WsEvent.SessionInfo(
+                    data =
+                        mapOf(
+                            "model" to "gpt-5",
+                            "provider" to "openai",
+                            "reasoning_effort" to "ultra",
+                            "reasoning_effort_wire" to "max",
+                        ),
+                    sessionId = sessionId,
+                ),
+            )
+            runCurrent()
+
+            val state = viewModel.uiState.value
+            assertEquals("ultra", state.reasoningLevel)
+            assertEquals("max", state.reasoningWireLevel)
+
+            // Other session's event is ignored
+            mockEventsFlow.emit(
+                WsEvent.SessionInfo(
+                    data =
+                        mapOf(
+                            "model" to "gpt-5",
+                            "provider" to "openai",
+                            "reasoning_effort" to "low",
+                        ),
+                    sessionId = "other-session-id",
+                ),
+            )
+            runCurrent()
+
+            assertEquals("ultra", viewModel.uiState.value.reasoningLevel)
         }
 
     @Test

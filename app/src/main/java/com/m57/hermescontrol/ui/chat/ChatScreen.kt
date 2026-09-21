@@ -808,6 +808,8 @@ fun ChatScreen(
                 currentSessionModel = state.currentSessionModel,
                 showModelProvider = state.showModelProvider,
                 reasoningLevel = state.reasoningLevel,
+                reasoningWireLevel = state.reasoningWireLevel,
+                pendingReasoningLevel = state.pendingReasoningLevel,
                 onModelTap = { viewModel.openModelPicker() },
                 onReasoningTap = { level -> viewModel.setReasoningLevel(level) },
                 canDisableReasoning = state.currentModelCapabilities?.can_disable_reasoning,

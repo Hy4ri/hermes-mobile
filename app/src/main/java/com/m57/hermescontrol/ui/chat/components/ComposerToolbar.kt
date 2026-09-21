@@ -104,6 +104,9 @@ fun ComposerToolbar(
     isFastModeChanging: Boolean = false,
     onToggleFastMode: () -> Unit = {},
     showModelProvider: Boolean = false,
+    reasoningWireLevel: String? = null,
+    pendingReasoningLevel: String? = null,
+    isSessionReady: Boolean = true,
 ) {
     var showReasoningMenu by remember { mutableStateOf(false) }
     val palette = composerPalette()
@@ -179,11 +182,12 @@ fun ComposerToolbar(
                 }
 
                 Box {
+                    val reasoningInteractive = isConnected && isSessionReady && pendingReasoningLevel == null
                     Row(
                         modifier =
                             Modifier
                                 .fillMaxHeight()
-                                .clickable(enabled = isConnected) { showReasoningMenu = true }
+                                .clickable(enabled = reasoningInteractive) { showReasoningMenu = true }
                                 .padding(start = 6.dp, end = 12.dp)
                                 .testTag("reasoning_chip"),
                         verticalAlignment = Alignment.CenterVertically,
@@ -191,7 +195,7 @@ fun ComposerToolbar(
                     ) {
                         val levelColor =
                             palette.onControlVariant.copy(
-                                alpha = if (isConnected) 1f else 0.38f,
+                                alpha = if (reasoningInteractive) 1f else 0.38f,
                             )
                         if (fastMode) {
                             Icon(
@@ -201,12 +205,26 @@ fun ComposerToolbar(
                                 modifier = Modifier.size(14.dp),
                             )
                         }
+                        if (pendingReasoningLevel != null) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(12.dp),
+                                strokeWidth = 1.5.dp,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
                         Text(
                             text =
                                 if (reasoningDisabledForModel) {
                                     if (fastMode) stringResource(R.string.chat_fast_mode_label) else "No reasoning"
                                 } else {
-                                    val rLabel = buildReasoningLabel(reasoningLevel)
+                                    val targetEffort = pendingReasoningLevel ?: reasoningLevel
+                                    val wire = if (pendingReasoningLevel != null) null else reasoningWireLevel
+                                    val rLabel =
+                                        buildReasoningLabel(
+                                            level = targetEffort,
+                                            wireLevel = wire,
+                                            defaultLabel = stringResource(R.string.chat_reasoning_default),
+                                        )
                                     if (fastMode) {
                                         "${stringResource(
                                             R.string.chat_fast_mode_label,
@@ -332,29 +350,57 @@ fun ComposerToolbar(
                         allLevels.forEach { (level, label) ->
                             val isNone = level == "none"
                             val noneDisabled = isNone && (canDisable == false || reasoningDisabledForModel)
+                            val isSelected = (pendingReasoningLevel ?: reasoningLevel) == level
+                            val isClampedTarget =
+                                isSelected && reasoningWireLevel != null &&
+                                    !reasoningWireLevel.equals(level, ignoreCase = true)
                             DropdownMenuItem(
                                 text = {
-                                    Text(
-                                        text = label,
-                                        fontWeight =
-                                            if (reasoningLevel == level) {
-                                                MaterialTheme.typography.bodyMedium.fontWeight
-                                            } else {
-                                                null
-                                            },
-                                        color =
-                                            when {
-                                                noneDisabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                                                reasoningLevel == level -> MaterialTheme.colorScheme.primary
-                                                else -> MaterialTheme.colorScheme.onSurface
-                                            },
-                                    )
+                                    Column {
+                                        Text(
+                                            text = label,
+                                            fontWeight =
+                                                if (isSelected) {
+                                                    MaterialTheme.typography.bodyMedium.fontWeight
+                                                } else {
+                                                    null
+                                                },
+                                            color =
+                                                when {
+                                                    noneDisabled -> {
+                                                        MaterialTheme.colorScheme.onSurface.copy(
+                                                            alpha = 0.38f,
+                                                        )
+                                                    }
+
+                                                    isSelected -> {
+                                                        MaterialTheme.colorScheme.primary
+                                                    }
+
+                                                    else -> {
+                                                        MaterialTheme.colorScheme.onSurface
+                                                    }
+                                                },
+                                        )
+                                        if (isClampedTarget) {
+                                            Text(
+                                                text =
+                                                    stringResource(
+                                                        R.string.chat_reasoning_clamped_desc,
+                                                        label,
+                                                        buildReasoningLabel(reasoningWireLevel, defaultLabel = ""),
+                                                    ),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                                            )
+                                        }
+                                    }
                                 },
                                 onClick = {
                                     showReasoningMenu = false
                                     onReasoningSelected(level)
                                 },
-                                enabled = !noneDisabled && !reasoningDisabledForModel,
+                                enabled = !noneDisabled && !reasoningDisabledForModel && pendingReasoningLevel == null,
                             )
                         }
                     }
@@ -501,16 +547,37 @@ private const val CUSTOM_PROVIDER_PREFIX = "custom:"
  *              "xhigh", "max", "ultra", or null for model default.
  * @return Display string such as "None", "Low", "XHigh", "Ultra", etc.
  */
-private fun buildReasoningLabel(level: String?): String =
-    when (level) {
-        null -> "Med"
-        "none" -> "None"
-        "minimal" -> "Minimal"
-        "low" -> "Low"
-        "medium" -> "Med"
-        "high" -> "High"
-        "xhigh" -> "XHigh"
-        "max" -> "Max"
-        "ultra" -> "Ultra"
-        else -> level
+fun buildReasoningLabel(
+    level: String?,
+    wireLevel: String? = null,
+    defaultLabel: String = "Default",
+): String {
+    val reqLabel =
+        when (level) {
+            null -> defaultLabel
+            "none" -> "None"
+            "minimal" -> "Minimal"
+            "low" -> "Low"
+            "medium" -> "Med"
+            "high" -> "High"
+            "xhigh" -> "XHigh"
+            "max" -> "Max"
+            "ultra" -> "Ultra"
+            else -> level
+        }
+    if (wireLevel != null && !wireLevel.equals(level, ignoreCase = true) && level != "none") {
+        val wireLabel =
+            when (wireLevel) {
+                "minimal" -> "Minimal"
+                "low" -> "Low"
+                "medium" -> "Med"
+                "high" -> "High"
+                "xhigh" -> "XHigh"
+                "max" -> "Max"
+                "ultra" -> "Ultra"
+                else -> wireLevel
+            }
+        return "$reqLabel→$wireLabel"
     }
+    return reqLabel
+}

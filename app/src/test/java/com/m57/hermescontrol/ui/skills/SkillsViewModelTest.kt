@@ -35,15 +35,9 @@ class SkillsViewModelTest {
     private val mockApi = mockk<HermesApiService>(relaxed = true)
     private val app = mockk<Application>(relaxed = true)
 
-    /**
-     * Pump the test scheduler while letting the real Dispatchers.IO hops
-     * (safeLaunchLoad / withContext(IO)) land their resumptions.
-     */
+    private fun createViewModel(): SkillsViewModel = SkillsViewModel(app).also { it.ioDispatcher = testDispatcher }
+
     private fun settle() {
-        repeat(20) {
-            testDispatcher.scheduler.advanceUntilIdle()
-            Thread.sleep(10)
-        }
         testDispatcher.scheduler.advanceUntilIdle()
     }
 
@@ -105,7 +99,7 @@ class SkillsViewModelTest {
     @Test
     fun `loadHubSources stores sources and featured skills`() {
         coEvery { mockApi.getSkillHubSources() } returns Response.success(sourcesResponse)
-        val vm = SkillsViewModel(app)
+        val vm = createViewModel()
         vm.loadHubSources()
         settle()
 
@@ -122,7 +116,7 @@ class SkillsViewModelTest {
                 404,
                 """{"detail":"Hub sources unavailable"}""".toResponseBody("application/json".toMediaTypeOrNull()),
             )
-        val vm = SkillsViewModel(app)
+        val vm = createViewModel()
         vm.loadHubSources()
         settle()
 
@@ -137,7 +131,7 @@ class SkillsViewModelTest {
     @Test
     fun `setViewMode HUB triggers sources load when landing is empty`() {
         coEvery { mockApi.getSkillHubSources() } returns Response.success(sourcesResponse)
-        val vm = SkillsViewModel(app)
+        val vm = createViewModel()
         vm.setViewMode(SkillsViewMode.HUB)
         settle()
 
@@ -149,7 +143,7 @@ class SkillsViewModelTest {
     fun `scanHubSkill stores the scan result for the identifier`() {
         coEvery { mockApi.scanHubSkill(identifier = "hermes-index:web-research") } returns
             Response.success(scanResponse)
-        val vm = SkillsViewModel(app)
+        val vm = createViewModel()
         vm.scanHubSkill("hermes-index:web-research")
         settle()
 
@@ -166,7 +160,7 @@ class SkillsViewModelTest {
                 404,
                 """{"detail":"Skill not found"}""".toResponseBody("application/json".toMediaTypeOrNull()),
             )
-        val vm = SkillsViewModel(app)
+        val vm = createViewModel()
         vm.scanHubSkill("broken:skill")
         settle()
 
@@ -178,7 +172,7 @@ class SkillsViewModelTest {
 
     @Test
     fun `scanHubSkill ignores blank identifiers`() {
-        val vm = SkillsViewModel(app)
+        val vm = createViewModel()
         vm.scanHubSkill(" ")
         settle()
 
@@ -190,7 +184,7 @@ class SkillsViewModelTest {
     fun `clearHubScan resets scan state`() {
         coEvery { mockApi.scanHubSkill(identifier = "hermes-index:web-research") } returns
             Response.success(scanResponse)
-        val vm = SkillsViewModel(app)
+        val vm = createViewModel()
         vm.scanHubSkill("hermes-index:web-research")
         settle()
         vm.clearHubScan()

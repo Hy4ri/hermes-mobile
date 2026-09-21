@@ -20,6 +20,7 @@ import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.refreshOnChange
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -99,6 +100,7 @@ class CronJobsViewModel :
     val uiState: StateFlow<CronJobsUiState> = _uiState.asStateFlow()
 
     private var loadJob: Job? = null
+    internal var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
     private val jobsCache = SwrCache<String, List<CronJob>>()
 
     fun clearScopeOwnedState() {
@@ -166,7 +168,7 @@ class CronJobsViewModel :
         }
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     safeApiCall { ApiClient.hermesApi.pauseCronJob(id) }
                 }
             val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
@@ -197,7 +199,7 @@ class CronJobsViewModel :
         }
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     safeApiCall { ApiClient.hermesApi.resumeCronJob(id) }
                 }
             val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
@@ -218,7 +220,7 @@ class CronJobsViewModel :
     fun triggerCronJob(id: String) {
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     safeApiCall { ApiClient.hermesApi.triggerCronJob(id) }
                 }
             when (result) {
@@ -241,7 +243,7 @@ class CronJobsViewModel :
         }
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     safeApiCall { ApiClient.hermesApi.deleteCronJob(id) }
                 }
             val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
@@ -292,7 +294,7 @@ class CronJobsViewModel :
     fun loadEditorBlueprints() {
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     safeApiCall { ApiClient.hermesApi.getCronBlueprints() }
                 }
             when (result) {
@@ -319,7 +321,7 @@ class CronJobsViewModel :
     fun loadDeliveryTargets() {
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     safeApiCall { ApiClient.hermesApi.getCronDeliveryTargets() }
                 }
             if (result is NetworkResult.Success) {
@@ -345,7 +347,7 @@ class CronJobsViewModel :
         }
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     safeApiCall { ApiClient.hermesApi.getCronJob(id) }
                 }
             when (result) {
@@ -462,7 +464,7 @@ class CronJobsViewModel :
 
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     if (editor.isNew && editor.selectedBlueprintKey != null) {
                         safeApiCall {
                             ApiClient.hermesApi.instantiateBlueprint(

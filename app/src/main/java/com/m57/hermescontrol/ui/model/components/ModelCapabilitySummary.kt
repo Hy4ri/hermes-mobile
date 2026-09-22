@@ -16,9 +16,9 @@ fun ModelCapabilitySummary(capabilities: ModelCapabilities?) {
         buildList {
             capabilities.supports_tools?.let { add(if (it) "Tools" else "No tools") }
             capabilities.supports_vision?.let { add(if (it) "Vision" else "No vision") }
-            capabilities.reasoningSupport?.let { add(if (it) "Reasoning" else "No reasoning") }
+            capabilities.reasoningSupport?.let { add(if (it) "Reasoning" else "no reasoning") }
             if (capabilities.reasoningSupport == true && capabilities.can_disable_reasoning == false) {
-                add("Reasoning always on")
+                add("reasoning always on")
             }
             capabilities.context_window?.let { add("${it / 1000}K ctx") }
             capabilities.max_output_tokens?.let { add("${it / 1000}K output") }

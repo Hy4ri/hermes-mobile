@@ -37,7 +37,8 @@ open class ChatPersistenceRepository(
         daoProvider().getMessagesForSession(sessionId).map { it.toUiModel() }
 
     data class Cursor(
-        val timestamp: Long,
+        val group: Int,
+        val order: Long,
         val id: String,
     )
 
@@ -59,15 +60,24 @@ open class ChatPersistenceRepository(
             if (before == null) {
                 dao.getLatestMessagePage(sessionId, limit + 1)
             } else {
-                dao.getMessagePage(sessionId, before.timestamp, before.id, limit + 1)
+                dao.getMessagePage(sessionId, before.group, before.order, before.id, limit + 1)
             }
         val page = rows.take(limit)
         val oldest = page.lastOrNull()
         return Page(
             messages = page.asReversed().map { it.toUiModel() },
-            cursor = oldest?.let { Cursor(it.timestamp, it.id) } ?: before,
+            cursor = oldest?.let { Cursor(it.sortGroup, it.sortOrder, it.id) } ?: before,
             hasOlder = rows.size > limit,
         )
+    }
+
+    /** Record confirmed UUID aliases without replacing their newer locally persisted content. */
+    suspend fun confirmIdentities(
+        messages: List<ChatMessage>,
+        sessionId: String,
+    ) {
+        val dao = daoProvider()
+        messages.forEach { dao.confirmIdentity(it.toEntity(sessionId)) }
     }
 
     /** Clear all cached messages for a session (e.g. after /undo rewind). */

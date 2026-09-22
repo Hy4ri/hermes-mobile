@@ -549,7 +549,11 @@ class ReadNotificationReviewRegressionTest {
                 SessionMessage(id = 2, role = "assistant", content = JsonPrimitive("The result MEDIA:/opt/pic.png")),
             )
         val mapped = mapServerMessages("session", history, 0, true, live, isPagingOlder = false)
-        assertEquals("comp-reasoning-media", mapped.single().completionId)
+        assertEquals(listOf("rest-session-1", "rest-session-2"), mapped.map { it.canonicalRestId })
+        assertEquals("thinking step", mapped.first().reasoningText)
+        assertEquals("", mapped.first().content)
+        assertNull(mapped.first().completionId)
+        assertEquals("comp-reasoning-media", mapped.last().completionId)
     }
 
     @Test

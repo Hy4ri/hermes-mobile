@@ -89,6 +89,8 @@ data class ChatMessage(
     val completionId: String? = null,
     /** Confirmed transcript identity (#859); [id] remains the stable live/render key. */
     val restId: String? = null,
+    /** Cache insertion sequence for unconfirmed local rows; null before first persistence. */
+    val localOrder: Long? = null,
 )
 
 /** Cached REST rows already carry their canonical identity in the persisted primary key. */

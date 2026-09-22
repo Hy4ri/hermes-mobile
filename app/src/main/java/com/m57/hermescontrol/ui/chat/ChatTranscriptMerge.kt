@@ -103,6 +103,11 @@ internal class TranscriptComparison(
         if (a.role == MessageRole.ASSISTANT && (a.completionId != null || b.completionId != null)) {
             return a.completionId != null && a.completionId == b.completionId
         }
+        if (a.role == MessageRole.ASSISTANT && a.content.isBlank() && b.content.isBlank() &&
+            (a.reasoningText.isNotBlank() || b.reasoningText.isNotBlank())
+        ) {
+            return a.reasoningText.isNotBlank() && a.reasoningText == b.reasoningText
+        }
         if (a.role == MessageRole.TOOL) {
             if (a.toolCallId.isNotBlank() && b.toolCallId.isNotBlank()) return a.toolCallId == b.toolCallId
             val key = toolKey(a.content)
@@ -126,6 +131,7 @@ internal fun matchTranscriptMessages(
     incoming: List<ChatMessage>,
     existing: List<ChatMessage>,
     comparison: TranscriptComparison = TranscriptComparison(),
+    allowAssistantContentMatches: Boolean = true,
 ): List<ChatMessage?> {
     val byId = existing.withIndex().associate { it.value.id to it.index }
     val byRestId =
@@ -149,20 +155,30 @@ internal fun matchTranscriptMessages(
         existing.indices
             .filter { existing[it].role == MessageRole.TOOL }
             .groupBy { comparison.toolKey(existing[it].content) }
-    incoming.forEachIndexed { index, message ->
-        if (matches[index] != null) return@forEachIndexed
+    val matchOrder =
+        incoming.indices.filter { incoming[it].role != MessageRole.ASSISTANT } +
+            incoming.indices.reversed().filter { incoming[it].role == MessageRole.ASSISTANT }
+    matchOrder.forEach { index ->
+        val message = incoming[index]
+        if (matches[index] != null) return@forEach
         val candidates =
             if (message.role == MessageRole.TOOL) {
                 val callMatches = byCall[message.toolCallId].orEmpty()
                 callMatches + byResult[comparison.toolKey(message.content)].orEmpty()
             } else {
                 // Prefix matching scans only candidates with the same role.
-                byRole[message.role].orEmpty()
+                byRole[message.role].orEmpty().let {
+                    if (message.role == MessageRole.ASSISTANT) it.asReversed() else it
+                }
             }
         val match =
             candidates.firstOrNull { candidate ->
                 val other = existing[candidate]
                 !used[candidate] &&
+                    (
+                        allowAssistantContentMatches || message.role != MessageRole.ASSISTANT ||
+                            message.completionId != null || other.completionId != null
+                    ) &&
                     // Distinct IDs within the same source are separate occurrences, not echoes.
                     ((message.canonicalRestId == null) != (other.canonicalRestId == null)) &&
                     comparison.same(message, other)
@@ -239,7 +255,7 @@ internal fun mergeCachedTranscriptPage(
     current: List<ChatMessage>,
 ): List<ChatMessage> {
     val currentById = current.associateBy { it.id }
-    // A cached UUID has no persisted alias. Restore a known alias before page-local matching
+    // Legacy cached UUIDs may lack an alias. Restore a known alias before page-local matching
     // so an older identical REST row cannot claim that UUID again.
     val incoming =
         dedupeCachedMessages(
@@ -261,9 +277,9 @@ internal fun mergeCachedTranscriptPage(
                     )
             }.toMap()
     return (
-        incoming.filterIndexed { index, _ -> matches[index] == null } +
-            current.map { replacements[it.id] ?: it }
-    ).dedupeById().sortedBy { it.timestamp }
+        current.map { replacements[it.id] ?: it } +
+            incoming.filterIndexed { index, _ -> matches[index] == null }
+    ).dedupeById().inTranscriptOrder().reconcileReasoningRows()
 }
 
 /** Merge one page with the current snapshot without consuming repeated results more than once. */
@@ -275,7 +291,7 @@ internal fun mergeTranscriptWithLive(
 ): List<ChatMessage> {
     val incoming = restMessages.dedupeById()
     val current = currentMessages.dedupeById()
-    val matches = matchTranscriptMessages(incoming, current)
+    val matches = matchTranscriptMessages(incoming, current, allowAssistantContentMatches = chronological)
     val consumed = matches.mapNotNull { it?.id }.toSet()
     val merged =
         incoming.mapIndexed { index, message ->
@@ -312,72 +328,41 @@ internal fun mergeTranscriptWithLive(
         }
     val transcript =
         if (chronological) {
-            (merged + current.filterNot { it.id in consumed }).dedupeById().sortedBy { it.timestamp }
+            current.filterNot { it.id in consumed } + merged
         } else {
-            mergeOlderRows(merged, current, matches)
+            merged + current.filterNot { it.id in consumed }
         }
     // #129: a mapped completion can confirm a cached REST row while its rich UUID
     // copy is also present. Fold that now-confirmed echo without changing the live key.
     // The page has already consumed its content matches; consuming another would
     // collapse a separate repeated occurrence. Only confirmed identities can fold here.
-    return dedupeCachedMessages(transcript, confirmedOnly = true)
+    return dedupeCachedMessages(transcript.inTranscriptOrder(), confirmedOnly = true).reconcileReasoningRows()
 }
 
-/** Update overlaps in place, inserting new rows between known server/chronological boundaries. */
-private fun mergeOlderRows(
-    incoming: List<ChatMessage>,
-    current: List<ChatMessage>,
-    matches: List<ChatMessage?>,
-): List<ChatMessage> {
-    val positions = current.withIndex().associate { it.value.id to it.index }
-    val replacements = HashMap<String, ChatMessage>()
-    val insertions = Array(current.size + 1) { mutableListOf<ChatMessage>() }
-    var lowerBound = 0
-    incoming.forEachIndexed { index, message ->
-        val match = matches[index]
-        if (match != null) {
-            replacements[match.id] = message
-            lowerBound = maxOf(lowerBound, positions.getValue(match.id) + 1)
+/** Numeric canonical history first, then unconfirmed local insertion order; clocks never sort a transcript. */
+private fun List<ChatMessage>.inTranscriptOrder(): List<ChatMessage> =
+    sortedWith(
+        compareBy<ChatMessage> { it.canonicalOrder == null }
+            .thenBy { it.canonicalOrder ?: it.localOrder ?: Long.MAX_VALUE },
+    )
+
+private val ChatMessage.canonicalOrder: Long?
+    get() = if (localOrder != null && restId == null) null else canonicalRestId?.substringAfterLast('-')?.toLongOrNull()
+
+/** Retain the canonical trace once, without copying it across a user/system/tool boundary. */
+private fun List<ChatMessage>.reconcileReasoningRows(): List<ChatMessage> =
+    mapIndexed { index, message ->
+        val previous = getOrNull(index - 1)
+        if (previous?.role == MessageRole.ASSISTANT && previous.content.isBlank() &&
+            previous.canonicalRestId != null && previous.reasoningText.isNotBlank() &&
+            message.role == MessageRole.ASSISTANT && message.content.isNotBlank() &&
+            message.canonicalRestId != null && message.reasoningText == previous.reasoningText
+        ) {
+            message.copy(reasoningText = "")
         } else {
-            val nextAnchor =
-                matches
-                    .asSequence()
-                    .drop(index + 1)
-                    .filterNotNull()
-                    .map { positions.getValue(it.id) }
-                    .firstOrNull { it >= lowerBound } ?: current.size
-            var position = lowerBound
-            while (position < nextAnchor && olderRowPrecedes(current[position], message)) position++
-            insertions[position] += message
-            lowerBound = position
+            message
         }
     }
-    return buildList {
-        current.forEachIndexed { index, message ->
-            addAll(insertions[index])
-            add(replacements[message.id] ?: message)
-        }
-        addAll(insertions[current.size])
-    }.dedupeById()
-}
-
-private fun olderRowPrecedes(
-    existing: ChatMessage,
-    incoming: ChatMessage,
-): Boolean {
-    // Legacy absolute row positions and latest stable server IDs both order rows even
-    // when the server omits timestamps. Never use a displayed list index as identity.
-    val existingId = existing.canonicalRestId
-    val incomingId = incoming.canonicalRestId
-    if (existingId != null && incomingId != null &&
-        existingId.substringBeforeLast('-') == incomingId.substringBeforeLast('-')
-    ) {
-        val existingRow = existingId.substringAfterLast('-').toLongOrNull()
-        val incomingRow = incomingId.substringAfterLast('-').toLongOrNull()
-        if (existingRow != null && incomingRow != null) return existingRow < incomingRow
-    }
-    return existing.timestamp < incoming.timestamp
-}
 
 /** Merge a REST page without matching it against already-settled transcript rows. */
 internal fun mergeIncrementalTranscriptPage(

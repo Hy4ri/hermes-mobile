@@ -24,11 +24,6 @@ internal fun mapServerMessages(
     context: android.content.Context? = null,
 ): List<ChatMessage> {
     val existingById = liveMessages.associateBy { it.canonicalRestId ?: it.id }
-    val existingReasoningMap =
-        liveMessages
-            .filter { it.reasoningText.isNotBlank() }
-            .groupBy { it.content }
-
     val liveByExactId =
         liveMessages
             .filter { !it.completionId.isNullOrBlank() }
@@ -95,14 +90,36 @@ internal fun mapServerMessages(
         }
     }
 
-    val mapped = mutableListOf<ChatMessage>()
-    // The gateway stores a reasoning-model's thinking as its OWN assistant
-    // row (content = "", reasoning = trace) directly before the answer row.
-    // Rendering that as a standalone empty assistant bubble is the
-    // "reasoning box in a separate bubble" artifact — fold it into the
-    // next assistant message with content instead. Issue #771.
-    var pendingReasoning: String? = null
+    // Reasoning follows the same reserved identities as completions, never a reusable text lookup.
+    val assistants = liveMessages.filter { it.role == MessageRole.ASSISTANT }
+    val assistantsByRestId = assistants.groupBy { it.canonicalRestId }
+    val assistantsByCompletion = assistants.groupBy { it.completionId }
+    val reasoningSources = arrayOfNulls<ChatMessage>(messages.size)
+    messages.forEachIndexed { index, row ->
+        if (row.role?.lowercase() in listOf("user", "system", "tool")) return@forEachIndexed
+        val exact = assistantsByRestId[restIdAt(index)].orEmpty()
+        val completion = liveByExactId[restIdAt(index)]?.completionId ?: wsCompletionIdByRestIndex[index]
+        val candidates = exact + completion?.let { assistantsByCompletion[it] }.orEmpty()
+        reasoningSources[index] = candidates.firstOrNull { it.reasoningText.isNotBlank() } ?: candidates.firstOrNull()
+    }
+    if (!isPagingOlder) {
+        val remaining =
+            assistants.filter { it.canonicalRestId == null && it.completionId == null }.toMutableList()
+        for (index in messages.indices.reversed()) {
+            val row = messages[index]
+            if (reasoningSources[index] != null || row.contentText.isBlank() ||
+                row.role?.lowercase() in listOf("user", "system", "tool") ||
+                liveByExactId[restIdAt(index)]?.completionId != null || index in wsCompletionIdByRestIndex
+            ) {
+                continue
+            }
+            val content = HostMediaExtractor.strip(row.contentText).trim()
+            val match = remaining.indexOfLast { it.content.trim() == content }
+            if (match >= 0) reasoningSources[index] = remaining.removeAt(match)
+        }
+    }
 
+    val mapped = mutableListOf<ChatMessage>()
     messages.forEachIndexed { index, msg ->
         val role =
             when (msg.role?.lowercase()) {
@@ -127,30 +144,16 @@ internal fun mapServerMessages(
 
         val rawContent = msg.contentText
         val rowReasoning =
-            if (msg.reasoningText.isNotBlank()) {
-                msg.reasoningText
-            } else {
-                existingById[restId]?.reasoningText
-                    ?: existingReasoningMap[rawContent]
-                        ?.firstOrNull { it.canonicalRestId == null }
-                        ?.reasoningText
-                        .orEmpty()
+            msg.reasoningText.ifBlank {
+                if (role == MessageRole.ASSISTANT) {
+                    reasoningSources[index]?.reasoningText.orEmpty()
+                } else {
+                    existingById[restId]?.reasoningText.orEmpty()
+                }
             }
 
-        // Empty assistant row — two cases stored by the gateway:
-        //  1. Reasoning-only: thinking-model split storage (content = "",
-        //     reasoning = trace). Stash the trace and fold it into the
-        //     next assistant message that has content (issue #771).
-        //  2. Tool-call placeholder: non-reasoning models emit content = ""
-        //     with tool_calls metadata and no reasoning. These carry no
-        //     user-visible text and must not render as empty bubbles
-        //     (issue #956).
-        if (role == MessageRole.ASSISTANT && rawContent.isBlank()) {
-            if (rowReasoning.isNotBlank()) {
-                pendingReasoning = rowReasoning
-            }
-            return@forEachIndexed
-        }
+        // Retain canonical reasoning rows across page boundaries; hide only textless placeholders.
+        if (role == MessageRole.ASSISTANT && rawContent.isBlank() && rowReasoning.isBlank()) return@forEachIndexed
 
         var finalContent = rawContent
         var attachments: List<Attachment>? = null
@@ -181,15 +184,6 @@ internal fun mapServerMessages(
             }
         }
 
-        val finalReasoning =
-            if (rowReasoning.isNotBlank()) {
-                rowReasoning
-            } else if (role == MessageRole.ASSISTANT && pendingReasoning != null) {
-                pendingReasoning.also { pendingReasoning = null }
-            } else {
-                ""
-            }
-
         val completionId =
             if (role == MessageRole.ASSISTANT) {
                 liveByExactId[restId]?.completionId ?: wsCompletionIdByRestIndex[index]
@@ -202,7 +196,7 @@ internal fun mapServerMessages(
                 id = restId,
                 role = role,
                 content = finalContent,
-                reasoningText = finalReasoning,
+                reasoningText = rowReasoning,
                 toolCallId = msg.toolCallId,
                 attachments = attachments,
                 timestamp = timestamp,
@@ -212,18 +206,6 @@ internal fun mapServerMessages(
                 completionId = completionId,
             ),
         )
-    }
-
-    // A reasoning-only row with no following answer (interrupted turn):
-    // don't drop the trace — attach it to the last assistant message.
-    if (pendingReasoning != null) {
-        val lastAssistantIdx = mapped.indexOfLast { it.role == MessageRole.ASSISTANT }
-        if (lastAssistantIdx >= 0) {
-            val target = mapped[lastAssistantIdx]
-            if (target.reasoningText.isBlank()) {
-                mapped[lastAssistantIdx] = target.copy(reasoningText = pendingReasoning)
-            }
-        }
     }
 
     // REST echoes must not reserve a match before the richer WS copy of that tool.

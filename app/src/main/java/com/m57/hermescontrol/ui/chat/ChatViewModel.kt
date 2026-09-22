@@ -3112,11 +3112,14 @@ class ChatViewModel(
     ) {
         // A mapped page can reuse a live WS message. Never overwrite its newer persisted
         // version with the snapshot used for mapping; WS owns persistence of those IDs.
+        val pageIds = page.mapNotNull { it.canonicalRestId }.toSet()
+        val aliases = _uiState.value.messages.filter { it.restId in pageIds && !it.id.startsWith("rest-") }
         withContext(historyDispatcher) {
             repo.persistMessages(
-                page.mapNotNull { message -> message.canonicalRestId?.let { message.copy(id = it) } },
+                page.mapNotNull { message -> message.canonicalRestId?.let { message.copy(id = it, restId = null) } },
                 sessionId,
             )
+            repo.confirmIdentities(aliases, sessionId)
         }
     }
 
@@ -3456,18 +3459,30 @@ class ChatViewModel(
         val generation = sessionGeneration
         val requestSequence = activeHydrationRequestSequence
         val valid = { isCurrentHydration(sessionId, generation, requestSequence) }
-        val useLatest = latestPaging
-        val oldOffset = loadedMessageOffset
-        val offset = if (useLatest) oldOffset else (oldOffset - MESSAGE_PAGE_SIZE).coerceAtLeast(0)
-        val limit = if (useLatest) MESSAGE_PAGE_SIZE else oldOffset - offset
         _uiState.update { it.copy(isLoadingOlder = true) }
         olderJob =
             viewModelScope.launch {
                 try {
-                    if (fromCache) {
-                        readCachedPage(sessionId, generation, valid)
-                        return@launch
+                    while (cacheHasOlder || !cacheLoaded) {
+                        val beforeMessages = _uiState.value.messages
+                        if (!readCachedPage(sessionId, generation, valid)) return@launch
+                        val afterMessages = _uiState.value.messages
+                        val addedRows =
+                            withContext(historyDispatcher) {
+                                val previousIds = beforeMessages.mapTo(HashSet()) { it.id }
+                                afterMessages.any { it.id !in previousIds }
+                            }
+                        if (!valid()) return@launch
+                        if (addedRows) return@launch
+                        // Hydration persists canonical rows behind the local cache cursor. Consume
+                        // those already-visible echoes without spending another older-history action.
                     }
+                    if (hydrationJob?.isActive == true || isSyncingMessages || !serverHasOlder) return@launch
+                    // Cache reads may suspend through hydration/sync; use the current server cursor.
+                    val useLatest = latestPaging
+                    val oldOffset = loadedMessageOffset
+                    val offset = if (useLatest) oldOffset else (oldOffset - MESSAGE_PAGE_SIZE).coerceAtLeast(0)
+                    val limit = if (useLatest) MESSAGE_PAGE_SIZE else oldOffset - offset
                     if (limit <= 0) return@launch
                     val result = fetchMessagePage(sessionId, offset, limit, order = if (useLatest) "latest" else null)
                     if (!valid()) return@launch

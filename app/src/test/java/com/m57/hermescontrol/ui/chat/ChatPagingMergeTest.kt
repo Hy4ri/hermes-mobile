@@ -2,6 +2,10 @@ package com.m57.hermescontrol.ui.chat
 
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.SessionMessage
+import com.m57.hermescontrol.ui.chat.fakes.FakeChatMessageDao
+import com.m57.hermescontrol.ui.chat.fullbleed.fullBleedItemKeys
+import com.m57.hermescontrol.ui.chat.fullbleed.groupIntoTurns
+import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -284,4 +288,330 @@ class ChatPagingMergeTest {
         assertEquals("call-42", mapped.single().toolCallId)
         assertEquals(null, mapped.single().toolName)
     }
+
+    @Test
+    fun cacheAndRestMergesKeepNumericOrderDespiteNonMonotonicTimestamps() {
+        val rows =
+            listOf(9, 10, 100, 200).mapIndexed { index, id ->
+                ChatMessage(
+                    id = "rest-session-$id",
+                    role = MessageRole.ASSISTANT,
+                    content = "answer-$id",
+                    timestamp = listOf(900L, 100L, 800L, 200L)[index],
+                )
+            }
+        for (cache in listOf(false, true)) {
+            for (newestFirst in listOf(false, true)) {
+                val first = if (newestFirst) rows.drop(2) else rows.take(2)
+                val second = if (newestFirst) rows.take(2) else rows.drop(2)
+                val merged =
+                    if (cache) {
+                        mergeCachedTranscriptPage(second, mergeCachedTranscriptPage(first, emptyList()))
+                    } else {
+                        mergeTranscriptWithLive(
+                            second,
+                            mergeTranscriptWithLive(first, emptyList(), preserveLiveIds = true),
+                            chronological = !newestFirst,
+                            preserveLiveIds = true,
+                        )
+                    }
+                assertEquals("cache=$cache newestFirst=$newestFirst", rows.map { it.id }, merged.map { it.id })
+            }
+        }
+    }
+
+    @Test
+    fun mapperAssignsOneLiveTraceOnlyToNewestEqualContentRestRow() {
+        for (completion in listOf(null, "completion-200")) {
+            val live =
+                ChatMessage(
+                    id = "uuid",
+                    role = MessageRole.ASSISTANT,
+                    content = "Done",
+                    reasoningText = "newest trace",
+                    completionId = completion,
+                )
+            val mapped =
+                mapServerMessages(
+                    "session",
+                    listOf(assistantRow(100), assistantRow(200)),
+                    0,
+                    true,
+                    listOf(live),
+                )
+            assertEquals(listOf("", "newest trace"), mapped.map { it.reasoningText })
+            assertEquals(listOf(null, completion), mapped.map { it.completionId })
+            val merged = mergeTranscriptWithLive(mapped, listOf(live), preserveLiveIds = true)
+            assertEquals(listOf("rest-session-100", "uuid"), merged.map { it.id })
+            assertEquals(listOf("", "newest trace"), merged.map { it.reasoningText })
+            assertEquals("rest-session-200", merged.last().canonicalRestId)
+        }
+    }
+
+    @Test
+    fun mapperReservesCanonicalAndCompletionReasoningBeforeContentFallback() {
+        val first =
+            ChatMessage(
+                id = "uuid-first",
+                role = MessageRole.ASSISTANT,
+                content = "Done",
+                reasoningText = "first trace",
+                completionId = "completion-100",
+            )
+        val second = first.copy(id = "uuid-second", reasoningText = "second trace", completionId = "completion-200")
+        for (canonicalFirst in listOf(false, true)) {
+            val live = listOf(if (canonicalFirst) first.copy(restId = "rest-session-100") else first, second)
+            val mapped =
+                mapServerMessages(
+                    "session",
+                    listOf(assistantRow(100), assistantRow(200)),
+                    0,
+                    true,
+                    live,
+                )
+            assertEquals(listOf("first trace", "second trace"), mapped.map { it.reasoningText })
+            assertEquals(listOf("completion-100", "completion-200"), mapped.map { it.completionId })
+        }
+    }
+
+    @Test
+    fun mapperUsesNewestReasoningCandidateWhenNoCompletionIdentityExists() {
+        val first =
+            ChatMessage(id = "uuid-first", role = MessageRole.ASSISTANT, content = "Done", reasoningText = "old")
+        val second = first.copy(id = "uuid-second", reasoningText = "new")
+        val mapped = mapServerMessages("session", listOf(assistantRow(200)), 0, true, listOf(first, second))
+        assertEquals("new", mapped.single().reasoningText)
+    }
+
+    @Test
+    fun olderPagesCannotStealLiveReasoningInEitherArrivalOrder() {
+        val live =
+            ChatMessage(
+                id = "uuid",
+                role = MessageRole.ASSISTANT,
+                content = "Done",
+                reasoningText = "newest trace",
+                completionId = "completion-200",
+                timestamp = 200_000L,
+            )
+        for (newestFirst in listOf(false, true)) {
+            val order = if (newestFirst) listOf(200, 100) else listOf(100, 200)
+            var current = listOf(live)
+            order.forEach { id ->
+                current = applyServerPage(current, listOf(assistantRow(id)), older = id == 100)
+                assertEquals("A trace may appear only once after page $id", 1, current.count { it.reasoningText != "" })
+                if (id ==
+                    100
+                ) {
+                    assertEquals("", current.single { it.canonicalRestId == "rest-session-100" }.reasoningText)
+                }
+            }
+            assertEquals(listOf("rest-session-100", "uuid"), current.map { it.id })
+            assertEquals(listOf("", "newest trace"), current.map { it.reasoningText })
+            assertEquals(listOf(null, "completion-200"), current.map { it.completionId })
+            assertEquals("rest-session-200", current.last().canonicalRestId)
+        }
+        // Older paging also forbids text-only reasoning fallback without a completion id.
+        val older =
+            mapServerMessages(
+                "session",
+                listOf(assistantRow(100)),
+                150,
+                true,
+                listOf(live.copy(completionId = null)),
+                isPagingOlder = true,
+            )
+        assertEquals("", older.single().reasoningText)
+    }
+
+    @Test
+    fun reasoningOnlyBoundaryRetainsCanonicalRowBeforeAnswerArrives() {
+        val previous = assistantRow(90, content = "Previous answer")
+        val reasoning = assistantRow(100, content = "", reasoning = "boundary trace")
+        val mapped = mapServerMessages("session", listOf(previous, reasoning), 0, true, emptyList())
+        assertEquals(listOf("rest-session-90", "rest-session-100"), mapped.map { it.canonicalRestId })
+        assertEquals("", mapped.first().reasoningText)
+        assertEquals("boundary trace", mapped.last().reasoningText)
+        assertEquals("", mapped.last().content)
+    }
+
+    @Test
+    fun splitReasoningAndAnswerSurviveBothArrivalOrdersRefreshAndPagedCacheReload() =
+        runTest {
+            val reasoning = assistantRow(100, content = "", reasoning = "boundary trace")
+            val answer = assistantRow(200)
+            for (answerFirst in listOf(false, true)) {
+                val dao = FakeChatMessageDao()
+                val repository = ChatPersistenceRepository(dao)
+                var current = emptyList<ChatMessage>()
+                val pages = if (answerFirst) listOf(answer, reasoning) else listOf(reasoning, answer)
+                pages.forEach { row ->
+                    val mapped =
+                        mapServerMessages(
+                            "session",
+                            listOf(row),
+                            0,
+                            true,
+                            current,
+                            isPagingOlder = answerFirst && row.id == 100,
+                        )
+                    current =
+                        mergeTranscriptWithLive(
+                            mapped,
+                            current,
+                            chronological = !(answerFirst && row.id == 100),
+                            preserveLiveIds = true,
+                        )
+                    // Same input that persistHistoryPage writes, including the boundary page before its neighbor.
+                    repository.persistMessages(
+                        mapped.map { it.copy(id = requireNotNull(it.canonicalRestId)) },
+                        "session",
+                    )
+                }
+                assertBoundaryTranscript(current)
+                val refreshed = applyServerPage(current, listOf(reasoning, answer))
+                assertEquals(current, refreshed)
+                val latest = repository.loadPage("session", null, 1)
+                val older = repository.loadPage("session", latest.cursor, 1)
+                assertEquals(true, latest.hasOlder)
+                assertEquals(false, older.hasOlder)
+                for ((first, second) in listOf(latest.messages to older.messages, older.messages to latest.messages)) {
+                    assertBoundaryTranscript(
+                        mergeCachedTranscriptPage(second, mergeCachedTranscriptPage(first, emptyList())),
+                    )
+                }
+                assertEquals(0, dao.fullSessionReads)
+                assertEquals(listOf(2, 2), dao.pageLimits)
+            }
+        }
+
+    @Test
+    fun reasoningDoesNotCrossUserOrToolBoundaryInEitherArrivalOrder() {
+        for (role in listOf("user", "tool")) {
+            val reasoning = assistantRow(100, content = "", reasoning = "before $role")
+            val boundary =
+                SessionMessage(
+                    id = 150,
+                    role = role,
+                    content = JsonPrimitive("boundary"),
+                    timestamp = JsonPrimitive(150),
+                    tool_call_id = if (role == "tool") "call-150" else null,
+                )
+            val answer = assistantRow(200)
+            for (newestFirst in listOf(false, true)) {
+                val first = if (newestFirst) listOf(boundary, answer) else listOf(reasoning)
+                val second = if (newestFirst) listOf(reasoning) else listOf(boundary, answer)
+                val merged = applyServerPage(applyServerPage(emptyList(), first), second, older = newestFirst)
+                assertEquals(
+                    listOf(100, 150, 200).map { "rest-session-$it" },
+                    merged.map { it.canonicalRestId },
+                )
+                assertEquals(listOf("before $role", "", ""), merged.map { it.reasoningText })
+                // Mapping all rows together must have the same ownership as separate pages.
+                assertEquals(merged, applyServerPage(merged, listOf(reasoning, boundary, answer)))
+            }
+        }
+    }
+
+    @Test
+    fun multipleReasoningOnlyRowsRemainVisibleAcrossToolSteps() {
+        val rows =
+            listOf(
+                assistantRow(100, content = "", reasoning = "first trace"),
+                SessionMessage(
+                    id = 150,
+                    role = "tool",
+                    content = JsonPrimitive("result"),
+                    timestamp = JsonPrimitive(150),
+                ),
+                assistantRow(200, content = "", reasoning = "second trace"),
+                assistantRow(300),
+            )
+        val mapped = applyServerPage(emptyList(), rows)
+        assertEquals(listOf("first trace", "second trace"), mapped.map { it.reasoningText }.filter { it.isNotBlank() })
+        assertEquals(
+            listOf("reasoning-rest-session-100", "reasoning-rest-session-200"),
+            fullBleedItemKeys(groupIntoTurns(mapped)).filter { it.startsWith("reasoning-") },
+        )
+        assertEquals(1, fullBleedItemKeys(groupIntoTurns(mapped)).count { it.startsWith("prose-") })
+    }
+
+    @Test
+    fun canonicalReasoningAndMatchingLiveAnswerRenderTraceOnlyOnceInEitherArrivalOrder() {
+        val live =
+            ChatMessage(
+                id = "uuid-answer",
+                role = MessageRole.ASSISTANT,
+                content = "Done",
+                reasoningText = "boundary trace",
+                completionId = "completion-200",
+                timestamp = 200_000L,
+            )
+        val reasoning = assistantRow(100, content = "", reasoning = "boundary trace")
+        val answer = assistantRow(200)
+        for (answerFirst in listOf(false, true)) {
+            val pages = if (answerFirst) listOf(answer, reasoning) else listOf(reasoning, answer)
+            var current = listOf(live)
+            pages.forEach { row ->
+                current = applyServerPage(current, listOf(row), older = row.id == 100)
+            }
+            assertEquals(listOf("rest-session-100", "uuid-answer"), current.map { it.id })
+            assertEquals(listOf("boundary trace", ""), current.map { it.reasoningText })
+            assertEquals("completion-200", current.last().completionId)
+            assertEquals("rest-session-200", current.last().canonicalRestId)
+            assertEquals(
+                listOf("reasoning-rest-session-100", "prose-uuid-answer"),
+                fullBleedItemKeys(groupIntoTurns(current)),
+            )
+        }
+    }
+
+    @Test
+    fun differentReasoningOnlyRowsCannotMatchByEmptyContent() {
+        val live =
+            ChatMessage(
+                id = "uuid-thinking",
+                role = MessageRole.ASSISTANT,
+                content = "",
+                reasoningText = "new trace",
+            )
+        val canonical = live.copy(id = "rest-session-100", reasoningText = "old trace")
+        assertTrue(!sameLogicalMessage(canonical, live))
+        assertEquals(2, mergeTranscriptWithLive(listOf(canonical), listOf(live), preserveLiveIds = true).size)
+        assertTrue(sameLogicalMessage(canonical.copy(reasoningText = "new trace"), live))
+    }
+
+    private fun assertBoundaryTranscript(messages: List<ChatMessage>) {
+        assertEquals(listOf("rest-session-100", "rest-session-200"), messages.map { it.canonicalRestId })
+        assertEquals(listOf("boundary trace", ""), messages.map { it.reasoningText })
+        assertEquals(listOf("", "Done"), messages.map { it.content })
+        assertEquals(
+            listOf("reasoning-rest-session-100", "prose-rest-session-200"),
+            fullBleedItemKeys(groupIntoTurns(messages)),
+        )
+    }
+
+    private fun assistantRow(
+        id: Int,
+        content: String = "Done",
+        reasoning: String = "",
+    ) = SessionMessage(
+        id = id,
+        role = "assistant",
+        content = JsonPrimitive(content),
+        reasoning = JsonPrimitive(reasoning),
+        timestamp = JsonPrimitive(id),
+    )
+
+    private fun applyServerPage(
+        current: List<ChatMessage>,
+        rows: List<SessionMessage>,
+        older: Boolean = false,
+    ): List<ChatMessage> =
+        mergeTranscriptWithLive(
+            mapServerMessages("session", rows, 0, true, current, isPagingOlder = older),
+            current,
+            chronological = !older,
+            preserveLiveIds = true,
+        )
 }

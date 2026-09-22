@@ -5690,7 +5690,7 @@ class ChatViewModelTest {
     fun paging_cacheAndServerCursorsAdvanceIndependently() =
         runTest {
             val api = ApiClient.hermesApi
-            seedPagingCache(350)
+            val cachedIds = seedPagingCache(350)
             val (viewModel, _) = createViewModelWithSession()
             coEvery {
                 api.getSessionMessages("session-456", any(), any(), any(), any())
@@ -5704,13 +5704,33 @@ class ChatViewModelTest {
             coVerify(exactly = 1) {
                 api.getSessionMessages("session-456", any(), any(), any(), any())
             }
+            assertEquals(
+                cachedIds.toSet() + (151..300).map { "rest-session-456-$it" },
+                viewModel.uiState.value.messages
+                    .map { it.id }
+                    .toSet(),
+            )
             coEvery {
                 api.getSessionMessages("session-456", 150, 150, "latest", any())
             } returns pagingResponse(1..150, offset = 150)
             viewModel.loadOlderMessages()
             advanceUntilIdle()
 
+            // The remaining cache page contains only the latest REST rows already on screen.
+            // This same action must reach the independent server cursor, not stop on those echoes.
+            coVerify(exactly = 1) {
+                api.getSessionMessages("session-456", 150, 150, "latest", any())
+            }
+            val expectedIds = cachedIds.toSet() + (1..300).map { "rest-session-456-$it" }
             assertEquals(650, viewModel.uiState.value.messages.size)
+            assertEquals(
+                expectedIds,
+                viewModel.uiState.value.messages
+                    .map { it.id }
+                    .toSet(),
+            )
+            assertEquals(expectedIds, fakeRepo.dao.idsForSession("session-456"))
+            assertFalse(viewModel.uiState.value.isLoadingOlder)
             assertEquals(0, fakeRepo.dao.fullSessionReads)
             assertTrue(fakeRepo.dao.pageLimits.all { it == 151 })
         }

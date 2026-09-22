@@ -2,15 +2,20 @@ package com.m57.hermescontrol.ui.chat.fakes
 
 import com.m57.hermescontrol.data.local.ChatMessageDao
 import com.m57.hermescontrol.data.local.ChatMessageEntity
+import com.m57.hermescontrol.data.local.canonicalMessageOrder
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentMap
 
 /**
  * In-memory [ChatMessageDao] for use in tests.
- * Uses [ConcurrentHashMap] for thread safety — no manual synchronization needed.
+ * Paging mirrors the DAO's numeric cursor; writes use its default order allocation methods.
  */
 class FakeChatMessageDao : ChatMessageDao {
     private val messages: ConcurrentMap<String, ChatMessageEntity> = ConcurrentHashMap()
+
+    private val ordering = compareBy<ChatMessageEntity> { it.sortGroup }.thenBy { it.sortOrder }.thenBy { it.id }
+
+    private var insertionSequence = 0L
 
     var fullSessionReads = 0
         private set
@@ -24,7 +29,7 @@ class FakeChatMessageDao : ChatMessageDao {
         beforeRead()
         return messages.values
             .filter { it.sessionId == sessionId }
-            .sortedBy { it.timestamp }
+            .sortedWith(ordering)
     }
 
     val pageLimits = mutableListOf<Int>()
@@ -37,13 +42,14 @@ class FakeChatMessageDao : ChatMessageDao {
         beforeRead()
         return messages.values
             .filter { it.sessionId == sessionId }
-            .sortedWith(compareByDescending<ChatMessageEntity> { it.timestamp }.thenByDescending { it.id })
+            .sortedWith(ordering.reversed())
             .take(limit)
     }
 
     override suspend fun getMessagePage(
         sessionId: String,
-        beforeTimestamp: Long,
+        beforeGroup: Int,
+        beforeOrder: Long,
         beforeId: String,
         limit: Int,
     ): List<ChatMessageEntity> {
@@ -52,18 +58,24 @@ class FakeChatMessageDao : ChatMessageDao {
         return messages.values
             .filter {
                 it.sessionId == sessionId &&
-                    it.timestamp <= beforeTimestamp &&
-                    (it.timestamp < beforeTimestamp || it.id < beforeId)
-            }.sortedWith(compareByDescending<ChatMessageEntity> { it.timestamp }.thenByDescending { it.id })
+                    (
+                        it.sortGroup < beforeGroup ||
+                            (
+                                it.sortGroup == beforeGroup &&
+                                    (it.sortOrder < beforeOrder || (it.sortOrder == beforeOrder && it.id < beforeId))
+                            )
+                    )
+            }.sortedWith(ordering.reversed())
             .take(limit)
     }
 
-    override suspend fun upsert(message: ChatMessageEntity) {
-        messages[message.id] = message
-    }
+    override suspend fun getMessage(id: String): ChatMessageEntity? = messages[id]
 
-    override suspend fun upsertAll(messageList: List<ChatMessageEntity>) {
-        messageList.forEach { messages[it.id] = it }
+    override suspend fun nextLocalOrder(): Long = insertionSequence + 1
+
+    override suspend fun writeMessage(message: ChatMessageEntity) {
+        if (message.id !in messages) insertionSequence++
+        messages[message.id] = message
     }
 
     override suspend fun deleteMessagesForSession(sessionId: String) {
@@ -72,12 +84,20 @@ class FakeChatMessageDao : ChatMessageDao {
 
     /** Direct access for test setup — bypasses the suspend modifier. */
     fun addMessageDirect(message: ChatMessageEntity) {
-        messages[message.id] = message
+        val existing = messages[message.id]
+        if (existing == null) insertionSequence++
+        val order = canonicalMessageOrder(message.restId ?: message.id, message.sessionId)
+        messages[message.id] =
+            message.copy(
+                sortGroup = if (order != null) 0 else 1,
+                sortOrder = order ?: existing?.sortOrder ?: insertionSequence,
+            )
     }
 
     /** Reset all stored messages. */
     fun clear() {
         messages.clear()
+        insertionSequence = 0L
     }
 
     fun idsForSession(sessionId: String): Set<String> =

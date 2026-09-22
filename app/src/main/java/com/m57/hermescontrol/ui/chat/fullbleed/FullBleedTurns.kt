@@ -159,7 +159,8 @@ internal fun appendStreamingTurn(
  *
  * Mirrors the item emission order in [FullBleedChatList] exactly:
  * user turn → 1 item; agent turn → optional reasoning item, then one item per
- * visible entry. [leadingItems] accounts for fixed items emitted before the
+ * visible entry, including later reasoning-only rows at their own positions.
+ * [leadingItems] accounts for fixed items emitted before the
  * turns. The history spinner is an overlay and consumes no index.
  *
  * @return messageId → LazyColumn item index of the message's content item
@@ -188,14 +189,19 @@ internal fun fullBleedItemKeys(turns: List<ChatTurn>): List<String> =
                 }
 
                 is ChatTurn.Agent -> {
-                    turn.entries
-                        .filterIsInstance<AgentEntry.Prose>()
-                        .firstOrNull { it.message.reasoningText.isNotBlank() }
-                        ?.let { add("reasoning-${it.message.id}") }
+                    val hoisted =
+                        turn.entries
+                            .filterIsInstance<AgentEntry.Prose>()
+                            .firstOrNull { it.message.reasoningText.isNotBlank() }
+                    hoisted?.let { add("reasoning-${it.message.id}") }
                     turn.entries.forEach { entry ->
                         when (entry) {
                             is AgentEntry.Prose -> {
-                                if (entry.message.hasVisibleAgentContent()) add("prose-${entry.message.id}")
+                                if (entry.message.hasVisibleAgentContent()) {
+                                    add("prose-${entry.message.id}")
+                                } else if (entry != hoisted && entry.message.reasoningText.isNotBlank()) {
+                                    add("reasoning-${entry.message.id}")
+                                }
                             }
 
                             is AgentEntry.ToolRow -> {

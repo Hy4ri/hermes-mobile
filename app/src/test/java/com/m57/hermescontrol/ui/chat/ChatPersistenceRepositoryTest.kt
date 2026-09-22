@@ -197,14 +197,14 @@ class ChatPersistenceRepositoryTest {
             assertEquals(true, first.hasOlder)
             assertEquals(false, second.hasOlder)
             io.mockk.coVerify(exactly = 1) { tracedDao.getLatestMessagePage("session", 3) }
-            io.mockk.coVerify(exactly = 1) { tracedDao.getMessagePage("session", 10L, "row-2", 3) }
+            io.mockk.coVerify(exactly = 1) { tracedDao.getMessagePage("session", 1, 2L, "row-2", 3) }
             io.mockk.coVerify(exactly = 0) { tracedDao.getMessagesForSession(any()) }
         }
 
     @Test
     fun loadPage_equalTimestampsAndLiveInsertKeepCursorDeterministicAndSessionsIsolated() =
         runTest {
-            val ids = (1..350).map { "row-${it.toString().padStart(4, '0')}" }
+            val ids = (1..350).map { "rest-session-$it" }
             repository.persistMessages(
                 ids.map { ChatMessage(id = it, role = MessageRole.USER, content = it, timestamp = 10L) },
                 "session",
@@ -228,5 +228,71 @@ class ChatPersistenceRepositoryTest {
             assertEquals(0, dao.fullSessionReads)
             assertEquals(ids.toSet() + "new", dao.idsForSession("session"))
             assertEquals(setOf("other"), dao.idsForSession("other-session"))
+        }
+
+    @Test
+    fun loadPage_nonMonotonicTimestampsFollowServerIdsInEitherArrivalOrder() =
+        runTest {
+            val rows =
+                listOf(9, 10, 100, 200).mapIndexed { index, id ->
+                    ChatMessage(
+                        id = "rest-session-$id",
+                        role = MessageRole.ASSISTANT,
+                        content = "answer-$id",
+                        timestamp = listOf(900L, 100L, 800L, 200L)[index],
+                    )
+                }
+            for (pages in listOf(listOf(rows.take(2), rows.drop(2)), listOf(rows.drop(2), rows.take(2)))) {
+                repository.clearMessagesForSession("session")
+                pages.forEach { repository.persistMessages(it, "session") }
+                val latest = repository.loadPage("session", null, 2)
+                val older = repository.loadPage("session", latest.cursor, 2)
+                assertEquals(rows.drop(2).map { it.id }, latest.messages.map { it.id })
+                assertEquals(rows.take(2).map { it.id }, older.messages.map { it.id })
+                assertEquals(true, latest.hasOlder)
+                assertEquals(false, older.hasOlder)
+            }
+            assertEquals(0, dao.fullSessionReads)
+            assertEquals(listOf(3, 3, 3, 3), dao.pageLimits)
+        }
+
+    @Test
+    fun loadPage_uuidOnlyRowsKeepInsertionOrderAcrossUpdatesAndLiveAppend() =
+        runTest {
+            val rows =
+                listOf("ffffffff", "00000000", "aaaaaaaa").mapIndexed { index, prefix ->
+                    ChatMessage(
+                        id = "$prefix-0000-4000-8000-000000000000",
+                        role = MessageRole.USER,
+                        content = "message-$index",
+                        timestamp = listOf(900L, 100L, 800L)[index],
+                    )
+                }
+            rows.forEach { repository.persistMessage(it, "local") }
+            repository.persistMessage(rows.first().copy(content = "edited", timestamp = 999L), "local")
+            val latest = repository.loadPage("local", null, 2)
+            repository.persistMessage(
+                ChatMessage(
+                    id = "bbbbbbbb-0000-4000-8000-000000000000",
+                    role = MessageRole.USER,
+                    content = "appended after cursor",
+                    timestamp = 1L,
+                ),
+                "local",
+            )
+            val older = repository.loadPage("local", latest.cursor, 2)
+            assertEquals(rows.drop(1).map { it.id }, latest.messages.map { it.id })
+            assertEquals(listOf(rows.first().id), older.messages.map { it.id })
+            assertEquals("edited", older.messages.single().content)
+            assertEquals(false, older.hasOlder)
+            assertEquals(
+                "appended after cursor",
+                repository
+                    .loadPage("local", null, 1)
+                    .messages
+                    .single()
+                    .content,
+            )
+            assertEquals(0, dao.fullSessionReads)
         }
 }

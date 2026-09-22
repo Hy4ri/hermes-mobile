@@ -341,6 +341,16 @@ fun FullBleedChatList(
                                             val hoistedReasoning =
                                                 turnReasoning != null &&
                                                     proseMessage.id == turnReasoning.message.id
+                                            if (!proseMessage.hasVisibleAgentContent() && !hoistedReasoning &&
+                                                proseMessage.reasoningText.isNotBlank()
+                                            ) {
+                                                item(key = "reasoning-${proseMessage.id}") {
+                                                    ReasoningCard(
+                                                        reasoningText = proseMessage.reasoningText,
+                                                        isStreaming = proseMessage.isStreaming,
+                                                    )
+                                                }
+                                            }
                                             if (proseMessage.hasVisibleAgentContent()) {
                                                 item(key = "prose-${proseMessage.id}") {
                                                     Column(modifier = Modifier.padding(bottom = 12.dp)) {

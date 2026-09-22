@@ -128,6 +128,11 @@ internal fun sameLogicalMessage(
  */
 internal fun stripAttachmentRefLines(content: String): String =
     content
+        // The gateway may persist a second, enriched representation of the
+        // prompt with an `--- Attached Context ---` block. That block is
+        // model-facing context, not user-authored text, so it must not prevent
+        // the optimistic user bubble from matching the REST copy.
+        .substringBefore("\n--- Attached Context ---")
         .lines()
         .map { it.trim() }
         .filterNot { line ->

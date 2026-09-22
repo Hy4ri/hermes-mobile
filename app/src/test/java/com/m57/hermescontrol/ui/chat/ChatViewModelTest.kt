@@ -120,6 +120,41 @@ class ChatViewModelTest {
         assertEquals("ws-local-1", merged.single().id)
     }
 
+    @Test
+    fun mergeTranscriptWithLive_collapsesGatewayAttachmentContextCopy() {
+        val local =
+            ChatMessage(
+                id = "ws-local-attachment",
+                role = MessageRole.USER,
+                content = "What is the secret word in the attached file?",
+                timestamp = 100L,
+            )
+        val rest =
+            ChatMessage(
+                id = "rest-sess-attachment",
+                role = MessageRole.USER,
+                content =
+                    """
+                    @file:files/agent-vault/hermes/attachments/note.txt
+
+                    What is the secret word in the attached file?
+
+                    --- Attached Context ---
+
+                    📄 @file:files/agent-vault/hermes/attachments/note.txt (8 tokens)
+                    ```
+                    THE_SECRET_WORD_IS_MANGO_8421
+                    ```
+                    """.trimIndent(),
+                timestamp = 100L,
+            )
+
+        val merged = mergeTranscriptWithLive(listOf(rest), listOf(local))
+
+        assertEquals(1, merged.size)
+        assertEquals("ws-local-attachment", merged.single().id)
+    }
+
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)

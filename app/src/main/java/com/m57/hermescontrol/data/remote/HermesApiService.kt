@@ -300,7 +300,9 @@ interface HermesApiService : KanbanApiService {
     ): Response<SessionInfo>
 
     @GET("api/model/info")
-    suspend fun getModelInfo(): Response<ModelInfoResponse>
+    suspend fun getModelInfo(
+        @Query("profile") profile: String? = null,
+    ): Response<ModelInfoResponse>
 
     @GET("api/system/stats")
     suspend fun getSystemStats(): Response<SystemStatsResponse>

@@ -2,6 +2,8 @@ package com.m57.hermescontrol.ui.model
 
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.DataScope
+import com.m57.hermescontrol.data.model.ModelCapabilities
+import com.m57.hermescontrol.data.model.ModelInfoResponse
 import com.m57.hermescontrol.data.model.ModelOptionsResponse
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
@@ -203,6 +205,84 @@ class ModelViewModelTest {
             assertTrue(
                 viewModel.uiState.value.providers
                     .isEmpty(),
+            )
+        }
+
+    @Test
+    fun `model info enriches active model and is cleared on profile switch`() =
+        runTest(testDispatcher) {
+            var currentScope =
+                DataScope(
+                    connectionProfileId = "conn-1",
+                    baseUrl = "http://localhost:9119",
+                    activeProfileId = "default",
+                    inMemoryAuthGeneration = 1L,
+                )
+            val response =
+                ModelOptionsResponse(
+                    providers =
+                        listOf(
+                            ModelProvider(
+                                slug = "openai",
+                                name = "OpenAI",
+                                models = listOf("gpt-5"),
+                                capabilities = mapOf("gpt-5" to ModelCapabilities(reasoning = true)),
+                            ),
+                        ),
+                )
+            val store =
+                ModelCatalogStore(
+                    repository =
+                        ModelOptionsRepository(
+                            connected = { false },
+                            rest = { NetworkResult.Success(response) },
+                        ),
+                    getCurrentScope = { currentScope },
+                    scope = this,
+                )
+            val requestedProfiles = mutableListOf<String?>()
+            val viewModel =
+                ModelViewModel(
+                    catalogStore = store,
+                    getCurrentScope = { currentScope },
+                    ioDispatcher = testDispatcher,
+                    getModelInfoCall = { profile ->
+                        requestedProfiles += profile
+                        NetworkResult.Success(
+                            ModelInfoResponse(
+                                provider = "openai",
+                                model = "gpt-5",
+                                capabilities = ModelCapabilities(supports_vision = true),
+                            ),
+                        )
+                    },
+                )
+
+            store.ensureLoaded()
+            viewModel.loadModelCapabilities()
+            advanceUntilIdle()
+
+            assertEquals(listOf("default"), requestedProfiles)
+            assertEquals(
+                true,
+                viewModel.uiState.value.providers
+                    .single()
+                    .capabilities
+                    ?.get("gpt-5")
+                    ?.supports_vision,
+            )
+
+            currentScope = currentScope.copy(activeProfileId = "work")
+            store.onScopeChanged(currentScope)
+            store.ensureLoaded()
+            advanceUntilIdle()
+
+            assertNull(
+                viewModel.uiState.value.providers
+                    .single()
+                    .capabilities
+                    ?.get("gpt-5")
+                    ?.supports_vision,
             )
         }
 

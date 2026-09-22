@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
+import com.m57.hermescontrol.data.model.reasoningSupport
 import com.m57.hermescontrol.ui.kanban.KanbanModelOverride
 import com.m57.hermescontrol.ui.kanban.supportedKanbanReasoningEfforts
 import com.m57.hermescontrol.ui.model.components.ModelPickerDialog
@@ -129,7 +130,7 @@ fun KanbanModelOverrideEditor(
                 .firstOrNull { it.slug == override.provider }
                 ?.capabilities
                 ?.get(override.model)
-        val reasoningSupported = selectedCapabilities?.reasoning != false
+        val reasoningSupported = selectedCapabilities?.reasoningSupport != false
         val canDisableReasoning = selectedCapabilities?.can_disable_reasoning != false
         val supportedEfforts = supportedKanbanReasoningEfforts(reasoningSupported, canDisableReasoning)
         Row(
@@ -180,7 +181,7 @@ fun KanbanModelOverrideEditor(
                     override.copy(
                         provider = provider,
                         model = model,
-                        effort = if (capabilities?.reasoning == false) "" else override.effort,
+                        effort = if (capabilities?.reasoningSupport == false) "" else override.effort,
                     ),
                 )
                 showPickerDialog = false

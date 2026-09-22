@@ -81,6 +81,7 @@ import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.AttachmentSource
+import com.m57.hermescontrol.data.model.reasoningSupport
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.notification.NotificationHelper
@@ -840,7 +841,7 @@ fun ChatScreen(
                 onModelTap = { viewModel.openModelPicker() },
                 onReasoningTap = { level -> viewModel.setReasoningLevel(level) },
                 canDisableReasoning = state.currentModelCapabilities?.can_disable_reasoning,
-                supportsReasoning = state.currentModelCapabilities?.reasoning,
+                supportsReasoning = state.currentModelCapabilities?.reasoningSupport,
                 fastMode = state.fastMode,
                 fastSupported = state.currentModelCapabilities?.fast == true,
                 isFastModeChanging = state.isFastModeChanging,

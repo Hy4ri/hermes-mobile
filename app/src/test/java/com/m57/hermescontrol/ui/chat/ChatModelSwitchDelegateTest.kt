@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.chat
 
 import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.model.ModelCapabilities
+import com.m57.hermescontrol.data.model.ModelInfoResponse
 import com.m57.hermescontrol.data.model.ModelOptionsResponse
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
@@ -11,6 +12,7 @@ import com.m57.hermescontrol.data.ws.WsMethods
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -172,6 +174,41 @@ class ChatModelSwitchDelegateTest {
             assertEquals(fakeResponse.providers, uiState.value.modelPickerProviders)
             assertFalse(uiState.value.modelPickerLoading)
 
+            scopeObserverJob.cancel()
+        }
+
+    @Test
+    fun modelInfoCapabilities_mergeWithCatalogAndClearOnScopeSwitch() =
+        testScope.runTest {
+            val scopeObserverJob = kotlinx.coroutines.Job()
+            val observerScope = kotlinx.coroutines.CoroutineScope(testDispatcher + scopeObserverJob)
+            delegate.attachScopeObserver(observerScope)
+            delegate.preloadModelOptions()
+            advanceUntilIdle()
+            uiState.update { it.copy(currentSessionModel = "openai/gpt-4o") }
+
+            delegate.applyModelInfo(
+                ModelInfoResponse(
+                    provider = "openai",
+                    model = "gpt-4o",
+                    capabilities =
+                        ModelCapabilities(
+                            supports_tools = false,
+                            supports_vision = true,
+                            supports_reasoning = true,
+                        ),
+                ),
+                initialDataScope,
+            )
+
+            assertEquals(true, uiState.value.currentModelCapabilities?.fast)
+            assertEquals(false, uiState.value.currentModelCapabilities?.supports_tools)
+            assertEquals(true, uiState.value.currentModelCapabilities?.supports_vision)
+
+            dataScope.value = initialDataScope.copy(activeProfileId = "work")
+            runCurrent()
+
+            assertNull(uiState.value.currentModelCapabilities)
             scopeObserverJob.cancel()
         }
 

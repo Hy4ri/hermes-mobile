@@ -16,6 +16,7 @@ import com.m57.hermescontrol.data.model.SessionTimelineEntry
 import com.m57.hermescontrol.data.model.UsageSnapshotResponse
 import com.m57.hermescontrol.data.model.parseContextBreakdown
 import com.m57.hermescontrol.data.model.parseUsageSnapshot
+import com.m57.hermescontrol.data.model.reasoningSupport
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.OkHttpProvider
@@ -2344,7 +2345,7 @@ class ChatViewModel(
         if (value in REASONING_EFFORT_LEVELS) {
             if (parsed.scopeName != "global") {
                 val caps = _uiState.value.currentModelCapabilities
-                if (caps?.reasoning == false) {
+                if (caps?.reasoningSupport == false) {
                     addAssistantMessage("Reasoning is not supported for the current model.")
                     return
                 }
@@ -3988,6 +3989,7 @@ class ChatViewModel(
                         // another model (e.g. Solar, Gemini), the profile-level model/info describes
                         // a different model and must never poison the session's context window.
                         if (isMatchingModel(currentModel, info)) {
+                            modelSwitchDelegate.applyModelInfo(info, AuthManager.currentDataScope())
                             info.effective_context_length
                                 ?: info.auto_context_length
                                 ?: info.config_context_length

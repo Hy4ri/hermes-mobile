@@ -40,6 +40,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.model.ModelCapabilities
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.ui.common.LoadingState
@@ -213,8 +214,7 @@ fun ModelPickerDialog(
                                             null
                                         },
                                     onClick = { onSelect(pinned.providerSlug, pinned.modelName) },
-                                    canDisableReasoning = caps?.can_disable_reasoning,
-                                    supportsReasoning = caps?.reasoning,
+                                    capabilities = caps,
                                 )
                             }
                         }
@@ -294,8 +294,7 @@ fun ModelPickerDialog(
                                                 null
                                             },
                                         onClick = { onSelect(provider.slug, model) },
-                                        canDisableReasoning = caps?.can_disable_reasoning,
-                                        supportsReasoning = caps?.reasoning,
+                                        capabilities = caps,
                                     )
                                 }
                             }
@@ -315,8 +314,7 @@ private fun ModelItemCard(
     onPinToggle: (() -> Unit)?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    canDisableReasoning: Boolean? = null,
-    supportsReasoning: Boolean? = null,
+    capabilities: ModelCapabilities? = null,
 ) {
     Surface(
         modifier =
@@ -348,19 +346,7 @@ private fun ModelItemCard(
                     // No maxLines/ellipsis: a long model name wraps so the full
                     // name stays readable while the pin button keeps its spot.
                 )
-                val hint =
-                    when {
-                        supportsReasoning == false -> "no reasoning"
-                        canDisableReasoning == false -> "reasoning always on"
-                        else -> null
-                    }
-                if (hint != null) {
-                    Text(
-                        text = hint,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                ModelCapabilitySummary(capabilities)
             }
             if (onPinToggle != null) {
                 IconButton(

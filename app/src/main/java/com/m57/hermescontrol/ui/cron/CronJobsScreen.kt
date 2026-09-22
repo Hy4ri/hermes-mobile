@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -32,6 +34,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -49,6 +52,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -59,6 +63,7 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.CronBlueprint
 import com.m57.hermescontrol.data.model.CronBlueprintField
 import com.m57.hermescontrol.data.model.CronJob
+import com.m57.hermescontrol.data.model.CronRun
 import com.m57.hermescontrol.data.model.DeliveryTarget
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.EmptyState
@@ -75,6 +80,10 @@ import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
 import com.m57.hermescontrol.ui.common.rememberSyncedTextFieldState
 import com.m57.hermescontrol.util.CronExpressionFormatter
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 @Composable
 fun CronJobsScreen(
@@ -225,6 +234,15 @@ fun CronJobsScreen(
                                     horizontalArrangement = Arrangement.End,
                                 ) {
                                     IconButton(
+                                        onClick = { viewModel.openRunHistory(job) },
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.History,
+                                            contentDescription = stringResource(R.string.cron_action_history),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    IconButton(
                                         onClick = { viewModel.openEditJobDialog(job.id) },
                                     ) {
                                         Icon(
@@ -341,6 +359,14 @@ fun CronJobsScreen(
         )
     }
 
+    if (state.runHistoryState.isOpen) {
+        CronRunHistoryDialog(
+            state = state.runHistoryState,
+            onRetry = viewModel::retryRunHistory,
+            onDismiss = viewModel::closeRunHistory,
+        )
+    }
+
     // ── Delete Confirm Dialog ──
     state.deleteTarget?.let { job ->
         AlertDialog(
@@ -359,6 +385,139 @@ fun CronJobsScreen(
             },
         )
     }
+}
+
+@Composable
+private fun CronRunHistoryDialog(
+    state: CronRunHistoryState,
+    onRetry: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val spacing = LocalSpacing.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = stringResource(R.string.cron_history_title, state.jobName),
+                style = MaterialTheme.typography.titleLarge,
+            )
+        },
+        text = {
+            when {
+                state.isLoading -> {
+                    LoadingState(
+                        modifier = Modifier.height(240.dp),
+                        subtitle = stringResource(R.string.cron_history_loading),
+                    )
+                }
+
+                state.errorMessage != null -> {
+                    ErrorState(
+                        message = state.errorMessage,
+                        onRetry = onRetry,
+                        modifier = Modifier.height(240.dp),
+                    )
+                }
+
+                state.runs.isEmpty() -> {
+                    EmptyState(
+                        icon = Icons.Filled.History,
+                        title = stringResource(R.string.cron_history_empty_title),
+                        subtitle = stringResource(R.string.cron_history_empty_desc),
+                        modifier = Modifier.height(240.dp),
+                    )
+                }
+
+                else -> {
+                    LazyColumn(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 420.dp),
+                        verticalArrangement = Arrangement.spacedBy(spacing.sm),
+                    ) {
+                        items(state.runs, key = { it.id }) { run ->
+                            CronRunRow(run)
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cron_history_close))
+            }
+        },
+    )
+}
+
+@Composable
+private fun CronRunRow(run: CronRun) {
+    val spacing = LocalSpacing.current
+    val (statusText, statusType) =
+        when {
+            run.is_active -> stringResource(R.string.cron_history_status_active) to StatusBadgeType.SUCCESS
+            run.archived -> stringResource(R.string.cron_history_status_archived) to StatusBadgeType.NEUTRAL
+            run.ended_at != null -> stringResource(R.string.cron_history_status_completed) to StatusBadgeType.INFO
+            else -> stringResource(R.string.cron_history_status_inactive) to StatusBadgeType.NEUTRAL
+        }
+    val startedAt = formatCronRunTime(run.started_at)
+
+    Column(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = spacing.xs),
+        verticalArrangement = Arrangement.spacedBy(spacing.xs),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = startedAt ?: run.id,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f),
+            )
+            StatusBadge(text = statusText, status = statusType)
+        }
+        if (!run.profile.isNullOrBlank()) {
+            Text(
+                text = stringResource(R.string.cron_history_profile, run.profile),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (run.message_count != null) {
+            Text(
+                text = stringResource(R.string.cron_history_messages, run.message_count),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (!run.preview.isNullOrBlank()) {
+            Text(
+                text = run.preview,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+private fun formatCronRunTime(epochSeconds: Double?): String? {
+    if (epochSeconds == null) return null
+    return runCatching {
+        Instant
+            .ofEpochMilli((epochSeconds * 1000).toLong())
+            .atZone(ZoneId.systemDefault())
+            .format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT))
+    }.getOrNull()
 }
 
 @Composable

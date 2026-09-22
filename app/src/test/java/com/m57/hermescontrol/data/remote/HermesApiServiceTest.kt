@@ -100,6 +100,108 @@ class HermesApiServiceTest {
         }
 
     @Test
+    fun testGetCronJobRuns_requestsBoundedHistoryAndParsesResponse() =
+        runTest {
+            mockWebServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody(
+                        """
+                        {
+                          "runs": [
+                            {
+                              "id": "cron_job_1_1700000000",
+                              "source": "cron",
+                              "model": "gpt",
+                              "title": "Backup",
+                              "started_at": 1700000000.5,
+                              "ended_at": 1700000020.0,
+                              "last_active": 1700000020.0,
+                              "is_active": false,
+                              "archived": true,
+                              "message_count": 2,
+                              "tool_call_count": 1,
+                              "input_tokens": 123,
+                              "output_tokens": 45,
+                              "preview": "done",
+                              "profile": "worker"
+                            }
+                          ],
+                          "limit": 20
+                        }
+                        """.trimIndent(),
+                    ),
+            )
+
+            val response = apiService.getCronJobRuns("job_1", limit = 20)
+
+            assertTrue(response.isSuccessful)
+            val run = response.body()?.runs?.single()
+            assertNotNull(run)
+            assertEquals("cron_job_1_1700000000", run?.id)
+            assertEquals("worker", run?.profile)
+            assertEquals(true, run?.archived)
+            assertEquals(2, run?.message_count)
+            assertEquals("done", run?.preview)
+
+            val recordedRequest = mockWebServer.takeRequest()
+            assertEquals("/api/cron/jobs/job_1/runs?limit=20", recordedRequest.path)
+            assertEquals("GET", recordedRequest.method)
+        }
+
+    @Test
+    fun testGetCronJobRuns_emptyResponse() =
+        runTest {
+            mockWebServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody("""{"runs":[],"limit":20}"""),
+            )
+
+            val response = apiService.getCronJobRuns("job_1")
+
+            assertTrue(response.isSuccessful)
+            assertTrue(response.body()?.runs?.isEmpty() == true)
+        }
+
+    @Test
+    fun testGetCronJobRuns_missingOptionalFieldsUsesDefaults() =
+        runTest {
+            mockWebServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody("""{"runs":[{"id":"cron_job_1_1"}],"limit":20}"""),
+            )
+
+            val run =
+                apiService
+                    .getCronJobRuns("job_1")
+                    .body()
+                    ?.runs
+                    ?.single()
+
+            assertNotNull(run)
+            assertNull(run?.started_at)
+            assertEquals(false, run?.is_active)
+            assertEquals(false, run?.archived)
+        }
+
+    @Test
+    fun testGetCronJobRuns_missingRequiredIdThrows() {
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"runs":[{"started_at":1.0}],"limit":20}"""),
+        )
+
+        assertThrows(kotlinx.serialization.SerializationException::class.java) {
+            runTest {
+                apiService.getCronJobRuns("job_1")
+            }
+        }
+    }
+
+    @Test
     fun testPauseCronJob_sendsPostRequest() =
         runTest {
             mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(""))

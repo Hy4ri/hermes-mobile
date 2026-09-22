@@ -420,6 +420,7 @@ class ChatViewModel(
         val generation: Long,
         val resumeSequence: Long = 0L,
         val sessionId: String? = null,
+        val connectionCheckpoint: ConnectionResumeCheckpoint? = null,
     )
 
     private val sessionRequestById = ConcurrentHashMap<String, SessionRequest>()
@@ -849,14 +850,12 @@ class ChatViewModel(
             return
         }
 
-        if (event is WsEvent.ConnectionRequest || event is WsEvent.ConnectionUpdate) {
-            connectionOperationDelegate.accept(
-                when (event) {
-                    is WsEvent.ConnectionRequest -> event.snapshot
-                    is WsEvent.ConnectionUpdate -> event.snapshot
-                    else -> error("unreachable")
-                },
-            )
+        if (event is WsEvent.ConnectionRequest) {
+            if (!isCurrentSession(event.snapshot.sessionId)) return
+            connectionOperationDelegate.acceptRequest(event.snapshot)
+        } else if (event is WsEvent.ConnectionUpdate) {
+            if (!isCurrentSession(event.snapshot.sessionId)) return
+            connectionOperationDelegate.acceptUpdate(event.snapshot)
         }
 
         // Flush any throttled reasoning before a state transition so the
@@ -1289,15 +1288,17 @@ class ChatViewModel(
         }
     }
 
+    @Suppress("UNCHECKED_CAST")
     private fun handleSessionInfo(info: Map<String, Any?>?) {
         // session.resume/session.info carries the open operation so a mobile client
         // that missed connection.request can reconstruct the backend-authoritative card.
         val pendingConnection = info?.get("pending_connection") as? Map<String, Any?>
         if (pendingConnection != null) {
-            ConnectionOperationParser.parse(
-                pendingConnection,
-                runtimeSessionId ?: _uiState.value.currentSessionId,
-            )?.let(connectionOperationDelegate::accept)
+            ConnectionOperationParser
+                .parse(
+                    pendingConnection,
+                    runtimeSessionId ?: _uiState.value.currentSessionId,
+                )?.let(connectionOperationDelegate::acceptRequest)
         }
         // Session info pushed by backend when config changes
         // (model switch, reasoning level, etc.)
@@ -1411,6 +1412,7 @@ class ChatViewModel(
                 }
                 val storageId = resultMap["stored_session_id"] as? String ?: runtimeId
                 runtimeSessionId = runtimeId
+                connectionOperationDelegate.bindSession(runtimeId)
                 // The gateway persists the row lazily on the first prompt —
                 // do not resume this key until presence is confirmed.
                 sessionHasServerPresence = false
@@ -1475,6 +1477,7 @@ class ChatViewModel(
                         isLoading = false,
                     )
                 runtimeSessionId = runtimeId
+                connectionOperationDelegate.bindSession(runtimeId)
                 resumedGeneration = generation
                 ActiveSessionHolder.set(runtimeId, storageId)
                 sessionHasServerPresence = false
@@ -1514,6 +1517,7 @@ class ChatViewModel(
                     return
                 }
                 runtimeSessionId = runtimeId
+                connectionOperationDelegate.bindSession(runtimeId)
                 // Resume succeeded — the gateway confirmed the DB row.
                 sessionHasServerPresence = true
                 val sessionId =
@@ -1608,9 +1612,10 @@ class ChatViewModel(
                 // connection.request event. Feed it through the seq guard so
                 // a late resume response cannot regress a newer live update.
                 val pendingConnection = resultMap["pending_connection"] as? Map<String, Any?>
-                if (pendingConnection != null) {
-                    ConnectionOperationParser.parse(pendingConnection, activeSessionId)
-                        ?.let(connectionOperationDelegate::accept)
+                val pendingSnapshot =
+                    pendingConnection?.let { ConnectionOperationParser.parse(it, activeSessionId) }
+                request?.connectionCheckpoint?.let { checkpoint ->
+                    connectionOperationDelegate.reconcileResume(pendingSnapshot, checkpoint)
                 }
                 if (activeSessionId != null) approvalsDelegate.replayPendingApproval(activeSessionId)
             }
@@ -3471,6 +3476,7 @@ class ChatViewModel(
         isLoading: Boolean,
     ): Long {
         val generation = ++sessionGeneration
+        connectionOperationDelegate.reset()
         cancelResumeRetry()
         contextUsageJob?.cancel()
         contextUsageJob = null
@@ -3554,6 +3560,7 @@ class ChatViewModel(
         _uiState.update { it.copy(isSessionReady = false) }
         val requestSequence = ++resumeRequestSequence
         activeResumeRequestSequence = requestSequence
+        val connectionCheckpoint = connectionOperationDelegate.resumeCheckpoint()
         val profile = AuthManager.activeProfileId.value
         val params =
             mutableMapOf<String, Any>(
@@ -3574,6 +3581,7 @@ class ChatViewModel(
                         generation = generation,
                         resumeSequence = requestSequence,
                         sessionId = sessionId,
+                        connectionCheckpoint = connectionCheckpoint,
                     )
                 },
             )
@@ -4467,8 +4475,15 @@ class ChatViewModel(
         generation: Long,
         resumeSequence: Long = 0L,
         sessionId: String? = null,
+        connectionCheckpoint: ConnectionResumeCheckpoint? = null,
     ) {
-        sessionRequestById[id] = SessionRequest(generation, resumeSequence, sessionId)
+        sessionRequestById[id] =
+            SessionRequest(
+                generation = generation,
+                resumeSequence = resumeSequence,
+                sessionId = sessionId,
+                connectionCheckpoint = connectionCheckpoint,
+            )
         trackRequest(id, method)
     }
 
@@ -4527,9 +4542,11 @@ class ChatViewModel(
 
     // ── Lifecycle ─────────────────────────────────────────────────────────
 
-    fun clearConnectionOperation() = connectionOperationDelegate.reset(runtimeSessionId ?: _uiState.value.currentSessionId)
-
-    fun respondToConnection(target: String, env: Map<String, String>, approved: Boolean) {
+    fun respondToConnection(
+        target: String,
+        env: Map<String, String>,
+        approved: Boolean,
+    ) {
         viewModelScope.launch { connectionOperationDelegate.respond(target, env, approved) }
     }
 
@@ -4537,8 +4554,8 @@ class ChatViewModel(
         viewModelScope.launch { connectionOperationDelegate.continueOperation() }
     }
 
-    fun wakeConnectionOperation() {
-        viewModelScope.launch { connectionOperationDelegate.wake() }
+    fun wakeConnectionOperation(operationId: String) {
+        viewModelScope.launch { connectionOperationDelegate.wake(operationId) }
     }
 
     override fun onCleared() {

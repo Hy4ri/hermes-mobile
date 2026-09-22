@@ -77,9 +77,15 @@ object EventParser {
         return when (eventType) {
             "connection.request", "connection.update" -> {
                 val snapshot = payload?.let { ConnectionOperationParser.parse(it, sessionId) }
-                if (snapshot == null) WsEvent.Unknown(rawJson)
-                else if (eventType == "connection.request") WsEvent.ConnectionRequest(snapshot)
-                else WsEvent.ConnectionUpdate(snapshot)
+                // Operation payloads may carry credential defaults and OAuth URLs.
+                // Never retain the raw frame when a malformed operation degrades to Unknown.
+                if (snapshot == null) {
+                    WsEvent.Unknown("")
+                } else if (eventType == "connection.request") {
+                    WsEvent.ConnectionRequest(snapshot)
+                } else {
+                    WsEvent.ConnectionUpdate(snapshot)
+                }
             }
 
             "gateway.ready" -> {

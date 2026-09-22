@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.data.model
 
+import com.m57.hermescontrol.util.ConnectorUrlValidator
+
 /** Backend-owned connector setup operation snapshot. Secrets are intentionally absent. */
 data class ConnectionOperationSnapshot(
     val sessionId: String?,
@@ -23,9 +25,23 @@ data class ConnectionOperationTarget(
     val discoveryError: String?,
     val connectUrl: String?,
     val connectionId: String?,
+    val attempt: String?,
     val requiredEnv: List<ConnectionEnvField>,
     val tools: List<String>,
-)
+    val hint: String?,
+) {
+    /** Safe validated browser URL. OAuth query parameters stay redacted from [toString]. */
+    val safeConnectUrl: String?
+        get() = connectUrl?.takeIf(ConnectorUrlValidator::isValidHttpsUrl)
+
+    override fun toString(): String =
+        "ConnectionOperationTarget(" +
+            "name=$name, kind=$kind, action=$action, state=$state, detail=$detail, " +
+            "instructions=$instructions, discoveryError=$discoveryError, " +
+            "connectUrl=${if (connectUrl == null) "null" else "[REDACTED]"}, " +
+            "connectionId=$connectionId, attempt=$attempt, requiredEnv=$requiredEnv, " +
+            "tools=$tools, hint=$hint)"
+}
 
 data class ConnectionEnvField(
     val name: String,
@@ -36,5 +52,24 @@ data class ConnectionEnvField(
 )
 
 enum class ConnectionTargetKind { CONNECTOR, MCP, UNKNOWN }
-enum class ConnectionTargetAction { AUTHORIZE, CONNECT, ENABLE, INSTALL, RECONNECT, UNKNOWN }
-enum class ConnectionTargetState { PENDING, INITIATED, CONNECTED, SKIPPED, FAILED, EXPIRED, UNAVAILABLE, NOT_CONNECTED, UNKNOWN }
+
+enum class ConnectionTargetAction {
+    AUTHORIZE,
+    CONNECT,
+    ENABLE,
+    INSTALL,
+    RECONNECT,
+    UNKNOWN,
+}
+
+enum class ConnectionTargetState {
+    PENDING,
+    INITIATED,
+    CONNECTED,
+    SKIPPED,
+    FAILED,
+    EXPIRED,
+    UNAVAILABLE,
+    NOT_CONNECTED,
+    UNKNOWN,
+}

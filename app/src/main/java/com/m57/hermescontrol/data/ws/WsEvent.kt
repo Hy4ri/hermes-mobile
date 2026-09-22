@@ -192,9 +192,13 @@ sealed class WsEvent {
         val sessionId: String? = null,
     ) : WsEvent()
 
-    data class ConnectionRequest(val snapshot: ConnectionOperationSnapshot) : WsEvent()
+    data class ConnectionRequest(
+        val snapshot: ConnectionOperationSnapshot,
+    ) : WsEvent()
 
-    data class ConnectionUpdate(val snapshot: ConnectionOperationSnapshot) : WsEvent()
+    data class ConnectionUpdate(
+        val snapshot: ConnectionOperationSnapshot,
+    ) : WsEvent()
 
     // ── Status ───────────────────────────────────────────────────────────
 

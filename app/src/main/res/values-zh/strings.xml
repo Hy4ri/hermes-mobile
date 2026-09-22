@@ -1472,4 +1472,5 @@
     <string name="connection_setup_continue">继续</string>
     <string name="connection_setup_open_browser">在浏览器中打开</string>
     <string name="connection_setup_done">完成</string>
+    <string name="connection_setup_required">%1$s为必填项</string>
 </resources>

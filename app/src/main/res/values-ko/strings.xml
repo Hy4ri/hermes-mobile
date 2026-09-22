@@ -1202,4 +1202,5 @@
     <string name="connection_setup_continue">계속</string>
     <string name="connection_setup_open_browser">브라우저에서 열기</string>
     <string name="connection_setup_done">완료</string>
+    <string name="connection_setup_required">%1$s은(는) 필수입니다</string>
 </resources>

@@ -1712,4 +1712,5 @@
     <string name="connection_setup_continue">Continue</string>
     <string name="connection_setup_open_browser">Open in browser</string>
     <string name="connection_setup_done">Done</string>
+    <string name="connection_setup_required">%1$s is required</string>
 </resources>

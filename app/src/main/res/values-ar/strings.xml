@@ -1518,5 +1518,6 @@
     <string name="connection_setup_skip">تخطي</string>
     <string name="connection_setup_continue">متابعة</string>
     <string name="connection_setup_open_browser">فتح في المتصفح</string>
-    <string name="connection_setup_done">تم</string>
+    <string name="connection_setup_done">تَمّ</string>
+    <string name="connection_setup_required">%1$s مطلوب</string>
 </resources>

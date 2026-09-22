@@ -102,10 +102,12 @@ import com.m57.hermescontrol.data.model.ScanStatus
 import com.m57.hermescontrol.data.model.SessionDetailResponse
 import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.model.SessionListResponse
+import com.m57.hermescontrol.data.model.SessionMessagesAroundResponse
 import com.m57.hermescontrol.data.model.SessionMessagesResponse
 import com.m57.hermescontrol.data.model.SessionRenameRequest
 import com.m57.hermescontrol.data.model.SessionSearchResponse
 import com.m57.hermescontrol.data.model.SessionStatsResponse
+import com.m57.hermescontrol.data.model.SessionTimelineResponse
 import com.m57.hermescontrol.data.model.SetActiveProfileRequest
 import com.m57.hermescontrol.data.model.Skill
 import com.m57.hermescontrol.data.model.SkillContentResponse
@@ -208,6 +210,22 @@ interface HermesApiService : KanbanApiService {
         @Query("include_compacted") includeCompacted: Boolean? = true,
         @Query("profile") profile: String? = null,
     ): Response<SessionMessagesResponse>
+
+    @GET("api/sessions/{id}/timeline")
+    suspend fun getSessionTimeline(
+        @Path("id", encoded = true) sessionId: String,
+        @Query("profile") profile: String? = null,
+        @Query("limit") limit: Int = 500,
+        @Query("after_row_id") afterRowId: Int = 0,
+    ): Response<SessionTimelineResponse>
+
+    @GET("api/sessions/{id}/messages/around")
+    suspend fun getSessionMessagesAround(
+        @Path("id", encoded = true) sessionId: String,
+        @Query("row_id") rowId: Int,
+        @Query("profile") profile: String? = null,
+        @Query("limit") limit: Int = 120,
+    ): Response<SessionMessagesAroundResponse>
 
     @GET("api/sessions/stats")
     suspend fun getSessionStats(): Response<SessionStatsResponse>

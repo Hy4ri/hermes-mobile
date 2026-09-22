@@ -21,6 +21,7 @@ internal fun mapServerMessages(
     latestPaging: Boolean,
     liveMessages: List<ChatMessage>,
     isPagingOlder: Boolean = false,
+    stableRowIds: Boolean = latestPaging,
     context: android.content.Context? = null,
 ): List<ChatMessage> {
     val existingById = liveMessages.associateBy { it.canonicalRestId ?: it.id }
@@ -41,7 +42,7 @@ internal fun mapServerMessages(
         }
 
     fun restIdAt(index: Int): String =
-        if (latestPaging) {
+        if (stableRowIds) {
             "rest-$sessionId-${requireNotNull(messages[index].id) { "Latest transcript row has no stable id" }}"
         } else {
             "rest-$sessionId-${offset + index}"
@@ -79,7 +80,7 @@ internal fun mapServerMessages(
             if (i in wsCompletionIdByRestIndex || restIdAt(i) in reservedRestIds) continue
             val m = messages[i]
             if (m.role?.lowercase() in listOf("user", "system", "tool")) continue
-            val rawContent = m.contentText
+            val rawContent = m.displayContentText ?: m.contentText
             if (rawContent.isBlank()) continue
             val canonicalContent =
                 if (rawContent.contains("MEDIA:")) HostMediaExtractor.strip(rawContent).trim() else rawContent.trim()
@@ -107,13 +108,14 @@ internal fun mapServerMessages(
             assistants.filter { it.canonicalRestId == null && it.completionId == null }.toMutableList()
         for (index in messages.indices.reversed()) {
             val row = messages[index]
-            if (reasoningSources[index] != null || row.contentText.isBlank() ||
+            val displayContent = row.displayContentText ?: row.contentText
+            if (reasoningSources[index] != null || displayContent.isBlank() ||
                 row.role?.lowercase() in listOf("user", "system", "tool") ||
                 liveByExactId[restIdAt(index)]?.completionId != null || index in wsCompletionIdByRestIndex
             ) {
                 continue
             }
-            val content = HostMediaExtractor.strip(row.contentText).trim()
+            val content = HostMediaExtractor.strip(displayContent).trim()
             val match = remaining.indexOfLast { it.content.trim() == content }
             if (match >= 0) reasoningSources[index] = remaining.removeAt(match)
         }
@@ -142,7 +144,7 @@ internal fun mapServerMessages(
                 ?: existingById[restId]?.timestamp
                 ?: System.currentTimeMillis()
 
-        val rawContent = msg.contentText
+        val rawContent = msg.displayContentText ?: msg.contentText
         val rowReasoning =
             msg.reasoningText.ifBlank {
                 if (role == MessageRole.ASSISTANT) {

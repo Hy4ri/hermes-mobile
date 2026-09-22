@@ -59,6 +59,7 @@ class ChatScreenTest {
         val mockViewModel = mockk<ChatViewModel>(relaxed = true)
         every { mockViewModel.uiState } returns MutableStateFlow(uiState).asStateFlow()
         every { mockViewModel.streamingState } returns MutableStateFlow(StreamingState()).asStateFlow()
+        every { mockViewModel.timelineState } returns MutableStateFlow(ChatTimelineState()).asStateFlow()
         // ActionProgressDialog collects the controller's StateFlow — a relaxed
         // mock proxy would crash the cast inside collectAsStateWithLifecycle.
         // A real controller (never started here) stays invisible.
@@ -105,6 +106,7 @@ class ChatScreenTest {
         val mockViewModel = mockk<ChatViewModel>(relaxed = true)
         every { mockViewModel.uiState } returns MutableStateFlow(uiState).asStateFlow()
         every { mockViewModel.streamingState } returns MutableStateFlow(StreamingState()).asStateFlow()
+        every { mockViewModel.timelineState } returns MutableStateFlow(ChatTimelineState()).asStateFlow()
         every { mockViewModel.actionProgress } returns
             ActionProgressController(scope = CoroutineScope(Dispatchers.Main))
 

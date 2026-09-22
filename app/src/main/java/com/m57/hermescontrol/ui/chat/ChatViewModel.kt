@@ -12,6 +12,7 @@ import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.ModelCapabilities
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
+import com.m57.hermescontrol.data.model.SessionTimelineEntry
 import com.m57.hermescontrol.data.model.UsageSnapshotResponse
 import com.m57.hermescontrol.data.model.parseContextBreakdown
 import com.m57.hermescontrol.data.model.parseUsageSnapshot
@@ -59,6 +60,8 @@ import java.util.concurrent.ConcurrentHashMap
 
 private const val TAG = "ChatViewModel"
 private const val MESSAGE_PAGE_SIZE = 150
+private const val TIMELINE_PAGE_SIZE = 500
+private const val HISTORY_WINDOW_SIZE = 120
 
 private val REASONING_EFFORT_LEVELS =
     setOf("none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra")
@@ -236,6 +239,23 @@ data class ChatUiState(
 ) {
     /** Convenience — derived from [connectionStatus]. */
     val isConnected: Boolean get() = connectionStatus == ConnectionStatus.CONNECTED
+}
+
+data class ChatTimelineState(
+    val isOpen: Boolean = false,
+    val entries: List<SessionTimelineEntry> = emptyList(),
+    val isLoading: Boolean = false,
+    val hasMore: Boolean = false,
+    val nextCursor: Int? = null,
+    val errorMessage: String? = null,
+    val jumpingRowId: Int? = null,
+    val windowErrorMessage: String? = null,
+    val historyMessages: List<ChatMessage>? = null,
+    val historyAnchorRowId: Int? = null,
+    val historyHasOlder: Boolean = false,
+    val historyHasNewer: Boolean = false,
+) {
+    val isHistorical: Boolean get() = historyMessages != null
 }
 
 data class SessionUi(
@@ -455,6 +475,13 @@ class ChatViewModel(
     private var olderJob: Job? = null
     private var syncJob: Job? = null
     private val historyFetchMutex = Mutex()
+    private var timelineJob: Job? = null
+    private var historyWindowJob: Job? = null
+    private var timelineRequestSequence = 0L
+    private var activeTimelineRequestSequence = 0L
+    private var historyWindowRequestSequence = 0L
+    private var activeHistoryWindowRequestSequence = 0L
+    private val _timelineState = MutableStateFlow(ChatTimelineState())
 
     // ── Session resume recovery (desktop parity) ────────────────────────
     // Bounded auto-retry with exponential backoff, mirroring the desktop's
@@ -465,6 +492,7 @@ class ChatViewModel(
     private var resumeRetryAttempt = 0
     private var resumeRetryJob: Job? = null
     val streamingState: StateFlow<StreamingState> = _streamingState.asStateFlow()
+    val timelineState: StateFlow<ChatTimelineState> = _timelineState.asStateFlow()
 
     /** Tracks the auto-clear coroutine for reaction animations. */
     private var reactionClearJob: Job? = null
@@ -660,6 +688,7 @@ class ChatViewModel(
                     syncJob?.cancel()
                     cacheJob?.cancel()
                     isSyncingMessages = false
+                    resetTimelineState()
                     cancelResumeRetry()
                     _uiState.update {
                         it.copy(isSessionReady = false, isLoadingOlder = false, isResumeRetrying = false)
@@ -2899,6 +2928,245 @@ class ChatViewModel(
 
     fun getCurrentModelCapabilities(): ModelCapabilities? = modelSwitchDelegate.getCurrentModelCapabilities()
 
+    fun openTimeline() {
+        if (_uiState.value.currentSessionId == null || _timelineState.value.isOpen) return
+        searchDelegate.clearSearch()
+        _timelineState.update {
+            it.copy(
+                isOpen = true,
+                entries = emptyList(),
+                isLoading = false,
+                hasMore = false,
+                nextCursor = null,
+                errorMessage = null,
+                windowErrorMessage = null,
+            )
+        }
+        loadTimelinePage(reset = true)
+    }
+
+    fun closeTimeline() {
+        timelineJob?.cancel()
+        historyWindowJob?.cancel()
+        activeTimelineRequestSequence = ++timelineRequestSequence
+        activeHistoryWindowRequestSequence = ++historyWindowRequestSequence
+        _timelineState.update {
+            it.copy(
+                isOpen = false,
+                isLoading = false,
+                jumpingRowId = null,
+            )
+        }
+    }
+
+    fun retryTimeline() {
+        if (!_timelineState.value.isOpen) return
+        _timelineState.update { it.copy(windowErrorMessage = null) }
+        loadTimelinePage(reset = true)
+    }
+
+    fun loadMoreTimeline() {
+        val state = _timelineState.value
+        if (!state.isOpen || state.isLoading || !state.hasMore || state.nextCursor == null) return
+        loadTimelinePage(reset = false)
+    }
+
+    private fun loadTimelinePage(reset: Boolean) {
+        val sessionId = _uiState.value.currentSessionId ?: return
+        val generation = sessionGeneration
+        val profile = AuthManager.activeProfileId.value
+        val cursor = if (reset) 0 else _timelineState.value.nextCursor ?: return
+        val requestSequence = ++timelineRequestSequence
+        activeTimelineRequestSequence = requestSequence
+        timelineJob?.cancel()
+        _timelineState.update {
+            it.copy(
+                isLoading = true,
+                errorMessage = null,
+                entries = if (reset) emptyList() else it.entries,
+                hasMore = if (reset) false else it.hasMore,
+                nextCursor = if (reset) null else it.nextCursor,
+            )
+        }
+        val valid = {
+            generation == sessionGeneration &&
+                sessionId == _uiState.value.currentSessionId &&
+                profile == AuthManager.activeProfileId.value &&
+                requestSequence == activeTimelineRequestSequence
+        }
+        timelineJob =
+            viewModelScope.launch {
+                try {
+                    val result =
+                        withContext(ioDispatcher) {
+                            safeApiCall {
+                                ApiClient.hermesApi.getSessionTimeline(
+                                    sessionId = sessionId,
+                                    profile = profile,
+                                    limit = TIMELINE_PAGE_SIZE,
+                                    afterRowId = cursor,
+                                )
+                            }
+                        }
+                    if (!valid()) return@launch
+                    when (result) {
+                        is NetworkResult.Success -> {
+                            val page = result.data
+                            val nextCursor = page.pagination.next_cursor
+                            _timelineState.update { current ->
+                                if (!valid()) {
+                                    current
+                                } else {
+                                    val entries =
+                                        (if (reset) page.entries else current.entries + page.entries)
+                                            .distinctBy { it.row_id }
+                                    current.copy(
+                                        entries = entries,
+                                        hasMore = page.pagination.has_more && nextCursor != null,
+                                        nextCursor = nextCursor,
+                                        errorMessage = null,
+                                    )
+                                }
+                            }
+                        }
+
+                        is NetworkResult.Failure -> {
+                            _timelineState.update {
+                                if (valid()) {
+                                    it.copy(errorMessage = "Failed to load timeline: ${result.error.message}")
+                                } else {
+                                    it
+                                }
+                            }
+                        }
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    if (valid()) {
+                        _timelineState.update { it.copy(errorMessage = "Failed to load timeline: ${e.message}") }
+                    }
+                } finally {
+                    if (valid()) _timelineState.update { it.copy(isLoading = false) }
+                }
+            }
+    }
+
+    fun jumpToTimelineEntry(rowId: Int) {
+        if (rowId <= 0) return
+        val sessionId = _uiState.value.currentSessionId ?: return
+        val generation = sessionGeneration
+        val profile = AuthManager.activeProfileId.value
+        val requestSequence = ++historyWindowRequestSequence
+        activeHistoryWindowRequestSequence = requestSequence
+        historyWindowJob?.cancel()
+        _timelineState.update {
+            it.copy(
+                jumpingRowId = rowId,
+                windowErrorMessage = null,
+            )
+        }
+        val valid = {
+            generation == sessionGeneration &&
+                sessionId == _uiState.value.currentSessionId &&
+                profile == AuthManager.activeProfileId.value &&
+                requestSequence == activeHistoryWindowRequestSequence
+        }
+        historyWindowJob =
+            viewModelScope.launch {
+                try {
+                    val result =
+                        withContext(ioDispatcher) {
+                            safeApiCall {
+                                ApiClient.hermesApi.getSessionMessagesAround(
+                                    sessionId = sessionId,
+                                    rowId = rowId,
+                                    profile = profile,
+                                    limit = HISTORY_WINDOW_SIZE,
+                                )
+                            }
+                        }
+                    if (!valid()) return@launch
+                    when (result) {
+                        is NetworkResult.Success -> {
+                            val response = result.data
+                            if (response.messages.size > HISTORY_WINDOW_SIZE) {
+                                _timelineState.update {
+                                    it.copy(windowErrorMessage = "History response exceeded the page limit.")
+                                }
+                                return@launch
+                            }
+                            val page =
+                                withContext(historyDispatcher) {
+                                    mapServerMessages(
+                                        sessionId = sessionId,
+                                        messages = response.messages,
+                                        offset = response.pagination.offset,
+                                        latestPaging = false,
+                                        liveMessages = _uiState.value.messages,
+                                        isPagingOlder = true,
+                                        stableRowIds = true,
+                                        context = getApplication(),
+                                    )
+                                }
+                            if (!valid()) return@launch
+                            val targetId = "rest-$sessionId-$rowId"
+                            if (page.none { it.id == targetId || it.canonicalRestId == targetId }) {
+                                _timelineState.update {
+                                    it.copy(windowErrorMessage = "The selected prompt is no longer available.")
+                                }
+                                return@launch
+                            }
+                            if (!valid()) return@launch
+                            _timelineState.update {
+                                it.copy(
+                                    isOpen = false,
+                                    historyMessages = page,
+                                    historyAnchorRowId = rowId,
+                                    historyHasOlder = response.pagination.has_older,
+                                    historyHasNewer = response.pagination.has_newer,
+                                    windowErrorMessage = null,
+                                )
+                            }
+                        }
+
+                        is NetworkResult.Failure -> {
+                            _timelineState.update {
+                                if (valid()) {
+                                    it.copy(windowErrorMessage = "Failed to load message: ${result.error.message}")
+                                } else {
+                                    it
+                                }
+                            }
+                        }
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    if (valid()) {
+                        _timelineState.update { it.copy(windowErrorMessage = "Failed to load message: ${e.message}") }
+                    }
+                } finally {
+                    if (valid()) _timelineState.update { it.copy(jumpingRowId = null) }
+                }
+            }
+    }
+
+    fun returnToLatestMessages() {
+        historyWindowJob?.cancel()
+        activeHistoryWindowRequestSequence = ++historyWindowRequestSequence
+        _timelineState.update {
+            it.copy(
+                jumpingRowId = null,
+                windowErrorMessage = null,
+                historyMessages = null,
+                historyAnchorRowId = null,
+                historyHasOlder = false,
+                historyHasNewer = false,
+            )
+        }
+    }
+
     fun switchSession(sessionId: String) {
         if (sessionId == _uiState.value.currentSessionId) return
 
@@ -2970,6 +3238,14 @@ class ChatViewModel(
 
     private fun publishHistoryAvailability() {
         _uiState.update { it.copy(hasOlderMessages = cacheHasOlder || serverHasOlder) }
+    }
+
+    private fun resetTimelineState() {
+        timelineJob?.cancel()
+        historyWindowJob?.cancel()
+        activeTimelineRequestSequence = ++timelineRequestSequence
+        activeHistoryWindowRequestSequence = ++historyWindowRequestSequence
+        _timelineState.value = ChatTimelineState()
     }
 
     private suspend fun readCachedPage(
@@ -3174,6 +3450,7 @@ class ChatViewModel(
         hydrationJob?.cancel()
         olderJob?.cancel()
         syncJob?.cancel()
+        resetTimelineState()
         activeHydrationRequestSequence = 0L
         cacheCursor = null
         cacheHasOlder = false

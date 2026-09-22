@@ -6,6 +6,38 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
+private val ATTACHED_CONTEXT_MARKER_RE =
+    Regex("""(?:^|\n)--- Attached Context ---\s*\n""")
+
+private val CONTEXT_REF_RE =
+    Regex(
+        """@(file|folder|url|image|tool|terminal):(?:"[^"\n]+"|'[^'\n]+'|`[^`\n]+`|\S+)""",
+    )
+
+/**
+ * Remove a gateway-generated `--- Attached Context ---` suffix while
+ * preserving the user-authored portion of the message.
+ *
+ * The marker itself is plain text a user can legitimately type, so do not
+ * treat it as a producer boundary unless the suffix also contains a context
+ * reference of the shape emitted by the gateway.
+ *
+ * Unlike [stripAttachmentRefLines], this intentionally keeps `@file:` /
+ * `@image:` references in the visible text. REST-only hydration has no local
+ * optimistic bubble proving those references were injected by Mobile, and
+ * users may have authored context references themselves.
+ */
+internal fun stripGatewayAttachedContext(content: String): String {
+    val marker = ATTACHED_CONTEXT_MARKER_RE.find(content) ?: return content
+    val attachedContext = content.substring(marker.range.last + 1)
+
+    if (!CONTEXT_REF_RE.containsMatchIn(attachedContext)) {
+        return content
+    }
+
+    return content.substring(0, marker.range.first).trimEnd()
+}
+
 /**
  * Canonical comparison key for a tool message's result payload.
  *
@@ -127,12 +159,7 @@ internal fun sameLogicalMessage(
  * run_agent). Blank lines left behind are dropped too.
  */
 internal fun stripAttachmentRefLines(content: String): String =
-    content
-        // The gateway may persist a second, enriched representation of the
-        // prompt with an `--- Attached Context ---` block. That block is
-        // model-facing context, not user-authored text, so it must not prevent
-        // the optimistic user bubble from matching the REST copy.
-        .substringBefore("\n--- Attached Context ---")
+    stripGatewayAttachedContext(content)
         .lines()
         .map { it.trim() }
         .filterNot { line ->

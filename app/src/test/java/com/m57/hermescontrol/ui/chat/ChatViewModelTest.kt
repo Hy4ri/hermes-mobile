@@ -155,6 +155,65 @@ class ChatViewModelTest {
         assertEquals("ws-local-attachment", merged.single().id)
     }
 
+    @Test
+    fun mapServerMessages_restOnlyAttachmentHidesGatewayContext() {
+        val ref = "@file:files/agent-vault/hermes/attachments/note.txt"
+        val persisted =
+            """
+            $ref
+
+            What is the secret word in the attached file?
+
+            --- Attached Context ---
+
+            📄 $ref (8 tokens)
+            ```
+            THE_SECRET_WORD_IS_MANGO_8421
+            ```
+            """.trimIndent()
+
+        val mapped =
+            mapServerMessages(
+                sessionId = "session-1",
+                messages =
+                    listOf(
+                        SessionMessage(
+                            id = 42,
+                            role = "user",
+                            content = JsonPrimitive(persisted),
+                            timestamp = JsonPrimitive("100"),
+                        ),
+                    ),
+                offset = 0,
+                latestPaging = true,
+                liveMessages = emptyList(),
+            )
+
+        assertEquals(1, mapped.size)
+        assertEquals(
+            """
+            $ref
+
+            What is the secret word in the attached file?
+            """.trimIndent(),
+            mapped.single().content,
+        )
+        assertFalse(mapped.single().content.contains("--- Attached Context ---"))
+        assertFalse(mapped.single().content.contains("THE_SECRET_WORD_IS_MANGO_8421"))
+    }
+
+    @Test
+    fun stripAttachmentRefLines_preservesUserAuthoredAttachedContextHeading() {
+        val authored =
+            """
+            Explain this heading:
+            --- Attached Context ---
+            this is ordinary user-authored text
+            """.trimIndent()
+
+        assertEquals(authored, stripAttachmentRefLines(authored))
+    }
+
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)

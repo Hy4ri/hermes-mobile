@@ -155,7 +155,14 @@ internal fun mapServerMessages(
         // Retain canonical reasoning rows across page boundaries; hide only textless placeholders.
         if (role == MessageRole.ASSISTANT && rawContent.isBlank() && rowReasoning.isBlank()) return@forEachIndexed
 
-        var finalContent = rawContent
+        // Context-reference preprocessing can persist model-facing attachment
+        // contents after the user's text. A cold reload / second device has no
+        // optimistic local bubble to hide that enriched REST representation,
+        // so project the producer-owned suffix out at hydration time too.
+        // Keep the actual @file:/@image: token here: unlike the dedupe path,
+        // REST-only hydration cannot prove that reference was not user-authored.
+        var finalContent =
+            if (role == MessageRole.USER) stripGatewayAttachedContext(rawContent) else rawContent
         var attachments: List<Attachment>? = null
         if (role == MessageRole.ASSISTANT && rawContent.contains("MEDIA:")) {
             val items = HostMediaExtractor.extract(rawContent)

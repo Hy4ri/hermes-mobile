@@ -97,6 +97,7 @@ import com.m57.hermescontrol.ui.chat.components.ChatScrollToBottomFab
 import com.m57.hermescontrol.ui.chat.components.ChatTimelineNoPrefetchStrategy
 import com.m57.hermescontrol.ui.chat.components.ChatTimelineSheet
 import com.m57.hermescontrol.ui.chat.components.ContextDetailSheet
+import com.m57.hermescontrol.ui.chat.components.ConnectionSetupSheet
 import com.m57.hermescontrol.ui.chat.components.ContextUsageChip
 import com.m57.hermescontrol.ui.chat.components.ReactionHeartsOverlay
 import com.m57.hermescontrol.ui.chat.components.ReloginDialog
@@ -158,6 +159,7 @@ fun ChatScreen(
     val connectorsViewModel: ChatConnectorsViewModel = viewModel()
     val connectorsState by connectorsViewModel.uiState.collectAsStateWithLifecycle()
     val actionProgressState by viewModel.actionProgress.state.collectAsStateWithLifecycle()
+    val connectionOperationState by viewModel.connectionOperationState.collectAsStateWithLifecycle()
     // Snapshot-backed search state — read directly so only the scopes that
     // read its fields recompose on search changes (bar, matched bubbles).
     val searchState = viewModel.searchState
@@ -964,6 +966,25 @@ fun ChatScreen(
             ImageViewerDialog(
                 image = image,
                 onDismiss = { viewingImage = null },
+            )
+        }
+
+        connectionOperationState.operation?.let { operation ->
+            ConnectionSetupSheet(
+                operation = operation,
+                onRespond = viewModel::respondToConnection,
+                onContinue = viewModel::continueConnectionOperation,
+                onOpenBrowser = {
+                    operation.targets.firstOrNull()?.connectUrl?.let { url ->
+                        if (ConnectorUrlValidator.isValidHttpsUrl(url)) {
+                            launchExternalActivity {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                            }
+                            viewModel.wakeConnectionOperation()
+                        }
+                    }
+                },
+                onDismiss = viewModel::continueConnectionOperation,
             )
         }
 

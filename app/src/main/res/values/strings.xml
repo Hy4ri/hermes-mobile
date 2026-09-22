@@ -1707,4 +1707,9 @@
     <string name="media_player_play_video">Play video</string>
     <string name="chat_session_preparing">Preparing session…</string>
     <string name="chat_session_not_ready">Session not ready — retry to continue</string>
+    <string name="connection_setup_title">Connection setup</string>
+    <string name="connection_setup_skip">Skip</string>
+    <string name="connection_setup_continue">Continue</string>
+    <string name="connection_setup_open_browser">Open in browser</string>
+    <string name="connection_setup_done">Done</string>
 </resources>

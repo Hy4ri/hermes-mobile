@@ -72,9 +72,31 @@ class ChatConnectionOperationDelegate(private val requester: ConnectionOperation
     }
 
     private suspend fun dispatch(method: String, params: Map<String, Any>) {
-        try { requester.request(method, params) } catch (_: Exception) { _state.value = _state.value.copy(pendingAction = null, error = ConnectionOperationError("Connection operation failed")) }
+        val action = _state.value.pendingAction
+        try {
+            requester.request(method, params)
+            // A newer backend snapshot may have arrived while the RPC was in flight.
+            // Never clear or overwrite that newer authoritative state.
+            if (_state.value.pendingAction == action) {
+                _state.value = _state.value.copy(pendingAction = null)
+            }
+        } catch (_: Exception) {
+            if (_state.value.pendingAction == action) {
+                _state.value = _state.value.copy(
+                    pendingAction = null,
+                    error = ConnectionOperationError("Connection operation failed"),
+                )
+            }
+        }
     }
-    private fun begin(action: ConnectionPendingAction): ConnectionOperationSnapshot? = _state.value.operation?.takeIf { _state.value.pendingAction == null && it.opId == action.opId }?.also { _state.value = _state.value.copy(pendingAction = action, error = null) }
+
+    @Synchronized
+    private fun begin(action: ConnectionPendingAction): ConnectionOperationSnapshot? {
+        val current = _state.value.operation ?: return null
+        if (_state.value.pendingAction != null || current.opId != action.opId || current.seq != action.observedSeq) return null
+        _state.value = _state.value.copy(pendingAction = action, error = null)
+        return current
+    }
     private fun currentOp() = _state.value.operation?.opId ?: ""
     private fun currentSeq() = _state.value.operation?.seq ?: -1
     private fun markSettled(opId: String) { settled += opId; while (settled.size > 32) settled.remove(settled.first()); _state.value = ConnectionOperationUiState() }

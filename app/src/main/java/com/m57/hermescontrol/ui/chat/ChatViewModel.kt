@@ -25,6 +25,7 @@ import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.data.ws.CommandBlocklist
 import com.m57.hermescontrol.data.ws.CommandCatalog
+import com.m57.hermescontrol.data.ws.ConnectionOperationParser
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsEvent
@@ -1289,6 +1290,15 @@ class ChatViewModel(
     }
 
     private fun handleSessionInfo(info: Map<String, Any?>?) {
+        // session.resume/session.info carries the open operation so a mobile client
+        // that missed connection.request can reconstruct the backend-authoritative card.
+        val pendingConnection = info?.get("pending_connection") as? Map<String, Any?>
+        if (pendingConnection != null) {
+            ConnectionOperationParser.parse(
+                pendingConnection,
+                runtimeSessionId ?: _uiState.value.currentSessionId,
+            )?.let(connectionOperationDelegate::accept)
+        }
         // Session info pushed by backend when config changes
         // (model switch, reasoning level, etc.)
         if (info != null) {
@@ -4507,6 +4517,20 @@ class ChatViewModel(
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────
+
+    fun clearConnectionOperation() = connectionOperationDelegate.reset(runtimeSessionId ?: _uiState.value.currentSessionId)
+
+    fun respondToConnection(target: String, env: Map<String, String>, approved: Boolean) {
+        viewModelScope.launch { connectionOperationDelegate.respond(target, env, approved) }
+    }
+
+    fun continueConnectionOperation() {
+        viewModelScope.launch { connectionOperationDelegate.continueOperation() }
+    }
+
+    fun wakeConnectionOperation() {
+        viewModelScope.launch { connectionOperationDelegate.wake() }
+    }
 
     override fun onCleared() {
         super.onCleared()

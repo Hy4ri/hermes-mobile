@@ -1467,4 +1467,9 @@
     <string name="media_player_play_video">播放视频</string>
     <string name="chat_session_preparing">正在准备会话…</string>
     <string name="chat_session_not_ready">会话未就绪，请重试以继续</string>
+    <string name="connection_setup_title">连接设置</string>
+    <string name="connection_setup_skip">跳过</string>
+    <string name="connection_setup_continue">继续</string>
+    <string name="connection_setup_open_browser">在浏览器中打开</string>
+    <string name="connection_setup_done">完成</string>
 </resources>

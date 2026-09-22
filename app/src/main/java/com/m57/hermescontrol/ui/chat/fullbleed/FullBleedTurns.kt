@@ -128,19 +128,22 @@ fun groupIntoTurns(messages: List<ChatMessage>): List<ChatTurn> {
 fun groupIntoTurnsWithStreaming(
     messages: List<ChatMessage>,
     streamingMessage: ChatMessage?,
+): List<ChatTurn> = appendStreamingTurn(groupIntoTurns(messages), messages.mapTo(HashSet()) { it.id }, streamingMessage)
+
+/** Reuse every settled turn; only the last agent turn needs a changing streaming entry. */
+internal fun appendStreamingTurn(
+    settled: List<ChatTurn>,
+    settledIds: Set<String>,
+    streamingMessage: ChatMessage?,
 ): List<ChatTurn> {
-    if (streamingMessage == null || messages.any { it.id == streamingMessage.id }) {
-        return groupIntoTurns(messages)
-    }
-    val turns = groupIntoTurns(messages).toMutableList()
+    if (streamingMessage == null || streamingMessage.id in settledIds) return settled
     val prose = AgentEntry.Prose(streamingMessage)
-    val last = turns.lastOrNull()
-    if (last is ChatTurn.Agent) {
-        turns[turns.lastIndex] = ChatTurn.Agent(last.entries + prose)
+    val last = settled.lastOrNull()
+    return if (last is ChatTurn.Agent) {
+        settled.dropLast(1) + ChatTurn.Agent(last.entries + prose)
     } else {
-        turns += ChatTurn.Agent(listOf(prose))
+        settled + ChatTurn.Agent(listOf(prose))
     }
-    return turns
 }
 
 /**
@@ -156,8 +159,9 @@ fun groupIntoTurnsWithStreaming(
  *
  * Mirrors the item emission order in [FullBleedChatList] exactly:
  * user turn → 1 item; agent turn → optional reasoning item, then one item per
- * visible entry. [leadingItems] accounts for fixed items emitted before the
- * turns (e.g. the `loading-older` spinner when paging).
+ * visible entry, including later reasoning-only rows at their own positions.
+ * [leadingItems] accounts for fixed items emitted before the
+ * turns. The history spinner is an overlay and consumes no index.
  *
  * @return messageId → LazyColumn item index of the message's content item
  *   (prose items for agent messages; user items for user messages).
@@ -165,48 +169,54 @@ fun groupIntoTurnsWithStreaming(
 fun messageIdToLazyIndex(
     turns: List<ChatTurn>,
     leadingItems: Int = 0,
-): Map<String, Int> {
-    val map = mutableMapOf<String, Int>()
-    var itemIndex = leadingItems
-    turns.forEach { turn ->
-        when (turn) {
-            is ChatTurn.User -> {
-                map[turn.message.id] = itemIndex
-                itemIndex++
+): Map<String, Int> =
+    fullBleedItemKeys(turns)
+        .mapIndexedNotNull { index, key ->
+            if (key.startsWith("user-") || key.startsWith("prose-")) {
+                key.substringAfter('-') to index + leadingItems
+            } else {
+                null
             }
+        }.toMap()
 
-            is ChatTurn.Agent -> {
-                val hasReasoning =
-                    turn.entries
-                        .filterIsInstance<AgentEntry.Prose>()
-                        .any { it.message.reasoningText.isNotBlank() }
-                if (hasReasoning) {
-                    // The reasoning-<id> hoist item occupies one slot.
-                    itemIndex++
+/** Lazy row identities, including hoisted reasoning and grouped tool/system entries. */
+internal fun fullBleedItemKeys(turns: List<ChatTurn>): List<String> =
+    buildList {
+        turns.forEach { turn ->
+            when (turn) {
+                is ChatTurn.User -> {
+                    add("user-${turn.message.id}")
                 }
-                turn.entries.forEach { entry ->
-                    when (entry) {
-                        is AgentEntry.Prose -> {
-                            if (entry.message.hasVisibleAgentContent()) {
-                                map[entry.message.id] = itemIndex
-                                itemIndex++
+
+                is ChatTurn.Agent -> {
+                    val hoisted =
+                        turn.entries
+                            .filterIsInstance<AgentEntry.Prose>()
+                            .firstOrNull { it.message.reasoningText.isNotBlank() }
+                    hoisted?.let { add("reasoning-${it.message.id}") }
+                    turn.entries.forEach { entry ->
+                        when (entry) {
+                            is AgentEntry.Prose -> {
+                                if (entry.message.hasVisibleAgentContent()) {
+                                    add("prose-${entry.message.id}")
+                                } else if (entry != hoisted && entry.message.reasoningText.isNotBlank()) {
+                                    add("reasoning-${entry.message.id}")
+                                }
                             }
-                        }
 
-                        is AgentEntry.ToolRow -> {
-                            itemIndex++
-                        }
+                            is AgentEntry.ToolRow -> {
+                                add("tool-${entry.message.id}")
+                            }
 
-                        is AgentEntry.SystemEvent -> {
-                            itemIndex++
+                            is AgentEntry.SystemEvent -> {
+                                add("sys-${entry.message.id}")
+                            }
                         }
                     }
                 }
             }
         }
     }
-    return map
-}
 
 /**
  * Resolve the message id of the CURRENT search match once, so per-item

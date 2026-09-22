@@ -1,0 +1,136 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 9,
+    "identityHash": "d3d3b8cd95987e6070d2500269bd052f",
+    "entities": [
+      {
+        "tableName": "chat_messages",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `session_id` TEXT NOT NULL, `role` TEXT NOT NULL, `content` TEXT NOT NULL, `reasoning_text` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `tool_name` TEXT, `tool_call_id` TEXT NOT NULL, `tool_status` TEXT, `is_streaming` INTEGER NOT NULL, `display_kind` TEXT, `token_count` INTEGER, `tps` REAL, `completion_id` TEXT, `rest_id` TEXT, `sort_group` INTEGER NOT NULL DEFAULT 1, `sort_order` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionId",
+            "columnName": "session_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "role",
+            "columnName": "role",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "content",
+            "columnName": "content",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reasoningText",
+            "columnName": "reasoning_text",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timestamp",
+            "columnName": "timestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "toolName",
+            "columnName": "tool_name",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "toolCallId",
+            "columnName": "tool_call_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "toolStatus",
+            "columnName": "tool_status",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "isStreaming",
+            "columnName": "is_streaming",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "displayKind",
+            "columnName": "display_kind",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "tokenCount",
+            "columnName": "token_count",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "tps",
+            "columnName": "tps",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "completionId",
+            "columnName": "completion_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "restId",
+            "columnName": "rest_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sortGroup",
+            "columnName": "sort_group",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          },
+          {
+            "fieldPath": "sortOrder",
+            "columnName": "sort_order",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_chat_messages_session_id_sort_group_sort_order_id",
+            "unique": false,
+            "columnNames": [
+              "session_id",
+              "sort_group",
+              "sort_order",
+              "id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_chat_messages_session_id_sort_group_sort_order_id` ON `${TABLE_NAME}` (`session_id`, `sort_group`, `sort_order`, `id`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'd3d3b8cd95987e6070d2500269bd052f')"
+    ]
+  }
+}

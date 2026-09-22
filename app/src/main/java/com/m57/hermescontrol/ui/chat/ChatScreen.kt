@@ -59,7 +59,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -115,8 +114,6 @@ import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.model.components.ModelPickerDialog
 import com.m57.hermescontrol.util.ConnectorUrlValidator
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 private const val SESSION_SYNC_INTERVAL_MS = 30_000L
@@ -211,7 +208,6 @@ fun ChatScreen(
     val listState = rememberLazyListState(prefetchStrategy = ChatTimelineNoPrefetchStrategy)
     val scrollScope = rememberCoroutineScope()
     val scrollController = rememberChatScrollController(listState, scrollScope)
-    var isOlderPagingArmed by remember(state.currentSessionId) { mutableStateOf(false) }
     var showContextSheet by remember { mutableStateOf(false) }
     var pendingSavePath by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingSaveName by rememberSaveable { mutableStateOf<String?>(null) }
@@ -265,38 +261,9 @@ fun ChatScreen(
         }
     }
 
-    // Arm + trigger older-message paging when the user scrolls near the top.
-    // Before prepending, capture the anchor (first visible message id + offset)
-    // so the same content stays under the reader's eye after the insert
-    // (issue #682). Restored in a LaunchedEffect once the page actually lands.
-    val pagingAnchor = remember { mutableStateOf<Pair<String, Int>?>(null) }
-    LaunchedEffect(listState, state.currentSessionId, state.hasOlderMessages, state.isLoadingOlder) {
-        if (!state.hasOlderMessages || state.isLoadingOlder) return@LaunchedEffect
-        snapshotFlow { listState.firstVisibleItemIndex }
-            .distinctUntilChanged()
-            .collectLatest { firstVisibleIndex ->
-                if (firstVisibleIndex > 2) {
-                    isOlderPagingArmed = true
-                } else if (isOlderPagingArmed || state.messages.size <= 3) {
-                    val anchorId = state.messages.getOrNull(firstVisibleIndex)?.id
-                    val offset = scrollController.captureAnchorOffset()
-                    pagingAnchor.value = if (anchorId != null) anchorId to offset else null
-                    viewModel.loadOlderMessages()
-                }
-            }
-    }
-
-    // After older history is prepended, restore the anchor message (by id, so
-    // streaming-token inserts during paging don't skew the index) plus offset.
-    LaunchedEffect(state.messages) {
-        val anchor = pagingAnchor.value ?: return@LaunchedEffect
-        val (anchorId, offset) = anchor
-        val index = state.messages.indexOfFirst { it.id == anchorId }
-        if (index >= 0) {
-            scrollController.scrollToItem(index, offset)
-            pagingAnchor.value = null
-        }
-    }
+    // FullBleedChatList preserves the live lazy row key and pixel offset on prepend.
+    // Never restore a message index captured before an asynchronous fetch: it is not
+    // a lazy row index and the reader may have moved in the meantime.
 
     // Continuous bottom-follow tracking from LazyListState (issue #682).
     LaunchedEffect(Unit) {
@@ -705,6 +672,8 @@ fun ChatScreen(
                     maxToolCallsPerTurn = state.maxToolCallsPerTurn,
                     isLoading = state.isLoading,
                     isLoadingOlder = state.isLoadingOlder,
+                    hasOlderMessages = state.hasOlderMessages,
+                    pagingSessionId = state.currentSessionId,
                     listState = listState,
                     scrollController = scrollController,
                     lastAnimatedMessageId = lastAnimatedMessageId,

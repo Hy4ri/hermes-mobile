@@ -87,7 +87,15 @@ data class ChatMessage(
     val tps: Double? = null,
     /** Stable completion identity correlating with reply notifications for read tracking. */
     val completionId: String? = null,
+    /** Confirmed transcript identity (#859); [id] remains the stable live/render key. */
+    val restId: String? = null,
+    /** Cache insertion sequence for unconfirmed local rows; null before first persistence. */
+    val localOrder: Long? = null,
 )
+
+/** Cached REST rows already carry their canonical identity in the persisted primary key. */
+internal val ChatMessage.canonicalRestId: String?
+    get() = restId ?: id.takeIf { it.startsWith("rest-") }
 
 /**
  * Single live transcript log entry for subagent execution.

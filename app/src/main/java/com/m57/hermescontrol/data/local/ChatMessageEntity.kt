@@ -10,13 +10,13 @@ import androidx.room3.PrimaryKey
  * UI model but is stored independently so it survives process death.
  *
  * Messages are scoped by [sessionId] so switching sessions loads the right
- * thread. The [timestamp] field preserves original ordering even if Room
- * reorders internally.
+ * thread. [sortOrder] preserves numeric server order or local insertion order;
+ * [timestamp] is display metadata only.
  */
 @Entity(
     tableName = "chat_messages",
     indices = [
-        Index(value = ["session_id", "timestamp"]),
+        Index(value = ["session_id", "sort_group", "sort_order", "id"]),
     ],
 )
 data class ChatMessageEntity(
@@ -48,4 +48,21 @@ data class ChatMessageEntity(
     val tps: Double? = null,
     @ColumnInfo(name = "completion_id")
     val completionId: String? = null,
+    @ColumnInfo(name = "rest_id")
+    val restId: String? = null,
+    @ColumnInfo(name = "sort_group", defaultValue = "1")
+    val sortGroup: Int = 1,
+    @ColumnInfo(name = "sort_order", defaultValue = "0")
+    val sortOrder: Long = 0,
 )
+
+/** Only the exact session prefix and a nonnegative decimal suffix identify a canonical row. */
+internal fun canonicalMessageOrder(
+    id: String,
+    sessionId: String,
+): Long? {
+    val prefix = "rest-$sessionId-"
+    if (!id.startsWith(prefix)) return null
+    val suffix = id.removePrefix(prefix)
+    return suffix.takeIf { it.isNotEmpty() && it.all { char -> char in '0'..'9' } }?.toLongOrNull()
+}

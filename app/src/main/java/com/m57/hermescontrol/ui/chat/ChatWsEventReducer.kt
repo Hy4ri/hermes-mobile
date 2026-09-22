@@ -176,6 +176,10 @@ object ChatWsEventReducer {
 
             is WsEvent.StatusUpdate -> onStatusUpdate(state, streamingState)
 
+            is WsEvent.ConnectionRequest,
+            is WsEvent.ConnectionUpdate,
+            -> ReducerResult(state, streamingState)
+
             is WsEvent.Unknown -> onUnknown(state, streamingState)
 
             // SessionInfo is a no-op in the original code

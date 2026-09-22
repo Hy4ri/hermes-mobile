@@ -1514,4 +1514,17 @@
     <string name="media_player_play_video">تشغيل الفيديو</string>
     <string name="chat_session_preparing">جارٍ تجهيز الجلسة…</string>
     <string name="chat_session_not_ready">الجلسة غير جاهزة — أعد المحاولة للمتابعة</string>
+    <string name="connection_setup_target_title">إعداد %1$s</string>
+    <string name="connection_setup_progress">%1$d من %2$d</string>
+    <string name="connection_setup_authorized_no_tools">تم التفويض، لكن الأدوات غير متاحة</string>
+    <string name="connection_setup_target_resolved">اكتملت خطوة الاتصال هذه</string>
+    <string name="connection_setup_tools_available">الأدوات المتاحة: %1$d</string>
+    <string name="connection_setup_unsupported">خطوة الإعداد هذه غير مدعومة في إصدار التطبيق الحالي.</string>
+    <string name="connection_setup_connect">اتصال</string>
+    <string name="connection_setup_skip">تخطي</string>
+    <string name="connection_setup_continue">متابعة</string>
+    <string name="connection_setup_open_browser">فتح في المتصفح</string>
+    <string name="connection_setup_required">%1$s مطلوب</string>
+    <string name="connection_setup_request_failed">تعذر إرسال رد الإعداد. حاول مرة أخرى.</string>
+    <string name="connection_setup_pending">بانتظار Hermes…</string>
 </resources>

@@ -96,6 +96,7 @@ import com.m57.hermescontrol.ui.chat.components.ChatResumeErrorOverlay
 import com.m57.hermescontrol.ui.chat.components.ChatScrollToBottomFab
 import com.m57.hermescontrol.ui.chat.components.ChatTimelineNoPrefetchStrategy
 import com.m57.hermescontrol.ui.chat.components.ChatTimelineSheet
+import com.m57.hermescontrol.ui.chat.components.ConnectionSetupSheet
 import com.m57.hermescontrol.ui.chat.components.ContextDetailSheet
 import com.m57.hermescontrol.ui.chat.components.ContextUsageChip
 import com.m57.hermescontrol.ui.chat.components.ReactionHeartsOverlay
@@ -158,6 +159,7 @@ fun ChatScreen(
     val connectorsViewModel: ChatConnectorsViewModel = viewModel()
     val connectorsState by connectorsViewModel.uiState.collectAsStateWithLifecycle()
     val actionProgressState by viewModel.actionProgress.state.collectAsStateWithLifecycle()
+    val connectionOperationState by viewModel.connectionOperationState.collectAsStateWithLifecycle()
     // Snapshot-backed search state — read directly so only the scopes that
     // read its fields recompose on search changes (bar, matched bubbles).
     val searchState = viewModel.searchState
@@ -166,6 +168,8 @@ fun ChatScreen(
     val context = LocalContext.current
     var browserAuthInFlight by rememberSaveable { mutableStateOf(false) }
     var browserAuthDeparted by rememberSaveable { mutableStateOf(false) }
+    var connectionBrowserOperationId by remember { mutableStateOf<String?>(null) }
+    var connectionBrowserDeparted by remember { mutableStateOf(false) }
 
     DisposableEffect(lifecycleOwner) {
         val observer =
@@ -175,15 +179,27 @@ fun ChatScreen(
                         if (browserAuthInFlight) {
                             browserAuthDeparted = true
                         }
+                        if (connectionBrowserOperationId != null) {
+                            connectionBrowserDeparted = true
+                        }
                         connectorsViewModel.onPause()
                     }
 
                     Lifecycle.Event.ON_RESUME -> {
                         connectorsViewModel.onResume()
-                        if (browserAuthInFlight && browserAuthDeparted) {
+                        val legacyBrowserReturned = browserAuthInFlight && browserAuthDeparted
+                        val operationId = connectionBrowserOperationId.takeIf { connectionBrowserDeparted }
+                        if (legacyBrowserReturned || operationId != null) {
+                            ExternalActivityLifecycleGuard.externalActivityReturned()
+                        }
+                        if (legacyBrowserReturned) {
                             browserAuthInFlight = false
                             browserAuthDeparted = false
-                            ExternalActivityLifecycleGuard.externalActivityReturned()
+                        }
+                        if (operationId != null) {
+                            connectionBrowserOperationId = null
+                            connectionBrowserDeparted = false
+                            viewModel.wakeConnectionOperation(operationId)
                         }
                     }
 
@@ -199,11 +215,18 @@ fun ChatScreen(
                     .firstOrNull()
             val isChangingConfigs = activity?.isChangingConfigurations == true
             if (!isChangingConfigs) {
+                val externalActivityOutstanding =
+                    (browserAuthInFlight && browserAuthDeparted) ||
+                        (connectionBrowserOperationId != null && connectionBrowserDeparted)
+                if (externalActivityOutstanding) {
+                    ExternalActivityLifecycleGuard.externalActivityReturned()
+                }
                 if (browserAuthInFlight && browserAuthDeparted) {
                     browserAuthInFlight = false
                     browserAuthDeparted = false
-                    ExternalActivityLifecycleGuard.externalActivityReturned()
                 }
+                connectionBrowserOperationId = null
+                connectionBrowserDeparted = false
                 connectorsViewModel.onPause()
                 connectorsViewModel.hide()
             }
@@ -424,7 +447,8 @@ fun ChatScreen(
             state.btwState == null &&
             viewingImage == null &&
             !connectorsState.isVisible &&
-            !timelineState.isOpen
+            !timelineState.isOpen &&
+            connectionOperationState.operation == null
 
     // Lifecycle effects, permissions, session switching, auto-scroll, errors
     ChatLifecycleEffects(
@@ -964,6 +988,34 @@ fun ChatScreen(
             ImageViewerDialog(
                 image = image,
                 onDismiss = { viewingImage = null },
+            )
+        }
+
+        if (connectionOperationState.operation != null) {
+            ConnectionSetupSheet(
+                state = connectionOperationState,
+                onRespond = viewModel::respondToConnection,
+                onContinue = viewModel::continueConnectionOperation,
+                onOpenBrowser = { operationId, url ->
+                    if (ConnectorUrlValidator.isValidHttpsUrl(url)) {
+                        try {
+                            launchExternalActivity {
+                                connectionBrowserOperationId = operationId
+                                connectionBrowserDeparted = false
+                                val intent =
+                                    Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                context.startActivity(intent)
+                            }
+                        } catch (_: Exception) {
+                            connectionBrowserOperationId = null
+                            connectionBrowserDeparted = false
+                            scrollScope.launch { snackbarHostState.showSnackbar(browserLaunchError) }
+                        }
+                    }
+                },
+                onDismiss = viewModel::continueConnectionOperation,
             )
         }
 

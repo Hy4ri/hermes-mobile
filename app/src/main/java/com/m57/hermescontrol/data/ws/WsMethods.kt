@@ -101,6 +101,9 @@ object WsMethods {
 
     // ── Connectors (issue #1091) ───────────────────────────────────────────
 
+    const val CONNECTION_RESPOND = "connection.respond"
+    const val CONNECTORS_OPERATION_WAKE = "connectors.operation.wake"
+
     /** List available third-party connectors and authorization state for a session. */
     const val CONNECTORS_LIST = "connectors.list"
 

@@ -60,6 +60,8 @@ class ChatScreenTest {
         every { mockViewModel.uiState } returns MutableStateFlow(uiState).asStateFlow()
         every { mockViewModel.streamingState } returns MutableStateFlow(StreamingState()).asStateFlow()
         every { mockViewModel.timelineState } returns MutableStateFlow(ChatTimelineState()).asStateFlow()
+        every { mockViewModel.connectionOperationState } returns
+            MutableStateFlow(ConnectionOperationUiState()).asStateFlow()
         // ActionProgressDialog collects the controller's StateFlow — a relaxed
         // mock proxy would crash the cast inside collectAsStateWithLifecycle.
         // A real controller (never started here) stays invisible.
@@ -107,6 +109,8 @@ class ChatScreenTest {
         every { mockViewModel.uiState } returns MutableStateFlow(uiState).asStateFlow()
         every { mockViewModel.streamingState } returns MutableStateFlow(StreamingState()).asStateFlow()
         every { mockViewModel.timelineState } returns MutableStateFlow(ChatTimelineState()).asStateFlow()
+        every { mockViewModel.connectionOperationState } returns
+            MutableStateFlow(ConnectionOperationUiState()).asStateFlow()
         every { mockViewModel.actionProgress } returns
             ActionProgressController(scope = CoroutineScope(Dispatchers.Main))
 

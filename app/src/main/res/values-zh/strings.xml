@@ -1467,4 +1467,17 @@
     <string name="media_player_play_video">播放视频</string>
     <string name="chat_session_preparing">正在准备会话…</string>
     <string name="chat_session_not_ready">会话未就绪，请重试以继续</string>
+    <string name="connection_setup_target_title">设置%1$s</string>
+    <string name="connection_setup_progress">第%1$d项，共%2$d项</string>
+    <string name="connection_setup_authorized_no_tools">已授权，但工具不可用</string>
+    <string name="connection_setup_target_resolved">此连接步骤已完成</string>
+    <string name="connection_setup_tools_available">可用工具：%1$d</string>
+    <string name="connection_setup_unsupported">当前应用版本不支持此设置步骤。</string>
+    <string name="connection_setup_connect">连接</string>
+    <string name="connection_setup_skip">跳过</string>
+    <string name="connection_setup_continue">继续</string>
+    <string name="connection_setup_open_browser">在浏览器中打开</string>
+    <string name="connection_setup_required">%1$s为必填项</string>
+    <string name="connection_setup_request_failed">无法发送设置响应，请重试。</string>
+    <string name="connection_setup_pending">正在等待 Hermes…</string>
 </resources>

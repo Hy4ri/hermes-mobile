@@ -1707,4 +1707,17 @@
     <string name="media_player_play_video">Play video</string>
     <string name="chat_session_preparing">Preparing session…</string>
     <string name="chat_session_not_ready">Session not ready — retry to continue</string>
+    <string name="connection_setup_target_title">Set up %1$s</string>
+    <string name="connection_setup_progress">%1$d of %2$d</string>
+    <string name="connection_setup_authorized_no_tools">Authorized; tools unavailable</string>
+    <string name="connection_setup_target_resolved">This connection step is complete</string>
+    <string name="connection_setup_tools_available">Tools available: %1$d</string>
+    <string name="connection_setup_unsupported">This setup step is not supported by this app version.</string>
+    <string name="connection_setup_connect">Connect</string>
+    <string name="connection_setup_skip">Skip</string>
+    <string name="connection_setup_continue">Continue</string>
+    <string name="connection_setup_open_browser">Open in browser</string>
+    <string name="connection_setup_required">%1$s is required</string>
+    <string name="connection_setup_request_failed">Couldn’t send the setup response. Try again.</string>
+    <string name="connection_setup_pending">Waiting for Hermes…</string>
 </resources>

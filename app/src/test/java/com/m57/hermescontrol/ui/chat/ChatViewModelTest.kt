@@ -24,6 +24,7 @@ import com.m57.hermescontrol.data.remote.GatewayFileClient
 import com.m57.hermescontrol.data.remote.GatewayFileResult
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
+import com.m57.hermescontrol.data.ws.ConnectionOperationParser
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.JsonRpcError
@@ -410,6 +411,77 @@ class ChatViewModelTest {
 
         return Pair(viewModel, "session-123")
     }
+
+    @Test
+    fun connectionOperation_liveEventRoutesAndSessionResetClearsIt() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val snapshot = connectionOperationSnapshot(sessionId = sessionId)
+
+            mockEventsFlow.emit(WsEvent.ConnectionRequest(snapshot))
+            advanceUntilIdle()
+            assertEquals(
+                "op-1218",
+                viewModel.connectionOperationState.value.operation
+                    ?.opId,
+            )
+
+            viewModel.createNewSession()
+            advanceUntilIdle()
+            assertNull(viewModel.connectionOperationState.value.operation)
+
+            mockEventsFlow.emit(WsEvent.ConnectionUpdate(snapshot.copy(seq = 2L)))
+            advanceUntilIdle()
+            assertNull(viewModel.connectionOperationState.value.operation)
+        }
+
+    @Test
+    fun connectionOperation_sessionResumeRestoresPendingSnapshot() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+            viewModel.switchSession("stored-session")
+            advanceUntilIdle()
+            val resumeRequestId = sentRequestMethods.last { it.first == WsMethods.SESSION_RESUME }.second
+
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    resumeRequestId,
+                    mapOf(
+                        "session_id" to "runtime-session",
+                        "pending_connection" to connectionOperationPayload(),
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
+            val operation = viewModel.connectionOperationState.value.operation
+            assertEquals("runtime-session", operation?.sessionId)
+            assertEquals("op-1218", operation?.opId)
+        }
+
+    private fun connectionOperationSnapshot(
+        sessionId: String,
+        seq: Long = 1L,
+    ) = checkNotNull(ConnectionOperationParser.parse(connectionOperationPayload(seq), sessionId))
+
+    private fun connectionOperationPayload(seq: Long = 1L): Map<String, Any?> =
+        mapOf(
+            "op_id" to "op-1218",
+            "seq" to seq,
+            "deadline_at" to 2_000_000_000.0,
+            "timeout_seconds" to 300.0,
+            "tool_call_id" to "tool-1218",
+            "targets" to
+                listOf(
+                    mapOf(
+                        "name" to "github",
+                        "kind" to "connector",
+                        "action" to "authorize",
+                        "state" to "pending",
+                    ),
+                ),
+        )
 
     // ── Slash command tests ──────────────────────────────────────────────────
 

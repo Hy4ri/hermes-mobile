@@ -401,8 +401,14 @@ class ChatViewModel(
 ) : AndroidViewModel(application) {
     constructor(application: Application) : this(application, startCleanup = true)
 
+    private val connectionOperationDelegate =
+        ChatConnectionOperationDelegate { method, params ->
+            HermesWsClient.request(method, params).await()
+        }
+
     // ── Internal state ───────────────────────────────────────────────────
     private val _uiState = MutableStateFlow(ChatUiState())
+    val connectionOperationState: StateFlow<ConnectionOperationUiState> = connectionOperationDelegate.state
 
     private val _streamingState = MutableStateFlow(StreamingState())
 
@@ -840,6 +846,16 @@ class ChatViewModel(
         if (event is WsEvent.RpcError && isStaleSessionRequest(event.id)) {
             forgetRequest(event.id)
             return
+        }
+
+        if (event is WsEvent.ConnectionRequest || event is WsEvent.ConnectionUpdate) {
+            connectionOperationDelegate.accept(
+                when (event) {
+                    is WsEvent.ConnectionRequest -> event.snapshot
+                    is WsEvent.ConnectionUpdate -> event.snapshot
+                    else -> error("unreachable")
+                },
+            )
         }
 
         // Flush any throttled reasoning before a state transition so the

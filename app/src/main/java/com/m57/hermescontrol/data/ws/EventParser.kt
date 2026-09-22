@@ -75,6 +75,13 @@ object EventParser {
         val sessionId = params["session_id"] as? String ?: payload?.get("session_id") as? String
 
         return when (eventType) {
+            "connection.request", "connection.update" -> {
+                val snapshot = payload?.let { ConnectionOperationParser.parse(it, sessionId) }
+                if (snapshot == null) WsEvent.Unknown(rawJson)
+                else if (eventType == "connection.request") WsEvent.ConnectionRequest(snapshot)
+                else WsEvent.ConnectionUpdate(snapshot)
+            }
+
             "gateway.ready" -> {
                 WsEvent.GatewayReady(payload)
             }

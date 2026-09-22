@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.data.ws
 
+import com.m57.hermescontrol.data.model.ConnectionOperationSnapshot
 import com.m57.hermescontrol.ui.chat.TodoItem
 
 /** Parsed WebSocket events emitted by [HermesWsClient]. */
@@ -190,6 +191,10 @@ sealed class WsEvent {
         val text: String = "",
         val sessionId: String? = null,
     ) : WsEvent()
+
+    data class ConnectionRequest(val snapshot: ConnectionOperationSnapshot) : WsEvent()
+
+    data class ConnectionUpdate(val snapshot: ConnectionOperationSnapshot) : WsEvent()
 
     // ── Status ───────────────────────────────────────────────────────────
 

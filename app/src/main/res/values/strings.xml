@@ -1148,6 +1148,7 @@
     <string name="cron_action_pause">Pause</string>
     <string name="cron_action_resume">Resume</string>
     <string name="cron_action_run">Run</string>
+    <string name="cron_action_history">Run history</string>
     <string name="cron_action_edit">Edit</string>
     <string name="cron_action_add">Add cron job</string>
     <string name="cron_edit_title">Edit Cron Job</string>
@@ -1188,6 +1189,17 @@
     <string name="cron_discard_message">You have unsaved changes. Discard them?</string>
     <string name="cron_delete_title">Delete job?</string>
     <string name="cron_delete_message">Delete \"%1$s\"? This can\'t be undone.</string>
+    <string name="cron_history_title">%1$s runs</string>
+    <string name="cron_history_loading">Loading run history</string>
+    <string name="cron_history_empty_title">No runs yet</string>
+    <string name="cron_history_empty_desc">Recent executions for this job will appear here.</string>
+    <string name="cron_history_status_active">Active</string>
+    <string name="cron_history_status_archived">Archived</string>
+    <string name="cron_history_status_completed">Completed</string>
+    <string name="cron_history_status_inactive">Inactive</string>
+    <string name="cron_history_profile">Profile: %1$s</string>
+    <string name="cron_history_messages">Messages: %1$d</string>
+    <string name="cron_history_close">Close</string>
 
     <!-- Achievements Screen -->
     <string name="achievements_empty_title">No achievements yet</string>

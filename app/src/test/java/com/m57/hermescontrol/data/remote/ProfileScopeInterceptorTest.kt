@@ -126,6 +126,20 @@ class ProfileScopeInterceptorTest {
     }
 
     @Test
+    fun cronRunHistory_preservesLimitAndFollowsActiveProfileAcrossSwitches() {
+        val client = clientFor("alpha")
+
+        val alphaUrl = requestedUrl(client, "api/cron/jobs/job-1/runs?limit=20")
+        assertEquals("alpha", alphaUrl.queryParameter("profile"))
+        assertEquals("20", alphaUrl.queryParameter("limit"))
+
+        AuthManager.setActiveProfileId("beta")
+        val betaUrl = requestedUrl(client, "api/cron/jobs/job-1/runs?limit=20")
+        assertEquals("beta", betaUrl.queryParameter("profile"))
+        assertEquals("20", betaUrl.queryParameter("limit"))
+    }
+
+    @Test
     fun skillsEndpoint_isScoped() {
         val client = clientFor("alpha")
         server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))

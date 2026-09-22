@@ -1603,6 +1603,15 @@ class ChatViewModel(
                     )
                 }
                 val activeSessionId = runtimeSessionId ?: sessionId
+                // Reconnect replay: the backend-owned connector operation is
+                // authoritative and uses the same full snapshot as the live
+                // connection.request event. Feed it through the seq guard so
+                // a late resume response cannot regress a newer live update.
+                val pendingConnection = resultMap["pending_connection"] as? Map<String, Any?>
+                if (pendingConnection != null) {
+                    ConnectionOperationParser.parse(pendingConnection, activeSessionId)
+                        ?.let(connectionOperationDelegate::accept)
+                }
                 if (activeSessionId != null) approvalsDelegate.replayPendingApproval(activeSessionId)
             }
 

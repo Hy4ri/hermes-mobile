@@ -1898,7 +1898,7 @@ class ChatViewModel(
                                         "name" to attachment.name,
                                     ),
                             )?.let { response ->
-                                // request() returns raw JSON; primitive values are not Kotlin Strings.
+                                // request() returns raw JsonElement values; normalize before reading Kotlin types.
                                 val result = if (response is JsonElement) response.toAny() else response
 
                                 @Suppress("UNCHECKED_CAST")

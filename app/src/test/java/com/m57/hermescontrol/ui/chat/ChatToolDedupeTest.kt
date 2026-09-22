@@ -4,7 +4,6 @@ import com.m57.hermescontrol.data.ws.WsEvent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -193,7 +192,7 @@ class ChatToolDedupeTest {
 
         assertEquals(3, deduped.size)
         // WS copies win; rest- copies of the same logical message are dropped
-        assertTrue(deduped.contains(wsTool))
+        assertTrue(deduped.contains(wsTool.copy(restId = restTool.id)))
         assertTrue(deduped.none { it.id == "rest-s-1" })
         assertTrue(deduped.none { it.id == "rest-s-2" })
         // rest- user kept when no WS copy exists
@@ -279,7 +278,7 @@ class ChatToolDedupeTest {
         val merged = mergeTranscriptWithLive(listOf(rest), listOf(live))
 
         // Preserves cache/live-only user flags such as continuesActiveTurn.
-        assertSame(live, merged.single())
+        assertEquals(live.copy(restId = rest.id), merged.single())
     }
 
     @Test
@@ -551,7 +550,7 @@ class ChatToolDedupeTest {
         val merged = mergeIncrementalTranscriptPage(incoming, current, "s", 1)
 
         assertEquals(listOf("retry", "retry"), merged.map { it.content })
-        assertSame(live, merged.last())
+        assertEquals(live.copy(restId = "rest-s-1"), merged.last())
     }
 
     // ── Issue #842: MCP/web tool rows (raw `<untrusted_tool_result>` text) ──
@@ -654,6 +653,6 @@ The following content was retrieved from an external source.
             )
         val deduped = dedupeCachedMessages(listOf(wsTool, restTool))
         assertEquals(1, deduped.size)
-        assertEquals(wsTool, deduped.single())
+        assertEquals(wsTool.copy(restId = restTool.id), deduped.single())
     }
 }

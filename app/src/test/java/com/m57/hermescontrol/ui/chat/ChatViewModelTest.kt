@@ -120,6 +120,100 @@ class ChatViewModelTest {
         assertEquals("ws-local-1", merged.single().id)
     }
 
+    @Test
+    fun mergeTranscriptWithLive_collapsesGatewayAttachmentContextCopy() {
+        val local =
+            ChatMessage(
+                id = "ws-local-attachment",
+                role = MessageRole.USER,
+                content = "What is the secret word in the attached file?",
+                timestamp = 100L,
+            )
+        val rest =
+            ChatMessage(
+                id = "rest-sess-attachment",
+                role = MessageRole.USER,
+                content =
+                    """
+                    @file:files/agent-vault/hermes/attachments/note.txt
+
+                    What is the secret word in the attached file?
+
+                    --- Attached Context ---
+
+                    📄 @file:files/agent-vault/hermes/attachments/note.txt (8 tokens)
+                    ```
+                    THE_SECRET_WORD_IS_MANGO_8421
+                    ```
+                    """.trimIndent(),
+                timestamp = 100L,
+            )
+
+        val merged = mergeTranscriptWithLive(listOf(rest), listOf(local))
+
+        assertEquals(1, merged.size)
+        assertEquals("ws-local-attachment", merged.single().id)
+    }
+
+    @Test
+    fun mapServerMessages_restOnlyAttachmentHidesGatewayContext() {
+        val ref = "@file:files/agent-vault/hermes/attachments/note.txt"
+        val persisted =
+            """
+            $ref
+
+            What is the secret word in the attached file?
+
+            --- Attached Context ---
+
+            📄 $ref (8 tokens)
+            ```
+            THE_SECRET_WORD_IS_MANGO_8421
+            ```
+            """.trimIndent()
+
+        val mapped =
+            mapServerMessages(
+                sessionId = "session-1",
+                messages =
+                    listOf(
+                        SessionMessage(
+                            id = 42,
+                            role = "user",
+                            content = JsonPrimitive(persisted),
+                            timestamp = JsonPrimitive("100"),
+                        ),
+                    ),
+                offset = 0,
+                latestPaging = true,
+                liveMessages = emptyList(),
+            )
+
+        assertEquals(1, mapped.size)
+        assertEquals(
+            """
+            $ref
+
+            What is the secret word in the attached file?
+            """.trimIndent(),
+            mapped.single().content,
+        )
+        assertFalse(mapped.single().content.contains("--- Attached Context ---"))
+        assertFalse(mapped.single().content.contains("THE_SECRET_WORD_IS_MANGO_8421"))
+    }
+
+    @Test
+    fun stripAttachmentRefLines_preservesUserAuthoredAttachedContextHeading() {
+        val authored =
+            """
+            Explain this heading:
+            --- Attached Context ---
+            this is ordinary user-authored text
+            """.trimIndent()
+
+        assertEquals(authored, stripAttachmentRefLines(authored))
+    }
+
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
@@ -241,10 +335,21 @@ class ChatViewModelTest {
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     /** Create a ViewModel with the fake repo injected directly. */
-    private fun createViewModel(startCleanup: Boolean = false): ChatViewModel =
+    private fun createViewModel(
+        startCleanup: Boolean = false,
+        historyDispatcher: kotlinx.coroutines.CoroutineDispatcher = testDispatcher,
+    ): ChatViewModel =
         // Both dispatchers injected — a real ioDispatcher would race the
         // test scheduler (repo writes hop it) and shuffle RPC ordering.
-        ChatViewModel(app, startCleanup, fakeRepo, fakeSlashUsageStore, testDispatcher, testDispatcher)
+        ChatViewModel(
+            app,
+            startCleanup,
+            fakeRepo,
+            fakeSlashUsageStore,
+            testDispatcher,
+            testDispatcher,
+            historyDispatcher,
+        )
 
     /**
      * Create ViewModel, simulate GatewayReady, feed SESSION_CREATE result,
@@ -255,8 +360,9 @@ class ChatViewModelTest {
      */
     private suspend fun TestScope.createViewModelWithSession(
         startCleanup: Boolean = false,
+        historyDispatcher: kotlinx.coroutines.CoroutineDispatcher = testDispatcher,
     ): Pair<ChatViewModel, String> {
-        val viewModel = createViewModel(startCleanup)
+        val viewModel = createViewModel(startCleanup, historyDispatcher)
         advanceUntilIdle()
 
         mockConnectionStatus.value = ConnectionStatus.CONNECTED
@@ -1979,6 +2085,34 @@ class ChatViewModelTest {
             assertTrue(state.errorMessage?.contains("save") == true)
             assertFalse(state.isAgentTyping)
             verify(exactly = 0) { HermesWsClient.sendMessage(any(), any(), any(), any()) }
+        }
+
+    @Test
+    fun sendMessage_rawJsonFileAttachmentRetainsReference() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            val uriString = "content://test/note"
+            val uri = mockk<Uri>()
+            val resolver = mockk<ContentResolver>()
+            mockkStatic(Uri::class)
+            every { Uri.parse(uriString) } returns uri
+            every { app.contentResolver } returns resolver
+            every { resolver.openInputStream(uri) } answers { "hello".byteInputStream() }
+            every { HermesWsClient.request(WsMethods.FILE_ATTACH, any(), any()) } returns
+                CompletableDeferred<Any?>(
+                    buildJsonObject {
+                        put("attached", true)
+                        put("ref_text", "@file:attachments/note.txt")
+                    },
+                )
+            viewModel.addAttachment(uriString, "note.txt", "text/plain", 5)
+
+            viewModel.sendMessage("Inspect file")
+            advanceUntilIdle()
+
+            verify {
+                HermesWsClient.sendMessage(any(), "@file:attachments/note.txt\n\nInspect file", any(), any())
+            }
         }
 
     @Test
@@ -5075,6 +5209,824 @@ class ChatViewModelTest {
                     .any { it.id == "rest-session-456-160" },
             )
         }
+
+    // Chat paging: deterministic regressions, with no real network or wall-clock timing.
+    private fun seedPagingCache(
+        count: Int,
+        sameTimestamp: Boolean = false,
+    ): List<String> =
+        (1..count).map { index ->
+            val id = "cached-${index.toString().padStart(5, '0')}"
+            fakeRepo.dao.addMessageDirect(
+                com.m57.hermescontrol.data.local.ChatMessageEntity(
+                    id = id,
+                    sessionId = "session-456",
+                    role = "user",
+                    content = "Cached message $index",
+                    timestamp = if (sameTimestamp) 1L else index.toLong(),
+                ),
+            )
+            id
+        }
+
+    private fun pagingResponse(
+        rows: IntRange,
+        offset: Int = 0,
+    ): retrofit2.Response<com.m57.hermescontrol.data.model.SessionMessagesResponse> =
+        retrofit2.Response.success(
+            com.m57.hermescontrol.data.model.SessionMessagesResponse(
+                messages =
+                    rows.map { index ->
+                        com.m57.hermescontrol.data.model.SessionMessage(
+                            id = index,
+                            role = "assistant",
+                            content = JsonPrimitive("Server message $index"),
+                            timestamp = JsonPrimitive(index),
+                        )
+                    },
+                pagination =
+                    com.m57.hermescontrol.data.model.PaginationInfo(
+                        limit = 150,
+                        offset = offset,
+                        order = "latest",
+                        returned = rows.count(),
+                    ),
+            ),
+        )
+
+    @Test
+    fun paging_syncNewestRestEcho_preservesLiveIdAndCompletionInOneBubble() =
+        runTest {
+            val api = ApiClient.hermesApi
+            val (viewModel, _) = createViewModelWithSession()
+            coEvery {
+                api.getSessionMessages("session-456", any(), any(), any(), any())
+            } returns pagingResponse(IntRange.EMPTY)
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+
+            // A completed live reply has no confirmed REST identity until its echo arrives.
+            val live =
+                ChatMessage(
+                    id = "live-reply",
+                    role = MessageRole.ASSISTANT,
+                    content = "Server message 42",
+                    timestamp = 42_000L,
+                    completionId = "comp",
+                    restId = null,
+                )
+
+            @Suppress("UNCHECKED_CAST")
+            val state =
+                ChatViewModel::class.java
+                    .getDeclaredField("_uiState")
+                    .apply { isAccessible = true }
+                    .get(viewModel) as MutableStateFlow<Any>
+            state.value = viewModel.uiState.value.copy(messages = listOf(live))
+            advanceUntilIdle()
+            assertNull(
+                viewModel.uiState.value.messages
+                    .single()
+                    .restId,
+            )
+            assertEquals(
+                "comp",
+                viewModel.uiState.value.messages
+                    .single()
+                    .completionId,
+            )
+
+            coEvery {
+                api.getSessionMessages("session-456", 150, 0, "latest", any())
+            } returns pagingResponse(42..42)
+
+            viewModel.syncCurrentSession()
+            advanceUntilIdle()
+
+            coVerify(exactly = 2) {
+                api.getSessionMessages("session-456", 150, 0, "latest", any())
+            }
+            val messages = viewModel.uiState.value.messages
+            assertEquals("The newest REST echo must confirm the live reply without adding a bubble", 1, messages.size)
+            val message = messages.single()
+            assertEquals("Server message 42", message.content)
+            assertEquals("live-reply", message.id)
+            assertEquals("rest-session-456-42", message.restId)
+            assertEquals("comp", message.completionId)
+        }
+
+    @Test
+    fun paging_largeCache_initialReadIsBoundedAtDao() =
+        runTest {
+            val expectedIds = seedPagingCache(10_000)
+            stubSession456Rests(success = false)
+            val (viewModel, _) = createViewModelWithSession()
+
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+
+            assertEquals(
+                expectedIds.takeLast(150),
+                viewModel.uiState.value.messages
+                    .map { it.id },
+            )
+            assertEquals("Loading all rows then taking a suffix is not paging", 0, fakeRepo.dao.fullSessionReads)
+            assertEquals(expectedIds.toSet(), fakeRepo.dao.idsForSession("session-456"))
+            assertTrue(viewModel.uiState.value.hasOlderMessages)
+            assertFalse(viewModel.uiState.value.isLoading)
+        }
+
+    @Test
+    fun paging_offlinePagesRetainEveryRowWithEqualTimestamps() =
+        runTest {
+            val expectedIds = seedPagingCache(350, sameTimestamp = true)
+            stubSession456Rests(success = false)
+            val (viewModel, _) = createViewModelWithSession()
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+            assertEquals(
+                expectedIds.takeLast(150),
+                viewModel.uiState.value.messages
+                    .map { it.id },
+            )
+
+            viewModel.loadOlderMessages()
+            advanceUntilIdle()
+            assertEquals(
+                expectedIds.takeLast(300),
+                viewModel.uiState.value.messages
+                    .map { it.id },
+            )
+            assertTrue(viewModel.uiState.value.hasOlderMessages)
+            assertFalse(viewModel.uiState.value.isLoadingOlder)
+
+            viewModel.loadOlderMessages()
+            advanceUntilIdle()
+            assertEquals(
+                expectedIds,
+                viewModel.uiState.value.messages
+                    .map { it.id },
+            )
+            assertFalse(viewModel.uiState.value.hasOlderMessages)
+            assertFalse(viewModel.uiState.value.isLoadingOlder)
+            assertEquals(expectedIds.toSet(), fakeRepo.dao.idsForSession("session-456"))
+            assertEquals(0, fakeRepo.dao.fullSessionReads)
+        }
+
+    @Test
+    fun paging_cacheEchoEnrichesExistingUuidBeforeEarlierRepeatedOccurrencesArrive() =
+        runTest {
+            val roles = listOf(MessageRole.USER, MessageRole.ASSISTANT, MessageRole.TOOL)
+            for (index in 1..303) {
+                val occurrence =
+                    when (index) {
+                        in 1..3 -> index - 1
+                        in 151..153 -> index - 151
+                        in 301..303 -> index - 301
+                        else -> null
+                    }
+                val role = occurrence?.let { roles[it] } ?: MessageRole.SYSTEM
+                val id =
+                    when (index) {
+                        in 1..3 -> "rest-session-456-${10 + requireNotNull(occurrence)}"
+                        in 151..153 -> "rest-session-456-${20 + requireNotNull(occurrence)}"
+                        in 301..303 -> "uuid-${requireNotNull(occurrence)}"
+                        else -> "filler-$index"
+                    }
+                fakeRepo.dao.addMessageDirect(
+                    com.m57.hermescontrol.data.local.ChatMessageEntity(
+                        id = id,
+                        sessionId = "session-456",
+                        role = role.name,
+                        content =
+                            when (role) {
+                                MessageRole.TOOL -> """{"output":"ok"}"""
+                                MessageRole.SYSTEM -> "filler $index"
+                                else -> "continue"
+                            },
+                        timestamp = index.toLong(),
+                        toolName = if (role == MessageRole.TOOL && index > 300) "terminal" else null,
+                    ),
+                )
+            }
+            val storedIds = fakeRepo.dao.idsForSession("session-456")
+            stubSession456Rests(success = false)
+            val (viewModel, _) = createViewModelWithSession()
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+            assertEquals(150, viewModel.uiState.value.messages.size)
+
+            viewModel.loadOlderMessages()
+            advanceUntilIdle()
+            for (index in roles.indices) {
+                val retained =
+                    viewModel.uiState.value.messages
+                        .single { it.id == "uuid-$index" }
+                assertEquals("rest-session-456-${20 + index}", retained.restId)
+            }
+            assertEquals(297, viewModel.uiState.value.messages.size)
+
+            viewModel.loadOlderMessages()
+            advanceUntilIdle()
+            val messages = viewModel.uiState.value.messages
+            assertEquals(300, messages.size)
+            for (index in roles.indices) {
+                assertEquals(2, messages.count { it.role == roles[index] })
+                assertTrue(messages.any { it.id == "rest-session-456-${10 + index}" })
+                assertTrue(messages.any { it.id == "uuid-$index" })
+            }
+            assertEquals("terminal", messages.single { it.id == "uuid-2" }.toolName)
+            assertEquals(storedIds, fakeRepo.dao.idsForSession("session-456"))
+            assertFalse(viewModel.uiState.value.hasOlderMessages)
+        }
+
+    @Test
+    fun paging_reusedToolPersistsCanonicalKeyWithoutReplacingLiveKey() =
+        runTest {
+            fakeRepo.dao.addMessageDirect(
+                com.m57.hermescontrol.data.local.ChatMessageEntity(
+                    id = "uuid-tool",
+                    sessionId = "session-456",
+                    role = "TOOL",
+                    content = """{"output":"ok"}""",
+                    timestamp = 1L,
+                    toolName = "terminal",
+                ),
+            )
+            val api = ApiClient.hermesApi
+            val response = pagingResponse(42..42).body()!!
+            coEvery {
+                api.getSessionMessages("session-456", any(), any(), any(), any())
+            } returns
+                retrofit2.Response.success(
+                    response.copy(
+                        messages =
+                            response.messages.map {
+                                it.copy(
+                                    role = "tool",
+                                    content = JsonPrimitive("""{"output":"ok"}"""),
+                                )
+                            },
+                    ),
+                )
+            val (viewModel, _) = createViewModelWithSession()
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+
+            val message =
+                viewModel.uiState.value.messages
+                    .single()
+            assertEquals("uuid-tool", message.id)
+            assertEquals("rest-session-456-42", message.restId)
+            assertEquals("terminal", message.toolName)
+            assertEquals(setOf("uuid-tool", "rest-session-456-42"), fakeRepo.dao.idsForSession("session-456"))
+        }
+
+    @Test
+    fun paging_emptyServerPageDoesNotHideOlderOfflineHistory() =
+        runTest {
+            val api = ApiClient.hermesApi
+            val expectedIds = seedPagingCache(350)
+            val (viewModel, _) = createViewModelWithSession()
+            coEvery {
+                api.getSessionMessages("session-456", any(), any(), any(), any())
+            } returns pagingResponse(IntRange.EMPTY)
+
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+
+            assertEquals(150, viewModel.uiState.value.messages.size)
+            assertTrue(viewModel.uiState.value.hasOlderMessages)
+            viewModel.loadOlderMessages()
+            advanceUntilIdle()
+            assertEquals(300, viewModel.uiState.value.messages.size)
+            assertEquals(expectedIds.toSet(), fakeRepo.dao.idsForSession("session-456"))
+        }
+
+    @Test
+    fun paging_cacheFirst_serverHydrationDoesNotInflateInitialWindow() =
+        runTest {
+            val api = ApiClient.hermesApi
+            seedPagingCache(10_000)
+            val response =
+                CompletableDeferred<retrofit2.Response<com.m57.hermescontrol.data.model.SessionMessagesResponse>>()
+            val (viewModel, _) = createViewModelWithSession()
+            coEvery {
+                api.getSessionMessages("session-456", any(), any(), any(), any())
+            } coAnswers { response.await() }
+
+            viewModel.switchSession("session-456")
+            runCurrent()
+            val cacheSize = viewModel.uiState.value.messages.size
+            response.complete(pagingResponse(1..150))
+            advanceUntilIdle()
+
+            assertEquals(150, cacheSize)
+            assertEquals(300, viewModel.uiState.value.messages.size)
+            assertFalse(viewModel.uiState.value.isLoading)
+            assertTrue(viewModel.uiState.value.hasOlderMessages)
+            assertEquals(0, fakeRepo.dao.fullSessionReads)
+        }
+
+    @Test
+    fun paging_serverFirst_cacheCursorStillAllowsOfflineHistory() =
+        runTest {
+            val api = ApiClient.hermesApi
+            seedPagingCache(350)
+            val cacheRead = CompletableDeferred<Unit>()
+            fakeRepo.dao.beforeRead = { cacheRead.await() }
+            val (viewModel, _) = createViewModelWithSession()
+            coEvery {
+                api.getSessionMessages("session-456", any(), any(), any(), any())
+            } returns pagingResponse(IntRange.EMPTY)
+
+            viewModel.switchSession("session-456")
+            runCurrent()
+            cacheRead.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(150, viewModel.uiState.value.messages.size)
+            assertTrue(viewModel.uiState.value.hasOlderMessages)
+            viewModel.loadOlderMessages()
+            advanceUntilIdle()
+            assertEquals(300, viewModel.uiState.value.messages.size)
+            assertFalse(viewModel.uiState.value.isLoadingOlder)
+        }
+
+    @Test
+    fun paging_pendingOlderPageIsSuppressedAndFailureAllowsRetry() =
+        runTest {
+            val api = ApiClient.hermesApi
+            val (viewModel, _) = createViewModelWithSession()
+            coEvery {
+                api.getSessionMessages("session-456", any(), any(), any(), any())
+            } returns pagingResponse(151..300)
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+            val pending =
+                CompletableDeferred<retrofit2.Response<com.m57.hermescontrol.data.model.SessionMessagesResponse>>()
+            coEvery {
+                api.getSessionMessages("session-456", 150, 150, "latest", any())
+            } coAnswers { pending.await() }
+
+            viewModel.loadOlderMessages()
+            runCurrent()
+            repeat(5) { viewModel.loadOlderMessages() }
+            runCurrent()
+            coVerify(exactly = 1) {
+                api.getSessionMessages("session-456", 150, 150, "latest", any())
+            }
+            assertTrue(viewModel.uiState.value.isLoadingOlder)
+            pending.complete(retrofit2.Response.error(500, okhttp3.ResponseBody.create(null, "test failure")))
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.isLoadingOlder)
+            assertTrue(viewModel.uiState.value.hasOlderMessages)
+
+            coEvery {
+                api.getSessionMessages("session-456", 150, 150, "latest", any())
+            } returns pagingResponse(1..150, offset = 150)
+            viewModel.loadOlderMessages()
+            advanceUntilIdle()
+            assertEquals(300, viewModel.uiState.value.messages.size)
+            assertFalse(viewModel.uiState.value.isLoadingOlder)
+        }
+
+    @Test
+    fun paging_oldSessionResponseCannotReplaceNewSession() =
+        runTest {
+            val api = ApiClient.hermesApi
+            val (viewModel, _) = createViewModelWithSession()
+            coEvery {
+                api.getSessionMessages("session-456", any(), any(), any(), any())
+            } returns pagingResponse(151..300)
+            coEvery {
+                api.getSessionMessages("session-other", any(), any(), any(), any())
+            } returns pagingResponse(900..900)
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+            val pending =
+                CompletableDeferred<retrofit2.Response<com.m57.hermescontrol.data.model.SessionMessagesResponse>>()
+            coEvery {
+                api.getSessionMessages("session-456", 150, 150, "latest", any())
+            } coAnswers { pending.await() }
+
+            viewModel.loadOlderMessages()
+            runCurrent()
+            viewModel.switchSession("session-other")
+            runCurrent()
+            pending.complete(pagingResponse(1..150, offset = 150))
+            advanceUntilIdle()
+
+            assertEquals("session-other", viewModel.uiState.value.currentSessionId)
+            assertEquals(
+                listOf("rest-session-other-900"),
+                viewModel.uiState.value.messages
+                    .map { it.id },
+            )
+            assertFalse(viewModel.uiState.value.isLoadingOlder)
+        }
+
+    /** Holds CPU continuations without sleeping or starting a real thread. */
+    private class QueuedHistoryDispatcher : kotlinx.coroutines.CoroutineDispatcher() {
+        private val queue = ArrayDeque<Runnable>()
+        val pending: Boolean get() = queue.isNotEmpty()
+
+        override fun dispatch(
+            context: kotlin.coroutines.CoroutineContext,
+            block: Runnable,
+        ) {
+            queue.addLast(block)
+        }
+
+        fun runNext() = queue.removeFirst().run()
+    }
+
+    private fun TestScope.drainHistory(dispatcher: QueuedHistoryDispatcher) {
+        repeat(100) {
+            runCurrent()
+            if (!dispatcher.pending) return
+            dispatcher.runNext()
+        }
+        error("History did not settle after 100 CPU continuations")
+    }
+
+    @Test
+    fun paging_liveMessageArrivingBeforeComputedSnapshotCommitSurvives() =
+        runTest {
+            val api = ApiClient.hermesApi
+            val cpu = QueuedHistoryDispatcher()
+            val (viewModel, _) = createViewModelWithSession(historyDispatcher = cpu)
+            coEvery {
+                api.getSessionMessages("session-456", any(), any(), any(), any())
+            } returns pagingResponse(1..150)
+            viewModel.switchSession("session-456")
+            runCurrent()
+            // Cache query runs first; hydration has already captured an empty snapshot.
+            cpu.runNext()
+            runCurrent()
+            mockEventsFlow.emit(WsEvent.MessageComplete("Live during merge", "session-456"))
+            cpu.runNext()
+            // The queued WS event runs before the computed result can commit on Main.
+            runCurrent()
+            drainHistory(cpu)
+
+            val messages = viewModel.uiState.value.messages
+            assertEquals(151, messages.size)
+            assertEquals(1, messages.count { it.content == "Live during merge" })
+            assertFalse(viewModel.uiState.value.isLoading)
+        }
+
+    @Test
+    fun paging_sessionSwitchDiscardsQueuedCpuResult() =
+        runTest {
+            val api = ApiClient.hermesApi
+            val cpu = QueuedHistoryDispatcher()
+            val (viewModel, _) = createViewModelWithSession(historyDispatcher = cpu)
+            coEvery {
+                api.getSessionMessages("session-456", any(), any(), any(), any())
+            } returns pagingResponse(1..150)
+            coEvery {
+                api.getSessionMessages("session-other", any(), any(), any(), any())
+            } returns pagingResponse(900..900)
+            viewModel.switchSession("session-456")
+            runCurrent()
+            cpu.runNext()
+            runCurrent()
+            cpu.runNext()
+            viewModel.switchSession("session-other")
+            drainHistory(cpu)
+
+            assertEquals("session-other", viewModel.uiState.value.currentSessionId)
+            assertEquals(
+                listOf("rest-session-other-900"),
+                viewModel.uiState.value.messages
+                    .map { it.id },
+            )
+            assertFalse(viewModel.uiState.value.isLoading)
+        }
+
+    @Test
+    fun paging_reconnectInvalidatesPendingOlderRequestAndItsCursor() =
+        runTest {
+            val api = ApiClient.hermesApi
+            val (viewModel, _) = createViewModelWithSession()
+            coEvery {
+                api.getSessionMessages("session-456", any(), any(), any(), any())
+            } returns pagingResponse(301..450)
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+            val oldResumeId = sentRequestMethods.last { it.first == WsMethods.SESSION_RESUME }.second
+            mockEventsFlow.emit(WsEvent.RpcResult(oldResumeId, mapOf("session_id" to "runtime-456")))
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isSessionReady)
+            val pending =
+                CompletableDeferred<retrofit2.Response<com.m57.hermescontrol.data.model.SessionMessagesResponse>>()
+            coEvery {
+                api.getSessionMessages("session-456", 150, 150, "latest", any())
+            } coAnswers { pending.await() }
+            viewModel.loadOlderMessages()
+            runCurrent()
+
+            coEvery {
+                api.getSessionMessages("session-456", 150, 0, "latest", any())
+            } returns pagingResponse(501..650)
+            mockConnectionStatus.value = ConnectionStatus.RECONNECTING
+            runCurrent()
+            assertFalse(viewModel.uiState.value.isSessionReady)
+            assertFalse(viewModel.uiState.value.isLoadingOlder)
+            assertFalse(viewModel.sendMessage("preserved draft"))
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            runCurrent()
+            pending.complete(pagingResponse(1..150, offset = 150))
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.isLoadingOlder)
+            assertFalse(
+                viewModel.uiState.value.messages
+                    .any { it.id == "rest-session-456-1" },
+            )
+
+            mockEventsFlow.emit(WsEvent.RpcResult(oldResumeId, mapOf("session_id" to "stale-runtime")))
+            runCurrent()
+            assertFalse(viewModel.uiState.value.isSessionReady)
+            val freshResumeId = sentRequestMethods.last { it.first == WsMethods.SESSION_RESUME }.second
+            mockEventsFlow.emit(WsEvent.RpcResult(freshResumeId, mapOf("session_id" to "fresh-runtime")))
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isSessionReady)
+            coEvery {
+                api.getSessionMessages("session-456", 150, 150, "latest", any())
+            } returns pagingResponse(351..500, offset = 150)
+            viewModel.loadOlderMessages()
+            advanceUntilIdle()
+            assertTrue(
+                viewModel.uiState.value.messages
+                    .any { it.id == "rest-session-456-500" },
+            )
+            coVerify(exactly = 0) {
+                api.getSessionMessages("session-456", 150, 300, "latest", any())
+            }
+        }
+
+    @Test
+    fun paging_offlineCacheRemainsReadableAndFreshResumeRestoresSendReadiness() =
+        runTest {
+            val ids = seedPagingCache(350)
+            stubSession456Rests(success = false)
+            val (viewModel, _) = createViewModelWithSession()
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.isSessionReady)
+            assertFalse(viewModel.sendMessage("draft"))
+            mockConnectionStatus.value = ConnectionStatus.NO_NETWORK
+            runCurrent()
+            viewModel.loadOlderMessages()
+            advanceUntilIdle()
+            assertEquals(
+                ids.takeLast(300),
+                viewModel.uiState.value.messages
+                    .map { it.id },
+            )
+            assertFalse(viewModel.uiState.value.isLoadingOlder)
+            val api = ApiClient.hermesApi
+            coEvery {
+                api.getSessionMessages("session-456", any(), any(), any(), any())
+            } returns pagingResponse(IntRange.EMPTY)
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.isSessionReady)
+            val resumeId = sentRequestMethods.last { it.first == WsMethods.SESSION_RESUME }.second
+            mockEventsFlow.emit(WsEvent.RpcResult(resumeId, mapOf("session_id" to "runtime-456")))
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isSessionReady)
+            assertTrue(viewModel.sendMessage("draft"))
+            advanceUntilIdle()
+            assertEquals(
+                1,
+                viewModel.uiState.value.messages
+                    .count { it.content == "draft" },
+            )
+        }
+
+    @Test
+    fun paging_cacheAndServerCursorsAdvanceIndependently() =
+        runTest {
+            val api = ApiClient.hermesApi
+            val cachedIds = seedPagingCache(350)
+            val (viewModel, _) = createViewModelWithSession()
+            coEvery {
+                api.getSessionMessages("session-456", any(), any(), any(), any())
+            } returns pagingResponse(151..300)
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+            repeat(2) {
+                viewModel.loadOlderMessages()
+                advanceUntilIdle()
+            }
+            coVerify(exactly = 1) {
+                api.getSessionMessages("session-456", any(), any(), any(), any())
+            }
+            assertEquals(
+                cachedIds.toSet() + (151..300).map { "rest-session-456-$it" },
+                viewModel.uiState.value.messages
+                    .map { it.id }
+                    .toSet(),
+            )
+            coEvery {
+                api.getSessionMessages("session-456", 150, 150, "latest", any())
+            } returns pagingResponse(1..150, offset = 150)
+            viewModel.loadOlderMessages()
+            advanceUntilIdle()
+
+            // The remaining cache page contains only the latest REST rows already on screen.
+            // This same action must reach the independent server cursor, not stop on those echoes.
+            coVerify(exactly = 1) {
+                api.getSessionMessages("session-456", 150, 150, "latest", any())
+            }
+            val expectedIds = cachedIds.toSet() + (1..300).map { "rest-session-456-$it" }
+            assertEquals(650, viewModel.uiState.value.messages.size)
+            assertEquals(
+                expectedIds,
+                viewModel.uiState.value.messages
+                    .map { it.id }
+                    .toSet(),
+            )
+            assertEquals(expectedIds, fakeRepo.dao.idsForSession("session-456"))
+            assertFalse(viewModel.uiState.value.isLoadingOlder)
+            assertEquals(0, fakeRepo.dao.fullSessionReads)
+            assertTrue(fakeRepo.dao.pageLimits.all { it == 151 })
+        }
+
+    @Test
+    fun paging_latestGrowthBetweenPagesAndSyncNeverSkipsOlderRows() =
+        runTest {
+            val api = ApiClient.hermesApi
+            val (viewModel, _) = createViewModelWithSession()
+            var total = 450
+            coEvery {
+                api.getSessionMessages("session-456", any(), any(), any(), any())
+            } coAnswers {
+                val offset = arg<Int>(2)
+                val end = (total - offset).coerceAtLeast(0)
+                val start = (end - 150).coerceAtLeast(0) + 1
+                pagingResponse(start..end, offset)
+            }
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+            viewModel.loadOlderMessages()
+            advanceUntilIdle()
+            total = 460
+            viewModel.syncCurrentSession()
+            advanceUntilIdle()
+            repeat(2) {
+                viewModel.loadOlderMessages()
+                advanceUntilIdle()
+            }
+
+            assertEquals(
+                (1..460).map { "rest-session-456-$it" }.toSet(),
+                viewModel.uiState.value.messages
+                    .map { it.id }
+                    .toSet(),
+            )
+            assertFalse(viewModel.uiState.value.hasOlderMessages)
+        }
+
+    @Test
+    fun paging_rawHiddenRowsStillAdvanceServerCursor() =
+        runTest {
+            val api = ApiClient.hermesApi
+            val (viewModel, _) = createViewModelWithSession()
+            val response = pagingResponse(1..150).body()!!
+            coEvery {
+                api.getSessionMessages("session-456", any(), any(), any(), any())
+            } returns
+                retrofit2.Response.success(
+                    response.copy(messages = response.messages.map { it.copy(content = JsonPrimitive("")) }),
+                )
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.hasOlderMessages)
+            coEvery {
+                api.getSessionMessages("session-456", 150, 150, "latest", any())
+            } returns pagingResponse(IntRange.EMPTY, offset = 150)
+            viewModel.loadOlderMessages()
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.hasOlderMessages)
+            coVerify(exactly = 1) {
+                api.getSessionMessages("session-456", 150, 150, "latest", any())
+            }
+        }
+
+    @Test
+    fun paging_cacheReadExceptionSettlesAndAllowsRetry() =
+        runTest {
+            val ids = seedPagingCache(350)
+            stubSession456Rests(success = false)
+            fakeRepo.dao.beforeRead = { error("Synthetic Room read failure") }
+            val (viewModel, _) = createViewModelWithSession()
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.isLoading)
+            assertTrue(viewModel.uiState.value.hasOlderMessages)
+            fakeRepo.dao.beforeRead = {}
+            viewModel.loadOlderMessages()
+            advanceUntilIdle()
+
+            assertEquals(
+                ids.takeLast(150),
+                viewModel.uiState.value.messages
+                    .map { it.id },
+            )
+            assertFalse(viewModel.uiState.value.isLoadingOlder)
+        }
+
+    @Test
+    fun paging_mapperExceptionSettlesAndRetriesSameServerOffset() =
+        runTest {
+            val api = ApiClient.hermesApi
+            val (viewModel, _) = createViewModelWithSession()
+            coEvery {
+                api.getSessionMessages("session-456", any(), any(), any(), any())
+            } returns pagingResponse(151..300)
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+            val invalid = pagingResponse(1..150, 150).body()!!
+            coEvery {
+                api.getSessionMessages("session-456", 150, 150, "latest", any())
+            } returns retrofit2.Response.success(invalid.copy(messages = invalid.messages.map { it.copy(id = null) }))
+            viewModel.loadOlderMessages()
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.isLoadingOlder)
+            assertTrue(viewModel.uiState.value.hasOlderMessages)
+            coEvery {
+                api.getSessionMessages("session-456", 150, 150, "latest", any())
+            } returns pagingResponse(1..150, 150)
+            viewModel.loadOlderMessages()
+            advanceUntilIdle()
+            assertEquals(300, viewModel.uiState.value.messages.size)
+        }
+
+    private suspend fun TestScope.assertOverlappingHistoryPageKeepsOrder(equalTimestamps: Boolean) {
+        val api = ApiClient.hermesApi
+        val (viewModel, _) = createViewModelWithSession()
+        (1..350).forEach { index ->
+            fakeRepo.dao.addMessageDirect(
+                com.m57.hermescontrol.data.local.ChatMessageEntity(
+                    id = "rest-session-456-$index",
+                    sessionId = "session-456",
+                    role = "ASSISTANT",
+                    content = "Server message $index",
+                    timestamp = if (equalTimestamps) 1_000L else index * 1_000L,
+                ),
+            )
+        }
+        coEvery { api.getSessionMessages("session-456", any(), any(), any(), any()) } coAnswers {
+            val offset = arg<Int>(2)
+            val end = 350 - offset
+            val response = pagingResponse((end - 149).coerceAtLeast(1)..end, offset).body()!!
+            retrofit2.Response.success(
+                if (equalTimestamps) {
+                    response.copy(messages = response.messages.map { it.copy(timestamp = JsonPrimitive(1)) })
+                } else {
+                    response
+                },
+            )
+        }
+        viewModel.switchSession("session-456")
+        advanceUntilIdle()
+        repeat(2) {
+            viewModel.loadOlderMessages()
+            advanceUntilIdle()
+        }
+        val before =
+            viewModel.uiState.value.messages
+                .map { it.id }
+        assertEquals((1..350).map { "rest-session-456-$it" }.toSet(), before.toSet())
+        assertEquals(350, before.size)
+        coVerify(exactly = 1) { api.getSessionMessages("session-456", any(), any(), any(), any()) }
+        // Local history is exhausted. Both subsequent server pages overlap it completely.
+        repeat(2) {
+            viewModel.loadOlderMessages()
+            advanceUntilIdle()
+            assertEquals(
+                before,
+                viewModel.uiState.value.messages
+                    .map { it.id },
+            )
+        }
+        assertFalse(viewModel.uiState.value.hasOlderMessages)
+        coVerify(exactly = 1) { api.getSessionMessages("session-456", 150, 150, "latest", any()) }
+        coVerify(exactly = 1) { api.getSessionMessages("session-456", 150, 300, "latest", any()) }
+    }
+
+    @Test
+    fun paging_cacheExhaustedOverlappingServerPageKeepsExistingOrder() =
+        runTest { assertOverlappingHistoryPageKeepsOrder(equalTimestamps = false) }
+
+    @Test
+    fun paging_cacheExhaustedOverlapWithEqualTimestampsKeepsExistingOrder() =
+        runTest { assertOverlappingHistoryPageKeepsOrder(equalTimestamps = true) }
 
     // ── Attachment open (issue #724) ─────────────────────────────────────
 

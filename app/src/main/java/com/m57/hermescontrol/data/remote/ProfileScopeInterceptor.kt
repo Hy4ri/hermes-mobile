@@ -18,18 +18,16 @@ import okhttp3.Response
  *  - If no profile is active, pass through unchanged (legacy "default" behavior).
  *  - If the URL already carries an explicit `profile=` query, leave it
  *    untouched — explicit beats global.
- *  - Only the endpoint families below honor `?profile=` on the backend;
- *    everything else (ops, pairing, profiles themselves) is machine-global
- *    or self-scoped and must NOT be rewritten. Cron, sessions and plugins
- *    are profile-scoped on the backend (`/api/cron/jobs?profile=`,
- *    `/api/sessions?profile=`, plugin REST) and ARE rewritten here so
- *    switching profiles actually switches what the app shows.
+ *  - Only backend-confirmed profile-aware endpoints are rewritten. Ops is
+ *    intentionally classified route-by-route instead of matching `/api/ops`
+ *    wholesale, so future machine-global operations stay untouched.
  */
 object ProfileScopeInterceptor : Interceptor {
     private val PROFILE_SCOPED_PREFIXES =
         listOf(
             "/api/analytics",
             "/api/config",
+            "/api/credentials/pool",
             "/api/cron",
             "/api/env",
             "/api/gateway",
@@ -48,6 +46,28 @@ object ProfileScopeInterceptor : Interceptor {
             "/api/skills",
             "/api/status",
             "/api/tools/toolsets",
+            "/api/webhooks",
+        )
+
+    /**
+     * Mobile-used Ops handlers that accept `?profile=` in Hermes Agent.
+     *
+     * Keep this explicit rather than adding `/api/ops`: these routes are
+     * profile-owned today, while the family itself is not a blanket scoping
+     * contract. See `hermes_cli/web_routers/ops.py` and `status.py`.
+     */
+    private val PROFILE_SCOPED_OPS_PREFIXES =
+        listOf(
+            "/api/ops/backup",
+            "/api/ops/checkpoints",
+            "/api/ops/config-migrate",
+            "/api/ops/debug-share",
+            "/api/ops/doctor",
+            "/api/ops/dump",
+            "/api/ops/hooks",
+            "/api/ops/import-upload",
+            "/api/ops/prompt-size",
+            "/api/ops/security-audit",
         )
 
     /**
@@ -55,8 +75,14 @@ object ProfileScopeInterceptor : Interceptor {
      * e.g. `/api/status` or `/api/status/health`, but NOT `/api/statusXYZ`
      * or `/api/gatewayExtra` (Sourcery review, PR #540).
      */
+    private fun matchesPrefix(
+        path: String,
+        prefix: String,
+    ): Boolean = path == prefix || path.startsWith("$prefix/")
+
     private fun isProfileScopedPath(path: String): Boolean =
-        PROFILE_SCOPED_PREFIXES.any { prefix -> path == prefix || path.startsWith("$prefix/") }
+        PROFILE_SCOPED_PREFIXES.any { prefix -> matchesPrefix(path, prefix) } ||
+            PROFILE_SCOPED_OPS_PREFIXES.any { prefix -> matchesPrefix(path, prefix) }
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()

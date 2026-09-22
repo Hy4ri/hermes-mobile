@@ -4,8 +4,10 @@ import com.m57.hermescontrol.data.local.AuthManager
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.RecordedRequest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -46,6 +48,21 @@ class ProfileScopeInterceptorTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
         val req = Request.Builder().url(server.url("api/config")).build()
         client.newCall(req).execute().close()
+        return server.takeRequest().requestUrl!!
+    }
+
+    private fun requestedUrl(
+        client: OkHttpClient,
+        path: String,
+        method: String = "GET",
+    ): HttpUrl {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+        val builder = Request.Builder().url(server.url(path))
+        when (method) {
+            "DELETE" -> builder.delete()
+            else -> builder.get()
+        }
+        client.newCall(builder.build()).execute().close()
         return server.takeRequest().requestUrl!!
     }
 
@@ -128,6 +145,100 @@ class ProfileScopeInterceptorTest {
             val url = server.takeRequest().requestUrl!!
             assertEquals("yasmin", url.queryParameter("profile"))
             assertEquals("/$path", url.encodedPath)
+        }
+    }
+
+    @Test
+    fun newlyScopedReads_followActiveProfileAcrossSwitches() {
+        val client = clientFor("alpha")
+
+        assertEquals("alpha", requestedUrl(client, "api/webhooks").queryParameter("profile"))
+        AuthManager.setActiveProfileId("beta")
+        assertEquals("beta", requestedUrl(client, "api/credentials/pool").queryParameter("profile"))
+        AuthManager.setActiveProfileId("alpha")
+        assertEquals("alpha", requestedUrl(client, "api/ops/hooks").queryParameter("profile"))
+    }
+
+    @Test
+    fun newlyScopedMutations_followActiveProfileAcrossSwitches() {
+        val client = clientFor("alpha")
+
+        assertEquals(
+            "alpha",
+            requestedUrl(client, "api/webhooks/build-events", method = "DELETE").queryParameter("profile"),
+        )
+        AuthManager.setActiveProfileId("beta")
+        assertEquals(
+            "beta",
+            requestedUrl(client, "api/credentials/pool/openai/1", method = "DELETE").queryParameter("profile"),
+        )
+        AuthManager.setActiveProfileId("alpha")
+        assertEquals(
+            "alpha",
+            requestedUrl(client, "api/ops/hooks", method = "DELETE").queryParameter("profile"),
+        )
+    }
+
+    @Test
+    fun mobileUsedOpsRoutes_areScopedWithoutBlanketOpsMatch() {
+        val client = clientFor("work")
+        val paths =
+            listOf(
+                "api/ops/backup",
+                "api/ops/backup/download",
+                "api/ops/doctor",
+                "api/ops/security-audit",
+                "api/ops/prompt-size",
+                "api/ops/dump",
+                "api/ops/config-migrate",
+                "api/ops/import-upload",
+                "api/ops/debug-share",
+                "api/ops/checkpoints",
+                "api/ops/checkpoints/prune",
+                "api/ops/hooks",
+            )
+
+        for (path in paths) {
+            val url = requestedUrl(client, path)
+            assertEquals("work", url.queryParameter("profile"))
+        }
+
+        val unclassified = requestedUrl(client, "api/ops/machine-global")
+        assertNull(unclassified.queryParameter("profile"))
+    }
+
+    @Test
+    fun destructiveWebhookDelete_avoidsMultiplexUnnamedProfile400() {
+        server.dispatcher =
+            object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse =
+                    if (request.requestUrl?.queryParameter("profile").isNullOrBlank()) {
+                        MockResponse().setResponseCode(400)
+                    } else {
+                        MockResponse().setResponseCode(200)
+                    }
+            }
+
+        val unscopedClient = clientFor(null)
+        val unscopedRequest =
+            Request
+                .Builder()
+                .url(server.url("api/webhooks/build-events"))
+                .delete()
+                .build()
+        unscopedClient.newCall(unscopedRequest).execute().use { response ->
+            assertEquals(400, response.code)
+        }
+
+        val scopedClient = clientFor("beta")
+        val scopedRequest =
+            Request
+                .Builder()
+                .url(server.url("api/webhooks/build-events"))
+                .delete()
+                .build()
+        scopedClient.newCall(scopedRequest).execute().use { response ->
+            assertEquals(200, response.code)
         }
     }
 

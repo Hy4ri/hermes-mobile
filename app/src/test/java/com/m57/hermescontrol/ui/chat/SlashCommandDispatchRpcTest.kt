@@ -53,11 +53,13 @@ class SlashCommandDispatchRpcTest {
     private lateinit var app: Application
     private lateinit var fakeRepo: FakeChatPersistenceRepository
     private var reqCount = 0
+    private var sessionCreateRequestId: String? = null
 
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
         reqCount = 0
+        sessionCreateRequestId = null
 
         mockkStatic(android.util.Log::class)
         every { android.util.Log.d(any(), any()) } returns 0
@@ -114,6 +116,9 @@ class SlashCommandDispatchRpcTest {
         every { HermesWsClient.send(any(), any(), any()) } answers {
             reqCount++
             val id = "req-id-$reqCount"
+            if (arg<String>(0) == WsMethods.SESSION_CREATE) {
+                sessionCreateRequestId = id
+            }
             arg<((String) -> Unit)?>(2)?.invoke(id)
             id
         }
@@ -152,8 +157,8 @@ class SlashCommandDispatchRpcTest {
         mockConnectionStatus.value = ConnectionStatus.CONNECTED
         mockEventsFlow.emit(WsEvent.GatewayReady(null))
         advanceUntilIdle()
-        // req-id-3 = session.create (after loadSessions + fetchCommandCatalog)
-        mockEventsFlow.emit(WsEvent.RpcResult("req-id-3", mapOf("session_id" to "session-xyz")))
+        val createRequestId = requireNotNull(sessionCreateRequestId) { "session.create was not sent" }
+        mockEventsFlow.emit(WsEvent.RpcResult(createRequestId, mapOf("session_id" to "session-xyz")))
         advanceUntilIdle()
         return Pair(vm, "session-xyz")
     }

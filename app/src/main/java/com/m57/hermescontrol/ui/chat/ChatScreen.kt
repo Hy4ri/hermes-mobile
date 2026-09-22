@@ -32,6 +32,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
@@ -86,12 +87,14 @@ import com.m57.hermescontrol.notification.NotificationHelper
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.chat.components.ChatAppUpdateSection
 import com.m57.hermescontrol.ui.chat.components.ChatConnectionBanner
+import com.m57.hermescontrol.ui.chat.components.ChatHistoryWindowBanner
 import com.m57.hermescontrol.ui.chat.components.ChatInputBar
 import com.m57.hermescontrol.ui.chat.components.ChatLifecycleEffects
 import com.m57.hermescontrol.ui.chat.components.ChatLoadingOverlay
 import com.m57.hermescontrol.ui.chat.components.ChatResumeErrorOverlay
 import com.m57.hermescontrol.ui.chat.components.ChatScrollToBottomFab
 import com.m57.hermescontrol.ui.chat.components.ChatTimelineNoPrefetchStrategy
+import com.m57.hermescontrol.ui.chat.components.ChatTimelineSheet
 import com.m57.hermescontrol.ui.chat.components.ContextDetailSheet
 import com.m57.hermescontrol.ui.chat.components.ContextUsageChip
 import com.m57.hermescontrol.ui.chat.components.ReactionHeartsOverlay
@@ -149,6 +152,7 @@ fun ChatScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val streamingState by viewModel.streamingState.collectAsStateWithLifecycle()
+    val timelineState by viewModel.timelineState.collectAsStateWithLifecycle()
     val credentialWarning by HermesWsClient.credentialWarning.collectAsStateWithLifecycle()
     val connectorsViewModel: ChatConnectorsViewModel = viewModel()
     val connectorsState by connectorsViewModel.uiState.collectAsStateWithLifecycle()
@@ -156,6 +160,7 @@ fun ChatScreen(
     // Snapshot-backed search state — read directly so only the scopes that
     // read its fields recompose on search changes (bar, matched bubbles).
     val searchState = viewModel.searchState
+    val displayedMessages = timelineState.historyMessages ?: state.messages
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
     var browserAuthInFlight by rememberSaveable { mutableStateOf(false) }
@@ -275,6 +280,7 @@ fun ChatScreen(
     // (issue #682). Replaces the old item-count heuristic that ignored the
     // streaming tail.
     LaunchedEffect(
+        timelineState.isHistorical,
         state.messages,
         streamingState.streamingMessage,
         streamingState.isThinking,
@@ -282,6 +288,10 @@ fun ChatScreen(
         state.todos,
         state.clarifyRequest,
     ) {
+        if (timelineState.isHistorical) {
+            scrollController.pauseFollowing()
+            return@LaunchedEffect
+        }
         scrollController.onTailChanged(
             tailKey =
                 tailContentKey(
@@ -294,9 +304,15 @@ fun ChatScreen(
             messageCount = state.messages.size,
         )
     }
-    val showScrollToBottom by remember {
+    LaunchedEffect(timelineState.historyAnchorRowId) {
+        if (timelineState.isHistorical && displayedMessages.isNotEmpty()) {
+            scrollController.pauseFollowing()
+            listState.scrollToItem(0)
+        }
+    }
+    val showScrollToBottom by remember(timelineState.isHistorical, displayedMessages) {
         derivedStateOf {
-            scrollController.showFab(state.messages.isNotEmpty())
+            !timelineState.isHistorical && scrollController.showFab(displayedMessages.isNotEmpty())
         }
     }
     var inputFieldValue by rememberSaveable(stateSaver = TextFieldValue.Saver) {
@@ -406,7 +422,8 @@ fun ChatScreen(
             !showSubagentInspectionSheet &&
             state.btwState == null &&
             viewingImage == null &&
-            !connectorsState.isVisible
+            !connectorsState.isVisible &&
+            !timelineState.isOpen
 
     // Lifecycle effects, permissions, session switching, auto-scroll, errors
     ChatLifecycleEffects(
@@ -509,6 +526,22 @@ fun ChatScreen(
                     expanded = showSessionMenu,
                     onDismissRequest = { showSessionMenu = false },
                 ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.chat_action_timeline)) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Filled.History,
+                                contentDescription = null,
+                            )
+                        },
+                        enabled = state.currentSessionId != null,
+                        onClick = {
+                            showSessionMenu = false
+                            viewModel.openTimeline()
+                        },
+                        modifier = Modifier.testTag("chat_menu_timeline"),
+                    )
+
                     // Chat search lives in this overflow menu (moved from the top bar)
                     DropdownMenuItem(
                         text = {
@@ -533,6 +566,7 @@ fun ChatScreen(
                             showSessionMenu = false
                             viewModel.toggleSearch()
                         },
+                        enabled = !timelineState.isHistorical,
                         modifier = Modifier.testTag("chat_menu_search"),
                     )
 
@@ -623,6 +657,15 @@ fun ChatScreen(
                 }
             }
 
+            if (timelineState.isHistorical) {
+                ChatHistoryWindowBanner(
+                    onReturnToLatest = {
+                        viewModel.returnToLatestMessages()
+                        scrollController.jumpToBottom()
+                    },
+                )
+            }
+
             Box(
                 modifier =
                     Modifier
@@ -659,37 +702,44 @@ fun ChatScreen(
                 // Full-bleed chat renderer (issue #866) — the single chat
                 // surface since the bubble renderer was removed.
                 FullBleedChatList(
-                    messages = state.messages,
-                    streamingState = streamingState,
-                    isAgentTyping = state.isAgentTyping,
+                    messages = displayedMessages,
+                    streamingState = if (timelineState.isHistorical) StreamingState() else streamingState,
+                    isAgentTyping = state.isAgentTyping && !timelineState.isHistorical,
                     searchState = searchState,
-                    typingEffectEnabled = state.typingEffectEnabled,
+                    typingEffectEnabled = state.typingEffectEnabled && !timelineState.isHistorical,
                     typingEffectDelayMs = state.typingEffectDelayMs,
                     messageStatsEnabled = state.messageStatsEnabled,
                     showUserMessageTokens = state.showUserMessageTokens,
                     showAssistantMessageTokens = state.showAssistantMessageTokens,
                     showTokensPerSecond = state.showTokensPerSecond,
                     maxToolCallsPerTurn = state.maxToolCallsPerTurn,
-                    isLoading = state.isLoading,
-                    isLoadingOlder = state.isLoadingOlder,
-                    hasOlderMessages = state.hasOlderMessages,
-                    pagingSessionId = state.currentSessionId,
+                    isLoading = state.isLoading && !timelineState.isHistorical,
+                    isLoadingOlder = state.isLoadingOlder && !timelineState.isHistorical,
+                    hasOlderMessages = state.hasOlderMessages && !timelineState.isHistorical,
+                    pagingSessionId =
+                        state.currentSessionId?.let { currentSessionId ->
+                            if (timelineState.isHistorical) {
+                                currentSessionId + ":history:" + timelineState.historyAnchorRowId
+                            } else {
+                                currentSessionId
+                            }
+                        },
                     listState = listState,
                     scrollController = scrollController,
                     lastAnimatedMessageId = lastAnimatedMessageId,
                     onLastAnimatedMessageIdChange = { lastAnimatedMessageId = it },
                     viewModel = viewModel,
-                    clarifyRequest = state.clarifyRequest,
+                    clarifyRequest = state.clarifyRequest.takeUnless { timelineState.isHistorical },
                     onRespondClarify = viewModel::respondToClarify,
                     onRespondClarifyBatch = viewModel::respondToClarifyBatch,
                     onDismissClarify = viewModel::dismissClarify,
-                    vaultUnlockPrompt = state.vaultUnlockPrompt,
+                    vaultUnlockPrompt = state.vaultUnlockPrompt.takeUnless { timelineState.isHistorical },
                     onRespondVaultUnlock = viewModel::respondToVaultUnlock,
                     onDismissVaultUnlock = viewModel::dismissVaultUnlock,
-                    vaultSaveLoginPrompt = state.vaultSaveLoginPrompt,
+                    vaultSaveLoginPrompt = state.vaultSaveLoginPrompt.takeUnless { timelineState.isHistorical },
                     onRespondVaultSaveLogin = viewModel::respondToVaultSaveLogin,
                     onDismissVaultSaveLogin = viewModel::dismissVaultSaveLogin,
-                    vaultCodePrompt = state.vaultCodePrompt,
+                    vaultCodePrompt = state.vaultCodePrompt.takeUnless { timelineState.isHistorical },
                     onRespondVaultCode = viewModel::respondToVaultCode,
                     onDismissVaultCode = viewModel::dismissVaultCode,
                     onSaveAttachment = onSaveAttachment,
@@ -699,14 +749,18 @@ fun ChatScreen(
                 )
 
                 // Loading overlay
-                ChatLoadingOverlay(isLoading = state.isLoading && state.resumeError == null)
+                ChatLoadingOverlay(
+                    isLoading = state.isLoading && state.resumeError == null && !timelineState.isHistorical,
+                )
 
                 // Resume-exhausted overlay — explicit error + Retry instead
                 // of an infinite spinner (desktop parity).
-                ChatResumeErrorOverlay(
-                    errorMessage = state.resumeError,
-                    onRetry = viewModel::retryResumeSession,
-                )
+                if (!timelineState.isHistorical) {
+                    ChatResumeErrorOverlay(
+                        errorMessage = state.resumeError,
+                        onRetry = viewModel::retryResumeSession,
+                    )
+                }
 
                 // Scroll-to-bottom FAB (issue #682): shows while follow is
                 // paused and renders the unseen-message badge.
@@ -718,10 +772,12 @@ fun ChatScreen(
 
                 // Reaction heartsanimation (purely cosmetic — fades out
                 // automatically after the ViewModel clears the state)
-                key(state.reactionTriggerId) {
-                    ReactionHeartsOverlay(
-                        reactionKind = state.reactionKind,
-                    )
+                if (!timelineState.isHistorical) {
+                    key(state.reactionTriggerId) {
+                        ReactionHeartsOverlay(
+                            reactionKind = state.reactionKind,
+                        )
+                    }
                 }
             }
 
@@ -754,7 +810,7 @@ fun ChatScreen(
                 isListening = mediaLaunchers.isListening,
                 isAgentTyping = state.isAgentTyping,
                 isConnected = state.isConnected,
-                isSessionReady = state.isSessionReady,
+                isSessionReady = state.isSessionReady && !timelineState.isHistorical,
                 sessionPreparationFailed = state.resumeError != null,
                 commandCatalog = state.commandCatalog,
                 slashUsageCounts = state.slashUsageCounts,
@@ -789,6 +845,14 @@ fun ChatScreen(
                 onToggleFastMode = { viewModel.toggleFastMode() },
             )
         }
+
+        ChatTimelineSheet(
+            state = timelineState,
+            onDismiss = viewModel::closeTimeline,
+            onJump = viewModel::jumpToTimelineEntry,
+            onLoadMore = viewModel::loadMoreTimeline,
+            onRetry = viewModel::retryTimeline,
+        )
 
         if (showReloginDialog) {
             ReloginDialog(

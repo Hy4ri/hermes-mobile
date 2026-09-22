@@ -9,6 +9,7 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -466,6 +467,135 @@ class HermesApiServiceMockWebServerTest {
                 "/api/sessions/session/with/slashes/messages?offset=0&include_compacted=true",
                 request.path,
             )
+        }
+
+    @Test
+    fun getSessionTimeline_sendsCursorAndParsesFinalPageWithUnknownFields() =
+        runBlocking {
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody(
+                        """
+                        {
+                            "session_id": "desktop/session",
+                            "profile": "work",
+                            "future_top_level_field": "ignored",
+                            "entries": [
+                                {
+                                    "row_id": 91,
+                                    "preview": "First compacted prompt",
+                                    "timestamp": 1718000000,
+                                    "future_entry_field": {"anything": true}
+                                }
+                            ],
+                            "pagination": {
+                                "limit": 500,
+                                "after_row_id": 77,
+                                "returned": 1,
+                                "total": 1,
+                                "has_more": false,
+                                "next_cursor": null,
+                                "future_pagination_field": "ignored"
+                            }
+                        }
+                        """.trimIndent(),
+                    ),
+            )
+
+            val response =
+                api.getSessionTimeline(
+                    sessionId = "desktop/session",
+                    profile = "work",
+                    limit = 500,
+                    afterRowId = 77,
+                )
+
+            assertTrue(response.isSuccessful)
+            val body = response.body()
+            assertNotNull(body)
+            assertEquals(91, body!!.entries.single().row_id)
+            assertEquals("First compacted prompt", body.entries.single().preview)
+            assertFalse(body.pagination.has_more)
+            assertNull(body.pagination.next_cursor)
+            assertEquals(
+                "/api/sessions/desktop/session/timeline?profile=work&limit=500&after_row_id=77",
+                mockServer.takeRequest().path,
+            )
+        }
+
+    @Test
+    fun getSessionMessagesAround_sendsStableRowAndPreservesChronologicalOrder() =
+        runBlocking {
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody(
+                        """
+                        {
+                            "session_id": "desktop/session",
+                            "profile": "work",
+                            "messages": [
+                                {
+                                    "id": 42,
+                                    "role": "user",
+                                    "content": "[model-facing compaction summary]",
+                                    "display_content": "target"
+                                },
+                                {"id": 43, "role": "assistant", "content": "answer"}
+                            ],
+                            "pagination": {
+                                "row_id": 42,
+                                "limit": 120,
+                                "returned": 2,
+                                "order": "oldest",
+                                "offset": 7,
+                                "total": 100,
+                                "has_older": true,
+                                "has_newer": true,
+                                "future_field": 123
+                            }
+                        }
+                        """.trimIndent(),
+                    ),
+            )
+
+            val response =
+                api.getSessionMessagesAround(
+                    sessionId = "desktop/session",
+                    rowId = 42,
+                    profile = "work",
+                    limit = 120,
+                )
+
+            assertTrue(response.isSuccessful)
+            val body = response.body()
+            assertNotNull(body)
+            assertEquals(listOf(42, 43), body!!.messages.map { it.id })
+            assertEquals("target", body.messages.first().displayContentText)
+            assertEquals("oldest", body.pagination.order)
+            assertEquals(7, body.pagination.offset)
+            assertEquals(true, body.pagination.has_older)
+            assertEquals(true, body.pagination.has_newer)
+            assertEquals(
+                "/api/sessions/desktop/session/messages/around?row_id=42&profile=work&limit=120",
+                mockServer.takeRequest().path,
+            )
+        }
+
+    @Test
+    fun getSessionMessagesAround_missingPromptReturns404() =
+        runBlocking {
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(404)
+                    .setBody("""{"detail":"Prompt not found"}"""),
+            )
+
+            val response = api.getSessionMessagesAround(sessionId = "session-1", rowId = 999)
+
+            assertFalse(response.isSuccessful)
+            assertEquals(404, response.code())
         }
 
     @Test

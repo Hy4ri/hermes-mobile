@@ -43,6 +43,12 @@ data class SessionMessage(
     val reasoning_text: JsonElement? = null,
     val tool_call_id: String? = null,
     /**
+     * User-visible projection supplied by the backend for rows whose physical
+     * [content] is model-facing scaffolding (notably compaction summaries).
+     * Prefer this for rendering whenever present.
+     */
+    val display_content: JsonElement? = null,
+    /**
      * Timeline-marker tag (backend NS-656 lineage, issue #904): markers like
      * `model_switch` / `personality_switch` / `auto_continue` ride as
      * role=user rows so strict providers accept them mid-conversation, but
@@ -83,6 +89,14 @@ data class SessionMessage(
                 is JsonPrimitive -> content.content
                 null -> ""
                 else -> content.toString()
+            }
+
+    val displayContentText: String?
+        get() =
+            when (display_content) {
+                is JsonPrimitive -> display_content.content
+                null -> null
+                else -> display_content.toString()
             }
 
     val reasoningText: String

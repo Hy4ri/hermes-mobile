@@ -1877,7 +1877,7 @@ class ChatViewModel(
                                             "filename" to attachment.name,
                                             "ext" to attachment.fileExtension,
                                         ),
-                                )
+                                ).let { if (it is JsonElement) it.toAny() else it }
                             if (result != null) {
                                 @Suppress("UNCHECKED_CAST")
                                 val ok = (result as? Map<String, Any?>)?.get("attached") as? Boolean
@@ -1897,7 +1897,10 @@ class ChatViewModel(
                                         "data_url" to "data:${attachment.mimeType};base64,$b64",
                                         "name" to attachment.name,
                                     ),
-                            )?.let { result ->
+                            )?.let { response ->
+                                // request() returns raw JsonElement values; normalize before reading Kotlin types.
+                                val result = if (response is JsonElement) response.toAny() else response
+
                                 @Suppress("UNCHECKED_CAST")
                                 val refText =
                                     (result as? Map<String, Any?>)?.get("ref_text") as? String

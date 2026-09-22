@@ -120,6 +120,100 @@ class ChatViewModelTest {
         assertEquals("ws-local-1", merged.single().id)
     }
 
+    @Test
+    fun mergeTranscriptWithLive_collapsesGatewayAttachmentContextCopy() {
+        val local =
+            ChatMessage(
+                id = "ws-local-attachment",
+                role = MessageRole.USER,
+                content = "What is the secret word in the attached file?",
+                timestamp = 100L,
+            )
+        val rest =
+            ChatMessage(
+                id = "rest-sess-attachment",
+                role = MessageRole.USER,
+                content =
+                    """
+                    @file:files/agent-vault/hermes/attachments/note.txt
+
+                    What is the secret word in the attached file?
+
+                    --- Attached Context ---
+
+                    📄 @file:files/agent-vault/hermes/attachments/note.txt (8 tokens)
+                    ```
+                    THE_SECRET_WORD_IS_MANGO_8421
+                    ```
+                    """.trimIndent(),
+                timestamp = 100L,
+            )
+
+        val merged = mergeTranscriptWithLive(listOf(rest), listOf(local))
+
+        assertEquals(1, merged.size)
+        assertEquals("ws-local-attachment", merged.single().id)
+    }
+
+    @Test
+    fun mapServerMessages_restOnlyAttachmentHidesGatewayContext() {
+        val ref = "@file:files/agent-vault/hermes/attachments/note.txt"
+        val persisted =
+            """
+            $ref
+
+            What is the secret word in the attached file?
+
+            --- Attached Context ---
+
+            📄 $ref (8 tokens)
+            ```
+            THE_SECRET_WORD_IS_MANGO_8421
+            ```
+            """.trimIndent()
+
+        val mapped =
+            mapServerMessages(
+                sessionId = "session-1",
+                messages =
+                    listOf(
+                        SessionMessage(
+                            id = 42,
+                            role = "user",
+                            content = JsonPrimitive(persisted),
+                            timestamp = JsonPrimitive("100"),
+                        ),
+                    ),
+                offset = 0,
+                latestPaging = true,
+                liveMessages = emptyList(),
+            )
+
+        assertEquals(1, mapped.size)
+        assertEquals(
+            """
+            $ref
+
+            What is the secret word in the attached file?
+            """.trimIndent(),
+            mapped.single().content,
+        )
+        assertFalse(mapped.single().content.contains("--- Attached Context ---"))
+        assertFalse(mapped.single().content.contains("THE_SECRET_WORD_IS_MANGO_8421"))
+    }
+
+    @Test
+    fun stripAttachmentRefLines_preservesUserAuthoredAttachedContextHeading() {
+        val authored =
+            """
+            Explain this heading:
+            --- Attached Context ---
+            this is ordinary user-authored text
+            """.trimIndent()
+
+        assertEquals(authored, stripAttachmentRefLines(authored))
+    }
+
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
@@ -1979,6 +2073,34 @@ class ChatViewModelTest {
             assertTrue(state.errorMessage?.contains("save") == true)
             assertFalse(state.isAgentTyping)
             verify(exactly = 0) { HermesWsClient.sendMessage(any(), any(), any(), any()) }
+        }
+
+    @Test
+    fun sendMessage_rawJsonFileAttachmentRetainsReference() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            val uriString = "content://test/note"
+            val uri = mockk<Uri>()
+            val resolver = mockk<ContentResolver>()
+            mockkStatic(Uri::class)
+            every { Uri.parse(uriString) } returns uri
+            every { app.contentResolver } returns resolver
+            every { resolver.openInputStream(uri) } answers { "hello".byteInputStream() }
+            every { HermesWsClient.request(WsMethods.FILE_ATTACH, any(), any()) } returns
+                CompletableDeferred<Any?>(
+                    buildJsonObject {
+                        put("attached", true)
+                        put("ref_text", "@file:attachments/note.txt")
+                    },
+                )
+            viewModel.addAttachment(uriString, "note.txt", "text/plain", 5)
+
+            viewModel.sendMessage("Inspect file")
+            advanceUntilIdle()
+
+            verify {
+                HermesWsClient.sendMessage(any(), "@file:attachments/note.txt\n\nInspect file", any(), any())
+            }
         }
 
     @Test

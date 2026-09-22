@@ -67,6 +67,7 @@ import com.m57.hermescontrol.ui.common.SearchBar
 import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.model.components.MoaConfigDialog
+import com.m57.hermescontrol.ui.model.components.ModelCapabilitySummary
 import com.m57.hermescontrol.ui.model.components.ModelPickerDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -874,19 +875,7 @@ private fun ProviderCard(
                                             // the row vertically instead of pushing
                                             // the check/pin buttons off-screen.
                                         )
-                                        val hint =
-                                            when {
-                                                caps?.reasoning == false -> "no reasoning"
-                                                caps?.can_disable_reasoning == false -> "reasoning always on"
-                                                else -> null
-                                            }
-                                        if (hint != null) {
-                                            Text(
-                                                text = hint,
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        }
+                                        ModelCapabilitySummary(caps)
                                     }
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,

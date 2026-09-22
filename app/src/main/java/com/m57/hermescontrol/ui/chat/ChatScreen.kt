@@ -659,6 +659,8 @@ fun ChatScreen(
 
             if (timelineState.isHistorical) {
                 ChatHistoryWindowBanner(
+                    hasOlder = timelineState.historyHasOlder,
+                    hasNewer = timelineState.historyHasNewer,
                     onReturnToLatest = {
                         viewModel.returnToLatestMessages()
                         scrollController.jumpToBottom()

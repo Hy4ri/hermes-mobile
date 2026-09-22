@@ -252,6 +252,8 @@ data class ChatTimelineState(
     val windowErrorMessage: String? = null,
     val historyMessages: List<ChatMessage>? = null,
     val historyAnchorRowId: Int? = null,
+    val historyHasOlder: Boolean = false,
+    val historyHasNewer: Boolean = false,
 ) {
     val isHistorical: Boolean get() = historyMessages != null
 }
@@ -2958,7 +2960,9 @@ class ChatViewModel(
     }
 
     fun retryTimeline() {
-        if (_timelineState.value.isOpen) loadTimelinePage(reset = true)
+        if (!_timelineState.value.isOpen) return
+        _timelineState.update { it.copy(windowErrorMessage = null) }
+        loadTimelinePage(reset = true)
     }
 
     fun loadMoreTimeline() {
@@ -3113,13 +3117,14 @@ class ChatViewModel(
                                 }
                                 return@launch
                             }
-                            persistHistoryPage(page, sessionId)
                             if (!valid()) return@launch
                             _timelineState.update {
                                 it.copy(
                                     isOpen = false,
                                     historyMessages = page,
                                     historyAnchorRowId = rowId,
+                                    historyHasOlder = response.pagination.has_older,
+                                    historyHasNewer = response.pagination.has_newer,
                                     windowErrorMessage = null,
                                 )
                             }
@@ -3156,6 +3161,8 @@ class ChatViewModel(
                 windowErrorMessage = null,
                 historyMessages = null,
                 historyAnchorRowId = null,
+                historyHasOlder = false,
+                historyHasNewer = false,
             )
         }
     }

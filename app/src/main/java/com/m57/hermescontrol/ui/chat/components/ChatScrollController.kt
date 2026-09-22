@@ -158,11 +158,11 @@ class ChatScrollController(
      * item count still hasn't caught up (rare, heavy layout), wait briefly
      * via snapshotFlow on the layout info.
      */
-    private suspend fun scrollToBottomAwaitingLayout() {
+    private suspend fun scrollToBottomAwaitingLayout(animated: Boolean = false) {
         // Yield twice: first for recomposition, second for layout.
         yield()
         yield()
-        listState.scrollToBottom(animated = false)
+        listState.scrollToBottom(animated = animated)
         // If we're still not at the bottom after the first scroll (e.g. a
         // new item was laid out between the scroll and now), do one more pass.
         if (!listState.isAtBottom(bottomPixelTolerance)) {
@@ -171,7 +171,7 @@ class ChatScrollController(
                 snapshotFlow { listState.layoutInfo.totalItemsCount }
                     .first { it > 0 }
             }
-            listState.scrollToBottom(animated = false)
+            listState.scrollToBottom(animated = animated)
         }
     }
 
@@ -182,7 +182,7 @@ class ChatScrollController(
         scope.launch {
             isProgrammaticScroll = true
             try {
-                listState.scrollToBottom(animated = animated)
+                scrollToBottomAwaitingLayout(animated = animated)
             } finally {
                 isProgrammaticScroll = false
             }

@@ -6699,6 +6699,7 @@ class ChatViewModelTest {
             stubActiveProfile()
             val (viewModel, sessionId) = createViewModelWithSession()
             val api = ApiClient.hermesApi
+            val persistedBeforeJump = fakeRepo.dao.count()
             val liveMessages = viewModel.uiState.value.messages
             coEvery {
                 api.getSessionMessagesAround(sessionId, 42, "default", 120)
@@ -6730,16 +6731,23 @@ class ChatViewModelTest {
             val timeline = viewModel.timelineState.value
             assertTrue(timeline.isHistorical)
             assertEquals(42, timeline.historyAnchorRowId)
+            assertTrue(timeline.historyHasOlder)
+            assertTrue(timeline.historyHasNewer)
             assertEquals(
                 listOf("rest-$sessionId-42", "rest-$sessionId-43"),
                 timeline.historyMessages!!.map { it.id },
             )
             assertEquals(listOf("target", "answer"), timeline.historyMessages.map { it.content })
             assertEquals(liveMessages, viewModel.uiState.value.messages)
+            // Direct-address history is a replaceable display window, not a
+            // contiguous live-cache page. Persisting it would create fake gaps.
+            assertEquals(persistedBeforeJump, fakeRepo.dao.count())
 
             viewModel.returnToLatestMessages()
             assertFalse(viewModel.timelineState.value.isHistorical)
             assertNull(viewModel.timelineState.value.historyMessages)
+            assertFalse(viewModel.timelineState.value.historyHasOlder)
+            assertFalse(viewModel.timelineState.value.historyHasNewer)
         }
 
     @Test
@@ -6775,6 +6783,49 @@ class ChatViewModelTest {
             assertEquals(42, viewModel.timelineState.value.historyAnchorRowId)
             assertEquals(originalWindow, viewModel.timelineState.value.historyMessages)
             assertNotNull(viewModel.timelineState.value.windowErrorMessage)
+        }
+
+    @Test
+    fun retryTimelineClearsWindowErrorBeforeRefreshing() =
+        runTest {
+            stubActiveProfile()
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val api = ApiClient.hermesApi
+            coEvery {
+                api.getSessionTimeline(sessionId, "default", 500, 0)
+            } returns
+                retrofit2.Response.success(
+                    SessionTimelineResponse(
+                        entries = listOf(SessionTimelineEntry(row_id = 42, preview = "target")),
+                        pagination = SessionTimelinePagination(has_more = false),
+                    ),
+                )
+            coEvery {
+                api.getSessionMessagesAround(sessionId, 42, "default", 120)
+            } returns
+                retrofit2.Response.error(
+                    404,
+                    """{"detail":"Prompt not found"}""".toResponseBody(),
+                )
+
+            viewModel.openTimeline()
+            advanceUntilIdle()
+            viewModel.jumpToTimelineEntry(42)
+            advanceUntilIdle()
+
+            assertNotNull(viewModel.timelineState.value.windowErrorMessage)
+
+            viewModel.retryTimeline()
+
+            assertNull(viewModel.timelineState.value.windowErrorMessage)
+            advanceUntilIdle()
+            assertNull(viewModel.timelineState.value.windowErrorMessage)
+            assertEquals(
+                listOf(42),
+                viewModel.timelineState.value.entries
+                    .map { it.row_id },
+            )
+            coVerify(exactly = 2) { api.getSessionTimeline(sessionId, "default", 500, 0) }
         }
 
     @Test

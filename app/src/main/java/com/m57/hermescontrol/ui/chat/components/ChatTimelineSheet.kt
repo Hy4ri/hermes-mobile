@@ -75,9 +75,17 @@ fun ChatTimelineSheet(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
                     )
-                    if (state.entries.isEmpty() && !state.isLoading) {
+                    if (!state.isLoading && state.jumpingRowId == null) {
                         TextButton(onClick = onRetry) {
-                            Text(stringResource(R.string.chat_timeline_retry))
+                            Text(
+                                stringResource(
+                                    if (state.entries.isEmpty()) {
+                                        R.string.chat_timeline_retry
+                                    } else {
+                                        R.string.chat_timeline_refresh
+                                    },
+                                ),
+                            )
                         }
                     }
                 }
@@ -169,6 +177,8 @@ fun ChatTimelineSheet(
 
 @Composable
 fun ChatHistoryWindowBanner(
+    hasOlder: Boolean,
+    hasNewer: Boolean,
     onReturnToLatest: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -182,10 +192,26 @@ fun ChatHistoryWindowBanner(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text(
-                text = stringResource(R.string.chat_history_window_title),
-                style = MaterialTheme.typography.labelLarge,
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.chat_history_window_title),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                val rangeMessage =
+                    when {
+                        hasOlder && hasNewer -> R.string.chat_history_window_more_both
+                        hasNewer -> R.string.chat_history_window_more_newer
+                        hasOlder -> R.string.chat_history_window_more_older
+                        else -> null
+                    }
+                if (rangeMessage != null) {
+                    Text(
+                        text = stringResource(rangeMessage),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f),
+                    )
+                }
+            }
             TextButton(onClick = onReturnToLatest) {
                 Text(stringResource(R.string.chat_history_window_latest))
             }

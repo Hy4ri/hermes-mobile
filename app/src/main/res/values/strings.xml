@@ -168,8 +168,12 @@
     <string name="chat_timeline_prompt_fallback">Earlier prompt</string>
     <string name="chat_timeline_load_more">Load more</string>
     <string name="chat_timeline_retry">Retry</string>
+    <string name="chat_timeline_refresh">Refresh</string>
     <string name="chat_history_window_title">Viewing earlier messages</string>
     <string name="chat_history_window_latest">Back to latest</string>
+    <string name="chat_history_window_more_older">Earlier messages exist before this window.</string>
+    <string name="chat_history_window_more_newer">Newer messages exist beyond this bounded window.</string>
+    <string name="chat_history_window_more_both">More messages exist before and after this bounded window.</string>
     <string name="chat_action_reconnect">Reconnect</string>
     <string name="chat_action_relogin">Re-login</string>
     <string name="chat_relogin_title">Re-login to Hermes</string>

@@ -443,6 +443,7 @@
     <string name="kanban_bulk_unassign">Unassign</string>
     <string name="kanban_bulk_delete">Delete</string>
     <string name="kanban_bulk_delete_confirm">Delete %1$d selected tasks? This cannot be undone.</string>
+    <string name="kanban_bulk_complete_title">Complete %1$d tasks</string>
     <string name="kanban_export_board">Export Board</string>
     <string name="kanban_import_board">Import Board</string>
     <string name="kanban_runtime_working">Working</string>

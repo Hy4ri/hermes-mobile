@@ -618,12 +618,26 @@ class KanbanViewModel(
     fun bulkMove(
         taskIds: List<String>,
         targetStatus: String,
+        summary: String? = null,
         onComplete: ((failedIds: Set<String>) -> Unit)? = null,
     ) {
         val board = _uiState.value.selectedBoard ?: return
+        val completionSummary = summary?.trim()?.takeIf { it.isNotEmpty() }
+        if (targetStatus.equals("done", ignoreCase = true) && completionSummary == null) {
+            _uiState.update { it.copy(toastMessage = "Completion summary is required") }
+            onComplete?.invoke(taskIds.toSet())
+            return
+        }
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
-            when (val res = repository.bulkTasks(board.id, BulkTasksBody(ids = taskIds, status = targetStatus))) {
+            val body =
+                BulkTasksBody(
+                    ids = taskIds,
+                    status = targetStatus,
+                    summary = completionSummary,
+                    result = completionSummary,
+                )
+            when (val res = repository.bulkTasks(board.id, body)) {
                 is NetworkResult.Success -> {
                     val results = res.data.results
                     val succeeded = results.filter { it.ok }.map { it.id }.toSet()

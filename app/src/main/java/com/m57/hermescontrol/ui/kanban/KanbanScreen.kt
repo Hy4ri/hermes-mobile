@@ -151,6 +151,7 @@ fun KanbanScreen(
     var isMultiSelectMode by remember { mutableStateOf(false) }
     var selectedTaskIds by remember { mutableStateOf(setOf<String>()) }
     var showBulkMoveDialog by remember { mutableStateOf(false) }
+    var showBulkCompleteDialog by remember { mutableStateOf(false) }
     var showBulkAssignDialog by remember { mutableStateOf(false) }
     var showBulkDeleteDialog by remember { mutableStateOf(false) }
 
@@ -1052,9 +1053,13 @@ fun KanbanScreen(
                                     writableMoveColumns.forEach { col ->
                                         TextButton(
                                             onClick = {
-                                                viewModel.bulkMove(selectedTaskIds.toList(), col.name) { failed ->
-                                                    selectedTaskIds = failed
-                                                    if (failed.isEmpty()) isMultiSelectMode = false
+                                                if (col.name.equals("done", ignoreCase = true)) {
+                                                    showBulkCompleteDialog = true
+                                                } else {
+                                                    viewModel.bulkMove(selectedTaskIds.toList(), col.name) { failed ->
+                                                        selectedTaskIds = failed
+                                                        if (failed.isEmpty()) isMultiSelectMode = false
+                                                    }
                                                 }
                                                 showBulkMoveDialog = false
                                             },
@@ -1071,6 +1076,24 @@ fun KanbanScreen(
                                     Text(stringResource(R.string.action_cancel))
                                 }
                             },
+                        )
+                    }
+
+                    if (showBulkCompleteDialog) {
+                        BulkCompleteTasksDialog(
+                            taskCount = selectedTaskIds.size,
+                            onConfirm = { summary ->
+                                viewModel.bulkMove(
+                                    taskIds = selectedTaskIds.toList(),
+                                    targetStatus = "done",
+                                    summary = summary,
+                                ) { failed ->
+                                    selectedTaskIds = failed
+                                    if (failed.isEmpty()) isMultiSelectMode = false
+                                }
+                                showBulkCompleteDialog = false
+                            },
+                            onDismiss = { showBulkCompleteDialog = false },
                         )
                     }
 
@@ -1420,6 +1443,43 @@ private fun CompleteTaskDialog(
         },
         confirmButton = {
             Button(onClick = { onConfirm(summary.trim().ifBlank { null }) }) {
+                Text(stringResource(R.string.kanban_action_complete))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        },
+    )
+}
+
+@Composable
+private fun BulkCompleteTasksDialog(
+    taskCount: Int,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var summary by remember { mutableStateOf("") }
+    val trimmedSummary = summary.trim()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.kanban_bulk_complete_title, taskCount)) },
+        text = {
+            OutlinedTextField(
+                value = summary,
+                onValueChange = { summary = it },
+                label = { Text(stringResource(R.string.kanban_complete_summary_label)) },
+                placeholder = { Text(stringResource(R.string.kanban_complete_summary_hint)) },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 2,
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(trimmedSummary) },
+                enabled = trimmedSummary.isNotEmpty(),
+            ) {
                 Text(stringResource(R.string.kanban_action_complete))
             }
         },

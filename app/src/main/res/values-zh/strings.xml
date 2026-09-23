@@ -909,6 +909,7 @@
     <string name="plugins_no_desc">无描述。</string>
     <string name="plugins_action_update">更新</string>
     <string name="plugins_action_uninstall">卸载</string>
+    <string name="plugins_action_enable">启用</string>
     <string name="plugins_action_install">安装</string>
     <string name="plugins_action_remove">移除</string>
     <string name="plugins_install_heading">安装插件</string>

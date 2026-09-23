@@ -942,6 +942,7 @@
 <string name="plugins_no_desc">لا يوجد وصف مقدم.</string>
 <string name="plugins_action_update">تحديث</string>
 <string name="plugins_action_uninstall">إلغاء التثبيت</string>
+<string name="plugins_action_enable">تفعيل</string>
 <string name="plugins_action_install">تثبيت</string>
 <string name="plugins_action_remove">إزالة</string>
 <string name="plugins_install_heading">تثبيت إضافة</string>

@@ -57,6 +57,8 @@ private fun ChatMessage.isSyntheticSystemRow(): Boolean =
         displayKind == null &&
         content.startsWith(MAX_ITERATIONS_SYSTEM_MARKER)
 
+internal fun ChatMessage.isTimelineMarker(): Boolean = displayKind != null && displayKind != "steer"
+
 /**
  * Split a flat message list into turns for the full-bleed renderer.
  *
@@ -80,11 +82,12 @@ fun groupIntoTurns(messages: List<ChatMessage>): List<ChatTurn> {
             // Timeline markers (display_kind) ride as role=user rows but are
             // NOT user turns — group them as system-style timeline entries so
             // they render as centered chips, not fake user bubbles (issue #904).
+            // Steer messages (display_kind == "steer") are genuine user turns.
             // The backend's max-iterations nudge is a role=user row with NO
             // display_kind (it's stripped on persistence); detect it by its
             // stable content prefix and route it as a system event too, tagging
             // it so the timeline chip can name it.
-            message.displayKind != null -> {
+            message.isTimelineMarker() -> {
                 agentEntries += AgentEntry.SystemEvent(message)
             }
 

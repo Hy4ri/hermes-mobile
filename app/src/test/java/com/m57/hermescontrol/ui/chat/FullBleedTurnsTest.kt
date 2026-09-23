@@ -95,6 +95,15 @@ class FullBleedTurnsTest {
     }
 
     @Test
+    fun `steer message with display_kind steer is a User turn not a SystemEvent entry`() {
+        val steer =
+            msg("u1", MessageRole.USER, content = "Stop and run tests")
+                .copy(displayKind = "steer")
+        val result = groupIntoTurns(listOf(steer))
+        assertEquals(listOf<ChatTurn>(ChatTurn.User(steer)), result)
+    }
+
+    @Test
     fun `max-iterations nudge is a SystemEvent not a user bubble`() {
         // Backend persists the max-iterations notice as a plain role=user row
         // with NO display_kind (it's stripped on SessionDB persistence); the

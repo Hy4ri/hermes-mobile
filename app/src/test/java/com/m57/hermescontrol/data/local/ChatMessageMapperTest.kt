@@ -201,4 +201,24 @@ class ChatMessageMapperTest {
 
         assertNull(roundTripped.displayKind)
     }
+
+    @Test
+    fun sessionStartMarkerDoesNotAcquireLocalOrder() {
+        val entity =
+            ChatMessageEntity(
+                id = "uuid-session-created",
+                sessionId = "s",
+                role = "SYSTEM",
+                content = "Session created",
+                timestamp = 1000L,
+                sortGroup = 1,
+                sortOrder = 5L,
+            )
+
+        val ui = entity.toUiModel()
+
+        assertNull(ui.localOrder)
+        assertEquals(MessageRole.SYSTEM, ui.role)
+        assertEquals("Session created", ui.content)
+    }
 }

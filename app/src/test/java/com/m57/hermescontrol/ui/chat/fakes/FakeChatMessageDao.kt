@@ -3,6 +3,7 @@ package com.m57.hermescontrol.ui.chat.fakes
 import com.m57.hermescontrol.data.local.ChatMessageDao
 import com.m57.hermescontrol.data.local.ChatMessageEntity
 import com.m57.hermescontrol.data.local.canonicalMessageOrder
+import com.m57.hermescontrol.data.local.isSessionStartMarker
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentMap
 
@@ -86,7 +87,12 @@ class FakeChatMessageDao : ChatMessageDao {
     fun addMessageDirect(message: ChatMessageEntity) {
         val existing = messages[message.id]
         if (existing == null) insertionSequence++
-        val order = canonicalMessageOrder(message.restId ?: message.id, message.sessionId)
+        val order =
+            if (message.isSessionStartMarker()) {
+                -1L
+            } else {
+                canonicalMessageOrder(message.restId ?: message.id, message.sessionId)
+            }
         messages[message.id] =
             message.copy(
                 sortGroup = if (order != null) 0 else 1,

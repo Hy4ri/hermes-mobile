@@ -337,10 +337,15 @@ internal fun mergeCachedTranscriptPage(
                         displayKind = message.displayKind ?: match.displayKind,
                     )
             }.toMap()
+    val resolvedOrders =
+        incoming.indices
+            .mapNotNull { index ->
+                matches[index]?.id?.let { id -> incoming[index].canonicalOrder?.let { id to it } }
+            }.toMap()
     return (
         current.map { replacements[it.id] ?: it } +
             incoming.filterIndexed { index, _ -> matches[index] == null }
-    ).dedupeById().inTranscriptOrder().reconcileReasoningRows()
+    ).dedupeById().inTranscriptOrder(current, resolvedOrders).reconcileReasoningRows()
 }
 
 /** Merge one page with the current snapshot without consuming repeated results more than once. */
@@ -398,15 +403,56 @@ internal fun mergeTranscriptWithLive(
     // copy is also present. Fold that now-confirmed echo without changing the live key.
     // The page has already consumed its content matches; consuming another would
     // collapse a separate repeated occurrence. Only confirmed identities can fold here.
-    return dedupeCachedMessages(transcript.inTranscriptOrder(), confirmedOnly = true).reconcileReasoningRows()
+    val resolvedOrders =
+        incoming.indices
+            .mapNotNull { index ->
+                matches[index]?.id?.let { id -> incoming[index].canonicalOrder?.let { id to it } }
+            }.toMap()
+    return dedupeCachedMessages(transcript.inTranscriptOrder(current, resolvedOrders), confirmedOnly = true)
+        .reconcileReasoningRows()
 }
 
-/** Numeric canonical history first, then unconfirmed local insertion order; clocks never sort a transcript. */
-private fun List<ChatMessage>.inTranscriptOrder(): List<ChatMessage> =
-    sortedWith(
-        compareBy<ChatMessage> { it.canonicalOrder == null }
-            .thenBy { it.canonicalOrder ?: it.localOrder ?: Long.MAX_VALUE },
-    )
+/** Keep server order; place local notices after their last preceding confirmed message, not at the transcript tail. */
+private fun List<ChatMessage>.inTranscriptOrder(
+    previous: List<ChatMessage>,
+    resolvedOrders: Map<String, Long>,
+): List<ChatMessage> {
+    val latestCanonical = mapNotNull { it.canonicalOrder }.maxOrNull() ?: -1L
+    var precedingCanonical: Long? = null
+    var hasPendingPredecessor = false
+    var pendingLocalOrder: Long? = null
+    val noticeAnchors = mutableMapOf<String, Long>()
+    val pendingOrderByNotice = mutableMapOf<String, Long>()
+    previous.forEach { message ->
+        val order = resolvedOrders[message.id] ?: message.canonicalOrder
+        if (order != null) {
+            precedingCanonical = order
+            hasPendingPredecessor = false
+            pendingLocalOrder = null
+        } else if (message.role != MessageRole.SYSTEM) {
+            hasPendingPredecessor = true
+            pendingLocalOrder = message.localOrder
+        } else {
+            noticeAnchors[message.id] =
+                if (hasPendingPredecessor) {
+                    Long.MAX_VALUE
+                } else {
+                    precedingCanonical?.takeIf { it >= 0L }
+                        ?: latestCanonical
+                }
+            if (hasPendingPredecessor) pendingOrderByNotice[message.id] = pendingLocalOrder ?: Long.MAX_VALUE
+        }
+    }
+    val previousIndices = previous.withIndex().associate { it.value.id to it.index }
+    return withIndex()
+        .sortedWith(
+            compareBy<IndexedValue<ChatMessage>> {
+                it.value.canonicalOrder ?: noticeAnchors[it.value.id] ?: Long.MAX_VALUE
+            }.thenBy { if (noticeAnchors[it.value.id]?.let { anchor -> anchor != Long.MAX_VALUE } == true) 1 else 0 }
+                .thenBy { it.value.localOrder ?: pendingOrderByNotice[it.value.id] ?: Long.MAX_VALUE }
+                .thenBy { previousIndices[it.value.id] ?: it.index },
+        ).map { it.value }
+}
 
 internal fun ChatMessage.isSessionStartMarker(): Boolean =
     role == MessageRole.SYSTEM && (content == "Session created" || content == "Session branched")

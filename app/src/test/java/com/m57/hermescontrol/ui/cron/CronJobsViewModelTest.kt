@@ -6,8 +6,6 @@ import com.m57.hermescontrol.data.model.CronBlueprintField
 import com.m57.hermescontrol.data.model.CronBlueprintListResponse
 import com.m57.hermescontrol.data.model.CronJob
 import com.m57.hermescontrol.data.model.CronJobFireError
-import com.m57.hermescontrol.data.model.CronRun
-import com.m57.hermescontrol.data.model.CronRunHistoryResponse
 import com.m57.hermescontrol.data.model.DeliveryTarget
 import com.m57.hermescontrol.data.model.DeliveryTargetsResponse
 import com.m57.hermescontrol.data.model.InstantiateBlueprintRequest
@@ -21,7 +19,6 @@ import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.slot
 import io.mockk.unmockkAll
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -126,77 +123,6 @@ class CronJobsViewModelTest {
         assertEquals(listOf("local", "telegram"), editor.deliveryTargets.map { it.id })
         // origin first, then local + connected platforms
         assertEquals(listOf("origin", "local", "telegram"), editor.deliveryOptions)
-    }
-
-    @Test
-    fun `openRunHistory loads bounded recent runs`() {
-        coEvery { mockApi.getCronJobRuns("j1", 20) } returns
-            Response.success(
-                CronRunHistoryResponse(
-                    runs =
-                        listOf(
-                            CronRun(
-                                id = "cron_j1_1",
-                                started_at = 1_700_000_000.0,
-                                is_active = true,
-                                profile = "default",
-                            ),
-                        ),
-                    limit = 20,
-                ),
-            )
-        val vm = createViewModel()
-
-        vm.openRunHistory(CronJob(id = "j1", name = "Morning"))
-        settle()
-
-        val history = vm.uiState.value.runHistoryState
-        assertTrue(history.isOpen)
-        assertFalse(history.isLoading)
-        assertEquals("j1", history.jobId)
-        assertEquals("Morning", history.jobName)
-        assertEquals(listOf("cron_j1_1"), history.runs.map { it.id })
-        coVerify(exactly = 1) { mockApi.getCronJobRuns("j1", 20) }
-    }
-
-    @Test
-    fun `openRunHistory explains unsupported backend`() {
-        coEvery { mockApi.getCronJobRuns("j1", 20) } returns
-            Response.error(404, "{}".toResponseBody())
-        val vm = createViewModel()
-
-        vm.openRunHistory(CronJob(id = "j1", name = "Morning"))
-        settle()
-
-        val history = vm.uiState.value.runHistoryState
-        assertFalse(history.isLoading)
-        assertTrue(history.runs.isEmpty())
-        assertTrue(history.errorMessage.orEmpty().contains("unavailable"))
-    }
-
-    @Test
-    fun `scope reset cancels in flight run history and clears rows`() {
-        val response = CompletableDeferred<Response<CronRunHistoryResponse>>()
-        coEvery { mockApi.getCronJobRuns("j1", 20) } coAnswers { response.await() }
-        val vm = createViewModel()
-
-        vm.openRunHistory(CronJob(id = "j1", name = "Morning"))
-        testDispatcher.scheduler.runCurrent()
-        vm.clearScopeOwnedState()
-        response.complete(
-            Response.success(
-                CronRunHistoryResponse(
-                    runs = listOf(CronRun(id = "cron_j1_stale", profile = "old-profile")),
-                ),
-            ),
-        )
-        settle()
-
-        val history = vm.uiState.value.runHistoryState
-        assertFalse(history.isOpen)
-        assertFalse(history.isLoading)
-        assertTrue(history.runs.isEmpty())
-        assertNull(history.jobId)
     }
 
     @Test

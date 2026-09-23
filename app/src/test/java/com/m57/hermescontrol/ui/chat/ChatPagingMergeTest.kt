@@ -749,6 +749,151 @@ class ChatPagingMergeTest {
     }
 
     @Test
+    fun stopCommandAndSessionInterruptedStayInPlaceAcrossFutureSyncs() {
+        val prompt = ChatMessage(id = "rest-session-0", role = MessageRole.USER, content = "long running task")
+        val partialAssistant =
+            ChatMessage(id = "rest-session-1", role = MessageRole.ASSISTANT, content = "Working on it...")
+        val stopCommand = ChatMessage(id = "uuid-stop", role = MessageRole.USER, content = "/stop")
+        val interrupted =
+            ChatMessage(id = "uuid-interrupted", role = MessageRole.SYSTEM, content = "Session interrupted")
+
+        val current = listOf(prompt, partialAssistant, stopCommand, interrupted)
+
+        // Now later turn arrives from server: user asks something else, assistant answers
+        val serverRows =
+            listOf(
+                SessionMessage(
+                    id = 0,
+                    role = "user",
+                    content = JsonPrimitive("long running task"),
+                    timestamp = JsonPrimitive(1),
+                ),
+                SessionMessage(
+                    id = 1,
+                    role = "assistant",
+                    content = JsonPrimitive("Working on it..."),
+                    timestamp = JsonPrimitive(2),
+                ),
+                SessionMessage(
+                    id = 2,
+                    role = "user",
+                    content = JsonPrimitive("next question"),
+                    timestamp = JsonPrimitive(3),
+                ),
+                SessionMessage(
+                    id = 3,
+                    role = "assistant",
+                    content = JsonPrimitive("next answer"),
+                    timestamp = JsonPrimitive(4),
+                ),
+            )
+
+        val merged = applyServerPage(current, serverRows)
+
+        assertEquals(
+            listOf(
+                "rest-session-0",
+                "rest-session-1",
+                "uuid-stop",
+                "uuid-interrupted",
+                "rest-session-2",
+                "rest-session-3",
+            ),
+            merged.map { it.canonicalRestId ?: it.id },
+        )
+    }
+
+    @Test
+    fun commandEchoAndOutputStayInPlaceAcrossFutureSyncs() {
+        val prompt = ChatMessage(id = "rest-session-0", role = MessageRole.USER, content = "what model are you?")
+        val answer = ChatMessage(id = "rest-session-1", role = MessageRole.ASSISTANT, content = "I am Hermes.")
+        val command = ChatMessage(id = "uuid-cmd", role = MessageRole.USER, content = "/reasoning")
+        val output =
+            ChatMessage(id = "uuid-output", role = MessageRole.ASSISTANT, content = "reasoning: low · display on")
+
+        val current = listOf(prompt, answer, command, output)
+
+        val serverRows =
+            listOf(
+                SessionMessage(
+                    id = 0,
+                    role = "user",
+                    content = JsonPrimitive("what model are you?"),
+                    timestamp = JsonPrimitive(1),
+                ),
+                SessionMessage(
+                    id = 1,
+                    role = "assistant",
+                    content = JsonPrimitive("I am Hermes."),
+                    timestamp = JsonPrimitive(2),
+                ),
+                SessionMessage(
+                    id = 2,
+                    role = "user",
+                    content = JsonPrimitive("next question"),
+                    timestamp = JsonPrimitive(3),
+                ),
+                SessionMessage(
+                    id = 3,
+                    role = "assistant",
+                    content = JsonPrimitive("next answer"),
+                    timestamp = JsonPrimitive(4),
+                ),
+            )
+
+        val merged = applyServerPage(current, serverRows)
+
+        assertEquals(
+            listOf("rest-session-0", "rest-session-1", "uuid-cmd", "uuid-output", "rest-session-2", "rest-session-3"),
+            merged.map { it.canonicalRestId ?: it.id },
+        )
+    }
+
+    @Test
+    fun clarifyAnswerStaysInPlaceAcrossFutureSyncs() {
+        val prompt = ChatMessage(id = "rest-session-0", role = MessageRole.USER, content = "deploy this")
+        val assistant = ChatMessage(id = "rest-session-1", role = MessageRole.ASSISTANT, content = "Where?")
+        val clarifyAnswer =
+            ChatMessage(
+                id = "uuid-clarify",
+                role = MessageRole.USER,
+                content = "production",
+                displayKind = "clarify_response",
+            )
+
+        val current = listOf(prompt, assistant, clarifyAnswer)
+
+        val serverRows =
+            listOf(
+                SessionMessage(
+                    id = 0,
+                    role = "user",
+                    content = JsonPrimitive("deploy this"),
+                    timestamp = JsonPrimitive(1),
+                ),
+                SessionMessage(
+                    id = 1,
+                    role = "assistant",
+                    content = JsonPrimitive("Where?"),
+                    timestamp = JsonPrimitive(2),
+                ),
+                SessionMessage(
+                    id = 2,
+                    role = "assistant",
+                    content = JsonPrimitive("Deploying to production now..."),
+                    timestamp = JsonPrimitive(3),
+                ),
+            )
+
+        val merged = applyServerPage(current, serverRows)
+
+        assertEquals(
+            listOf("rest-session-0", "rest-session-1", "uuid-clarify", "rest-session-2"),
+            merged.map { it.canonicalRestId ?: it.id },
+        )
+    }
+
+    @Test
     fun sessionCreatedMarkerStaysAtStartOfTranscript() {
         val sessionCreated =
             ChatMessage(

@@ -171,6 +171,7 @@ internal class TranscriptComparison(
         }
         val ta = trimmed.getOrPut(a.content) { a.content.trim() }
         val tb = trimmed.getOrPut(b.content) { b.content.trim() }
+        if (ta.startsWith("/") || tb.startsWith("/")) return false
         if (ta == tb) return true
         if (a.role == MessageRole.USER &&
             captions.getOrPut(ta) { stripAttachmentRefLines(ta) } ==
@@ -345,7 +346,7 @@ internal fun mergeCachedTranscriptPage(
     return (
         current.map { replacements[it.id] ?: it } +
             incoming.filterIndexed { index, _ -> matches[index] == null }
-    ).dedupeById().inTranscriptOrder(current, resolvedOrders).reconcileReasoningRows()
+    ).dedupeById().inTranscriptOrder(incoming + current, resolvedOrders).reconcileReasoningRows()
 }
 
 /** Merge one page with the current snapshot without consuming repeated results more than once. */
@@ -412,7 +413,7 @@ internal fun mergeTranscriptWithLive(
         .reconcileReasoningRows()
 }
 
-/** Keep server order; place local notices after their last preceding confirmed message, not at the transcript tail. */
+/** Keep server order; place local notices and commands after their last preceding confirmed message, not at the transcript tail. */
 private fun List<ChatMessage>.inTranscriptOrder(
     previous: List<ChatMessage>,
     resolvedOrders: Map<String, Long>,
@@ -421,38 +422,63 @@ private fun List<ChatMessage>.inTranscriptOrder(
     var precedingCanonical: Long? = null
     var hasPendingPredecessor = false
     var pendingLocalOrder: Long? = null
-    val noticeAnchors = mutableMapOf<String, Long>()
-    val pendingOrderByNotice = mutableMapOf<String, Long>()
+    val localAnchors = mutableMapOf<String, Long>()
+    val pendingOrderByLocal = mutableMapOf<String, Long>()
     previous.forEach { message ->
         val order = resolvedOrders[message.id] ?: message.canonicalOrder
         if (order != null) {
             precedingCanonical = order
             hasPendingPredecessor = false
             pendingLocalOrder = null
-        } else if (message.role != MessageRole.SYSTEM) {
-            hasPendingPredecessor = true
-            pendingLocalOrder = message.localOrder
-        } else {
-            noticeAnchors[message.id] =
+        } else if (message.isPermanentlyLocal()) {
+            localAnchors[message.id] =
                 if (hasPendingPredecessor) {
                     Long.MAX_VALUE
                 } else {
                     precedingCanonical?.takeIf { it >= 0L }
                         ?: latestCanonical
                 }
-            if (hasPendingPredecessor) pendingOrderByNotice[message.id] = pendingLocalOrder ?: Long.MAX_VALUE
+            if (hasPendingPredecessor) pendingOrderByLocal[message.id] = pendingLocalOrder ?: Long.MAX_VALUE
+        } else {
+            hasPendingPredecessor = true
+            pendingLocalOrder = message.localOrder
         }
     }
     val previousIndices = previous.withIndex().associate { it.value.id to it.index }
     return withIndex()
         .sortedWith(
             compareBy<IndexedValue<ChatMessage>> {
-                it.value.canonicalOrder ?: noticeAnchors[it.value.id] ?: Long.MAX_VALUE
-            }.thenBy { if (noticeAnchors[it.value.id]?.let { anchor -> anchor != Long.MAX_VALUE } == true) 1 else 0 }
-                .thenBy { it.value.localOrder ?: pendingOrderByNotice[it.value.id] ?: Long.MAX_VALUE }
+                it.value.canonicalOrder ?: localAnchors[it.value.id] ?: Long.MAX_VALUE
+            }.thenBy { if (localAnchors[it.value.id]?.let { anchor -> anchor != Long.MAX_VALUE } == true) 1 else 0 }
+                .thenBy { it.value.localOrder ?: pendingOrderByLocal[it.value.id] ?: Long.MAX_VALUE }
                 .thenBy { previousIndices[it.value.id] ?: it.index },
         ).map { it.value }
 }
+
+internal fun ChatMessage.isPermanentlyLocal(): Boolean =
+    role == MessageRole.SYSTEM ||
+        (role == MessageRole.USER && (content.startsWith("/") || displayKind == "clarify_response")) ||
+        (role == MessageRole.ASSISTANT && canonicalRestId == null && isLocalFeedbackRow(this))
+
+private fun isLocalFeedbackRow(message: ChatMessage): Boolean =
+    message.localOrder != null || isLocalFeedbackContent(message.content)
+
+private fun isLocalFeedbackContent(content: String): Boolean =
+    content.endsWith(" is not supported on mobile") ||
+        content.startsWith("usage: /queue") ||
+        content.startsWith("reasoning: ") ||
+        content.startsWith("Could not read reasoning status:") ||
+        content == "Reasoning is not supported for the current model." ||
+        content == "Reasoning cannot be disabled for this model (always on)." ||
+        content.startsWith("Could not change reasoning:") ||
+        content == "Reasoning controls require an active session." ||
+        content == "No active session. Use `/new` to create one." ||
+        content == "No active session to undo." ||
+        content == "No active session for side questions. Start a chat first." ||
+        content.startsWith("Bot chats are one continuous conversation — compacting instead.") ||
+        content.startsWith("⚠ ") ||
+        (content.startsWith("/") && content.contains(": ")) ||
+        content == "Failed to undo."
 
 internal fun ChatMessage.isSessionStartMarker(): Boolean =
     role == MessageRole.SYSTEM && (content == "Session created" || content == "Session branched")

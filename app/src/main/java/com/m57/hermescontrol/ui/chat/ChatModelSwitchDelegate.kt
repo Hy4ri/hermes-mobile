@@ -340,6 +340,19 @@ class ChatModelSwitchDelegate(
                         it.copy(modelSwitchConfirmMessage = confirmMessage)
                     }
                 }
+            } else {
+                if (pending != null && pending.sequence == modelSwitchSequence) {
+                    val warning = (map["warning"] as? String)?.trim()
+                    if (!warning.isNullOrBlank()) {
+                        val formattedWarning =
+                            if (warning.startsWith("⚠") || warning.startsWith("⚠️")) {
+                                warning
+                            } else {
+                                "⚠ $warning"
+                            }
+                        addAssistantMessage(formattedWarning)
+                    }
+                }
             }
         } else if (key == "fast") {
             val rawVal = map["value"] as? String

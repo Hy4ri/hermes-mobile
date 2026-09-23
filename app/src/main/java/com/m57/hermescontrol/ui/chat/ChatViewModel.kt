@@ -22,6 +22,7 @@ import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.repository.VoiceNoteRepository
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.data.ws.CommandBlocklist
@@ -66,6 +67,9 @@ private const val TAG = "ChatViewModel"
 private const val MESSAGE_PAGE_SIZE = 150
 private const val TIMELINE_PAGE_SIZE = 500
 private const val HISTORY_WINDOW_SIZE = 120
+private const val VOICE_NOTE_OFFLINE_MESSAGE = "Voice note not sent — not connected"
+private const val VOICE_NOTE_EMPTY_MESSAGE = "No speech detected in the voice note"
+private const val VOICE_NOTE_FAILED_MESSAGE = "Voice note transcription failed"
 
 private val REASONING_EFFORT_LEVELS =
     setOf("none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra")
@@ -135,6 +139,8 @@ data class ChatUiState(
     val pendingSends: List<PendingSend> = emptyList(),
     val isThinking: Boolean = false,
     val thinkingText: String = "",
+    /** True while a recorded voice note uploads for server-side transcription. */
+    val isTranscribingVoiceNote: Boolean = false,
     val isLoading: Boolean = false,
     val isLoadingOlder: Boolean = false,
     val hasOlderMessages: Boolean = false,
@@ -414,6 +420,7 @@ class ChatViewModel(
     private val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.IO,
     private val historyDispatcher: kotlinx.coroutines.CoroutineDispatcher = searchDispatcher,
     private val sendStore: ChatSendStore = ChatSendStore(application),
+    private val voiceNoteRepository: VoiceNoteRepository = VoiceNoteRepository(),
 ) : AndroidViewModel(application) {
     constructor(application: Application) : this(application, startCleanup = true)
 
@@ -2872,6 +2879,57 @@ class ChatViewModel(
                 ),
         )
         return true
+    }
+
+    /**
+     * Transcribe a recorded voice note through the dashboard's server-side
+     * STT relay (`POST /api/audio/transcribe` — the desktop client's voice
+     * path) and submit the transcript as the next message. The profile's
+     * configured STT provider answers, not the phone's on-device recognizer.
+     */
+    fun sendVoiceNote(file: File) {
+        if (!canSubmitMessage()) {
+            file.delete()
+            _uiState.update { it.copy(errorMessage = VOICE_NOTE_OFFLINE_MESSAGE) }
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(isTranscribingVoiceNote = true) }
+            val result =
+                withContext(ioDispatcher) {
+                    try {
+                        voiceNoteRepository.transcribe(file)
+                    } finally {
+                        file.delete()
+                    }
+                }
+            when (result) {
+                is NetworkResult.Success -> {
+                    val transcript = result.data.trim()
+                    if (transcript.isEmpty()) {
+                        _uiState.update {
+                            it.copy(
+                                isTranscribingVoiceNote = false,
+                                errorMessage = VOICE_NOTE_EMPTY_MESSAGE,
+                            )
+                        }
+                    } else {
+                        _uiState.update { it.copy(isTranscribingVoiceNote = false) }
+                        sendMessage(transcript)
+                    }
+                }
+
+                is NetworkResult.Failure -> {
+                    Log.w(TAG, "Voice note transcription failed: ${result.error.message}")
+                    _uiState.update {
+                        it.copy(
+                            isTranscribingVoiceNote = false,
+                            errorMessage = "$VOICE_NOTE_FAILED_MESSAGE: ${result.error.message}",
+                        )
+                    }
+                }
+            }
+        }
     }
 
     private fun canSubmitMessage(): Boolean =

@@ -12,6 +12,7 @@ import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.AttachmentSource
 import com.m57.hermescontrol.data.model.BusySendMode
+import com.m57.hermescontrol.data.model.AudioTranscriptionResponse
 import com.m57.hermescontrol.data.model.PaginationInfo
 import com.m57.hermescontrol.data.model.SessionMessage
 import com.m57.hermescontrol.data.model.SessionMessagesAroundPagination
@@ -65,6 +66,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
@@ -75,6 +77,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import retrofit2.Response
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatViewModelTest {
@@ -9745,5 +9748,107 @@ class ChatViewModelTest {
                 api.getSessionMessages(any(), any(), any(), any(), any(), any())
             }
             assertNull(TurnCorrelationTracker.boundaryFor("default", sessionId))
+        }
+
+    @Test
+    fun sendVoiceNote_transcribesViaServerAndSubmitsTranscript() =
+        runTest {
+            TurnCorrelationTracker.resetForTest()
+            stubActiveProfile()
+            val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+            every { ApiClient.hermesApi } returns api
+            coEvery { api.transcribeAudio(any()) } returns
+                Response.success(
+                    AudioTranscriptionResponse(ok = true, transcript = "hello from voice"),
+                )
+            val (viewModel, _) = createViewModelWithSession()
+
+            val submittedTexts = mutableListOf<String>()
+            every { HermesWsClient.sendMessage(any(), any(), any(), any()) } answers {
+                reqCount++
+                val id = "req-msg-$reqCount"
+                submittedTexts += arg<String>(1)
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            val voiceFile =
+                java.io.File(attachmentCacheDir, "voice_note.m4a").apply {
+                    writeBytes(byteArrayOf(1, 2, 3))
+                }
+            viewModel.sendVoiceNote(voiceFile)
+            advanceUntilIdle()
+
+            assertEquals("hello from voice", submittedTexts.lastOrNull())
+            assertFalse(voiceFile.exists())
+            assertNull(viewModel.uiState.value.errorMessage)
+            assertFalse(viewModel.uiState.value.isTranscribingVoiceNote)
+        }
+
+    @Test
+    fun sendVoiceNote_reportsTranscriptionFailureAndDeletesClip() =
+        runTest {
+            val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+            every { ApiClient.hermesApi } returns api
+            coEvery { api.transcribeAudio(any()) } returns
+                Response.error(500, "transcribe failed".toResponseBody("text/plain".toMediaType()))
+            val (viewModel, _) = createViewModelWithSession()
+
+            val voiceFile =
+                java.io.File(attachmentCacheDir, "voice_fail.m4a").apply {
+                    writeBytes(byteArrayOf(9))
+                }
+            viewModel.sendVoiceNote(voiceFile)
+            advanceUntilIdle()
+
+            assertTrue(
+                viewModel.uiState.value.errorMessage
+                    ?.contains("Voice note transcription failed") == true,
+            )
+            assertFalse(voiceFile.exists())
+            assertFalse(viewModel.uiState.value.isTranscribingVoiceNote)
+        }
+
+    @Test
+    fun sendVoiceNote_emptyTranscriptShowsNoSpeechAndDoesNotSubmit() =
+        runTest {
+            val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+            every { ApiClient.hermesApi } returns api
+            coEvery { api.transcribeAudio(any()) } returns
+                Response.success(AudioTranscriptionResponse(ok = true, transcript = "   "))
+            val (viewModel, _) = createViewModelWithSession()
+
+            val voiceFile =
+                java.io.File(attachmentCacheDir, "voice_silent.m4a").apply {
+                    writeBytes(byteArrayOf(0))
+                }
+            viewModel.sendVoiceNote(voiceFile)
+            advanceUntilIdle()
+
+            assertTrue(
+                viewModel.uiState.value.errorMessage
+                    ?.contains("No speech detected") == true,
+            )
+            verify(exactly = 0) { HermesWsClient.sendMessage(any(), any(), any(), any()) }
+        }
+
+    @Test
+    fun sendVoiceNote_whileDisconnectedDropsClipLocallyWithoutUploading() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            val voiceFile =
+                java.io.File(attachmentCacheDir, "voice_offline.m4a").apply {
+                    writeBytes(byteArrayOf(1))
+                }
+            viewModel.sendVoiceNote(voiceFile)
+            advanceUntilIdle()
+
+            assertFalse(voiceFile.exists())
+            assertTrue(
+                viewModel.uiState.value.errorMessage
+                    ?.contains("not connected") == true,
+            )
         }
 }

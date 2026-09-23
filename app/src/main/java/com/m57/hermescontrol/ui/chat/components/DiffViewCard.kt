@@ -1,54 +1,33 @@
 package com.m57.hermescontrol.ui.chat.components
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
-import androidx.compose.animation.animateContentSize
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.m57.hermescontrol.theme.CodeDiffAddBg
@@ -57,12 +36,9 @@ import com.m57.hermescontrol.theme.CodeDiffDeleteBg
 import com.m57.hermescontrol.theme.CodeDiffDeleteText
 import com.m57.hermescontrol.theme.CodeDiffHunkBg
 import com.m57.hermescontrol.theme.CodeDiffHunkText
-import com.m57.hermescontrol.theme.CodeTerminalBg
-import com.m57.hermescontrol.theme.CodeTerminalBorder
 import com.m57.hermescontrol.theme.CodeTerminalMuted
 import com.m57.hermescontrol.theme.CodeTerminalText
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 enum class DiffLineType {
@@ -174,17 +150,8 @@ fun DiffViewCard(
     onCopy: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
     val parsed = remember(diffText, filePath) { parseDiffText(diffText, filePath) }
     var expanded by remember { mutableStateOf(false) }
-    var copied by remember { mutableStateOf(false) }
-
-    LaunchedEffect(copied) {
-        if (copied) {
-            delay(2000)
-            copied = false
-        }
-    }
 
     val displayLines =
         if (expanded || parsed.lines.size <= 16) {
@@ -193,164 +160,86 @@ fun DiffViewCard(
             parsed.lines.take(16)
         }
 
-    Surface(
-        modifier =
-            modifier
-                .fillMaxWidth()
-                .testTag("diff_view_card"),
-        shape = RoundedCornerShape(8.dp),
-        color = CodeTerminalBg,
-        border = BorderStroke(1.dp, CodeTerminalBorder),
+    CodeTerminalCard(
+        textToCopy = diffText,
+        modifier = modifier,
+        testTag = "diff_view_card",
+        title = parsed.filePath ?: "diff",
+        icon = Icons.AutoMirrored.Filled.InsertDriveFile,
+        clipLabel = "diff",
+        copyContentDescription = "Copy diff",
+        onCopy = onCopy,
+        headerActions = {
+            if (parsed.additionsCount > 0) {
+                Text(
+                    text = "+${parsed.additionsCount}",
+                    style =
+                        MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = CodeDiffAddText,
+                        ),
+                )
+                Spacer(Modifier.width(6.dp))
+            }
+            if (parsed.deletionsCount > 0) {
+                Text(
+                    text = "-${parsed.deletionsCount}",
+                    style =
+                        MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = CodeDiffDeleteText,
+                        ),
+                )
+                Spacer(Modifier.width(6.dp))
+            }
+        },
+        totalLines = parsed.lines.size,
+        isExpanded = expanded,
+        onToggleExpand = { expanded = !expanded },
+        expandLabel = "Show full diff (${parsed.lines.size} lines)",
+        collapseLabel = "Collapse diff",
     ) {
-        Column(modifier = Modifier.animateContentSize()) {
-            // Header bar
-            Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically,
+        val verticalScrollModifier =
+            if (expanded) {
+                Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState())
+            } else {
+                Modifier
+            }
+
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .then(verticalScrollModifier)
+                    .horizontalScroll(rememberScrollState())
+                    .width(IntrinsicSize.Max),
+        ) {
+            displayLines.forEach { line ->
+                val (bgColor, textColor) =
+                    when (line.type) {
+                        DiffLineType.ADDED -> CodeDiffAddBg to CodeDiffAddText
+                        DiffLineType.DELETED -> CodeDiffDeleteBg to CodeDiffDeleteText
+                        DiffLineType.HUNK_HEADER -> CodeDiffHunkBg to CodeDiffHunkText
+                        DiffLineType.FILE_HEADER -> Color.Transparent to CodeTerminalMuted
+                        DiffLineType.CONTEXT -> Color.Transparent to CodeTerminalText
+                    }
+
+                Box(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .background(bgColor)
+                            .padding(horizontal = 10.dp, vertical = 2.dp),
                 ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.InsertDriveFile,
-                        contentDescription = null,
-                        tint = CodeTerminalMuted,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Spacer(Modifier.width(6.dp))
                     Text(
-                        text = parsed.filePath ?: "diff",
+                        text = line.text,
                         style =
-                            MaterialTheme.typography.labelMedium.copy(
-                                fontWeight = FontWeight.Bold,
+                            MaterialTheme.typography.bodySmall.copy(
                                 fontFamily = FontFamily.Monospace,
-                                color = CodeTerminalText,
+                                fontSize = 11.sp,
+                                color = textColor,
                             ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
                     )
-                    Spacer(Modifier.width(8.dp))
-
-                    // Addition / Deletion badges
-                    if (parsed.additionsCount > 0) {
-                        Text(
-                            text = "+${parsed.additionsCount}",
-                            style =
-                                MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = CodeDiffAddText,
-                                ),
-                        )
-                        Spacer(Modifier.width(6.dp))
-                    }
-                    if (parsed.deletionsCount > 0) {
-                        Text(
-                            text = "-${parsed.deletionsCount}",
-                            style =
-                                MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = CodeDiffDeleteText,
-                                ),
-                        )
-                        Spacer(Modifier.width(6.dp))
-                    }
-                }
-
-                IconButton(
-                    onClick = {
-                        val clipboard =
-                            context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-                        clipboard?.setPrimaryClip(ClipData.newPlainText("diff", diffText))
-                        copied = true
-                        onCopy(diffText)
-                    },
-                    modifier = Modifier.size(28.dp),
-                ) {
-                    Icon(
-                        imageVector = if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
-                        contentDescription = if (copied) "Copied" else "Copy diff",
-                        tint = CodeTerminalMuted,
-                        modifier = Modifier.size(14.dp),
-                    )
-                }
-            }
-
-            // Diff lines body
-            val verticalScrollModifier =
-                if (expanded) {
-                    Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState())
-                } else {
-                    Modifier
-                }
-
-            Column(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .then(verticalScrollModifier)
-                        .horizontalScroll(rememberScrollState())
-                        .width(IntrinsicSize.Max),
-            ) {
-                displayLines.forEach { line ->
-                    val (bgColor, textColor) =
-                        when (line.type) {
-                            DiffLineType.ADDED -> CodeDiffAddBg to CodeDiffAddText
-                            DiffLineType.DELETED -> CodeDiffDeleteBg to CodeDiffDeleteText
-                            DiffLineType.HUNK_HEADER -> CodeDiffHunkBg to CodeDiffHunkText
-                            DiffLineType.FILE_HEADER -> Color.Transparent to CodeTerminalMuted
-                            DiffLineType.CONTEXT -> Color.Transparent to CodeTerminalText
-                        }
-
-                    Box(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .background(bgColor)
-                                .padding(horizontal = 10.dp, vertical = 2.dp),
-                    ) {
-                        Text(
-                            text = line.text,
-                            style =
-                                MaterialTheme.typography.bodySmall.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 11.sp,
-                                    color = textColor,
-                                ),
-                        )
-                    }
-                }
-            }
-
-            // Expand / Collapse footer button for diffs > 16 lines
-            if (parsed.lines.size > 16) {
-                TextButton(
-                    onClick = { expanded = !expanded },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text =
-                                if (expanded) {
-                                    "Collapse diff"
-                                } else {
-                                    "Show full diff (${parsed.lines.size} lines)"
-                                },
-                            style = MaterialTheme.typography.labelSmall,
-                            color = CodeTerminalMuted,
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Icon(
-                            imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                            contentDescription = null,
-                            tint = CodeTerminalMuted,
-                            modifier = Modifier.size(16.dp),
-                        )
-                    }
                 }
             }
         }
@@ -368,17 +257,7 @@ fun FileViewCard(
     onCopy: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
-    var copied by remember { mutableStateOf(false) }
-
-    LaunchedEffect(copied) {
-        if (copied) {
-            delay(2000)
-            copied = false
-        }
-    }
-
     val lines = remember(content) { content.lines() }
     val displayText =
         remember(content, expanded) {
@@ -398,137 +277,60 @@ fun FileViewCard(
             }
     }
 
-    Surface(
-        modifier =
-            modifier
-                .fillMaxWidth()
-                .testTag("file_view_card"),
-        shape = RoundedCornerShape(8.dp),
-        color = CodeTerminalBg,
-        border = BorderStroke(1.dp, CodeTerminalBorder),
+    CodeTerminalCard(
+        textToCopy = content,
+        modifier = modifier,
+        testTag = "file_view_card",
+        title = filePath?.takeIf { it.isNotBlank() } ?: "file",
+        icon = Icons.AutoMirrored.Filled.InsertDriveFile,
+        clipLabel = "file",
+        copyContentDescription = "Copy file content",
+        onCopy = onCopy,
+        headerActions = {
+            if (lines.isNotEmpty()) {
+                Text(
+                    text = "${lines.size} lines",
+                    style =
+                        MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = CodeTerminalMuted,
+                        ),
+                )
+                Spacer(Modifier.width(6.dp))
+            }
+        },
+        totalLines = lines.size,
+        isExpanded = expanded,
+        onToggleExpand = { expanded = !expanded },
+        expandLabel = "Show full file (${lines.size} lines)",
+        collapseLabel = "Collapse file",
     ) {
-        Column(modifier = Modifier.animateContentSize()) {
-            // Header bar
-            Row(
+        val verticalScrollModifier =
+            if (expanded) {
+                Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState())
+            } else {
+                Modifier
+            }
+
+        SelectionContainer {
+            Box(
                 modifier =
                     Modifier
                         .fillMaxWidth()
+                        .then(verticalScrollModifier)
+                        .horizontalScroll(rememberScrollState())
                         .padding(horizontal = 10.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.InsertDriveFile,
-                        contentDescription = null,
-                        tint = CodeTerminalMuted,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = filePath?.takeIf { it.isNotBlank() } ?: "file",
-                        style =
-                            MaterialTheme.typography.labelMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Monospace,
-                                color = CodeTerminalText,
-                            ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                    Spacer(Modifier.width(8.dp))
-
-                    if (lines.isNotEmpty()) {
-                        Text(
-                            text = "${lines.size} lines",
-                            style =
-                                MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = CodeTerminalMuted,
-                                ),
-                        )
-                        Spacer(Modifier.width(6.dp))
-                    }
-                }
-
-                IconButton(
-                    onClick = {
-                        val clipboard =
-                            context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-                        clipboard?.setPrimaryClip(ClipData.newPlainText("file", content))
-                        copied = true
-                        onCopy(content)
-                    },
-                    modifier = Modifier.size(28.dp),
-                ) {
-                    Icon(
-                        imageVector = if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
-                        contentDescription = if (copied) "Copied" else "Copy file content",
-                        tint = CodeTerminalMuted,
-                        modifier = Modifier.size(14.dp),
-                    )
-                }
-            }
-
-            // Code lines body
-            val verticalScrollModifier =
-                if (expanded) {
-                    Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState())
-                } else {
-                    Modifier
-                }
-
-            SelectionContainer {
-                Box(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .then(verticalScrollModifier)
-                            .horizontalScroll(rememberScrollState())
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                ) {
-                    Text(
-                        text = highlighted,
-                        style =
-                            MaterialTheme.typography.bodySmall.copy(
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 11.sp,
-                                color = CodeTerminalText,
-                            ),
-                        softWrap = false,
-                    )
-                }
-            }
-
-            // Expand / Collapse footer button for files > 16 lines
-            if (lines.size > 16) {
-                TextButton(
-                    onClick = { expanded = !expanded },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text =
-                                if (expanded) {
-                                    "Collapse file"
-                                } else {
-                                    "Show full file (${lines.size} lines)"
-                                },
-                            style = MaterialTheme.typography.labelSmall,
-                            color = CodeTerminalMuted,
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Icon(
-                            imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                            contentDescription = null,
-                            tint = CodeTerminalMuted,
-                            modifier = Modifier.size(16.dp),
-                        )
-                    }
-                }
+                Text(
+                    text = highlighted,
+                    style =
+                        MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            color = CodeTerminalText,
+                        ),
+                    softWrap = false,
+                )
             }
         }
     }

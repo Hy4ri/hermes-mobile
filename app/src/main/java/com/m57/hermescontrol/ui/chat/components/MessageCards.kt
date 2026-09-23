@@ -266,79 +266,35 @@ fun CodeBlockCard(
     onCopy: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
-
-    Surface(
-        modifier =
-            modifier
-                .fillMaxWidth()
-                .testTag("code_block"),
-        shape = RoundedCornerShape(8.dp),
-        color = CodeTerminalBg,
-        border = BorderStroke(1.dp, CodeTerminalBorder),
+    val highlighted by produceState(
+        initialValue = remember(code) { AnnotatedString(code) },
+        key1 = code,
     ) {
-        Column {
-            // Header row: language badge (left) + copy button (right)
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (!language.isNullOrBlank()) {
-                    Text(
-                        text = language.uppercase(),
-                        style =
-                            MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = CodeTerminalMuted,
-                            ),
-                    )
-                }
-                Spacer(Modifier.weight(1f))
-                var copied by remember { mutableStateOf(false) }
-                LaunchedEffect(copied) {
-                    if (copied) {
-                        kotlinx.coroutines.delay(2000)
-                        copied = false
-                    }
-                }
-                IconButton(
-                    onClick = {
-                        copyToClipboard(context, code)
-                        copied = true
-                        onCopy(code)
-                    },
-                    modifier = Modifier.size(28.dp),
-                ) {
-                    Icon(
-                        imageVector = if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
-                        contentDescription = if (copied) "Copied" else "Copy code",
-                        tint = CodeTerminalMuted,
-                        modifier = Modifier.size(14.dp),
-                    )
-                }
+        value =
+            withContext(Dispatchers.Default) {
+                highlightSyntax(code)
             }
-            // Code content with syntax highlighting
-            val highlighted by produceState(
-                initialValue = remember(code) { AnnotatedString(code) },
-                key1 = code,
-            ) {
-                value =
-                    withContext(Dispatchers.Default) {
-                        highlightSyntax(code)
-                    }
-            }
-            Text(
-                text = highlighted,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 13.sp,
-                color = CodeTerminalText,
-                softWrap = false,
-                modifier =
-                    Modifier
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-            )
-        }
+    }
+
+    CodeTerminalCard(
+        textToCopy = code,
+        modifier = modifier,
+        testTag = "code_block",
+        title = language?.takeIf { it.isNotBlank() }?.uppercase(),
+        onCopy = onCopy,
+        copyContentDescription = "Copy code",
+    ) {
+        Text(
+            text = highlighted,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 13.sp,
+            color = CodeTerminalText,
+            softWrap = false,
+            modifier =
+                Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+        )
     }
 }
 

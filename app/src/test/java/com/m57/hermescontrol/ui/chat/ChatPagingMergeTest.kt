@@ -674,6 +674,81 @@ class ChatPagingMergeTest {
     }
 
     @Test
+    fun localNoticesKeepTheirPositionAcrossRepeatedTranscriptSyncs() {
+        val first = ChatMessage(id = "rest-s-1", role = MessageRole.USER, content = "hello")
+        val answer = ChatMessage(id = "rest-s-2", role = MessageRole.ASSISTANT, content = "hi")
+        val resumed = ChatMessage(id = "resume", role = MessageRole.SYSTEM, content = "Session resumed")
+        val review =
+            ChatMessage(id = "review", role = MessageRole.SYSTEM, content = "💾 Self-improvement review: skill updated")
+        val next = ChatMessage(id = "rest-s-3", role = MessageRole.USER, content = "next")
+        val reply = ChatMessage(id = "rest-s-4", role = MessageRole.ASSISTANT, content = "done")
+
+        val afterResume = mergeTranscriptWithLive(listOf(first, answer), listOf(first, answer, resumed))
+        assertEquals(listOf("rest-s-1", "rest-s-2", "resume"), afterResume.map { it.id })
+        val afterReview = mergeTranscriptWithLive(listOf(first, answer), afterResume + review)
+        assertEquals(listOf("rest-s-1", "rest-s-2", "resume", "review"), afterReview.map { it.id })
+        val afterNextTurn = mergeTranscriptWithLive(listOf(next, reply), afterReview)
+        assertEquals(
+            listOf("rest-s-1", "rest-s-2", "resume", "review", "rest-s-3", "rest-s-4"),
+            afterNextTurn.map { it.id },
+        )
+        assertEquals(afterNextTurn, mergeTranscriptWithLive(listOf(next, reply), afterNextTurn))
+        assertEquals(
+            afterNextTurn.map { it.id },
+            mergeCachedTranscriptPage(listOf(first, answer, next, reply), afterNextTurn).map { it.id },
+        )
+    }
+
+    @Test
+    fun localNoticeOnColdResumeFollowsHydratedHistoryButNotFutureReplies() {
+        val resumed = ChatMessage(id = "resume", role = MessageRole.SYSTEM, content = "Session resumed")
+        val prior = ChatMessage(id = "rest-s-1", role = MessageRole.USER, content = "earlier")
+        val later = ChatMessage(id = "rest-s-2", role = MessageRole.ASSISTANT, content = "later")
+        val created = ChatMessage(id = "created", role = MessageRole.SYSTEM, content = "Session created")
+        val hydrated = mergeTranscriptWithLive(listOf(prior), listOf(created, resumed))
+        assertEquals(listOf("created", "rest-s-1", "resume"), hydrated.map { it.id })
+        val synced = mergeTranscriptWithLive(listOf(later), hydrated)
+        assertEquals(listOf("created", "rest-s-1", "resume", "rest-s-2"), synced.map { it.id })
+    }
+
+    @Test
+    fun unconfirmedUserAndAssistantRemainAfterCanonicalHistory() {
+        val user = ChatMessage(id = "uuid-user", role = MessageRole.USER, content = "pending")
+        val assistant = ChatMessage(id = "uuid-assistant", role = MessageRole.ASSISTANT, content = "streaming")
+        val canonical = ChatMessage(id = "rest-s-1", role = MessageRole.USER, content = "older")
+        val merged = mergeTranscriptWithLive(listOf(canonical), listOf(user, assistant))
+        assertEquals(listOf("rest-s-1", "uuid-user", "uuid-assistant"), merged.map { it.id })
+    }
+
+    @Test
+    fun olderPageDoesNotMoveLocalNoticeOrReverseCanonicalRows() {
+        val old = ChatMessage(id = "rest-s-1", role = MessageRole.USER, content = "old")
+        val current = ChatMessage(id = "rest-s-3", role = MessageRole.ASSISTANT, content = "current")
+        val notice = ChatMessage(id = "notice", role = MessageRole.SYSTEM, content = "Session interrupted")
+        val next = ChatMessage(id = "rest-s-4", role = MessageRole.USER, content = "next")
+
+        val paged = mergeTranscriptWithLive(listOf(old), listOf(current, notice), chronological = false)
+        assertEquals(listOf("rest-s-1", "rest-s-3", "notice"), paged.map { it.id })
+        val synced = mergeTranscriptWithLive(listOf(next), paged)
+        assertEquals(listOf("rest-s-1", "rest-s-3", "notice", "rest-s-4"), synced.map { it.id })
+    }
+
+    @Test
+    fun reviewNoticeStaysAfterAssistantWhenItsRestEchoArrivesLater() {
+        val user = ChatMessage(id = "rest-s-1", role = MessageRole.USER, content = "prompt")
+        val liveReply = ChatMessage(id = "live-reply", role = MessageRole.ASSISTANT, content = "answer")
+        val review = ChatMessage(id = "review", role = MessageRole.SYSTEM, content = "💾 Self-improvement review")
+        val beforeEcho = mergeTranscriptWithLive(listOf(user), listOf(user, liveReply, review), preserveLiveIds = true)
+        assertEquals(listOf("rest-s-1", "live-reply", "review"), beforeEcho.map { it.id })
+        val restReply = liveReply.copy(id = "rest-s-2")
+        val afterEcho = mergeTranscriptWithLive(listOf(restReply), beforeEcho, preserveLiveIds = true)
+        assertEquals(listOf("rest-s-1", "live-reply", "review"), afterEcho.map { it.id })
+        val next = ChatMessage(id = "rest-s-3", role = MessageRole.USER, content = "next")
+        val synced = mergeTranscriptWithLive(listOf(next), afterEcho)
+        assertEquals(listOf("rest-s-1", "live-reply", "review", "rest-s-3"), synced.map { it.id })
+    }
+
+    @Test
     fun sessionCreatedMarkerStaysAtStartOfTranscript() {
         val sessionCreated =
             ChatMessage(

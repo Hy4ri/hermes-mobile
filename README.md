@@ -30,7 +30,7 @@
 
 ## Overview
 
-**Hermes Mobile** is the native Android client for [Hermes Agent](https://hermes-agent.nousresearch.com). It connects securely to your local Hermes gateway (REST API and WebSocket TUI Gateway) over LAN, giving you pocket control over your AI assistant.
+**Hermes Mobile** is the native Android client for [Hermes Agent](https://hermes-agent.nousresearch.com). It connects to your Hermes gateway (REST API and WebSocket TUI Gateway), giving you pocket control over your AI assistant. Plain HTTP/WS connections are intended for trusted networks only; authentication does not encrypt the transport.
 
 ---
 
@@ -67,17 +67,23 @@ If Hermes Mobile is useful to you, consider supporting its development on [Ko-fi
 - **Gateway Status:** Monitor WebSocket connection, MCP servers, messaging channels, and OAuth providers.
 - **Productivity:** View and manage tasks via integrated Kanban boards, track agent milestones, and browse session history.
 - **Analytics & Billing:** Usage analytics dashboard and billing/subscription management.
-- **Theming:** 6 built-in color presets (Default, Monochrome, Gruvbox, Catppuccin, AMOLED, Neon Noir) plus Material You dynamic colors on supported devices.
+- **Theming:** 6 built-in color presets (Default, Monochrome, Gruvbox, Catppuccin, AMOLED, Nord) plus Material You dynamic colors on supported devices.
 - **Modern UX:** Native Material 3 design with pull-to-refresh, scroll-aware TopBar, and customizable bottom navigation.
 
 ---
 
 ## Quick Start
 
+1. Install Hermes Mobile from [F-Droid](https://f-droid.org/packages/com.m57.hermescontrol/) or download the APK from the [latest GitHub release](https://github.com/Hy4ri/hermes-mobile/releases/latest).
+2. Start your Hermes dashboard on a host reachable from your phone.
+3. Follow [Authentication](#authentication) below to connect. Use a trusted network for plain HTTP/WS connections.
+
+## Build from source
+
 ### Prerequisites
 
 - **JDK 21+** (required for Kotlin compilation and the Gradle toolchain)
-- **Android Studio** (Ladybug+) or a **Nix** development environment
+- An **Android SDK** matching the compile SDK in [`app/build.gradle.kts`](app/build.gradle.kts), available through Android Studio or the **Nix** development environment. Set `ANDROID_HOME` or configure `sdk.dir` in your local `local.properties`.
 
 ### Build & Deploy
 
@@ -160,7 +166,7 @@ app/src/main/java/com/m57/hermescontrol/
 ├── data/          # Local (Room, AuthManager), Remote (Retrofit, OkHttp), WS (WebSocket), Models
 ├── notification/  # Foreground service + inline reply for chat notifications
 ├── theme/         # Preset-based design system (6 themes), status colors, spacing, typography
-├── ui/            # 28 Compose feature screens + common components (HermesScaffold, StateViews)
+├── ui/            # Compose feature screens + common components (HermesScaffold, StateViews)
 ├── util/          # CronExpressionFormatter, LocaleContextWrapper
 └── Navigation*.kt # Navigation3 wiring, keys, screen registry, controller
 ```
@@ -169,16 +175,18 @@ app/src/main/java/com/m57/hermescontrol/
 
 ## Tech Stack
 
-- **Language:** Kotlin 2.4.10 with KSP 2.3.10 compiler plugin
-- **UI & Layout:** Jetpack Compose (BOM 2026.03.01) & Material 3 / Material You
+- **Language:** Kotlin with KSP
+- **UI & Layout:** Jetpack Compose & Material 3 / Material You
 - **Navigation:** Navigation3 (Compose-first Routing)
-- **Networking:** Retrofit 3.0.0, OkHttp 5.4.0, Kotlinx Serialization 1.11.0
-- **Database:** Room 2.7.1 with SQLCipher 4.17.0 encryption
+- **Networking:** Retrofit, OkHttp, Kotlinx Serialization
+- **Database:** Room with SQLCipher encryption
 - **Security:** `EncryptedSharedPreferences` (AES256-GCM), DataStore
-- **Theming:** 6 built-in presets (Default, Monochrome, Gruvbox, Catppuccin, AMOLED, Neon Noir) + Material You dynamic colors
-- **Image Loading:** Coil 2.7.0
-- **Testing:** JUnit 5, MockK, Turbine, Espresso, Compose UI testing
+- **Theming:** Built-in presets + Material You dynamic colors; see [Themes](app/src/main/java/com/m57/hermescontrol/theme/THEMES.md)
+- **Image Loading:** Coil
+- **Testing:** JUnit, MockK, Turbine, Espresso, Compose UI testing
 - **Formatting:** `ktlint` 1.8.0 style rules (checked automatically in CI)
+
+Dependency versions are maintained in [`gradle/libs.versions.toml`](gradle/libs.versions.toml); build configuration and dependency scopes live in [`app/build.gradle.kts`](app/build.gradle.kts).
 
 ---
 
@@ -190,7 +198,7 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for ou
 
 Help translate Hermes Mobile into your language on [Hosted Weblate](https://hosted.weblate.org/projects/hermes-mobile/hermes-mobile/)!
 
-For developer-specific details, code conventions, and project architecture notes, refer to [AGENTS.md](AGENTS.md).
+For operational conventions and architecture notes, refer to [AGENTS.md](AGENTS.md). [DESIGN.md](DESIGN.md) defines visual and interaction requirements; [THEMES.md](app/src/main/java/com/m57/hermescontrol/theme/THEMES.md) explains theme implementation.
 
 ---
 

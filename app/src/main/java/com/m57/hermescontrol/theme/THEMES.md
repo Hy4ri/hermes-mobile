@@ -1,6 +1,10 @@
 # Themes
 
-How theming works in Hermes Control, and how to add or edit a theme.
+How theming works in Hermes Mobile, and how to add or edit a theme.
+
+This is the implementation guide. [DESIGN.md](../../../../../../../../DESIGN.md)
+defines visual and interaction requirements; the Kotlin sources define the actual
+tokens. When changing tokens or behavior, update the relevant documentation too.
 
 ## Where themes live
 
@@ -120,4 +124,4 @@ active preset via `LocalHermesStatusColors`.
 - ktlint 1.8.0 is enforced in CI. Run `./gradlew ktlintCheck` before committing
   (the gradle task is the gate, not the standalone `ktlint` binary).
 - Import order is ASCII-lexicographic (uppercase before lowercase).
-- Every change goes through a PR — never push directly to `main`.
+- Every change goes through a PR targeting `dev` — never push directly to `main` or `dev`.

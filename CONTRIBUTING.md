@@ -20,7 +20,7 @@ If an open PR already covers it, review or improve that one instead of opening a
 
 ## PR Workflow
 
-All code changes must go through a pull request (PR) targeting the `dev` staging branch. Directly pushing to `main` or `dev` is not allowed **except for trivial changes the maintainer explicitly okays** — when in doubt, open a PR.
+Every change must go through a pull request (PR) targeting the `dev` staging branch. Do not push directly to `main` or `dev`.
 
 1. **Pick or open an issue** to discuss the changes you want to make.
 2. **Create a branch** off `dev` using the following naming convention:
@@ -30,7 +30,7 @@ All code changes must go through a pull request (PR) targeting the `dev` staging
 3. **Implement your changes** and format them locally (see Code Style).
 4. **Submit a PR** targeting the `dev` branch, filling the PR template.
 5. **Ensure all CI checks pass** (ktlint, Android Lint, unit tests, build).
-6. **Rebase onto `dev` before merge.** Maintainers squash-merge; a stale branch's version of an unrelated file can silently overwrite recent fixes on `dev` when squashed. `git fetch origin dev && git rebase origin/dev` first.
+6. **Rebase onto `dev` before merge.** Run `git fetch origin dev && git rebase origin/dev`, resolve conflicts carefully, and re-run verification on the rebased result. Maintainers squash-merge; green CI does not by itself authorize a merge.
 
 ---
 
@@ -51,9 +51,8 @@ Keep commits **atomic**: one subject line (≤72 chars) + max 2 lines of body. I
 ```
 fix(#431): resume last session from Room cache on cold start
 
-Reorders init to show cached messages before WS connects,
-and resumes the last session on GatewayReady instead of
-always creating a blank new one.
+Shows cached messages before WS connects and resumes the last
+session on GatewayReady instead of creating a blank one.
 ```
 
 ---
@@ -63,7 +62,7 @@ always creating a blank new one.
 If you use AI coding tools (including agents) to contribute:
 
 - **Never** add the AI tool as author, co-author, or `Co-Authored-By` in commit metadata.
-- Direct AI agents to [`AGENTS.md`](AGENTS.md) and [`DESIGN.md`](DESIGN.md) in the repo root — `AGENTS.md` contains operational conventions, build quirks, and testing rules, while `DESIGN.md` defines the normative design tokens, layout rules, and component styling contracts.
+- Direct AI agents to [`AGENTS.md`](AGENTS.md) and [`DESIGN.md`](DESIGN.md) in the repo root — `AGENTS.md` contains operational and architecture conventions, while `DESIGN.md` defines visual, interaction, and accessibility requirements and links to the token sources. Theme implementation is documented in [`THEMES.md`](app/src/main/java/com/m57/hermescontrol/theme/THEMES.md).
 
 ---
 
@@ -94,7 +93,7 @@ We enforce Kotlin coding conventions and Jetpack Compose best practices.
 ### Compose Guidelines
 
 - Standard screen structures must use `HermesScaffold` rather than raw Material3 `Scaffold`.
-- Composable parameters must follow the standard order: `modifier` first, then event callbacks, and finally children content.
+- Follow existing Compose APIs: required parameters first, `modifier` as the first optional parameter, then other optional parameters; keep trailing composable content last.
 - Do **not** apply `paddingValues` on inner content inside `HermesScaffold` — the scaffold already handles top bar padding. See `AGENTS.md` for the full breakdown of this recurring bug.
 - Every data screen must implement `LoadingState`, `ErrorState`, and `EmptyState` branches in its `when { }` block.
 
@@ -108,7 +107,8 @@ We enforce Kotlin coding conventions and Jetpack Compose best practices.
 
 - Unit tests: `./gradlew testDebugUnitTest` (MockK). Instrumented Compose UI tests run in CI on an emulator.
 - **Tests must not touch real on-device storage.** Use `@get:Rule TemporaryFolder` (or Room `inMemoryDatabaseBuilder`) — never write to real app data or external storage. CI/emulator environments are ephemeral; leaking state breaks the next run.
-- Mock time/dispatchers explicitly (`StandardTestDispatcher` + `Dispatchers.setMain`) — see `AGENTS.md` test references.
+- Mock time/dispatchers explicitly (`StandardTestDispatcher` + `Dispatchers.setMain`), restore `Dispatchers.Main` in teardown, and cancel test-owned scopes. Follow neighboring tests for the affected component.
+- For UI changes, exercise the changed flow on a device or emulator and record the behavior observed. A built or downloaded CI APK alone is not behavioral verification. If device verification is unavailable, state that gate explicitly rather than marking it passed.
 
 ---
 
@@ -129,8 +129,9 @@ Before submitting your PR, please verify:
 - [ ] `checkColorLiterals` passes (no hardcoded Color literals outside theme/).
 - [ ] `./gradlew testDebugUnitTest` passes locally (or CI unit-tests job is green).
 - [ ] No unused imports, unused parameters, or dead code.
-- [ ] Every `Image` and `Icon` element has a descriptive `contentDescription` for accessibility.
+- [ ] Meaningful images and icon-only actions have localized accessible labels; decorative images/icons use `contentDescription = null` to avoid redundant announcements.
 - [ ] New screens use `HermesScaffold` and implement Loading/Error/Empty states.
-- [ ] UI changes follow [`DESIGN.md`](DESIGN.md) (no emoji status glyphs, no FABs, verified >=3:1 contrast).
-- [ ] New components match the UI/UX style of similar existing screens (28+ screens for reference).
+- [ ] UI changes follow [`DESIGN.md`](DESIGN.md), including applicable contrast, touch-target, font-scaling, and RTL requirements.
+- [ ] Changed UI behavior was exercised on a device/emulator; the PR records the result or explicitly names the unverified gate.
+- [ ] New components match the UI/UX style of similar existing screens.
 - [ ] Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/) and are atomic (subject + ≤2 lines body).

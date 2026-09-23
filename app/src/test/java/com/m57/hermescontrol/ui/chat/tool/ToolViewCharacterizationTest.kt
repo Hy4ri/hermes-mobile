@@ -592,8 +592,27 @@ class ToolViewCharacterizationTest {
 
         assertEquals("https://img.example/cat.png (image)", view.subtitle)
         assertEquals("🖼️ a cat\n\n🔗 https://img.example/cat.png", view.detail)
-        // Pinned: imageUrlFor does not read the "image" key, so no thumbnail.
-        assertNull(view.imageUrl)
+        assertEquals("https://img.example/cat.png", view.imageUrl)
+    }
+
+    @Test
+    fun `image_generate data image reaches inline image view`() {
+        val view = build("image_generate", """{"prompt":"a cat"}""", """{"image":"data:image/png;base64,AAA"}""")
+
+        assertEquals("data:image/png;base64,AAA", view.imageUrl)
+    }
+
+    @Test
+    fun `image_generate http image reaches inline image view`() {
+        val view = build("image_generate", "{}", """{"image":"http://img.example/cat.webp"}""")
+
+        assertEquals("http://img.example/cat.webp", view.imageUrl)
+    }
+
+    @Test
+    fun `image_generate local path and non-image url do not reach inline image view`() {
+        assertNull(build("image_generate", "{}", """{"image":"/tmp/cat.png"}""").imageUrl)
+        assertNull(build("image_generate", "{}", """{"image":"https://img.example/page"}""").imageUrl)
     }
 
     @Test

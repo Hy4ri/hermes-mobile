@@ -165,6 +165,7 @@
     <string name="chat_input_placeholder_type_message">输入消息…</string>
     <string name="chat_tool_execution_error">执行错误：%1$s</string>
     <string name="chat_tool_exit_code">退出码：%1$d</string>
+    <string name="chat_tool_output_omitted">进程输出省略了 %1$d 个字符</string>
     <string name="chat_tool_fallback">工具</string>
     <string name="chat_tool_show_raw">显示原始 JSON</string>
     <string name="chat_tool_show_parsed">显示解析输出</string>

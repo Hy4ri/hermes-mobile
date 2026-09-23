@@ -21,7 +21,6 @@ import com.m57.hermescontrol.data.model.CreateWebhookRequest
 import com.m57.hermescontrol.data.model.CredentialPoolResponse
 import com.m57.hermescontrol.data.model.CronBlueprintListResponse
 import com.m57.hermescontrol.data.model.CronJob
-import com.m57.hermescontrol.data.model.CronRunHistoryResponse
 import com.m57.hermescontrol.data.model.CuratorResponse
 import com.m57.hermescontrol.data.model.DebugShareResponse
 import com.m57.hermescontrol.data.model.DeleteWebhookResponse
@@ -359,12 +358,6 @@ interface HermesApiService : KanbanApiService {
 
     @GET("api/cron/jobs")
     suspend fun getCronJobs(): Response<List<CronJob>>
-
-    @GET("api/cron/jobs/{id}/runs")
-    suspend fun getCronJobRuns(
-        @Path("id") id: String,
-        @Query("limit") limit: Int = 20,
-    ): Response<CronRunHistoryResponse>
 
     @POST("api/cron/jobs/{id}/pause")
     suspend fun pauseCronJob(

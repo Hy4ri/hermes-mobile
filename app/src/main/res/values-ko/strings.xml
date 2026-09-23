@@ -162,6 +162,7 @@
     <string name="chat_input_placeholder_type_message">메시지 입력…</string>
     <string name="chat_tool_execution_error">실행 오류: %1$s</string>
     <string name="chat_tool_exit_code">종료 코드: %1$d</string>
+    <string name="chat_tool_output_omitted">프로세스 출력에서 %1$d자 생략됨</string>
     <string name="chat_tool_fallback">도구</string>
     <string name="chat_tool_show_raw">Raw JSON 보기</string>
     <string name="chat_tool_show_parsed">파싱된 결과 보기</string>

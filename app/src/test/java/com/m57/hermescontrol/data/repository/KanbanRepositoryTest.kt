@@ -2,9 +2,13 @@ package com.m57.hermescontrol.data.repository
 
 import com.m57.hermescontrol.data.model.CreateTaskBody
 import com.m57.hermescontrol.data.model.CreateTaskResponse
+import com.m57.hermescontrol.data.model.DeleteAttachmentResponse
 import com.m57.hermescontrol.data.model.KanbanBoardResponse
 import com.m57.hermescontrol.data.model.KanbanBoardsResponse
 import com.m57.hermescontrol.data.model.KanbanTask
+import com.m57.hermescontrol.data.model.SpecifyTaskResponse
+import com.m57.hermescontrol.data.model.TaskLinkResponse
+import com.m57.hermescontrol.data.model.TerminateRunResponse
 import com.m57.hermescontrol.data.model.UpdateTaskBody
 import com.m57.hermescontrol.data.model.UpdateTaskResponse
 import com.m57.hermescontrol.data.remote.KanbanApiService
@@ -106,5 +110,29 @@ class KanbanRepositoryTest {
 
             val result = repository.getBoard("missing")
             assertTrue(result is NetworkResult.Failure)
+        }
+
+    @Test
+    fun testNewTaskOperationsCarryBoardAndTypedResults() =
+        runTest(testDispatcher) {
+            coEvery { mockApi.deleteAttachment(9L, "ops") } returns
+                Response.success(DeleteAttachmentResponse(ok = true, id = 9L))
+            coEvery { mockApi.terminateRun(7L, "ops", any()) } returns
+                Response.success(TerminateRunResponse(ok = true, runId = 7L, taskId = "t_1"))
+            coEvery { mockApi.specifyTask("t_1", "ops", any()) } returns
+                Response.success(SpecifyTaskResponse(ok = false, taskId = "t_1", reason = "Not configured"))
+            coEvery { mockApi.createTaskLink("ops", any()) } returns
+                Response.success(TaskLinkResponse(ok = true, gated = true))
+
+            assertTrue((repository.deleteAttachment(9L, "ops") as NetworkResult.Success).data.ok)
+            assertEquals("t_1", (repository.terminateRun(7L, "ops") as NetworkResult.Success).data.taskId)
+            assertEquals("Not configured", (repository.specifyTask("t_1", "ops") as NetworkResult.Success).data.reason)
+            assertTrue((repository.createTaskLink("ops", "parent", "t_1") as NetworkResult.Success).data.gated)
+            coVerify { mockApi.deleteAttachment(9L, "ops") }
+            coVerify { mockApi.terminateRun(7L, "ops", any()) }
+            coVerify { mockApi.specifyTask("t_1", "ops", any()) }
+            coVerify {
+                mockApi.createTaskLink("ops", match { it.parentId == "parent" && it.childId == "t_1" })
+            }
         }
 }

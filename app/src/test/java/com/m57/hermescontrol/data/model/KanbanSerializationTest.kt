@@ -314,4 +314,57 @@ class KanbanSerializationTest {
         assertTrue(unassignJson.contains("\"assignee\":\"\""))
         assertTrue(unassignJson.contains("\"reclaim_first\":true"))
     }
+
+    @Test
+    fun testRunAndWorkerWireShapesRetainScopeAndOptionalInspectionState() {
+        val run =
+            json
+                .decodeFromString<KanbanRunResponse>(
+                    """{"run":{"id":7,"task_id":"t_1","profile":"builder","step_key":"implement", "status":"running","worker_pid":42,"started_at":100,"max_runtime_seconds":3600,"last_heartbeat_at":110}}""",
+                ).run
+        assertEquals("t_1", run.taskId)
+        assertEquals("implement", run.stepKey)
+        assertEquals(3600, run.maxRuntimeSeconds)
+        assertNull(run.endedAt)
+
+        val workers =
+            json.decodeFromString<ActiveWorkersResponse>(
+                """{"workers":[{"run_id":7,"task_id":"t_1","task_title":"Build", "task_status":"running","worker_pid":42}],"count":1,"checked_at":123}""",
+            )
+        assertEquals(7L, workers.workers.single().runId)
+        assertEquals(123L, workers.checkedAt)
+
+        val unavailable =
+            json.decodeFromString<KanbanRunInspection>(
+                """{"run_id":7,"alive":false,"reason":"psutil not available"}""",
+            )
+        assertFalse(unavailable.alive)
+        assertEquals("psutil not available", unavailable.reason)
+        assertNull(unavailable.cpuPercent)
+    }
+
+    @Test
+    fun testBoardTaskWorkflowFieldsAndNullableAttachments() {
+        val task =
+            json.decodeFromString<KanbanTask>(
+                """{"id":"t_1","title":"Build","status":"running","workflow_template_id":"release","current_step_key":"verify","current_run_id":7}""",
+            )
+        assertEquals("release", task.workflowTemplateId)
+        assertEquals("verify", task.currentStepKey)
+        assertEquals(7L, task.currentRunId)
+
+        val detail =
+            json.decodeFromString<KanbanTaskDetailResponse>(
+                """{"task":{"id":"t_1","title":"Build","status":"running"},"attachments":null,"runs":[]}""",
+            )
+        assertNull(detail.attachments)
+        assertTrue(detail.runs.isEmpty())
+    }
+
+    @Test
+    fun testTaskLinkPayloadUsesBackendSnakeCase() {
+        val wire = json.encodeToString(TaskLinkBody(parentId = "t_parent", childId = "t_child"))
+        assertTrue(wire.contains("\"parent_id\":\"t_parent\""))
+        assertTrue(wire.contains("\"child_id\":\"t_child\""))
+    }
 }

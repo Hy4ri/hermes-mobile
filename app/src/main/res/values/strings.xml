@@ -1720,4 +1720,31 @@
     <string name="connection_setup_required">%1$s is required</string>
     <string name="connection_setup_request_failed">Couldn’t send the setup response. Try again.</string>
     <string name="connection_setup_pending">Waiting for Hermes…</string>
+
+    <!-- Kanban task detail -->
+    <string name="kanban_specify_task">Specify task</string>
+    <string name="kanban_specifying">Specifying…</string>
+    <string name="kanban_specify_success">Task specified successfully</string>
+    <string name="kanban_specify_failed">Failed to specify task: %1$s</string>
+    <string name="kanban_add_parent">Add parent</string>
+    <string name="kanban_parent_id">Parent task ID</string>
+    <string name="kanban_link_gated">Linking is unavailable until the task is specified</string>
+    <string name="kanban_link_created">Task link created</string>
+    <string name="kanban_run_details">Run details</string>
+    <string name="kanban_inspect_run">Inspect run</string>
+    <string name="kanban_terminate_run">Terminate run</string>
+    <string name="kanban_terminate_run_confirm">Terminate this run?</string>
+    <string name="kanban_run_terminated">Run terminated</string>
+    <string name="kanban_run_inactive">Run is inactive</string>
+    <string name="kanban_run_inspection_unavailable">Run inspection is unavailable</string>
+    <string name="kanban_run_state_filter">Run state</string>
+    <string name="kanban_all_runs">All runs</string>
+    <string name="kanban_delete_attachment">Delete attachment</string>
+    <string name="kanban_delete_attachment_confirm">Delete this attachment?</string>
+    <string name="kanban_download_attachment">Download attachment</string>
+    <string name="kanban_attachment_saved">Attachment saved</string>
+    <string name="kanban_attachment_deleted">Attachment deleted</string>
+    <string name="kanban_attachment_error">Attachment error: %1$s</string>
+    <string name="kanban_active_workers">Active workers</string>
+    <string name="kanban_no_active_workers">No active workers</string>
 </resources>

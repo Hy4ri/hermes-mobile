@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.data.repository
 
+import com.m57.hermescontrol.data.model.ActiveWorkersResponse
+import com.m57.hermescontrol.data.model.AttachmentListResponse
 import com.m57.hermescontrol.data.model.AttachmentUploadResponse
 import com.m57.hermescontrol.data.model.AutoDescribeResponse
 import com.m57.hermescontrol.data.model.BoardExportResult
@@ -10,6 +12,7 @@ import com.m57.hermescontrol.data.model.CreateBoardBody
 import com.m57.hermescontrol.data.model.CreateBoardResponse
 import com.m57.hermescontrol.data.model.CreateTaskBody
 import com.m57.hermescontrol.data.model.CreateTaskResponse
+import com.m57.hermescontrol.data.model.DeleteAttachmentResponse
 import com.m57.hermescontrol.data.model.DeleteBoardResponse
 import com.m57.hermescontrol.data.model.DispatchResult
 import com.m57.hermescontrol.data.model.ExportBoardBody
@@ -18,6 +21,8 @@ import com.m57.hermescontrol.data.model.KanbanBoardResponse
 import com.m57.hermescontrol.data.model.KanbanBoardsResponse
 import com.m57.hermescontrol.data.model.KanbanProfilesResponse
 import com.m57.hermescontrol.data.model.KanbanProjectsResponse
+import com.m57.hermescontrol.data.model.KanbanRunInspection
+import com.m57.hermescontrol.data.model.KanbanRunResponse
 import com.m57.hermescontrol.data.model.KanbanTaskDetailResponse
 import com.m57.hermescontrol.data.model.OrchestrationSettings
 import com.m57.hermescontrol.data.model.OrchestrationSettingsUpdate
@@ -27,7 +32,13 @@ import com.m57.hermescontrol.data.model.ReclaimTaskBody
 import com.m57.hermescontrol.data.model.ReclaimTaskResponse
 import com.m57.hermescontrol.data.model.RenameBoardBody
 import com.m57.hermescontrol.data.model.RenameBoardResponse
+import com.m57.hermescontrol.data.model.SpecifyTaskBody
+import com.m57.hermescontrol.data.model.SpecifyTaskResponse
 import com.m57.hermescontrol.data.model.TaskEstimate
+import com.m57.hermescontrol.data.model.TaskLinkBody
+import com.m57.hermescontrol.data.model.TaskLinkResponse
+import com.m57.hermescontrol.data.model.TerminateRunBody
+import com.m57.hermescontrol.data.model.TerminateRunResponse
 import com.m57.hermescontrol.data.model.UpdateTaskBody
 import com.m57.hermescontrol.data.model.UpdateTaskResponse
 import com.m57.hermescontrol.data.model.WorkerLog
@@ -48,6 +59,8 @@ interface KanbanRepository {
         board: String,
         includeArchived: Boolean = false,
         tenant: String? = null,
+        workflowTemplateId: String? = null,
+        currentStepKey: String? = null,
     ): NetworkResult<KanbanBoardResponse>
 
     suspend fun createBoard(body: CreateBoardBody): NetworkResult<CreateBoardResponse>
@@ -72,6 +85,8 @@ interface KanbanRepository {
     suspend fun getTask(
         taskId: String,
         board: String?,
+        runStateType: String? = null,
+        runStateName: String? = null,
     ): NetworkResult<KanbanTaskDetailResponse>
 
     suspend fun createTask(
@@ -136,10 +151,48 @@ interface KanbanRepository {
         file: MultipartBody.Part,
     ): NetworkResult<AttachmentUploadResponse>
 
+    suspend fun listAttachments(
+        taskId: String,
+        board: String,
+    ): NetworkResult<AttachmentListResponse>
+
+    suspend fun deleteAttachment(
+        attachmentId: Long,
+        board: String,
+    ): NetworkResult<DeleteAttachmentResponse>
+
     suspend fun downloadAttachment(
         attachmentId: Long,
         board: String?,
     ): NetworkResult<ResponseBody>
+
+    suspend fun getActiveWorkers(board: String): NetworkResult<ActiveWorkersResponse>
+
+    suspend fun getRun(
+        runId: Long,
+        board: String,
+    ): NetworkResult<KanbanRunResponse>
+
+    suspend fun inspectRun(
+        runId: Long,
+        board: String,
+    ): NetworkResult<KanbanRunInspection>
+
+    suspend fun terminateRun(
+        runId: Long,
+        board: String,
+    ): NetworkResult<TerminateRunResponse>
+
+    suspend fun specifyTask(
+        taskId: String,
+        board: String,
+    ): NetworkResult<SpecifyTaskResponse>
+
+    suspend fun createTaskLink(
+        board: String,
+        parentId: String,
+        childId: String,
+    ): NetworkResult<TaskLinkResponse>
 
     suspend fun getProfiles(): NetworkResult<KanbanProfilesResponse>
 
@@ -173,9 +226,11 @@ class KanbanRepositoryImpl(
         board: String,
         includeArchived: Boolean,
         tenant: String?,
+        workflowTemplateId: String?,
+        currentStepKey: String?,
     ): NetworkResult<KanbanBoardResponse> =
         withContext(ioDispatcher) {
-            safeApiCall { apiProvider().getBoard(board = board, includeArchived = includeArchived, tenant = tenant) }
+            safeApiCall { apiProvider().getBoard(board, includeArchived, tenant, workflowTemplateId, currentStepKey) }
         }
 
     override suspend fun createBoard(body: CreateBoardBody): NetworkResult<CreateBoardResponse> =
@@ -215,9 +270,11 @@ class KanbanRepositoryImpl(
     override suspend fun getTask(
         taskId: String,
         board: String?,
+        runStateType: String?,
+        runStateName: String?,
     ): NetworkResult<KanbanTaskDetailResponse> =
         withContext(ioDispatcher) {
-            safeApiCall { apiProvider().getTask(taskId = taskId, board = board) }
+            safeApiCall { apiProvider().getTask(taskId, board, runStateType, runStateName) }
         }
 
     override suspend fun createTask(
@@ -364,12 +421,66 @@ class KanbanRepositoryImpl(
             safeApiCall { apiProvider().uploadAttachment(taskId = taskId, board = board, file = file) }
         }
 
+    override suspend fun listAttachments(
+        taskId: String,
+        board: String,
+    ): NetworkResult<AttachmentListResponse> =
+        withContext(ioDispatcher) { safeApiCall { apiProvider().listAttachments(taskId, board) } }
+
+    override suspend fun deleteAttachment(
+        attachmentId: Long,
+        board: String,
+    ): NetworkResult<DeleteAttachmentResponse> =
+        withContext(ioDispatcher) { safeApiCall { apiProvider().deleteAttachment(attachmentId, board) } }
+
     override suspend fun downloadAttachment(
         attachmentId: Long,
         board: String?,
     ): NetworkResult<ResponseBody> =
         withContext(ioDispatcher) {
             safeApiCall { apiProvider().downloadAttachment(attachmentId = attachmentId, board = board) }
+        }
+
+    override suspend fun getActiveWorkers(board: String): NetworkResult<ActiveWorkersResponse> =
+        withContext(ioDispatcher) { safeApiCall { apiProvider().getActiveWorkers(board) } }
+
+    override suspend fun getRun(
+        runId: Long,
+        board: String,
+    ): NetworkResult<KanbanRunResponse> =
+        withContext(ioDispatcher) { safeApiCall { apiProvider().getRun(runId, board) } }
+
+    override suspend fun inspectRun(
+        runId: Long,
+        board: String,
+    ): NetworkResult<KanbanRunInspection> =
+        withContext(ioDispatcher) { safeApiCall { apiProvider().inspectRun(runId, board) } }
+
+    override suspend fun terminateRun(
+        runId: Long,
+        board: String,
+    ): NetworkResult<TerminateRunResponse> =
+        withContext(ioDispatcher) {
+            val result = safeApiCall { apiProvider().terminateRun(runId, board, TerminateRunBody(reason = "mobile")) }
+            if (result is NetworkResult.Success && result.data.ok) nudger.scheduleNudge(board)
+            result
+        }
+
+    override suspend fun specifyTask(
+        taskId: String,
+        board: String,
+    ): NetworkResult<SpecifyTaskResponse> =
+        withContext(ioDispatcher) {
+            safeApiCall { apiProvider().specifyTask(taskId, board, SpecifyTaskBody(author = "mobile")) }
+        }
+
+    override suspend fun createTaskLink(
+        board: String,
+        parentId: String,
+        childId: String,
+    ): NetworkResult<TaskLinkResponse> =
+        withContext(ioDispatcher) {
+            safeApiCall { apiProvider().createTaskLink(board, TaskLinkBody(parentId, childId)) }
         }
 
     override suspend fun getProfiles(): NetworkResult<KanbanProfilesResponse> =

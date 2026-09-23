@@ -1,11 +1,21 @@
 package com.m57.hermescontrol.ui.kanban
 
+import com.m57.hermescontrol.data.model.AttachmentListResponse
+import com.m57.hermescontrol.data.model.DeleteAttachmentResponse
+import com.m57.hermescontrol.data.model.KanbanAttachment
+import com.m57.hermescontrol.data.model.KanbanRun
+import com.m57.hermescontrol.data.model.KanbanRunInspection
+import com.m57.hermescontrol.data.model.KanbanRunResponse
 import com.m57.hermescontrol.data.model.KanbanTaskDetailResponse
 import com.m57.hermescontrol.data.model.KanbanTaskFull
 import com.m57.hermescontrol.data.model.ReassignTaskResponse
 import com.m57.hermescontrol.data.model.ReclaimTaskResponse
+import com.m57.hermescontrol.data.model.SpecifyTaskResponse
+import com.m57.hermescontrol.data.model.TaskLinkResponse
+import com.m57.hermescontrol.data.model.TerminateRunResponse
 import com.m57.hermescontrol.data.model.UpdateTaskResponse
 import com.m57.hermescontrol.data.model.WorkerLog
+import com.m57.hermescontrol.data.remote.NetworkError
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.repository.KanbanRepository
 import com.m57.hermescontrol.data.ws.KanbanEventsClient
@@ -19,6 +29,8 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -197,7 +209,11 @@ class KanbanTaskViewModelTest {
                 )
 
             val vm = createViewModel()
-            vm.uploadAttachment("dev", "t_1", "test.png", "image/png", byteArrayOf(1, 2, 3))
+            vm.uploadAttachment(
+                "dev",
+                "t_1",
+                MultipartBody.Part.createFormData("file", "test.png", byteArrayOf(1, 2, 3).toRequestBody()),
+            )
             testDispatcher.scheduler.advanceUntilIdle()
 
             coVerify { mockRepository.uploadAttachment("t_1", "dev", any()) }
@@ -320,5 +336,161 @@ class KanbanTaskViewModelTest {
             )
             coVerify(exactly = 2) { mockRepository.getTask("t_1", "dev") }
             vm.onCleared()
+        }
+
+    @Test
+    fun testTerminateRunRefreshesRunAndExactTask() =
+        runTest(testDispatcher) {
+            val running = KanbanTaskFull(id = "t_1", title = "Task", status = "running")
+            val ready = running.copy(status = "ready")
+            coEvery { mockRepository.getTask("t_1", "dev", any(), any()) } returnsMany
+                listOf(
+                    NetworkResult.Success(KanbanTaskDetailResponse(task = running)),
+                    NetworkResult.Success(KanbanTaskDetailResponse(task = ready)),
+                )
+            coEvery { mockRepository.terminateRun(7L, "dev") } returns
+                NetworkResult.Success(TerminateRunResponse(ok = true, runId = 7L, taskId = "t_1"))
+            coEvery { mockRepository.getRun(7L, "dev") } returns
+                NetworkResult.Success(KanbanRunResponse(KanbanRun(id = 7L, status = "reclaimed")))
+
+            val vm = createViewModel()
+            vm.loadTask("dev", "t_1")
+            testDispatcher.scheduler.runCurrent()
+            vm.terminateRun("dev", "t_1", 7L)
+            testDispatcher.scheduler.runCurrent()
+
+            assertEquals(
+                "ready",
+                vm.uiState.value.detail
+                    ?.task
+                    ?.status,
+            )
+            assertEquals(
+                "reclaimed",
+                vm.uiState.value.selectedRun
+                    ?.status,
+            )
+            coVerify(exactly = 2) { mockRepository.getTask("t_1", "dev", any(), any()) }
+            coVerify { mockRepository.getRun(7L, "dev") }
+            vm.onCleared()
+        }
+
+    @Test
+    fun testRunInspectionUnavailableIsRepresentedHonestly() =
+        runTest(testDispatcher) {
+            coEvery { mockRepository.getRun(7L, "dev") } returns
+                NetworkResult.Success(KanbanRunResponse(KanbanRun(id = 7L, status = "running")))
+            coEvery { mockRepository.inspectRun(7L, "dev") } returns
+                NetworkResult.Success(KanbanRunInspection(runId = 7L, alive = false, reason = "psutil not available"))
+
+            val vm = createViewModel()
+            vm.inspectRun("dev", "t_1", 7L)
+            testDispatcher.scheduler.runCurrent()
+
+            assertEquals(
+                "psutil not available",
+                vm.uiState.value.runInspection
+                    ?.reason,
+            )
+            assertEquals(
+                7L,
+                vm.uiState.value.selectedRun
+                    ?.id,
+            )
+        }
+
+    @Test
+    fun testSpecifyFailureUsesTypedReasonWithoutRefreshingTask() =
+        runTest(testDispatcher) {
+            coEvery { mockRepository.specifyTask("t_1", "dev") } returns
+                NetworkResult.Success(SpecifyTaskResponse(ok = false, taskId = "t_1", reason = "Not configured"))
+
+            val vm = createViewModel()
+            vm.specifyTask("dev", "t_1")
+            testDispatcher.scheduler.runCurrent()
+
+            assertTrue(
+                vm.uiState.value.toastMessage
+                    ?.contains("Not configured") == true,
+            )
+            coVerify(exactly = 0) { mockRepository.getTask("t_1", "dev", any(), any()) }
+        }
+
+    @Test
+    fun testLinkGatingOutcomeIsVisibleAndReloadsTask() =
+        runTest(testDispatcher) {
+            coEvery { mockRepository.createTaskLink("dev", "parent", "t_1") } returns
+                NetworkResult.Success(TaskLinkResponse(ok = true, gated = true))
+            coEvery { mockRepository.getTask("t_1", "dev", any(), any()) } returns
+                NetworkResult.Success(
+                    KanbanTaskDetailResponse(task = KanbanTaskFull(id = "t_1", title = "Child", status = "todo")),
+                )
+
+            val vm = createViewModel()
+            vm.createParentLink("dev", "t_1", "parent")
+            testDispatcher.scheduler.runCurrent()
+
+            assertTrue(
+                vm.uiState.value.toastMessage
+                    ?.contains("gated") == true,
+            )
+            coVerify { mockRepository.getTask("t_1", "dev", any(), any()) }
+        }
+
+    @Test
+    fun testDeleteAttachmentReloadsExactTaskAttachmentList() =
+        runTest(testDispatcher) {
+            val task = KanbanTaskFull(id = "t_1", title = "Task", status = "todo")
+            coEvery { mockRepository.getTask("t_1", "dev", any(), any()) } returns
+                NetworkResult.Success(
+                    KanbanTaskDetailResponse(task = task, attachments = listOf(KanbanAttachment(9L, filename = "old"))),
+                )
+            coEvery { mockRepository.deleteAttachment(9L, "dev") } returns
+                NetworkResult.Success(DeleteAttachmentResponse(ok = true, id = 9L))
+            coEvery { mockRepository.listAttachments("t_1", "dev") } returns
+                NetworkResult.Success(AttachmentListResponse(emptyList()))
+
+            val vm = createViewModel()
+            vm.loadTask("dev", "t_1")
+            testDispatcher.scheduler.runCurrent()
+            vm.deleteAttachment("dev", "t_1", 9L)
+            testDispatcher.scheduler.runCurrent()
+
+            assertTrue(
+                vm.uiState.value.detail
+                    ?.attachments
+                    ?.isEmpty() == true,
+            )
+            coVerify { mockRepository.listAttachments("t_1", "dev") }
+        }
+
+    @Test
+    fun testRunFilterPassesPairedBackendParameters() =
+        runTest(testDispatcher) {
+            val detail = KanbanTaskDetailResponse(task = KanbanTaskFull("t_1", "Task", status = "done"))
+            coEvery { mockRepository.getTask("t_1", "dev", any(), any()) } returns NetworkResult.Success(detail)
+
+            val vm = createViewModel()
+            vm.loadTask("dev", "t_1")
+            testDispatcher.scheduler.runCurrent()
+            vm.setRunFilter("dev", "t_1", "status", "reclaimed")
+            testDispatcher.scheduler.runCurrent()
+
+            coVerify { mockRepository.getTask("t_1", "dev", "status", "reclaimed") }
+            assertEquals("reclaimed", vm.uiState.value.runStateName)
+        }
+
+    @Test
+    fun testTerminateRefusalPreservesTaskAndReportsReason() =
+        runTest(testDispatcher) {
+            coEvery { mockRepository.terminateRun(7L, "dev") } returns
+                NetworkResult.Failure(NetworkError.Http(409, "run 7 already ended"))
+            val vm = createViewModel()
+            vm.terminateRun("dev", "t_1", 7L)
+            testDispatcher.scheduler.runCurrent()
+
+            assertEquals("run 7 already ended", vm.uiState.value.toastMessage)
+            assertTrue(!vm.uiState.value.isTerminatingRun)
+            coVerify(exactly = 0) { mockRepository.getRun(7L, "dev") }
         }
 }

@@ -223,6 +223,19 @@ class KanbanViewModelTest {
         val vm = createViewModel()
         vm.loadBoards()
         settle()
+        coEvery { mockApi.getBoard(board = "work", any(), any()) } returns
+            Response.success(
+                KanbanBoardResponse(
+                    columns =
+                        listOf(
+                            KanbanColumn(name = "todo", tasks = emptyList()),
+                            KanbanColumn(
+                                name = "ready",
+                                tasks = listOf(KanbanTask(id = "t1", title = "Task 1", status = "ready")),
+                            ),
+                        ),
+                ),
+            )
         coEvery { mockApi.updateTask(any(), any(), any()) } returns Response.success(UpdateTaskResponse())
         vm.moveTask(KanbanTask(id = "t1", title = "Task 1", status = "todo"), KanbanTaskAction.READY)
         settle()
@@ -252,6 +265,132 @@ class KanbanViewModelTest {
         assertTrue(
             vm.uiState.value.toastMessage
                 ?.contains("Move failed") == true,
+        )
+    }
+
+    @Test
+    fun `moveTask dependency conflict surfaces blocking parent ids`() {
+        val vm = createViewModel()
+        vm.loadBoards()
+        settle()
+        coEvery { mockApi.updateTask(any(), any(), any()) } returns
+            Response.error(
+                409,
+                """{"detail":"Cannot move to 'ready': blocked by parent(s) not done — 'Build' (t_parent, status=running)"}"""
+                    .toResponseBody(),
+            )
+        vm.moveTask(KanbanTask(id = "t1", title = "Task 1", status = "todo"), KanbanTaskAction.READY)
+        settle()
+        assertEquals(
+            "todo",
+            vm.uiState.value.tasks
+                .single()
+                .status,
+        )
+        assertTrue(
+            vm.uiState.value.toastMessage
+                .orEmpty()
+                .contains("t_parent"),
+        )
+    }
+
+    @Test
+    fun `workflow filters retain only matching tasks`() {
+        val tasks =
+            listOf(
+                KanbanTask("a", "A", status = "todo", workflowTemplateId = "wf", currentStepKey = "build"),
+                KanbanTask("b", "B", status = "todo", workflowTemplateId = "other", currentStepKey = "test"),
+            )
+        assertEquals(listOf("a"), filterKanbanTasks(tasks, "wf", "build").map { it.id })
+        assertEquals(listOf("a"), filterKanbanTasks(tasks, "wf", null).map { it.id })
+    }
+
+    @Test
+    fun `active workers are loaded for selected board`() {
+        val vm = createViewModel()
+        vm.loadBoards()
+        settle()
+        coEvery { mockApi.getActiveWorkers("work") } returns
+            Response.success(
+                com.m57.hermescontrol.data.model.ActiveWorkersResponse(
+                    workers =
+                        listOf(
+                            com.m57.hermescontrol.data.model.KanbanActiveWorker(
+                                runId = 1,
+                                taskId = "t1",
+                                taskTitle = "Task 1",
+                                taskStatus = "running",
+                                workerPid = 42,
+                            ),
+                        ),
+                    checkedAt = 1,
+                ),
+            )
+        vm.loadActiveWorkers()
+        settle()
+        assertEquals(1, vm.uiState.value.activeWorkers.size)
+        assertEquals(
+            "t1",
+            vm.uiState.value.activeWorkers
+                .single()
+                .taskId,
+        )
+        vm.selectBoard(KanbanBoard(id = "ops", name = "Ops"))
+        settle()
+        assertTrue(
+            vm.uiState.value.activeWorkers
+                .isEmpty(),
+        )
+    }
+
+    @Test
+    fun `successful move refreshes board to reconcile done ordering`() {
+        coEvery { mockApi.getBoard(board = "work", any(), any()) } returns
+            Response.success(
+                KanbanBoardResponse(
+                    columns =
+                        listOf(
+                            KanbanColumn(
+                                name = "todo",
+                                tasks = listOf(KanbanTask(id = "t1", title = "Task 1", status = "todo")),
+                            ),
+                            KanbanColumn(
+                                name = "done",
+                                tasks = listOf(KanbanTask(id = "older", title = "Older", status = "done")),
+                            ),
+                        ),
+                ),
+            )
+        val vm = createViewModel()
+        vm.loadBoards()
+        settle()
+        coEvery { mockApi.getBoard(board = "work", any(), any()) } returns
+            Response.success(
+                KanbanBoardResponse(
+                    columns =
+                        listOf(
+                            KanbanColumn(name = "todo", tasks = emptyList()),
+                            KanbanColumn(
+                                name = "done",
+                                tasks =
+                                    listOf(
+                                        KanbanTask(id = "t1", title = "Task 1", status = "done"),
+                                        KanbanTask(id = "older", title = "Older", status = "done"),
+                                    ),
+                            ),
+                        ),
+                ),
+            )
+        coEvery { mockApi.updateTask(any(), any(), any()) } returns Response.success(UpdateTaskResponse())
+        vm.moveTask(KanbanTask("t1", "Task 1", status = "todo"), KanbanTaskAction.COMPLETE, "done")
+        settle()
+        coVerify(atLeast = 2) { mockApi.getBoard(board = "work", any(), any()) }
+        assertEquals(
+            listOf("t1", "older"),
+            vm.uiState.value.columns
+                .single { it.name == "done" }
+                .tasks
+                .map { it.id },
         )
     }
 

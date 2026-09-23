@@ -1256,6 +1256,17 @@ class E2eIntegrationTest {
                     com.m57.hermescontrol.data.model
                         .UpdateTaskResponse(task = task.copy(status = "ready")),
                 )
+            coEvery { mockApiService.getBoard("board-1", any(), any()) } returns
+                Response.success(
+                    KanbanBoardResponse(
+                        listOf(
+                            KanbanColumn("todo", emptyList()),
+                            KanbanColumn("ready", listOf(task.copy(status = "ready"))),
+                        ),
+                        null,
+                        null,
+                    ),
+                )
             viewModel.moveTask(viewModel.uiState.value.tasks[0], KanbanTaskAction.READY)
             advanceUntilIdle()
             assertEquals(

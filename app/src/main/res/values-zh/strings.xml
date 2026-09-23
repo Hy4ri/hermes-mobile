@@ -1467,6 +1467,33 @@
     <string name="media_player_play_video">播放视频</string>
     <string name="chat_session_preparing">正在准备会话…</string>
     <string name="chat_session_not_ready">会话未就绪，请重试以继续</string>
+
+    <!-- Kanban task detail -->
+    <string name="kanban_specify_task">指定任务</string>
+    <string name="kanban_specifying">正在指定…</string>
+    <string name="kanban_specify_success">任务指定成功</string>
+    <string name="kanban_specify_failed">指定任务失败：%1$s</string>
+    <string name="kanban_add_parent">添加父任务</string>
+    <string name="kanban_parent_id">父任务 ID</string>
+    <string name="kanban_link_gated">指定任务前无法创建链接</string>
+    <string name="kanban_link_created">任务链接已创建</string>
+    <string name="kanban_run_details">运行详情</string>
+    <string name="kanban_inspect_run">检查运行</string>
+    <string name="kanban_terminate_run">终止运行</string>
+    <string name="kanban_terminate_run_confirm">确定要终止此运行吗？</string>
+    <string name="kanban_run_terminated">运行已终止</string>
+    <string name="kanban_run_inactive">运行未处于活动状态</string>
+    <string name="kanban_run_inspection_unavailable">无法检查运行</string>
+    <string name="kanban_run_state_filter">运行状态</string>
+    <string name="kanban_all_runs">所有运行</string>
+    <string name="kanban_delete_attachment">删除附件</string>
+    <string name="kanban_delete_attachment_confirm">确定要删除此附件吗？</string>
+    <string name="kanban_download_attachment">下载附件</string>
+    <string name="kanban_attachment_saved">附件已保存</string>
+    <string name="kanban_attachment_deleted">附件已删除</string>
+    <string name="kanban_attachment_error">附件错误：%1$s</string>
+    <string name="kanban_active_workers">活跃工作进程</string>
+    <string name="kanban_no_active_workers">没有活跃工作进程</string>
     <string name="connection_setup_target_title">设置%1$s</string>
     <string name="connection_setup_progress">第%1$d项，共%2$d项</string>
     <string name="connection_setup_authorized_no_tools">已授权，但工具不可用</string>

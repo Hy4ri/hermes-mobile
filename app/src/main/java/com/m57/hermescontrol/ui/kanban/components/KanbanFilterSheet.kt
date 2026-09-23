@@ -34,10 +34,15 @@ fun KanbanFilterSheet(
     tenants: List<String>,
     selectedAssignee: String?,
     selectedTenant: String?,
+    workflowTemplateIds: List<String>,
+    currentStepKeys: List<String>,
+    selectedWorkflowTemplateId: String?,
+    selectedCurrentStepKey: String?,
     includeArchived: Boolean,
     groupRunning: Boolean,
     onSelectAssignee: (String?) -> Unit,
     onSelectTenant: (String?) -> Unit,
+    onSelectWorkflowFilters: (String?, String?) -> Unit,
     onToggleIncludeArchived: (Boolean) -> Unit,
     onToggleGroupRunning: (Boolean) -> Unit,
     onClearFilters: () -> Unit,
@@ -104,6 +109,29 @@ fun KanbanFilterSheet(
             }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            Text(
+                "Workflow template",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            FilterChoiceRow("All templates", selectedWorkflowTemplateId == null) {
+                onSelectWorkflowFilters(null, selectedCurrentStepKey)
+            }
+            workflowTemplateIds.forEach { value ->
+                FilterChoiceRow(value, selectedWorkflowTemplateId == value) {
+                    onSelectWorkflowFilters(value, selectedCurrentStepKey)
+                }
+            }
+            Text("Current step", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            FilterChoiceRow("All steps", selectedCurrentStepKey == null) {
+                onSelectWorkflowFilters(selectedWorkflowTemplateId, null)
+            }
+            currentStepKeys.forEach { value ->
+                FilterChoiceRow(value, selectedCurrentStepKey == value) {
+                    onSelectWorkflowFilters(selectedWorkflowTemplateId, value)
+                }
+            }
 
             // Assignee Filter
             Text(
@@ -190,5 +218,20 @@ fun KanbanFilterSheet(
 
             Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+}
+
+@Composable
+private fun FilterChoiceRow(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 4.dp),
+    ) {
+        RadioButton(selected = selected, onClick = onClick)
+        Text(label, style = MaterialTheme.typography.bodyMedium)
     }
 }

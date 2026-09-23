@@ -81,6 +81,41 @@ class ToolViewBuilderTest {
 
         assertEquals("Read a.kt L10-14", view.title)
         assertEquals("/repo/src/a.kt", view.subtitle)
+        assertEquals("10|a\n11|b", view.fileContent)
+        assertEquals("/repo/src/a.kt", view.filePath)
+        assertEquals("10|a\n11|b", view.detail)
+    }
+
+    @Test
+    fun `read_file missing content does not show a code viewer`() {
+        val view = build("read_file", """{"path":"/repo/missing.kt"}""", """{"error":"not found"}""")
+
+        assertNull(view.fileContent)
+    }
+
+    @Test
+    fun `write_file shows written content when no diff is returned`() {
+        val view =
+            build(
+                "write_file",
+                """{"path":"/repo/new.kt","content":"fun main() = Unit"}""",
+                """{"success":true,"verified":true}""",
+            )
+
+        assertEquals("fun main() = Unit", view.fileContent)
+        assertEquals("/repo/new.kt", view.filePath)
+        assertNull(view.inlineDiff)
+    }
+
+    @Test
+    fun `write_file diff wins over content and failed writes show no written content`() {
+        val args = """{"path":"/repo/a.kt","content":"new"}"""
+        val diff = build("write_file", args, """{"inline_diff":"--- a/a.kt\n+++ b/a.kt\n-old\n+new"}""")
+        val failed = build("write_file", args, """{"success":false,"error":"denied"}""", isError = true)
+
+        assertNotNull(diff.inlineDiff)
+        assertNull(diff.fileContent)
+        assertNull(failed.fileContent)
     }
 
     @Test

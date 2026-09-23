@@ -116,6 +116,8 @@ object ToolViewBuilder {
             inlineDiff = clampedDiff,
             diffPath = extras.diffPath,
             diffStats = extras.diffStats,
+            fileContent = extras.fileContent?.let { ToolJson.clampForDisplay(it) },
+            filePath = extras.filePath,
             imageUrl = imageUrlFor(call.args, call.result),
             searchHits = extras.searchHits,
             searchQuery = extras.searchQuery,

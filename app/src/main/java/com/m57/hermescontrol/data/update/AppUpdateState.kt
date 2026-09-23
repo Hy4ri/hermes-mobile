@@ -40,6 +40,7 @@ sealed interface AppUpdateState {
 
     data class Error(
         val message: String,
+        val isCheckError: Boolean = false,
     ) : AppUpdateState
 }
 

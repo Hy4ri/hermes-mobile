@@ -49,6 +49,7 @@ class UpdateNoticeManagerTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
+        UpdateNoticeManager.resetForTests()
         AppUpdateCache.reset()
         // Unit tests run against the debug variant where the feature is
         // disabled by default — flip the knob on so the behavior is testable.
@@ -68,6 +69,7 @@ class UpdateNoticeManagerTest {
 
     @After
     fun tearDown() {
+        UpdateNoticeManager.resetForTests()
         UpdateNoticeManager.enabled = false
         unmockkAll()
         Dispatchers.resetMain()
@@ -92,7 +94,7 @@ class UpdateNoticeManagerTest {
         }
 
     @Test
-    fun checkOnLaunch_skipsWhenAlreadyCheckedWithin24Hours() =
+    fun checkOnLaunch_ignoresPersistedDailyCheckTimestampAfterColdStart() =
         runTest {
             val now = 1000000000000L
             every { AuthManager.getUpdateCheckDoneForVersion() } returns currentVersion
@@ -103,9 +105,24 @@ class UpdateNoticeManagerTest {
             UpdateNoticeManager.checkOnLaunch(checker, currentVersion, testDispatcher, now = now)
             advanceUntilIdle()
 
-            coVerify(exactly = 0) { checker.fetchLatestRelease() }
-            assertEquals(AppUpdateState.Idle, AppUpdateCache.state.value)
-            verify(exactly = 0) { AuthManager.setUpdateCheckDoneForVersion(currentVersion) }
+            coVerify(exactly = 1) { checker.fetchLatestRelease(false) }
+            assertTrue(AppUpdateCache.state.value is AppUpdateState.UpdateAvailable)
+            verify(exactly = 1) { AuthManager.setUpdateCheckDoneForVersion(currentVersion) }
+        }
+
+    @Test
+    fun checkOnLaunch_debouncesRepeatedForegroundChecksAfterSuccess() =
+        runTest {
+            val checker = mockk<AppUpdateChecker>()
+            coEvery { checker.fetchLatestRelease(false) } returns updateInfo()
+            val now = 1_000_000L
+
+            UpdateNoticeManager.checkOnLaunch(checker, currentVersion, testDispatcher, now)
+            advanceUntilIdle()
+            UpdateNoticeManager.checkOnLaunch(checker, currentVersion, testDispatcher, now + 1_000L)
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { checker.fetchLatestRelease(false) }
         }
 
     @Test
@@ -148,9 +165,9 @@ class UpdateNoticeManagerTest {
         }
 
     @Test
-    fun noticeTag_stableReleasePromptsDotRcFromPersistedCache() {
+    fun noticeTag_doesNotUsePersistedTagForStableInstall() {
         every { AuthManager.getLastKnownLatestTag() } returns "v1.25"
-        assertEquals("v1.25", UpdateNoticeManager.noticeTag("1.25.rc.1"))
+        assertNull(UpdateNoticeManager.noticeTag("1.25.rc.1"))
         assertNull(UpdateNoticeManager.noticeTag("1.25"))
     }
 
@@ -176,9 +193,11 @@ class UpdateNoticeManagerTest {
             UpdateNoticeManager.checkOnLaunch(checker, currentVersion, testDispatcher)
             advanceUntilIdle()
 
-            assertEquals(AppUpdateState.Idle, AppUpdateCache.state.value)
-            // Still marked done so a dead network can't spam the API per launch.
-            verify(exactly = 1) { AuthManager.setUpdateCheckDoneForVersion(currentVersion) }
+            assertEquals(
+                AppUpdateState.Error("Network error — check your connection", isCheckError = true),
+                AppUpdateCache.state.value,
+            )
+            verify(exactly = 0) { AuthManager.setUpdateCheckDoneForVersion(currentVersion) }
         }
 
     @Test
@@ -190,8 +209,41 @@ class UpdateNoticeManagerTest {
             UpdateNoticeManager.checkOnLaunch(checker, currentVersion, testDispatcher)
             advanceUntilIdle()
 
+            assertEquals(AppUpdateState.Error("No release found yet", isCheckError = true), AppUpdateCache.state.value)
+            assertFalse(AppUpdateCache.isDismissed("v1.22.0"))
+        }
+
+    @Test
+    fun checkOnLaunch_noReleaseDoesNotPersistSuccessfulCheck() =
+        runTest {
+            val checker = mockk<AppUpdateChecker>()
+            coEvery { checker.fetchLatestRelease(false) } returns null
+
+            UpdateNoticeManager.checkOnLaunch(checker, currentVersion, testDispatcher)
+            advanceUntilIdle()
+
+            verify(exactly = 0) { AuthManager.setUpdateCheckDoneForVersion(any()) }
+            verify(exactly = 0) { AuthManager.setLastUpdateCheckTimestamp(any()) }
+        }
+
+    @Test
+    fun checkOnLaunch_channelInvalidationDuringFetchPreservesNewChannelState() =
+        runTest {
+            every { AuthManager.isCheckingReleaseCandidateUpdates() } returns true
+            val checker = mockk<AppUpdateChecker>()
+            coEvery { checker.fetchLatestRelease(true) } coAnswers {
+                // A channel change invalidates the captured request while it is completing.
+                UpdateNoticeManager.channelChanged(enabled = false)
+                every { AuthManager.isCheckingReleaseCandidateUpdates() } returns false
+                updateInfo(tag = "v1.25.0-rc.3")
+            }
+
+            UpdateNoticeManager.checkOnLaunch(checker, currentVersion, testDispatcher)
+            advanceUntilIdle()
+
             assertEquals(AppUpdateState.Idle, AppUpdateCache.state.value)
-            assertFalse(AppUpdateCache.dismissed)
+            verify(exactly = 0) { AuthManager.setLastKnownLatestTag(any()) }
+            verify(exactly = 0) { AuthManager.setUpdateCheckDoneForVersion(any()) }
         }
 
     // ── noticeTag (dismissed/restart banner return) ─────────────────────
@@ -211,10 +263,10 @@ class UpdateNoticeManagerTest {
     }
 
     @Test
-    fun noticeTag_returnsPersistedNewerTagWhenCacheIdle() {
+    fun noticeTag_doesNotAdvertisePersistedTagWithoutFreshApkMetadata() {
         every { AuthManager.getLastKnownLatestTag() } returns "v1.22.0"
 
-        assertEquals("v1.22.0", UpdateNoticeManager.noticeTag(currentVersion))
+        assertNull(UpdateNoticeManager.noticeTag(currentVersion))
     }
 
     @Test
@@ -303,11 +355,11 @@ class UpdateNoticeManagerTest {
     }
 
     @Test
-    fun noticeTag_advertisesPersistedRcTagWhenOptedIn() {
+    fun noticeTag_doesNotUsePersistedRcTagWithoutApkMetadata() {
         every { AuthManager.getLastKnownLatestTag() } returns "v1.25.0-rc.3"
         every { AuthManager.isCheckingReleaseCandidateUpdates() } returns true
 
-        assertEquals("v1.25.0-rc.3", UpdateNoticeManager.noticeTag(currentVersion))
+        assertNull(UpdateNoticeManager.noticeTag(currentVersion))
     }
 
     @Test
@@ -336,10 +388,50 @@ class UpdateNoticeManagerTest {
             }
 
             UpdateNoticeManager.checkOnLaunch(checker, currentVersion, testDispatcher)
+            UpdateNoticeManager.channelChanged(enabled = false)
+            every { AuthManager.isCheckingReleaseCandidateUpdates() } returns false
             advanceUntilIdle()
 
-            // The late RC result must not reach the cache or the persisted tag.
+            // A genuine manager-mediated opt-out invalidates the in-flight RC result.
             assertEquals(AppUpdateState.Idle, AppUpdateCache.state.value)
             verify(exactly = 0) { AuthManager.setLastKnownLatestTag(any()) }
         }
+
+    @Test
+    fun checkOnLaunch_retriesAfterFailureBackoffInsteadOfPersistingFailureAsDone() =
+        runTest {
+            val checker = mockk<AppUpdateChecker>()
+            coEvery { checker.fetchLatestRelease(false) } throws IOException("offline") andThen updateInfo()
+            val now = 100_000L
+
+            UpdateNoticeManager.checkOnLaunch(checker, currentVersion, testDispatcher, now)
+            advanceUntilIdle()
+            UpdateNoticeManager.checkOnLaunch(checker, currentVersion, testDispatcher, now + 1_000L)
+            advanceUntilIdle()
+            UpdateNoticeManager.checkOnLaunch(
+                checker,
+                currentVersion,
+                testDispatcher,
+                now + UpdateNoticeManager.FAILURE_BACKOFF_MS + 1L,
+            )
+            advanceUntilIdle()
+
+            coVerify(exactly = 2) { checker.fetchLatestRelease(false) }
+            assertTrue(AppUpdateCache.state.value is AppUpdateState.UpdateAvailable)
+        }
+
+    @Test
+    fun noticeTag_dismissalAppliesOnlyToThatRelease() {
+        AppUpdateCache.update(
+            AppUpdateState.UpdateAvailable("v1.22.0", "https://example.com/1.apk", 1L),
+        )
+        AppUpdateCache.dismiss("v1.22.0")
+
+        assertNull(UpdateNoticeManager.noticeTag(currentVersion))
+
+        AppUpdateCache.update(
+            AppUpdateState.UpdateAvailable("v1.23.0", "https://example.com/2.apk", 1L),
+        )
+        assertEquals("v1.23.0", UpdateNoticeManager.noticeTag(currentVersion))
+    }
 }

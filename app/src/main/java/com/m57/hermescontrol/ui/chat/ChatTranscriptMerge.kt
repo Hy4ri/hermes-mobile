@@ -14,6 +14,30 @@ private val CONTEXT_REF_RE =
         """@(file|folder|url|image|tool|terminal):(?:"[^"\n]+"|'[^'\n]+'|`[^`\n]+`|\S+)""",
     )
 
+private val OUT_OF_BAND_START_RE =
+    Regex("""\[OUT-OF-BAND USER MESSAGE[^\n\]]*\]\s*""", RegexOption.IGNORE_CASE)
+private val OUT_OF_BAND_END_RE =
+    Regex("""\s*\[/OUT-OF-BAND USER MESSAGE\]""", RegexOption.IGNORE_CASE)
+
+/**
+ * Remove a gateway-generated `[OUT-OF-BAND USER MESSAGE ...]` wrapper from
+ * mid-turn steering messages while preserving the user-authored prompt.
+ */
+internal fun stripGatewaySteerWrapper(content: String): String {
+    val trimmed = content.trimStart()
+    val startMatch = OUT_OF_BAND_START_RE.find(trimmed) ?: return content
+    if (startMatch.range.first != 0) return content
+    val afterStart = trimmed.substring(startMatch.range.last + 1)
+    val endMatch = OUT_OF_BAND_END_RE.find(afterStart)
+    val unwrapped =
+        if (endMatch != null) {
+            afterStart.substring(0, endMatch.range.first)
+        } else {
+            afterStart
+        }
+    return unwrapped.trim()
+}
+
 /**
  * Remove a gateway-generated `--- Attached Context ---` suffix while
  * preserving the user-authored portion of the message.
@@ -231,7 +255,7 @@ internal fun matchTranscriptMessages(
  * run_agent). Blank lines left behind are dropped too.
  */
 internal fun stripAttachmentRefLines(content: String): String =
-    stripGatewayAttachedContext(content)
+    stripGatewayAttachedContext(stripGatewaySteerWrapper(content))
         .lines()
         .map { it.trim() }
         .filterNot { line ->
@@ -276,7 +300,11 @@ internal fun dedupeCachedMessages(
             }.toMap()
     return unique.filterNot { it.id in echoes }.map { message ->
         aliases[message.id]?.let {
-            message.copy(restId = it.canonicalRestId, completionId = message.completionId ?: it.completionId)
+            message.copy(
+                restId = it.canonicalRestId,
+                completionId = message.completionId ?: it.completionId,
+                displayKind = message.displayKind ?: it.displayKind,
+            )
         } ?: message
     }
 }
@@ -306,12 +334,18 @@ internal fun mergeCachedTranscriptPage(
                         id = match.id,
                         restId = message.canonicalRestId ?: match.canonicalRestId,
                         completionId = match.completionId ?: message.completionId,
+                        displayKind = message.displayKind ?: match.displayKind,
                     )
+            }.toMap()
+    val resolvedOrders =
+        incoming.indices
+            .mapNotNull { index ->
+                matches[index]?.id?.let { id -> incoming[index].canonicalOrder?.let { id to it } }
             }.toMap()
     return (
         current.map { replacements[it.id] ?: it } +
             incoming.filterIndexed { index, _ -> matches[index] == null }
-    ).dedupeById().inTranscriptOrder().reconcileReasoningRows()
+    ).dedupeById().inTranscriptOrder(current, resolvedOrders).reconcileReasoningRows()
 }
 
 /** Merge one page with the current snapshot without consuming repeated results more than once. */
@@ -333,6 +367,7 @@ internal fun mergeTranscriptWithLive(
                 match?.role == MessageRole.USER -> {
                     match.copy(
                         restId = (message.canonicalRestId ?: match.canonicalRestId).takeUnless { it == match.id },
+                        displayKind = message.displayKind ?: match.displayKind,
                     )
                 }
 
@@ -368,18 +403,67 @@ internal fun mergeTranscriptWithLive(
     // copy is also present. Fold that now-confirmed echo without changing the live key.
     // The page has already consumed its content matches; consuming another would
     // collapse a separate repeated occurrence. Only confirmed identities can fold here.
-    return dedupeCachedMessages(transcript.inTranscriptOrder(), confirmedOnly = true).reconcileReasoningRows()
+    val resolvedOrders =
+        incoming.indices
+            .mapNotNull { index ->
+                matches[index]?.id?.let { id -> incoming[index].canonicalOrder?.let { id to it } }
+            }.toMap()
+    return dedupeCachedMessages(transcript.inTranscriptOrder(current, resolvedOrders), confirmedOnly = true)
+        .reconcileReasoningRows()
 }
 
-/** Numeric canonical history first, then unconfirmed local insertion order; clocks never sort a transcript. */
-private fun List<ChatMessage>.inTranscriptOrder(): List<ChatMessage> =
-    sortedWith(
-        compareBy<ChatMessage> { it.canonicalOrder == null }
-            .thenBy { it.canonicalOrder ?: it.localOrder ?: Long.MAX_VALUE },
-    )
+/** Keep server order; place local notices after their last preceding confirmed message, not at the transcript tail. */
+private fun List<ChatMessage>.inTranscriptOrder(
+    previous: List<ChatMessage>,
+    resolvedOrders: Map<String, Long>,
+): List<ChatMessage> {
+    val latestCanonical = mapNotNull { it.canonicalOrder }.maxOrNull() ?: -1L
+    var precedingCanonical: Long? = null
+    var hasPendingPredecessor = false
+    var pendingLocalOrder: Long? = null
+    val noticeAnchors = mutableMapOf<String, Long>()
+    val pendingOrderByNotice = mutableMapOf<String, Long>()
+    previous.forEach { message ->
+        val order = resolvedOrders[message.id] ?: message.canonicalOrder
+        if (order != null) {
+            precedingCanonical = order
+            hasPendingPredecessor = false
+            pendingLocalOrder = null
+        } else if (message.role != MessageRole.SYSTEM) {
+            hasPendingPredecessor = true
+            pendingLocalOrder = message.localOrder
+        } else {
+            noticeAnchors[message.id] =
+                if (hasPendingPredecessor) {
+                    Long.MAX_VALUE
+                } else {
+                    precedingCanonical?.takeIf { it >= 0L }
+                        ?: latestCanonical
+                }
+            if (hasPendingPredecessor) pendingOrderByNotice[message.id] = pendingLocalOrder ?: Long.MAX_VALUE
+        }
+    }
+    val previousIndices = previous.withIndex().associate { it.value.id to it.index }
+    return withIndex()
+        .sortedWith(
+            compareBy<IndexedValue<ChatMessage>> {
+                it.value.canonicalOrder ?: noticeAnchors[it.value.id] ?: Long.MAX_VALUE
+            }.thenBy { if (noticeAnchors[it.value.id]?.let { anchor -> anchor != Long.MAX_VALUE } == true) 1 else 0 }
+                .thenBy { it.value.localOrder ?: pendingOrderByNotice[it.value.id] ?: Long.MAX_VALUE }
+                .thenBy { previousIndices[it.value.id] ?: it.index },
+        ).map { it.value }
+}
+
+internal fun ChatMessage.isSessionStartMarker(): Boolean =
+    role == MessageRole.SYSTEM && (content == "Session created" || content == "Session branched")
 
 private val ChatMessage.canonicalOrder: Long?
-    get() = if (localOrder != null && restId == null) null else canonicalRestId?.substringAfterLast('-')?.toLongOrNull()
+    get() =
+        when {
+            isSessionStartMarker() -> -1L
+            localOrder != null && restId == null -> null
+            else -> canonicalRestId?.substringAfterLast('-')?.toLongOrNull()
+        }
 
 /** Retain the canonical trace once, without copying it across a user/system/tool boundary. */
 private fun List<ChatMessage>.reconcileReasoningRows(): List<ChatMessage> =

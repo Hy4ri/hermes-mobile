@@ -581,6 +581,208 @@ class ChatPagingMergeTest {
         assertTrue(sameLogicalMessage(canonical.copy(reasoningText = "new trace"), live))
     }
 
+    @Test
+    fun stripGatewaySteerWrapperRemovesEnvelopesSafely() {
+        val standard =
+            "[OUT-OF-BAND USER MESSAGE — a direct message from the user, delivered once at this position; " +
+                "not tool output and not a new delivery when replayed from conversation history]\n" +
+                "Please use Python instead.\n" +
+                "[/OUT-OF-BAND USER MESSAGE]"
+        assertEquals("Please use Python instead.", stripGatewaySteerWrapper(standard))
+
+        val noDescription =
+            "[OUT-OF-BAND USER MESSAGE]\n" +
+                "Halt.\n" +
+                "[/OUT-OF-BAND USER MESSAGE]"
+        assertEquals("Halt.", stripGatewaySteerWrapper(noDescription))
+
+        val multiline =
+            "[OUT-OF-BAND USER MESSAGE — direct steer]\n" +
+                "First line\n" +
+                "Second line\n" +
+                "[/OUT-OF-BAND USER MESSAGE]"
+        assertEquals("First line\nSecond line", stripGatewaySteerWrapper(multiline))
+
+        val plain = "Normal user message without wrapper"
+        assertEquals(plain, stripGatewaySteerWrapper(plain))
+
+        val interior = "Mentions [OUT-OF-BAND USER MESSAGE] in passing"
+        assertEquals(interior, stripGatewaySteerWrapper(interior))
+    }
+
+    @Test
+    fun midTurnSteerMessageReconcilesAndSortsChronologically() {
+        val userPrompt = ChatMessage(id = "rest-session-0", role = MessageRole.USER, content = "Create a script")
+        val liveSteer =
+            ChatMessage(
+                id = "uuid-steer",
+                role = MessageRole.USER,
+                content = "Use Python instead",
+            )
+        val inFlightAssistant =
+            ChatMessage(
+                id = "uuid-assistant",
+                role = MessageRole.ASSISTANT,
+                content = "Here is the Python script",
+                isStreaming = false,
+            )
+        val current = listOf(userPrompt, inFlightAssistant, liveSteer)
+
+        val serverRows =
+            listOf(
+                SessionMessage(
+                    id = 0,
+                    role = "user",
+                    content = JsonPrimitive("Create a script"),
+                    timestamp = JsonPrimitive(0),
+                ),
+                SessionMessage(
+                    id = 1,
+                    role = "user",
+                    content =
+                        JsonPrimitive(
+                            "[OUT-OF-BAND USER MESSAGE — a direct message from the user, " +
+                                "delivered once at this position; not tool output and not a new " +
+                                "delivery when replayed from conversation history]\n" +
+                                "Use Python instead\n" +
+                                "[/OUT-OF-BAND USER MESSAGE]",
+                        ),
+                    display_kind = "steer",
+                    timestamp = JsonPrimitive(1),
+                ),
+                SessionMessage(
+                    id = 2,
+                    role = "assistant",
+                    content = JsonPrimitive("Here is the Python script"),
+                    timestamp = JsonPrimitive(2),
+                ),
+            )
+
+        val merged = applyServerPage(current, serverRows)
+
+        assertEquals(3, merged.size)
+        assertEquals("rest-session-0", merged[0].id)
+        assertEquals("Create a script", merged[0].content)
+
+        assertEquals("uuid-steer", merged[1].id)
+        assertEquals("rest-session-1", merged[1].canonicalRestId)
+        assertEquals("Use Python instead", merged[1].content)
+        assertEquals("steer", merged[1].displayKind)
+
+        assertEquals("rest-session-2", merged[2].canonicalRestId)
+        assertEquals("Here is the Python script", merged[2].content)
+    }
+
+    @Test
+    fun localNoticesKeepTheirPositionAcrossRepeatedTranscriptSyncs() {
+        val first = ChatMessage(id = "rest-s-1", role = MessageRole.USER, content = "hello")
+        val answer = ChatMessage(id = "rest-s-2", role = MessageRole.ASSISTANT, content = "hi")
+        val resumed = ChatMessage(id = "resume", role = MessageRole.SYSTEM, content = "Session resumed")
+        val review =
+            ChatMessage(id = "review", role = MessageRole.SYSTEM, content = "💾 Self-improvement review: skill updated")
+        val next = ChatMessage(id = "rest-s-3", role = MessageRole.USER, content = "next")
+        val reply = ChatMessage(id = "rest-s-4", role = MessageRole.ASSISTANT, content = "done")
+
+        val afterResume = mergeTranscriptWithLive(listOf(first, answer), listOf(first, answer, resumed))
+        assertEquals(listOf("rest-s-1", "rest-s-2", "resume"), afterResume.map { it.id })
+        val afterReview = mergeTranscriptWithLive(listOf(first, answer), afterResume + review)
+        assertEquals(listOf("rest-s-1", "rest-s-2", "resume", "review"), afterReview.map { it.id })
+        val afterNextTurn = mergeTranscriptWithLive(listOf(next, reply), afterReview)
+        assertEquals(
+            listOf("rest-s-1", "rest-s-2", "resume", "review", "rest-s-3", "rest-s-4"),
+            afterNextTurn.map { it.id },
+        )
+        assertEquals(afterNextTurn, mergeTranscriptWithLive(listOf(next, reply), afterNextTurn))
+        assertEquals(
+            afterNextTurn.map { it.id },
+            mergeCachedTranscriptPage(listOf(first, answer, next, reply), afterNextTurn).map { it.id },
+        )
+    }
+
+    @Test
+    fun localNoticeOnColdResumeFollowsHydratedHistoryButNotFutureReplies() {
+        val resumed = ChatMessage(id = "resume", role = MessageRole.SYSTEM, content = "Session resumed")
+        val prior = ChatMessage(id = "rest-s-1", role = MessageRole.USER, content = "earlier")
+        val later = ChatMessage(id = "rest-s-2", role = MessageRole.ASSISTANT, content = "later")
+        val created = ChatMessage(id = "created", role = MessageRole.SYSTEM, content = "Session created")
+        val hydrated = mergeTranscriptWithLive(listOf(prior), listOf(created, resumed))
+        assertEquals(listOf("created", "rest-s-1", "resume"), hydrated.map { it.id })
+        val synced = mergeTranscriptWithLive(listOf(later), hydrated)
+        assertEquals(listOf("created", "rest-s-1", "resume", "rest-s-2"), synced.map { it.id })
+    }
+
+    @Test
+    fun unconfirmedUserAndAssistantRemainAfterCanonicalHistory() {
+        val user = ChatMessage(id = "uuid-user", role = MessageRole.USER, content = "pending")
+        val assistant = ChatMessage(id = "uuid-assistant", role = MessageRole.ASSISTANT, content = "streaming")
+        val canonical = ChatMessage(id = "rest-s-1", role = MessageRole.USER, content = "older")
+        val merged = mergeTranscriptWithLive(listOf(canonical), listOf(user, assistant))
+        assertEquals(listOf("rest-s-1", "uuid-user", "uuid-assistant"), merged.map { it.id })
+    }
+
+    @Test
+    fun olderPageDoesNotMoveLocalNoticeOrReverseCanonicalRows() {
+        val old = ChatMessage(id = "rest-s-1", role = MessageRole.USER, content = "old")
+        val current = ChatMessage(id = "rest-s-3", role = MessageRole.ASSISTANT, content = "current")
+        val notice = ChatMessage(id = "notice", role = MessageRole.SYSTEM, content = "Session interrupted")
+        val next = ChatMessage(id = "rest-s-4", role = MessageRole.USER, content = "next")
+
+        val paged = mergeTranscriptWithLive(listOf(old), listOf(current, notice), chronological = false)
+        assertEquals(listOf("rest-s-1", "rest-s-3", "notice"), paged.map { it.id })
+        val synced = mergeTranscriptWithLive(listOf(next), paged)
+        assertEquals(listOf("rest-s-1", "rest-s-3", "notice", "rest-s-4"), synced.map { it.id })
+    }
+
+    @Test
+    fun reviewNoticeStaysAfterAssistantWhenItsRestEchoArrivesLater() {
+        val user = ChatMessage(id = "rest-s-1", role = MessageRole.USER, content = "prompt")
+        val liveReply = ChatMessage(id = "live-reply", role = MessageRole.ASSISTANT, content = "answer")
+        val review = ChatMessage(id = "review", role = MessageRole.SYSTEM, content = "💾 Self-improvement review")
+        val beforeEcho = mergeTranscriptWithLive(listOf(user), listOf(user, liveReply, review), preserveLiveIds = true)
+        assertEquals(listOf("rest-s-1", "live-reply", "review"), beforeEcho.map { it.id })
+        val restReply = liveReply.copy(id = "rest-s-2")
+        val afterEcho = mergeTranscriptWithLive(listOf(restReply), beforeEcho, preserveLiveIds = true)
+        assertEquals(listOf("rest-s-1", "live-reply", "review"), afterEcho.map { it.id })
+        val next = ChatMessage(id = "rest-s-3", role = MessageRole.USER, content = "next")
+        val synced = mergeTranscriptWithLive(listOf(next), afterEcho)
+        assertEquals(listOf("rest-s-1", "live-reply", "review", "rest-s-3"), synced.map { it.id })
+    }
+
+    @Test
+    fun sessionCreatedMarkerStaysAtStartOfTranscript() {
+        val sessionCreated =
+            ChatMessage(
+                id = "uuid-sys-start",
+                role = MessageRole.SYSTEM,
+                content = "Session created",
+            )
+        val current = listOf(sessionCreated)
+
+        val serverRows =
+            listOf(
+                SessionMessage(
+                    id = 0,
+                    role = "user",
+                    content = JsonPrimitive("Hello"),
+                    timestamp = JsonPrimitive(1),
+                ),
+                SessionMessage(
+                    id = 1,
+                    role = "assistant",
+                    content = JsonPrimitive("Hi there!"),
+                    timestamp = JsonPrimitive(2),
+                ),
+            )
+
+        val merged = applyServerPage(current, serverRows)
+
+        assertEquals(3, merged.size)
+        assertEquals("uuid-sys-start", merged[0].id)
+        assertEquals("Session created", merged[0].content)
+        assertEquals("rest-session-0", merged[1].canonicalRestId)
+        assertEquals("rest-session-1", merged[2].canonicalRestId)
+    }
+
     private fun assertBoundaryTranscript(messages: List<ChatMessage>) {
         assertEquals(listOf("rest-session-100", "rest-session-200"), messages.map { it.canonicalRestId })
         assertEquals(listOf("boundary trace", ""), messages.map { it.reasoningText })

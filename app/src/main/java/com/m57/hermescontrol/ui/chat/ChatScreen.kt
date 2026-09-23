@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -117,6 +118,7 @@ import com.m57.hermescontrol.ui.common.CredentialWarningBanner
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.model.components.ModelPickerDialog
+import com.m57.hermescontrol.ui.settings.SettingsViewModel
 import com.m57.hermescontrol.util.ConnectorUrlValidator
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -160,6 +162,8 @@ fun ChatScreen(
     val connectorsState by connectorsViewModel.uiState.collectAsStateWithLifecycle()
     val actionProgressState by viewModel.actionProgress.state.collectAsStateWithLifecycle()
     val connectionOperationState by viewModel.connectionOperationState.collectAsStateWithLifecycle()
+    val settingsViewModel: SettingsViewModel = viewModel()
+    val settingsState by settingsViewModel.uiState.collectAsStateWithLifecycle()
     // Snapshot-backed search state — read directly so only the scopes that
     // read its fields recompose on search changes (bar, matched bubbles).
     val searchState = viewModel.searchState
@@ -539,7 +543,10 @@ fun ChatScreen(
             var showSessionMenu by remember { mutableStateOf(false) }
             Box {
                 IconButton(
-                    onClick = { showSessionMenu = true },
+                    onClick = {
+                        settingsViewModel.refreshKeepConnectedInBackground()
+                        showSessionMenu = true
+                    },
                     modifier = Modifier.testTag("chat_session_menu_button"),
                 ) {
                     Icon(
@@ -608,6 +615,10 @@ fun ChatScreen(
                             connectorsViewModel.show()
                         },
                         modifier = Modifier.testTag("chat_menu_session_integrations"),
+                    )
+                    ChatBackgroundConnectionMenuItem(
+                        checked = settingsState.keepConnectedInBackground,
+                        onToggle = settingsViewModel::onKeepConnectedInBackgroundChange,
                     )
                 }
             }
@@ -1028,4 +1039,23 @@ fun ChatScreen(
             onClearError = connectorsViewModel::clearError,
         )
     }
+}
+
+@Composable
+internal fun ChatBackgroundConnectionMenuItem(
+    checked: Boolean,
+    onToggle: (Boolean) -> Unit,
+) {
+    DropdownMenuItem(
+        text = { Text(stringResource(R.string.settings_keep_connected_in_background_title)) },
+        trailingIcon = {
+            Checkbox(
+                checked = checked,
+                onCheckedChange = onToggle,
+                modifier = Modifier.testTag("chat_menu_keep_connected_checkbox"),
+            )
+        },
+        onClick = { onToggle(!checked) },
+        modifier = Modifier.testTag("chat_menu_keep_connected"),
+    )
 }

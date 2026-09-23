@@ -1212,4 +1212,31 @@
     <string name="connection_setup_required">%1$s은(는) 필수입니다</string>
     <string name="connection_setup_request_failed">설정 응답을 보낼 수 없습니다. 다시 시도하세요.</string>
     <string name="connection_setup_pending">Hermes를 기다리는 중…</string>
+
+    <!-- Kanban task detail -->
+    <string name="kanban_specify_task">작업 지정</string>
+    <string name="kanban_specifying">지정 중…</string>
+    <string name="kanban_specify_success">작업이 지정되었습니다</string>
+    <string name="kanban_specify_failed">작업 지정 실패: %1$s</string>
+    <string name="kanban_add_parent">상위 작업 추가</string>
+    <string name="kanban_parent_id">상위 작업 ID</string>
+    <string name="kanban_link_gated">작업을 지정하기 전에는 연결할 수 없습니다</string>
+    <string name="kanban_link_created">작업 링크가 생성되었습니다</string>
+    <string name="kanban_run_details">실행 상세 정보</string>
+    <string name="kanban_inspect_run">실행 검사</string>
+    <string name="kanban_terminate_run">실행 종료</string>
+    <string name="kanban_terminate_run_confirm">이 실행을 종료하시겠습니까?</string>
+    <string name="kanban_run_terminated">실행이 종료되었습니다</string>
+    <string name="kanban_run_inactive">실행이 비활성 상태입니다</string>
+    <string name="kanban_run_inspection_unavailable">실행 검사를 사용할 수 없습니다</string>
+    <string name="kanban_run_state_filter">실행 상태</string>
+    <string name="kanban_all_runs">모든 실행</string>
+    <string name="kanban_delete_attachment">첨부 파일 삭제</string>
+    <string name="kanban_delete_attachment_confirm">이 첨부 파일을 삭제하시겠습니까?</string>
+    <string name="kanban_download_attachment">첨부 파일 다운로드</string>
+    <string name="kanban_attachment_saved">첨부 파일이 저장되었습니다</string>
+    <string name="kanban_attachment_deleted">첨부 파일이 삭제되었습니다</string>
+    <string name="kanban_attachment_error">첨부 파일 오류: %1$s</string>
+    <string name="kanban_active_workers">활성 작업자</string>
+    <string name="kanban_no_active_workers">활성 작업자가 없습니다</string>
 </resources>

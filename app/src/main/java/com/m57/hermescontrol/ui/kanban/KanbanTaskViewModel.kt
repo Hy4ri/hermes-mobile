@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.KanbanProfile
+import com.m57.hermescontrol.data.model.KanbanRun
+import com.m57.hermescontrol.data.model.KanbanRunInspection
 import com.m57.hermescontrol.data.model.KanbanTaskDetailResponse
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
@@ -25,9 +27,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
-import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.ResponseBody
 
 data class KanbanTaskUiState(
     val isLoading: Boolean = false,
@@ -47,6 +48,15 @@ data class KanbanTaskUiState(
     val isReassigning: Boolean = false,
     val isUpdatingModel: Boolean = false,
     val isUploadingAttachment: Boolean = false,
+    val isDeletingAttachment: Boolean = false,
+    val isSpecifying: Boolean = false,
+    val isLinking: Boolean = false,
+    val isInspectingRun: Boolean = false,
+    val isTerminatingRun: Boolean = false,
+    val selectedRun: KanbanRun? = null,
+    val runInspection: KanbanRunInspection? = null,
+    val runStateType: String? = null,
+    val runStateName: String? = null,
 )
 
 class KanbanTaskViewModel(
@@ -61,6 +71,7 @@ class KanbanTaskViewModel(
     private var eventsClient: KanbanEventsClient? = null
     private var eventsBoard: String? = null
     private var activeTaskId: String? = null
+    private var activeBoard: String? = null
     private var currentLoadGen: Int = 0
     private var reloadJob: Job? = null
     private var logPollJob: Job? = null
@@ -74,7 +85,18 @@ class KanbanTaskViewModel(
         reloadJob?.cancel()
         stopLogPolling()
         detailPollJob?.cancel()
+        if (activeBoard != board || activeTaskId != taskId) {
+            _uiState.update {
+                it.copy(
+                    runStateType = null,
+                    runStateName = null,
+                    selectedRun = null,
+                    runInspection = null,
+                )
+            }
+        }
         activeTaskId = taskId
+        activeBoard = board
         _uiState.update {
             it.copy(
                 isLoading = true,
@@ -90,7 +112,15 @@ class KanbanTaskViewModel(
         startDetailPolling(board, taskId)
 
         viewModelScope.launch {
-            when (val result = repository.getTask(taskId = taskId, board = board)) {
+            when (
+                val result =
+                    repository.getTask(
+                        taskId,
+                        board,
+                        _uiState.value.runStateType,
+                        _uiState.value.runStateName,
+                    )
+            ) {
                 is NetworkResult.Success -> {
                     if (gen != currentLoadGen) return@launch
                     val taskData = result.data
@@ -254,11 +284,13 @@ class KanbanTaskViewModel(
         taskId: String,
     ) {
         val gen = currentLoadGen
-        val result = repository.getTask(taskId = taskId, board = board)
-        if (gen != currentLoadGen || taskId != activeTaskId) return
+        val result = repository.getTask(taskId, board, _uiState.value.runStateType, _uiState.value.runStateName)
+        if (gen != currentLoadGen || taskId != activeTaskId || board != activeBoard) return
         if (result is NetworkResult.Success) {
             val taskData = result.data
-            _uiState.update { it.copy(detail = taskData) }
+            _uiState.update { state ->
+                state.copy(detail = taskData.copy(attachments = taskData.attachments ?: state.detail?.attachments))
+            }
             if (taskData.task.status.equals("running", ignoreCase = true)) {
                 if (logPollJob == null) startLogPolling(board, taskId)
             } else {
@@ -524,18 +556,6 @@ class KanbanTaskViewModel(
     fun uploadAttachment(
         board: String,
         taskId: String,
-        filename: String,
-        mimeType: String,
-        bytes: ByteArray,
-    ) {
-        val requestBody = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
-        val part = MultipartBody.Part.createFormData("file", filename, requestBody)
-        uploadAttachment(board, taskId, part)
-    }
-
-    fun uploadAttachment(
-        board: String,
-        taskId: String,
         part: MultipartBody.Part,
     ) {
         _uiState.update { it.copy(isUploadingAttachment = true) }
@@ -548,7 +568,10 @@ class KanbanTaskViewModel(
                             toastMessage = "Attachment uploaded",
                         )
                     }
-                    loadTask(board, taskId)
+                    if (activeTaskId == taskId && activeBoard == board) {
+                        loadTaskSilently(board, taskId)
+                        refreshAttachments(board, taskId)
+                    }
                 }
 
                 is NetworkResult.Failure -> {
@@ -560,6 +583,217 @@ class KanbanTaskViewModel(
                     }
                 }
             }
+        }
+    }
+
+    fun refreshAttachments(
+        board: String,
+        taskId: String,
+    ) {
+        viewModelScope.launch {
+            when (val result = repository.listAttachments(taskId, board)) {
+                is NetworkResult.Success -> {
+                    _uiState.update { state ->
+                        if (activeTaskId != taskId || activeBoard != board) {
+                            state
+                        } else {
+                            state.copy(detail = state.detail?.copy(attachments = result.data.attachments))
+                        }
+                    }
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update { it.copy(toastMessage = result.error.message) }
+                }
+            }
+        }
+    }
+
+    fun deleteAttachment(
+        board: String,
+        taskId: String,
+        attachmentId: Long,
+    ) {
+        if (_uiState.value.isDeletingAttachment) return
+        _uiState.update { it.copy(isDeletingAttachment = true) }
+        viewModelScope.launch {
+            when (val result = repository.deleteAttachment(attachmentId, board)) {
+                is NetworkResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            isDeletingAttachment = false,
+                            toastMessage = if (result.data.ok) "Attachment deleted" else "Attachment was not deleted",
+                        )
+                    }
+                    if (result.data.ok) refreshAttachments(board, taskId)
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(isDeletingAttachment = false, toastMessage = result.error.message)
+                    }
+                }
+            }
+        }
+    }
+
+    suspend fun downloadAttachment(
+        board: String,
+        attachmentId: Long,
+    ): NetworkResult<ResponseBody> = repository.downloadAttachment(attachmentId, board)
+
+    fun showToast(message: String) {
+        _uiState.update { it.copy(toastMessage = message) }
+    }
+
+    fun inspectRun(
+        board: String,
+        taskId: String,
+        runId: Long,
+    ) {
+        if (_uiState.value.isInspectingRun) return
+        _uiState.update { it.copy(isInspectingRun = true, selectedRun = null, runInspection = null) }
+        viewModelScope.launch {
+            val run = repository.getRun(runId, board)
+            val inspection = if (run is NetworkResult.Success) repository.inspectRun(runId, board) else null
+            if (activeTaskId != null && (activeTaskId != taskId || activeBoard != board)) return@launch
+            _uiState.update {
+                it.copy(
+                    isInspectingRun = false,
+                    selectedRun = (run as? NetworkResult.Success)?.data?.run,
+                    runInspection = (inspection as? NetworkResult.Success)?.data,
+                    toastMessage =
+                        (run as? NetworkResult.Failure)?.error?.message
+                            ?: (inspection as? NetworkResult.Failure)?.error?.message,
+                )
+            }
+        }
+    }
+
+    fun clearRunInspection() {
+        _uiState.update { it.copy(selectedRun = null, runInspection = null) }
+    }
+
+    fun terminateRun(
+        board: String,
+        taskId: String,
+        runId: Long,
+    ) {
+        if (_uiState.value.isTerminatingRun) return
+        _uiState.update { it.copy(isTerminatingRun = true) }
+        viewModelScope.launch {
+            when (val result = repository.terminateRun(runId, board)) {
+                is NetworkResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            isTerminatingRun = false,
+                            toastMessage = if (result.data.ok) "Run terminated" else "Run was not terminated",
+                        )
+                    }
+                    if (result.data.ok && result.data.taskId == taskId &&
+                        activeTaskId == taskId && activeBoard == board
+                    ) {
+                        val latestRun = repository.getRun(runId, board)
+                        _uiState.update { it.copy(selectedRun = (latestRun as? NetworkResult.Success)?.data?.run) }
+                        loadTaskSilently(board, taskId)
+                    }
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(isTerminatingRun = false, toastMessage = result.error.message)
+                    }
+                }
+            }
+        }
+    }
+
+    fun specifyTask(
+        board: String,
+        taskId: String,
+    ) {
+        if (_uiState.value.isSpecifying) return
+        _uiState.update { it.copy(isSpecifying = true) }
+        viewModelScope.launch {
+            when (val result = repository.specifyTask(taskId, board)) {
+                is NetworkResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            isSpecifying = false,
+                            toastMessage =
+                                if (result.data.ok) {
+                                    "Task specified"
+                                } else {
+                                    result.data.reason
+                                        ?: "Specification failed"
+                                },
+                        )
+                    }
+                    if (result.data.ok && activeTaskId == taskId &&
+                        activeBoard == board
+                    ) {
+                        loadTaskSilently(board, taskId)
+                    }
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(isSpecifying = false, toastMessage = result.error.message)
+                    }
+                }
+            }
+        }
+    }
+
+    fun createParentLink(
+        board: String,
+        childId: String,
+        parentId: String,
+    ) {
+        if (parentId.isBlank() || _uiState.value.isLinking) return
+        _uiState.update { it.copy(isLinking = true) }
+        viewModelScope.launch {
+            when (val result = repository.createTaskLink(board, parentId.trim(), childId)) {
+                is NetworkResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            isLinking = false,
+                            toastMessage =
+                                when {
+                                    !result.data.ok -> "Parent link was not created"
+                                    result.data.gated -> "Linked; task gated by parent"
+                                    else -> "Parent linked"
+                                },
+                        )
+                    }
+                    if (result.data.ok) {
+                        if (activeTaskId == childId && activeBoard == board) {
+                            loadTaskSilently(board, childId)
+                        } else if (activeTaskId == null) {
+                            loadTask(board, childId)
+                        }
+                    }
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(isLinking = false, toastMessage = result.error.message)
+                    }
+                }
+            }
+        }
+    }
+
+    fun setRunFilter(
+        board: String,
+        taskId: String,
+        type: String?,
+        name: String?,
+    ) {
+        if ((type == null) != (name == null) || type !in setOf(null, "status", "outcome")) return
+        _uiState.update { it.copy(runStateType = type, runStateName = name) }
+        if (activeBoard == board && activeTaskId == taskId) {
+            viewModelScope.launch { loadTaskSilently(board, taskId) }
         }
     }
 

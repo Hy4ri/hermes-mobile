@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -119,10 +120,22 @@ fun KanbanScreen(
     var selectedAssignee by remember { mutableStateOf<String?>(null) }
     var selectedTenant by remember { mutableStateOf<String?>(null) }
     var showFilterSheet by remember { mutableStateOf(false) }
+    var showWorkersDialog by remember { mutableStateOf(false) }
 
     val filteredTasks =
-        remember(query, state.tasks, selectedAssignee, selectedTenant) {
-            state.tasks.filter { task ->
+        remember(
+            query,
+            state.tasks,
+            selectedAssignee,
+            selectedTenant,
+            state.selectedWorkflowTemplateId,
+            state.selectedCurrentStepKey,
+        ) {
+            filterKanbanTasks(
+                state.tasks,
+                state.selectedWorkflowTemplateId,
+                state.selectedCurrentStepKey,
+            ).filter { task ->
                 val matchesQuery =
                     query.isBlank() ||
                         task.title.contains(query, ignoreCase = true) ||
@@ -331,6 +344,14 @@ fun KanbanScreen(
                         },
                     )
                     if (state.selectedBoard != null) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.kanban_active_workers)) },
+                            onClick = {
+                                showBoardMenu = false
+                                showWorkersDialog = true
+                                viewModel.loadActiveWorkers()
+                            },
+                        )
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.kanban_board_settings)) },
                             onClick = {
@@ -917,10 +938,23 @@ fun KanbanScreen(
                             tenants = tenants,
                             selectedAssignee = selectedAssignee,
                             selectedTenant = selectedTenant,
+                            workflowTemplateIds =
+                                state.tasks
+                                    .mapNotNull { it.workflowTemplateId }
+                                    .distinct()
+                                    .sorted(),
+                            currentStepKeys =
+                                state.tasks
+                                    .mapNotNull { it.currentStepKey }
+                                    .distinct()
+                                    .sorted(),
+                            selectedWorkflowTemplateId = state.selectedWorkflowTemplateId,
+                            selectedCurrentStepKey = state.selectedCurrentStepKey,
                             includeArchived = state.includeArchived,
                             groupRunning = state.groupRunning,
                             onSelectAssignee = { selectedAssignee = it },
                             onSelectTenant = { selectedTenant = it },
+                            onSelectWorkflowFilters = viewModel::setWorkflowFilters,
                             onToggleIncludeArchived = viewModel::setIncludeArchived,
                             onToggleGroupRunning = viewModel::setGroupRunning,
                             onClearFilters = {
@@ -928,6 +962,7 @@ fun KanbanScreen(
                                 selectedTenant = null
                                 viewModel.setIncludeArchived(false)
                                 viewModel.setGroupRunning(false)
+                                viewModel.setWorkflowFilters(null, null)
                             },
                             onDismiss = { showFilterSheet = false },
                         )
@@ -1288,6 +1323,46 @@ fun KanbanScreen(
                             onSaveProfileDescription = viewModel::updateProfileDescription,
                             onAutoDescribe = viewModel::autoDescribeProfile,
                             onDismiss = { showOrchestrationDialog = false },
+                        )
+                    }
+
+                    if (showWorkersDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showWorkersDialog = false },
+                            title = { Text(stringResource(R.string.kanban_active_workers)) },
+                            text = {
+                                if (state.isLoadingWorkers) {
+                                    CircularProgressIndicator()
+                                } else if (state.activeWorkers.isEmpty()) {
+                                    Text(stringResource(R.string.kanban_no_active_workers))
+                                } else {
+                                    LazyColumn(modifier = Modifier.heightIn(max = 320.dp)) {
+                                        items(state.activeWorkers, key = { it.runId }) { worker ->
+                                            Text(
+                                                "${worker.taskTitle} · ${worker.profile ?: worker.taskAssignee.orEmpty()}",
+                                                modifier =
+                                                    Modifier
+                                                        .fillMaxWidth()
+                                                        .clickable {
+                                                            val board = state.selectedBoard ?: return@clickable
+                                                            showWorkersDialog = false
+                                                            NavigationController.navigateTo(
+                                                                KanbanTaskDetailKey(
+                                                                    boardSlug = board.id,
+                                                                    taskId = worker.taskId,
+                                                                ),
+                                                            )
+                                                        }.padding(vertical = 8.dp),
+                                            )
+                                        }
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                TextButton(onClick = { showWorkersDialog = false }) {
+                                    Text(stringResource(R.string.action_close))
+                                }
+                            },
                         )
                     }
 

@@ -1495,6 +1495,33 @@
     <string name="session_integrations_close">إغلاق</string>
     <string name="session_integrations_menu_item">تكاملات الجلسة</string>
 
+    <!-- Kanban task detail -->
+    <string name="kanban_specify_task">تحديد المهمة</string>
+    <string name="kanban_specifying">جارٍ التحديد…</string>
+    <string name="kanban_specify_success">تم تحديد المهمة بنجاح</string>
+    <string name="kanban_specify_failed">تعذر تحديد المهمة: %1$s</string>
+    <string name="kanban_add_parent">إضافة مهمة أصل</string>
+    <string name="kanban_parent_id">معرّف المهمة الأصل</string>
+    <string name="kanban_link_gated">لا يمكن إنشاء الرابط قبل تحديد المهمة</string>
+    <string name="kanban_link_created">تم إنشاء رابط المهمة</string>
+    <string name="kanban_run_details">تفاصيل التشغيل</string>
+    <string name="kanban_inspect_run">فحص التشغيل</string>
+    <string name="kanban_terminate_run">إنهاء التشغيل</string>
+    <string name="kanban_terminate_run_confirm">هل تريد إنهاء هذا التشغيل؟</string>
+    <string name="kanban_run_terminated">تم إنهاء التشغيل</string>
+    <string name="kanban_run_inactive">التشغيل غير نشط</string>
+    <string name="kanban_run_inspection_unavailable">فحص التشغيل غير متاح</string>
+    <string name="kanban_run_state_filter">حالة التشغيل</string>
+    <string name="kanban_all_runs">كل عمليات التشغيل</string>
+    <string name="kanban_delete_attachment">حذف المرفق</string>
+    <string name="kanban_delete_attachment_confirm">هل تريد حذف هذا المرفق؟</string>
+    <string name="kanban_download_attachment">تنزيل المرفق</string>
+    <string name="kanban_attachment_saved">تم حفظ المرفق</string>
+    <string name="kanban_attachment_deleted">تم حذف المرفق</string>
+    <string name="kanban_attachment_error">خطأ في المرفق: %1$s</string>
+    <string name="kanban_active_workers">العاملون النشطون</string>
+    <string name="kanban_no_active_workers">لا يوجد عاملون نشطون</string>
+
     <!-- Media Player -->
     <string name="media_player_play">تشغيل</string>
     <string name="media_player_pause">إيقاف مؤقت</string>

@@ -3,9 +3,12 @@ package com.m57.hermescontrol.ui.chat.tool.render
 import com.m57.hermescontrol.ui.chat.tool.ToolCall
 import com.m57.hermescontrol.ui.chat.tool.ToolJson
 import com.m57.hermescontrol.ui.chat.tool.ToolRenderer
+import com.m57.hermescontrol.ui.chat.tool.ToolViewExtras
+import com.m57.hermescontrol.ui.chat.tool.ToolViewStatus
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.longOrNull
 
 /** `cronjob`: job listings with schedules, or the mutated job's key fields. */
 internal object CronjobRenderer : ToolRenderer {
@@ -214,6 +217,15 @@ internal object SessionSearchRenderer : ToolRenderer {
 
 /** `process`: background session listings and lifecycle acks. */
 internal object ProcessRenderer : ToolRenderer {
+    override fun extras(
+        call: ToolCall,
+        status: ToolViewStatus,
+    ): ToolViewExtras {
+        if (status == ToolViewStatus.RUNNING) return ToolViewExtras.NONE
+        val count = (call.result?.get("output_cut") as? JsonPrimitive)?.takeUnless { it.isString }?.longOrNull
+        return ToolViewExtras(outputCut = count?.takeIf { it > 0 })
+    }
+
     override fun subtitle(call: ToolCall): String {
         val action = ToolJson.firstString(call.args, listOf("action"))
         val procId = ToolJson.firstString(call.args, listOf("session_id"))

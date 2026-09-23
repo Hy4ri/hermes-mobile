@@ -165,6 +165,7 @@
 <string name="chat_input_placeholder_type_message">اكتب رسالة\u2026</string>
 <string name="chat_tool_execution_error">خطأ في التنفيذ: %1$s</string>
 <string name="chat_tool_exit_code">رمز الخروج: %1$d</string>
+<string name="chat_tool_output_omitted">تم حذف %1$d حرف من مخرجات العملية</string>
 <string name="chat_tool_fallback">أداة</string>
 <string name="chat_tool_show_raw">عرض ملف JSON الأولي</string>
 <string name="chat_tool_show_parsed">عرض المخرجات المعالجة</string>

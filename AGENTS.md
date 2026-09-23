@@ -2,11 +2,12 @@
 
 Guidance for AI coding agents working on this repository.
 This complements [README.md](README.md) (for humans) and [DESIGN.md](DESIGN.md)
-(architecture & design rationale) with agent-focused context. Before making any
-non-trivial architectural change — new screens, navigation changes, theme/state
-patterns, module boundaries — read `DESIGN.md` first and keep changes consistent
-with the decisions recorded there. If a change would contradict `DESIGN.md`,
-flag it explicitly rather than silently diverging.
+(visual and interaction requirements) with agent-focused operational and
+architecture context. Before changing navigation, state ownership, or module
+boundaries, read the relevant implementation and the conventions below. For UI
+changes, also read `DESIGN.md`; for theme implementation, read
+[`THEMES.md`](app/src/main/java/com/m57/hermescontrol/theme/THEMES.md).
+Flag conflicts between requirements and implementation instead of silently diverging.
 
 ## Project Overview
 
@@ -16,9 +17,9 @@ dashboard's REST API and WebSocket TUI Gateway (JSON-RPC 2.0) over a trusted LAN
 
 - **Package:** `com.m57.hermescontrol`
 - **Min SDK 26 / Target SDK 37 / Compile SDK 37**
-- **Kotlin 2.4.10**, KSP 2.3.10 (standalone versioning, NOT `kotlinVersion-kspVersion`)
-- **Jetpack Compose**, Room 2.7.x, Navigation3, OkHttp WebSocket, Retrofit, Kotlinx Serialization
-- **Auth:** `EncryptedSharedPreferences` (AES256-GCM), Bearer token (REST) + `?token=` (WS)
+- **Kotlin and KSP:** versions are pinned in [`gradle/libs.versions.toml`](gradle/libs.versions.toml). KSP uses standalone versioning, NOT `kotlinVersion-kspVersion`.
+- **Jetpack Compose**, Room, Navigation3, OkHttp WebSocket, Retrofit, Kotlinx Serialization. See the version catalog and [`app/build.gradle.kts`](app/build.gradle.kts) for versions and dependency scopes.
+- **Auth:** `EncryptedSharedPreferences` (AES256-GCM); connection/authentication flows are documented in [README.md](README.md#authentication). Trace the active REST and WebSocket auth paths before changing them.
 
 ## Build & Test Commands
 
@@ -32,7 +33,7 @@ If you have a local Android SDK (`ANDROID_HOME` set), these work:
 ./gradlew ktlintCheck                       # style check
 ```
 
-**ktlint standalone** (no SDK needed):
+**ktlint standalone fallback** (no SDK needed; not the authoritative CI gate):
 
 ```bash
 # Download the matching binary
@@ -68,7 +69,7 @@ Requires `permissions: contents: write` on the `build-release` job.
 
 ## Code Style
 
-- **ktlint 1.8.0** is enforced in CI. Run `./ktlint --format` before pushing.
+- **ktlint 1.8.0** is enforced in CI. With an Android SDK, run `./gradlew ktlintFormat` followed by `./gradlew ktlintCheck`. Standalone formatting is only a fallback; it does not replace the Gradle CI check.
 - Import ordering is the #1 CI failure: ktlint enforces ASCII-lexicographic order
   (uppercase before lowercase: `LaunchedEffect` before `collectAsState`).
 - `const val` must use SCREAMING_SNAKE_CASE.
@@ -147,12 +148,9 @@ call unconditionally.
 
 ### ⚠ HermesScaffold Padding Foot-Gun
 
-**This is the #1 recurring bug in this codebase.** It has been re-introduced on 4+ screens
-across 3+ PRs (Settings, Achievements, Webhooks, Config — PRs #445, #454, #455).
-
-**Root cause:** `HermesScaffold` wraps content in an internal `Box(Modifier.padding(paddingValues))`
-that already offsets for the top bar. But it also passes `paddingValues` into the content lambda,
-which looks like it should be applied — and every new screen does exactly that:
+`HermesScaffold` handles system insets and the dynamic top-bar offset in its
+internal content wrapper. Although it passes `paddingValues` to the content
+lambda, applying those values again double-stacks the padding:
 
 ```kotlin
 HermesScaffold(...) { paddingValues ->      // ← scaffold already handles top bar offset via Box
@@ -164,11 +162,6 @@ HermesScaffold(...) { paddingValues ->      // ← scaffold already handles top 
     ) { ... }
 }
 ```
-
-**The deeper issue:** Passing `paddingValues` into the lambda implies "you need to use this,"
-when the scaffold has ALREADY pre-applied it in its own outer `Box`. This API design creates
-a natural foot-gun: every developer instinctively adds `.padding(paddingValues)` on inner
-content because it seems correct.
 
 **Correct pattern — do NOT apply `paddingValues` on inner content:**
 
@@ -185,21 +178,21 @@ Column(
     modifier = Modifier.fillMaxSize(),    // no .padding(paddingValues)!!
 ) { ... }
 
-// ✅ Loading/Error/Empty states — these DO need it:
-LoadingState(modifier = Modifier.padding(paddingValues))
+// ✅ Loading/Error/Empty states inside HermesScaffold content follow the same rule:
+LoadingState(modifier = Modifier.fillMaxSize())
 ```
 
-**Quick test:** If your screen's top gap is wider than CronJobsScreen's, you've double-stacked.
-
-**See also:** `references/hermes-scaffold-padding.md` in the skill doc for the full
-breakdown, edge cases, and timeline of previous occurrences.
+This applies to every branch inside the content lambda. A state view outside
+`HermesScaffold` must follow its own parent layout's inset contract instead.
+See [`HermesScaffold.kt`](app/src/main/java/com/m57/hermescontrol/ui/common/HermesScaffold.kt)
+for the current inset implementation.
 
 ### Room Persistence
 
 - `ChatMessageEntity` / `ChatMessageDao` / `HermesDatabase` — chat messages survive
   app kills. `getMessagesForSession()` returns `suspend fun ...: List<ChatMessageEntity>`
   (not `Flow` — the caller controls the coroutine scope).
-- Room 2.7.x requires `room { schemaDirectory("$projectDir/schemas") }` DSL.
+- Room schema configuration is defined in `app/build.gradle.kts`; preserve schema export and migrations when updating Room.
 - `ChatViewModel` extends `AndroidViewModel` (needs Application for DB access).
 
 ### Theme
@@ -230,7 +223,7 @@ Access status colors via `LocalHermesStatusColors.current.success`, not
 ```bash
 git checkout dev && git pull origin dev
 git checkout -b fix/issue-N-description    # or feat/...
-# make changes, run ./ktlint --format
+# make changes, run ./gradlew ktlintFormat ktlintCheck (requires Android SDK)
 git commit -m "fix(#N): description"
 git push -u origin HEAD
 gh pr create --base dev --title "fix(#N): description" --body "Closes #N"
@@ -316,8 +309,8 @@ com.m57.hermescontrol/
 ## Further Reading
 
 - [README.md](README.md) — human-facing overview, features, screenshots, tech stack
-- [DESIGN.md](DESIGN.md) — architecture and design decisions, rationale for the
-  patterns in this doc (Navigation3, HermesScaffold, theme presets, etc.)
+- [DESIGN.md](DESIGN.md) — visual and interaction requirements, accessibility, and token source map
+- [THEMES.md](app/src/main/java/com/m57/hermescontrol/theme/THEMES.md) — theme template, dispatcher, and mode fallback implementation
 - [CONTRIBUTING.md](CONTRIBUTING.md) — contributor workflow, PR checklist, code style
 - [.github/workflows/android.yml](.github/workflows/android.yml) — CI pipeline source of truth
 - [.github/workflows/merge-conflict-detector.yml](.github/workflows/merge-conflict-detector.yml) — auto-labels conflicting PRs

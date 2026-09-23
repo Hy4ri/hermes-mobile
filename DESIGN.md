@@ -1,236 +1,63 @@
----
-version: "alpha"
-name: "Hermes Mobile Design System"
-description: "High-density, minimal Material 3 interface for the Hermes Agent Android client"
-omitted: []
-colors:
-  # Slate Dark Baseline (DefaultScheme.kt)
-  bg-root: "#0F1416"
-  bg-surface: "#0F1416"
-  bg-surface-container-lowest: "#0F1416"
-  bg-surface-container-low: "#171C1E"
-  bg-surface-container: "#1B2022"
-  bg-surface-container-high: "#252B2D"
-  bg-surface-container-highest: "#303638"
-  bg-surface-variant: "#171C1E"
+# Hermes Mobile Design System
 
-  # Foreground / Text Tokens
-  text-primary: "#DEE3E5"
-  text-secondary: "#CEE7EC"
-  text-muted: "#BEC8CA"
-  text-on-primary: "#0F1416"
-  text-on-secondary: "#0F1416"
-  text-on-tertiary: "#0F1416"
-  text-outline: "#889294"
+## Scope and sources of truth
 
-  # Accents & Containers (Slate Bright Dark Mode)
-  primary: "#80D5D2"
-  primary-container: "#303638"
-  on-primary-container: "#DEE3E5"
-  secondary: "#B2CBD0"
-  secondary-container: "#252B2D"
-  on-secondary-container: "#CEE7EC"
-  tertiary: "#A3C9EC"
-  tertiary-container: "#303638"
-  on-tertiary-container: "#DEE3E5"
+This document defines visual and interaction requirements for new or changed UI.
+It is not an architecture manual or a claim that every existing screen already
+meets every requirement. Flag existing deviations when touching the relevant UI;
+do not silently redesign unrelated screens.
 
-  # Semantic Status Tokens (HermesStatusColors.kt & DefaultScheme.kt)
-  status-success: "#81D692"
-  status-success-container: "#252B2D"
-  status-on-success: "#0F1416"
-  status-warning: "#ECC248"
-  status-warning-container: "#252B2D"
-  status-on-warning: "#0F1416"
-  status-error: "#FFB4AB"
-  status-error-container: "#252B2D"
-  status-on-error: "#0F1416"
-  status-on-error-container: "#FFB4AB"
-  status-info: "#8ECEFF"
-  status-info-container: "#252B2D"
-  status-on-info: "#0F1416"
+- [README.md](README.md): installation, connection, and product overview.
+- [CONTRIBUTING.md](CONTRIBUTING.md): contribution workflow and verification.
+- [AGENTS.md](AGENTS.md): operational rules and architecture conventions.
+- [THEMES.md](app/src/main/java/com/m57/hermescontrol/theme/THEMES.md): theme implementation and extension guide.
 
-  # Code Block & Terminal Tokens (Color.kt)
-  terminal-bg: "#1E1E1E"
-  terminal-border: "#333333"
-  terminal-text: "#D4D4D4"
-  terminal-muted: "#808080"
-  code-keyword: "#569CD6"
-  code-string: "#CE9178"
-  code-comment: "#6A9955"
-  code-number: "#B5CEA8"
+Kotlin sources are authoritative for implemented token values and component APIs.
+Use this document for intent; investigate and report conflicts rather than assuming
+that either stale prose or an existing deviation grants permission to change behavior.
 
-  # Diff Viewer Tokens
-  diff-add-bg: "rgba(61, 220, 132, 0.15)"
-  diff-add-text: "#3DDC84"
-  diff-delete-bg: "rgba(255, 92, 92, 0.15)"
-  diff-delete-text: "#FF5C5C"
+## Token source map
 
-typography:
-  font-sans: "Roboto, 'Segoe UI', system-ui, sans-serif"
-  font-mono: "'JetBrains Mono', 'Roboto Mono', monospace"
+Use semantic Kotlin tokens, not copied hex values or a parallel web/CSS token set.
+Android layout dimensions use `dp`; text sizes, line heights, and tracking use `sp`.
 
-  display-large:
-    fontFamily: "{typography.font-sans}"
-    fontSize: "44px"
-    fontWeight: 700
-    lineHeight: 52px
-    letterSpacing: "-0.5px"
-  display-medium:
-    fontFamily: "{typography.font-sans}"
-    fontSize: "36px"
-    fontWeight: 700
-    lineHeight: 44px
-    letterSpacing: "-0.25px"
-  display-small:
-    fontFamily: "{typography.font-sans}"
-    fontSize: "30px"
-    fontWeight: 600
-    lineHeight: 38px
-    letterSpacing: "0px"
-  headline-large:
-    fontFamily: "{typography.font-sans}"
-    fontSize: "28px"
-    fontWeight: 600
-    lineHeight: 34px
-    letterSpacing: "0px"
-  headline-medium:
-    fontFamily: "{typography.font-sans}"
-    fontSize: "24px"
-    fontWeight: 600
-    lineHeight: 30px
-    letterSpacing: "0px"
-  headline-small:
-    fontFamily: "{typography.font-sans}"
-    fontSize: "20px"
-    fontWeight: 600
-    lineHeight: 26px
-    letterSpacing: "0.1px"
-  title-large:
-    fontFamily: "{typography.font-sans}"
-    fontSize: "20px"
-    fontWeight: 600
-    lineHeight: 26px
-    letterSpacing: "0.1px"
-  title-medium:
-    fontFamily: "{typography.font-sans}"
-    fontSize: "16px"
-    fontWeight: 500
-    lineHeight: 22px
-    letterSpacing: "0.15px"
-  title-small:
-    fontFamily: "{typography.font-sans}"
-    fontSize: "14px"
-    fontWeight: 500
-    lineHeight: 20px
-    letterSpacing: "0.1px"
-  body-large:
-    fontFamily: "{typography.font-sans}"
-    fontSize: "16px"
-    fontWeight: 400
-    lineHeight: 24px
-    letterSpacing: "0.25px"
-  body-medium:
-    fontFamily: "{typography.font-sans}"
-    fontSize: "14px"
-    fontWeight: 400
-    lineHeight: 20px
-    letterSpacing: "0.25px"
-  body-small:
-    fontFamily: "{typography.font-sans}"
-    fontSize: "12px"
-    fontWeight: 400
-    lineHeight: 16px
-    letterSpacing: "0.4px"
-  label-large:
-    fontFamily: "{typography.font-sans}"
-    fontSize: "14px"
-    fontWeight: 500
-    lineHeight: 20px
-    letterSpacing: "0.1px"
-  label-medium:
-    fontFamily: "{typography.font-sans}"
-    fontSize: "12px"
-    fontWeight: 500
-    lineHeight: 16px
-    letterSpacing: "0.5px"
-  label-small:
-    fontFamily: "{typography.font-sans}"
-    fontSize: "11px"
-    fontWeight: 500
-    lineHeight: 16px
-    letterSpacing: "0.5px"
-
-rounded:
-  none: "0dp"
-  extra-small: "4dp"
-  small: "8dp"
-  medium: "12dp"
-  large: "16dp"
-  extra-large: "28dp"
-  full: "9999dp"
-
-spacing:
-  xs: "2dp"
-  sm: "6dp"
-  md: "12dp"
-  lg: "18dp"
-  xl: "24dp"
-  xxl: "36dp"
-
-components:
-  top-app-bar:
-    backgroundColor: "{colors.bg-surface}"
-    textColor: "{colors.text-primary}"
-    height: "56dp"
-  chat-user-bubble:
-    backgroundColor: "{colors.primary}"
-    textColor: "{colors.text-on-primary}"
-    rounded: "{rounded.medium}"
-    padding: "10dp 14dp"
-  chat-assistant-bubble:
-    backgroundColor: "{colors.bg-surface-container}"
-    textColor: "{colors.text-primary}"
-    rounded: "{rounded.medium}"
-    padding: "10dp 14dp"
-  tool-chip:
-    backgroundColor: "{colors.bg-surface-container-high}"
-    textColor: "{colors.text-primary}"
-    rounded: "{rounded.full}"
-    padding: "4dp 10dp"
-  code-card:
-    backgroundColor: "{colors.terminal-bg}"
-    textColor: "{colors.terminal-text}"
-    rounded: "{rounded.small}"
-    padding: "8dp 12dp"
----
+| Concern | Authoritative source |
+| --- | --- |
+| Presets and mode selection | [Theme.kt](app/src/main/java/com/m57/hermescontrol/theme/Theme.kt) |
+| Material slot mapping | [PaletteTemplate.kt](app/src/main/java/com/m57/hermescontrol/theme/PaletteTemplate.kt) |
+| Palette values | [presets/](app/src/main/java/com/m57/hermescontrol/theme/presets/) |
+| Semantic status model | [HermesStatusColors.kt](app/src/main/java/com/m57/hermescontrol/theme/HermesStatusColors.kt) |
+| Terminal, code, and diff colors | [Color.kt](app/src/main/java/com/m57/hermescontrol/theme/Color.kt) |
+| Typography | [Type.kt](app/src/main/java/com/m57/hermescontrol/theme/Type.kt) |
+| Spacing and shapes | [Spacing.kt](app/src/main/java/com/m57/hermescontrol/theme/Spacing.kt), [Shapes.kt](app/src/main/java/com/m57/hermescontrol/theme/Shapes.kt) |
+| Motion | [Motion.kt](app/src/main/java/com/m57/hermescontrol/theme/Motion.kt) |
 
 ## Overview
-Hermes Mobile (`com.m57.hermescontrol`) is a high-density, keyboard-first, distraction-free Android client for the Hermes Agent platform. The UI philosophy prioritizes information density, low battery drain (OLED-friendly), and instantaneous feedback over decorative visual noise.
+Hermes Mobile (`com.m57.hermescontrol`) is a native Android client for the Hermes Agent platform. Prioritize useful information density, clear touch interactions, and timely, honest feedback over decorative visual noise. Density must not compromise accessibility.
 
 The visual language follows Material 3 guidelines strictly adapted for developer utilities:
 - **Tone**: Technical, focused, utilitarian, crisp.
-- **Form Factors**: Native Android phones, foldables, and tablets via adaptive Navigation 3 layouts.
+- **Form Factors**: Verify changed layouts at narrow phone widths and larger window sizes; Navigation 3 alone does not establish adaptive-layout support.
 - **Core Principle**: Zero fluff. Fast render cycles, explicit states, flat surfaces, and zero visual ambiguity.
 
 ## Colors
-The app supports 6 dynamic presets managed by `PaletteTemplate.kt` (`Default/Slate`, `Monochrome`, `Gruvbox`, `Catppuccin`, `AMOLED`, `Nord`), plus dynamic Android 12+ wallpaper theming:
+The app supports 6 built-in presets (`Default/Slate`, `Monochrome`, `Gruvbox`, `Catppuccin`, `AMOLED`, `Nord`), plus optional Android 12+ wallpaper theming. `Theme.kt` selects the preset; `PaletteTemplate.kt` maps its colors to Material slots. AMOLED is dark-only; light mode falls back to Default.
 
 1. **Surfaces**:
-   - `bg-root`: Deep canvas background (`#0F1416` in Default Dark, `#000000` in AMOLED).
-   - `bg-surface`: Top app bars, bottom sheets, navigation drawer background.
-   - `bg-surface-container`: Assistant message bubbles, session list cards, settings group panels (`#1B2022`).
-   - `bg-surface-container-high`: Dialogs, interactive chips, elevated tool surfaces (`#252B2D`).
-   - `bg-surface-container-highest`: Selected containers and active pills (`#303638`).
+   - `MaterialTheme.colorScheme.background`: Main canvas and full-bleed chat background.
+   - `surface` and `surfaceContainer*`: Use the existing component's semantic surface tier for bars, panels, cards, and sheets.
+   - Pair surfaces with their corresponding foreground tokens; do not assume Default Dark values apply to light or dynamic themes.
 2. **Accents & Tints**:
-   - Primary accent (`#80D5D2` Slate Bright Teal) is reserved for interactive controls, user bubbles, selected drawer icons, and active tabs.
+   - Primary accent is reserved for interactive controls, user bubbles, selected drawer icons, and active tabs.
    - Selected navigation drawer items MUST tint icons directly to `primary` to prevent low-contrast grey-on-grey visual loss.
 3. **Semantic Status Colors (`HermesStatusColors`)**:
-   - Status indicators (`success`, `warning`, `error`, `info`) must always satisfy a minimum **3:1 contrast ratio** against their respective container backgrounds (`onErrorContainer` on `errorContainer`).
-   - Every theme preset must explicitly define `onErrorContainer` (`#FFB4AB` in Default Dark) to prevent invisible text bugs.
+   - Access semantic status colors through `LocalHermesStatusColors.current`, including when dynamic Material colors are active. Do not substitute Material accent colors for success/warning/error/info.
+   - Pair status colors with icons or labels; color alone is insufficient, especially in Monochrome and AMOLED.
+   - Every preset must explicitly define `onErrorContainer`. Apply the accessibility contrast requirements below to the actual foreground/background pair.
 
 ## Typography
-- **UI Fonts**: System `Roboto` / sans-serif with strict semantic scaling to prevent layout shifts.
-- **Code & Logs**: Tabular `JetBrains Mono` for terminal traces, tool payloads, JSON viewers, and memory tokens.
+- **UI Fonts**: `FontFamily.Default`, using Material typography roles. Do not assume a particular system font on every device.
+- **Code & Logs**: `FontFamily.Monospace`; do not promise JetBrains Mono or another named face without a bundled font and explicit wiring.
 - **Scale Discipline (`Type.kt`)**:
   - Screen titles: `20sp` (`title-large`) with 0.1sp tracking.
   - Card headings: `16sp` (`title-medium`) with 0.15sp tracking.
@@ -240,9 +67,9 @@ The app supports 6 dynamic presets managed by `PaletteTemplate.kt` (`Default/Sla
 
 ## Layout
 - **Scaffolding (`HermesScaffold`)**:
-  - Global `TopAppBar` containing screen title, connection indicator, profile switch dropdown, and quick action icon buttons.
+  - Use the shared scaffold's top bar and supported action slots; do not duplicate its insets or hardcode a parallel top-bar height.
   - **No Floating Action Buttons (FABs)**: Primary triggers live in the top-bar actions or fixed bottom composer docks.
-  - **Scaffold Padding Foot-Gun Rule**: Content lambdas must **NEVER** apply `Modifier.padding(paddingValues)` on root children — the scaffold's internal `Box` already handles top-bar offsets.
+  - **Scaffold Padding Rule**: Do not reapply the supplied `paddingValues` inside the content lambda — the scaffold already handles insets. This includes loading, error, and empty branches. Content-specific spacing is separate from scaffold insets.
 - **Spacing Scale (`Spacing.kt`)**:
   - `xs: 2dp`: Hairline gaps, micro dividers.
   - `sm: 6dp`: Default inner padding, icon-to-text gap.
@@ -255,7 +82,7 @@ The app supports 6 dynamic presets managed by `PaletteTemplate.kt` (`Default/Sla
   - Dropdown pickers take precedence over cycle buttons to ensure all options are discoverable in one tap.
 
 ## Elevation & Depth
-- **Elevation Language**: Surface luminance layering (`surfaceContainer` tiers) and 1px borders (`outline` / `outlineVariant`) replace heavy drop shadows.
+- **Elevation Language**: Surface luminance layering (`surfaceContainer` tiers) and restrained `dp` borders (`outline` / `outlineVariant`) replace heavy drop shadows.
 - **Flat Surface Rule**:
   - Chat background is flat `colorScheme.background`.
   - User message bubbles use solid `colorScheme.primary` (no multi-color gradients).
@@ -263,25 +90,24 @@ The app supports 6 dynamic presets managed by `PaletteTemplate.kt` (`Default/Sla
 
 ## Shapes
 - **Corner Radii Hierarchy (`Shapes.kt`)**:
-  - `0dp` (`rounded.none`): Terminal panels, full-bleed code blocks.
-  - `4dp` (`rounded.extra-small`): Chips, badges, inline toggles.
-  - `8dp` (`rounded.small`): Text fields, small cards, code cards.
-  - `12dp` (`rounded.medium`): Standard cards, list rows, message bubbles, dialogs.
-  - `16dp` (`rounded.large`): Large cards, bottom sheets.
-  - `28dp` (`rounded.extra-large`): Feature cards, full-bleed surfaces.
-  - `9999dp` (`rounded.full`): Interactive filter chips, timeline markers, circular icon buttons.
+  - `MaterialTheme.shapes.extraSmall`: `4dp`.
+  - `MaterialTheme.shapes.small`: `8dp`.
+  - `MaterialTheme.shapes.medium`: `12dp`.
+  - `MaterialTheme.shapes.large`: `16dp`.
+  - `MaterialTheme.shapes.extraLarge`: `28dp`.
+  - Use the existing component's shape contract. Square and circular shapes are component choices, not additional `HermesShapes` tokens.
 
 ## Components
-- **Top App Bar**: Flat surface, 56dp height, contains title marquee, WS connection status pill, and action buttons.
+- **Top App Bar**: Flat surface; reuse `HermesScaffold` and its supported slots instead of duplicating dimensions or controls.
 - **Chat Timeline**:
   - **User Bubbles**: Right-aligned, solid primary fill, high-contrast text (`onPrimary`).
-  - **Assistant Bubbles**: Left-aligned, `surfaceContainer` fill (`#1B2022`), full Markdown renderer support.
+  - **Assistant Content**: Preserve the active renderer's layout. Full-bleed prose renders on the chat background; do not force every assistant message into a filled card. Reuse the existing Markdown renderer.
   - **Tool Bubbles**: Expandable rows with tool vector icon, execution state indicator, parameter summary, and full payload bottom sheet.
 - **Action & Filter Chips**:
   - Must represent real system state (e.g., active model, selected profile, filter criteria).
   - Active chips: `primaryContainer` fill with `onPrimaryContainer` text/icon.
-  - Inactive chips: `surfaceContainerHigh` fill with `text-secondary` text.
-  - Disabled controls: Visually greyed out with `alpha = 0.38f`.
+  - Inactive chips: Use the component's Material surface and foreground tokens.
+  - Disabled controls: Use the component's disabled styling and semantics; do not treat a single alpha as a universal contract.
 - **Dialogs & Bottom Sheets**:
   - Standard CRUD flows must provide all 4 operations (Create, Read, Update, Delete) with confirmation gates for destructive actions.
   - Every managed resource must have a discoverable navigation surface in the UI.
@@ -289,17 +115,37 @@ The app supports 6 dynamic presets managed by `PaletteTemplate.kt` (`Default/Sla
 ## Do's and Don'ts
 
 ### Do's
-- **DO** use official `androidx.compose.material.icons` vectors for every UI element and status indicator.
+- **DO** use vector icons for app-owned controls and status indicators, reusing existing Material icons or project vector assets.
 - **DO** use `Icons.AutoMirrored.Filled.*` for directional icons (`ArrowBack`, `Send`, `VolumeUp`, `MenuBook`).
-- **DO** maintain $\ge 4.5:1$ text contrast and $\ge 3:1$ container contrast across all 6 presets.
+- **DO** verify contrast for the actual foreground/background pairs under the accessibility requirements below.
 - **DO** use Android string `<plurals>` for count labels (`1 agent` vs `2 agents`).
 - **DO** grey out disabled controls (`enabled = false`) visibly.
 - **DO** ensure every created resource has a discoverable UI list or navigation tab.
 
 ### Don'ts
-- **DON'T** render emoji glyphs (`✅`, `❌`, `⭕`, `🔄`, `⚡`, `🛠`, `📄`) in the app UI — replace them with real vector icons.
+- **DON'T** use emoji glyphs as app-owned status icons or controls; use vectors. This does not prohibit emoji in user/assistant messages or other user-authored content.
 - **DON'T** use Floating Action Buttons (FABs); anchor actions in top bars or fixed docks.
 - **DON'T** apply `Modifier.padding(paddingValues)` inside `HermesScaffold` content lambdas.
 - **DON'T** use gradient backgrounds on chat surfaces or message bubbles.
 - **DON'T** create multi-layer nested cards or unnecessary decorative borders.
 - **DON'T** use cycle buttons where a dropdown menu provides immediate option visibility.
+
+## Accessibility and verification requirements
+
+These are requirements for UI work, not a declaration that the entire app has
+passed an accessibility audit.
+
+- **Touch targets**: Interactive targets must be at least `48dp` in each dimension. A smaller visible icon is fine when its actual hit target meets this requirement.
+- **Text scaling**: Use `sp` and semantic typography. Exercise larger system font/display sizes; essential labels, values, and actions must remain readable and reachable rather than clipped into fixed-height containers.
+- **TalkBack**: Give meaningful images and icon-only actions localized labels. Decorative icons use `contentDescription = null`; avoid announcing the same label twice. Verify focus order and state announcements in the changed flow.
+- **RTL**: Use start/end spacing and auto-mirrored directional icons where appropriate. Check Arabic layout, mixed-direction text, and action order; do not mirror non-directional icons arbitrarily.
+- **Contrast**: Target at least `4.5:1` for normal text, `3:1` for large text, and `3:1` for meaningful non-text indicators/control boundaries against adjacent colors. This is not a blanket requirement that every decorative container contrast with every other container by `3:1`.
+- **Themes**: Check relevant light/dark presets and dynamic colors. Do not rely on color alone to convey selection, failure, or success.
+- **Narrow layouts**: Check long localized labels, keyboard-open states, and scrolling at small widths; density must not hide essential actions.
+
+[ThemePaletteTest.kt](app/src/test/java/com/m57/hermescontrol/theme/ThemePaletteTest.kt)
+currently guards error slot pairs, full-bleed prose/header contrast, and theme-mode
+invariants. Those tests are useful but do not establish contrast or accessibility
+compliance for every rendered component, alpha blend, or dynamic palette.
+Record device/emulator steps and observed results for changed UI; explicitly name
+any gate that could not be verified.

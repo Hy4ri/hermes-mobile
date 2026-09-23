@@ -161,6 +161,16 @@ class KanbanMutationTest {
 
             // Complete network call
             deferred.complete(NetworkResult.Success(UpdateTaskResponse(task = task.copy(status = "ready"))))
+            coEvery { mockRepository.getBoard("dev") } returns
+                NetworkResult.Success(
+                    KanbanBoardResponse(
+                        columns =
+                            listOf(
+                                KanbanColumn("todo", emptyList()),
+                                KanbanColumn("ready", listOf(task.copy(status = "ready"))),
+                            ),
+                    ),
+                )
             testDispatcher.scheduler.advanceUntilIdle()
 
             assertFalse(

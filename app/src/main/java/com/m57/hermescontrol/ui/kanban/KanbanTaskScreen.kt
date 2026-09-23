@@ -67,6 +67,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -1216,6 +1217,8 @@ private fun TaskFilesTab(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val resources = remember(context, configuration) { context.createConfigurationContext(configuration).resources }
     val scope = rememberCoroutineScope()
     var attachmentToDelete by remember { mutableStateOf<KanbanAttachment?>(null) }
     var attachmentToDownload by remember { mutableStateOf<KanbanAttachment?>(null) }
@@ -1235,12 +1238,12 @@ private fun TaskFilesTab(
                                         } ?: error("Could not open the selected destination")
                                     }
                                 }
-                                viewModel.showToast(context.getString(R.string.kanban_attachment_saved))
+                                viewModel.showToast(resources.getString(R.string.kanban_attachment_saved))
                             } catch (e: CancellationException) {
                                 throw e
                             } catch (e: Exception) {
                                 viewModel.showToast(
-                                    context.getString(R.string.kanban_attachment_error, e.message ?: "Unknown error"),
+                                    resources.getString(R.string.kanban_attachment_error, e.message ?: "Unknown error"),
                                 )
                             }
                         }
@@ -1297,7 +1300,7 @@ private fun TaskFilesTab(
                         throw e
                     } catch (e: Exception) {
                         viewModel.showToast(
-                            context.getString(
+                            resources.getString(
                                 R.string.kanban_attachment_error,
                                 e.message ?: "Unknown error",
                             ),

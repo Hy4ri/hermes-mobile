@@ -2655,7 +2655,12 @@ class ChatViewModel(
     }
 
     private fun addAssistantMessage(text: String) {
-        val msg = ChatMessage(role = MessageRole.ASSISTANT, content = text)
+        val msg =
+            ChatMessage(
+                role = MessageRole.ASSISTANT,
+                content = text,
+                displayKind = "local_feedback",
+            )
         _uiState.update { it.copy(messages = it.messages + msg) }
 
         // Persist — OUTSIDE update{}

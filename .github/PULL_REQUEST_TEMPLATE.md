@@ -19,7 +19,7 @@ Fixes #
 
 ## How to test
 
-<!-- Steps to verify. For UI: which screen + which emulator/device API level. For WS: which RPC. -->
+<!-- Record steps AND observed results. For UI: screen, device/emulator, API level, and behavior exercised. For WS: RPC and observed response. Name any verification that could not be run. Building/downloading a CI APK is not a device test. -->
 
 1.
 2.
@@ -32,4 +32,5 @@ Fixes #
 - [ ] `./gradlew testDebugUnitTest` green (or CI unit-tests job)
 - [ ] `checkColorLiterals` passes (no hardcoded Color outside theme/)
 - [ ] Navigation goes through `NavigationController.navigateTo()` (not `backStack.add`)
-- [ ] Tested on device/emulator or verified via CI APK
+- [ ] For UI changes, exercised the changed behavior on a device/emulator and recorded the result above (or explicitly documented the unverified gate)
+- [ ] Documentation matches changed behavior; UI changes follow DESIGN.md

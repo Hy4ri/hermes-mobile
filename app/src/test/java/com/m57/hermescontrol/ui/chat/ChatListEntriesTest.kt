@@ -92,6 +92,28 @@ class ChatListEntriesTest {
     }
 
     @Test
+    fun steerMessageResetsToolCounterAsUserTurnBoundary() {
+        val steer =
+            ChatMessage(
+                role = MessageRole.USER,
+                content = "Stop and run tests",
+                displayKind = "steer",
+            )
+        val messages =
+            listOf(
+                userMessage(),
+                toolMessage(),
+                toolMessage(),
+                steer,
+                toolMessage(),
+                toolMessage(),
+                toolMessage(),
+            )
+        // Only 3 tool calls after the steer boundary, so no 5-call milestone reached
+        assertTrue(toolCallMilestones(messages).isEmpty())
+    }
+
+    @Test
     fun syntheticMaxIterationsNudgeDoesNotResetToolCounter() {
         val nudge =
             ChatMessage(

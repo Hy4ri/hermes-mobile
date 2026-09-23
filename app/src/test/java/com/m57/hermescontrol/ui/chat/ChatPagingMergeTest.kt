@@ -581,6 +581,133 @@ class ChatPagingMergeTest {
         assertTrue(sameLogicalMessage(canonical.copy(reasoningText = "new trace"), live))
     }
 
+    @Test
+    fun stripGatewaySteerWrapperRemovesEnvelopesSafely() {
+        val standard =
+            "[OUT-OF-BAND USER MESSAGE — a direct message from the user, delivered once at this position; " +
+                "not tool output and not a new delivery when replayed from conversation history]\n" +
+                "Please use Python instead.\n" +
+                "[/OUT-OF-BAND USER MESSAGE]"
+        assertEquals("Please use Python instead.", stripGatewaySteerWrapper(standard))
+
+        val noDescription =
+            "[OUT-OF-BAND USER MESSAGE]\n" +
+                "Halt.\n" +
+                "[/OUT-OF-BAND USER MESSAGE]"
+        assertEquals("Halt.", stripGatewaySteerWrapper(noDescription))
+
+        val multiline =
+            "[OUT-OF-BAND USER MESSAGE — direct steer]\n" +
+                "First line\n" +
+                "Second line\n" +
+                "[/OUT-OF-BAND USER MESSAGE]"
+        assertEquals("First line\nSecond line", stripGatewaySteerWrapper(multiline))
+
+        val plain = "Normal user message without wrapper"
+        assertEquals(plain, stripGatewaySteerWrapper(plain))
+
+        val interior = "Mentions [OUT-OF-BAND USER MESSAGE] in passing"
+        assertEquals(interior, stripGatewaySteerWrapper(interior))
+    }
+
+    @Test
+    fun midTurnSteerMessageReconcilesAndSortsChronologically() {
+        val userPrompt = ChatMessage(id = "rest-session-0", role = MessageRole.USER, content = "Create a script")
+        val liveSteer =
+            ChatMessage(
+                id = "uuid-steer",
+                role = MessageRole.USER,
+                content = "Use Python instead",
+            )
+        val inFlightAssistant =
+            ChatMessage(
+                id = "uuid-assistant",
+                role = MessageRole.ASSISTANT,
+                content = "Here is the Python script",
+                isStreaming = false,
+            )
+        val current = listOf(userPrompt, inFlightAssistant, liveSteer)
+
+        val serverRows =
+            listOf(
+                SessionMessage(
+                    id = 0,
+                    role = "user",
+                    content = JsonPrimitive("Create a script"),
+                    timestamp = JsonPrimitive(0),
+                ),
+                SessionMessage(
+                    id = 1,
+                    role = "user",
+                    content =
+                        JsonPrimitive(
+                            "[OUT-OF-BAND USER MESSAGE — a direct message from the user, " +
+                                "delivered once at this position; not tool output and not a new " +
+                                "delivery when replayed from conversation history]\n" +
+                                "Use Python instead\n" +
+                                "[/OUT-OF-BAND USER MESSAGE]",
+                        ),
+                    display_kind = "steer",
+                    timestamp = JsonPrimitive(1),
+                ),
+                SessionMessage(
+                    id = 2,
+                    role = "assistant",
+                    content = JsonPrimitive("Here is the Python script"),
+                    timestamp = JsonPrimitive(2),
+                ),
+            )
+
+        val merged = applyServerPage(current, serverRows)
+
+        assertEquals(3, merged.size)
+        assertEquals("rest-session-0", merged[0].id)
+        assertEquals("Create a script", merged[0].content)
+
+        assertEquals("uuid-steer", merged[1].id)
+        assertEquals("rest-session-1", merged[1].canonicalRestId)
+        assertEquals("Use Python instead", merged[1].content)
+        assertEquals("steer", merged[1].displayKind)
+
+        assertEquals("rest-session-2", merged[2].canonicalRestId)
+        assertEquals("Here is the Python script", merged[2].content)
+    }
+
+    @Test
+    fun sessionCreatedMarkerStaysAtStartOfTranscript() {
+        val sessionCreated =
+            ChatMessage(
+                id = "uuid-sys-start",
+                role = MessageRole.SYSTEM,
+                content = "Session created",
+            )
+        val current = listOf(sessionCreated)
+
+        val serverRows =
+            listOf(
+                SessionMessage(
+                    id = 0,
+                    role = "user",
+                    content = JsonPrimitive("Hello"),
+                    timestamp = JsonPrimitive(1),
+                ),
+                SessionMessage(
+                    id = 1,
+                    role = "assistant",
+                    content = JsonPrimitive("Hi there!"),
+                    timestamp = JsonPrimitive(2),
+                ),
+            )
+
+        val merged = applyServerPage(current, serverRows)
+
+        assertEquals(3, merged.size)
+        assertEquals("uuid-sys-start", merged[0].id)
+        assertEquals("Session created", merged[0].content)
+        assertEquals("rest-session-0", merged[1].canonicalRestId)
+        assertEquals("rest-session-1", merged[2].canonicalRestId)
+    }
+
     private fun assertBoundaryTranscript(messages: List<ChatMessage>) {
         assertEquals(listOf("rest-session-100", "rest-session-200"), messages.map { it.canonicalRestId })
         assertEquals(listOf("boundary trace", ""), messages.map { it.reasoningText })

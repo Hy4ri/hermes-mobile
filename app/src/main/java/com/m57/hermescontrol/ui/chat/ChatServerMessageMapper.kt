@@ -164,7 +164,11 @@ internal fun mapServerMessages(
         // Keep the actual @file:/@image: token here: unlike the dedupe path,
         // REST-only hydration cannot prove that reference was not user-authored.
         var finalContent =
-            if (role == MessageRole.USER) stripGatewayAttachedContext(rawContent) else rawContent
+            if (role == MessageRole.USER) {
+                stripGatewayAttachedContext(stripGatewaySteerWrapper(rawContent))
+            } else {
+                rawContent
+            }
         var attachments: List<Attachment>? = null
         if (role == MessageRole.ASSISTANT && rawContent.contains("MEDIA:")) {
             val items = HostMediaExtractor.extract(rawContent)

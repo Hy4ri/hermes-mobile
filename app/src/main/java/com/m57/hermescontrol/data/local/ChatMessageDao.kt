@@ -53,7 +53,12 @@ interface ChatMessageDao {
     suspend fun upsert(message: ChatMessageEntity) {
         val existing = getMessage(message.id)
         val restId = message.restId ?: existing?.restId
-        val canonicalOrder = canonicalMessageOrder(restId ?: message.id, message.sessionId)
+        val canonicalOrder =
+            if (message.isSessionStartMarker()) {
+                -1L
+            } else {
+                canonicalMessageOrder(restId ?: message.id, message.sessionId)
+            }
         writeMessage(
             message.copy(
                 restId = restId,

@@ -56,6 +56,9 @@ data class ChatMessageEntity(
     val sortOrder: Long = 0,
 )
 
+internal fun ChatMessageEntity.isSessionStartMarker(): Boolean =
+    role == "SYSTEM" && (content == "Session created" || content == "Session branched")
+
 /** Only the exact session prefix and a nonnegative decimal suffix identify a canonical row. */
 internal fun canonicalMessageOrder(
     id: String,

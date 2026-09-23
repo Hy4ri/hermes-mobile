@@ -701,6 +701,86 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun testSlashCommand_stop_andInterruptedNoticeStayInPlaceAcrossSync() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            // 1. Initial messages in UI state
+            val m0 = ChatMessage(id = "rest-$sessionId-0", role = MessageRole.USER, content = "start task")
+            val m1 = ChatMessage(id = "rest-$sessionId-1", role = MessageRole.ASSISTANT, content = "running...")
+            val stateField =
+                ChatViewModel::class.java
+                    .getDeclaredField("_uiState")
+                    .apply { isAccessible = true }
+
+            @Suppress("UNCHECKED_CAST")
+            val state = stateField.get(viewModel) as MutableStateFlow<ChatUiState>
+            state.value = viewModel.uiState.value.copy(messages = listOf(m0, m1))
+
+            every {
+                HermesWsClient.send(WsMethods.SESSION_INTERRUPT, any(), any())
+            } answers {
+                val onSent = thirdArg<((String) -> Unit)?>()
+                onSent?.invoke("interrupt-req-1")
+                "interrupt-req-1"
+            }
+
+            // 2. User sends /stop
+            viewModel.sendMessage("/stop")
+            advanceUntilIdle()
+
+            // 3. WS returns interrupt success -> adds "Session interrupted"
+            mockEventsFlow.emit(WsEvent.RpcResult("interrupt-req-1", mapOf("ok" to true)))
+            advanceUntilIdle()
+
+            // 4. Server transcript sync arrives with newer turns
+            val serverRows =
+                listOf(
+                    com.m57.hermescontrol.data.model.SessionMessage(
+                        id = 0,
+                        role = "user",
+                        content = kotlinx.serialization.json.JsonPrimitive("start task"),
+                        timestamp = kotlinx.serialization.json.JsonPrimitive(1),
+                    ),
+                    com.m57.hermescontrol.data.model.SessionMessage(
+                        id = 1,
+                        role = "assistant",
+                        content = kotlinx.serialization.json.JsonPrimitive("running..."),
+                        timestamp = kotlinx.serialization.json.JsonPrimitive(2),
+                    ),
+                    com.m57.hermescontrol.data.model.SessionMessage(
+                        id = 2,
+                        role = "user",
+                        content = kotlinx.serialization.json.JsonPrimitive("next prompt"),
+                        timestamp = kotlinx.serialization.json.JsonPrimitive(3),
+                    ),
+                    com.m57.hermescontrol.data.model.SessionMessage(
+                        id = 3,
+                        role = "assistant",
+                        content = kotlinx.serialization.json.JsonPrimitive("next reply"),
+                        timestamp = kotlinx.serialization.json.JsonPrimitive(4),
+                    ),
+                )
+
+            // Simulate sync/merge with serverRows
+            val current = viewModel.uiState.value.messages
+            val merged =
+                com.m57.hermescontrol.ui.chat.mergeTranscriptWithLive(
+                    com.m57.hermescontrol.ui.chat
+                        .mapServerMessages(sessionId, serverRows, 0, true, current),
+                    current,
+                    chronological = true,
+                    preserveLiveIds = true,
+                )
+
+            val contents = merged.map { it.content }
+            assertEquals(
+                listOf("start task", "running...", "/stop", "Session interrupted", "next prompt", "next reply"),
+                contents,
+            )
+        }
+
+    @Test
     fun testSlashCommand_interrupt_sendsInterrupt() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()

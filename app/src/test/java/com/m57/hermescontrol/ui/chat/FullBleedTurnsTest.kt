@@ -104,6 +104,16 @@ class FullBleedTurnsTest {
     }
 
     @Test
+    fun `local feedback display kind remains assistant prose`() {
+        val feedback =
+            msg("a1", MessageRole.ASSISTANT, content = "Command completed successfully")
+                .copy(displayKind = "local_feedback")
+        val result = groupIntoTurns(listOf(feedback))
+
+        assertEquals(listOf<ChatTurn>(entries(AgentEntry.Prose(feedback))), result)
+    }
+
+    @Test
     fun `max-iterations nudge is a SystemEvent not a user bubble`() {
         // Backend persists the max-iterations notice as a plain role=user row
         // with NO display_kind (it's stripped on SessionDB persistence); the

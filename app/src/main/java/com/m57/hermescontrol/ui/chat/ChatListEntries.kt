@@ -36,7 +36,7 @@ private const val MAX_ITERATIONS_SYSTEM_MARKER =
  */
 internal fun ChatMessage.isUserTurnBoundary(): Boolean =
     role == MessageRole.USER &&
-        (displayKind == null || displayKind == "steer") &&
+        (displayKind == null || displayKind == "steer" || displayKind == "clarify_response") &&
         !content.startsWith(MAX_ITERATIONS_SYSTEM_MARKER)
 
 /**

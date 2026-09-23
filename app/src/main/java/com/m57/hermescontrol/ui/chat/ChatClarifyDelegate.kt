@@ -69,6 +69,7 @@ class ChatClarifyDelegate(
             ChatMessage(
                 role = MessageRole.USER,
                 content = displayContent,
+                displayKind = "clarify_response",
             )
 
         uiState.update { state ->

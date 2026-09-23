@@ -110,6 +110,9 @@ object WsMethods {
     /** Initiate or restart authorization flow for one or more connectors. */
     const val CONNECTORS_CONNECT = "connectors.connect"
 
+    // ── Plugins ───────────────────────────────────────────────────────────
+    const val PLUGINS_MANAGE = "plugins.manage"
+
     // ── Billing / subscription (issue #628) ─────────────────────────────
     // Adopted from the backend release audit (hermes-agent 0bf44d557..614dc194e).
     // `credits.view` was REMOVED upstream; these replace it. `usage.bars`
@@ -174,6 +177,7 @@ object WsMethods {
             CONFIG_SET, // methods_config_set.py: @method("config.set") + @_profile_scoped
             "verification.status", // line 282
             PROJECTS_LIST, // methods_projects.py: @_registry.profile_scoped
+            PLUGINS_MANAGE, // methods_tools.py: @_scoped_rpc
             "pet.info", // line 1253
             "pet.info.meta", // line 1279
             "pet.cells", // line 1302

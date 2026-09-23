@@ -1021,6 +1021,7 @@
     <string name="plugins_no_desc">No description provided.</string>
     <string name="plugins_action_update">Update</string>
     <string name="plugins_action_uninstall">Uninstall</string>
+    <string name="plugins_action_enable">Enable</string>
     <string name="plugins_action_install">Install</string>
     <string name="plugins_action_remove">Remove</string>
     <string name="plugins_install_heading">Install Plugin</string>

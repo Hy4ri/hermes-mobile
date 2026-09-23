@@ -665,11 +665,6 @@ interface HermesApiService : KanbanApiService {
         @Body body: AgentPluginInstallBody,
     ): Response<Unit>
 
-    @DELETE("api/dashboard/agent-plugins/{name}")
-    suspend fun uninstallPlugin(
-        @Path("name", encoded = true) name: String,
-    ): Response<Unit>
-
     @POST("api/dashboard/agent-plugins/{name}/update")
     suspend fun updatePlugin(
         @Path("name", encoded = true) name: String,

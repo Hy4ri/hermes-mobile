@@ -582,6 +582,51 @@ class ChatPagingMergeTest {
     }
 
     @Test
+    fun assistantReplyBeginningWithSlashStillMatchesCanonicalEcho() {
+        val live =
+            ChatMessage(
+                id = "uuid-answer",
+                role = MessageRole.ASSISTANT,
+                content = "/help is the command you're looking for.",
+            )
+        val canonical =
+            live.copy(
+                id = "rest-session-10",
+                restId = null,
+            )
+
+        assertTrue(sameLogicalMessage(canonical, live))
+    }
+
+    @Test
+    fun permanentlyLocalRowsDoNotMatchCanonicalRowsByContent() {
+        val localFeedback =
+            ChatMessage(
+                id = "uuid-feedback",
+                role = MessageRole.ASSISTANT,
+                content = "Command completed successfully",
+                displayKind = "local_feedback",
+            )
+        val canonicalAssistant =
+            ChatMessage(
+                id = "rest-session-10",
+                role = MessageRole.ASSISTANT,
+                content = "Command completed successfully",
+            )
+        val clarify =
+            ChatMessage(
+                id = "uuid-clarify",
+                role = MessageRole.USER,
+                content = "yes",
+                displayKind = "clarify_response",
+            )
+        val canonicalUser = ChatMessage(id = "rest-session-11", role = MessageRole.USER, content = "yes")
+
+        assertTrue(!sameLogicalMessage(canonicalAssistant, localFeedback))
+        assertTrue(!sameLogicalMessage(canonicalUser, clarify))
+    }
+
+    @Test
     fun stripGatewaySteerWrapperRemovesEnvelopesSafely() {
         val standard =
             "[OUT-OF-BAND USER MESSAGE — a direct message from the user, delivered once at this position; " +
@@ -809,7 +854,12 @@ class ChatPagingMergeTest {
         val answer = ChatMessage(id = "rest-session-1", role = MessageRole.ASSISTANT, content = "I am Hermes.")
         val command = ChatMessage(id = "uuid-cmd", role = MessageRole.USER, content = "/reasoning")
         val output =
-            ChatMessage(id = "uuid-output", role = MessageRole.ASSISTANT, content = "reasoning: low · display on")
+            ChatMessage(
+                id = "uuid-output",
+                role = MessageRole.ASSISTANT,
+                content = "Command completed successfully",
+                displayKind = "local_feedback",
+            )
 
         val current = listOf(prompt, answer, command, output)
 

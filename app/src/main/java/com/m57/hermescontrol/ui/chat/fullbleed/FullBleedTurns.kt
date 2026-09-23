@@ -58,7 +58,10 @@ private fun ChatMessage.isSyntheticSystemRow(): Boolean =
         content.startsWith(MAX_ITERATIONS_SYSTEM_MARKER)
 
 internal fun ChatMessage.isTimelineMarker(): Boolean =
-    displayKind != null && displayKind != "steer" && displayKind != "clarify_response"
+    displayKind != null &&
+        displayKind != "steer" &&
+        displayKind != "clarify_response" &&
+        displayKind != "local_feedback"
 
 /**
  * Split a flat message list into turns for the full-bleed renderer.

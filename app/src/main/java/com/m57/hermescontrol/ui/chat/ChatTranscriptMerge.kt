@@ -169,9 +169,21 @@ internal class TranscriptComparison(
             val key = toolKey(a.content)
             return key != null && key == toolKey(b.content)
         }
+        // Rows generated only by Mobile never have a canonical REST counterpart.
+        // Do not let coincidentally identical server text claim their identity.
+        if (a.role == MessageRole.ASSISTANT &&
+            (a.displayKind == "local_feedback" || b.displayKind == "local_feedback")
+        ) {
+            return false
+        }
+        if (a.role == MessageRole.USER &&
+            (a.displayKind == "clarify_response" || b.displayKind == "clarify_response")
+        ) {
+            return false
+        }
         val ta = trimmed.getOrPut(a.content) { a.content.trim() }
         val tb = trimmed.getOrPut(b.content) { b.content.trim() }
-        if (ta.startsWith("/") || tb.startsWith("/")) return false
+        if (a.role == MessageRole.USER && (ta.startsWith("/") || tb.startsWith("/"))) return false
         if (ta == tb) return true
         if (a.role == MessageRole.USER &&
             captions.getOrPut(ta) { stripAttachmentRefLines(ta) } ==
@@ -458,27 +470,7 @@ private fun List<ChatMessage>.inTranscriptOrder(
 internal fun ChatMessage.isPermanentlyLocal(): Boolean =
     role == MessageRole.SYSTEM ||
         (role == MessageRole.USER && (content.startsWith("/") || displayKind == "clarify_response")) ||
-        (role == MessageRole.ASSISTANT && canonicalRestId == null && isLocalFeedbackRow(this))
-
-private fun isLocalFeedbackRow(message: ChatMessage): Boolean =
-    message.localOrder != null || isLocalFeedbackContent(message.content)
-
-private fun isLocalFeedbackContent(content: String): Boolean =
-    content.endsWith(" is not supported on mobile") ||
-        content.startsWith("usage: /queue") ||
-        content.startsWith("reasoning: ") ||
-        content.startsWith("Could not read reasoning status:") ||
-        content == "Reasoning is not supported for the current model." ||
-        content == "Reasoning cannot be disabled for this model (always on)." ||
-        content.startsWith("Could not change reasoning:") ||
-        content == "Reasoning controls require an active session." ||
-        content == "No active session. Use `/new` to create one." ||
-        content == "No active session to undo." ||
-        content == "No active session for side questions. Start a chat first." ||
-        content.startsWith("Bot chats are one continuous conversation — compacting instead.") ||
-        content.startsWith("⚠ ") ||
-        (content.startsWith("/") && content.contains(": ")) ||
-        content == "Failed to undo."
+        (role == MessageRole.ASSISTANT && displayKind == "local_feedback")
 
 internal fun ChatMessage.isSessionStartMarker(): Boolean =
     role == MessageRole.SYSTEM && (content == "Session created" || content == "Session branched")

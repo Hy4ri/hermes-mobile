@@ -11,19 +11,19 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.update.AppUpdateCache
 import com.m57.hermescontrol.data.update.AppUpdateChecker
 import com.m57.hermescontrol.data.update.AppUpdateState
-import com.m57.hermescontrol.data.update.isNewerVersion
+import com.m57.hermescontrol.data.update.UpdateNoticeManager
 import com.m57.hermescontrol.data.update.isReleaseCandidateVersion
 import com.m57.hermescontrol.data.update.releaseTag
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import java.io.File
-import java.io.IOException
+import java.util.UUID
 
 /**
  * Drives the in-app self-update flow (issue #867): check the GitHub
@@ -31,9 +31,8 @@ import java.io.IOException
  * installer. The installer launch uses the application context
  * (FLAG_ACTIVITY_NEW_TASK), so no Activity is required.
  *
- * A silent check runs once per installed version (guarded by the
- * `updateCheckDoneForVersion` app pref) — that's what puts the "Update
- * available" badge on the About row without the user tapping anything.
+ * The ViewModel adopts the process-shared launch/foreground check result, while
+ * manual checks, downloads, and system-installer handoff stay screen-owned.
  */
 class AppUpdateViewModel(
     application: Application,
@@ -51,16 +50,11 @@ class AppUpdateViewModel(
     /** Whether the RC update channel is enabled (issue: RC update toggle). */
     val checkReleaseCandidateUpdates: StateFlow<Boolean> = _checkReleaseCandidateUpdates.asStateFlow()
 
-    private var checkJob: kotlinx.coroutines.Job? = null
     private var downloadJob: kotlinx.coroutines.Job? = null
     private var lastAvailable: AppUpdateState.UpdateAvailable? = null
-
-    /**
-     * Bumped by every check. The blocking OkHttp call underneath cannot be
-     * interrupted, so a cancelled check may still be running; results are only
-     * published when this token is unchanged (and the channel still matches).
-     */
-    private var checkGeneration = 0
+    private var downloadGeneration = 0
+    private var downloadPartialFile: File? = null
+    private var installerReturnPending = false
 
     init {
         val cached = AppUpdateCache.state.value
@@ -70,13 +64,25 @@ class AppUpdateViewModel(
             !_checkReleaseCandidateUpdates.value &&
                 cached.releaseTag()?.let(::isReleaseCandidateVersion) == true
         if (blocked) AppUpdateCache.reset()
+        viewModelScope.launch {
+            AppUpdateCache.state.collect { sharedState ->
+                if (_state.value !is AppUpdateState.Downloading &&
+                    _state.value !is AppUpdateState.Installing &&
+                    _state.value !is AppUpdateState.NeedsUnknownSourcesPermission
+                ) {
+                    _state.value = sharedState
+                    if (sharedState is AppUpdateState.UpdateAvailable) lastAvailable = sharedState
+                }
+            }
+        }
         if (cached is AppUpdateState.UpdateAvailable && !blocked) {
             lastAvailable = cached
             _state.value = cached
         } else if (cached is AppUpdateState.UpToDate && !blocked) {
             _state.value = cached
         } else {
-            checkForUpdate()
+            _state.value = cached
+            UpdateNoticeManager.checkOnLaunch(checker, currentVersion, ioDispatcher)
         }
     }
 
@@ -94,91 +100,19 @@ class AppUpdateViewModel(
      */
     fun setCheckReleaseCandidateUpdates(enabled: Boolean) {
         if (_checkReleaseCandidateUpdates.value == enabled) return
-        AuthManager.setCheckReleaseCandidateUpdates(enabled)
+        UpdateNoticeManager.channelChanged(enabled)
         _checkReleaseCandidateUpdates.value = enabled
         if (!enabled) {
+            if (lastAvailable?.latestTag?.let(::isReleaseCandidateVersion) == true) cancelDownload()
             lastAvailable = null
             AppUpdateCache.reset()
         }
-        // A check already in flight captured the previous channel — cancel it and
-        // bump the generation so a late result can never be published.
-        checkJob?.cancel()
         runCheck()
     }
 
     private fun runCheck() {
-        val generation = ++checkGeneration
-        val includeReleaseCandidates = _checkReleaseCandidateUpdates.value
-        _state.value = AppUpdateState.Checking
-        checkJob =
-            viewModelScope.launch(ioDispatcher) {
-                val now = System.currentTimeMillis()
-                AuthManager.setUpdateCheckDoneForVersion(currentVersion)
-                AuthManager.setLastUpdateCheckTimestamp(now)
-                val result =
-                    try {
-                        checker.fetchLatestRelease(includeReleaseCandidates)
-                    } catch (e: CancellationException) {
-                        // Cancellation is control flow — it must never be reported
-                        // as a failed check.
-                        throw e
-                    } catch (e: IOException) {
-                        if (isCurrentCheck(generation, includeReleaseCandidates)) {
-                            _state.value = AppUpdateState.Error(NETWORK_ERROR)
-                        }
-                        return@launch
-                    } catch (e: Exception) {
-                        if (isCurrentCheck(generation, includeReleaseCandidates)) {
-                            _state.value = AppUpdateState.Error(GENERIC_CHECK_ERROR)
-                        }
-                        return@launch
-                    }
-
-                // The OkHttp call underneath blocks and cannot be interrupted, so a
-                // newer check — or a channel switch — may have happened while it ran.
-                ensureActive()
-                if (!isCurrentCheck(generation, includeReleaseCandidates)) return@launch
-
-                val info =
-                    result ?: run {
-                        _state.value = AppUpdateState.Error(NO_RELEASE_ERROR)
-                        return@launch
-                    }
-                val apk =
-                    info.apkAsset ?: run {
-                        _state.value = AppUpdateState.Error(NO_APK_ERROR)
-                        return@launch
-                    }
-                val state =
-                    if (isNewerVersion(info.tagName, currentVersion)) {
-                        AppUpdateState.UpdateAvailable(
-                            latestTag = info.tagName,
-                            apkUrl = apk.browserDownloadUrl,
-                            sizeBytes = apk.size,
-                            releaseNotes = info.body,
-                        )
-                    } else {
-                        AppUpdateState.UpToDate(latestTag = info.tagName)
-                    }
-                // Fail closed: a release-candidate result is never published once
-                // the RC channel is off, however it reached this point.
-                if (!isAdmissibleOnCurrentChannel(state.releaseTag())) return@launch
-                if (state is AppUpdateState.UpdateAvailable) lastAvailable = state
-                _state.value = state
-                // Keep the launch notice (issue #890) in sync with manual checks.
-                AppUpdateCache.update(state)
-                state.releaseTag()?.let { AuthManager.setLastKnownLatestTag(it) }
-            }
+        UpdateNoticeManager.checkNow(checker, currentVersion, ioDispatcher)
     }
-
-    /**
-     * True when [generation] is still the newest check *and* the channel that
-     * check was started for is still the selected one.
-     */
-    private fun isCurrentCheck(
-        generation: Int,
-        includeReleaseCandidates: Boolean,
-    ): Boolean = generation == checkGeneration && includeReleaseCandidates == _checkReleaseCandidateUpdates.value
 
     /** A release-candidate tag may only be used while the RC channel is on. */
     private fun isAdmissibleOnCurrentChannel(tag: String?): Boolean =
@@ -208,36 +142,70 @@ class AppUpdateViewModel(
 
     /** Download the release APK and launch the system installer. */
     fun startUpdate() {
+        if (_state.value is AppUpdateState.Downloading || _state.value is AppUpdateState.Installing) return
         val available = updateAvailableForInstall() ?: return
         lastAvailable = available
         if (!canRequestInstalls()) {
             _state.value = AppUpdateState.NeedsUnknownSourcesPermission
             return
         }
-        val dest = File(getApplication<Application>().cacheDir, APK_FILE_NAME)
-        _state.value = AppUpdateState.Downloading(0f)
-        downloadJob?.cancel()
-        downloadJob =
-            viewModelScope.launch(ioDispatcher) {
-                val downloaded =
-                    checker.downloadApk(available.apkUrl, dest) { progress ->
-                        _state.value = AppUpdateState.Downloading(progress)
+        val dest = updateApkFile(available.latestTag)
+        val generation = ++downloadGeneration
+        val partial = File(dest.parentFile, "${dest.name}.${UUID.randomUUID()}.$generation.part")
+        downloadPartialFile = partial
+        try {
+            partial.delete()
+            _state.value = AppUpdateState.Downloading(0f)
+            downloadJob?.cancel()
+            downloadJob =
+                viewModelScope.launch(ioDispatcher) {
+                    try {
+                        val downloaded =
+                            checker.downloadApk(available.apkUrl, partial) { progress ->
+                                if (generation ==
+                                    downloadGeneration
+                                ) {
+                                    _state.value = AppUpdateState.Downloading(progress)
+                                }
+                            }
+                        if (generation != downloadGeneration) return@launch
+                        if (!downloaded || !partial.exists() || partial.length() == 0L) {
+                            _state.value = AppUpdateState.Error(DOWNLOAD_ERROR)
+                            return@launch
+                        }
+                        if ((dest.exists() && !dest.delete()) || !partial.renameTo(dest)) {
+                            _state.value = AppUpdateState.Error(DOWNLOAD_ERROR)
+                            return@launch
+                        }
+                        _state.value = AppUpdateState.Installing(available.latestTag)
+                        launchInstaller(dest)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: Exception) {
+                        if (generation == downloadGeneration) _state.value = AppUpdateState.Error(DOWNLOAD_ERROR)
+                    } finally {
+                        if (generation == downloadGeneration) {
+                            partial.delete()
+                            downloadPartialFile = null
+                        }
                     }
-                if (!downloaded) {
-                    if (downloadJob?.isCancelled != true) {
-                        _state.value = AppUpdateState.Error(DOWNLOAD_ERROR)
-                    }
-                    return@launch
                 }
-                _state.value = AppUpdateState.Installing(available.latestTag)
-                launchInstaller(dest)
+        } catch (_: Exception) {
+            if (generation == downloadGeneration) {
+                partial.delete()
+                downloadPartialFile = null
+                _state.value = AppUpdateState.Error(DOWNLOAD_ERROR)
             }
+        }
     }
 
     /** Cancel in-flight download and return to UpdateAvailable. */
     fun cancelDownload() {
+        downloadGeneration++
         downloadJob?.cancel()
         downloadJob = null
+        downloadPartialFile?.delete()
+        downloadPartialFile = null
         val available =
             lastAvailable
                 ?: (AppUpdateCache.state.value as? AppUpdateState.UpdateAvailable)
@@ -257,22 +225,33 @@ class AppUpdateViewModel(
         if (tag != null) {
             AuthManager.setDismissedUpdateTag(tag)
         }
-        AppUpdateCache.dismiss()
         AppUpdateCache.hideDialog()
     }
 
     /** Resume install when returning from Unknown Sources permission screen. */
     fun resumeInstallAfterPermission() {
         if (canRequestInstalls()) {
-            val dest = File(getApplication<Application>().cacheDir, APK_FILE_NAME)
             val available = updateAvailableForInstall()
-            if (dest.exists() && dest.length() > 0 && available != null) {
+            val dest = available?.let { updateApkFile(it.latestTag) }
+            if (dest != null && dest.exists() && dest.length() > 0L) {
                 _state.value = AppUpdateState.Installing(available.latestTag)
                 launchInstaller(dest)
             } else {
                 startUpdate()
             }
         }
+    }
+
+    /** Returning from the external installer is not proof that installation succeeded. */
+    fun reconcileInstallerReturn() {
+        if (_state.value !is AppUpdateState.Installing || !installerReturnPending) return
+        installerReturnPending = false
+        _state.value = lastAvailable ?: AppUpdateCache.state.value
+    }
+
+    private fun updateApkFile(tag: String): File {
+        val safeTag = tag.replace(Regex("[^A-Za-z0-9._-]"), "_")
+        return File(getApplication<Application>().cacheDir, "hermes-update-$safeTag.apk")
     }
 
     private fun canRequestInstalls(): Boolean =
@@ -292,18 +271,14 @@ class AppUpdateViewModel(
                     apkFile,
                 )
             context.startActivity(installIntentFactory(uri))
+            installerReturnPending = true
         } catch (e: Exception) {
+            installerReturnPending = false
             _state.value = AppUpdateState.Error(INSTALLER_ERROR)
         }
     }
 
     private companion object {
-        const val APK_FILE_NAME = "hermes-update.apk"
-
-        val NETWORK_ERROR = "Network error — check your connection"
-        val GENERIC_CHECK_ERROR = "Couldn't check for updates"
-        val NO_RELEASE_ERROR = "No release found yet"
-        val NO_APK_ERROR = "Release has no APK asset"
         val DOWNLOAD_ERROR = "Download failed — tap to retry"
         val INSTALLER_ERROR = "Couldn't open the installer"
     }

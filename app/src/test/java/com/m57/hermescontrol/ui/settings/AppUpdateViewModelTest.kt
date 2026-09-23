@@ -10,12 +10,14 @@ import com.m57.hermescontrol.data.update.AppUpdateCache
 import com.m57.hermescontrol.data.update.AppUpdateChecker
 import com.m57.hermescontrol.data.update.AppUpdateState
 import com.m57.hermescontrol.data.update.UpdateInfo
+import com.m57.hermescontrol.data.update.UpdateNoticeManager
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.mockkStatic
+import io.mockk.slot
 import io.mockk.unmockkAll
 import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
@@ -48,6 +50,7 @@ class AppUpdateViewModelTest {
     private lateinit var app: Application
     private lateinit var packageManager: PackageManager
     private lateinit var checker: AppUpdateChecker
+    private var rcUpdatesEnabled = false
 
     private val currentVersion = "1.21.0"
 
@@ -70,6 +73,8 @@ class AppUpdateViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
+        UpdateNoticeManager.resetForTests()
+        UpdateNoticeManager.enabled = true
         AppUpdateCache.reset()
         mockkObject(AuthManager)
         every { AuthManager.getUpdateCheckDoneForVersion() } returns null
@@ -79,8 +84,12 @@ class AppUpdateViewModelTest {
         every { AuthManager.setLastUpdateCheckTimestamp(any()) } returns Unit
         every { AuthManager.getDismissedUpdateTag() } returns null
         every { AuthManager.setDismissedUpdateTag(any()) } returns Unit
-        every { AuthManager.isCheckingReleaseCandidateUpdates() } returns false
-        every { AuthManager.setCheckReleaseCandidateUpdates(any()) } returns Unit
+        rcUpdatesEnabled = false
+        every { AuthManager.isCheckingReleaseCandidateUpdates() } answers { rcUpdatesEnabled }
+        every { AuthManager.setCheckReleaseCandidateUpdates(any()) } answers {
+            rcUpdatesEnabled = firstArg()
+            Unit
+        }
 
         app = mockk(relaxed = true)
         every { app.cacheDir } returns File(System.getProperty("java.io.tmpdir"))
@@ -91,11 +100,17 @@ class AppUpdateViewModelTest {
 
         checker = mockk()
         coEvery { checker.fetchLatestRelease() } returns updateInfo()
-        coEvery { checker.downloadApk(any(), any(), any()) } returns true
+        val downloadDestination = slot<File>()
+        coEvery { checker.downloadApk(any(), capture(downloadDestination), any()) } coAnswers {
+            downloadDestination.captured.writeBytes(byteArrayOf(1))
+            true
+        }
     }
 
     @After
     fun tearDown() {
+        UpdateNoticeManager.resetForTests()
+        UpdateNoticeManager.enabled = false
         unmockkAll()
         Dispatchers.resetMain()
     }
@@ -237,14 +252,14 @@ class AppUpdateViewModelTest {
         }
 
     @Test
-    fun checkForUpdate_marksDoneEvenWhenCheckFails() =
+    fun checkForUpdate_marksDoneOnlyAfterSuccessfulDiscovery() =
         runTest {
             coEvery { checker.fetchLatestRelease() } throws IOException("boom")
 
             val vm = createViewModel()
             advanceUntilIdle()
 
-            coVerify(exactly = 1) { AuthManager.setUpdateCheckDoneForVersion(currentVersion) }
+            coVerify(exactly = 0) { AuthManager.setUpdateCheckDoneForVersion(currentVersion) }
         }
 
     // ── Update flow ─────────────────────────────────────────────────────
@@ -351,7 +366,7 @@ class AppUpdateViewModelTest {
             advanceUntilIdle()
 
             verify(exactly = 1) { AuthManager.setDismissedUpdateTag("v1.22.0") }
-            assertTrue(AppUpdateCache.dismissed)
+            assertFalse(AppUpdateCache.isDismissed("v1.22.0"))
             assertFalse(AppUpdateCache.isDialogVisible)
         }
 
@@ -392,7 +407,7 @@ class AppUpdateViewModelTest {
     @Test
     fun init_adoptsCachedRcOfferWhenOptedIn() =
         runTest {
-            every { AuthManager.isCheckingReleaseCandidateUpdates() } returns true
+            rcUpdatesEnabled = true
             AppUpdateCache.update(
                 AppUpdateState.UpdateAvailable("v1.25.0-rc.3", "https://example.com/rc.apk", 1L),
             )
@@ -419,6 +434,7 @@ class AppUpdateViewModelTest {
             advanceUntilIdle()
 
             assertTrue(vm.checkReleaseCandidateUpdates.value)
+            verify(exactly = 1) { UpdateNoticeManager.channelChanged(true) }
             verify(exactly = 1) { AuthManager.setCheckReleaseCandidateUpdates(true) }
             coVerify(exactly = 1) { checker.fetchLatestRelease(true) }
             assertEquals("v1.25.0-rc.3", (vm.state.value as AppUpdateState.UpdateAvailable).latestTag)
@@ -435,13 +451,14 @@ class AppUpdateViewModelTest {
             advanceUntilIdle()
 
             verify(exactly = 0) { AuthManager.setCheckReleaseCandidateUpdates(any()) }
+            verify(exactly = 0) { UpdateNoticeManager.channelChanged(any()) }
             coVerify(exactly = 1) { checker.fetchLatestRelease(false) }
         }
 
     @Test
     fun setCheckReleaseCandidateUpdates_offDropsStaleRcBeforeCheckingStable() =
         runTest {
-            every { AuthManager.isCheckingReleaseCandidateUpdates() } returns true
+            rcUpdatesEnabled = true
             coEvery { checker.fetchLatestRelease(true) } returns updateInfo(tag = "v1.25.0-rc.3")
 
             val vm = createViewModel()
@@ -487,7 +504,7 @@ class AppUpdateViewModelTest {
     @Test
     fun lateRcResultAfterOptOut_neverPublishesRcOrInstalls() =
         runTest {
-            every { AuthManager.isCheckingReleaseCandidateUpdates() } returns true
+            rcUpdatesEnabled = true
             val rcGate = CompletableDeferred<Unit>()
             coEvery { checker.fetchLatestRelease(true) } coAnswers {
                 withContext(NonCancellable) { rcGate.await() }

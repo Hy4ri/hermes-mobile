@@ -19,6 +19,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.update.UpdateNoticeManager
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.notification.NotificationHelper
 import com.m57.hermescontrol.notification.NotificationReplyReceiver
@@ -26,6 +27,7 @@ import com.m57.hermescontrol.theme.HermesControlTheme
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.util.LocaleContextWrapper
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -131,6 +133,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        lifecycleScope.launch {
+            AuthManager.initializationState.first { it == AuthManager.InitializationState.Ready }
+            UpdateNoticeManager.checkOnLaunch()
+        }
         NotificationHelper.setAppForeground(this, true)
         ExternalActivityLifecycleGuard.onHostResumed()
         NotificationHelper.stop(this)

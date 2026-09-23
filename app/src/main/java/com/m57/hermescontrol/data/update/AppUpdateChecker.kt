@@ -2,10 +2,15 @@ package com.m57.hermescontrol.data.update
 
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import java.io.File
 import java.io.IOException
 
@@ -79,16 +84,27 @@ fun selectLatestUpdate(
     includeReleaseCandidates: Boolean = false,
 ): UpdateInfo? =
     releases
-        .filter { !it.draft && it.apkAsset != null }
-        .filter {
-            if (!it.prerelease) {
-                true
-            } else {
-                includeReleaseCandidates && isReleaseCandidateVersion(it.tagName)
-            }
-        }.reduceOrNull { best, candidate ->
+        .filter(::hasUsableApk)
+        .filter { isEligibleRelease(it, includeReleaseCandidates) }
+        .reduceOrNull { best, candidate ->
             if (isNewerVersion(candidate.tagName, best.tagName)) candidate else best
         }
+
+private fun hasUsableApk(release: UpdateInfo): Boolean =
+    !release.draft && release.apkAsset?.browserDownloadUrl?.toHttpUrlOrNull()?.let {
+        it.scheme == "http" || it.scheme == "https"
+    } == true
+
+private fun isEligibleRelease(
+    release: UpdateInfo,
+    includeReleaseCandidates: Boolean,
+): Boolean {
+    val version = parseVersion(release.tagName) ?: return false
+    val isRc = version.prerelease.firstOrNull()?.let(RC_IDENTIFIER::matches) == true
+    val isStable = version.prerelease.isEmpty() && !release.prerelease
+    if (isStable) return true
+    return includeReleaseCandidates && isRc
+}
 
 private data class ParsedVersion(
     val core: List<Int>,
@@ -161,17 +177,16 @@ open class AppUpdateChecker(
      */
     open suspend fun fetchLatestRelease(includeReleaseCandidates: Boolean = false): UpdateInfo? =
         withContext(Dispatchers.IO) {
-            if (includeReleaseCandidates) {
-                val body = get("$apiBaseUrl/releases?per_page=$RELEASE_LIST_PAGE_SIZE") ?: return@withContext null
-                selectLatestUpdate(parseReleaseList(body).orEmpty(), includeReleaseCandidates = true)
-            } else {
-                val body = get("$apiBaseUrl/releases/latest") ?: return@withContext null
-                parseUpdateInfo(body)
+            val latest = get("$apiBaseUrl/releases/latest")?.let(::parseRelease)
+            if (!includeReleaseCandidates && latest != null && selectLatestUpdate(listOf(latest)) != null) {
+                return@withContext latest
             }
+            val releases = fetchReleasePages() ?: return@withContext null
+            selectLatestUpdate(releases + listOfNotNull(latest), includeReleaseCandidates)
         }
 
-    /** GET [url] as JSON text, or null on any non-2xx response. */
-    private fun get(url: String): String? {
+    /** GET a GitHub URL. 404 means absent; other HTTP/network failures stay visible. */
+    private fun get(url: String): ReleasePage? {
         val request =
             Request
                 .Builder()
@@ -179,10 +194,44 @@ open class AppUpdateChecker(
                 .header("Accept", "application/vnd.github+json")
                 .build()
         client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return null
-            return response.body.string().orEmpty()
+            if (response.code == HTTP_NOT_FOUND) return null
+            if (!response.isSuccessful) throw IOException("GitHub releases request failed (${response.code})")
+            return ReleasePage(response.body.string().orEmpty(), response.nextPageUrl())
         }
     }
+
+    private fun fetchReleasePages(): List<UpdateInfo>? {
+        var nextUrl: String? = "$apiBaseUrl/releases?per_page=$RELEASE_LIST_PAGE_SIZE&page=1"
+        val releases = mutableListOf<UpdateInfo>()
+        while (nextUrl != null) {
+            val page =
+                get(nextUrl)
+                    ?: return if (releases.isEmpty()) null else throw IOException("Incomplete GitHub releases list")
+            val parsed = parseReleaseList(page.body) ?: throw IOException("GitHub returned malformed release metadata")
+            releases += parsed
+            nextUrl = page.nextUrl
+        }
+        return releases
+    }
+
+    private fun parseRelease(page: ReleasePage): UpdateInfo =
+        parseUpdateInfo(page.body) ?: throw IOException("GitHub returned malformed release metadata")
+
+    private fun Response.nextPageUrl(): String? {
+        val link = header("Link") ?: return null
+        val url = NEXT_LINK.find(link)?.groupValues?.get(1) ?: return null
+        val next = url.toHttpUrlOrNull() ?: throw IOException("GitHub returned an invalid pagination URL")
+        val base = apiBaseUrl.toHttpUrlOrNull() ?: throw IOException("Invalid GitHub API base URL")
+        if (next.host != base.host || next.encodedPath != base.encodedPath.trimEnd('/') + "/releases") {
+            throw IOException("GitHub returned an untrusted pagination URL")
+        }
+        return next.toString()
+    }
+
+    private data class ReleasePage(
+        val body: String,
+        val nextUrl: String?,
+    )
 
     /**
      * Stream a release APK asset to [dest], reporting progress 0..1 via
@@ -194,41 +243,103 @@ open class AppUpdateChecker(
         dest: File,
         onProgress: (Float) -> Unit,
     ): Boolean =
-        withContext(Dispatchers.IO) {
-            val request = Request.Builder().url(url).build()
-            try {
-                client.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) return@withContext false
-                    val body = response.body
-                    val total = body.contentLength()
-                    dest.outputStream().use { out ->
-                        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                        var read = 0L
-                        body.byteStream().use { input ->
-                            while (true) {
-                                val n = input.read(buffer)
-                                if (n == -1) break
-                                out.write(buffer, 0, n)
-                                read += n
-                                if (total > 0) {
-                                    onProgress((read.toFloat() / total.toFloat()).coerceIn(0f, 1f))
+        suspendCancellableCoroutine { continuation ->
+            val request =
+                try {
+                    val httpUrl =
+                        url.toHttpUrlOrNull()?.takeIf { it.scheme == "http" || it.scheme == "https" }
+                            ?: run {
+                                failDownload(continuation, dest)
+                                return@suspendCancellableCoroutine
+                            }
+                    Request.Builder().url(httpUrl).build()
+                } catch (_: IllegalArgumentException) {
+                    failDownload(continuation, dest)
+                    return@suspendCancellableCoroutine
+                }
+            val call =
+                try {
+                    client.newCall(request)
+                } catch (_: Exception) {
+                    failDownload(continuation, dest)
+                    return@suspendCancellableCoroutine
+                }
+            continuation.invokeOnCancellation {
+                call.cancel()
+                deletePartial(dest)
+            }
+            val callback =
+                object : Callback {
+                    override fun onFailure(
+                        call: Call,
+                        e: IOException,
+                    ) {
+                        failDownload(continuation, dest)
+                    }
+
+                    override fun onResponse(
+                        call: Call,
+                        response: Response,
+                    ) {
+                        var succeeded = false
+                        try {
+                            response.use {
+                                if (response.isSuccessful) {
+                                    val body = response.body
+                                    val total = body.contentLength()
+                                    dest.outputStream().use { out ->
+                                        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                                        var read = 0L
+                                        body.byteStream().use { input ->
+                                            while (true) {
+                                                val n = input.read(buffer)
+                                                if (n == -1) break
+                                                out.write(buffer, 0, n)
+                                                read += n
+                                                if (total > 0) {
+                                                    onProgress((read.toFloat() / total.toFloat()).coerceIn(0f, 1f))
+                                                }
+                                            }
+                                        }
+                                    }
+                                    succeeded = true
                                 }
                             }
+                        } catch (_: Exception) {
+                            // Includes response/body close failures; never report success before close.
+                        }
+                        if (succeeded) {
+                            if (continuation.isActive) continuation.resume(true) { _, _, _ -> }
+                        } else {
+                            failDownload(continuation, dest)
                         }
                     }
-                    true
                 }
-            } catch (e: Exception) {
-                dest.delete()
-                false
+            try {
+                call.enqueue(callback)
+            } catch (_: Exception) {
+                failDownload(continuation, dest)
             }
         }
 
+    private fun failDownload(
+        continuation: kotlinx.coroutines.CancellableContinuation<Boolean>,
+        dest: File,
+    ) {
+        deletePartial(dest)
+        if (continuation.isActive) continuation.resume(false) { _, _, _ -> }
+    }
+
+    private fun deletePartial(dest: File) {
+        runCatching { dest.delete() }
+    }
+
     private companion object {
         const val DEFAULT_BUFFER_SIZE = 8192
+        const val HTTP_NOT_FOUND = 404
 
-        /** How many recent releases the opt-in RC scan inspects. */
-        const val RELEASE_LIST_PAGE_SIZE = 20
+        const val RELEASE_LIST_PAGE_SIZE = 100
+        val NEXT_LINK = Regex("<([^>]+)>;\\s*rel=\"next\"")
     }
 }
 

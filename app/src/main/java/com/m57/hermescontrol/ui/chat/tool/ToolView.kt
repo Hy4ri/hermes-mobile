@@ -54,6 +54,9 @@ data class ToolView(
     /** File-edit tools: the file the diff applies to. */
     val diffPath: String? = null,
     val diffStats: DiffStats? = null,
+    /** File contents shown in a syntax-highlighted code card. */
+    val fileContent: String? = null,
+    val filePath: String? = null,
     /** Image-producing tools: renderable URL (data: or http(s) image). */
     val imageUrl: String? = null,
     /** web_search: parsed result rows. */

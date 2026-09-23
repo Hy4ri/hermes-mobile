@@ -50,6 +50,8 @@ internal data class ToolViewExtras(
     val inlineDiff: String? = null,
     val diffPath: String? = null,
     val diffStats: DiffStats? = null,
+    val fileContent: String? = null,
+    val filePath: String? = null,
     val searchHits: List<SearchHit>? = null,
     val searchQuery: String? = null,
 ) {

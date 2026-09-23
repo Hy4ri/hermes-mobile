@@ -76,6 +76,7 @@ import com.m57.hermescontrol.theme.CodeTerminalText
 import com.m57.hermescontrol.theme.HermesStatusColors
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.chat.components.DiffViewCard
+import com.m57.hermescontrol.ui.chat.components.FileViewCard
 import com.m57.hermescontrol.ui.chat.components.highlightSyntax
 import com.m57.hermescontrol.ui.chat.tool.ToolJson
 import com.m57.hermescontrol.ui.chat.tool.ToolView
@@ -423,6 +424,11 @@ private fun ExpandedToolContent(
                     diffText = view.inlineDiff,
                     filePath = view.diffPath,
                 )
+            } else if (view.fileContent != null) {
+                FileViewCard(
+                    content = view.fileContent,
+                    filePath = view.filePath,
+                )
             }
 
             // ── Search hits ──
@@ -478,7 +484,7 @@ private fun ExpandedToolContent(
             }
 
             // ── Plain detail body ──
-            if (view.detail.isNotBlank() && view.inlineDiff == null) {
+            if (view.detail.isNotBlank() && view.inlineDiff == null && view.fileContent == null) {
                 Text(
                     text = view.detail,
                     modifier =

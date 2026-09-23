@@ -158,6 +158,21 @@ internal object ReadFileRenderer : ToolRenderer {
 
         return ToolJson.firstString(call.result, listOf("content", "text", "data", "body"))
     }
+
+    override fun extras(
+        call: ToolCall,
+        status: ToolViewStatus,
+    ): ToolViewExtras {
+        val content = ToolJson.firstString(call.result, listOf("content", "text", "data", "body"))
+        return if (content.isEmpty()) {
+            ToolViewExtras.NONE
+        } else {
+            ToolViewExtras(
+                fileContent = content,
+                filePath = ToolJson.firstString(call.args, listOf("path", "file", "filepath")),
+            )
+        }
+    }
 }
 
 /**
@@ -196,7 +211,22 @@ internal object FileEditRenderer : ToolRenderer {
         val inlineDiff = FileEditSupport.inlineDiffFromResult(call.rawResult)
 
         if (inlineDiff.isEmpty()) {
-            return ToolViewExtras.NONE
+            val content =
+                if (call.name == "write_file" && status == ToolViewStatus.SUCCESS && call.rawResult != null) {
+                    ToolJson
+                        .firstString(call.args, listOf("content"))
+                        .ifEmpty { ToolJson.firstString(call.result, listOf("content", "text", "body")) }
+                } else {
+                    ""
+                }
+            return if (content.isEmpty()) {
+                ToolViewExtras.NONE
+            } else {
+                ToolViewExtras(
+                    fileContent = content,
+                    filePath = FileEditSupport.editPath(call.args, call.result),
+                )
+            }
         }
 
         return ToolViewExtras(

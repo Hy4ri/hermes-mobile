@@ -26,11 +26,12 @@ android {
         versionCode = (project.findProperty("versionCode") as? String)?.toIntOrNull() ?: 1
         versionName = (project.findProperty("versionName") as? String) ?: "1.0-dev"
 
-        // Embed git commit SHA for the About card in Settings
+        // Use a fixed prefix: git --short varies with the checkout's object graph
+        // (shallow GitHub Actions vs. full F-Droid clone), breaking reproducible APKs.
         val gitSha =
             providers.exec {
-                commandLine("git", "rev-parse", "--short", "HEAD")
-            }.standardOutput.asText.get().trim()
+                commandLine("git", "rev-parse", "HEAD")
+            }.standardOutput.asText.get().trim().take(7)
         buildConfigField("String", "GIT_SHA", "\"$gitSha\"")
     }
 

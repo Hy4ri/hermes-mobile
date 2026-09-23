@@ -41,6 +41,8 @@ internal interface ToolRenderer {
  */
 internal data class ToolViewExtras(
     val detailLabel: String? = null,
+    /** Process output characters omitted by the backend. */
+    val outputCut: Long? = null,
     val stdout: String? = null,
     val stderr: String? = null,
     val exitCode: Int? = null,

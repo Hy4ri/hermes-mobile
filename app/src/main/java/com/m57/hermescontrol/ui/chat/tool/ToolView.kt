@@ -35,6 +35,8 @@ data class ToolView(
     val detail: String = "",
     /** Optional section label above [detail] (e.g. "Search results"). */
     val detailLabel: String? = null,
+    /** Process output characters omitted by the backend. */
+    val outputCut: Long? = null,
     /** Compact count, e.g. "3 results". */
     val countLabel: String? = null,
     /** Human duration, e.g. "1.2s". */

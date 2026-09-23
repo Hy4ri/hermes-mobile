@@ -106,6 +106,7 @@ object ToolViewBuilder {
             subtitle = subtitle,
             detail = clampedDetail,
             detailLabel = extras.detailLabel,
+            outputCut = extras.outputCut,
             countLabel = countLabel?.let { (count, noun) -> "$count ${ToolCounts.pluralizeNoun(noun, count)}" },
             durationLabel = ToolJson.durationLabel(call.result),
             stdout = clampedStdout,

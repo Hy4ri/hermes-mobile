@@ -196,6 +196,7 @@
     <string name="chat_input_placeholder_type_message">Type a message\u2026</string>
     <string name="chat_tool_execution_error">Execution Error: %1$s</string>
     <string name="chat_tool_exit_code">Exit Code: %1$d</string>
+    <string name="chat_tool_output_omitted">%1$d characters omitted from process output</string>
     <string name="chat_tool_fallback">Tool</string>
     <string name="chat_tool_show_raw">Show Raw JSON</string>
     <string name="chat_tool_show_parsed">Show Parsed Output</string>

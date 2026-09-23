@@ -3,22 +3,22 @@ package com.m57.hermescontrol.ui.cron
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.CreateCronJobRequest
 import com.m57.hermescontrol.data.model.CronBlueprint
 import com.m57.hermescontrol.data.model.CronJob
-import com.m57.hermescontrol.data.model.CronRun
 import com.m57.hermescontrol.data.model.DeliveryTarget
 import com.m57.hermescontrol.data.model.InstantiateBlueprintRequest
 import com.m57.hermescontrol.data.model.UpdateCronJobRequest
 import com.m57.hermescontrol.data.remote.ApiClient
-import com.m57.hermescontrol.data.remote.NetworkError
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.ws.ChangeEvents
 import com.m57.hermescontrol.data.ws.toJsonElement
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.refreshOnChange
+import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -32,8 +32,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
-private const val CRON_RUN_HISTORY_LIMIT = 20
-
 data class CronJobsUiState(
     val isLoading: Boolean = false,
     val jobs: List<CronJob> = emptyList(),
@@ -43,16 +41,6 @@ data class CronJobsUiState(
     val deleteTarget: CronJob? = null,
     // Editor state
     val editorState: CronJobEditorState = CronJobEditorState(),
-    val runHistoryState: CronRunHistoryState = CronRunHistoryState(),
-)
-
-data class CronRunHistoryState(
-    val isOpen: Boolean = false,
-    val jobId: String? = null,
-    val jobName: String = "",
-    val isLoading: Boolean = false,
-    val runs: List<CronRun> = emptyList(),
-    val errorMessage: String? = null,
 )
 
 data class CronJobEditorState(
@@ -112,13 +100,10 @@ class CronJobsViewModel :
     val uiState: StateFlow<CronJobsUiState> = _uiState.asStateFlow()
 
     private var loadJob: Job? = null
-    private var runHistoryJob: Job? = null
     internal var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
     private val jobsCache = SwrCache<String, List<CronJob>>()
 
     fun clearScopeOwnedState() {
-        runHistoryJob?.cancel()
-        runHistoryJob = null
         _uiState.update {
             it.copy(
                 isLoading = false,
@@ -126,7 +111,6 @@ class CronJobsViewModel :
                 errorMessage = null,
                 deleteTarget = null,
                 editorState = CronJobEditorState(),
-                runHistoryState = CronRunHistoryState(),
             )
         }
     }
@@ -169,100 +153,6 @@ class CronJobsViewModel :
                     }
                 },
             )
-    }
-
-    fun openRunHistory(job: CronJob) {
-        runHistoryJob?.cancel()
-        _uiState.update {
-            it.copy(
-                runHistoryState =
-                    CronRunHistoryState(
-                        isOpen = true,
-                        jobId = job.id,
-                        jobName = job.name,
-                        isLoading = true,
-                    ),
-            )
-        }
-        loadRunHistory(job.id)
-    }
-
-    fun retryRunHistory() {
-        val jobId = _uiState.value.runHistoryState.jobId ?: return
-        _uiState.update {
-            it.copy(
-                runHistoryState =
-                    it.runHistoryState.copy(
-                        isLoading = true,
-                        errorMessage = null,
-                    ),
-            )
-        }
-        loadRunHistory(jobId)
-    }
-
-    fun closeRunHistory() {
-        runHistoryJob?.cancel()
-        runHistoryJob = null
-        _uiState.update { it.copy(runHistoryState = CronRunHistoryState()) }
-    }
-
-    private fun loadRunHistory(jobId: String) {
-        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
-        runHistoryJob =
-            viewModelScope.launch {
-                val result =
-                    withContext(ioDispatcher) {
-                        safeApiCall {
-                            ApiClient.hermesApi.getCronJobRuns(
-                                id = jobId,
-                                limit = CRON_RUN_HISTORY_LIMIT,
-                            )
-                        }
-                    }
-                val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
-                val history = _uiState.value.runHistoryState
-                if (!history.isOpen ||
-                    history.jobId != jobId ||
-                    (requestScope != null && currentScope != requestScope)
-                ) {
-                    return@launch
-                }
-
-                when (result) {
-                    is NetworkResult.Success -> {
-                        _uiState.update {
-                            it.copy(
-                                runHistoryState =
-                                    it.runHistoryState.copy(
-                                        isLoading = false,
-                                        runs = result.data.runs,
-                                        errorMessage = null,
-                                    ),
-                            )
-                        }
-                    }
-
-                    is NetworkResult.Failure -> {
-                        val message =
-                            if (result.error is NetworkError.Http && result.error.code == 404) {
-                                "Run history is unavailable on this Hermes Agent version."
-                            } else {
-                                "Failed to load run history: ${result.error.message}"
-                            }
-                        _uiState.update {
-                            it.copy(
-                                runHistoryState =
-                                    it.runHistoryState.copy(
-                                        isLoading = false,
-                                        runs = emptyList(),
-                                        errorMessage = message,
-                                    ),
-                            )
-                        }
-                    }
-                }
-            }
     }
 
     fun pauseCronJob(id: String) {

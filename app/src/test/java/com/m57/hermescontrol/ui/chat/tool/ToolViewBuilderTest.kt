@@ -308,6 +308,35 @@ class ToolViewBuilderTest {
         assertEquals("poll: proc-1", view.subtitle)
         assertTrue(view.detail.contains("Status: running"))
         assertTrue(view.detail.contains("listening on port 8080"))
+        assertEquals(null, view.outputCut)
+    }
+
+    @Test
+    fun `process output reports backend omitted character count for each action`() {
+        listOf("poll", "wait", "log", "kill").forEach { action ->
+            val outputKey = if (action == "poll") "output_preview" else "output"
+            val view =
+                build(
+                    "process_manage",
+                    """{"action":"$action","session_id":"proc-1"}""",
+                    """{"status":"exited","$outputKey":"partial output","output_cut":42}""",
+                )
+
+            assertTrue(view.detail.contains("partial output"))
+            assertEquals(42L, view.outputCut)
+        }
+    }
+
+    @Test
+    fun `process output without positive numeric omission has no notice`() {
+        listOf("{}", """{"output_cut":0}""", """{"output_cut":"unknown"}""").forEach { metadata ->
+            val fields = metadata.removePrefix("{").removeSuffix("}")
+            val result = """{"output":"complete"${if (fields.isNotEmpty()) ",$fields" else ""}}"""
+            val view = build("process", """{"action":"wait"}""", result)
+
+            assertEquals("complete", view.detail)
+            assertEquals(null, view.outputCut)
+        }
     }
 
     @Test

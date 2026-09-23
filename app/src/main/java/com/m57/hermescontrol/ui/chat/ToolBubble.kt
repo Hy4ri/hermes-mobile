@@ -495,6 +495,13 @@ private fun ExpandedToolContent(
             }
         }
 
+        view.outputCut?.let { omitted ->
+            Text(
+                text = stringResource(R.string.chat_tool_output_omitted, omitted),
+                style = MaterialTheme.typography.labelSmall.copy(color = statusColors.warning),
+            )
+        }
+
         // ── Duration footer ──
         view.durationLabel?.let {
             Text(

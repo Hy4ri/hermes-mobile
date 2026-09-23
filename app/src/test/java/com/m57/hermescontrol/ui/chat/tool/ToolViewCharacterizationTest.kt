@@ -759,6 +759,41 @@ class ToolViewCharacterizationTest {
     }
 
     @Test
+    fun `tool_search renders queries and named tool metadata from discovery response`() {
+        val view =
+            build(
+                "tool_search",
+                """{"queries":["read background process output poll"]}""",
+                """{"queries":["read background process output poll"],"total_available":119,"results":[{"query":"read background process output poll","matches":["process_manage","close_terminal"]}],"tools":{"process_manage":{"source":"plugin","source_name":"terminal","description":"Poll or wait on a process","required":["action"]},"close_terminal":{"source":"plugin","source_name":"desktop_ui","description":"Hide a terminal tab","required":["process_id"]}}}""",
+            )
+
+        assertEquals("read background process output poll (2 matches)", view.subtitle)
+        assertEquals(
+            "🔧 process_manage · terminal\n     Poll or wait on a process\n     Required: action\n\n" +
+                "🔧 close_terminal · desktop_ui\n     Hide a terminal tab\n     Required: process_id",
+            view.detail,
+        )
+    }
+
+    @Test
+    fun `tool_describe renders tool parameters and required fields`() {
+        val view =
+            build(
+                "tool_describe",
+                """{"names":["mcp__agentmail__list_inboxes"]}""",
+                """{"tools":{"mcp__agentmail__list_inboxes":{"description":"List email inboxes, paginated.","parameters":{"type":"object","properties":{"limit":{"type":"number","description":"Max number of items to return","default":10},"pageToken":{"type":"string","description":"Page token for pagination"}},"required":[]}}}}""",
+            )
+
+        assertEquals("mcp__agentmail__list_inboxes (1 tool)", view.subtitle)
+        assertEquals(
+            "🔧 mcp__agentmail__list_inboxes\n     List email inboxes, paginated.\n" +
+                "     Parameters: limit (number) — Max number of items to return [default: 10]; " +
+                "pageToken (string) — Page token for pagination",
+            view.detail,
+        )
+    }
+
+    @Test
     fun `read_terminal shows line window and terminal block`() {
         val view =
             build(

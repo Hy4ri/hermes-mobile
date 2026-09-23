@@ -106,6 +106,7 @@ object ToolViewBuilder {
             subtitle = subtitle,
             detail = clampedDetail,
             detailLabel = extras.detailLabel,
+            outputCut = extras.outputCut,
             countLabel = countLabel?.let { (count, noun) -> "$count ${ToolCounts.pluralizeNoun(noun, count)}" },
             durationLabel = ToolJson.durationLabel(call.result),
             stdout = clampedStdout,
@@ -115,6 +116,8 @@ object ToolViewBuilder {
             inlineDiff = clampedDiff,
             diffPath = extras.diffPath,
             diffStats = extras.diffStats,
+            fileContent = extras.fileContent?.let { ToolJson.clampForDisplay(it) },
+            filePath = extras.filePath,
             imageUrl = imageUrlFor(call.args, call.result),
             searchHits = extras.searchHits,
             searchQuery = extras.searchQuery,
@@ -153,7 +156,7 @@ object ToolViewBuilder {
     ): String? {
         val candidate =
             ToolJson
-                .firstString(result, listOf("image_url", "url", "path", "image_path"))
+                .firstString(result, listOf("image_url", "image", "url", "path", "image_path"))
                 .ifEmpty { ToolJson.firstString(args, listOf("image_url", "url", "path")) }
 
         if (candidate.isEmpty()) {

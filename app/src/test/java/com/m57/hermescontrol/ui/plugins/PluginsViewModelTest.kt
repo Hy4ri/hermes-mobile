@@ -8,12 +8,15 @@ import com.m57.hermescontrol.data.model.PluginInfo
 import com.m57.hermescontrol.data.model.PluginsHubResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.HermesApiService
+import com.m57.hermescontrol.data.ws.PluginRemovalRepository
+import com.m57.hermescontrol.data.ws.PluginRemovalResult
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -34,6 +37,8 @@ import retrofit2.Response
 class PluginsViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var mockApi: HermesApiService
+    private val removablePlugin =
+        PluginInfo(name = "snyk", runtimeStatus = "inactive", canRemove = true, source = "user")
 
     private val sampleCatalogEntry =
         PluginCatalogEntry(
@@ -190,5 +195,179 @@ class PluginsViewModelTest {
             viewModel.uiState.value.toastMessage
                 ?.contains("Failed to install") == true,
         )
+    }
+
+    @Test
+    fun `inactive hub plugin enables without invoking install`() {
+        coEvery { mockApi.enablePlugin("snyk") } returns Response.success(Unit)
+        coEvery { mockApi.getPlugins() } returns
+            Response.success(PluginsHubResponse(plugins = listOf(removablePlugin.copy(runtimeStatus = "enabled"))))
+        val viewModel = PluginsViewModel()
+
+        viewModel.activatePlugin(removablePlugin)
+        assertEquals("snyk", viewModel.uiState.value.rowBusy)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(
+            viewModel.uiState.value.plugins
+                .single()
+                .enabled,
+        )
+        assertNull(viewModel.uiState.value.rowBusy)
+        coVerify(exactly = 1) { mockApi.enablePlugin("snyk") }
+        coVerify(exactly = 0) { mockApi.installPlugin(any()) }
+    }
+
+    @Test
+    fun `inactive plugin can be removed after confirmation and verified refresh`() {
+        coEvery { mockApi.getPlugins() } returnsMany
+            listOf(
+                Response.success(PluginsHubResponse(plugins = listOf(removablePlugin))),
+                Response.success(PluginsHubResponse(plugins = emptyList())),
+            )
+        val removal = mockk<PluginRemovalRepository>()
+        coEvery { removal.remove("snyk") } returns PluginRemovalResult(ok = true, name = "snyk")
+        val viewModel = PluginsViewModel(removal)
+        viewModel.loadPlugins()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.requestRemovePlugin("snyk")
+        assertEquals("snyk", viewModel.uiState.value.removeConfirmPlugin)
+        viewModel.confirmRemovePlugin()
+        assertEquals("snyk", viewModel.uiState.value.rowBusy)
+        assertEquals(1, viewModel.uiState.value.plugins.size)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(
+            viewModel.uiState.value.plugins
+                .isEmpty(),
+        )
+        assertEquals("Plugin uninstalled successfully", viewModel.uiState.value.toastMessage)
+        assertNull(viewModel.uiState.value.rowBusy)
+        coVerify(exactly = 1) { removal.remove("snyk") }
+        coVerify(exactly = 2) { mockApi.getPlugins() }
+    }
+
+    @Test
+    fun `built in plugin cannot enter removal flow even if asked directly`() {
+        coEvery { mockApi.getPlugins() } returns
+            Response.success(
+                PluginsHubResponse(
+                    plugins = listOf(PluginInfo(name = "builtin", source = "bundled", canRemove = true)),
+                ),
+            )
+        val removal = mockk<PluginRemovalRepository>()
+        val viewModel = PluginsViewModel(removal)
+        viewModel.loadPlugins()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.requestRemovePlugin("builtin")
+        viewModel.confirmRemovePlugin()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.removeConfirmPlugin)
+        coVerify(exactly = 0) { removal.remove(any()) }
+    }
+
+    @Test
+    fun `gateway refusal and disconnection leave plugin in list with reason`() {
+        coEvery { mockApi.getPlugins() } returns
+            Response.success(PluginsHubResponse(plugins = listOf(removablePlugin)))
+        val removal = mockk<PluginRemovalRepository>()
+        coEvery { removal.remove("snyk") } returns PluginRemovalResult(ok = false, error = "not a user install")
+        val viewModel = PluginsViewModel(removal)
+        viewModel.loadPlugins()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.requestRemovePlugin("snyk")
+        viewModel.confirmRemovePlugin()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1, viewModel.uiState.value.plugins.size)
+        assertTrue(
+            viewModel.uiState.value.toastMessage!!
+                .contains("not a user install"),
+        )
+
+        coEvery { removal.remove("snyk") } throws IllegalStateException("socket disconnected")
+        viewModel.requestRemovePlugin("snyk")
+        viewModel.confirmRemovePlugin()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1, viewModel.uiState.value.plugins.size)
+        assertTrue(
+            viewModel.uiState.value.toastMessage!!
+                .contains("socket disconnected"),
+        )
+        coVerify(exactly = 1) { mockApi.getPlugins() }
+    }
+
+    @Test
+    fun `success reply without verified removal retains row and reports mismatch`() {
+        coEvery { mockApi.getPlugins() } returns
+            Response.success(PluginsHubResponse(plugins = listOf(removablePlugin)))
+        val removal = mockk<PluginRemovalRepository>()
+        coEvery { removal.remove("snyk") } returns PluginRemovalResult(ok = true, name = "snyk")
+        val viewModel = PluginsViewModel(removal)
+        viewModel.loadPlugins()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.requestRemovePlugin("snyk")
+        viewModel.confirmRemovePlugin()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1, viewModel.uiState.value.plugins.size)
+        assertTrue(
+            viewModel.uiState.value.toastMessage!!
+                .contains("still appears"),
+        )
+    }
+
+    @Test
+    fun `failed verification preserves row without success toast`() {
+        coEvery { mockApi.getPlugins() } returnsMany
+            listOf(
+                Response.success(PluginsHubResponse(plugins = listOf(removablePlugin))),
+                Response.error(503, "offline".toResponseBody()),
+            )
+        val removal = mockk<PluginRemovalRepository>()
+        coEvery { removal.remove("snyk") } returns PluginRemovalResult(ok = true, name = "snyk")
+        val viewModel = PluginsViewModel(removal)
+        viewModel.loadPlugins()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.requestRemovePlugin("snyk")
+        viewModel.confirmRemovePlugin()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1, viewModel.uiState.value.plugins.size)
+        assertTrue(
+            viewModel.uiState.value.toastMessage!!
+                .contains("could not verify"),
+        )
+    }
+
+    @Test
+    fun `scope switch discards late remove reply`() {
+        coEvery { mockApi.getPlugins() } returns
+            Response.success(PluginsHubResponse(plugins = listOf(removablePlugin)))
+        val reply = CompletableDeferred<PluginRemovalResult>()
+        val removal = mockk<PluginRemovalRepository>()
+        coEvery { removal.remove("snyk") } coAnswers { reply.await() }
+        val viewModel = PluginsViewModel(removal)
+        viewModel.loadPlugins()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.requestRemovePlugin("snyk")
+        viewModel.confirmRemovePlugin()
+        testDispatcher.scheduler.runCurrent()
+        viewModel.clearScopeOwnedState()
+        reply.complete(PluginRemovalResult(ok = true, name = "snyk"))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(
+            viewModel.uiState.value.plugins
+                .isEmpty(),
+        )
+        assertNull(viewModel.uiState.value.toastMessage)
+        coVerify(exactly = 1) { mockApi.getPlugins() }
     }
 }

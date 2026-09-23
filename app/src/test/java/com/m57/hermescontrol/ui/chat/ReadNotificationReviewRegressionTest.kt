@@ -105,6 +105,172 @@ class ReadNotificationReviewRegressionTest {
     }
 
     @Test
+    fun pagingMergePreservesBothIdentitiesAndDoesNotConsumeOlderRepeatedReply() {
+        val live = ChatMessage(id = "ws", role = MessageRole.ASSISTANT, content = "Done", completionId = "comp")
+        val newest = listOf(SessionMessage(id = 200, role = "assistant", content = JsonPrimitive("Done")))
+        val mapped = mapServerMessages("session", newest, 0, true, listOf(live))
+        val hydrated = mergeTranscriptWithLive(mapped, listOf(live), preserveLiveIds = true)
+        assertEquals("ws", hydrated.single().id)
+        assertEquals("rest-session-200", hydrated.single().restId)
+        assertEquals("comp", hydrated.single().completionId)
+        val older = listOf(SessionMessage(id = 100, role = "assistant", content = JsonPrimitive("Done")))
+        val page = mapServerMessages("session", older, 150, true, hydrated, isPagingOlder = true)
+        val merged = mergeTranscriptWithLive(page, hydrated, chronological = false, preserveLiveIds = true)
+        assertEquals(listOf("rest-session-100", "ws"), merged.map { it.id })
+        assertEquals(listOf(null, "comp"), merged.map { it.completionId })
+        assertEquals("rest-session-200", merged.last().restId)
+        // A later refresh of ONLY the old row must not reassign the confirmed UUID.
+        assertNull(mapServerMessages("session", older, 0, true, hydrated).single().completionId)
+        assertEquals("comp", mapServerMessages("session", newest, 0, true, hydrated).single().completionId)
+    }
+
+    @Test
+    fun olderPageAndCacheMergeCannotClaimUnconfirmedNotificationByText() {
+        val live = ChatMessage(id = "ws", role = MessageRole.ASSISTANT, content = "Done", completionId = "comp")
+        val older = listOf(SessionMessage(id = 100, role = "assistant", content = JsonPrimitive("Done")))
+        val page = mapServerMessages("session", older, 150, true, listOf(live), isPagingOlder = true)
+        val merged = mergeTranscriptWithLive(page, listOf(live), chronological = false, preserveLiveIds = true)
+        assertEquals(2, merged.size)
+        assertNull(merged.single { it.id == "rest-session-100" }.completionId)
+        assertNull(merged.single { it.id == "ws" }.restId)
+        assertEquals(2, mergeCachedTranscriptPage(page, listOf(live)).size)
+    }
+
+    @Test
+    fun repeatedCompletionMatchesStayOnTheSameLiveKeysAfterMerge() {
+        val live =
+            listOf(
+                ChatMessage(id = "old-ws", role = MessageRole.ASSISTANT, content = "Done", completionId = "old"),
+                ChatMessage(id = "new-ws", role = MessageRole.ASSISTANT, content = "Done", completionId = "new"),
+            )
+        val page =
+            mapServerMessages(
+                "session",
+                listOf(SessionMessage(id = 200, role = "assistant", content = JsonPrimitive("Done"))),
+                0,
+                true,
+                live,
+            )
+        val merged = mergeTranscriptWithLive(page, live, preserveLiveIds = true)
+        assertEquals("rest-session-200", merged.single { it.id == "new-ws" }.restId)
+        assertNull(merged.single { it.id == "old-ws" }.restId)
+        assertEquals("new", merged.single { it.id == "new-ws" }.completionId)
+    }
+
+    @Test
+    fun durableTargetWinsOverRepeatedLiveTextEvenWithLegacyPositions() {
+        ReplyNotificationTracker.setTargetForTest(
+            ReplyNotificationTarget("default", "session", "comp", 1L, serverMessageId = 100),
+        )
+        val live = ChatMessage(id = "ws", role = MessageRole.ASSISTANT, content = "Done", completionId = "comp")
+        val rows =
+            listOf(
+                SessionMessage(id = 100, role = "assistant", content = JsonPrimitive("Done")),
+                SessionMessage(id = 200, role = "assistant", content = JsonPrimitive("Done")),
+            )
+        for (latest in listOf(true, false)) {
+            val mapped = mapServerMessages("session", rows, 10, latest, listOf(live), context = context)
+            assertEquals(listOf("comp", null), mapped.map { it.completionId })
+            val merged = mergeTranscriptWithLive(mapped, listOf(live), preserveLiveIds = true)
+            assertEquals(if (latest) "rest-session-100" else "rest-session-10", merged.single { it.id == "ws" }.restId)
+            assertNull(mapServerMessages("session", rows.takeLast(1), 11, latest, listOf(live)).single().completionId)
+        }
+    }
+
+    @Test
+    fun exactCacheAndRestOverlapsRetainCompletionWhenPreferredCopyHasNone() {
+        val live =
+            ChatMessage(
+                id = "ws",
+                role = MessageRole.ASSISTANT,
+                content = "Done",
+                restId = "rest-session-200",
+                completionId = "comp",
+            )
+        val rest = live.copy(id = "rest-session-200", restId = null, completionId = null)
+        assertEquals("comp", dedupeCachedMessages(listOf(live, rest)).single().completionId)
+        assertEquals("comp", mergeCachedTranscriptPage(listOf(rest), listOf(live)).single().completionId)
+        assertEquals("comp", mergeTranscriptWithLive(listOf(rest), listOf(live)).single().completionId)
+        val restored = rest.copy(completionId = "comp").toEntity("session").toUiModel()
+        val richWithoutCompletion = live.copy(completionId = null)
+        val merged = mergeCachedTranscriptPage(listOf(restored), listOf(richWithoutCompletion)).single()
+        assertEquals("ws", merged.id)
+        assertEquals("rest-session-200", merged.restId)
+        assertEquals("comp", merged.completionId)
+    }
+
+    @Test
+    fun durableHydrationFoldsMixedCacheEchoIntoRichLiveReply() {
+        ReplyNotificationTracker.setTargetForTest(
+            ReplyNotificationTarget("default", "session", "comp", 1L, serverMessageId = 200),
+        )
+        val live = ChatMessage(id = "ws", role = MessageRole.ASSISTANT, content = "Done", completionId = "comp")
+        val echo = live.copy(id = "rest-session-200", completionId = null)
+        val current = listOf(echo, live)
+        val mapped =
+            mapServerMessages(
+                "session",
+                listOf(SessionMessage(id = 200, role = "assistant", content = JsonPrimitive("Done"))),
+                0,
+                true,
+                current,
+            )
+        val merged = mergeTranscriptWithLive(mapped, current, preserveLiveIds = true).single()
+        assertEquals("ws", merged.id)
+        assertEquals("rest-session-200", merged.restId)
+        assertEquals("comp", merged.completionId)
+    }
+
+    @Test
+    fun cachedNewestDuplicateWithoutDurableIdKeepsCompletionOnNewestLiveReply() {
+        // #129 review: a metadata-free cached echo must not redirect the newest WS completion.
+        ReplyNotificationTracker.setTargetForTest(
+            ReplyNotificationTarget("default", "session", "comp", 1L, serverMessageId = null),
+        )
+        val cachedNewest =
+            ChatMessage(
+                id = "rest-session-200",
+                role = MessageRole.ASSISTANT,
+                content = "Done",
+                completionId = null,
+            )
+        val live =
+            ChatMessage(
+                id = "ws",
+                role = MessageRole.ASSISTANT,
+                content = "Done",
+                completionId = "comp",
+                restId = null,
+            )
+        val current = listOf(cachedNewest, live)
+        val history =
+            listOf(
+                SessionMessage(id = 100, role = "assistant", content = JsonPrimitive("Done")),
+                SessionMessage(id = 200, role = "assistant", content = JsonPrimitive("Done")),
+            )
+        val mapped =
+            mapServerMessages(
+                sessionId = "session",
+                messages = history,
+                offset = 0,
+                latestPaging = true,
+                liveMessages = current,
+                isPagingOlder = false,
+                context = context,
+            )
+        val merged = mergeTranscriptWithLive(mapped, current, preserveLiveIds = true)
+
+        assertNull(mapped.single { it.id == "rest-session-100" }.completionId)
+        assertEquals("comp", mapped.single { it.id == "rest-session-200" }.completionId)
+        assertEquals(2, merged.size)
+        assertEquals(setOf("rest-session-100", "ws"), merged.map { it.id }.toSet())
+        assertEquals(2, merged.count { it.content == "Done" })
+        assertNull(merged.single { it.id == "rest-session-100" }.completionId)
+        assertEquals("rest-session-200", merged.single { it.id == "ws" }.restId)
+        assertEquals("comp", merged.single { it.id == "ws" }.completionId)
+    }
+
+    @Test
     fun viewingOldCachedTextMustNotClearNewReplyNotification() {
         postTarget("Done")
         val old =
@@ -383,7 +549,11 @@ class ReadNotificationReviewRegressionTest {
                 SessionMessage(id = 2, role = "assistant", content = JsonPrimitive("The result MEDIA:/opt/pic.png")),
             )
         val mapped = mapServerMessages("session", history, 0, true, live, isPagingOlder = false)
-        assertEquals("comp-reasoning-media", mapped.single().completionId)
+        assertEquals(listOf("rest-session-1", "rest-session-2"), mapped.map { it.canonicalRestId })
+        assertEquals("thinking step", mapped.first().reasoningText)
+        assertEquals("", mapped.first().content)
+        assertNull(mapped.first().completionId)
+        assertEquals("comp-reasoning-media", mapped.last().completionId)
     }
 
     @Test

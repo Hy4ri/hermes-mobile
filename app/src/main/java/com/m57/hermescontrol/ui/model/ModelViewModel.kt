@@ -3,20 +3,25 @@ package com.m57.hermescontrol.ui.model
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.model.AuxiliaryTaskAssignment
 import com.m57.hermescontrol.data.model.MoaConfigResponse
 import com.m57.hermescontrol.data.model.ModelAssignmentRequest
+import com.m57.hermescontrol.data.model.ModelInfoResponse
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.data.model.ProfileInfo
 import com.m57.hermescontrol.data.model.UpdateProfileModelRequest
+import com.m57.hermescontrol.data.model.withModelInfoCapabilities
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.ws.ModelCatalogStore
 import com.m57.hermescontrol.data.ws.ModelOptionsRepository
 import com.m57.hermescontrol.ui.common.ToastHost
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -45,6 +50,7 @@ data class ModelUiState(
     val isLoading: Boolean = false,
     val catalogLoading: Boolean = false,
     val providers: List<ModelProvider> = emptyList(),
+    val modelInfo: ModelInfoResponse? = null,
     val activeProfile: ProfileInfo? = null,
     val errorMessage: String? = null,
     val toastMessage: String? = null,
@@ -71,12 +77,19 @@ data class ModelUiState(
 
 class ModelViewModel(
     private val catalogStore: ModelCatalogStore = ModelCatalogStore.shared,
+    private val getCurrentScope: () -> DataScope? = { AuthManager.currentDataScope() },
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val getModelInfoCall: suspend (String?) -> NetworkResult<ModelInfoResponse> = { profile ->
+        safeApiCall { ApiClient.hermesApi.getModelInfo(profile) }
+    },
 ) : ViewModel(),
     ToastHost {
     constructor(repository: ModelOptionsRepository) : this(ModelCatalogStore(repository = repository))
 
     private val _uiState = MutableStateFlow(ModelUiState())
     val uiState: StateFlow<ModelUiState> = _uiState.asStateFlow()
+    private var modelInfoJob: Job? = null
+    private var modelInfoScope: DataScope? = null
 
     init {
         _uiState.update { it.copy(pinnedModels = AuthManager.getPinnedModels()) }
@@ -84,9 +97,18 @@ class ModelViewModel(
             catalogStore.state.collect { catalogState ->
                 // Empty state is meaningful: it is how ModelCatalogStore
                 // invalidates the previous DataScope. Never ignore it.
+                val observedScope = catalogState.scope ?: getCurrentScope()
+                val scopeChanged = modelInfoScope != observedScope
+                if (scopeChanged) {
+                    modelInfoJob?.cancel()
+                    modelInfoJob = null
+                    modelInfoScope = observedScope
+                }
                 _uiState.update {
+                    val modelInfo = if (scopeChanged) null else it.modelInfo
                     it.copy(
-                        providers = catalogState.providers,
+                        providers = catalogState.providers.withModelInfoCapabilities(modelInfo),
+                        modelInfo = modelInfo,
                         catalogLoading = catalogState.isRefreshing,
                     )
                 }
@@ -96,6 +118,7 @@ class ModelViewModel(
 
     fun loadAll(refresh: Boolean = false) {
         _uiState.update { it.copy(isLoading = true, catalogLoading = true, errorMessage = null) }
+        loadModelCapabilities()
         viewModelScope.launch {
             // Phase 1: Launch fast lightweight calls first (profiles, aux, moa)
             val activeProfileDeferred =
@@ -199,6 +222,7 @@ class ModelViewModel(
 
     /** Fast refresh after model assignments/updates without re-fetching full provider catalog. */
     fun loadQuick() {
+        loadModelCapabilities(clearExisting = true)
         viewModelScope.launch {
             val activeProfileDeferred =
                 async(Dispatchers.IO) {
@@ -252,6 +276,45 @@ class ModelViewModel(
                 )
             }
         }
+    }
+
+    fun loadModelCapabilities(clearExisting: Boolean = false) {
+        val requestScope = getCurrentScope()
+        if (modelInfoScope != requestScope) {
+            modelInfoJob?.cancel()
+            modelInfoScope = requestScope
+            _uiState.update {
+                it.copy(
+                    providers = catalogStore.state.value.providers,
+                    modelInfo = null,
+                )
+            }
+        } else if (clearExisting) {
+            _uiState.update {
+                it.copy(
+                    providers = catalogStore.state.value.providers,
+                    modelInfo = null,
+                )
+            }
+        }
+
+        modelInfoJob?.cancel()
+        if (requestScope == null) return
+        modelInfoJob =
+            viewModelScope.launch(ioDispatcher) {
+                val result = getModelInfoCall(requestScope.activeProfileId)
+                if (getCurrentScope() != requestScope) return@launch
+                if (result is NetworkResult.Success) {
+                    _uiState.update {
+                        it.copy(
+                            providers =
+                                catalogStore.state.value.providers
+                                    .withModelInfoCapabilities(result.data),
+                            modelInfo = result.data,
+                        )
+                    }
+                }
+            }
     }
 
     /** Open the main model picker dialog. */

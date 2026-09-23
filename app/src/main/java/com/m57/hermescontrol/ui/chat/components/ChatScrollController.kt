@@ -33,9 +33,9 @@ import kotlinx.coroutines.yield
  * 5. **Unread indicator** — when follow is paused, [pendingCount] accumulates the
  *    number of tail updates; shows on the FAB. Tapping the FAB resumes following
  *    and clears the count.
- * 6. **Paging anchor preservation** — capture the first visible item + offset
- *    with [captureAnchor] before prepending older history, then
- *    [restoreAnchor] after insertion so the same content stays under the eye.
+ * 6. **Paging anchors** — the full-bleed renderer preserves the live lazy row
+ *    key and offset when older history is inserted; this controller owns no
+ *    fetch-time anchor or animated compensation.
  * 7. **Serialized scroll commands** — every scroll (send, FAB, session switch,
  *    search navigation, auto-follow) is launched from [scope] so animations
  *    don't compete.
@@ -158,11 +158,11 @@ class ChatScrollController(
      * item count still hasn't caught up (rare, heavy layout), wait briefly
      * via snapshotFlow on the layout info.
      */
-    private suspend fun scrollToBottomAwaitingLayout() {
+    private suspend fun scrollToBottomAwaitingLayout(animated: Boolean = false) {
         // Yield twice: first for recomposition, second for layout.
         yield()
         yield()
-        listState.scrollToBottom(animated = false)
+        listState.scrollToBottom(animated = animated)
         // If we're still not at the bottom after the first scroll (e.g. a
         // new item was laid out between the scroll and now), do one more pass.
         if (!listState.isAtBottom(bottomPixelTolerance)) {
@@ -171,7 +171,7 @@ class ChatScrollController(
                 snapshotFlow { listState.layoutInfo.totalItemsCount }
                     .first { it > 0 }
             }
-            listState.scrollToBottom(animated = false)
+            listState.scrollToBottom(animated = animated)
         }
     }
 
@@ -182,11 +182,16 @@ class ChatScrollController(
         scope.launch {
             isProgrammaticScroll = true
             try {
-                listState.scrollToBottom(animated = animated)
+                scrollToBottomAwaitingLayout(animated = animated)
             } finally {
                 isProgrammaticScroll = false
             }
         }
+    }
+
+    /** An explicit history gesture must not be undone by a short list's bottom-follow. */
+    fun pauseFollowing() {
+        isFollowingBottom = false
     }
 
     /** FAB tap: resume following + clear unread. */
@@ -194,24 +199,6 @@ class ChatScrollController(
 
     /** True when the FAB should be visible (not following bottom + content exists). */
     fun showFab(contentPresent: Boolean): Boolean = !isFollowingBottom && contentPresent
-
-    /**
-     * Current pixel scroll offset of the first visible item — captured before
-     * prepending older history so it can be restored after insertion.
-     */
-    fun captureAnchorOffset(): Int = listState.firstVisibleItemScrollOffset
-
-    /**
-     * Restore the viewport to a specific item (resolved by id in the caller, so
-     * the restore is robust even if streaming tokens arrive during the page
-     * insert). Keeps the reader's eye on the same content after prepend.
-     */
-    fun scrollToItem(
-        index: Int,
-        offset: Int,
-    ) {
-        scope.launch { listState.scrollToItem(index, offset) }
-    }
 
     /**
      * Navigate to a search match (serialized through [scope]).
@@ -258,7 +245,7 @@ fun tailContentKey(
     clarifyRequest: Any?,
 ): Any =
     listOf(
-        messages.size,
+        messages.lastOrNull(),
         streamingMessage?.hashCode() ?: 0,
         isThinking,
         subagentIndicators.size,

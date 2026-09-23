@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.chat
 
 import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.model.ModelCapabilities
+import com.m57.hermescontrol.data.model.ModelInfoResponse
 import com.m57.hermescontrol.data.model.ModelOptionsResponse
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
@@ -11,6 +12,7 @@ import com.m57.hermescontrol.data.ws.WsMethods
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -172,6 +174,41 @@ class ChatModelSwitchDelegateTest {
             assertEquals(fakeResponse.providers, uiState.value.modelPickerProviders)
             assertFalse(uiState.value.modelPickerLoading)
 
+            scopeObserverJob.cancel()
+        }
+
+    @Test
+    fun modelInfoCapabilities_mergeWithCatalogAndClearOnScopeSwitch() =
+        testScope.runTest {
+            val scopeObserverJob = kotlinx.coroutines.Job()
+            val observerScope = kotlinx.coroutines.CoroutineScope(testDispatcher + scopeObserverJob)
+            delegate.attachScopeObserver(observerScope)
+            delegate.preloadModelOptions()
+            advanceUntilIdle()
+            uiState.update { it.copy(currentSessionModel = "openai/gpt-4o") }
+
+            delegate.applyModelInfo(
+                ModelInfoResponse(
+                    provider = "openai",
+                    model = "gpt-4o",
+                    capabilities =
+                        ModelCapabilities(
+                            supports_tools = false,
+                            supports_vision = true,
+                            supports_reasoning = true,
+                        ),
+                ),
+                initialDataScope,
+            )
+
+            assertEquals(true, uiState.value.currentModelCapabilities?.fast)
+            assertEquals(false, uiState.value.currentModelCapabilities?.supports_tools)
+            assertEquals(true, uiState.value.currentModelCapabilities?.supports_vision)
+
+            dataScope.value = initialDataScope.copy(activeProfileId = "work")
+            runCurrent()
+
+            assertNull(uiState.value.currentModelCapabilities)
             scopeObserverJob.cancel()
         }
 
@@ -609,5 +646,96 @@ class ChatModelSwitchDelegateTest {
             )
             delegate.dismissModelSwitchConfirm()
             assertEquals("anthropic/claude-3", uiState.value.currentSessionModel)
+        }
+
+    @Test
+    fun handleConfigSetResult_modelWarningWithoutConfirm_addsAssistantMessage() =
+        testScope.runTest {
+            delegate.handleModelSwitch("/model gpt-69-sol --provider openai-codex --session")
+            advanceUntilIdle()
+
+            val warningText =
+                "Note: `gpt-69-sol` was not found in the OpenAI Codex model listing. " +
+                    "Similar models: `gpt-5.6-sol`"
+            delegate.handleConfigSetResult(
+                id = "req-1",
+                result =
+                    mapOf(
+                        "key" to "model",
+                        "value" to "gpt-69-sol",
+                        "confirm_required" to false,
+                        "warning" to warningText,
+                    ),
+            )
+
+            assertEquals(1, assistantMessages.size)
+            assertEquals("⚠ $warningText", assistantMessages.first())
+        }
+
+    @Test
+    fun handleConfigSetResult_modelWarningWithExistingWarningEmoji_doesNotDuplicateEmoji() =
+        testScope.runTest {
+            delegate.handleModelSwitch("/model gpt-69-sol --provider openai-codex --session")
+            advanceUntilIdle()
+
+            val warningText = "⚠ Note: Already prefixed"
+            delegate.handleConfigSetResult(
+                id = "req-1",
+                result =
+                    mapOf(
+                        "key" to "model",
+                        "value" to "gpt-69-sol",
+                        "confirm_required" to false,
+                        "warning" to warningText,
+                    ),
+            )
+
+            assertEquals(listOf(warningText), assistantMessages)
+        }
+
+    @Test
+    fun handleConfigSetResult_staleSequenceWarning_isIgnored() =
+        testScope.runTest {
+            // First switch
+            delegate.handleModelSwitch("/model gpt-4o --provider openai --session")
+            advanceUntilIdle()
+
+            // Second switch supersedes first
+            delegate.handleModelSwitch("/model claude-3-5-sonnet --provider anthropic --session")
+            advanceUntilIdle()
+
+            // First switch response arrives with warning
+            delegate.handleConfigSetResult(
+                id = "req-1",
+                result =
+                    mapOf(
+                        "key" to "model",
+                        "value" to "gpt-4o",
+                        "confirm_required" to false,
+                        "warning" to "Stale warning",
+                    ),
+            )
+
+            assertTrue(assistantMessages.isEmpty())
+        }
+
+    @Test
+    fun handleConfigSetResult_blankWarning_doesNotAddAssistantMessage() =
+        testScope.runTest {
+            delegate.handleModelSwitch("/model gpt-4o --provider openai --session")
+            advanceUntilIdle()
+
+            delegate.handleConfigSetResult(
+                id = "req-1",
+                result =
+                    mapOf(
+                        "key" to "model",
+                        "value" to "gpt-4o",
+                        "confirm_required" to false,
+                        "warning" to "   ",
+                    ),
+            )
+
+            assertTrue(assistantMessages.isEmpty())
         }
 }

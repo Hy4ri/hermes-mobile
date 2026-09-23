@@ -27,4 +27,5 @@ data class ModelInfoResponse(
     val config_context_length: Long? = null,
     /** Effective context window actually in use (max of auto/config + caps). */
     val effective_context_length: Long? = null,
+    val capabilities: ModelCapabilities? = null,
 )

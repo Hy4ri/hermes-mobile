@@ -28,6 +28,7 @@ import com.m57.hermescontrol.ui.chat.tool.render.SkillsListRenderer
 import com.m57.hermescontrol.ui.chat.tool.render.TerminalRenderer
 import com.m57.hermescontrol.ui.chat.tool.render.TextToSpeechRenderer
 import com.m57.hermescontrol.ui.chat.tool.render.TodoRenderer
+import com.m57.hermescontrol.ui.chat.tool.render.ToolDescribeRenderer
 import com.m57.hermescontrol.ui.chat.tool.render.ToolSearchRenderer
 import com.m57.hermescontrol.ui.chat.tool.render.VisionAnalyzeRenderer
 import com.m57.hermescontrol.ui.chat.tool.render.WebExtractRenderer
@@ -91,6 +92,7 @@ internal object ToolRendererRegistry {
             "skill_view" to SkillViewRenderer,
             "skill_manage" to SkillManageRenderer,
             "tool_search" to ToolSearchRenderer,
+            "tool_describe" to ToolDescribeRenderer,
             // Media
             "image_generate" to ImageGenerateRenderer,
             "vision_analyze" to VisionAnalyzeRenderer,

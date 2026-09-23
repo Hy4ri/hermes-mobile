@@ -14,10 +14,12 @@ import com.m57.hermescontrol.data.model.ProviderOption
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.ws.PluginRemovalRepository
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchAction
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -72,15 +74,18 @@ data class PluginsUiState(
     }
 }
 
-class PluginsViewModel :
-    ViewModel(),
+class PluginsViewModel(
+    private val pluginRemoval: PluginRemovalRepository = PluginRemovalRepository(),
+) : ViewModel(),
     ToastHost {
     private val _uiState = MutableStateFlow(PluginsUiState())
     val uiState: StateFlow<PluginsUiState> = _uiState.asStateFlow()
 
     private val pluginsCache = SwrCache<String, PluginsHubResponse>()
+    private var scopeGeneration = 0
 
     fun clearScopeOwnedState() {
+        scopeGeneration++
         _uiState.update {
             it.copy(
                 isLoading = false,
@@ -333,26 +338,24 @@ class PluginsViewModel :
     }
 
     fun activatePlugin(plugin: PluginInfo) {
-        viewModelScope.launch {
-            val result =
-                withContext(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.enablePlugin(plugin.name) }
-                }
-            when (result) {
-                is NetworkResult.Success -> {
-                    _uiState.update { it.copy(toastMessage = "Plugin enabled successfully") }
-                    loadPlugins(forceRefresh = true)
-                }
-
-                is NetworkResult.Failure -> {
-                    _uiState.update { it.copy(toastMessage = "Failed to enable plugin: ${result.error.message}") }
-                }
-            }
-        }
+        if (_uiState.value.rowBusy != null) return
+        safeLaunchAction(
+            onStart = { setRowBusy(plugin.name) },
+            apiCall = { safeApiCall { ApiClient.hermesApi.enablePlugin(plugin.name) } },
+            onSuccess = {
+                _uiState.update { it.copy(toastMessage = "Plugin enabled successfully") }
+                loadPlugins(forceRefresh = true)
+            },
+            onError = { error ->
+                _uiState.update { it.copy(toastMessage = "Failed to enable plugin: $error") }
+            },
+            onComplete = { clearRowBusy(plugin.name) },
+        )
     }
 
     /** Show confirmation dialog for removing a plugin */
     fun requestRemovePlugin(name: String) {
+        if (_uiState.value.plugins.none { it.name == name && it.removable }) return
         _uiState.update { it.copy(removeConfirmPlugin = name) }
     }
 
@@ -363,24 +366,85 @@ class PluginsViewModel :
 
     fun confirmRemovePlugin() {
         val name = _uiState.value.removeConfirmPlugin ?: return
+        if (_uiState.value.plugins.none { it.name == name && it.removable } || _uiState.value.rowBusy != null) {
+            cancelRemovePlugin()
+            return
+        }
         _uiState.update { it.copy(removeConfirmPlugin = null) }
+        val generation = scopeGeneration
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+        setRowBusy(name)
         viewModelScope.launch {
-            setRowBusy(name)
-            val result =
-                withContext(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.uninstallPlugin(name) }
+            try {
+                val result = pluginRemoval.remove(name)
+                if (generation != scopeGeneration ||
+                    (requestScope != null && AuthManager.currentDataScope() != requestScope)
+                ) {
+                    return@launch
                 }
-            when (result) {
-                is NetworkResult.Success -> {
-                    _uiState.update { it.copy(toastMessage = "Plugin uninstalled successfully") }
-                    clearRowBusy(name)
-                    loadPlugins(forceRefresh = true)
+                if (!result.ok) {
+                    _uiState.update {
+                        it.copy(
+                            toastMessage = "Failed to uninstall plugin: ${result.error ?: "Gateway refused removal"}",
+                        )
+                    }
+                    return@launch
                 }
+                val refreshed = safeApiCall { ApiClient.hermesApi.getPlugins() }
+                if (generation != scopeGeneration ||
+                    (requestScope != null && AuthManager.currentDataScope() != requestScope)
+                ) {
+                    return@launch
+                }
+                when (refreshed) {
+                    is NetworkResult.Success -> {
+                        val data = refreshed.data
+                        requestScope?.let { pluginsCache.put(it.scopedKey("default"), data) }
+                        _uiState.update { state ->
+                            state.copy(
+                                plugins = data.plugins,
+                                orphanPlugins =
+                                    data.orphanDashboardPlugins.map { orphan ->
+                                        PluginInfo(
+                                            name = orphan.name ?: "unknown",
+                                            description =
+                                                orphan.description ?: orphan.label,
+                                        )
+                                    },
+                                memoryProvider = data.providers?.memoryProvider ?: "",
+                                memoryOptions = data.providers?.memoryOptions.orEmpty(),
+                                contextEngine = data.providers?.contextEngine ?: "compressor",
+                                contextOptions = data.providers?.contextOptions.orEmpty(),
+                                toastMessage =
+                                    if (data.plugins.none { it.name == name }) {
+                                        "Plugin uninstalled successfully"
+                                    } else {
+                                        "Removal returned success, but $name still appears in the plugin list"
+                                    },
+                            )
+                        }
+                    }
 
-                is NetworkResult.Failure -> {
-                    _uiState.update { it.copy(toastMessage = "Failed to uninstall plugin: ${result.error.message}") }
-                    clearRowBusy(name)
+                    is NetworkResult.Failure -> {
+                        _uiState.update {
+                            it.copy(
+                                toastMessage = "Removal sent; could not verify plugin list: ${refreshed.error.message}",
+                            )
+                        }
+                    }
                 }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (generation == scopeGeneration) {
+                    _uiState.update {
+                        it.copy(
+                            toastMessage = "Failed to uninstall plugin: ${e.message ?: "Gateway unavailable"}",
+                        )
+                    }
+                }
+            } finally {
+                if (generation == scopeGeneration) clearRowBusy(name)
             }
         }
     }

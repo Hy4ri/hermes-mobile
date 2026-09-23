@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.RestartAlt
@@ -62,9 +63,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -75,12 +78,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.KanbanTaskDetailKey
 import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.model.KanbanAttachment
 import com.m57.hermescontrol.data.model.KanbanProfile
 import com.m57.hermescontrol.data.model.KanbanTaskFull
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.data.model.TaskEstimate
 import com.m57.hermescontrol.data.model.TaskLinks
+import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.chat.MarkdownText
 import com.m57.hermescontrol.ui.common.ErrorState
@@ -89,6 +94,13 @@ import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.kanban.components.KanbanModelOverrideEditor
+import com.m57.hermescontrol.util.StreamingUriRequestBody
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -110,6 +122,7 @@ fun KanbanTaskScreen(
             stringResource(R.string.kanban_tab_files),
         )
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var runToTerminate by remember { mutableStateOf<Long?>(null) }
 
     LaunchedEffect(boardSlug, taskId) {
         viewModel.loadTask(boardSlug, taskId)
@@ -208,6 +221,10 @@ fun KanbanTaskScreen(
                                 onReclaim = {
                                     viewModel.reclaim(boardSlug, taskId)
                                 },
+                                isSpecifying = state.isSpecifying,
+                                isLinking = state.isLinking,
+                                onSpecify = { viewModel.specifyTask(boardSlug, taskId) },
+                                onAddParent = { viewModel.createParentLink(boardSlug, taskId, it) },
                             )
                         }
 
@@ -229,6 +246,10 @@ fun KanbanTaskScreen(
                             TaskRunsTab(
                                 runs = detail.runs,
                                 workerLog = state.workerLog,
+                                runStateType = state.runStateType,
+                                runStateName = state.runStateName,
+                                onFilter = { type, name -> viewModel.setRunFilter(boardSlug, taskId, type, name) },
+                                onInspect = { viewModel.inspectRun(boardSlug, taskId, it) },
                             )
                         }
 
@@ -242,9 +263,10 @@ fun KanbanTaskScreen(
                             TaskFilesTab(
                                 attachments = detail.attachments ?: emptyList(),
                                 isUploading = state.isUploadingAttachment,
-                                onUpload = { filename, mimeType, bytes ->
-                                    viewModel.uploadAttachment(boardSlug, taskId, filename, mimeType, bytes)
-                                },
+                                isDeleting = state.isDeletingAttachment,
+                                board = boardSlug,
+                                taskId = taskId,
+                                viewModel = viewModel,
                             )
                         }
                     }
@@ -276,6 +298,68 @@ fun KanbanTaskScreen(
             },
         )
     }
+
+    val selectedRun = state.selectedRun
+    if (selectedRun != null) {
+        AlertDialog(
+            onDismissRequest = viewModel::clearRunInspection,
+            title = { Text(stringResource(R.string.kanban_run_details)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    MetaRow(stringResource(R.string.kanban_run_number, selectedRun.id), selectedRun.status)
+                    selectedRun.profile?.let { MetaRow(stringResource(R.string.kanban_assignee), it) }
+                    selectedRun.stepKey?.let { MetaRow("Step", it) }
+                    selectedRun.workerPid?.let { MetaRow("PID", it.toString()) }
+                    selectedRun.summary?.let { Text(it) }
+                    selectedRun.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                    state.runInspection?.let { inspection ->
+                        Text(
+                            if (inspection.alive) {
+                                inspection.status ?: selectedRun.status
+                            } else {
+                                inspection.reason ?: stringResource(R.string.kanban_run_inspection_unavailable)
+                            },
+                        )
+                        inspection.cpuPercent?.let { MetaRow("CPU", "$it%") }
+                        inspection.memoryRssBytes?.let { MetaRow("Memory", "${it / 1024} KiB") }
+                        inspection.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                    }
+                }
+            },
+            confirmButton = {
+                if (selectedRun.endedAt == null && selectedRun.status == "running" &&
+                    state.detail?.task?.status == "running"
+                ) {
+                    TextButton(onClick = { runToTerminate = selectedRun.id }, enabled = !state.isTerminatingRun) {
+                        Text(stringResource(R.string.kanban_terminate_run))
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::clearRunInspection) { Text(stringResource(R.string.action_cancel)) }
+            },
+        )
+    }
+
+    if (runToTerminate != null) {
+        AlertDialog(
+            onDismissRequest = { runToTerminate = null },
+            title = { Text(stringResource(R.string.kanban_terminate_run)) },
+            text = { Text(stringResource(R.string.kanban_terminate_run_confirm)) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        runToTerminate?.let { viewModel.terminateRun(boardSlug, taskId, it) }
+                        runToTerminate = null
+                    },
+                    enabled = !state.isTerminatingRun,
+                ) { Text(stringResource(R.string.kanban_terminate_run)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { runToTerminate = null }) { Text(stringResource(R.string.action_cancel)) }
+            },
+        )
+    }
 }
 
 @Composable
@@ -293,11 +377,16 @@ private fun TaskOverviewTab(
     onNavigateToTask: (String) -> Unit,
     onSaveDescription: (String) -> Unit,
     onReclaim: () -> Unit,
+    isSpecifying: Boolean,
+    isLinking: Boolean,
+    onSpecify: () -> Unit,
+    onAddParent: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var isEditingDescription by remember { mutableStateOf(false) }
     var descriptionDraft by remember(task.body) { mutableStateOf(task.body ?: "") }
     var assigneeMenuExpanded by remember { mutableStateOf(false) }
+    var parentDraft by remember { mutableStateOf("") }
     val statusColors = LocalHermesStatusColors.current
 
     val currentModelOverride =
@@ -430,6 +519,8 @@ private fun TaskOverviewTab(
                     task.tenant?.let { MetaRow(label = "Tenant", value = it) }
                     task.workspaceKind?.let { MetaRow(label = "Workspace", value = "$it ${task.workspacePath ?: ""}") }
                     task.workerPid?.let { MetaRow(label = "Worker PID", value = it.toString()) }
+                    task.workflowTemplateId?.let { MetaRow(label = "Workflow", value = it) }
+                    task.currentStepKey?.let { MetaRow(label = "Step", value = it) }
 
                     Spacer(modifier = Modifier.height(8.dp))
                     HorizontalDivider()
@@ -446,7 +537,7 @@ private fun TaskOverviewTab(
             }
 
             // Dependencies Section
-            if (links.parents.isNotEmpty() || links.children.isNotEmpty()) {
+            run {
                 Card(
                     shape = RoundedCornerShape(8.dp),
                     modifier =
@@ -461,6 +552,22 @@ private fun TaskOverviewTab(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary,
                         )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            OutlinedTextField(
+                                value = parentDraft,
+                                onValueChange = { parentDraft = it },
+                                label = { Text(stringResource(R.string.kanban_parent_id)) },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                            )
+                            TextButton(
+                                onClick = {
+                                    onAddParent(parentDraft)
+                                    parentDraft = ""
+                                },
+                                enabled = parentDraft.isNotBlank() && !isLinking,
+                            ) { Text(stringResource(R.string.kanban_add_parent)) }
+                        }
                         if (links.parents.isNotEmpty()) {
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
@@ -506,6 +613,13 @@ private fun TaskOverviewTab(
             }
 
             // Effort Estimation Section
+            if (task.status == "triage") {
+                OutlinedButton(
+                    onClick = onSpecify,
+                    enabled = !isSpecifying,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                ) { Text(stringResource(R.string.kanban_specify_task)) }
+            }
             Card(
                 shape = RoundedCornerShape(8.dp),
                 modifier =
@@ -778,8 +892,15 @@ private fun formatRunDuration(durationSeconds: Long): String =
 private fun TaskRunsTab(
     runs: List<com.m57.hermescontrol.data.model.KanbanRun>,
     workerLog: com.m57.hermescontrol.data.model.WorkerLog?,
+    runStateType: String?,
+    runStateName: String?,
+    onFilter: (String?, String?) -> Unit,
+    onInspect: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var filterType by remember(runStateType) { mutableStateOf(runStateType ?: "status") }
+    var filterName by remember(runStateName) { mutableStateOf(runStateName ?: "") }
+    var filterMenuExpanded by remember { mutableStateOf(false) }
     LazyColumn(
         modifier = modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -790,6 +911,34 @@ private fun TaskRunsTab(
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
             )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box {
+                    TextButton(onClick = { filterMenuExpanded = true }) {
+                        Text(if (filterType == "status") "Status" else "Outcome")
+                    }
+                    DropdownMenu(expanded = filterMenuExpanded, onDismissRequest = { filterMenuExpanded = false }) {
+                        listOf("status", "outcome").forEach { type ->
+                            DropdownMenuItem(text = { Text(type) }, onClick = {
+                                filterType = type
+                                filterMenuExpanded = false
+                            })
+                        }
+                    }
+                }
+                OutlinedTextField(
+                    value = filterName,
+                    onValueChange = { filterName = it },
+                    modifier = Modifier.weight(1f),
+                    label = { Text(stringResource(R.string.kanban_run_state_filter)) },
+                    singleLine = true,
+                )
+                TextButton(onClick = { onFilter(filterType, filterName.trim()) }, enabled = filterName.isNotBlank()) {
+                    Text(stringResource(R.string.kanban_filter))
+                }
+            }
+            if (runStateName != null) {
+                TextButton(onClick = { onFilter(null, null) }) { Text(stringResource(R.string.kanban_all_runs)) }
+            }
         }
 
         if (runs.isEmpty()) {
@@ -857,6 +1006,9 @@ private fun TaskRunsTab(
                                 stringResource(R.string.kanban_run_summary, it),
                                 style = MaterialTheme.typography.bodySmall,
                             )
+                        }
+                        OutlinedButton(onClick = { onInspect(run.id) }) {
+                            Text(stringResource(R.string.kanban_inspect_run))
                         }
                     }
                 }
@@ -1058,31 +1210,107 @@ private fun MetaRow(
 private fun TaskFilesTab(
     attachments: List<com.m57.hermescontrol.data.model.KanbanAttachment>,
     isUploading: Boolean,
-    onUpload: (filename: String, mimeType: String, bytes: ByteArray) -> Unit,
+    isDeleting: Boolean,
+    board: String,
+    taskId: String,
+    viewModel: KanbanTaskViewModel,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val launcher =
-        rememberLauncherForActivityResult(
-            contract = ActivityResultContracts.GetContent(),
-        ) { uri: Uri? ->
-            if (uri != null) {
-                var filename = "attachment"
-                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                    if (nameIndex != -1 && cursor.moveToFirst()) {
-                        filename = cursor.getString(nameIndex) ?: "attachment"
+    val configuration = LocalConfiguration.current
+    val resources = remember(context, configuration) { context.createConfigurationContext(configuration).resources }
+    val scope = rememberCoroutineScope()
+    var attachmentToDelete by remember { mutableStateOf<KanbanAttachment?>(null) }
+    var attachmentToDownload by remember { mutableStateOf<KanbanAttachment?>(null) }
+    val downloadLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+            val selected = attachmentToDownload
+            attachmentToDownload = null
+            if (uri != null && selected != null) {
+                scope.launch {
+                    when (val result = viewModel.downloadAttachment(board, selected.id)) {
+                        is NetworkResult.Success -> {
+                            try {
+                                withContext(Dispatchers.IO) {
+                                    result.data.use { body ->
+                                        context.contentResolver.openOutputStream(uri)?.use { output ->
+                                            body.byteStream().use { input -> input.copyTo(output) }
+                                        } ?: error("Could not open the selected destination")
+                                    }
+                                }
+                                viewModel.showToast(resources.getString(R.string.kanban_attachment_saved))
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                viewModel.showToast(
+                                    resources.getString(R.string.kanban_attachment_error, e.message ?: "Unknown error"),
+                                )
+                            }
+                        }
+
+                        is NetworkResult.Failure -> {
+                            viewModel.showToast(result.error.message)
+                        }
                     }
-                }
-                val mimeType = context.contentResolver.getType(uri) ?: "application/octet-stream"
-                val bytes =
-                    context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                        ?: byteArrayOf()
-                if (bytes.isNotEmpty()) {
-                    onUpload(filename, mimeType, bytes)
                 }
             }
         }
+    val launcher =
+        rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+            if (uri != null) {
+                scope.launch {
+                    try {
+                        val part =
+                            withContext(Dispatchers.IO) {
+                                var filename = "attachment"
+                                var contentLength = -1L
+                                context.contentResolver
+                                    .query(
+                                        uri,
+                                        arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE),
+                                        null,
+                                        null,
+                                        null,
+                                    )?.use { c ->
+                                        if (c.moveToFirst()) {
+                                            c.getColumnIndex(OpenableColumns.DISPLAY_NAME).takeIf { it >= 0 }?.let {
+                                                filename = c.getString(it) ?: filename
+                                            }
+                                            c
+                                                .getColumnIndex(
+                                                    OpenableColumns.SIZE,
+                                                ).takeIf { it >= 0 && !c.isNull(it) }
+                                                ?.let {
+                                                    contentLength = c.getLong(it)
+                                                }
+                                        }
+                                    }
+                                val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
+                                val body =
+                                    StreamingUriRequestBody(
+                                        context.contentResolver,
+                                        uri,
+                                        mime.toMediaTypeOrNull(),
+                                        contentLength,
+                                    )
+                                MultipartBody.Part.createFormData("file", filename, body)
+                            }
+                        viewModel.uploadAttachment(board, taskId, part)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        viewModel.showToast(
+                            resources.getString(
+                                R.string.kanban_attachment_error,
+                                e.message ?: "Unknown error",
+                            ),
+                        )
+                    }
+                }
+            }
+        }
+
+    LaunchedEffect(board, taskId) { viewModel.refreshAttachments(board, taskId) }
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         Row(
@@ -1096,7 +1324,7 @@ private fun TaskFilesTab(
                 fontWeight = FontWeight.Bold,
             )
             Button(
-                onClick = { launcher.launch("*/*") },
+                onClick = { launcher.launch(arrayOf("*/*")) },
                 enabled = !isUploading,
             ) {
                 if (isUploading) {
@@ -1136,22 +1364,55 @@ private fun TaskFilesTab(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = att.filename.ifBlank { "File #${att.id}" },
+                                    att.filename.ifBlank {
+                                        "File #${att.id}"
+                                    },
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.SemiBold,
                                 )
                                 att.size?.let {
                                     Text(
-                                        text = "${it / 1024} KB",
+                                        "${it / 1024} KB",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
+                            }
+                            IconButton(onClick = {
+                                attachmentToDownload = att
+                                downloadLauncher.launch(att.filename)
+                            }) {
+                                Icon(
+                                    Icons.Filled.Download,
+                                    contentDescription = stringResource(R.string.kanban_download_attachment),
+                                )
+                            }
+                            IconButton(onClick = { attachmentToDelete = att }, enabled = !isDeleting) {
+                                Icon(
+                                    Icons.Filled.Delete,
+                                    contentDescription = stringResource(R.string.kanban_delete_attachment),
+                                )
                             }
                         }
                     }
                 }
             }
         }
+    }
+    attachmentToDelete?.let { attachment ->
+        AlertDialog(
+            onDismissRequest = { attachmentToDelete = null },
+            title = { Text(stringResource(R.string.kanban_delete_attachment)) },
+            text = { Text(stringResource(R.string.kanban_delete_attachment_confirm)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    attachmentToDelete = null
+                    viewModel.deleteAttachment(board, taskId, attachment.id)
+                }) { Text(stringResource(R.string.kanban_delete_attachment)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { attachmentToDelete = null }) { Text(stringResource(R.string.action_cancel)) }
+            },
+        )
     }
 }

@@ -165,6 +165,7 @@
 <string name="chat_input_placeholder_type_message">اكتب رسالة\u2026</string>
 <string name="chat_tool_execution_error">خطأ في التنفيذ: %1$s</string>
 <string name="chat_tool_exit_code">رمز الخروج: %1$d</string>
+<string name="chat_tool_output_omitted">تم حذف %1$d حرف من مخرجات العملية</string>
 <string name="chat_tool_fallback">أداة</string>
 <string name="chat_tool_show_raw">عرض ملف JSON الأولي</string>
 <string name="chat_tool_show_parsed">عرض المخرجات المعالجة</string>
@@ -941,6 +942,7 @@
 <string name="plugins_no_desc">لا يوجد وصف مقدم.</string>
 <string name="plugins_action_update">تحديث</string>
 <string name="plugins_action_uninstall">إلغاء التثبيت</string>
+<string name="plugins_action_enable">تفعيل</string>
 <string name="plugins_action_install">تثبيت</string>
 <string name="plugins_action_remove">إزالة</string>
 <string name="plugins_install_heading">تثبيت إضافة</string>
@@ -1493,6 +1495,33 @@
     <string name="session_integrations_close">إغلاق</string>
     <string name="session_integrations_menu_item">تكاملات الجلسة</string>
 
+    <!-- Kanban task detail -->
+    <string name="kanban_specify_task">تحديد المهمة</string>
+    <string name="kanban_specifying">جارٍ التحديد…</string>
+    <string name="kanban_specify_success">تم تحديد المهمة بنجاح</string>
+    <string name="kanban_specify_failed">تعذر تحديد المهمة: %1$s</string>
+    <string name="kanban_add_parent">إضافة مهمة أصل</string>
+    <string name="kanban_parent_id">معرّف المهمة الأصل</string>
+    <string name="kanban_link_gated">لا يمكن إنشاء الرابط قبل تحديد المهمة</string>
+    <string name="kanban_link_created">تم إنشاء رابط المهمة</string>
+    <string name="kanban_run_details">تفاصيل التشغيل</string>
+    <string name="kanban_inspect_run">فحص التشغيل</string>
+    <string name="kanban_terminate_run">إنهاء التشغيل</string>
+    <string name="kanban_terminate_run_confirm">هل تريد إنهاء هذا التشغيل؟</string>
+    <string name="kanban_run_terminated">تم إنهاء التشغيل</string>
+    <string name="kanban_run_inactive">التشغيل غير نشط</string>
+    <string name="kanban_run_inspection_unavailable">فحص التشغيل غير متاح</string>
+    <string name="kanban_run_state_filter">حالة التشغيل</string>
+    <string name="kanban_all_runs">كل عمليات التشغيل</string>
+    <string name="kanban_delete_attachment">حذف المرفق</string>
+    <string name="kanban_delete_attachment_confirm">هل تريد حذف هذا المرفق؟</string>
+    <string name="kanban_download_attachment">تنزيل المرفق</string>
+    <string name="kanban_attachment_saved">تم حفظ المرفق</string>
+    <string name="kanban_attachment_deleted">تم حذف المرفق</string>
+    <string name="kanban_attachment_error">خطأ في المرفق: %1$s</string>
+    <string name="kanban_active_workers">العاملون النشطون</string>
+    <string name="kanban_no_active_workers">لا يوجد عاملون نشطون</string>
+
     <!-- Media Player -->
     <string name="media_player_play">تشغيل</string>
     <string name="media_player_pause">إيقاف مؤقت</string>
@@ -1514,4 +1543,17 @@
     <string name="media_player_play_video">تشغيل الفيديو</string>
     <string name="chat_session_preparing">جارٍ تجهيز الجلسة…</string>
     <string name="chat_session_not_ready">الجلسة غير جاهزة — أعد المحاولة للمتابعة</string>
+    <string name="connection_setup_target_title">إعداد %1$s</string>
+    <string name="connection_setup_progress">%1$d من %2$d</string>
+    <string name="connection_setup_authorized_no_tools">تم التفويض، لكن الأدوات غير متاحة</string>
+    <string name="connection_setup_target_resolved">اكتملت خطوة الاتصال هذه</string>
+    <string name="connection_setup_tools_available">الأدوات المتاحة: %1$d</string>
+    <string name="connection_setup_unsupported">خطوة الإعداد هذه غير مدعومة في إصدار التطبيق الحالي.</string>
+    <string name="connection_setup_connect">اتصال</string>
+    <string name="connection_setup_skip">تخطي</string>
+    <string name="connection_setup_continue">متابعة</string>
+    <string name="connection_setup_open_browser">فتح في المتصفح</string>
+    <string name="connection_setup_required">%1$s مطلوب</string>
+    <string name="connection_setup_request_failed">تعذر إرسال رد الإعداد. حاول مرة أخرى.</string>
+    <string name="connection_setup_pending">بانتظار Hermes…</string>
 </resources>

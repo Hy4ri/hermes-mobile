@@ -7,6 +7,9 @@ import com.m57.hermescontrol.data.model.OrchestrationSettingsUpdate
 import com.m57.hermescontrol.data.model.ReassignTaskBody
 import com.m57.hermescontrol.data.model.ReclaimTaskBody
 import com.m57.hermescontrol.data.model.RenameBoardBody
+import com.m57.hermescontrol.data.model.SpecifyTaskBody
+import com.m57.hermescontrol.data.model.TaskLinkBody
+import com.m57.hermescontrol.data.model.TerminateRunBody
 import com.m57.hermescontrol.data.model.UpdateTaskBody
 import kotlinx.coroutines.runBlocking
 import okhttp3.MediaType.Companion.toMediaType
@@ -307,5 +310,156 @@ class KanbanApiServiceTest {
             val nudgeReq = mockServer.takeRequest()
             assertEquals("POST", nudgeReq.method)
             assertEquals("/api/plugins/kanban/dispatch?board=dev", nudgeReq.path)
+        }
+
+    @Test
+    fun testBoardAndTaskFiltersAreExplicitlyScoped() =
+        runBlocking {
+            mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{ "columns": [] }"""))
+
+            api.getBoard(
+                board = "dev",
+                includeArchived = false,
+                tenant = null,
+                workflowTemplateId = "release",
+                currentStepKey = "verify",
+            )
+
+            val boardRequest = mockServer.takeRequest()
+            assertEquals("GET", boardRequest.method)
+            assertTrue(boardRequest.path?.contains("board=dev") == true)
+            assertTrue(boardRequest.path?.contains("workflow_template_id=release") == true)
+            assertTrue(boardRequest.path?.contains("current_step_key=verify") == true)
+
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody("""{ "task": { "id": "t_1", "title": "Task", "status": "done" } }"""),
+            )
+
+            api.getTask(
+                taskId = "t_1",
+                board = "dev",
+                runStateType = "outcome",
+                runStateName = "completed",
+            )
+
+            val taskRequest = mockServer.takeRequest()
+            assertEquals("GET", taskRequest.method)
+            assertTrue(taskRequest.path?.contains("board=dev") == true)
+            assertTrue(taskRequest.path?.contains("run_state_type=outcome") == true)
+            assertTrue(taskRequest.path?.contains("run_state_name=completed") == true)
+        }
+
+    @Test
+    fun testAttachmentListAndDeleteAreBoardScoped() =
+        runBlocking {
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody("""{ "attachments": [{ "id": 9, "filename": "proof.txt" }] }"""),
+            )
+
+            val listed = api.listAttachments(taskId = "t_1", board = "dev")
+            assertEquals(
+                "proof.txt",
+                listed
+                    .body()
+                    ?.attachments
+                    ?.single()
+                    ?.filename,
+            )
+            assertEquals("/api/plugins/kanban/tasks/t_1/attachments?board=dev", mockServer.takeRequest().path)
+
+            mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{ "ok": true, "id": 9 }"""))
+            val deleted = api.deleteAttachment(attachmentId = 9L, board = "dev")
+            assertTrue(deleted.body()?.ok == true)
+            val request = mockServer.takeRequest()
+            assertEquals("DELETE", request.method)
+            assertEquals("/api/plugins/kanban/attachments/9?board=dev", request.path)
+        }
+
+    @Test
+    fun testWorkerRunAndSpecificationOperationsAreBoardScoped() =
+        runBlocking {
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody(
+                        """{ "workers": [{ "run_id": 7, "task_id": "t_1", "task_title": "Task", "task_status": "running", "worker_pid": 42 }], "count": 1, "checked_at": 123 }""",
+                    ),
+            )
+            val workers = api.getActiveWorkers(board = "dev")
+            assertEquals(
+                7L,
+                workers
+                    .body()
+                    ?.workers
+                    ?.single()
+                    ?.runId,
+            )
+            assertEquals("/api/plugins/kanban/workers/active?board=dev", mockServer.takeRequest().path)
+
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody("""{ "run": { "id": 7, "task_id": "t_1", "status": "running", "started_at": 100 } }"""),
+            )
+            val run = api.getRun(runId = 7L, board = "dev")
+            assertEquals("t_1", run.body()?.run?.taskId)
+            assertEquals("/api/plugins/kanban/runs/7?board=dev", mockServer.takeRequest().path)
+
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody("""{ "run_id": 7, "alive": true, "pid": 42, "cpu_percent": 1.5 }"""),
+            )
+            val inspection = api.inspectRun(runId = 7L, board = "dev")
+            assertTrue(inspection.body()?.alive == true)
+            assertEquals("/api/plugins/kanban/runs/7/inspect?board=dev", mockServer.takeRequest().path)
+
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody("""{ "ok": true, "run_id": 7, "task_id": "t_1" }"""),
+            )
+            val terminated =
+                api.terminateRun(
+                    runId = 7L,
+                    board = "dev",
+                    body = TerminateRunBody(reason = "Operator requested stop"),
+                )
+            assertTrue(terminated.body()?.ok == true)
+            val terminateRequest = mockServer.takeRequest()
+            assertEquals("POST", terminateRequest.method)
+            assertEquals("/api/plugins/kanban/runs/7/terminate?board=dev", terminateRequest.path)
+            assertTrue(terminateRequest.body.readUtf8().contains("Operator requested stop"))
+
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody("""{ "ok": true, "task_id": "t_1", "new_title": "Specified task" }"""),
+            )
+            val specified = api.specifyTask("t_1", "dev", SpecifyTaskBody(author = "mobile"))
+            assertEquals("Specified task", specified.body()?.newTitle)
+            assertEquals("/api/plugins/kanban/tasks/t_1/specify?board=dev", mockServer.takeRequest().path)
+        }
+
+    @Test
+    fun testTaskLinkConsumesGatingResult() =
+        runBlocking {
+            mockServer.enqueue(MockResponse().setResponseCode(200).setBody("""{ "ok": true, "gated": true }"""))
+
+            val response =
+                api.createTaskLink(
+                    board = "dev",
+                    body = TaskLinkBody(parentId = "parent", childId = "child"),
+                )
+
+            assertTrue(response.body()?.ok == true)
+            assertTrue(response.body()?.gated == true)
+            val request = mockServer.takeRequest()
+            assertEquals("POST", request.method)
+            assertEquals("/api/plugins/kanban/links?board=dev", request.path)
         }
 }

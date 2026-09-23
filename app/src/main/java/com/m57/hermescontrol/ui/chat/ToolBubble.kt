@@ -75,7 +75,9 @@ import com.m57.hermescontrol.theme.CodeTerminalMuted
 import com.m57.hermescontrol.theme.CodeTerminalText
 import com.m57.hermescontrol.theme.HermesStatusColors
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
+import com.m57.hermescontrol.ui.chat.components.CodeTerminalCard
 import com.m57.hermescontrol.ui.chat.components.DiffViewCard
+import com.m57.hermescontrol.ui.chat.components.FileViewCard
 import com.m57.hermescontrol.ui.chat.components.highlightSyntax
 import com.m57.hermescontrol.ui.chat.tool.ToolJson
 import com.m57.hermescontrol.ui.chat.tool.ToolView
@@ -423,6 +425,11 @@ private fun ExpandedToolContent(
                     diffText = view.inlineDiff,
                     filePath = view.diffPath,
                 )
+            } else if (view.fileContent != null) {
+                FileViewCard(
+                    content = view.fileContent,
+                    filePath = view.filePath,
+                )
             }
 
             // ── Search hits ──
@@ -478,7 +485,7 @@ private fun ExpandedToolContent(
             }
 
             // ── Plain detail body ──
-            if (view.detail.isNotBlank() && view.inlineDiff == null) {
+            if (view.detail.isNotBlank() && view.inlineDiff == null && view.fileContent == null) {
                 Text(
                     text = view.detail,
                     modifier =
@@ -493,6 +500,13 @@ private fun ExpandedToolContent(
                         ),
                 )
             }
+        }
+
+        view.outputCut?.let { omitted ->
+            Text(
+                text = stringResource(R.string.chat_tool_output_omitted, omitted),
+                style = MaterialTheme.typography.labelSmall.copy(color = statusColors.warning),
+            )
         }
 
         // ── Duration footer ──
@@ -629,99 +643,49 @@ private fun ToolRawJsonView(
             }
     }
 
-    val clipboard = LocalClipboard.current
-    val scope = rememberCoroutineScope()
-    var copied by remember { mutableStateOf(false) }
-    LaunchedEffect(copied) {
-        if (copied) {
-            delay(2000)
-            copied = false
-        }
-    }
-
-    Surface(
-        modifier =
-            modifier
-                .fillMaxWidth()
-                .testTag("tool_raw_json"),
-        shape = RoundedCornerShape(8.dp),
-        color = CodeTerminalBg,
-        border = BorderStroke(1.dp, CodeTerminalBorder),
+    CodeTerminalCard(
+        textToCopy = displayText,
+        modifier = modifier,
+        testTag = "tool_raw_json",
+        title = "JSON",
+        copyContentDescription = stringResource(R.string.content_desc_copy),
+        headerActions = {
+            if (isFormatDifferent) {
+                Text(
+                    text =
+                        if (formatJson) {
+                            stringResource(R.string.chat_tool_compact_json)
+                        } else {
+                            stringResource(R.string.chat_tool_format_json)
+                        },
+                    style =
+                        MaterialTheme.typography.labelSmall.copy(
+                            color = MaterialTheme.colorScheme.primary,
+                            textDecoration = TextDecoration.Underline,
+                        ),
+                    modifier =
+                        Modifier
+                            .testTag("tool_json_format_toggle")
+                            .clickable(role = Role.Button) { formatJson = !formatJson }
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                )
+            }
+        },
     ) {
-        Column {
-            Row(
+        SelectionContainer {
+            Text(
+                text = highlighted,
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "JSON",
-                    style =
-                        MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = CodeTerminalMuted,
-                        ),
-                )
-                Spacer(Modifier.weight(1f))
-                if (isFormatDifferent) {
-                    Text(
-                        text =
-                            if (formatJson) {
-                                stringResource(R.string.chat_tool_compact_json)
-                            } else {
-                                stringResource(R.string.chat_tool_format_json)
-                            },
-                        style =
-                            MaterialTheme.typography.labelSmall.copy(
-                                color = MaterialTheme.colorScheme.primary,
-                                textDecoration = TextDecoration.Underline,
-                            ),
-                        modifier =
-                            Modifier
-                                .testTag("tool_json_format_toggle")
-                                .clickable(role = Role.Button) { formatJson = !formatJson }
-                                .padding(horizontal = 6.dp, vertical = 2.dp),
-                    )
-                }
-                IconButton(
-                    onClick = {
-                        scope.launch {
-                            clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, displayText)))
-                        }
-                        copied = true
-                    },
-                    modifier = Modifier.size(28.dp),
-                ) {
-                    Icon(
-                        imageVector = if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
-                        contentDescription =
-                            if (copied) {
-                                stringResource(R.string.content_desc_copied)
-                            } else {
-                                stringResource(R.string.content_desc_copy)
-                            },
-                        tint = CodeTerminalMuted,
-                        modifier = Modifier.size(14.dp),
-                    )
-                }
-            }
-            SelectionContainer {
-                Text(
-                    text = highlighted,
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 280.dp)
-                            .verticalScroll(rememberScrollState())
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 12.sp,
-                    color = CodeTerminalText,
-                    softWrap = true,
-                )
-            }
+                        .heightIn(max = 280.dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp,
+                color = CodeTerminalText,
+                softWrap = true,
+            )
         }
     }
 }

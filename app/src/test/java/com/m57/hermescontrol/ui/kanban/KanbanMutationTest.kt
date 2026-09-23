@@ -161,6 +161,16 @@ class KanbanMutationTest {
 
             // Complete network call
             deferred.complete(NetworkResult.Success(UpdateTaskResponse(task = task.copy(status = "ready"))))
+            coEvery { mockRepository.getBoard("dev") } returns
+                NetworkResult.Success(
+                    KanbanBoardResponse(
+                        columns =
+                            listOf(
+                                KanbanColumn("todo", emptyList()),
+                                KanbanColumn("ready", listOf(task.copy(status = "ready"))),
+                            ),
+                    ),
+                )
             testDispatcher.scheduler.advanceUntilIdle()
 
             assertFalse(
@@ -510,7 +520,7 @@ class KanbanMutationTest {
             testDispatcher.scheduler.advanceUntilIdle()
 
             var reportedFailed: Set<String>? = null
-            vm.bulkMove(listOf("t_1", "t_2"), "done") { failed ->
+            vm.bulkMove(listOf("t_1", "t_2"), "done", summary = "Finished selected tasks") { failed ->
                 reportedFailed = failed
             }
             testDispatcher.scheduler.advanceUntilIdle()
@@ -565,16 +575,43 @@ class KanbanMutationTest {
             vm.selectBoard(board)
             testDispatcher.scheduler.advanceUntilIdle()
 
-            vm.bulkMove(listOf("t_1", "t_2"), "done")
+            vm.bulkMove(listOf("t_1", "t_2"), "done", summary = "Finished selected tasks")
             testDispatcher.scheduler.advanceUntilIdle()
 
             coVerify {
                 mockRepository.bulkTasks(
                     "dev",
-                    match { it.ids == listOf("t_1", "t_2") && it.status == "done" },
+                    match {
+                        it.ids == listOf("t_1", "t_2") &&
+                            it.status == "done" &&
+                            it.summary == "Finished selected tasks" &&
+                            it.result == "Finished selected tasks"
+                    },
                 )
             }
             assertEquals("Moved 2 tasks to done", vm.uiState.value.toastMessage)
+        }
+
+    @Test
+    fun testBulkMoveToDoneRejectsEmptyCompletionEvidence() =
+        runTest(testDispatcher) {
+            val board = KanbanBoard(id = "dev", name = "Dev")
+            coEvery { mockRepository.getBoard("dev") } returns
+                NetworkResult.Success(KanbanBoardResponse(columns = listOf(KanbanColumn("done", emptyList()))))
+
+            val vm = createViewModel()
+            vm.selectBoard(board)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            var reportedFailed: Set<String>? = null
+            vm.bulkMove(listOf("t_1", "t_2"), "done", summary = "   ") { failed ->
+                reportedFailed = failed
+            }
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            coVerify(exactly = 0) { mockRepository.bulkTasks(any(), any()) }
+            assertEquals(setOf("t_1", "t_2"), reportedFailed)
+            assertEquals("Completion summary is required", vm.uiState.value.toastMessage)
         }
 
     @Test

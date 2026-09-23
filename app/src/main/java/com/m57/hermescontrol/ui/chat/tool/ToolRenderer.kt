@@ -41,6 +41,8 @@ internal interface ToolRenderer {
  */
 internal data class ToolViewExtras(
     val detailLabel: String? = null,
+    /** Process output characters omitted by the backend. */
+    val outputCut: Long? = null,
     val stdout: String? = null,
     val stderr: String? = null,
     val exitCode: Int? = null,
@@ -48,6 +50,8 @@ internal data class ToolViewExtras(
     val inlineDiff: String? = null,
     val diffPath: String? = null,
     val diffStats: DiffStats? = null,
+    val fileContent: String? = null,
+    val filePath: String? = null,
     val searchHits: List<SearchHit>? = null,
     val searchQuery: String? = null,
 ) {

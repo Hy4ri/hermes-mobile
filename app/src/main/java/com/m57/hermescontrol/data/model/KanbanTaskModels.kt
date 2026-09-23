@@ -49,6 +49,18 @@ data class TaskLinks(
 )
 
 @Serializable
+data class TaskLinkBody(
+    val parentId: String,
+    val childId: String,
+)
+
+@Serializable
+data class TaskLinkResponse(
+    val ok: Boolean,
+    val gated: Boolean = false,
+)
+
+@Serializable
 data class ChildTaskResult(
     val id: String,
     val title: String,
@@ -75,6 +87,9 @@ data class KanbanTask(
     val startedAt: Long? = null,
     val workerPid: Int? = null,
     val lastHeartbeatAt: Long? = null,
+    val currentRunId: Long? = null,
+    val workflowTemplateId: String? = null,
+    val currentStepKey: String? = null,
 ) {
     val description: String? get() = body
     val assignedTo: String? get() = assignee
@@ -112,6 +127,10 @@ data class KanbanTaskFull(
     val startedAt: Long? = null,
     val workerPid: Int? = null,
     val lastHeartbeatAt: Long? = null,
+    val currentRunId: Long? = null,
+    val workflowTemplateId: String? = null,
+    val currentStepKey: String? = null,
+    val maxRuntimeSeconds: Int? = null,
     val result: String? = null,
     val createdBy: String? = null,
     val modelOverride: String? = null,
@@ -243,6 +262,19 @@ data class ReclaimTaskBody(
 data class ReclaimTaskResponse(
     val ok: Boolean = true,
     val taskId: String,
+)
+
+@Serializable
+data class SpecifyTaskBody(
+    val author: String? = null,
+)
+
+@Serializable
+data class SpecifyTaskResponse(
+    val ok: Boolean,
+    val taskId: String,
+    val reason: String? = null,
+    val newTitle: String? = null,
 )
 
 @Serializable

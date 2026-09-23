@@ -118,21 +118,91 @@ internal object SkillManageRenderer : ToolRenderer {
 /** `tool_search`: on-demand tool discovery matches. */
 internal object ToolSearchRenderer : ToolRenderer {
     override fun subtitle(call: ToolCall): String {
-        val query = ToolJson.firstString(call.args, listOf("query"))
-        val matches = (call.result?.get("matches") as? JsonArray)?.size
+        val query =
+            ToolJson
+                .firstString(call.args, listOf("query"))
+                .ifEmpty { (call.args?.get("queries") as? JsonArray)?.joinToString(", ") { text(it) } ?: "" }
+        val matches =
+            (call.result?.get("results") as? JsonArray)?.sumOf { row ->
+                (ToolJson.parseMaybeObject(row)?.get("matches") as? JsonArray)?.size ?: 0
+            } ?: (call.result?.get("matches") as? JsonArray)?.size
 
-        return if (matches != null) "$query ($matches matches)" else query
+        return if (matches != null) "$query ($matches ${if (matches == 1) "match" else "matches"})" else query
+    }
+
+    override fun detail(call: ToolCall): String {
+        val tools = call.result?.get("tools") as? JsonObject
+        val matches =
+            (call.result?.get("results") as? JsonArray)
+                ?.flatMap { row -> (ToolJson.parseMaybeObject(row)?.get("matches") as? JsonArray).orEmpty() }
+                ?: (call.result?.get("matches") as? JsonArray).orEmpty()
+        return matches
+            .mapNotNull { match ->
+                val item = ToolJson.parseMaybeObject(match)
+                val name = item?.let { ToolJson.firstString(it, listOf("name")) } ?: text(match)
+                if (name.isEmpty()) return@mapNotNull null
+                val metadata = tools?.get(name) as? JsonObject
+                val desc =
+                    ToolJson
+                        .firstString(metadata, listOf("description"))
+                        .ifEmpty { ToolJson.firstString(item, listOf("description")) }
+                val source = ToolJson.firstString(metadata, listOf("source_name"))
+                val required = (metadata?.get("required") as? JsonArray)?.joinToString(", ") { text(it) }.orEmpty()
+                buildString {
+                    append("🔧 $name")
+                    if (source.isNotEmpty()) append(" · $source")
+                    if (desc.isNotEmpty()) append("\n     $desc")
+                    if (required.isNotEmpty()) append("\n     Required: $required")
+                }
+            }.distinct()
+            .joinToString("\n\n")
+            .ifEmpty { "No matching tools" }
+    }
+}
+
+/** `tool_describe`: readable schema summaries instead of a collapsed JSON object. */
+internal object ToolDescribeRenderer : ToolRenderer {
+    override fun subtitle(call: ToolCall): String {
+        val names = (call.args?.get("names") as? JsonArray)?.joinToString(", ") { text(it) }.orEmpty()
+        val count = (call.result?.get("tools") as? JsonObject)?.size
+        return if (count != null) "$names ($count ${if (count == 1) "tool" else "tools"})" else names
     }
 
     override fun detail(call: ToolCall): String =
-        (call.result?.get("matches") as? JsonArray)
-            ?.mapNotNull { el ->
-                val m = ToolJson.parseMaybeObject(el) ?: return@mapNotNull null
-                val name = ToolJson.firstString(m, listOf("name"))
-                val desc = ToolJson.firstString(m, listOf("description"))
-                val lines = mutableListOf("🔧 $name")
-                if (desc.isNotEmpty()) lines += "     $desc"
-                lines.joinToString("\n")
-            }?.joinToString("\n\n")
-            ?: "No matching tools"
+        (call.result?.get("tools") as? JsonObject)
+            ?.entries
+            ?.joinToString("\n\n") { (name, value) ->
+                val tool = ToolJson.parseMaybeObject(value)
+                val desc = ToolJson.firstString(tool, listOf("description"))
+                val schema = tool?.get("parameters") as? JsonObject
+                val properties = schema?.get("properties") as? JsonObject
+                val required = (schema?.get("required") as? JsonArray)?.map(::text).orEmpty().toSet()
+                buildString {
+                    append("🔧 $name")
+                    if (desc.isNotEmpty()) append("\n     $desc")
+                    if (!properties.isNullOrEmpty()) {
+                        append("\n     Parameters: ")
+                        append(
+                            properties.entries.joinToString("; ") { (paramName, value) ->
+                                val param = ToolJson.parseMaybeObject(value)
+                                val type = ToolJson.firstString(param, listOf("type"))
+                                val help = ToolJson.firstString(param, listOf("description"))
+                                val default = param?.get("default")
+                                buildString {
+                                    append(paramName)
+                                    if (type.isNotEmpty()) append(" ($type)")
+                                    if (paramName in required) append(" *")
+                                    if (help.isNotEmpty()) append(" — $help")
+                                    if (default != null) append(" [default: ${text(default)}]")
+                                }
+                            },
+                        )
+                    } else if (required.isNotEmpty()) {
+                        append("\n     Required: ${required.joinToString(", ")}")
+                    }
+                }
+            }?.ifEmpty { "No tool descriptions returned" } ?: "No tool descriptions returned"
 }
+
+private fun text(value: kotlinx.serialization.json.JsonElement): String =
+    (value as? JsonPrimitive)?.content ?: value.toString()

@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.data.remote
 
+import com.m57.hermescontrol.data.model.ActiveWorkersResponse
+import com.m57.hermescontrol.data.model.AttachmentListResponse
 import com.m57.hermescontrol.data.model.AttachmentUploadResponse
 import com.m57.hermescontrol.data.model.AutoDescribeResponse
 import com.m57.hermescontrol.data.model.BoardExportResult
@@ -10,6 +12,7 @@ import com.m57.hermescontrol.data.model.CreateBoardBody
 import com.m57.hermescontrol.data.model.CreateBoardResponse
 import com.m57.hermescontrol.data.model.CreateTaskBody
 import com.m57.hermescontrol.data.model.CreateTaskResponse
+import com.m57.hermescontrol.data.model.DeleteAttachmentResponse
 import com.m57.hermescontrol.data.model.DeleteBoardResponse
 import com.m57.hermescontrol.data.model.DispatchResult
 import com.m57.hermescontrol.data.model.ExportBoardBody
@@ -18,6 +21,8 @@ import com.m57.hermescontrol.data.model.KanbanBoardResponse
 import com.m57.hermescontrol.data.model.KanbanBoardsResponse
 import com.m57.hermescontrol.data.model.KanbanProfilesResponse
 import com.m57.hermescontrol.data.model.KanbanProjectsResponse
+import com.m57.hermescontrol.data.model.KanbanRunInspection
+import com.m57.hermescontrol.data.model.KanbanRunResponse
 import com.m57.hermescontrol.data.model.KanbanTaskDetailResponse
 import com.m57.hermescontrol.data.model.OrchestrationSettings
 import com.m57.hermescontrol.data.model.OrchestrationSettingsUpdate
@@ -27,7 +32,13 @@ import com.m57.hermescontrol.data.model.ReclaimTaskBody
 import com.m57.hermescontrol.data.model.ReclaimTaskResponse
 import com.m57.hermescontrol.data.model.RenameBoardBody
 import com.m57.hermescontrol.data.model.RenameBoardResponse
+import com.m57.hermescontrol.data.model.SpecifyTaskBody
+import com.m57.hermescontrol.data.model.SpecifyTaskResponse
 import com.m57.hermescontrol.data.model.TaskEstimate
+import com.m57.hermescontrol.data.model.TaskLinkBody
+import com.m57.hermescontrol.data.model.TaskLinkResponse
+import com.m57.hermescontrol.data.model.TerminateRunBody
+import com.m57.hermescontrol.data.model.TerminateRunResponse
 import com.m57.hermescontrol.data.model.UpdateTaskBody
 import com.m57.hermescontrol.data.model.UpdateTaskResponse
 import com.m57.hermescontrol.data.model.WorkerLog
@@ -57,6 +68,8 @@ interface KanbanApiService {
         @Query("board") board: String? = null,
         @Query("include_archived") includeArchived: Boolean = false,
         @Query("tenant") tenant: String? = null,
+        @Query("workflow_template_id") workflowTemplateId: String? = null,
+        @Query("current_step_key") currentStepKey: String? = null,
     ): Response<KanbanBoardResponse>
 
     @POST("api/plugins/kanban/boards")
@@ -96,6 +109,8 @@ interface KanbanApiService {
     suspend fun getTask(
         @Path("id") taskId: String,
         @Query("board") board: String? = null,
+        @Query("run_state_type") runStateType: String? = null,
+        @Query("run_state_name") runStateName: String? = null,
     ): Response<KanbanTaskDetailResponse>
 
     @POST("api/plugins/kanban/tasks")
@@ -170,12 +185,61 @@ interface KanbanApiService {
         @Part file: MultipartBody.Part,
     ): Response<AttachmentUploadResponse>
 
+    @GET("api/plugins/kanban/tasks/{id}/attachments")
+    suspend fun listAttachments(
+        @Path("id") taskId: String,
+        @Query("board") board: String? = null,
+    ): Response<AttachmentListResponse>
+
     @Streaming
     @GET("api/plugins/kanban/attachments/{id}")
     suspend fun downloadAttachment(
         @Path("id") attachmentId: Long,
         @Query("board") board: String? = null,
     ): Response<ResponseBody>
+
+    @DELETE("api/plugins/kanban/attachments/{id}")
+    suspend fun deleteAttachment(
+        @Path("id") attachmentId: Long,
+        @Query("board") board: String? = null,
+    ): Response<DeleteAttachmentResponse>
+
+    @GET("api/plugins/kanban/workers/active")
+    suspend fun getActiveWorkers(
+        @Query("board") board: String? = null,
+    ): Response<ActiveWorkersResponse>
+
+    @GET("api/plugins/kanban/runs/{id}")
+    suspend fun getRun(
+        @Path("id") runId: Long,
+        @Query("board") board: String? = null,
+    ): Response<KanbanRunResponse>
+
+    @GET("api/plugins/kanban/runs/{id}/inspect")
+    suspend fun inspectRun(
+        @Path("id") runId: Long,
+        @Query("board") board: String? = null,
+    ): Response<KanbanRunInspection>
+
+    @POST("api/plugins/kanban/runs/{id}/terminate")
+    suspend fun terminateRun(
+        @Path("id") runId: Long,
+        @Query("board") board: String? = null,
+        @Body body: TerminateRunBody = TerminateRunBody(),
+    ): Response<TerminateRunResponse>
+
+    @POST("api/plugins/kanban/tasks/{id}/specify")
+    suspend fun specifyTask(
+        @Path("id") taskId: String,
+        @Query("board") board: String? = null,
+        @Body body: SpecifyTaskBody = SpecifyTaskBody(),
+    ): Response<SpecifyTaskResponse>
+
+    @POST("api/plugins/kanban/links")
+    suspend fun createTaskLink(
+        @Query("board") board: String? = null,
+        @Body body: TaskLinkBody,
+    ): Response<TaskLinkResponse>
 
     @GET("api/plugins/kanban/profiles")
     suspend fun getKanbanProfiles(): Response<KanbanProfilesResponse>

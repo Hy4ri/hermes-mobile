@@ -12,6 +12,7 @@ import com.m57.hermescontrol.data.model.CreateBoardBody
 import com.m57.hermescontrol.data.model.CreateTaskBody
 import com.m57.hermescontrol.data.model.ExportBoardBody
 import com.m57.hermescontrol.data.model.ImportBoardBody
+import com.m57.hermescontrol.data.model.KanbanActiveWorker
 import com.m57.hermescontrol.data.model.KanbanBoard
 import com.m57.hermescontrol.data.model.KanbanBoardResponse
 import com.m57.hermescontrol.data.model.KanbanColumn
@@ -26,6 +27,7 @@ import com.m57.hermescontrol.data.model.RenameBoardBody
 import com.m57.hermescontrol.data.model.TaskEstimate
 import com.m57.hermescontrol.data.model.UpdateTaskBody
 import com.m57.hermescontrol.data.remote.ApiClient
+import com.m57.hermescontrol.data.remote.NetworkError
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.repository.KanbanRepository
@@ -64,7 +66,21 @@ data class KanbanUiState(
     val columnCollapseOverrides: Map<String, Boolean> = emptyMap(),
     val errorMessage: String? = null,
     val toastMessage: String? = null,
+    val selectedWorkflowTemplateId: String? = null,
+    val selectedCurrentStepKey: String? = null,
+    val activeWorkers: List<KanbanActiveWorker> = emptyList(),
+    val isLoadingWorkers: Boolean = false,
 )
+
+fun filterKanbanTasks(
+    tasks: List<KanbanTask>,
+    workflowTemplateId: String?,
+    currentStepKey: String?,
+): List<KanbanTask> =
+    tasks.filter { task ->
+        (workflowTemplateId == null || task.workflowTemplateId.equals(workflowTemplateId, ignoreCase = true)) &&
+            (currentStepKey == null || task.currentStepKey.equals(currentStepKey, ignoreCase = true))
+    }
 
 /**
  * Task actions mirroring the desktop kanban's transition-gated buttons.
@@ -250,7 +266,15 @@ class KanbanViewModel(
         preferences.setSelectedBoard(endpoint, board.id)
 
         val gen = ++currentLoadGen
-        _uiState.update { it.copy(selectedBoard = board, isLoading = true, errorMessage = null) }
+        _uiState.update {
+            it.copy(
+                selectedBoard = board,
+                isLoading = true,
+                errorMessage = null,
+                activeWorkers = emptyList(),
+                isLoadingWorkers = false,
+            )
+        }
         viewModelScope.launch {
             loadBoardIntoState(board, gen)
             connectEvents(board)
@@ -270,6 +294,54 @@ class KanbanViewModel(
     fun setGroupRunning(group: Boolean) {
         preferences.setGroupRunning(group)
         _uiState.update { it.copy(groupRunning = group) }
+    }
+
+    fun setWorkflowFilters(
+        workflowTemplateId: String?,
+        currentStepKey: String?,
+    ) {
+        _uiState.update {
+            it.copy(
+                selectedWorkflowTemplateId = workflowTemplateId,
+                selectedCurrentStepKey = currentStepKey,
+            )
+        }
+        _uiState.value.selectedBoard?.let { board ->
+            val gen = ++currentLoadGen
+            viewModelScope.launch { loadBoardIntoState(board, gen) }
+        }
+    }
+
+    fun loadActiveWorkers() {
+        val board = _uiState.value.selectedBoard ?: return
+        _uiState.update { it.copy(isLoadingWorkers = true) }
+        viewModelScope.launch {
+            when (val result = repository.getActiveWorkers(board.id)) {
+                is NetworkResult.Success -> {
+                    _uiState.update {
+                        if (it.selectedBoard?.id == board.id) {
+                            it.copy(activeWorkers = result.data.workers, isLoadingWorkers = false)
+                        } else {
+                            it
+                        }
+                    }
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        if (it.selectedBoard?.id == board.id) {
+                            it.copy(
+                                isLoadingWorkers = false,
+                                activeWorkers = emptyList(),
+                                toastMessage = "Failed to load active workers: ${result.error.message}",
+                            )
+                        } else {
+                            it
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fun toggleColumnCollapse(
@@ -618,12 +690,26 @@ class KanbanViewModel(
     fun bulkMove(
         taskIds: List<String>,
         targetStatus: String,
+        summary: String? = null,
         onComplete: ((failedIds: Set<String>) -> Unit)? = null,
     ) {
         val board = _uiState.value.selectedBoard ?: return
+        val completionSummary = summary?.trim()?.takeIf { it.isNotEmpty() }
+        if (targetStatus.equals("done", ignoreCase = true) && completionSummary == null) {
+            _uiState.update { it.copy(toastMessage = "Completion summary is required") }
+            onComplete?.invoke(taskIds.toSet())
+            return
+        }
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
-            when (val res = repository.bulkTasks(board.id, BulkTasksBody(ids = taskIds, status = targetStatus))) {
+            val body =
+                BulkTasksBody(
+                    ids = taskIds,
+                    status = targetStatus,
+                    summary = completionSummary,
+                    result = completionSummary,
+                )
+            when (val res = repository.bulkTasks(board.id, body)) {
                 is NetworkResult.Success -> {
                     val results = res.data.results
                     val succeeded = results.filter { it.ok }.map { it.id }.toSet()
@@ -846,10 +932,22 @@ class KanbanViewModel(
                             operatingTaskIds = state.operatingTaskIds - task.id,
                         )
                     }
+                    reloadBoardSilently()
                 }
 
                 is NetworkResult.Failure -> {
-                    revertTaskMove(task.id, originalStatus, "Move failed: ${result.error.message}")
+                    val refusal =
+                        (result.error as? NetworkError.Http)
+                            ?.takeIf { it.code == 409 }
+                            ?.let { kanbanTransitionRefusal(it.message) }
+                    val message =
+                        if (refusal != null) {
+                            "Move blocked by parents ${refusal.blockingParentIds.joinToString()} " +
+                                "(${refusal.blockingParentStatuses.joinToString()}): ${result.error.message}"
+                        } else {
+                            "Move failed: ${result.error.message}"
+                        }
+                    revertTaskMove(task.id, originalStatus, message)
                 }
             }
         }
@@ -931,6 +1029,8 @@ class KanbanViewModel(
                 repository.getBoard(
                     board = board.id,
                     includeArchived = _uiState.value.includeArchived,
+                    workflowTemplateId = _uiState.value.selectedWorkflowTemplateId,
+                    currentStepKey = _uiState.value.selectedCurrentStepKey,
                 )
             if (gen != currentLoadGen) return@launch
             if (result is NetworkResult.Success) {
@@ -996,6 +1096,8 @@ class KanbanViewModel(
             repository.getBoard(
                 board = board.id,
                 includeArchived = _uiState.value.includeArchived,
+                workflowTemplateId = _uiState.value.selectedWorkflowTemplateId,
+                currentStepKey = _uiState.value.selectedCurrentStepKey,
             )
         applyBoardResult(board, result, gen)
     }

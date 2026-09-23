@@ -376,6 +376,12 @@ class SettingsViewModel(
         AuthManager.setKeepConnectedInBackground(enabled)
     }
 
+    /** Reconcile the chat shortcut with changes made through Settings or another screen. */
+    fun refreshKeepConnectedInBackground() {
+        val enabled = AuthManager.isKeepConnectedInBackground()
+        _uiState.update { it.copy(keepConnectedInBackground = enabled) }
+    }
+
     /** Clear all auth credentials — logs out and returns to landing screen. */
     fun logout() {
         AuthManager.setToken(null)

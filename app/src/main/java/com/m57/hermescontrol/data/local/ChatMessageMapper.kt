@@ -38,6 +38,8 @@ fun ChatMessageEntity.toUiModel(): ChatMessage =
         tokenCount = tokenCount,
         tps = tps,
         completionId = completionId,
+        restId = restId,
+        localOrder = sortOrder.takeIf { sortGroup == 1 && it > 0 },
     )
 
 fun ChatMessage.toEntity(sessionId: String): ChatMessageEntity =
@@ -56,4 +58,5 @@ fun ChatMessage.toEntity(sessionId: String): ChatMessageEntity =
         tokenCount = tokenCount,
         tps = tps,
         completionId = completionId,
+        restId = restId,
     )

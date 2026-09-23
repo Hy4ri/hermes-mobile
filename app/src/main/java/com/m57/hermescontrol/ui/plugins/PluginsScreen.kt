@@ -486,7 +486,7 @@ private fun InstallSection(
 }
 
 @Composable
-private fun PluginCard(
+internal fun PluginCard(
     plugin: PluginInfo,
     state: PluginsUiState,
     viewModel: PluginsViewModel,
@@ -542,12 +542,7 @@ private fun PluginCard(
 
             // Status badges
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                val statusColor =
-                    when {
-                        plugin.enabled -> statusColors.success
-                        plugin.installed -> statusColors.warning
-                        else -> statusColors.error
-                    }
+                val statusColor = if (plugin.enabled) statusColors.success else statusColors.warning
                 Text(
                     text = plugin.runtimeStatus ?: "inactive",
                     style = MaterialTheme.typography.labelSmall,
@@ -591,64 +586,63 @@ private fun PluginCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
             ) {
-                if (plugin.installed) {
-                    // Visibility toggle (only for plugins with dashboard manifest)
-                    if (plugin.hasDashboardManifest) {
-                        IconButton(
-                            onClick = { viewModel.togglePluginVisibility(plugin) },
-                            enabled = !busy,
-                            modifier = Modifier.size(32.dp),
-                        ) {
-                            Icon(
-                                if (plugin.userHidden) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                contentDescription =
-                                    if (plugin.userHidden) {
-                                        stringResource(R.string.plugins_show_in_sidebar)
-                                    } else {
-                                        stringResource(R.string.plugins_hide_from_sidebar)
-                                    },
-                                modifier = Modifier.size(18.dp),
-                            )
-                        }
+                // Visibility toggle (only for active plugins with dashboard manifests)
+                if (plugin.installed && plugin.hasDashboardManifest) {
+                    IconButton(
+                        onClick = { viewModel.togglePluginVisibility(plugin) },
+                        enabled = !busy,
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            if (plugin.userHidden) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                            contentDescription =
+                                if (plugin.userHidden) {
+                                    stringResource(R.string.plugins_show_in_sidebar)
+                                } else {
+                                    stringResource(R.string.plugins_hide_from_sidebar)
+                                },
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                }
+
+                // Existing update affordance for active Git installs.
+                if (plugin.installed && plugin.canUpdateGit) {
+                    OutlinedButton(
+                        onClick = { viewModel.updatePlugin(plugin.name) },
+                        enabled = !busy,
+                    ) {
+                        Text(stringResource(R.string.plugins_action_update))
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+
+                // Backend-provided removability, independent of runtime enabled state.
+                if (plugin.removable) {
+                    OutlinedButton(
+                        onClick = { viewModel.requestRemovePlugin(plugin.name) },
+                        enabled = !busy,
+                        colors =
+                            ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error,
+                            ),
+                    ) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                        )
                         Spacer(modifier = Modifier.width(4.dp))
+                        Text(stringResource(R.string.plugins_action_uninstall))
                     }
-
-                    // Update button
-                    if (plugin.canUpdateGit) {
-                        OutlinedButton(
-                            onClick = { viewModel.updatePlugin(plugin.name) },
-                            enabled = !busy,
-                        ) {
-                            Text(stringResource(R.string.plugins_action_update))
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                    }
-
-                    // Remove button with confirmation
-                    if (plugin.canRemove) {
-                        OutlinedButton(
-                            onClick = { viewModel.requestRemovePlugin(plugin.name) },
-                            enabled = !busy,
-                            colors =
-                                ButtonDefaults.outlinedButtonColors(
-                                    contentColor = MaterialTheme.colorScheme.error,
-                                ),
-                        ) {
-                            Icon(
-                                Icons.Default.Delete,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(stringResource(R.string.plugins_action_uninstall))
-                        }
-                    }
-                } else {
+                }
+                if (!plugin.installed) {
                     Button(
                         onClick = { viewModel.activatePlugin(plugin) },
                         enabled = !busy,
                     ) {
-                        Text(stringResource(R.string.plugins_action_install))
+                        Text(stringResource(R.string.plugins_action_enable))
                     }
                 }
             }

@@ -6,6 +6,38 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
+private val ATTACHED_CONTEXT_MARKER_RE =
+    Regex("""(?:^|\n)--- Attached Context ---\s*\n""")
+
+private val CONTEXT_REF_RE =
+    Regex(
+        """@(file|folder|url|image|tool|terminal):(?:"[^"\n]+"|'[^'\n]+'|`[^`\n]+`|\S+)""",
+    )
+
+/**
+ * Remove a gateway-generated `--- Attached Context ---` suffix while
+ * preserving the user-authored portion of the message.
+ *
+ * The marker itself is plain text a user can legitimately type, so do not
+ * treat it as a producer boundary unless the suffix also contains a context
+ * reference of the shape emitted by the gateway.
+ *
+ * Unlike [stripAttachmentRefLines], this intentionally keeps `@file:` /
+ * `@image:` references in the visible text. REST-only hydration has no local
+ * optimistic bubble proving those references were injected by Mobile, and
+ * users may have authored context references themselves.
+ */
+internal fun stripGatewayAttachedContext(content: String): String {
+    val marker = ATTACHED_CONTEXT_MARKER_RE.find(content) ?: return content
+    val attachedContext = content.substring(marker.range.last + 1)
+
+    if (!CONTEXT_REF_RE.containsMatchIn(attachedContext)) {
+        return content
+    }
+
+    return content.substring(0, marker.range.first).trimEnd()
+}
+
 /**
  * Canonical comparison key for a tool message's result payload.
  *
@@ -75,48 +107,120 @@ internal fun canonicalToolResultKey(content: String): String? {
 internal fun sameLogicalMessage(
     a: ChatMessage,
     b: ChatMessage,
-): Boolean {
-    if (a.role != b.role) return false
-    if (a.role == MessageRole.TOOL) {
-        // Issue #842: prefer the gateway's tool call id when both sides carry
-        // it — the REST transcript stores `tool_call_id` and the live WS
-        // bubble keeps it from `tool.start`. Content canonicalization cannot
-        // cover MCP/web tools: the REST side stores the payload as raw
-        // `<untrusted_tool_result>` text (not JSON), so it has no key at all.
-        if (a.toolCallId.isNotBlank() && b.toolCallId.isNotBlank()) {
-            return a.toolCallId == b.toolCallId
+): Boolean = TranscriptComparison().same(a, b)
+
+/** One operation owns this cache; even invalid JSON is parsed at most once per content. */
+internal class TranscriptComparison(
+    private val canonicalize: (String) -> String? = ::canonicalToolResultKey,
+) {
+    private val toolKeys = HashMap<String, String?>()
+    private val trimmed = HashMap<String, String>()
+    private val captions = HashMap<String, String>()
+
+    fun toolKey(content: String): String? {
+        if (!toolKeys.containsKey(content)) toolKeys[content] = canonicalize(content)
+        return toolKeys[content]
+    }
+
+    fun same(
+        a: ChatMessage,
+        b: ChatMessage,
+    ): Boolean {
+        if (a.role != b.role) return false
+        val aRestId = a.canonicalRestId
+        val bRestId = b.canonicalRestId
+        if (aRestId != null && bRestId != null) return aRestId == bRestId
+        // #129: completion-bearing replies need confirmed identity, not repeated prose.
+        // Older pages deliberately do not acquire a live reply's completion in the mapper.
+        if (a.role == MessageRole.ASSISTANT && (a.completionId != null || b.completionId != null)) {
+            return a.completionId != null && a.completionId == b.completionId
         }
-        val ka = canonicalToolResultKey(a.content)
-        val kb = canonicalToolResultKey(b.content)
-        return ka != null && ka == kb
+        if (a.role == MessageRole.ASSISTANT && a.content.isBlank() && b.content.isBlank() &&
+            (a.reasoningText.isNotBlank() || b.reasoningText.isNotBlank())
+        ) {
+            return a.reasoningText.isNotBlank() && a.reasoningText == b.reasoningText
+        }
+        if (a.role == MessageRole.TOOL) {
+            if (a.toolCallId.isNotBlank() && b.toolCallId.isNotBlank()) return a.toolCallId == b.toolCallId
+            val key = toolKey(a.content)
+            return key != null && key == toolKey(b.content)
+        }
+        val ta = trimmed.getOrPut(a.content) { a.content.trim() }
+        val tb = trimmed.getOrPut(b.content) { b.content.trim() }
+        if (ta == tb) return true
+        if (a.role == MessageRole.USER &&
+            captions.getOrPut(ta) { stripAttachmentRefLines(ta) } ==
+            captions.getOrPut(tb) { stripAttachmentRefLines(tb) }
+        ) {
+            return true
+        }
+        return ta.length >= 40 && tb.length >= 40 && (tb.startsWith(ta) || ta.startsWith(tb))
     }
-    val ta = a.content.trim()
-    val tb = b.content.trim()
-    if (ta == tb) return true
-    // Attachment dedupe: when the user sends an image/file, the backend
-    // persists an ENRICHED copy of the prompt — the real caption plus
-    // `@image:`/`@file:` reference lines and a `[screenshot]` marker
-    // (tui_gateway _build_image_ref_message / run_agent flattening). The
-    // optimistic bubble carries the raw caption only, so the exact compare
-    // above fails and the REST sync renders the same message twice. Compare
-    // USER rows on the caption with injection lines stripped (both sides —
-    // stripping a clean string is a no-op). USER-only so assistant text that
-    // legitimately mentions these tokens is never collapsed.
-    if (a.role == MessageRole.USER) {
-        val ca = stripAttachmentRefLines(ta)
-        val cb = stripAttachmentRefLines(tb)
-        if (ca == cb) return true
+}
+
+/** Consume each occurrence once, reserving exact IDs before considering content echoes. */
+internal fun matchTranscriptMessages(
+    incoming: List<ChatMessage>,
+    existing: List<ChatMessage>,
+    comparison: TranscriptComparison = TranscriptComparison(),
+    allowAssistantContentMatches: Boolean = true,
+): List<ChatMessage?> {
+    val byId = existing.withIndex().associate { it.value.id to it.index }
+    val byRestId =
+        existing.withIndex().mapNotNull { (index, message) -> message.canonicalRestId?.let { it to index } }.toMap()
+    val used = BooleanArray(existing.size)
+    val matches = arrayOfNulls<ChatMessage>(incoming.size)
+    incoming.forEachIndexed { index, message ->
+        (byId[message.id] ?: message.canonicalRestId?.let { byRestId[it] })?.let { match ->
+            if (!used[match]) {
+                used[match] = true
+                matches[index] = existing[match]
+            }
+        }
     }
-    // Issue #842: a seal race can leave the live orphan a few trailing tokens
-    // short of the streamed narration (the last delta was still in the
-    // throttled buffer when tool.start sealed the message). The backend
-    // persists the COMPLETE copy, so the orphan is a strict prefix of the
-    // REST row. Accept prefix-covering only for substantial texts (>=40
-    // chars) so a short reply can never be swallowed by a longer message
-    // that merely starts with it.
-    return ta.length >= 40 &&
-        tb.length >= 40 &&
-        (tb.startsWith(ta) || ta.startsWith(tb))
+    val byRole = existing.indices.groupBy { existing[it].role }
+    val byCall =
+        existing.indices
+            .filter { existing[it].toolCallId.isNotBlank() }
+            .groupBy { existing[it].toolCallId }
+    val byResult =
+        existing.indices
+            .filter { existing[it].role == MessageRole.TOOL }
+            .groupBy { comparison.toolKey(existing[it].content) }
+    val matchOrder =
+        incoming.indices.filter { incoming[it].role != MessageRole.ASSISTANT } +
+            incoming.indices.reversed().filter { incoming[it].role == MessageRole.ASSISTANT }
+    matchOrder.forEach { index ->
+        val message = incoming[index]
+        if (matches[index] != null) return@forEach
+        val candidates =
+            if (message.role == MessageRole.TOOL) {
+                val callMatches = byCall[message.toolCallId].orEmpty()
+                callMatches + byResult[comparison.toolKey(message.content)].orEmpty()
+            } else {
+                // Prefix matching scans only candidates with the same role.
+                byRole[message.role].orEmpty().let {
+                    if (message.role == MessageRole.ASSISTANT) it.asReversed() else it
+                }
+            }
+        val match =
+            candidates.firstOrNull { candidate ->
+                val other = existing[candidate]
+                !used[candidate] &&
+                    (
+                        allowAssistantContentMatches || message.role != MessageRole.ASSISTANT ||
+                            message.completionId != null || other.completionId != null
+                    ) &&
+                    // Distinct IDs within the same source are separate occurrences, not echoes.
+                    ((message.canonicalRestId == null) != (other.canonicalRestId == null)) &&
+                    comparison.same(message, other)
+            }
+        if (match != null) {
+            used[match] = true
+            matches[index] = existing[match]
+        }
+    }
+    return matches.toList()
 }
 
 /**
@@ -127,7 +231,7 @@ internal fun sameLogicalMessage(
  * run_agent). Blank lines left behind are dropped too.
  */
 internal fun stripAttachmentRefLines(content: String): String =
-    content
+    stripGatewayAttachedContext(content)
         .lines()
         .map { it.trim() }
         .filterNot { line ->
@@ -144,54 +248,153 @@ internal fun stripAttachmentRefLines(content: String): String =
  * same call twice. Drop the `rest-` copy whenever a WS copy of the same
  * logical message exists (issue #771).
  */
-internal fun dedupeCachedMessages(messages: List<ChatMessage>): List<ChatMessage> {
-    val rest = messages.filter { it.id.startsWith("rest-") }
-    if (rest.isEmpty()) return messages
-    val nonRest = messages.filterNot { it.id.startsWith("rest-") }
-    if (nonRest.isEmpty()) return messages
-    val keepRest = rest.filter { restMsg -> nonRest.none { sameLogicalMessage(it, restMsg) } }
-    return (nonRest + keepRest).sortedBy { it.timestamp }
+internal fun dedupeCachedMessages(
+    messages: List<ChatMessage>,
+    confirmedOnly: Boolean = false,
+): List<ChatMessage> {
+    val unique = messages.dedupeById()
+    val rest = unique.filter { it.id.startsWith("rest-") }
+    val live = unique.filterNot { it.id.startsWith("rest-") }
+    if (rest.isEmpty() || live.isEmpty()) return unique
+    val matches =
+        matchTranscriptMessages(rest, live).mapIndexed { index, match ->
+            match?.takeIf {
+                !confirmedOnly || rest[index].canonicalRestId == it.canonicalRestId ||
+                    (rest[index].completionId != null && rest[index].completionId == it.completionId)
+            }
+        }
+    val echoes =
+        rest.indices
+            .filter { matches[it] != null }
+            .map { rest[it].id }
+            .toSet()
+    // #859: retain the REST identity when keeping a rich UUID row, including across cache pages.
+    val aliases =
+        rest.indices
+            .mapNotNull { index ->
+                matches[index]?.id?.let { it to rest[index] }
+            }.toMap()
+    return unique.filterNot { it.id in echoes }.map { message ->
+        aliases[message.id]?.let {
+            message.copy(restId = it.canonicalRestId, completionId = message.completionId ?: it.completionId)
+        } ?: message
+    }
 }
 
-/**
- * A transcript reload must NOT yank live WS bubbles the server has not
- * persisted yet. The gateway stores a tool row only once the tool
- * COMPLETES server-side, so a reload that lands while a tool is running
- * (app background/foreground mid-turn, reconnect re-resume, pull-refresh)
- * returns a page without the tool row — replacing the list outright made
- * the in-flight tool bubble vanish and left tool.complete with no RUNNING
- * message to update (issue #771).
- *
- * Merge instead of replace: append any current message the REST page does
- * not already cover (checked by id AND logical content via
- * [sameLogicalMessage]) and keep chronological order.
- */
+/** Cache pages enrich confirmed identities without changing keys already on screen (#859). */
+internal fun mergeCachedTranscriptPage(
+    page: List<ChatMessage>,
+    current: List<ChatMessage>,
+): List<ChatMessage> {
+    val currentById = current.associateBy { it.id }
+    // Legacy cached UUIDs may lack an alias. Restore a known alias before page-local matching
+    // so an older identical REST row cannot claim that UUID again.
+    val incoming =
+        dedupeCachedMessages(
+            page.map { message ->
+                currentById[message.id]?.restId?.let { message.copy(restId = it) } ?: message
+            },
+        )
+    val matches = matchTranscriptMessages(incoming, current)
+    val replacements =
+        incoming
+            .mapIndexedNotNull { index, message ->
+                val match = matches[index] ?: return@mapIndexedNotNull null
+                val rich = if (match.id.startsWith("rest-") && !message.id.startsWith("rest-")) message else match
+                match.id to
+                    rich.copy(
+                        id = match.id,
+                        restId = message.canonicalRestId ?: match.canonicalRestId,
+                        completionId = match.completionId ?: message.completionId,
+                    )
+            }.toMap()
+    return (
+        current.map { replacements[it.id] ?: it } +
+            incoming.filterIndexed { index, _ -> matches[index] == null }
+    ).dedupeById().inTranscriptOrder().reconcileReasoningRows()
+}
+
+/** Merge one page with the current snapshot without consuming repeated results more than once. */
 internal fun mergeTranscriptWithLive(
     restMessages: List<ChatMessage>,
     currentMessages: List<ChatMessage>,
+    chronological: Boolean = true,
+    preserveLiveIds: Boolean = false,
 ): List<ChatMessage> {
-    val dedupedRest = restMessages.dedupeById()
-    val dedupedCurrent = currentMessages.dedupeById()
-    // User rows can carry live/cache-only metadata (for example whether the
-    // bubble continues the active turn). Keep that richer copy when REST
-    // returns the same logical row.
-    val currentUsers = dedupedCurrent.filter { it.role == MessageRole.USER }.toMutableList()
-    val mergedRest =
-        dedupedRest.map { rest ->
-            if (rest.role != MessageRole.USER) return@map rest
-            val matchIndex =
-                currentUsers.indexOfFirst { it.id == rest.id }.takeIf { it >= 0 }
-                    ?: currentUsers.indexOfFirst { sameLogicalMessage(rest, it) }
-            if (matchIndex >= 0) currentUsers.removeAt(matchIndex) else rest
+    val incoming = restMessages.dedupeById()
+    val current = currentMessages.dedupeById()
+    val matches = matchTranscriptMessages(incoming, current, allowAssistantContentMatches = chronological)
+    val consumed = matches.mapNotNull { it?.id }.toSet()
+    val merged =
+        incoming.mapIndexed { index, message ->
+            val match = matches[index]
+            // Keep local user metadata and stable IDs already used by the renderer.
+            when {
+                match?.role == MessageRole.USER -> {
+                    match.copy(
+                        restId = (message.canonicalRestId ?: match.canonicalRestId).takeUnless { it == match.id },
+                    )
+                }
+
+                preserveLiveIds && match != null && !match.id.startsWith("rest-") -> {
+                    match.copy(
+                        restId = message.canonicalRestId ?: match.canonicalRestId,
+                        content = message.content,
+                        timestamp = message.timestamp,
+                        isStreaming = message.isStreaming,
+                        reasoningText = message.reasoningText.ifBlank { match.reasoningText },
+                        attachments = message.attachments ?: match.attachments,
+                        toolName = message.toolName ?: match.toolName,
+                        toolCallId = message.toolCallId.ifBlank { match.toolCallId },
+                        toolStatus = message.toolStatus ?: match.toolStatus,
+                        displayKind = message.displayKind ?: match.displayKind,
+                        tokenCount = message.tokenCount ?: match.tokenCount,
+                        completionId = message.completionId ?: match.completionId,
+                    )
+                }
+
+                else -> {
+                    message.copy(completionId = message.completionId ?: match?.completionId)
+                }
+            }
         }
-    val restIds = dedupedRest.map { it.id }.toSet()
-    val liveTail =
-        dedupedCurrent.filter { old ->
-            old.id !in restIds && mergedRest.none { sameLogicalMessage(it, old) }
+    val transcript =
+        if (chronological) {
+            current.filterNot { it.id in consumed } + merged
+        } else {
+            merged + current.filterNot { it.id in consumed }
         }
-    if (liveTail.isEmpty()) return mergedRest.dedupeById()
-    return (mergedRest + liveTail).dedupeById().sortedBy { it.timestamp }
+    // #129: a mapped completion can confirm a cached REST row while its rich UUID
+    // copy is also present. Fold that now-confirmed echo without changing the live key.
+    // The page has already consumed its content matches; consuming another would
+    // collapse a separate repeated occurrence. Only confirmed identities can fold here.
+    return dedupeCachedMessages(transcript.inTranscriptOrder(), confirmedOnly = true).reconcileReasoningRows()
 }
+
+/** Numeric canonical history first, then unconfirmed local insertion order; clocks never sort a transcript. */
+private fun List<ChatMessage>.inTranscriptOrder(): List<ChatMessage> =
+    sortedWith(
+        compareBy<ChatMessage> { it.canonicalOrder == null }
+            .thenBy { it.canonicalOrder ?: it.localOrder ?: Long.MAX_VALUE },
+    )
+
+private val ChatMessage.canonicalOrder: Long?
+    get() = if (localOrder != null && restId == null) null else canonicalRestId?.substringAfterLast('-')?.toLongOrNull()
+
+/** Retain the canonical trace once, without copying it across a user/system/tool boundary. */
+private fun List<ChatMessage>.reconcileReasoningRows(): List<ChatMessage> =
+    mapIndexed { index, message ->
+        val previous = getOrNull(index - 1)
+        if (previous?.role == MessageRole.ASSISTANT && previous.content.isBlank() &&
+            previous.canonicalRestId != null && previous.reasoningText.isNotBlank() &&
+            message.role == MessageRole.ASSISTANT && message.content.isNotBlank() &&
+            message.canonicalRestId != null && message.reasoningText == previous.reasoningText
+        ) {
+            message.copy(reasoningText = "")
+        } else {
+            message
+        }
+    }
 
 /** Merge a REST page without matching it against already-settled transcript rows. */
 internal fun mergeIncrementalTranscriptPage(
@@ -202,7 +405,7 @@ internal fun mergeIncrementalTranscriptPage(
 ): List<ChatMessage> {
     val settledEnd =
         currentMessages.indexOfLast { message ->
-            serverMessageIndex(message.id, sessionId)?.let { it < offset } == true
+            serverMessageIndex(message.canonicalRestId ?: message.id, sessionId)?.let { it < offset } == true
         }
     return (
         currentMessages.take(settledEnd + 1) +

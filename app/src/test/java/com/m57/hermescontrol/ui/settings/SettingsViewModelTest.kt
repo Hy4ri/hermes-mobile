@@ -384,6 +384,34 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun testKeepConnectedInBackground_refreshesBothDirectionsFromPersistedSetting() =
+        runTest {
+            var persisted = false
+            every { AuthManager.isKeepConnectedInBackground() } answers { persisted }
+            every { AuthManager.setKeepConnectedInBackground(any()) } answers {
+                persisted = firstArg()
+            }
+            val viewModel = SettingsViewModel(ioDispatcher = testDispatcher)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            // An edit from Settings becomes visible when chat opens its menu.
+            persisted = true
+            viewModel.refreshKeepConnectedInBackground()
+            assertEquals(true, viewModel.uiState.value.keepConnectedInBackground)
+
+            // Both menu directions use the existing Settings action and persistence path.
+            viewModel.onKeepConnectedInBackgroundChange(false)
+            assertEquals(false, persisted)
+            assertEquals(false, viewModel.uiState.value.keepConnectedInBackground)
+            viewModel.onKeepConnectedInBackgroundChange(true)
+            assertEquals(true, persisted)
+
+            persisted = false
+            viewModel.refreshKeepConnectedInBackground()
+            assertEquals(false, viewModel.uiState.value.keepConnectedInBackground)
+        }
+
+    @Test
     fun testSave_persistsKeepConnectedInBackground() =
         runTest {
             val viewModel = SettingsViewModel(ioDispatcher = testDispatcher)

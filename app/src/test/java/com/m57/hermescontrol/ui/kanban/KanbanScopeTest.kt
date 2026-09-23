@@ -38,7 +38,9 @@ class KanbanScopeTest {
             repository = mockRepository,
             preferences = preferences,
             eventsClientProvider = { mockEventsClient },
-        )
+        ).also {
+            it.ioDispatcher = testDispatcher
+        }
 
     @Before
     fun setUp() {

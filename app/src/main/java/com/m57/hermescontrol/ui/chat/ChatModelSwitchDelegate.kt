@@ -3,8 +3,11 @@ package com.m57.hermescontrol.ui.chat
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.model.ModelCapabilities
+import com.m57.hermescontrol.data.model.ModelInfoResponse
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
+import com.m57.hermescontrol.data.model.mergedWithCanonical
+import com.m57.hermescontrol.data.model.reasoningSupport
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
@@ -77,6 +80,9 @@ class ChatModelSwitchDelegate(
     private var cachedModelOptionsScope: DataScope? = dataScopeFlow.value
     private var modelOptionsJob: Job? = null
     private var modelOptionsJobScope: DataScope? = null
+    private var modelInfoCapabilities: ModelCapabilities? = null
+    private var modelInfoModel: String? = null
+    private var modelInfoScope: DataScope? = null
 
     fun attachScopeObserver(externalScope: CoroutineScope) {
         externalScope.launch {
@@ -89,6 +95,9 @@ class ChatModelSwitchDelegate(
                 cachedModelOptions = emptyList()
                 cachedModelOptionsScope = newScope
                 fastRejectedModels.clear()
+                modelInfoCapabilities = null
+                modelInfoModel = null
+                modelInfoScope = null
 
                 if (modelOptionsJobScope != newScope) {
                     modelOptionsJob?.cancel()
@@ -331,6 +340,19 @@ class ChatModelSwitchDelegate(
                         it.copy(modelSwitchConfirmMessage = confirmMessage)
                     }
                 }
+            } else {
+                if (pending != null && pending.sequence == modelSwitchSequence) {
+                    val warning = (map["warning"] as? String)?.trim()
+                    if (!warning.isNullOrBlank()) {
+                        val formattedWarning =
+                            if (warning.startsWith("⚠") || warning.startsWith("⚠️")) {
+                                warning
+                            } else {
+                                "⚠ $warning"
+                            }
+                        addAssistantMessage(formattedWarning)
+                    }
+                }
             }
         } else if (key == "fast") {
             val rawVal = map["value"] as? String
@@ -469,6 +491,9 @@ class ChatModelSwitchDelegate(
         reasoningOpSequence++
         reasoningJob?.cancel()
         reasoningJob = null
+        modelInfoCapabilities = null
+        modelInfoModel = null
+        modelInfoScope = null
         uiState.update {
             it.copy(
                 pendingReasoningLevel = null,
@@ -492,7 +517,7 @@ class ChatModelSwitchDelegate(
         // Capability validation
         if (enforceCapabilities) {
             val caps = uiState.value.currentModelCapabilities
-            if (caps?.reasoning == false) return
+            if (caps?.reasoningSupport == false) return
             if (level == "none" && caps?.can_disable_reasoning == false) return
         }
 
@@ -578,10 +603,26 @@ class ChatModelSwitchDelegate(
         modelName: String,
     ): ModelCapabilities? {
         if (cachedModelOptionsScope != dataScopeFlow.value) return null
-        return cachedModelOptions
-            .find { it.slug == providerSlug }
-            ?.capabilities
-            ?.get(modelName)
+        val catalog =
+            cachedModelOptions
+                .find { it.slug == providerSlug }
+                ?.capabilities
+                ?.get(modelName)
+        val infoMatches =
+            modelInfoScope == dataScopeFlow.value &&
+                (modelInfoModel == "$providerSlug/$modelName" || modelInfoModel?.substringAfter('/') == modelName)
+        val overlay = if (infoMatches) modelInfoCapabilities else null
+        return catalog.mergedWithCanonical(overlay)
+    }
+
+    fun applyModelInfo(
+        info: ModelInfoResponse,
+        scope: DataScope?,
+    ) {
+        modelInfoCapabilities = info.capabilities
+        modelInfoModel = info.provider?.let { "$it/${info.model.orEmpty()}" }
+        modelInfoScope = scope
+        syncCurrentModelCapabilities()
     }
 
     fun getCurrentModelCapabilities(): ModelCapabilities? {

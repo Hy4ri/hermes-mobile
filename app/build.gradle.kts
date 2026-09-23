@@ -10,6 +10,7 @@ plugins {
 
 android {
     namespace = "com.m57.hermescontrol"
+    sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
 
     lint {
         disable += "MissingTranslation"

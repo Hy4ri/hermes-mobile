@@ -81,6 +81,41 @@ class ToolViewBuilderTest {
 
         assertEquals("Read a.kt L10-14", view.title)
         assertEquals("/repo/src/a.kt", view.subtitle)
+        assertEquals("10|a\n11|b", view.fileContent)
+        assertEquals("/repo/src/a.kt", view.filePath)
+        assertEquals("10|a\n11|b", view.detail)
+    }
+
+    @Test
+    fun `read_file missing content does not show a code viewer`() {
+        val view = build("read_file", """{"path":"/repo/missing.kt"}""", """{"error":"not found"}""")
+
+        assertNull(view.fileContent)
+    }
+
+    @Test
+    fun `write_file shows written content when no diff is returned`() {
+        val view =
+            build(
+                "write_file",
+                """{"path":"/repo/new.kt","content":"fun main() = Unit"}""",
+                """{"success":true,"verified":true}""",
+            )
+
+        assertEquals("fun main() = Unit", view.fileContent)
+        assertEquals("/repo/new.kt", view.filePath)
+        assertNull(view.inlineDiff)
+    }
+
+    @Test
+    fun `write_file diff wins over content and failed writes show no written content`() {
+        val args = """{"path":"/repo/a.kt","content":"new"}"""
+        val diff = build("write_file", args, """{"inline_diff":"--- a/a.kt\n+++ b/a.kt\n-old\n+new"}""")
+        val failed = build("write_file", args, """{"success":false,"error":"denied"}""", isError = true)
+
+        assertNotNull(diff.inlineDiff)
+        assertNull(diff.fileContent)
+        assertNull(failed.fileContent)
     }
 
     @Test
@@ -308,6 +343,35 @@ class ToolViewBuilderTest {
         assertEquals("poll: proc-1", view.subtitle)
         assertTrue(view.detail.contains("Status: running"))
         assertTrue(view.detail.contains("listening on port 8080"))
+        assertEquals(null, view.outputCut)
+    }
+
+    @Test
+    fun `process output reports backend omitted character count for each action`() {
+        listOf("poll", "wait", "log", "kill").forEach { action ->
+            val outputKey = if (action == "poll") "output_preview" else "output"
+            val view =
+                build(
+                    "process_manage",
+                    """{"action":"$action","session_id":"proc-1"}""",
+                    """{"status":"exited","$outputKey":"partial output","output_cut":42}""",
+                )
+
+            assertTrue(view.detail.contains("partial output"))
+            assertEquals(42L, view.outputCut)
+        }
+    }
+
+    @Test
+    fun `process output without positive numeric omission has no notice`() {
+        listOf("{}", """{"output_cut":0}""", """{"output_cut":"unknown"}""").forEach { metadata ->
+            val fields = metadata.removePrefix("{").removeSuffix("}")
+            val result = """{"output":"complete"${if (fields.isNotEmpty()) ",$fields" else ""}}"""
+            val view = build("process", """{"action":"wait"}""", result)
+
+            assertEquals("complete", view.detail)
+            assertEquals(null, view.outputCut)
+        }
     }
 
     @Test

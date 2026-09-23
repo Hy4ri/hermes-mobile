@@ -24,6 +24,9 @@ data class PluginInfo(
         get() =
             runtimeStatus.equals("enabled", ignoreCase = true) ||
                 runtimeStatus.equals("disabled", ignoreCase = true)
+
+    val removable: Boolean
+        get() = canRemove && (source == "user" || source == "git")
 }
 
 @Serializable

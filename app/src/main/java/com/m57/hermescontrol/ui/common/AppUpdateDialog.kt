@@ -48,10 +48,12 @@ import com.m57.hermescontrol.data.update.releaseTag
 fun AppUpdateDialog(
     state: AppUpdateState,
     onDismiss: () -> Unit,
+    onLater: () -> Unit = onDismiss,
     onStartUpdate: () -> Unit,
     onCancelDownload: () -> Unit,
     onNeverAskAgain: () -> Unit,
     onOpenSettings: () -> Unit,
+    onCheckUpdate: () -> Unit = {},
 ) {
     val available = state as? AppUpdateState.UpdateAvailable
     var cachedAvailable by remember { mutableStateOf(available) }
@@ -160,6 +162,26 @@ fun AppUpdateDialog(
 
                 // Progress / Action States
                 when (state) {
+                    AppUpdateState.Checking -> {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                text = stringResource(R.string.settings_about_update_checking),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+
+                    is AppUpdateState.UpToDate -> {
+                        Text(
+                            text = stringResource(R.string.settings_about_update_uptodate, state.latestTag),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
                     is AppUpdateState.Downloading -> {
                         Column(modifier = Modifier.fillMaxWidth()) {
                             Row(
@@ -260,7 +282,7 @@ fun AppUpdateDialog(
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Button(
-                                onClick = onStartUpdate,
+                                onClick = if (state.isCheckError) onCheckUpdate else onStartUpdate,
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
                                 Text(stringResource(R.string.settings_about_update_retry))
@@ -268,8 +290,7 @@ fun AppUpdateDialog(
                         }
                     }
 
-                    else -> {
-                        // UpdateAvailable or Idle
+                    is AppUpdateState.UpdateAvailable -> {
                         Column(modifier = Modifier.fillMaxWidth()) {
                             Button(
                                 onClick = onStartUpdate,
@@ -291,7 +312,7 @@ fun AppUpdateDialog(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                             ) {
-                                TextButton(onClick = onDismiss) {
+                                TextButton(onClick = onLater) {
                                     Text(stringResource(R.string.update_dialog_action_later))
                                 }
                                 TextButton(onClick = onNeverAskAgain) {
@@ -301,6 +322,12 @@ fun AppUpdateDialog(
                                     )
                                 }
                             }
+                        }
+                    }
+
+                    AppUpdateState.Idle -> {
+                        Button(onClick = onCheckUpdate, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.settings_about_update_check))
                         }
                     }
                 }

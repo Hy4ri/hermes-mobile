@@ -262,6 +262,7 @@ internal fun SettingsAboutPage(
         },
 ) {
     val updateState by viewModel.state.collectAsStateWithLifecycle()
+    val currentUpdateState by androidx.compose.runtime.rememberUpdatedState(updateState)
     val checkReleaseCandidateUpdates by viewModel.checkReleaseCandidateUpdates.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
@@ -270,8 +271,12 @@ internal fun SettingsAboutPage(
         val observer =
             androidx.lifecycle.LifecycleEventObserver { _, event ->
                 if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                    if (updateState is com.m57.hermescontrol.data.update.AppUpdateState.NeedsUnknownSourcesPermission) {
+                    if (currentUpdateState is
+                            com.m57.hermescontrol.data.update.AppUpdateState.NeedsUnknownSourcesPermission
+                    ) {
                         viewModel.resumeInstallAfterPermission()
+                    } else {
+                        viewModel.reconcileInstallerReturn()
                     }
                 }
             }

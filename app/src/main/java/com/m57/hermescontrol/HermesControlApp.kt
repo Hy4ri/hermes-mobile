@@ -13,7 +13,6 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.SessionListCacheStore
 import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.remote.OkHttpProvider
-import com.m57.hermescontrol.data.update.UpdateNoticeManager
 import com.m57.hermescontrol.notification.TurnCorrelationTracker
 import com.m57.hermescontrol.ui.analytics.AnalyticsPreloader
 import kotlinx.coroutines.CoroutineScope
@@ -41,9 +40,6 @@ class HermesControlApp :
             // so the tab renders instantly when opened (the usage endpoint is slow on a
             // cold backend). Fire-and-forget; never blocks UI startup.
             AnalyticsPreloader.preload(this@HermesControlApp)
-            // Issue #890: silent once-per-version update check right after launch,
-            // so the chat screen can show an update banner without user interaction.
-            UpdateNoticeManager.checkOnLaunch()
         }
     }
 

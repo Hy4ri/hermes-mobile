@@ -183,6 +183,7 @@ class AppUpdateCheckerTest {
         draft: Boolean = false,
         prerelease: Boolean = false,
         withApk: Boolean = true,
+        apkUrl: String = "https://example.com/$tag.apk",
     ): UpdateInfo =
         UpdateInfo(
             tagName = tag,
@@ -194,7 +195,7 @@ class AppUpdateCheckerTest {
                         UpdateInfo.Asset(
                             name = "hermes-mobile-$tag.apk",
                             size = 1L,
-                            browserDownloadUrl = "https://example.com/$tag.apk",
+                            browserDownloadUrl = apkUrl,
                         ),
                     )
                 } else {
@@ -287,6 +288,55 @@ class AppUpdateCheckerTest {
     fun selectLatestUpdate_nullWhenNothingInstallable() {
         assertNull(selectLatestUpdate(emptyList()))
         assertNull(selectLatestUpdate(listOf(release("v1.25.0", draft = true), release("v1.24.0", withApk = false))))
+    }
+
+    @Test
+    fun selectLatestUpdate_rejectsPrereleaseTagsMislabelledAsStable() {
+        val releases =
+            listOf(
+                release("v1.30.0-rc.1"),
+                release("v1.29.0-alpha.1"),
+                release("v1.28.0-beta.2"),
+                release("v1.27.0"),
+            )
+
+        assertEquals("v1.27.0", selectLatestUpdate(releases)?.tagName)
+        assertEquals("v1.30.0-rc.1", selectLatestUpdate(releases, includeReleaseCandidates = true)?.tagName)
+    }
+
+    @Test
+    fun selectLatestUpdate_ignoresInvalidTagsAndUnusableApkUrls() {
+        val releases =
+            listOf(
+                release("not-a-version"),
+                release("v1.30.0", apkUrl = " "),
+                release("v1.29.0"),
+            )
+
+        assertEquals("v1.29.0", selectLatestUpdate(releases)?.tagName)
+    }
+
+    @Test
+    fun selectLatestUpdate_rejectsMalformedAndUnsupportedApkUrlsButAllowsHttp() {
+        val releases =
+            listOf(
+                release("v1.32.0", apkUrl = "https://bad host/release.apk"),
+                release("v1.31.0", apkUrl = "file:///tmp/release.apk"),
+                release("v1.30.0", apkUrl = "http://localhost/release.apk"),
+            )
+
+        assertEquals("v1.30.0", selectLatestUpdate(releases)?.tagName)
+    }
+
+    @Test
+    fun selectLatestUpdate_stableOutranksRcForSameVersion() {
+        val releases =
+            listOf(
+                release("v1.25.0-rc.10", prerelease = true),
+                release("v1.25.0"),
+            )
+
+        assertEquals("v1.25.0", selectLatestUpdate(releases, includeReleaseCandidates = true)?.tagName)
     }
 
     @Test

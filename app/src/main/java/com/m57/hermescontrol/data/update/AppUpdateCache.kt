@@ -21,8 +21,9 @@ object AppUpdateCache {
      * Session-only dismissal of the chat banner. Snapshot-backed so the chat
      * screen recomposes when it flips; dies with the process.
      */
-    var dismissed by mutableStateOf(false)
-        private set
+    private var dismissedTags by mutableStateOf<Set<String>>(emptySet())
+
+    fun isDismissed(tag: String): Boolean = tag in dismissedTags
 
     /** Whether the full-screen / in-place update dialog should be visible. */
     var isDialogVisible by mutableStateOf(false)
@@ -32,8 +33,8 @@ object AppUpdateCache {
         _state.value = state
     }
 
-    fun dismiss() {
-        dismissed = true
+    fun dismiss(tag: String) {
+        dismissedTags = dismissedTags + tag
     }
 
     fun showDialog() {
@@ -46,7 +47,7 @@ object AppUpdateCache {
 
     /** Test hook: clear state and dismissal between tests. */
     internal fun reset() {
-        dismissed = false
+        dismissedTags = emptySet()
         isDialogVisible = false
         _state.value = AppUpdateState.Idle
     }

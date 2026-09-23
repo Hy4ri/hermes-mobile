@@ -7,6 +7,7 @@ import android.provider.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -17,6 +18,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.data.update.AppUpdateCache
 import com.m57.hermescontrol.data.update.AppUpdateState
 import com.m57.hermescontrol.data.update.UpdateNoticeManager
+import com.m57.hermescontrol.data.update.releaseTag
 import com.m57.hermescontrol.ui.common.AppUpdateDialog
 import com.m57.hermescontrol.ui.common.UpdateNoticeBanner
 import com.m57.hermescontrol.ui.settings.AppUpdateViewModel
@@ -32,14 +34,17 @@ fun ChatAppUpdateSection() {
             AppUpdateViewModel(app)
         }
     val appUpdateState by appUpdateViewModel.state.collectAsStateWithLifecycle()
+    val currentAppUpdateState by rememberUpdatedState(appUpdateState)
 
     val updateLifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(updateLifecycleOwner) {
         val observer =
             LifecycleEventObserver { _, event ->
                 if (event == Lifecycle.Event.ON_RESUME) {
-                    if (appUpdateState is AppUpdateState.NeedsUnknownSourcesPermission) {
+                    if (currentAppUpdateState is AppUpdateState.NeedsUnknownSourcesPermission) {
                         appUpdateViewModel.resumeInstallAfterPermission()
+                    } else {
+                        appUpdateViewModel.reconcileInstallerReturn()
                     }
                 }
             }
@@ -49,15 +54,13 @@ fun ChatAppUpdateSection() {
         }
     }
 
-    if (UpdateNoticeManager.enabled && !AppUpdateCache.dismissed) {
-        val noticeTag =
-            (updateNotice as? AppUpdateState.UpdateAvailable)?.latestTag
-                ?: UpdateNoticeManager.noticeTag()
+    if (UpdateNoticeManager.enabled) {
+        val noticeTag = UpdateNoticeManager.noticeTag()
         if (noticeTag != null) {
             UpdateNoticeBanner(
                 latestTag = noticeTag,
                 onUpdate = { AppUpdateCache.showDialog() },
-                onDismiss = { AppUpdateCache.dismiss() },
+                onDismiss = { AppUpdateCache.dismiss(noticeTag) },
             )
         }
     }
@@ -73,12 +76,17 @@ fun ChatAppUpdateSection() {
         AppUpdateDialog(
             state = dialogState,
             onDismiss = { AppUpdateCache.hideDialog() },
+            onLater = {
+                dialogState.releaseTag()?.let(AppUpdateCache::dismiss)
+                AppUpdateCache.hideDialog()
+            },
             onStartUpdate = { appUpdateViewModel.startUpdate() },
             onCancelDownload = { appUpdateViewModel.cancelDownload() },
             onNeverAskAgain = { appUpdateViewModel.dismissCurrentUpdate() },
             onOpenSettings = {
                 launchUnknownAppSourcesSettings(context)
             },
+            onCheckUpdate = { appUpdateViewModel.checkForUpdate() },
         )
     }
 }

@@ -24,16 +24,18 @@ class VoiceNoteRecorder(
         /** Clips shorter than this are treated as accidental and discarded. */
         const val MIN_DURATION_MS = 500L
 
-        /** Hard cap; the recorder stops itself and [onMaxDurationReached] fires. */
+        /**
+         * Hard cap. The call site (ChatMediaLaunchers) owns the timer and
+         * drives the single stop path — the recorder itself no longer stops
+         * recording, so MediaRecorder's auto-stop cannot race the
+         * hold-release stop (review, PR #1250).
+         */
         const val MAX_DURATION_MS = 120_000
     }
 
     private var recorder: MediaRecorder? = null
     private var outputFile: File? = null
     private var startedAtMs = 0L
-
-    /** Invoked when [MAX_DURATION_MS] is reached while recording. */
-    var onMaxDurationReached: (() -> Unit)? = null
 
     val isActive: Boolean
         get() = recorder != null
@@ -60,12 +62,6 @@ class VoiceNoteRecorder(
                 setAudioSamplingRate(16_000)
                 setAudioEncodingBitRate(32_000)
                 setAudioChannels(1)
-                setMaxDuration(MAX_DURATION_MS)
-                setOnInfoListener { _, what, _ ->
-                    if (what == MediaRecorder.MEDIA_RECORDER_INFO_MAX_DURATION_REACHED) {
-                        onMaxDurationReached?.invoke()
-                    }
-                }
                 setOutputFile(file.absolutePath)
                 prepare()
                 start()

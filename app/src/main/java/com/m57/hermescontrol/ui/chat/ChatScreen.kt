@@ -449,6 +449,7 @@ fun ChatScreen(
                 }
             },
             launchExternalActivity = launchExternalActivity,
+            isTranscribingVoiceNote = state.isTranscribingVoiceNote,
             context = context,
         )
 

@@ -59,6 +59,7 @@ fun rememberChatMediaLaunchers(
     onVoiceNoteRecorded: (file: File) -> Unit,
     onShowMessage: (String) -> Unit,
     launchExternalActivity: (() -> Unit) -> Unit,
+    isTranscribingVoiceNote: Boolean,
     context: Context = LocalContext.current,
 ): ChatMediaLaunchers {
     var isListening by remember { mutableStateOf(false) }
@@ -111,14 +112,21 @@ fun rememberChatMediaLaunchers(
         }
     }
 
-    DisposableEffect(voiceNoteRecorder) {
-        voiceNoteRecorder.onMaxDurationReached = {
+    // App-owned max-duration cap: the timer drives the same
+    // finishVoiceRecording() path as the hold release, so exactly one code
+    // path ever calls stop() — MediaRecorder's own auto-stop used to race
+    // the release and discard a valid max-length clip (review, PR #1250).
+    LaunchedEffect(isRecordingVoice) {
+        if (isRecordingVoice) {
+            delay(VoiceNoteRecorder.MAX_DURATION_MS.toLong())
             if (voiceNoteRecorder.isActive) {
                 finishVoiceRecording()
             }
         }
+    }
+
+    DisposableEffect(voiceNoteRecorder) {
         onDispose {
-            voiceNoteRecorder.onMaxDurationReached = null
             voiceNoteRecorder.cancel()
         }
     }
@@ -253,7 +261,10 @@ fun rememberChatMediaLaunchers(
         }
 
     val onMicTap: () -> Unit = {
-        if (isRecordingVoice) {
+        if (isTranscribingVoiceNote) {
+            // Single-flight: a server transcription owns the voice pipeline
+            // until it lands (review, PR #1250).
+        } else if (isRecordingVoice) {
             // A tap while recording discards the in-flight voice note.
             voiceNoteRecorder.cancel()
             isRecordingVoice = false
@@ -287,7 +298,9 @@ fun rememberChatMediaLaunchers(
     }
 
     val onMicHoldStart: () -> Unit = {
-        if (voiceNoteRecorder.isActive || isListening) {
+        if (isTranscribingVoiceNote) {
+            // Single-flight: no new recording while a transcription runs.
+        } else if (voiceNoteRecorder.isActive || isListening) {
             // A voice note or a dictation session is already running.
         } else if (
             ContextCompat.checkSelfPermission(
@@ -301,10 +314,12 @@ fun rememberChatMediaLaunchers(
                 currentOnShowMessage(voiceRecordFailedMsg)
             }
         } else {
+            // The denial message comes from voiceNotePermissionLauncher's
+            // result callback only — showing it here fired it before the
+            // dialog even opened (review, PR #1250).
             currentLaunchExternalActivity {
                 voiceNotePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
             }
-            currentOnShowMessage(sttPermissionDeniedMsg)
         }
     }
 
@@ -354,7 +369,7 @@ fun rememberChatMediaLaunchers(
         }
     }
 
-    return remember(isListening, isRecordingVoice) {
+    return remember(isListening, isRecordingVoice, isTranscribingVoiceNote) {
         ChatMediaLaunchers(
             isListening = isListening || isRecordingVoice,
             isRecordingVoice = isRecordingVoice,

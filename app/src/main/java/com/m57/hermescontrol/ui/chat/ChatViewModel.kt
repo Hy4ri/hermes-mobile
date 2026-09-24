@@ -1832,6 +1832,7 @@ class ChatViewModel(
                 content = text,
                 attachments = if (attachments.isNotEmpty()) attachments else null,
                 tokenCount = TokenEstimator.estimate(text).takeIf { it > 0 },
+                messageProvenance = MessageProvenance.LOCAL_PENDING,
             )
 
         // Update UI immediately
@@ -1894,6 +1895,7 @@ class ChatViewModel(
                 content = text,
                 attachments = if (attachments.isNotEmpty()) attachments else null,
                 tokenCount = TokenEstimator.estimate(text).takeIf { it > 0 },
+                messageProvenance = MessageProvenance.LOCAL_PENDING,
             )
 
         // Upload attachments then submit prompt
@@ -3258,14 +3260,22 @@ class ChatViewModel(
                 withContext(historyDispatcher) {
                     val mapped = mapPage(snapshot.messages)
                     val currentById = snapshot.messages.associateBy { it.id }
-                    // Cache is historical unless a current optimistic delivery or live event
-                    // already owns the exact identity. This standalone branch has no busy-send
-                    // receipt store: upstream keeps every pending send in messages immediately.
+                    // Durable provenance distinguishes new unsent prompts after process death.
+                    // Legacy UUID-only USER rows remain conservatively unconfirmed: UNKNOWN is
+                    // not evidence that the server delivered them.
                     val page =
                         if (cached) {
                             mapped.map { message ->
                                 message.copy(
-                                    isHistoricalCache = currentById[message.id]?.isHistoricalCache != false,
+                                    isHistoricalCache =
+                                        when {
+                                            currentById[message.id]?.isHistoricalCache == false -> false
+                                            message.isPermanentlyLocal() -> false
+                                            message.messageProvenance == MessageProvenance.LOCAL_PENDING -> false
+                                            message.canonicalRestId != null -> true
+                                            message.role == MessageRole.USER -> false
+                                            else -> true
+                                        },
                                 )
                             }
                         } else {

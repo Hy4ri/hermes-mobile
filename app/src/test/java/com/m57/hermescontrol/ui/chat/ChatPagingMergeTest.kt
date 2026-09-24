@@ -13,6 +13,42 @@ import org.junit.Test
 
 class ChatPagingMergeTest {
     @Test
+    fun lateCachedRunningToolCannotReplaceCanonicalServerResult() {
+        val canonical =
+            ChatMessage(
+                id = "rest-s-42",
+                role = MessageRole.TOOL,
+                content = """{"output":"server result","exit_code":0}""",
+                toolCallId = "call-42",
+                toolStatus = ToolStatus.COMPLETED,
+            )
+        val cached =
+            ChatMessage(
+                id = "cached-tool",
+                role = MessageRole.TOOL,
+                content = """{"name":"terminal","args":{"command":"pwd"}}""",
+                toolName = "terminal",
+                toolCallId = "call-42",
+                toolStatus = ToolStatus.RUNNING,
+                isHistoricalCache = true,
+                tokenCount = 7,
+                tps = 2.5,
+                finishTimestamp = 123L,
+            )
+
+        val merged = mergeCachedTranscriptPage(listOf(cached), listOf(canonical)).single()
+
+        assertEquals(canonical.id, merged.id)
+        assertEquals(canonical.content, merged.content)
+        assertEquals(ToolStatus.COMPLETED, merged.toolStatus)
+        assertEquals("terminal", merged.toolName)
+        assertEquals("call-42", merged.toolCallId)
+        assertEquals(cached.tokenCount, merged.tokenCount)
+        assertEquals(cached.tps, merged.tps)
+        assertEquals(cached.finishTimestamp, merged.finishTimestamp)
+    }
+
+    @Test
     fun canonicalResultSettlesHistoricalRunningToolWithServerOutput() {
         val cached =
             ChatMessage(

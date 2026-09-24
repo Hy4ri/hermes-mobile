@@ -35,6 +35,12 @@ data class ToolOutputRiskData(
     val redacted: Boolean,
 )
 
+/** Durable evidence about a locally-created row; UNKNOWN must not be treated as proof of delivery. */
+enum class MessageProvenance {
+    UNKNOWN,
+    LOCAL_PENDING,
+}
+
 data class ChatMessage(
     val id: String = UUID.randomUUID().toString(),
     val role: MessageRole,
@@ -91,6 +97,8 @@ data class ChatMessage(
     val restId: String? = null,
     /** Cache insertion sequence for unconfirmed local rows; null before first persistence. */
     val localOrder: Long? = null,
+    /** Persisted before prompt submission so process death cannot turn an unsent prompt into old history. */
+    val messageProvenance: MessageProvenance = MessageProvenance.UNKNOWN,
     /** Read from history, not observed live in this view. Never persisted as delivery state. */
     val isHistoricalCache: Boolean = false,
 )

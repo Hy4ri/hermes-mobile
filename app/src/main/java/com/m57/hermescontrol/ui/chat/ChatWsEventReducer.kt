@@ -956,7 +956,7 @@ object ChatWsEventReducer {
         )
     }
 
-    /** Match stable tool IDs first, with name matching for legacy events. */
+    /** Match an explicit stable ID exclusively; use name matching only when legacy events omit the ID. */
     private fun findToolIndex(
         messages: List<ChatMessage>,
         name: String?,

@@ -341,13 +341,35 @@ internal fun mergeCachedTranscriptPage(
         incoming
             .mapIndexedNotNull { index, message ->
                 val match = matches[index] ?: return@mapIndexedNotNull null
-                val rich = if (match.id.startsWith("rest-") && !message.id.startsWith("rest-")) message else match
+                val rich =
+                    when {
+                        // A late historical snapshot may contribute safe metadata, but it must
+                        // never replace a canonical server payload/status already on screen.
+                        message.isHistoricalCache && match.canonicalRestId != null -> {
+                            match.copy(
+                                toolName = match.toolName ?: message.toolName,
+                                toolCallId = match.toolCallId.ifBlank { message.toolCallId },
+                                attachments = match.attachments ?: message.attachments,
+                                finishTimestamp = match.finishTimestamp ?: message.finishTimestamp,
+                                tokenCount = match.tokenCount ?: message.tokenCount,
+                                tps = match.tps ?: message.tps,
+                            )
+                        }
+
+                        match.id.startsWith("rest-") && !message.id.startsWith("rest-") -> {
+                            message
+                        }
+
+                        else -> {
+                            match
+                        }
+                    }
                 match.id to
                     rich.copy(
                         id = match.id,
-                        restId = message.canonicalRestId ?: match.canonicalRestId,
+                        restId = match.canonicalRestId ?: message.canonicalRestId,
                         completionId = match.completionId ?: message.completionId,
-                        displayKind = message.displayKind ?: match.displayKind,
+                        displayKind = match.displayKind ?: message.displayKind,
                     )
             }.toMap()
     val resolvedOrders =
@@ -446,10 +468,6 @@ private fun List<ChatMessage>.inTranscriptOrder(
             precedingCanonical = order
             hasPendingPredecessor = false
             pendingLocalOrder = null
-        } else if (message.isHistoricalCache) {
-            // Room groups UUID-only rows after all confirmed rows; that predecessor is
-            // not a chronological anchor. Keep unresolved history before the server window.
-            localAnchors[message.id] = beforeCanonical
         } else if (message.isPermanentlyLocal()) {
             localAnchors[message.id] =
                 if (hasPendingPredecessor) {
@@ -459,6 +477,10 @@ private fun List<ChatMessage>.inTranscriptOrder(
                         ?: latestCanonical
                 }
             if (hasPendingPredecessor) pendingOrderByLocal[message.id] = pendingLocalOrder ?: Long.MAX_VALUE
+        } else if (message.isHistoricalCache) {
+            // Room groups UUID-only rows after all confirmed rows; that predecessor is
+            // not a chronological anchor. Keep unresolved history before the server window.
+            localAnchors[message.id] = beforeCanonical
         } else {
             hasPendingPredecessor = true
             pendingLocalOrder = message.localOrder

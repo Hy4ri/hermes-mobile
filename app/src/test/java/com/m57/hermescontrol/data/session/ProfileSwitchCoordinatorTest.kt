@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.data.session
 
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.model.ActiveProfileResponse
 import com.m57.hermescontrol.data.model.SetActiveProfileRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.HermesApiService
@@ -18,6 +19,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
@@ -81,6 +83,37 @@ class ProfileSwitchCoordinatorTest {
         Dispatchers.resetMain()
         unmockkAll()
     }
+
+    @Test
+    fun coldStartBootstrapsMissingLocalScopeFromServerActiveProfile() =
+        runTest {
+            val active = MutableStateFlow<String?>(null)
+            every { AuthManager.activeProfileId } returns active
+            every { AuthManager.setActiveProfileId(any()) } answers {
+                active.value = firstArg()
+            }
+            coEvery { mockApi.getActiveProfile() } returns
+                Response.success(ActiveProfileResponse(active = "karellen"))
+
+            val restored = ProfileSwitchCoordinator.restoreActiveProfileScopeIfMissing()
+
+            assertEquals("karellen", restored)
+            assertEquals("karellen", active.value)
+            verify(exactly = 1) { AuthManager.setActiveProfileId("karellen") }
+        }
+
+    @Test
+    fun coldStartKeepsExistingExplicitLocalProfileWithoutServerLookup() =
+        runTest {
+            val active = MutableStateFlow<String?>("work")
+            every { AuthManager.activeProfileId } returns active
+
+            val restored = ProfileSwitchCoordinator.restoreActiveProfileScopeIfMissing()
+
+            assertEquals("work", restored)
+            coVerify(exactly = 0) { mockApi.getActiveProfile() }
+            verify(exactly = 0) { AuthManager.setActiveProfileId(any()) }
+        }
 
     @Test
     fun `success flips server then persists selection then re-dials socket`() =

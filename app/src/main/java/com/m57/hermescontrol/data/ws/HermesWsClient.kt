@@ -1458,6 +1458,15 @@ object HermesWsClient {
                             disconnectIfIdleInBackground()
                         }
                     }
+                    if (pendingCalls.containsKey(event.id)) {
+                        // Deferred-API callers (request()) own their errors via
+                        // the CompletableDeferred; re-emitting the same failure
+                        // into the shared event flow surfaces duplicate UI
+                        // banners for optional features (e.g. "subagent.list"
+                        // on gateways without the method, issue #1089).
+                        resolvePending(event.id, null, event.error)
+                        return
+                    }
                     removeQueuedMessage(event.id)
                     resolvePending(event.id, null, event.error)
                 }

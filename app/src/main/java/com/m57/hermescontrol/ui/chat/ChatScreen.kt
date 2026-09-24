@@ -82,6 +82,7 @@ import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.AttachmentSource
+import com.m57.hermescontrol.data.model.BusySendMode
 import com.m57.hermescontrol.data.model.reasoningSupport
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
@@ -167,7 +168,11 @@ fun ChatScreen(
     // Snapshot-backed search state — read directly so only the scopes that
     // read its fields recompose on search changes (bar, matched bubbles).
     val searchState = viewModel.searchState
-    val displayedMessages = timelineState.historyMessages ?: state.messages
+    val sourceMessages = timelineState.historyMessages ?: state.messages
+    val displayedMessages =
+        remember(sourceMessages, state.pendingSends) {
+            messagesWithoutUnsentQueue(sourceMessages, state.pendingSends)
+        }
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
     var browserAuthInFlight by rememberSaveable { mutableStateOf(false) }
@@ -190,6 +195,7 @@ fun ChatScreen(
                     }
 
                     Lifecycle.Event.ON_RESUME -> {
+                        viewModel.refreshSettings()
                         connectorsViewModel.onResume()
                         val legacyBrowserReturned = browserAuthInFlight && browserAuthDeparted
                         val operationId = connectionBrowserOperationId.takeIf { connectionBrowserDeparted }
@@ -309,7 +315,7 @@ fun ChatScreen(
     // streaming tail.
     LaunchedEffect(
         timelineState.isHistorical,
-        state.messages,
+        displayedMessages,
         streamingState.streamingMessage,
         streamingState.isThinking,
         state.subagentIndicators,
@@ -323,13 +329,13 @@ fun ChatScreen(
         scrollController.onTailChanged(
             tailKey =
                 tailContentKey(
-                    messages = state.messages,
+                    messages = displayedMessages,
                     streamingMessage = streamingState.streamingMessage,
                     isThinking = streamingState.isThinking,
                     subagentIndicators = state.subagentIndicators,
                     clarifyRequest = state.clarifyRequest,
                 ),
-            messageCount = state.messages.size,
+            messageCount = displayedMessages.size,
         )
     }
     LaunchedEffect(timelineState.historyAnchorRowId) {
@@ -834,19 +840,31 @@ fun ChatScreen(
                     },
             )
 
+            com.m57.hermescontrol.ui.chat.components.PendingSendPanel(
+                sends = state.pendingSends,
+                onSendNow = viewModel::sendQueuedNow,
+            )
+
             ChatInputBar(
                 inputFieldValue = inputFieldValue,
                 onInputChange = { inputFieldValue = it },
                 onSend = {
-                    if (viewModel.sendMessage(inputFieldValue.text)) {
+                    if (viewModel.sendMessage(inputFieldValue.text, BusySendMode.CORRECT)) {
                         inputFieldValue = TextFieldValue("")
                         // Jump only after an accepted send. A readiness race keeps the draft intact.
+                        scrollController.jumpToBottom(animated = true)
+                    }
+                },
+                onBusySend = { mode ->
+                    if (viewModel.sendMessage(inputFieldValue.text, mode)) {
+                        inputFieldValue = TextFieldValue("")
                         scrollController.jumpToBottom(animated = true)
                     }
                 },
                 onMicTap = mediaLaunchers.onMicTap,
                 isListening = mediaLaunchers.isListening,
                 isAgentTyping = state.isAgentTyping,
+                isMainTurnBusy = state.isMainTurnBusy,
                 isConnected = state.isConnected,
                 isSessionReady = state.isSessionReady && !timelineState.isHistorical,
                 sessionPreparationFailed = state.resumeError != null,

@@ -4,6 +4,7 @@ import com.m57.hermescontrol.ui.chat.fakes.FakeChatMessageDao
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.junit.Test
 
@@ -104,6 +105,23 @@ class ChatPersistenceRepositoryTest {
             assertEquals("USER", entity.role)
             assertEquals("Hello, world!", entity.content)
             assertEquals(1000L, entity.timestamp)
+        }
+
+    @Test
+    fun deleteMessageRemovesOnlyUnconfirmedOptimisticRows() =
+        runTest {
+            repository.persistMessage(ChatMessage(id = "local", role = MessageRole.USER, content = "draft"), "s")
+            repository.persistMessage(
+                ChatMessage(id = "confirmed", role = MessageRole.USER, content = "history", restId = "rest-s-7"),
+                "s",
+            )
+
+            repository.deleteMessage("local")
+            repository.deleteMessage("confirmed")
+
+            val rows = repository.loadMessages("s")
+            assertFalse(rows.any { it.id == "local" })
+            assertEquals("confirmed", rows.single().id)
         }
 
     @Test

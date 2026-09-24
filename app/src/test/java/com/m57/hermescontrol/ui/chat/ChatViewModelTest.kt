@@ -10,6 +10,7 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.AttachmentSource
+import com.m57.hermescontrol.data.model.BusySendMode
 import com.m57.hermescontrol.data.model.PaginationInfo
 import com.m57.hermescontrol.data.model.SessionMessage
 import com.m57.hermescontrol.data.model.SessionMessagesAroundPagination
@@ -46,6 +47,7 @@ import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -83,6 +85,7 @@ class ChatViewModelTest {
     private lateinit var fakeRepo: FakeChatPersistenceRepository
     private lateinit var fakeSlashUsageStore: FakeSlashUsageStore
     private lateinit var attachmentCacheDir: java.io.File
+    private lateinit var attachmentFilesDir: java.io.File
 
     /** Counter used to generate unique WS request IDs. */
     private var reqCount = 0
@@ -279,7 +282,12 @@ class ChatViewModelTest {
             java.nio.file.Files
                 .createTempDirectory("chat-attachments-test")
                 .toFile()
+        attachmentFilesDir =
+            java.nio.file.Files
+                .createTempDirectory("chat-send-files-test")
+                .toFile()
         every { app.cacheDir } returns attachmentCacheDir
+        every { app.filesDir } returns attachmentFilesDir
         fakeRepo = FakeChatPersistenceRepository()
         fakeSlashUsageStore = FakeSlashUsageStore()
         ActiveSessionHolder.set(null)
@@ -293,6 +301,7 @@ class ChatViewModelTest {
         every { ProfileSwitchCoordinator.switched } returns mockSwitchFlow
         every { ProfileSwitchCoordinator.connectionSwitched } returns MutableSharedFlow<String>()
         every { AuthManager.isTypingEffectEnabled() } returns true
+        every { AuthManager.getBusySendMode() } returns BusySendMode.CORRECT
         every { AuthManager.getTypingEffectDelayMs() } returns 30
         every { AuthManager.isMessageStatsEnabled() } returns false
         every { AuthManager.isUserMessageTokensEnabled() } returns true
@@ -357,6 +366,7 @@ class ChatViewModelTest {
     fun tearDown() {
         Dispatchers.resetMain()
         attachmentCacheDir.deleteRecursively()
+        attachmentFilesDir.deleteRecursively()
         unmockkAll()
     }
 
@@ -366,9 +376,9 @@ class ChatViewModelTest {
     private fun createViewModel(
         startCleanup: Boolean = false,
         historyDispatcher: kotlinx.coroutines.CoroutineDispatcher = testDispatcher,
+        sendStore: ChatSendStore = ChatSendStore(),
     ): ChatViewModel =
-        // Both dispatchers injected — a real ioDispatcher would race the
-        // test scheduler (repo writes hop it) and shuffle RPC ordering.
+        // All injected dispatchers share the test scheduler so RPC ordering is deterministic.
         ChatViewModel(
             app,
             startCleanup,
@@ -377,6 +387,7 @@ class ChatViewModelTest {
             testDispatcher,
             testDispatcher,
             historyDispatcher,
+            sendStore,
         )
 
     /**
@@ -389,8 +400,9 @@ class ChatViewModelTest {
     private suspend fun TestScope.createViewModelWithSession(
         startCleanup: Boolean = false,
         historyDispatcher: kotlinx.coroutines.CoroutineDispatcher = testDispatcher,
+        sendStore: ChatSendStore = ChatSendStore(),
     ): Pair<ChatViewModel, String> {
-        val viewModel = createViewModel(startCleanup, historyDispatcher)
+        val viewModel = createViewModel(startCleanup, historyDispatcher, sendStore)
         advanceUntilIdle()
 
         mockConnectionStatus.value = ConnectionStatus.CONNECTED
@@ -1627,6 +1639,36 @@ class ChatViewModelTest {
     // ── Clarify tests ────────────────────────────────────────────────────────
 
     @Test
+    fun mainTurnBusyTracksRuntimeEventsNotClarificationTyping() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            assertFalse(viewModel.uiState.value.isMainTurnBusy)
+
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isMainTurnBusy)
+
+            mockEventsFlow.emit(WsEvent.MessageComplete("Done", sessionId))
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.isMainTurnBusy)
+
+            mockEventsFlow.emit(
+                WsEvent.ClarifyRequest(
+                    text = "Continue?",
+                    options = listOf("Yes"),
+                    clarifyId = "clarify-busy-state",
+                    sessionId = sessionId,
+                ),
+            )
+            advanceUntilIdle()
+            viewModel.respondToClarify("Yes")
+            advanceUntilIdle()
+
+            assertTrue(viewModel.uiState.value.isAgentTyping)
+            assertFalse(viewModel.uiState.value.isMainTurnBusy)
+        }
+
+    @Test
     fun testClarifyRequestAndRespond() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()
@@ -2107,20 +2149,16 @@ class ChatViewModelTest {
                 size = MAX_CHAT_ATTACHMENT_BYTES + 1,
             )
 
-            viewModel.sendMessage("Inspect this archive")
+            assertFalse(viewModel.sendMessage("Inspect this archive"))
             advanceUntilIdle()
 
             assertEquals(2, viewModel.uiState.value.pendingAttachments.size)
-            assertEquals("Inspect this archive", viewModel.uiState.value.composerTextToRestore)
+            assertNull(viewModel.uiState.value.composerTextToRestore)
             assertTrue(
                 viewModel.uiState.value.errorMessage
                     ?.contains("too large") == true,
             )
             verify(exactly = 0) { contentResolver.openInputStream(any()) }
-
-            viewModel.consumeComposerTextRestore()
-            advanceUntilIdle()
-            assertNull(viewModel.uiState.value.composerTextToRestore)
         }
 
     @Test
@@ -2598,7 +2636,7 @@ class ChatViewModelTest {
                 viewModel.uiState.value.messages[1]
                     .role,
             )
-            assertTrue(viewModel.uiState.value.isAgentTyping)
+            assertTrue(viewModel.uiState.value.isSending)
             assertEquals(sessionId, ActiveSessionHolder.resolveStoredSessionId(sessionId))
 
             verify { HermesWsClient.sendMessage(sessionId, "Hello Hermes", any()) }
@@ -2612,6 +2650,8 @@ class ChatViewModelTest {
             // First send starts streaming
             viewModel.sendMessage("Hello Hermes")
             advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            advanceUntilIdle()
             assertTrue(viewModel.uiState.value.isAgentTyping)
 
             // Second send while streaming triggers redirect
@@ -2619,6 +2659,788 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             verify { HermesWsClient.sendRedirect(sessionId, "Wait, correction", any()) }
+        }
+
+    @Test
+    fun rejectedRedirectRemovesGhostAndQueuesRecoverableText() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            var redirectId = ""
+            every { HermesWsClient.sendRedirect(sessionId, any(), any()) } answers {
+                redirectId = "rejected-redirect"
+                arg<((String) -> Unit)?>(2)?.invoke(redirectId)
+                redirectId
+            }
+
+            viewModel.sendMessage("First turn")
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            advanceUntilIdle()
+            viewModel.sendMessage("Correction")
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.RpcResult(redirectId, mapOf("status" to "rejected")))
+            advanceUntilIdle()
+
+            assertFalse(
+                viewModel.uiState.value.messages
+                    .any { it.content == "Correction" },
+            )
+            assertFalse(fakeRepo.loadMessages(sessionId).any { it.content == "Correction" })
+            assertTrue(
+                viewModel.uiState.value.pendingSends
+                    .any { it.text == "Correction" },
+            )
+            assertTrue(viewModel.uiState.value.isAgentTyping)
+        }
+
+    @Test
+    fun rejectedRedirectFallsBackToQueueAndRestHistoryRecoversOneUserRow() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            var redirectId = ""
+            var queuedId = ""
+            var historyHasCorrection = false
+            every { HermesWsClient.sendRedirect(sessionId, any(), any()) } answers {
+                redirectId = "redirect-for-history"
+                arg<((String) -> Unit)?>(2)?.invoke(redirectId)
+                redirectId
+            }
+            every { HermesWsClient.sendMessage(sessionId, "Correction", any(), true) } answers {
+                queuedId = "queued-for-history"
+                arg<((String) -> Unit)?>(2)?.invoke(queuedId)
+                queuedId
+            }
+            coEvery {
+                ApiClient.hermesApi.getSessionMessages(sessionId, any(), any(), any(), any())
+            } answers {
+                retrofit2.Response.success(
+                    SessionMessagesResponse(
+                        messages =
+                            if (historyHasCorrection) {
+                                listOf(
+                                    SessionMessage(
+                                        id = 12,
+                                        role = "user",
+                                        content = JsonPrimitive("Correction"),
+                                        timestamp = JsonPrimitive(System.currentTimeMillis()),
+                                    ),
+                                )
+                            } else {
+                                emptyList()
+                            },
+                        pagination = PaginationInfo(order = "latest"),
+                    ),
+                )
+            }
+
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            advanceUntilIdle()
+            viewModel.sendMessage("Correction")
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.RpcResult(redirectId, mapOf("status" to "rejected")))
+            advanceUntilIdle()
+            assertFalse(
+                viewModel.uiState.value.messages
+                    .any { it.content == "Correction" },
+            )
+
+            mockEventsFlow.emit(WsEvent.MessageComplete("Done", sessionId))
+            advanceUntilIdle()
+            assertEquals("queued-for-history", queuedId)
+            mockEventsFlow.emit(WsEvent.RpcResult(queuedId, mapOf("status" to "queued")))
+            advanceUntilIdle()
+            assertEquals(
+                PendingSendState.ACCEPTED,
+                viewModel.uiState.value.pendingSends
+                    .single()
+                    .state,
+            )
+
+            historyHasCorrection = true
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            mockEventsFlow.emit(WsEvent.MessageComplete("Answered", sessionId))
+            advanceUntilIdle()
+            assertTrue(
+                viewModel.uiState.value.pendingSends
+                    .isEmpty(),
+            )
+            assertEquals(
+                1,
+                viewModel.uiState.value.messages
+                    .count { it.content == "Correction" },
+            )
+            assertTrue(
+                viewModel.uiState.value.messages
+                    .any { it.content == "Correction" && it.canonicalRestId != null },
+            )
+        }
+
+    @Test
+    fun busyQueueWaitsForCompletionAndUsesQueuedSubmit() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            advanceUntilIdle()
+
+            assertTrue(viewModel.sendMessage("Next turn", BusySendMode.QUEUE))
+            advanceUntilIdle()
+            assertEquals(
+                PendingSendState.QUEUED,
+                viewModel.uiState.value.pendingSends
+                    .single()
+                    .state,
+            )
+            verify(exactly = 0) { HermesWsClient.sendMessage(any(), "Next turn", any(), any()) }
+
+            mockEventsFlow.emit(WsEvent.MessageComplete("Done", sessionId))
+            advanceUntilIdle()
+            verify(exactly = 1) { HermesWsClient.sendMessage(sessionId, "Next turn", any(), true) }
+        }
+
+    @Test
+    fun queueTapAfterTurnCompletionSubmitsNormally() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.MessageComplete("Done", sessionId))
+            advanceUntilIdle()
+
+            assertTrue(viewModel.sendMessage("Late queue tap", BusySendMode.QUEUE))
+            advanceUntilIdle()
+
+            verify(exactly = 1) { HermesWsClient.sendMessage(sessionId, "Late queue tap", any(), false) }
+            assertFalse(
+                viewModel.uiState.value.pendingSends
+                    .any { it.text == "Late queue tap" && it.state == PendingSendState.QUEUED },
+            )
+        }
+
+    @Test
+    fun slashQueueSharesDurableLocalQueueWhileBusy() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            advanceUntilIdle()
+            viewModel.sendMessage("/queue after tools")
+            advanceUntilIdle()
+            assertEquals(
+                PendingSendState.QUEUED,
+                viewModel.uiState.value.pendingSends
+                    .single()
+                    .state,
+            )
+            verify(exactly = 0) { HermesWsClient.sendMessage(any(), "after tools", any(), any()) }
+
+            mockEventsFlow.emit(WsEvent.MessageComplete("Done", sessionId))
+            advanceUntilIdle()
+            verify(exactly = 1) { HermesWsClient.sendMessage(sessionId, "after tools", any(), true) }
+        }
+
+    @Test
+    fun busyAttachmentIsSnapshottedAndQueuedWithoutRedirect() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val sourceUri = mockk<Uri>()
+            val snapshotUri = mockk<Uri>()
+            val resolver = mockk<ContentResolver>()
+            lateinit var snapshotFile: java.io.File
+            mockkStatic(Uri::class)
+            every { Uri.parse("content://queued/photo") } returns sourceUri
+            every { Uri.parse("file://queued-copy") } returns snapshotUri
+            every { Uri.fromFile(any()) } answers {
+                snapshotFile = firstArg()
+                snapshotUri
+            }
+            every { snapshotUri.toString() } returns "file://queued-copy"
+            every { app.contentResolver } returns resolver
+            every { resolver.openInputStream(sourceUri) } answers { byteArrayOf(1, 2, 3).inputStream() }
+            every { resolver.openInputStream(snapshotUri) } answers { snapshotFile.inputStream() }
+            io.mockk.mockkConstructor(android.util.Base64OutputStream::class)
+            every {
+                anyConstructed<android.util.Base64OutputStream>().write(any<ByteArray>(), any(), any())
+            } returns Unit
+            every { anyConstructed<android.util.Base64OutputStream>().close() } returns Unit
+            every { HermesWsClient.request(WsMethods.IMAGE_ATTACH_BYTES, any(), any()) } returns
+                CompletableDeferred<Any?>(mapOf("attached" to true))
+
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            advanceUntilIdle()
+            viewModel.addAttachment("content://queued/photo", "photo.png", "image/png", 3)
+            viewModel.sendMessage("See photo")
+            advanceUntilIdle()
+            assertEquals(
+                PendingSendState.QUEUED,
+                viewModel.uiState.value.pendingSends
+                    .single()
+                    .state,
+            )
+            assertTrue(snapshotFile.exists())
+            verify(exactly = 0) { HermesWsClient.sendRedirect(any(), any(), any()) }
+
+            mockEventsFlow.emit(WsEvent.MessageComplete("Done", sessionId))
+            advanceUntilIdle()
+            verify(exactly = 1) { HermesWsClient.sendMessage(sessionId, "See photo", any(), true) }
+        }
+
+    @Test
+    fun idleIgnoresBusyModeAndSubmitsNormally() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            assertTrue(viewModel.sendMessage("Idle", BusySendMode.GUIDE))
+            advanceUntilIdle()
+            verify(exactly = 1) { HermesWsClient.sendMessage(sessionId, "Idle", any(), false) }
+            verify(exactly = 0) { HermesWsClient.send(WsMethods.SESSION_STEER, any(), any()) }
+        }
+
+    @Test
+    fun subagentActivityAloneDoesNotTurnAnIdleMainSessionBusy() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            mockEventsFlow.emit(
+                WsEvent.SubagentEvent(
+                    type = "subagent.progress",
+                    payload = mapOf("subagent_id" to "child-1", "status" to "running"),
+                    sessionId = sessionId,
+                ),
+            )
+            advanceUntilIdle()
+            viewModel.sendMessage("Main prompt", BusySendMode.GUIDE)
+            advanceUntilIdle()
+            verify(exactly = 1) { HermesWsClient.sendMessage(sessionId, "Main prompt", any(), false) }
+            verify(exactly = 0) { HermesWsClient.send(WsMethods.SESSION_STEER, any(), any()) }
+        }
+
+    @Test
+    fun toolStartMarksMainTurnBusyEvenWithoutMessageStart() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            mockEventsFlow.emit(WsEvent.ToolStart("shell", emptyMap(), sessionId))
+            advanceUntilIdle()
+            viewModel.sendMessage("Guide", BusySendMode.GUIDE)
+            advanceUntilIdle()
+            verify(exactly = 1) { HermesWsClient.send(WsMethods.SESSION_STEER, any(), any()) }
+            verify(exactly = 0) { HermesWsClient.sendMessage(sessionId, "Guide", any(), any()) }
+        }
+
+    @Test
+    fun refreshSettingsPicksUpChangedSavedBusyMode() =
+        runTest {
+            var savedMode = BusySendMode.CORRECT
+            every { AuthManager.getBusySendMode() } answers { savedMode }
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+            assertEquals(BusySendMode.CORRECT, viewModel.uiState.value.busySendMode)
+
+            savedMode = BusySendMode.GUIDE
+            viewModel.refreshSettings()
+            advanceUntilIdle()
+            assertEquals(BusySendMode.GUIDE, viewModel.uiState.value.busySendMode)
+        }
+
+    @Test
+    fun rapidDuplicateTapCreatesOneReceiptAndOneRpc() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            assertTrue(viewModel.sendMessage("One tap"))
+            assertFalse(viewModel.sendMessage("One tap"))
+            advanceUntilIdle()
+            assertEquals(1, viewModel.uiState.value.pendingSends.size)
+            verify(exactly = 1) { HermesWsClient.sendMessage(sessionId, "One tap", any(), any()) }
+        }
+
+    @Test
+    fun stalePromptAckAfterSessionSwitchKeepsOldReceiptAndCurrentSessionClear() =
+        runTest {
+            stubSession456Rests(success = true)
+            val sendStore = ChatSendStore()
+            val (viewModel, sessionId) = createViewModelWithSession(sendStore = sendStore)
+            val requestId = "old-prompt"
+            every { HermesWsClient.sendMessage(sessionId, "Old session", any(), any()) } answers {
+                arg<((String) -> Unit)?>(2)?.invoke(requestId)
+                requestId
+            }
+            viewModel.sendMessage("Old session")
+            advanceUntilIdle()
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(WsEvent.RpcResult(requestId, mapOf("status" to "streaming")))
+            advanceUntilIdle()
+            assertTrue(
+                viewModel.uiState.value.pendingSends
+                    .isEmpty(),
+            )
+            assertEquals(PendingSendState.UNKNOWN, sendStore.all().single().state)
+        }
+
+    @Test
+    fun busyGuideUsesSteerAndUnsupportedFallsBackToQueueWithoutInterrupt() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            advanceUntilIdle()
+
+            viewModel.sendMessage("Keep the tests", BusySendMode.GUIDE)
+            advanceUntilIdle()
+            val id = sentRequestMethods.last { it.first == WsMethods.SESSION_STEER }.second
+            mockEventsFlow.emit(WsEvent.RpcError(id, JsonRpcError(4010, "steer unsupported")))
+            advanceUntilIdle()
+
+            assertEquals(
+                PendingSendState.QUEUED,
+                viewModel.uiState.value.pendingSends
+                    .single()
+                    .state,
+            )
+            verify(exactly = 0) { HermesWsClient.send(WsMethods.SESSION_INTERRUPT, any(), any()) }
+        }
+
+    @Test
+    fun interruptWithUnknownDeliveryQueuesWithoutInterrupting() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            every { HermesWsClient.sendMessage(sessionId, "Uncertain", any(), false) } answers {
+                arg<((String) -> Unit)?>(2)?.invoke("uncertain-submit")
+                "uncertain-submit"
+            }
+
+            viewModel.sendMessage("Uncertain")
+            advanceUntilIdle()
+            viewModel.expireOutgoingRequest("uncertain-submit")
+            advanceUntilIdle()
+
+            viewModel.sendMessage("Replacement", BusySendMode.INTERRUPT)
+            advanceUntilIdle()
+
+            val replacement =
+                viewModel.uiState.value.pendingSends
+                    .single { it.text == "Replacement" }
+            assertEquals(BusySendMode.QUEUE, replacement.mode)
+            assertEquals(PendingSendState.QUEUED, replacement.state)
+            assertEquals(
+                PendingSendState.UNKNOWN,
+                viewModel.uiState.value.pendingSends
+                    .single { it.text == "Uncertain" }
+                    .state,
+            )
+            verify(exactly = 0) { HermesWsClient.send(WsMethods.SESSION_INTERRUPT, any(), any()) }
+            verify(exactly = 0) { HermesWsClient.sendMessage(any(), "Replacement", any(), any()) }
+        }
+
+    @Test
+    fun interruptWithAcceptedDeliveryQueuesWithoutInterrupting() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            every { HermesWsClient.sendMessage(sessionId, "Accepted", any(), false) } answers {
+                arg<((String) -> Unit)?>(2)?.invoke("accepted-submit")
+                "accepted-submit"
+            }
+
+            viewModel.sendMessage("Accepted")
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.RpcResult("accepted-submit", mapOf("status" to "streaming")))
+            advanceUntilIdle()
+
+            viewModel.sendMessage("Replacement", BusySendMode.INTERRUPT)
+            advanceUntilIdle()
+
+            val replacement =
+                viewModel.uiState.value.pendingSends
+                    .single { it.text == "Replacement" }
+            assertEquals(BusySendMode.QUEUE, replacement.mode)
+            assertEquals(PendingSendState.QUEUED, replacement.state)
+            assertEquals(
+                PendingSendState.ACCEPTED,
+                viewModel.uiState.value.pendingSends
+                    .single { it.text == "Accepted" }
+                    .state,
+            )
+            verify(exactly = 0) { HermesWsClient.send(WsMethods.SESSION_INTERRUPT, any(), any()) }
+            verify(exactly = 0) { HermesWsClient.sendMessage(any(), "Replacement", any(), any()) }
+        }
+
+    @Test
+    fun interruptAfterCompletedTurnSubmitsNormally() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            mockEventsFlow.emit(WsEvent.MessageComplete("Done", sessionId))
+            advanceUntilIdle()
+
+            viewModel.sendMessage("Fresh turn", BusySendMode.INTERRUPT)
+            advanceUntilIdle()
+
+            verify(exactly = 0) { HermesWsClient.send(WsMethods.SESSION_INTERRUPT, any(), any()) }
+            verify(exactly = 1) { HermesWsClient.sendMessage(sessionId, "Fresh turn", any(), false) }
+        }
+
+    @Test
+    fun hardInterruptWaitsForAckBeforeSubmitting() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            advanceUntilIdle()
+
+            viewModel.sendMessage("Urgent", BusySendMode.INTERRUPT)
+            advanceUntilIdle()
+            verify(exactly = 0) { HermesWsClient.sendMessage(any(), "Urgent", any(), any()) }
+            val id = sentRequestMethods.last { it.first == WsMethods.SESSION_INTERRUPT }.second
+            mockEventsFlow.emit(WsEvent.RpcResult(id, mapOf("status" to "interrupted")))
+            advanceUntilIdle()
+            verify(exactly = 1) { HermesWsClient.sendMessage(sessionId, "Urgent", any(), true) }
+        }
+
+    @Test
+    fun stopParksLocalQueueAndSendNowUnparksIt() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            advanceUntilIdle()
+            viewModel.sendMessage("Later", BusySendMode.QUEUE)
+            advanceUntilIdle()
+            val queuedId =
+                viewModel.uiState.value.pendingSends
+                    .single()
+                    .id
+
+            viewModel.interruptSession()
+            advanceUntilIdle()
+            assertEquals(
+                PendingSendState.PARKED,
+                viewModel.uiState.value.pendingSends
+                    .single()
+                    .state,
+            )
+            val stopId = sentRequestMethods.last { it.first == WsMethods.SESSION_INTERRUPT }.second
+            mockEventsFlow.emit(WsEvent.RpcResult(stopId, mapOf("status" to "interrupted")))
+            advanceUntilIdle()
+            verify(exactly = 0) { HermesWsClient.sendMessage(any(), "Later", any(), any()) }
+
+            viewModel.sendQueuedNow(queuedId)
+            advanceUntilIdle()
+            verify(exactly = 1) { HermesWsClient.sendMessage(sessionId, "Later", any(), true) }
+        }
+
+    @Test
+    fun sendNowWaitsForEarlierAcceptedTurnToReachRestHistory() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            every { HermesWsClient.sendMessage(sessionId, "First", any(), true) } answers {
+                arg<((String) -> Unit)?>(2)?.invoke("first-queued-submit")
+                "first-queued-submit"
+            }
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            advanceUntilIdle()
+            viewModel.sendMessage("First", BusySendMode.QUEUE)
+            viewModel.sendMessage("Second", BusySendMode.QUEUE)
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(WsEvent.MessageComplete("Done", sessionId))
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.RpcResult("first-queued-submit", mapOf("status" to "queued")))
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            advanceUntilIdle()
+            val second =
+                viewModel.uiState.value.pendingSends
+                    .single { it.text == "Second" }
+            viewModel.sendQueuedNow(second.id)
+            advanceUntilIdle()
+
+            assertEquals(
+                PendingSendState.QUEUED,
+                viewModel.uiState.value.pendingSends
+                    .single { it.id == second.id }
+                    .state,
+            )
+            verify(exactly = 0) { HermesWsClient.send(WsMethods.SESSION_INTERRUPT, any(), any()) }
+        }
+
+    @Test
+    fun acceptedReceiptCanBeRetriedOnlyByExplicitSendAgain() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            every { HermesWsClient.sendMessage(sessionId, "Possibly buffered", any(), false) } answers {
+                arg<((String) -> Unit)?>(2)?.invoke("buffered-submit")
+                "buffered-submit"
+            }
+            viewModel.sendMessage("Possibly buffered")
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.RpcResult("buffered-submit", mapOf("status" to "streaming")))
+            advanceUntilIdle()
+            val receipt =
+                viewModel.uiState.value.pendingSends
+                    .single()
+            assertEquals(PendingSendState.ACCEPTED, receipt.state)
+            verify(exactly = 0) { HermesWsClient.sendMessage(sessionId, "Possibly buffered", any(), true) }
+
+            viewModel.sendQueuedNow(receipt.id)
+            advanceUntilIdle()
+            verify(exactly = 1) { HermesWsClient.sendMessage(sessionId, "Possibly buffered", any(), true) }
+        }
+
+    @Test
+    fun disconnectQuarantinesAcceptedReceiptWithoutAutomaticResend() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            every { HermesWsClient.sendMessage(sessionId, "Accepted before disconnect", any(), false) } answers {
+                arg<((String) -> Unit)?>(2)?.invoke("accepted-before-disconnect")
+                "accepted-before-disconnect"
+            }
+            viewModel.sendMessage("Accepted before disconnect")
+            advanceUntilIdle()
+            mockEventsFlow.emit(
+                WsEvent.RpcResult("accepted-before-disconnect", mapOf("status" to "streaming")),
+            )
+            advanceUntilIdle()
+            assertEquals(
+                PendingSendState.ACCEPTED,
+                viewModel.uiState.value.pendingSends
+                    .single()
+                    .state,
+            )
+
+            mockConnectionStatus.value = ConnectionStatus.DISCONNECTED
+            advanceUntilIdle()
+
+            assertEquals(
+                PendingSendState.UNKNOWN,
+                viewModel.uiState.value.pendingSends
+                    .single()
+                    .state,
+            )
+            verify(exactly = 1) {
+                HermesWsClient.sendMessage(sessionId, "Accepted before disconnect", any(), false)
+            }
+            verify(exactly = 0) {
+                HermesWsClient.sendMessage(sessionId, "Accepted before disconnect", any(), true)
+            }
+        }
+
+    @Test
+    fun sendNowPromotesTheSelectedQueuedMessageWhileIdle() =
+        runTest {
+            val store = ChatSendStore()
+            val (viewModel, sessionId) = createViewModelWithSession(sendStore = store)
+            val scope =
+                listOf(
+                    AuthManager.getBaseUrl(),
+                    AuthManager.getSelectedProfileId() ?: AuthManager.DEFAULT_PROFILE_ID,
+                    AuthManager.activeProfileId.value ?: AuthManager.DEFAULT_PROFILE_ID,
+                ).joinToString("\u001f")
+            store.put(PendingSend("first", scope, sessionId, "First queued", mode = BusySendMode.QUEUE))
+            store.put(PendingSend("second", scope, sessionId, "Second queued", mode = BusySendMode.QUEUE))
+            viewModel.refreshSettings()
+            advanceUntilIdle()
+
+            viewModel.sendQueuedNow("second")
+            advanceUntilIdle()
+
+            verify(exactly = 1) { HermesWsClient.sendMessage(sessionId, "Second queued", any(), true) }
+            verify(exactly = 0) { HermesWsClient.sendMessage(sessionId, "First queued", any(), any()) }
+            assertEquals(PendingSendState.QUEUED, store.all().single { it.id == "first" }.state)
+        }
+
+    @Test
+    fun pendingQueueIsScopedByConnectionProfileAndStoredSession() =
+        runTest {
+            var connectionProfile = "first"
+            every { AuthManager.getSelectedProfileId() } answers { connectionProfile }
+            stubSession456Rests(success = true)
+            val sendStore = ChatSendStore()
+            val (viewModel, sessionId) = createViewModelWithSession(sendStore = sendStore)
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            advanceUntilIdle()
+            viewModel.sendMessage("Only here", BusySendMode.QUEUE)
+            advanceUntilIdle()
+            assertEquals(1, viewModel.uiState.value.pendingSends.size)
+
+            connectionProfile = "second"
+            viewModel.refreshSettings()
+            advanceUntilIdle()
+            assertTrue(
+                viewModel.uiState.value.pendingSends
+                    .isEmpty(),
+            )
+            connectionProfile = "first"
+            viewModel.refreshSettings()
+            advanceUntilIdle()
+            assertEquals(1, viewModel.uiState.value.pendingSends.size)
+
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+            assertTrue(
+                viewModel.uiState.value.pendingSends
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun restoredQueueDrainsAfterResumeHydrationWhenAckArrivesFirst() =
+        runTest {
+            stubSession456Rests(success = true)
+            val response =
+                CompletableDeferred<retrofit2.Response<SessionMessagesResponse>>()
+            coEvery {
+                ApiClient.hermesApi.getSessionMessages("session-456", any(), any(), any(), any())
+            } coAnswers { response.await() }
+            val store = ChatSendStore()
+            val (viewModel, _) = createViewModelWithSession(sendStore = store)
+            val captured = captureSends()
+            val scope =
+                listOf(
+                    AuthManager.getBaseUrl(),
+                    AuthManager.getSelectedProfileId() ?: AuthManager.DEFAULT_PROFILE_ID,
+                    AuthManager.activeProfileId.value ?: AuthManager.DEFAULT_PROFILE_ID,
+                ).joinToString("\u001f")
+            store.put(PendingSend("restored", scope, "session-456", "After relaunch", mode = BusySendMode.QUEUE))
+
+            viewModel.switchSession("session-456")
+            runCurrent()
+            val resumeId = captured.last { it.first == WsMethods.SESSION_RESUME }.second
+            mockEventsFlow.emit(WsEvent.RpcResult(resumeId, mapOf("session_id" to "runtime-456", "running" to false)))
+            runCurrent()
+            assertFalse(viewModel.uiState.value.isSessionReady)
+            verify(exactly = 0) { HermesWsClient.sendMessage(any(), "After relaunch", any(), any()) }
+
+            response.complete(retrofit2.Response.success(SessionMessagesResponse(messages = emptyList())))
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isSessionReady)
+            verify(exactly = 1) { HermesWsClient.sendMessage("runtime-456", "After relaunch", any(), true) }
+        }
+
+    @Test
+    fun sessionSwitchCancelsObsoleteDrainAndDispatchesRestoredQueue() =
+        runTest {
+            stubSession456Rests(success = true)
+            val store = ChatSendStore()
+            val (viewModel, _) = createViewModelWithSession(sendStore = store)
+            val scope =
+                listOf(
+                    AuthManager.getBaseUrl(),
+                    AuthManager.getSelectedProfileId() ?: AuthManager.DEFAULT_PROFILE_ID,
+                    AuthManager.activeProfileId.value ?: AuthManager.DEFAULT_PROFILE_ID,
+                ).joinToString("\u001f")
+            // Model an active session-A staging job without real threads or blocking I/O.
+            // Reset must release ownership before session B becomes ready to drain.
+            val obsoleteDrain = Job()
+            ChatViewModel::class.java
+                .getDeclaredField("queueDrainJob")
+                .apply { isAccessible = true }
+                .set(viewModel, obsoleteDrain)
+            every { HermesWsClient.sendMessage("runtime-456", "Session B queued", any(), true) } answers {
+                arg<((String) -> Unit)?>(2)?.invoke("session-b-submit")
+                "session-b-submit"
+            }
+            store.put(
+                PendingSend(
+                    "session-b-restored",
+                    scope,
+                    "session-456",
+                    "Session B queued",
+                    mode = BusySendMode.QUEUE,
+                ),
+            )
+            viewModel.switchSession("session-456")
+            runCurrent()
+            val resumeId = sentRequestMethods.last { it.first == WsMethods.SESSION_RESUME }.second
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(resumeId, mapOf("session_id" to "runtime-456", "running" to false)),
+            )
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isSessionReady)
+            assertTrue("Session switch must cancel the obsolete drain", obsoleteDrain.isCancelled)
+            verify(exactly = 1) {
+                HermesWsClient.sendMessage("runtime-456", "Session B queued", any(), true)
+            }
+            verify(exactly = 0) {
+                HermesWsClient.sendMessage(any(), "Session A queued", any(), any())
+            }
+        }
+
+    @Test
+    fun timeoutKeepsRecoverableReceiptAndLateAckDoesNotResend() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val requestId = "timeout-request"
+            every { HermesWsClient.sendMessage(sessionId, "Maybe", any(), any()) } answers {
+                arg<((String) -> Unit)?>(2)?.invoke(requestId)
+                requestId
+            }
+            viewModel.sendMessage("Maybe")
+            advanceUntilIdle()
+            viewModel.expireOutgoingRequest(requestId)
+            advanceUntilIdle()
+            assertEquals(
+                PendingSendState.UNKNOWN,
+                viewModel.uiState.value.pendingSends
+                    .single()
+                    .state,
+            )
+            assertFalse(
+                viewModel.uiState.value.messages
+                    .any { it.content == "Maybe" },
+            )
+
+            mockEventsFlow.emit(WsEvent.RpcResult(requestId, mapOf("status" to "streaming")))
+            advanceUntilIdle()
+            assertEquals(
+                PendingSendState.ACCEPTED,
+                viewModel.uiState.value.pendingSends
+                    .single()
+                    .state,
+            )
+            verify(exactly = 1) { HermesWsClient.sendMessage(sessionId, "Maybe", any(), any()) }
+        }
+
+    @Test
+    fun restCompletionBeforePromptAckSettlesReceiptAndKeepsCompletionIdentity() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val promptId = "late-prompt-ack"
+            every { HermesWsClient.sendMessage(sessionId, "Fast", any(), any()) } answers {
+                arg<((String) -> Unit)?>(2)?.invoke(promptId)
+                promptId
+            }
+            coEvery {
+                ApiClient.hermesApi.getSessionMessages(sessionId, any(), any(), any(), any())
+            } returns
+                retrofit2.Response.success(
+                    SessionMessagesResponse(
+                        messages =
+                            listOf(
+                                SessionMessage(
+                                    id = 4,
+                                    role = "user",
+                                    content = JsonPrimitive("Fast"),
+                                    timestamp = JsonPrimitive(System.currentTimeMillis()),
+                                ),
+                            ),
+                        pagination = PaginationInfo(order = "latest"),
+                    ),
+                )
+
+            viewModel.sendMessage("Fast")
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            mockEventsFlow.emit(WsEvent.MessageComplete("Answer", sessionId, completionId = "completion-fast"))
+            advanceUntilIdle()
+            assertTrue(
+                viewModel.uiState.value.pendingSends
+                    .isEmpty(),
+            )
+            assertTrue(
+                viewModel.uiState.value.messages
+                    .any { it.completionId == "completion-fast" },
+            )
+
+            mockEventsFlow.emit(WsEvent.RpcResult(promptId, mapOf("status" to "streaming")))
+            advanceUntilIdle()
+            assertTrue(
+                viewModel.uiState.value.pendingSends
+                    .isEmpty(),
+            )
+            verify(exactly = 1) { HermesWsClient.sendMessage(sessionId, "Fast", any(), any()) }
         }
 
     // ── Session switch ───────────────────────────────────────────────────────
@@ -4797,14 +5619,18 @@ class ChatViewModelTest {
             // Error path is logged so we can diagnose the failed read.
             verify { Log.e(any(), match { it.contains("Permission denied") }, any()) }
 
-            // Graceful handling: the message is still sent even though the
-            // attachment bytes couldn't be read (no crash, no lost message).
-            val sent =
+            // A missing attachment must never turn into a text-only send.
+            assertFalse(
                 viewModel.uiState.value.messages
-                    .firstOrNull { it.id == sessionId } != null ||
-                    viewModel.uiState.value.messages
-                        .any { it.content == "Here is an image" }
-            assertTrue("Message should still be sent despite attachment read failure", sent)
+                    .any { it.content == "Here is an image" },
+            )
+            assertEquals(
+                PendingSendState.REJECTED,
+                viewModel.uiState.value.pendingSends
+                    .single()
+                    .state,
+            )
+            verify(exactly = 0) { HermesWsClient.sendMessage(any(), any(), any(), any()) }
         }
 
     /**
@@ -6543,7 +7369,7 @@ class ChatViewModelTest {
                 vm.uiState.value.messages
                     .any { it.content == "My super important long prompt" },
             )
-            assertTrue(vm.uiState.value.isAgentTyping)
+            assertTrue(vm.uiState.value.isSending)
             // But wsClient.sendMessage not dispatched yet because session_id was null
             assertTrue(sentPrompts.isEmpty())
 
@@ -6618,7 +7444,7 @@ class ChatViewModelTest {
             vm.sendMessage("Prompt before failure")
             advanceUntilIdle()
 
-            assertTrue(vm.uiState.value.isAgentTyping)
+            assertTrue(vm.uiState.value.isSending)
 
             val createReqId = "req-id-$reqCount"
             // Emit RPC error for SESSION_CREATE

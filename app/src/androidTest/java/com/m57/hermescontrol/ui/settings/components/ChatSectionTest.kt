@@ -6,9 +6,13 @@ import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
+import androidx.test.platform.app.InstrumentationRegistry
+import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.model.BusySendMode
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -19,6 +23,25 @@ import org.junit.runner.RunWith
 class ChatSectionTest {
     @get:Rule
     val composeTestRule = createComposeRule()
+
+    @Test
+    fun busySendDefaultDropdownRoutesSelection() {
+        var chosen: BusySendMode? = null
+        composeTestRule.setContent {
+            ChatSection(
+                typingEffectEnabled = false,
+                onTypingEffectEnabledChange = {},
+                typingEffectDelayMs = 30,
+                onTypingEffectDelayMsChange = {},
+                busySendMode = BusySendMode.CORRECT,
+                onBusySendModeChange = { chosen = it },
+            )
+        }
+        composeTestRule.onNodeWithTag("busy_send_default").performClick()
+        val queueLabel = InstrumentationRegistry.getInstrumentation().targetContext.getString(R.string.chat_busy_queue)
+        composeTestRule.onNodeWithText(queueLabel).performClick()
+        assertEquals(BusySendMode.QUEUE, chosen)
+    }
 
     @Test
     fun messageStatsMasterOff_keepsChildrenVisibleCheckedAndDisabled() {

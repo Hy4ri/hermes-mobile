@@ -193,6 +193,8 @@ internal fun SettingsChatPage(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             ChatSection(
+                busySendMode = state.busySendMode,
+                onBusySendModeChange = viewModel::onBusySendModeChange,
                 typingEffectEnabled = state.typingEffectEnabled,
                 onTypingEffectEnabledChange = viewModel::onTypingEffectEnabledChange,
                 typingEffectDelayMs = state.typingEffectDelayMs,

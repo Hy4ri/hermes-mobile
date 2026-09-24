@@ -9,6 +9,7 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.local.SlashUsageStore
 import com.m57.hermescontrol.data.model.Attachment
+import com.m57.hermescontrol.data.model.BusySendMode
 import com.m57.hermescontrol.data.model.ModelCapabilities
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
@@ -28,6 +29,7 @@ import com.m57.hermescontrol.data.ws.CommandCatalog
 import com.m57.hermescontrol.data.ws.ConnectionOperationParser
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
+import com.m57.hermescontrol.data.ws.JsonRpcError
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.data.ws.toAny
@@ -123,6 +125,10 @@ data class ChatUiState(
     val chatTitle: String = "Hermes",
     val connectionStatus: ConnectionStatus = ConnectionStatus.DISCONNECTED,
     val isAgentTyping: Boolean = false,
+    val isMainTurnBusy: Boolean = false,
+    val isSending: Boolean = false,
+    val busySendMode: BusySendMode = BusySendMode.CORRECT,
+    val pendingSends: List<PendingSend> = emptyList(),
     val isThinking: Boolean = false,
     val thinkingText: String = "",
     val isLoading: Boolean = false,
@@ -399,6 +405,7 @@ class ChatViewModel(
     searchDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.Default,
     private val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.IO,
     private val historyDispatcher: kotlinx.coroutines.CoroutineDispatcher = searchDispatcher,
+    private val sendStore: ChatSendStore = ChatSendStore(application),
 ) : AndroidViewModel(application) {
     constructor(application: Application) : this(application, startCleanup = true)
 
@@ -424,6 +431,21 @@ class ChatViewModel(
     )
 
     private val sessionRequestById = ConcurrentHashMap<String, SessionRequest>()
+    private val outgoingRequestById = ConcurrentHashMap<String, String>()
+    private val hardInterruptRequestById = ConcurrentHashMap<String, String>()
+    private val queuedStagingIds = ConcurrentHashMap.newKeySet<String>()
+    private var queueDrainJob: Job? = null
+    private var mainTurnBusy = false
+        set(busy) {
+            field = busy
+            _uiState.update { state ->
+                if (state.isMainTurnBusy == busy) state else state.copy(isMainTurnBusy = busy)
+            }
+        }
+
+    private var lastMainCompletionAt = 0L
+    private var lastSubmissionKey: String? = null
+    private var lastSubmissionAt = 0L
     private var sessionGeneration = 0L
 
     private var resumeRequestSequence = 0L
@@ -676,6 +698,27 @@ class ChatViewModel(
                     status == ConnectionStatus.NO_NETWORK ||
                     status == ConnectionStatus.AUTH_EXPIRED
                 ) {
+                    mainTurnBusy = false
+                    // A gateway acceptance is not a durable REST acknowledgement. Recover even
+                    // receipts whose RPC correlation was already removed, without resending them.
+                    val acceptedIds =
+                        sendStore
+                            .all()
+                            .filter {
+                                it.scope == sendScope() && it.state == PendingSendState.ACCEPTED
+                            }.map { it.id }
+                    (outgoingRequestById.values + hardInterruptRequestById.values + acceptedIds)
+                        .distinct()
+                        .forEach { messageId ->
+                            if (sendStore.all().any {
+                                    it.id == messageId &&
+                                        (it.state == PendingSendState.SENDING || it.state == PendingSendState.ACCEPTED)
+                                }
+                            ) {
+                                markPendingSend(messageId, PendingSendState.UNKNOWN)
+                                removeUnconfirmedBubble(messageId)
+                            }
+                        }
                     _uiState.update { it.copy(isLoading = false) }
                     subagentsDelegate.closeSubagentTranscript()
                     // The runtime session id is only valid while the socket
@@ -691,6 +734,8 @@ class ChatViewModel(
                     activeHydrationRequestSequence = ++hydrationRequestSequence
                     // Preserve metadata so late results and errors are rejected as stale.
                     sessionGeneration++
+                    queueDrainJob?.cancel()
+                    queueDrainJob = null
                     // #129: invalidate and cancel paged work together, including its busy flags.
                     hydrationJob?.cancel()
                     olderJob?.cancel()
@@ -846,6 +891,8 @@ class ChatViewModel(
         // session errors here so the shared reducer cannot clear loading or
         // surface an error for a newly selected session.
         if (event is WsEvent.RpcError && isStaleSessionRequest(event.id)) {
+            outgoingRequestById.remove(event.id)?.let { markPendingSend(it, PendingSendState.UNKNOWN) }
+            hardInterruptRequestById.remove(event.id)?.let { markPendingSend(it, PendingSendState.UNKNOWN) }
             forgetRequest(event.id)
             return
         }
@@ -909,18 +956,22 @@ class ChatViewModel(
             }
 
             is WsEvent.MessageToken -> {
+                if (isCurrentSession(event.sessionId)) mainTurnBusy = true
                 streamingController.handleMessageToken(event)
             }
 
             is WsEvent.ThinkingDelta -> {
+                if (isCurrentSession(event.sessionId)) mainTurnBusy = true
                 streamingController.handleThinkingDelta(event)
             }
 
             is WsEvent.ReasoningDelta -> {
+                if (isCurrentSession(event.sessionId)) mainTurnBusy = true
                 streamingController.handleReasoningDelta(event)
             }
 
             is WsEvent.MessageStart -> {
+                if (isCurrentSession(event.sessionId)) mainTurnBusy = true
                 // The server accepted a prompt for this session — its DB row
                 // now exists (created lazily at prompt.submit), so a reconnect
                 // resume will succeed.
@@ -929,15 +980,26 @@ class ChatViewModel(
             }
 
             is WsEvent.MessageComplete -> {
+                if (isCurrentSession(event.sessionId)) {
+                    mainTurnBusy = false
+                    lastMainCompletionAt = System.currentTimeMillis()
+                    refreshSendReceipts()
+                }
                 // Buffers cleared before reduce; ViewModel resets them after
                 streamingController.resetStreaming()
             }
 
             is WsEvent.MessageDone -> {
+                if (isCurrentSession(event.sessionId)) {
+                    mainTurnBusy = false
+                    lastMainCompletionAt = System.currentTimeMillis()
+                    refreshSendReceipts()
+                }
                 streamingController.resetStreaming()
             }
 
             is WsEvent.ToolStart -> {
+                if (isCurrentSession(event.sessionId)) mainTurnBusy = true
                 // Issue #771: the reducer keeps the streaming message (and its
                 // reasoning) alive across the tool call so the finalized answer
                 // retains the thinking card. Only the token buffers are cleared
@@ -1303,6 +1365,7 @@ class ChatViewModel(
         // Session info pushed by backend when config changes
         // (model switch, reasoning level, etc.)
         if (info != null) {
+            (info["running"] as? Boolean)?.let { mainTurnBusy = it }
             val model = info["model"] as? String
             val provider = info["provider"] as? String
             val reasoningEffort = info["reasoning_effort"] as? String
@@ -1392,6 +1455,46 @@ class ChatViewModel(
 
     // ── RPC response handling ────────────────────────────────────────────
 
+    private fun settleOutgoingResult(
+        requestId: String,
+        method: String,
+        result: Any?,
+    ) {
+        val messageId = outgoingRequestById.remove(requestId) ?: return
+        val status = rpcResultMap(result)?.get("status") as? String
+        val accepted =
+            when (method) {
+                WsMethods.SESSION_REDIRECT -> status == "redirected" || status == "queued"
+                WsMethods.SESSION_STEER -> status == "queued" || status == "steered"
+                else -> status == "streaming" || status == "queued"
+            }
+        when {
+            accepted -> {
+                markPendingSend(messageId, PendingSendState.ACCEPTED)
+                if (sendStore.all().any { it.id == messageId && lastMainCompletionAt >= it.createdAt }) {
+                    refreshSendReceipts()
+                }
+            }
+
+            status == "rejected" && method != WsMethods.PROMPT_SUBMIT -> {
+                removeUnconfirmedBubble(messageId)
+                sendStore.update(messageId) { it.copy(mode = BusySendMode.QUEUE, state = PendingSendState.QUEUED) }
+                publishPendingSends()
+                drainPendingQueue()
+            }
+
+            status == "rejected" -> {
+                markPendingSend(messageId, PendingSendState.REJECTED)
+                removeUnconfirmedBubble(messageId)
+            }
+
+            else -> {
+                markPendingSend(messageId, PendingSendState.UNKNOWN)
+                removeUnconfirmedBubble(messageId)
+            }
+        }
+    }
+
     @Suppress("UNCHECKED_CAST")
     private fun handleRpcResult(
         id: String,
@@ -1399,7 +1502,16 @@ class ChatViewModel(
     ) {
         val method = idToMethod.remove(id) ?: return
         val request = sessionRequestById.remove(id)
-        if (request != null && isStaleSessionRequest(request)) return
+        if (request != null && isStaleSessionRequest(request)) {
+            outgoingRequestById.remove(id)?.let { markPendingSend(it, PendingSendState.UNKNOWN) }
+            hardInterruptRequestById.remove(id)?.let { markPendingSend(it, PendingSendState.UNKNOWN) }
+            return
+        }
+        if (method == WsMethods.PROMPT_SUBMIT || method == WsMethods.SESSION_REDIRECT ||
+            method == WsMethods.SESSION_STEER
+        ) {
+            settleOutgoingResult(id, method, result)
+        }
         when (method) {
             WsMethods.SESSION_CREATE -> {
                 val resultMap = result as? Map<String, Any?>
@@ -1431,6 +1543,7 @@ class ChatViewModel(
                         sessionUsage = null,
                     )
                 }
+                publishPendingSends()
                 // A gone-session recovery just landed — announce it now that
                 // the message list has been reset by the create.
                 if (pendingGoneSessionNotice) {
@@ -1518,6 +1631,7 @@ class ChatViewModel(
                 }
                 runtimeSessionId = runtimeId
                 connectionOperationDelegate.bindSession(runtimeId)
+                mainTurnBusy = resultMap["running"] as? Boolean ?: false
                 // Resume succeeded — the gateway confirmed the DB row.
                 sessionHasServerPresence = true
                 val sessionId =
@@ -1595,6 +1709,7 @@ class ChatViewModel(
                 val generation = request?.generation ?: sessionGeneration
                 resumedGeneration = generation
                 finishResumeWhenHydrated(generation)
+                publishPendingSends()
                 subagentsDelegate.hydrateSubagents(runtimeSessionId ?: sessionId)
                 // Reconnect replay: resume payload can carry `pending_approval`
                 // (server `_session_info_payload`); surface it, then ask for
@@ -1635,6 +1750,33 @@ class ChatViewModel(
                 _streamingState.update { StreamingState() }
                 streamingController.resetStreaming()
                 addSystemMessage("Session interrupted")
+                mainTurnBusy = false
+                hardInterruptRequestById.remove(id)?.let { messageId ->
+                    val row = sendStore.all().firstOrNull { it.id == messageId } ?: return@let
+                    if (rpcResultMap(result)?.get("status") == "interrupted") {
+                        val message =
+                            _uiState.value.messages.firstOrNull { it.id == row.id }
+                                ?: ChatMessage(
+                                    id = row.id,
+                                    role = MessageRole.USER,
+                                    content = row.text,
+                                    attachments = row.attachments,
+                                )
+                        dispatchPrompt(
+                            text = row.text,
+                            attachments = row.attachments,
+                            wasStreaming = false,
+                            storageSessionId = row.sessionId,
+                            agentSessionId = runtimeSessionId ?: return@let,
+                            userMessage = message,
+                            mode = BusySendMode.INTERRUPT,
+                            queued = true,
+                        )
+                    } else {
+                        markPendingSend(messageId, PendingSendState.UNKNOWN)
+                        removeUnconfirmedBubble(messageId)
+                    }
+                }
             }
 
             WsMethods.COMMANDS_CATALOG -> {
@@ -1712,19 +1854,45 @@ class ChatViewModel(
     ) {
         val method = idToMethod.remove(id) ?: return
         val request = sessionRequestById.remove(id)
-        if (request != null && isStaleSessionRequest(request)) return
+        if (request != null && isStaleSessionRequest(request)) {
+            outgoingRequestById.remove(id)?.let { markPendingSend(it, PendingSendState.UNKNOWN) }
+            hardInterruptRequestById.remove(id)?.let { markPendingSend(it, PendingSendState.UNKNOWN) }
+            return
+        }
         val errorMsg =
             when (error) {
                 is Map<*, *> -> error["message"] as? String ?: error.toString()
                 else -> error.toString()
             }
 
-        if (method == WsMethods.PROMPT_SUBMIT || method == WsMethods.SESSION_REDIRECT) {
+        val messageId = outgoingRequestById.remove(id)
+        if (messageId != null) {
+            val code = (error as? JsonRpcError)?.code
+            val correction = method == WsMethods.SESSION_REDIRECT || method == WsMethods.SESSION_STEER
+            if (correction && code in setOf(4001, 4009, 4010)) {
+                removeUnconfirmedBubble(messageId)
+                sendStore.update(messageId) { it.copy(mode = BusySendMode.QUEUE, state = PendingSendState.QUEUED) }
+                publishPendingSends()
+                drainPendingQueue()
+            } else {
+                markPendingSend(
+                    messageId,
+                    if (code != null && code in 4000..4999) PendingSendState.REJECTED else PendingSendState.UNKNOWN,
+                )
+                removeUnconfirmedBubble(messageId)
+            }
+        }
+        hardInterruptRequestById.remove(id)?.let { messageId ->
+            markPendingSend(messageId, PendingSendState.UNKNOWN)
+            removeUnconfirmedBubble(messageId)
+        }
+
+        if (method == WsMethods.PROMPT_SUBMIT && !mainTurnBusy) {
             // A prompt rejection can arrive before message.start, leaving the
             // UI with only the optimistic typing state. Clear the live tail so
             // a failed generation cannot leave stale dots or reasoning behind.
             sealStreamingMessageIfAny()
-            _uiState.update { it.copy(isAgentTyping = false) }
+            _uiState.update { it.copy(isAgentTyping = mainTurnBusy) }
             _streamingState.update { StreamingState() }
             streamingController.resetStreaming()
         }
@@ -1751,9 +1919,13 @@ class ChatViewModel(
         if (method == WsMethods.SESSION_CREATE) {
             val pending = pendingInitialPrompt
             pendingInitialPrompt = null
+            publishPendingSends()
             if (pending != null) {
                 _uiState.update {
                     it.copy(
+                        messages = it.messages.filterNot { message -> message.id == pending.userMessage.id },
+                        pendingAttachments = pending.attachments + it.pendingAttachments,
+                        composerTextToRestore = pending.text,
                         isAgentTyping = false,
                         errorMessage = "Failed to create session: $errorMsg",
                     )
@@ -1775,6 +1947,265 @@ class ChatViewModel(
 
     // ── Send message ─────────────────────────────────────────────────────
 
+    private fun sendScope(): String =
+        listOf(
+            AuthManager.getBaseUrl(),
+            AuthManager.getSelectedProfileId() ?: AuthManager.DEFAULT_PROFILE_ID,
+            AuthManager.activeProfileId.value ?: AuthManager.DEFAULT_PROFILE_ID,
+        ).joinToString("\u001f")
+
+    private fun publishPendingSends() {
+        val sessionId = _uiState.value.currentSessionId
+        val scope = sendScope()
+        val current = sendStore.all().filter { it.scope == scope && it.sessionId == sessionId }
+        _uiState.update {
+            it.copy(
+                pendingSends = current,
+                isSending =
+                    pendingInitialPrompt != null || current.any { row -> row.state == PendingSendState.SENDING },
+            )
+        }
+    }
+
+    private fun trackOutgoingRequest(
+        requestId: String,
+        messageId: String,
+        method: String,
+        generation: Long,
+        sessionId: String,
+    ) {
+        outgoingRequestById[requestId] = messageId
+        trackSessionRequest(requestId, method, generation, sessionId = sessionId)
+        if (!isTestEnvironment()) {
+            viewModelScope.launch {
+                delay(30_000L)
+                expireOutgoingRequest(requestId)
+            }
+        }
+    }
+
+    internal fun expireOutgoingRequest(requestId: String) {
+        val messageId = outgoingRequestById[requestId] ?: hardInterruptRequestById[requestId] ?: return
+        if (sendStore.all().any { it.id == messageId && it.state == PendingSendState.SENDING }) {
+            markPendingSend(messageId, PendingSendState.UNKNOWN)
+            removeUnconfirmedBubble(messageId)
+        }
+    }
+
+    private fun trackHardInterrupt(
+        requestId: String,
+        messageId: String,
+        generation: Long,
+        sessionId: String,
+    ) {
+        hardInterruptRequestById[requestId] = messageId
+        trackSessionRequest(requestId, WsMethods.SESSION_INTERRUPT, generation, sessionId = sessionId)
+        if (!isTestEnvironment()) {
+            viewModelScope.launch {
+                delay(30_000L)
+                expireOutgoingRequest(requestId)
+            }
+        }
+    }
+
+    private fun markPendingSend(
+        messageId: String,
+        state: PendingSendState,
+    ) {
+        sendStore.update(messageId) { it.copy(state = state) }
+        publishPendingSends()
+    }
+
+    private fun removePendingSend(messageId: String) {
+        sendStore.remove(messageId)
+        File(getApplication<Application>().filesDir, "chat-send/$messageId").deleteRecursively()
+        publishPendingSends()
+    }
+
+    private fun removeUnconfirmedBubble(messageId: String) {
+        val row = _uiState.value.messages.firstOrNull { it.id == messageId && it.canonicalRestId == null } ?: return
+        _uiState.update { state -> state.copy(messages = state.messages.filterNot { it.id == row.id }) }
+        viewModelScope.launch(ioDispatcher) { repo.deleteMessage(row.id) }
+    }
+
+    private fun failOutgoingBeforeSubmit(
+        messageId: String,
+        reason: String,
+        generation: Long = sessionGeneration,
+    ) {
+        markPendingSend(messageId, PendingSendState.REJECTED)
+        if (generation != sessionGeneration) return
+        removeUnconfirmedBubble(messageId)
+        _uiState.update { it.copy(errorMessage = reason, isAgentTyping = mainTurnBusy) }
+    }
+
+    /** Send one locally queued turn only after the previous receipt has reached REST history. */
+    @Synchronized
+    private fun drainPendingQueue() {
+        val sessionId = _uiState.value.currentSessionId ?: return
+        val runtimeId = runtimeSessionId ?: return
+        if (mainTurnBusy || !_uiState.value.isSessionReady ||
+            wsClient.connectionStatus.value != ConnectionStatus.CONNECTED
+        ) {
+            return
+        }
+        if (queueDrainJob?.isActive == true) return
+        val rows = sendStore.all().filter { it.scope == sendScope() && it.sessionId == sessionId }
+        if (rows.any {
+                it.state == PendingSendState.SENDING || it.state == PendingSendState.UNKNOWN ||
+                    it.state == PendingSendState.ACCEPTED
+            }
+        ) {
+            return
+        }
+        val next = rows.firstOrNull { it.state == PendingSendState.QUEUED } ?: return
+        if (queuedStagingIds.contains(next.id)) return
+        val generation = sessionGeneration
+        queueDrainJob =
+            viewModelScope.launch(ioDispatcher) {
+                try {
+                    val staged = stageQueuedAttachments(next)
+                    if (!isCurrentSessionRequest(sessionId, generation)) return@launch
+                    val claimed =
+                        synchronized(sendStore) {
+                            if (sendStore.all().none { it.id == next.id && it.state == PendingSendState.QUEUED }) {
+                                false
+                            } else {
+                                sendStore.update(next.id) {
+                                    it.copy(state = PendingSendState.SENDING, attempts = it.attempts + 1)
+                                }
+                                true
+                            }
+                        }
+                    if (!claimed) return@launch
+                    publishPendingSends()
+                    val message =
+                        _uiState.value.messages.firstOrNull { it.id == next.id }
+                            ?: ChatMessage(
+                                id = next.id,
+                                role = MessageRole.USER,
+                                content = next.text,
+                                attachments = staged.attachments,
+                            )
+                    dispatchPrompt(
+                        text = next.text,
+                        attachments = staged.attachments,
+                        wasStreaming = false,
+                        storageSessionId = sessionId,
+                        agentSessionId = runtimeId,
+                        userMessage = message,
+                        mode = BusySendMode.QUEUE,
+                        queued = true,
+                    )
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    failOutgoingBeforeSubmit(next.id, "Could not retain queued attachment")
+                }
+            }
+    }
+
+    private fun stageQueuedAttachments(row: PendingSend): PendingSend {
+        if (row.attachments.isEmpty()) return row
+        val context = getApplication<Application>()
+        val dir = File(context.filesDir, "chat-send/${row.id}")
+        if (!dir.exists() && !dir.mkdirs()) error("Could not create attachment snapshot")
+        val staged =
+            row.attachments.mapIndexed { index, attachment ->
+                val uri = Uri.parse(attachment.uri)
+                val target = File(dir, index.toString())
+                if (target.exists()) {
+                    attachment.copy(uri = Uri.fromFile(target).toString(), size = target.length())
+                } else {
+                    val partial = File(dir, "$index.part")
+                    var copied = 0L
+                    try {
+                        val input = context.contentResolver.openInputStream(uri) ?: error("Attachment unavailable")
+                        input.use { source ->
+                            partial.outputStream().use { output ->
+                                val buffer = ByteArray(8192)
+                                while (true) {
+                                    val count = source.read(buffer)
+                                    if (count < 0) break
+                                    copied += count
+                                    if (copied > MAX_CHAT_ATTACHMENT_BYTES) error("Attachment too large")
+                                    output.write(buffer, 0, count)
+                                }
+                            }
+                        }
+                        if (!partial.renameTo(target)) error("Could not save attachment snapshot")
+                        attachment.copy(uri = Uri.fromFile(target).toString(), size = copied)
+                    } catch (e: Exception) {
+                        partial.delete()
+                        throw e
+                    }
+                }
+            }
+        return row.copy(attachments = staged).also { updated ->
+            sendStore.update(row.id) { it.copy(attachments = updated.attachments) }
+            publishPendingSends()
+        }
+    }
+
+    private fun refreshSendReceipts() {
+        val sessionId = _uiState.value.currentSessionId ?: return
+        if (sendStore.all().any {
+                it.scope == sendScope() && it.sessionId == sessionId &&
+                    it.state in setOf(PendingSendState.SENDING, PendingSendState.ACCEPTED, PendingSendState.UNKNOWN)
+            }
+        ) {
+            if (sessionHasServerPresence) syncCurrentSession() else loadSessionMessages(sessionId, sessionGeneration)
+        } else {
+            drainPendingQueue()
+        }
+    }
+
+    /** A manual promotion is the only path that may retry an uncertain send. */
+    fun sendQueuedNow(id: String) {
+        val row = sendStore.all().firstOrNull { it.id == id } ?: return
+        if (row.scope != sendScope() || row.sessionId != _uiState.value.currentSessionId ||
+            runtimeSessionId == null
+        ) {
+            return
+        }
+        if (row.state !in
+            setOf(
+                PendingSendState.QUEUED,
+                PendingSendState.PARKED,
+                PendingSendState.REJECTED,
+                PendingSendState.UNKNOWN,
+                PendingSendState.ACCEPTED,
+            )
+        ) {
+            return
+        }
+        val others =
+            sendStore.all().any {
+                it.id != id && it.scope == row.scope && it.sessionId == row.sessionId &&
+                    it.state in setOf(PendingSendState.SENDING, PendingSendState.ACCEPTED, PendingSendState.UNKNOWN)
+            }
+        if (others) {
+            _uiState.update { it.copy(errorMessage = "Wait for the current send to settle") }
+            return
+        }
+        sendStore.promote(id)
+        publishPendingSends()
+        if (mainTurnBusy) {
+            val runtimeId = runtimeSessionId ?: return
+            val generation = sessionGeneration
+            sendStore.update(id) { it.copy(state = PendingSendState.SENDING, attempts = it.attempts + 1) }
+            publishPendingSends()
+            wsClient.send(
+                WsMethods.SESSION_INTERRUPT,
+                mapOf("session_id" to runtimeId),
+                onSent = { requestId ->
+                    trackHardInterrupt(requestId, id, generation, row.sessionId)
+                },
+            )
+        } else {
+            drainPendingQueue()
+        }
+    }
+
     /**
      * Send a user prompt, uploading any pending attachments to the backend
      * first via their dedicated RPC methods.
@@ -1790,7 +2221,10 @@ class ChatViewModel(
      * 6. For each file → await `file.attach` (requires session_id), collect @file: refs
      * 7. Send `prompt.submit` with text + @file: refs — images auto-picked up by backend
      */
-    fun sendMessage(text: String): Boolean {
+    fun sendMessage(
+        text: String,
+        modeOverride: BusySendMode? = null,
+    ): Boolean {
         if (!canSubmitMessage()) return false
         if (text.isBlank() && _uiState.value.pendingAttachments.isEmpty()) return false
 
@@ -1814,17 +2248,44 @@ class ChatViewModel(
             _uiState.update {
                 it.copy(
                     errorMessage = attachmentTooLargeMessage(oversizedAttachment),
-                    composerTextToRestore = text,
                 )
             }
-            return true
+            return false
         }
 
-        // Snapshot + clear attachments so the input bar empties immediately
         val attachments = _uiState.value.pendingAttachments.toList()
-        clearAttachments()
+        val submissionKey =
+            listOf(_uiState.value.currentSessionId, text, attachments.joinToString { it.uri }).joinToString("\u001f")
+        val now = System.nanoTime()
+        if (submissionKey == lastSubmissionKey && now - lastSubmissionAt < 500_000_000L) return false
+        val wasStreaming = mainTurnBusy
+        val hasOutstandingDelivery =
+            sendStore.all().any {
+                it.scope == sendScope() && it.sessionId == _uiState.value.currentSessionId &&
+                    it.state in
+                    setOf(
+                        PendingSendState.SENDING,
+                        PendingSendState.ACCEPTED,
+                        PendingSendState.UNKNOWN,
+                    )
+            }
+        val busy = wasStreaming || hasOutstandingDelivery
+        val selectedMode = modeOverride ?: _uiState.value.busySendMode
+        val mode =
+            when {
+                selectedMode == BusySendMode.INTERRUPT && !wasStreaming && hasOutstandingDelivery -> {
+                    BusySendMode.QUEUE
+                }
 
-        val wasStreaming = _uiState.value.isAgentTyping
+                busy && selectedMode != BusySendMode.INTERRUPT &&
+                    (attachments.isNotEmpty() || !wasStreaming) -> {
+                    BusySendMode.QUEUE
+                }
+
+                else -> {
+                    selectedMode
+                }
+            }
 
         val userMessage =
             ChatMessage(
@@ -1834,21 +2295,79 @@ class ChatViewModel(
                 tokenCount = TokenEstimator.estimate(text).takeIf { it > 0 },
             )
 
-        // Update UI immediately
+        val storageSessionId = _uiState.value.currentSessionId
+        val agentSessionId = runtimeSessionId
+        if (storageSessionId != null && agentSessionId != null) {
+            try {
+                sendStore.put(
+                    PendingSend(
+                        id = userMessage.id,
+                        scope = sendScope(),
+                        sessionId = storageSessionId,
+                        text = text,
+                        attachments = attachments,
+                        mode = mode,
+                        state =
+                            if (busy && mode == BusySendMode.QUEUE) {
+                                PendingSendState.QUEUED
+                            } else {
+                                PendingSendState.SENDING
+                            },
+                    ),
+                )
+            } catch (e: Exception) {
+                _uiState.update { it.copy(errorMessage = "Could not save message for delivery") }
+                return false
+            }
+        }
+        lastSubmissionKey = submissionKey
+        lastSubmissionAt = now
+        clearAttachments()
+
         _uiState.update { state ->
             state.copy(
                 messages = state.messages + userMessage,
-                isAgentTyping = true,
+                isSending = true,
             )
         }
-
-        val storageSessionId = _uiState.value.currentSessionId
-        val agentSessionId = runtimeSessionId
+        publishPendingSends()
 
         if (storageSessionId == null || agentSessionId == null) {
             // Issue #969: Session creation is still in-flight. Hold the prompt
             // so it is dispatched automatically the moment SESSION_CREATE lands.
             pendingInitialPrompt = PendingPrompt(text, attachments, wasStreaming, userMessage)
+            publishPendingSends()
+            return true
+        }
+
+        if (busy && mode == BusySendMode.QUEUE) {
+            queuedStagingIds.add(userMessage.id)
+            viewModelScope.launch(ioDispatcher) {
+                try {
+                    stageQueuedAttachments(sendStore.all().first { it.id == userMessage.id })
+                    repo.persistMessage(userMessage, storageSessionId)
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    failOutgoingBeforeSubmit(userMessage.id, "Could not retain queued attachment")
+                } finally {
+                    queuedStagingIds.remove(userMessage.id)
+                    drainPendingQueue()
+                }
+            }
+            return true
+        }
+
+        if (wasStreaming && mode == BusySendMode.INTERRUPT) {
+            val generation = sessionGeneration
+            viewModelScope.launch(ioDispatcher) {
+                wsClient.send(
+                    WsMethods.SESSION_INTERRUPT,
+                    mapOf("session_id" to agentSessionId),
+                    onSent = { id ->
+                        trackHardInterrupt(id, userMessage.id, generation, storageSessionId)
+                    },
+                )
+            }
             return true
         }
 
@@ -1859,6 +2378,7 @@ class ChatViewModel(
             storageSessionId = storageSessionId,
             agentSessionId = agentSessionId,
             userMessage = userMessage,
+            mode = if (wasStreaming) mode else BusySendMode.CORRECT,
         )
         return true
     }
@@ -1885,6 +2405,8 @@ class ChatViewModel(
         storageSessionId: String,
         agentSessionId: String,
         userMessage: ChatMessage? = null,
+        mode: BusySendMode = BusySendMode.CORRECT,
+        queued: Boolean = false,
     ) {
         val dispatchGeneration = sessionGeneration
         AuthManager.setLastOpenedSessionId(storageSessionId)
@@ -1895,6 +2417,26 @@ class ChatViewModel(
                 attachments = if (attachments.isNotEmpty()) attachments else null,
                 tokenCount = TokenEstimator.estimate(text).takeIf { it > 0 },
             )
+
+        if (sendStore.all().none { it.id == msgToPersist.id }) {
+            try {
+                sendStore.put(
+                    PendingSend(
+                        id = msgToPersist.id,
+                        scope = sendScope(),
+                        sessionId = storageSessionId,
+                        text = text,
+                        attachments = attachments,
+                        mode = mode,
+                        state = PendingSendState.SENDING,
+                    ),
+                )
+                publishPendingSends()
+            } catch (e: Exception) {
+                _uiState.update { it.copy(errorMessage = "Could not save message for delivery") }
+                return
+            }
+        }
 
         // Upload attachments then submit prompt
         viewModelScope.launch(ioDispatcher) {
@@ -1923,7 +2465,12 @@ class ChatViewModel(
                         }
 
                         PrepareAttachmentResult.Unreadable -> {
-                            Log.w(TAG, "Skipping unreadable attachment: ${attachment.name}")
+                            failOutgoingBeforeSubmit(
+                                msgToPersist.id,
+                                "Attachment unavailable: ${attachment.name}",
+                                dispatchGeneration,
+                            )
+                            return@launch
                         }
                     }
                 }
@@ -1945,6 +2492,7 @@ class ChatViewModel(
                                 isAgentTyping = wasStreaming,
                             )
                         }
+                        removePendingSend(msgToPersist.id)
                     }
                     return@launch
                 }
@@ -1972,43 +2520,42 @@ class ChatViewModel(
                                             "ext" to attachment.fileExtension,
                                         ),
                                 ).let { if (it is JsonElement) it.toAny() else it }
-                            if (result != null) {
-                                @Suppress("UNCHECKED_CAST")
-                                val ok = (result as? Map<String, Any?>)?.get("attached") as? Boolean
-                                if (ok != true) {
-                                    Log.w(TAG, "Image attach for ${attachment.name} returned non-ok: $result")
-                                }
+
+                            @Suppress("UNCHECKED_CAST")
+                            val ok = (result as? Map<String, Any?>)?.get("attached") as? Boolean
+                            if (ok != true) {
+                                error("Image attachment was not accepted")
                             }
                         } else {
                             // Await the @file: ref text so we can embed it in the prompt.
                             // file.attach also requires session_id or the gateway 4001s
                             // "session not found" (same resolver as image.attach_bytes).
-                            sendRpcAndAwait(
-                                method = WsMethods.FILE_ATTACH,
-                                params =
-                                    mapOf(
-                                        "session_id" to agentSessionId,
-                                        "data_url" to "data:${attachment.mimeType};base64,$b64",
-                                        "name" to attachment.name,
-                                    ),
-                            )?.let { response ->
-                                // request() returns raw JsonElement values; normalize before reading Kotlin types.
-                                val result = if (response is JsonElement) response.toAny() else response
+                            val response =
+                                sendRpcAndAwait(
+                                    method = WsMethods.FILE_ATTACH,
+                                    params =
+                                        mapOf(
+                                            "session_id" to agentSessionId,
+                                            "data_url" to "data:${attachment.mimeType};base64,$b64",
+                                            "name" to attachment.name,
+                                        ),
+                                )
+                            val result = if (response is JsonElement) response.toAny() else response
 
-                                @Suppress("UNCHECKED_CAST")
-                                val refText =
-                                    (result as? Map<String, Any?>)?.get("ref_text") as? String
-                                if (!refText.isNullOrBlank()) fileRefs.add(refText)
-                            }
+                            @Suppress("UNCHECKED_CAST")
+                            val refText = (result as? Map<String, Any?>)?.get("ref_text") as? String
+                            if (refText.isNullOrBlank()) error("File attachment was not accepted")
+                            fileRefs.add(refText)
                         }
                     } catch (e: Exception) {
                         if (e is kotlinx.coroutines.CancellationException) throw e
                         Log.e(TAG, "Failed to upload attachment ${attachment.name}", e)
-                        if (dispatchGeneration == sessionGeneration) {
-                            _uiState.update {
-                                it.copy(errorMessage = "Upload failed: ${attachment.name}")
-                            }
-                        }
+                        failOutgoingBeforeSubmit(
+                            msgToPersist.id,
+                            "Upload failed: ${attachment.name}",
+                            dispatchGeneration,
+                        )
+                        return@launch
                     }
                 }
 
@@ -2032,19 +2579,36 @@ class ChatViewModel(
                     ActiveSessionHolder.set(agentSessionId, storageSessionId)
                 }
                 captureTurnUsageBaselineIfNeeded()
-                if (wasStreaming && attachments.isEmpty()) {
-                    wsClient.sendRedirect(
-                        agentSessionId,
-                        fullText,
-                        onSent = { id ->
-                            trackSessionRequest(
-                                id = id,
-                                method = WsMethods.SESSION_REDIRECT,
-                                generation = dispatchGeneration,
-                                sessionId = storageSessionId,
-                            )
-                        },
-                    )
+                if (wasStreaming && attachments.isEmpty() && !queued) {
+                    if (mode == BusySendMode.GUIDE) {
+                        wsClient.send(
+                            WsMethods.SESSION_STEER,
+                            mapOf("session_id" to agentSessionId, "text" to fullText),
+                            onSent = { id ->
+                                trackOutgoingRequest(
+                                    id,
+                                    msgToPersist.id,
+                                    WsMethods.SESSION_STEER,
+                                    dispatchGeneration,
+                                    storageSessionId,
+                                )
+                            },
+                        )
+                    } else {
+                        wsClient.sendRedirect(
+                            agentSessionId,
+                            fullText,
+                            onSent = { id ->
+                                trackOutgoingRequest(
+                                    id,
+                                    msgToPersist.id,
+                                    WsMethods.SESSION_REDIRECT,
+                                    dispatchGeneration,
+                                    storageSessionId,
+                                )
+                            },
+                        )
+                    }
                 } else {
                     // Arm the durable turn boundary BEFORE prompt.submit leaves
                     // the device: the REST high-watermark has to be read while
@@ -2053,19 +2617,21 @@ class ChatViewModel(
                     // becomes uncorrelatable and its reply notification is never
                     // auto-dismissed from hydration instead of being bound to a
                     // guessed row.
-                    prepareTurnCorrelation(storageSessionId)
+                    if (!queued) prepareTurnCorrelation(storageSessionId)
                     if (dispatchGeneration != sessionGeneration) return@launch
                     wsClient.sendMessage(
                         agentSessionId,
                         fullText,
                         onSent = { id ->
-                            trackSessionRequest(
-                                id = id,
-                                method = WsMethods.PROMPT_SUBMIT,
-                                generation = dispatchGeneration,
-                                sessionId = storageSessionId,
+                            trackOutgoingRequest(
+                                id,
+                                msgToPersist.id,
+                                WsMethods.PROMPT_SUBMIT,
+                                dispatchGeneration,
+                                storageSessionId,
                             )
                         },
+                        queued = queued,
                     )
                 }
             } finally {
@@ -2139,6 +2705,7 @@ class ChatViewModel(
     ) {
         Log.w(TAG, "Rejecting oversized attachment: ${attachment.name}")
         if (generation != sessionGeneration) return
+        removePendingSend(message.id)
         _uiState.update { state ->
             state.copy(
                 messages = state.messages.filterNot { it.id == message.id },
@@ -2227,7 +2794,7 @@ class ChatViewModel(
         _uiState.update { it.copy(messages = it.messages + userMsg) }
 
         // Persist — OUTSIDE update{}
-        if (sessionId != null) {
+        if (sessionId != null && result !is SlashResult.QueuePrompt) {
             viewModelScope.launch(ioDispatcher) {
                 repo.persistMessage(userMsg, sessionId)
             }
@@ -2306,7 +2873,7 @@ class ChatViewModel(
             }
 
             is SlashResult.QueuePrompt -> {
-                handleQueueCommand(command)
+                handleQueueCommand(command, userMsg)
             }
 
             is SlashResult.SideQuestion -> {
@@ -2332,13 +2899,54 @@ class ChatViewModel(
      * `command.dispatch` `queue` shim only echoes the text back as a plain
      * submit, which loses the queued flag and hijacks the live turn.
      */
-    private fun handleQueueCommand(command: String) {
+    private fun handleQueueCommand(
+        command: String,
+        userMessage: ChatMessage,
+    ) {
         val arg = command.split(" ", limit = 2).getOrElse(1) { "" }.trim()
         if (arg.isBlank()) {
             addAssistantMessage("usage: /queue <prompt>")
             return
         }
-        submitPrompt(arg, queued = true)
+        val storageId = _uiState.value.currentSessionId ?: return
+        val runtimeId = runtimeSessionId ?: return
+        val busy =
+            mainTurnBusy ||
+                sendStore.all().any {
+                    it.scope == sendScope() && it.sessionId == storageId &&
+                        it.state in setOf(PendingSendState.SENDING, PendingSendState.ACCEPTED, PendingSendState.UNKNOWN)
+                }
+        try {
+            sendStore.put(
+                PendingSend(
+                    id = userMessage.id,
+                    scope = sendScope(),
+                    sessionId = storageId,
+                    text = arg,
+                    mode = BusySendMode.QUEUE,
+                    state = if (busy) PendingSendState.QUEUED else PendingSendState.SENDING,
+                ),
+            )
+        } catch (e: Exception) {
+            removeUnconfirmedBubble(userMessage.id)
+            _uiState.update { it.copy(errorMessage = "Could not save message for delivery") }
+            return
+        }
+        publishPendingSends()
+        if (busy) {
+            viewModelScope.launch(ioDispatcher) { repo.persistMessage(userMessage, storageId) }
+        } else {
+            dispatchPrompt(
+                text = arg,
+                attachments = emptyList(),
+                wasStreaming = false,
+                storageSessionId = storageId,
+                agentSessionId = runtimeId,
+                userMessage = userMessage,
+                mode = BusySendMode.QUEUE,
+                queued = true,
+            )
+        }
     }
 
     private fun handleReasoningSlashCommand(arg: String) {
@@ -2737,6 +3345,10 @@ class ChatViewModel(
 
     fun interruptSession() {
         val sessionId = runtimeSessionId ?: return
+        _uiState.value.currentSessionId?.let { storageId ->
+            sendStore.park(sendScope(), storageId)
+            publishPendingSends()
+        }
         viewModelScope.launch(ioDispatcher) {
             wsClient.send(
                 WsMethods.SESSION_INTERRUPT,
@@ -2895,6 +3507,7 @@ class ChatViewModel(
         _uiState.update { state ->
             state.copy(
                 typingEffectEnabled = AuthManager.isTypingEffectEnabled(),
+                busySendMode = AuthManager.getBusySendMode(),
                 typingEffectDelayMs = AuthManager.getTypingEffectDelayMs(),
                 messageStatsEnabled = AuthManager.isMessageStatsEnabled(),
                 showUserMessageTokens = AuthManager.isUserMessageTokensEnabled(),
@@ -2903,6 +3516,7 @@ class ChatViewModel(
                 showModelProvider = AuthManager.isModelProviderShown(),
             )
         }
+        publishPendingSends()
     }
 
     /**
@@ -3254,6 +3868,31 @@ class ChatViewModel(
     ): List<ChatMessage>? {
         while (isCurrent()) {
             val snapshot = _uiState.value
+            // Receipt bubbles can be absent after rejection/reconnect. Offer their identities
+            // to the canonical matcher without displaying unconfirmed messages again.
+            val visibleIds = snapshot.messages.map { it.id }.toSet()
+            val receiptCandidates =
+                if (cached) {
+                    emptyList()
+                } else {
+                    sendStore
+                        .all()
+                        .filter {
+                            it.scope == sendScope() && it.sessionId == snapshot.currentSessionId &&
+                                it.id !in visibleIds &&
+                                it.state in
+                                setOf(PendingSendState.SENDING, PendingSendState.ACCEPTED, PendingSendState.UNKNOWN)
+                        }.map {
+                            ChatMessage(
+                                id = it.id,
+                                role = MessageRole.USER,
+                                content = it.text,
+                                attachments = it.attachments,
+                                timestamp = it.createdAt,
+                            )
+                        }
+                }
+            val receiptCandidateIds = receiptCandidates.map { it.id }.toSet()
             val computed =
                 withContext(historyDispatcher) {
                     val page = mapPage(snapshot.messages)
@@ -3263,10 +3902,10 @@ class ChatViewModel(
                         } else {
                             mergeTranscriptWithLive(
                                 page,
-                                snapshot.messages,
+                                snapshot.messages + receiptCandidates,
                                 chronological = !prepend,
                                 preserveLiveIds = true,
-                            )
+                            ).filterNot { it.id in receiptCandidateIds && it.canonicalRestId == null }
                         }
                     val stableMessages = if (merged == snapshot.messages) snapshot.messages else merged
                     Triple(page, stableMessages, hydrateTodosFromMessages(merged).ifEmpty { snapshot.todos })
@@ -3446,6 +4085,12 @@ class ChatViewModel(
             )
             repo.confirmIdentities(aliases, sessionId)
         }
+        val scope = sendScope()
+        val scopedPending =
+            sendStore.all().filter { it.scope == scope && it.sessionId == sessionId }
+        pendingSendIdsConfirmedByDurableAliases(aliases, scopedPending).forEach(::removePendingSend)
+        publishPendingSends()
+        drainPendingQueue()
     }
 
     // ── Session resume recovery (desktop parity) ─────────────────────────
@@ -3481,7 +4126,12 @@ class ChatViewModel(
         isLoading: Boolean,
     ): Long {
         val generation = ++sessionGeneration
+        // A slow drain belongs to the old session and must not block the resumed queue.
+        queueDrainJob?.cancel()
+        queueDrainJob = null
         connectionOperationDelegate.reset()
+        mainTurnBusy = false
+        lastMainCompletionAt = 0L
         cancelResumeRetry()
         contextUsageJob?.cancel()
         contextUsageJob = null
@@ -3515,6 +4165,7 @@ class ChatViewModel(
                 currentSessionId = sessionId,
                 chatTitle = title,
                 isAgentTyping = false,
+                isSending = false,
                 isThinking = false,
                 thinkingText = "",
                 isLoading = isLoading,
@@ -3553,6 +4204,7 @@ class ChatViewModel(
                 pendingPrefillText = null,
             )
         }
+        publishPendingSends()
         return generation
     }
 
@@ -3618,6 +4270,7 @@ class ChatViewModel(
                 isSessionReady = runtimeSessionId != null,
             )
         }
+        drainPendingQueue()
     }
 
     private fun resumeRetryDelayMs(attempt: Int): Long =

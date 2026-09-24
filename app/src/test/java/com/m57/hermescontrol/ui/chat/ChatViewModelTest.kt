@@ -9757,6 +9757,7 @@ class ChatViewModelTest {
             stubActiveProfile()
             val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
             every { ApiClient.hermesApi } returns api
+            every { ApiClient.transcriptionService(any()) } returns api
             coEvery { api.transcribeAudio(any()) } returns
                 Response.success(
                     AudioTranscriptionResponse(ok = true, transcript = "hello from voice"),
@@ -9790,6 +9791,7 @@ class ChatViewModelTest {
         runTest {
             val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
             every { ApiClient.hermesApi } returns api
+            every { ApiClient.transcriptionService(any()) } returns api
             coEvery { api.transcribeAudio(any()) } returns
                 Response.error(500, "transcribe failed".toResponseBody("text/plain".toMediaType()))
             val (viewModel, _) = createViewModelWithSession()
@@ -9814,6 +9816,7 @@ class ChatViewModelTest {
         runTest {
             val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
             every { ApiClient.hermesApi } returns api
+            every { ApiClient.transcriptionService(any()) } returns api
             coEvery { api.transcribeAudio(any()) } returns
                 Response.success(AudioTranscriptionResponse(ok = true, transcript = "   "))
             val (viewModel, _) = createViewModelWithSession()
@@ -9850,5 +9853,160 @@ class ChatViewModelTest {
                 viewModel.uiState.value.errorMessage
                     ?.contains("not connected") == true,
             )
+        }
+
+    @Test
+    fun sendVoiceNote_whenSessionChangesMidTranscription_keepsTheTranscriptInTheComposer() =
+        runTest {
+            stubActiveProfile()
+            val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+            every { ApiClient.hermesApi } returns api
+            every { ApiClient.transcriptionService(any()) } returns api
+            val transcription = CompletableDeferred<Response<AudioTranscriptionResponse>>()
+            coEvery { api.transcribeAudio(any()) } coAnswers { transcription.await() }
+            val (viewModel, _) = createViewModelWithSession()
+
+            val voiceFile =
+                java.io.File(attachmentCacheDir, "voice_session_race.m4a").apply {
+                    writeBytes(byteArrayOf(7))
+                }
+            viewModel.sendVoiceNote(voiceFile)
+            advanceUntilIdle()
+
+            // The user moves to a new session while STT is still running.
+            viewModel.createNewSession()
+            advanceUntilIdle()
+
+            transcription.complete(
+                Response.success(AudioTranscriptionResponse(ok = true, transcript = "late transcript")),
+            )
+            advanceUntilIdle()
+
+            // The recording belonged to the old session: the transcript must
+            // survive in the composer instead of landing in a session it was
+            // never recorded for, or vanishing (review, PR #1250).
+            assertEquals("late transcript", viewModel.uiState.value.composerTextToRestore)
+            assertTrue(
+                viewModel.uiState.value.errorMessage
+                    ?.contains("transcript kept") == true,
+            )
+            verify(exactly = 0) { HermesWsClient.sendMessage(any(), any(), any(), any()) }
+            assertFalse(viewModel.uiState.value.isTranscribingVoiceNote)
+            assertFalse(voiceFile.exists())
+        }
+
+    @Test
+    fun sendVoiceNote_whenTheSendIsRejected_keepsTheTranscriptInTheComposer() =
+        runTest {
+            stubActiveProfile()
+            val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+            every { ApiClient.hermesApi } returns api
+            every { ApiClient.transcriptionService(any()) } returns api
+            coEvery { api.transcribeAudio(any()) } returns
+                Response.success(AudioTranscriptionResponse(ok = true, transcript = "keep me"))
+            val (viewModel, _) = createViewModelWithSession()
+
+            val voiceFile =
+                java.io.File(attachmentCacheDir, "voice_send_race.m4a").apply {
+                    writeBytes(byteArrayOf(8))
+                }
+            viewModel.sendVoiceNote(voiceFile)
+            // The connection drops while the transcript is being produced.
+            mockConnectionStatus.value = ConnectionStatus.DISCONNECTED
+            advanceUntilIdle()
+
+            assertEquals("keep me", viewModel.uiState.value.composerTextToRestore)
+            assertTrue(
+                viewModel.uiState.value.errorMessage
+                    ?.contains("transcript kept") == true,
+            )
+            verify(exactly = 0) { HermesWsClient.sendMessage(any(), any(), any(), any()) }
+        }
+
+    @Test
+    fun sendVoiceNote_whileATranscriptionIsInFlight_dropsTheSecondClip() =
+        runTest {
+            stubActiveProfile()
+            val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+            every { ApiClient.hermesApi } returns api
+            every { ApiClient.transcriptionService(any()) } returns api
+            val transcription = CompletableDeferred<Response<AudioTranscriptionResponse>>()
+            coEvery { api.transcribeAudio(any()) } coAnswers { transcription.await() }
+            val (viewModel, _) = createViewModelWithSession()
+
+            val submittedTexts = mutableListOf<String>()
+            every { HermesWsClient.sendMessage(any(), any(), any(), any()) } answers {
+                reqCount++
+                val id = "req-msg-$reqCount"
+                submittedTexts += arg<String>(1)
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            val firstFile =
+                java.io.File(attachmentCacheDir, "voice_first.m4a").apply { writeBytes(byteArrayOf(1)) }
+            val secondFile =
+                java.io.File(attachmentCacheDir, "voice_second.m4a").apply { writeBytes(byteArrayOf(2)) }
+            viewModel.sendVoiceNote(firstFile)
+            advanceUntilIdle()
+
+            viewModel.sendVoiceNote(secondFile)
+            advanceUntilIdle()
+
+            // Single-flight: the second clip is dropped without a second upload.
+            assertFalse(secondFile.exists())
+            coVerify(exactly = 1) { api.transcribeAudio(any()) }
+
+            transcription.complete(
+                Response.success(AudioTranscriptionResponse(ok = true, transcript = "only once")),
+            )
+            advanceUntilIdle()
+
+            assertEquals(listOf("only once"), submittedTexts)
+            assertFalse(viewModel.uiState.value.isTranscribingVoiceNote)
+        }
+
+    @Test
+    fun canInterrupt_staysFalseWhileTypingWithNoRuntimeSession_thenTracksTheGeneration() =
+        runTest {
+            stubActiveProfile()
+            val vm = createViewModel()
+            advanceUntilIdle()
+
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            val sentPrompts = mutableListOf<String>()
+            every { HermesWsClient.sendMessage(any(), any(), any(), any()) } answers {
+                reqCount++
+                val id = "req-msg-$reqCount"
+                sentPrompts += arg<String>(1)
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            // Queued while session create is in flight: typing shows, but the
+            // session has no runtime to interrupt yet, so Stop must stay
+            // hidden and interruptSession() must not be reachable from it
+            // (review, PR #1250).
+            vm.sendMessage("held under session preparation")
+            advanceUntilIdle()
+            assertTrue(vm.uiState.value.isAgentTyping)
+            assertFalse(vm.uiState.value.canInterrupt)
+
+            // Once the runtime session exists and the prompt is dispatched,
+            // the running generation is interruptible.
+            val createReqId = "req-id-$reqCount"
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    createReqId,
+                    mapOf("session_id" to "session-969", "stored_session_id" to "session-storage-969"),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals(listOf("held under session preparation"), sentPrompts)
+            assertTrue(vm.uiState.value.canInterrupt)
         }
 }

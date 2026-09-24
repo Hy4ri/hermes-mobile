@@ -70,6 +70,8 @@ private const val HISTORY_WINDOW_SIZE = 120
 private const val VOICE_NOTE_OFFLINE_MESSAGE = "Voice note not sent — not connected"
 private const val VOICE_NOTE_EMPTY_MESSAGE = "No speech detected in the voice note"
 private const val VOICE_NOTE_FAILED_MESSAGE = "Voice note transcription failed"
+private const val VOICE_NOTE_UNSENT_MESSAGE =
+    "Voice note not sent — transcript kept in the input field"
 
 private val REASONING_EFFORT_LEVELS =
     setOf("none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra")
@@ -261,6 +263,15 @@ data class ChatUiState(
 ) {
     /** Convenience — derived from [connectionStatus]. */
     val isConnected: Boolean get() = connectionStatus == ConnectionStatus.CONNECTED
+
+    /**
+     * True only while a generation can actually be interrupted: typing can
+     * start during session preparation, before any runtime session exists,
+     * and `session.interrupt` has nothing to stop then. The composer derives
+     * its Stop affordance from this instead of [isAgentTyping] alone
+     * (review, PR #1250).
+     */
+    val canInterrupt: Boolean get() = isAgentTyping && isSessionReady
 }
 
 data class ChatTimelineState(
@@ -2881,53 +2892,96 @@ class ChatViewModel(
         return true
     }
 
+    /** True while a voice-note transcription owns the mic-to-send pipeline. */
+    private var voiceNoteTranscriptionInFlight = false
+
     /**
      * Transcribe a recorded voice note through the dashboard's server-side
      * STT relay (`POST /api/audio/transcribe` — the desktop client's voice
      * path) and submit the transcript as the next message. The profile's
      * configured STT provider answers, not the phone's on-device recognizer.
+     *
+     * The recording belongs to the session that was active when it was taken:
+     * transcription takes long enough for the socket, the profile, or the user
+     * to move on, so a transcript that can no longer land in that session is
+     * preserved in the composer instead of being dropped. Only one
+     * transcription runs at a time — [voiceNoteTranscriptionInFlight] keeps
+     * every branch below single-flight (review, PR #1250).
      */
     fun sendVoiceNote(file: File) {
+        if (voiceNoteTranscriptionInFlight) {
+            file.delete()
+            return
+        }
         if (!canSubmitMessage()) {
             file.delete()
             _uiState.update { it.copy(errorMessage = VOICE_NOTE_OFFLINE_MESSAGE) }
             return
         }
+        val recordedSessionId = _uiState.value.currentSessionId
+        val recordedRuntimeSessionId = runtimeSessionId
+        voiceNoteTranscriptionInFlight = true
         viewModelScope.launch {
             _uiState.update { it.copy(isTranscribingVoiceNote = true) }
-            val result =
-                withContext(ioDispatcher) {
-                    try {
-                        voiceNoteRepository.transcribe(file)
-                    } finally {
-                        file.delete()
+            try {
+                val result =
+                    withContext(ioDispatcher) {
+                        try {
+                            voiceNoteRepository.transcribe(file)
+                        } finally {
+                            file.delete()
+                        }
                     }
-                }
-            when (result) {
-                is NetworkResult.Success -> {
-                    val transcript = result.data.trim()
-                    if (transcript.isEmpty()) {
-                        _uiState.update {
-                            it.copy(
-                                isTranscribingVoiceNote = false,
-                                errorMessage = VOICE_NOTE_EMPTY_MESSAGE,
+                when (result) {
+                    is NetworkResult.Success -> {
+                        val transcript = result.data.trim()
+                        if (transcript.isEmpty()) {
+                            _uiState.update { it.copy(errorMessage = VOICE_NOTE_EMPTY_MESSAGE) }
+                        } else {
+                            deliverVoiceTranscript(
+                                transcript = transcript,
+                                recordedSessionId = recordedSessionId,
+                                recordedRuntimeSessionId = recordedRuntimeSessionId,
                             )
                         }
-                    } else {
-                        _uiState.update { it.copy(isTranscribingVoiceNote = false) }
-                        sendMessage(transcript)
                     }
-                }
 
-                is NetworkResult.Failure -> {
-                    Log.w(TAG, "Voice note transcription failed: ${result.error.message}")
-                    _uiState.update {
-                        it.copy(
-                            isTranscribingVoiceNote = false,
-                            errorMessage = "$VOICE_NOTE_FAILED_MESSAGE: ${result.error.message}",
-                        )
+                    is NetworkResult.Failure -> {
+                        Log.w(TAG, "Voice note transcription failed: ${result.error.message}")
+                        _uiState.update {
+                            it.copy(errorMessage = "$VOICE_NOTE_FAILED_MESSAGE: ${result.error.message}")
+                        }
                     }
                 }
+            } finally {
+                // Always release the single-flight flag and the composer's
+                // transcription state, even if a branch above throws.
+                voiceNoteTranscriptionInFlight = false
+                _uiState.update { it.copy(isTranscribingVoiceNote = false) }
+            }
+        }
+    }
+
+    /**
+     * Submits a transcribed voice note, or keeps the transcript in the input
+     * field when it can no longer land where it was recorded. The recording
+     * file is already deleted by now, so a rejected send restores the text
+     * instead of losing it.
+     */
+    private fun deliverVoiceTranscript(
+        transcript: String,
+        recordedSessionId: String?,
+        recordedRuntimeSessionId: String?,
+    ) {
+        val sessionChanged =
+            _uiState.value.currentSessionId != recordedSessionId ||
+                runtimeSessionId != recordedRuntimeSessionId
+        if (sessionChanged || !sendMessage(transcript)) {
+            _uiState.update {
+                it.copy(
+                    composerTextToRestore = transcript,
+                    errorMessage = VOICE_NOTE_UNSENT_MESSAGE,
+                )
             }
         }
     }

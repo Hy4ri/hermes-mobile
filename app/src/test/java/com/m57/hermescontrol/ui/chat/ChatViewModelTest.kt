@@ -460,6 +460,104 @@ class ChatViewModelTest {
             assertEquals("op-1218", operation?.opId)
         }
 
+    @Test
+    fun sessionResume_restoresRetainedFailureAsNonDurablePartial() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+            viewModel.switchSession("stored-session")
+            advanceUntilIdle()
+            val resumeRequestId = sentRequestMethods.last { it.first == WsMethods.SESSION_RESUME }.second
+
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    resumeRequestId,
+                    mapOf(
+                        "session_id" to "runtime-session",
+                        "resumed" to "stored-session",
+                        "inflight" to
+                            mapOf(
+                                "assistant" to "Retained partial answer",
+                                "user" to "Private user prompt",
+                                "streaming" to false,
+                                "status" to "error",
+                                "error" to "Provider failed",
+                                "recoverable" to true,
+                                "error_surface" to mapOf("provider" to "example", "code" to "rate_limit"),
+                            ),
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals("stored-session", viewModel.uiState.value.currentSessionId)
+            assertEquals(
+                "Retained partial answer",
+                viewModel.uiState.value.messages
+                    .last()
+                    .content,
+            )
+            assertEquals(
+                "code: rate_limit\nprovider: example\nProvider failed",
+                viewModel.uiState.value.replyFailure
+                    ?.details,
+            )
+            assertFalse(
+                viewModel.uiState.value.replyFailure!!
+                    .details
+                    .contains("Private user prompt"),
+            )
+            assertTrue(
+                fakeRepo.dao
+                    .getMessagesForSession("stored-session")
+                    .none { it.content == "Retained partial answer" },
+            )
+        }
+
+    @Test
+    fun staleSessionResumeFailureCannotClearHealthyCurrentStream() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+            viewModel.switchSession("stored-old")
+            advanceUntilIdle()
+            val staleResumeId = sentRequestMethods.last { it.first == WsMethods.SESSION_RESUME }.second
+
+            viewModel.switchSession("stored-current")
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.MessageStart("stored-current"))
+            mockEventsFlow.emit(WsEvent.MessageToken("Healthy current stream", "stored-current"))
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    staleResumeId,
+                    mapOf(
+                        "session_id" to "runtime-old",
+                        "inflight" to
+                            mapOf(
+                                "assistant" to "Old failed partial",
+                                "status" to "error",
+                                "error" to "Old provider failure",
+                            ),
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals("stored-current", viewModel.uiState.value.currentSessionId)
+            assertNull(viewModel.uiState.value.replyFailure)
+            assertEquals(
+                "Healthy current stream",
+                viewModel.streamingState.value.streamingMessage
+                    ?.content,
+            )
+            assertTrue(
+                viewModel.uiState.value.messages
+                    .none { it.content == "Old failed partial" },
+            )
+        }
+
     private fun connectionOperationSnapshot(
         sessionId: String,
         seq: Long = 1L,
@@ -1386,6 +1484,96 @@ class ChatViewModelTest {
         }
 
     // ── Streaming tests ──────────────────────────────────────────────────────
+
+    @Test
+    fun terminalReplyFailureIsScopedDismissibleAndNeverResends() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            mockEventsFlow.emit(WsEvent.MessageToken("Partial", sessionId))
+            advanceUntilIdle()
+            mockEventsFlow.emit(
+                WsEvent.MessageComplete("Other error", "other-session", rawPayload = mapOf("status" to "error")),
+            )
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isAgentTyping)
+            assertNull(viewModel.uiState.value.replyFailure)
+            assertEquals(
+                "Partial",
+                viewModel.streamingState.value.streamingMessage
+                    ?.content,
+            )
+            mockEventsFlow.emit(
+                WsEvent.MessageComplete("Provider error", sessionId, rawPayload = mapOf("status" to "error")),
+            )
+            advanceUntilIdle()
+            val failure = viewModel.uiState.value.replyFailure!!
+            assertFalse(viewModel.uiState.value.isAgentTyping)
+            assertFalse(viewModel.uiState.value.isThinking)
+            assertTrue(
+                viewModel.uiState.value.messages
+                    .any { it.content == "Partial" },
+            )
+            assertFalse(
+                viewModel.uiState.value.messages
+                    .any { it.content == "Provider error" },
+            )
+            viewModel.dismissReplyFailure("stale-card")
+            advanceUntilIdle()
+            assertEquals(failure, viewModel.uiState.value.replyFailure)
+            viewModel.dismissReplyFailure(failure.id)
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.replyFailure)
+            verify(exactly = 0) { HermesWsClient.sendMessage(any(), any(), any(), any()) }
+        }
+
+    @Test
+    fun unscopedFailureCannotCrossSessionSwitch() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val failure = WsEvent.MessageComplete("Error", null, rawPayload = mapOf("status" to "error"))
+            mockEventsFlow.emit(failure)
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.replyFailure)
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            advanceUntilIdle()
+            viewModel.switchSession("another-session")
+            advanceUntilIdle()
+            // A delayed start without identity cannot authorize a failed turn on this chat.
+            mockEventsFlow.emit(WsEvent.MessageStart(null))
+            advanceUntilIdle()
+            mockEventsFlow.emit(failure)
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.replyFailure)
+            assertFalse(
+                viewModel.uiState.value.messages
+                    .any { it.content == "Error" },
+            )
+        }
+
+    @Test
+    fun unscopedFailureAfterForeignStartCannotUsePreviousSessionPin() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            mockEventsFlow.emit(WsEvent.MessageToken("Current partial", sessionId))
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.MessageStart("foreign-session"))
+            mockEventsFlow.emit(
+                WsEvent.MessageComplete("Foreign diagnostic", null, rawPayload = mapOf("status" to "error")),
+            )
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.replyFailure)
+            assertEquals(
+                "Current partial",
+                viewModel.streamingState.value.streamingMessage
+                    ?.content,
+            )
+            assertFalse(
+                viewModel.uiState.value.messages
+                    .any { it.content == "Foreign diagnostic" },
+            )
+        }
 
     @Test
     fun testMessageStreamingFlow() =

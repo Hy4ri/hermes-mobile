@@ -1832,6 +1832,7 @@ class ChatViewModel(
                 content = text,
                 attachments = if (attachments.isNotEmpty()) attachments else null,
                 tokenCount = TokenEstimator.estimate(text).takeIf { it > 0 },
+                messageProvenance = MessageProvenance.LOCAL_PENDING,
             )
 
         // Update UI immediately
@@ -1894,6 +1895,7 @@ class ChatViewModel(
                 content = text,
                 attachments = if (attachments.isNotEmpty()) attachments else null,
                 tokenCount = TokenEstimator.estimate(text).takeIf { it > 0 },
+                messageProvenance = MessageProvenance.LOCAL_PENDING,
             )
 
         // Upload attachments then submit prompt
@@ -3256,7 +3258,29 @@ class ChatViewModel(
             val snapshot = _uiState.value
             val computed =
                 withContext(historyDispatcher) {
-                    val page = mapPage(snapshot.messages)
+                    val mapped = mapPage(snapshot.messages)
+                    val currentById = snapshot.messages.associateBy { it.id }
+                    // Durable provenance distinguishes new unsent prompts after process death.
+                    // Legacy UUID-only USER rows remain conservatively unconfirmed: UNKNOWN is
+                    // not evidence that the server delivered them.
+                    val page =
+                        if (cached) {
+                            mapped.map { message ->
+                                message.copy(
+                                    isHistoricalCache =
+                                        when {
+                                            currentById[message.id]?.isHistoricalCache == false -> false
+                                            message.isPermanentlyLocal() -> false
+                                            message.messageProvenance == MessageProvenance.LOCAL_PENDING -> false
+                                            message.canonicalRestId != null -> true
+                                            message.role == MessageRole.USER -> false
+                                            else -> true
+                                        },
+                                )
+                            }
+                        } else {
+                            mapped
+                        }
                     val merged =
                         if (cached) {
                             mergeCachedTranscriptPage(page, snapshot.messages)

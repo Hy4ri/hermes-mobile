@@ -5389,6 +5389,200 @@ class ChatViewModelTest {
             )
         }
 
+    @Test
+    fun paging_staleCacheBeforeRestDoesNotBecomeTheLatestTail() =
+        runTest {
+            val cachedIds = seedPagingCache(3)
+            val response = CompletableDeferred<retrofit2.Response<SessionMessagesResponse>>()
+            val (viewModel, _) = createViewModelWithSession()
+            coEvery {
+                ApiClient.hermesApi.getSessionMessages("session-456", any(), any(), any(), any())
+            } coAnswers { response.await() }
+
+            viewModel.switchSession("session-456")
+            runCurrent()
+            assertEquals(
+                cachedIds,
+                viewModel.uiState.value.messages
+                    .map { it.id },
+            )
+            response.complete(pagingResponse(100..102))
+            advanceUntilIdle()
+
+            val expected = cachedIds + (100..102).map { "rest-session-456-$it" }
+            assertEquals(
+                expected,
+                viewModel.uiState.value.messages
+                    .map { it.id },
+            )
+            viewModel.syncCurrentSession()
+            advanceUntilIdle()
+            assertEquals(
+                expected,
+                viewModel.uiState.value.messages
+                    .map { it.id },
+            )
+            assertTrue(fakeRepo.dao.idsForSession("session-456").containsAll(cachedIds))
+        }
+
+    @Test
+    fun paging_staleCacheAfterRestDoesNotBecomeTheLatestTail() =
+        runTest {
+            val cachedIds = seedPagingCache(3)
+            val cacheRead = CompletableDeferred<Unit>()
+            fakeRepo.dao.beforeRead = { cacheRead.await() }
+            val (viewModel, _) = createViewModelWithSession()
+            coEvery {
+                ApiClient.hermesApi.getSessionMessages("session-456", any(), any(), any(), any())
+            } returns pagingResponse(100..102)
+
+            viewModel.switchSession("session-456")
+            runCurrent()
+            cacheRead.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(
+                cachedIds + (100..102).map { "rest-session-456-$it" },
+                viewModel.uiState.value.messages
+                    .map { it.id },
+            )
+        }
+
+    @Test
+    fun paging_coldRestartPendingLocalRemainsAfterCanonicalWindow() =
+        runTest {
+            val pending =
+                ChatMessage(
+                    id = "pending-local",
+                    role = MessageRole.USER,
+                    content = "not delivered yet",
+                    messageProvenance = MessageProvenance.LOCAL_PENDING,
+                )
+            fakeRepo.persistMessage(pending, "session-456")
+            val cacheRead = CompletableDeferred<Unit>()
+            fakeRepo.dao.beforeRead = { cacheRead.await() }
+            val (viewModel, _) = createViewModelWithSession()
+            coEvery {
+                ApiClient.hermesApi.getSessionMessages("session-456", any(), any(), any(), any())
+            } returns pagingResponse(100..102)
+
+            viewModel.switchSession("session-456")
+            runCurrent()
+            cacheRead.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(
+                (100..102).map { "rest-session-456-$it" } + pending.id,
+                viewModel.uiState.value.messages
+                    .map { it.id },
+            )
+        }
+
+    @Test
+    fun paging_coldRestartLegacyUnknownUserRemainsConservativelyUnconfirmed() =
+        runTest {
+            val ambiguous =
+                ChatMessage(
+                    id = "legacy-unknown-user",
+                    role = MessageRole.USER,
+                    content = "possibly unsent before migration",
+                )
+            fakeRepo.persistMessage(ambiguous, "session-456")
+            val cacheRead = CompletableDeferred<Unit>()
+            fakeRepo.dao.beforeRead = { cacheRead.await() }
+            val (viewModel, _) = createViewModelWithSession()
+            coEvery {
+                ApiClient.hermesApi.getSessionMessages("session-456", any(), any(), any(), any())
+            } returns pagingResponse(100..102)
+            viewModel.switchSession("session-456")
+            runCurrent()
+            cacheRead.complete(Unit)
+            advanceUntilIdle()
+            assertEquals(
+                (100..102).map { "rest-session-456-$it" } + ambiguous.id,
+                viewModel.uiState.value.messages
+                    .map { it.id },
+            )
+            assertFalse(
+                viewModel.uiState.value.messages
+                    .last()
+                    .isHistoricalCache,
+            )
+        }
+
+    @Test
+    fun paging_coldRestartPermanentLocalKeepsLocalOrdering() =
+        runTest {
+            val localCommand =
+                ChatMessage(
+                    id = "local-command",
+                    role = MessageRole.USER,
+                    content = "/help",
+                )
+            fakeRepo.persistMessage(localCommand, "session-456")
+            val cacheRead = CompletableDeferred<Unit>()
+            fakeRepo.dao.beforeRead = { cacheRead.await() }
+            val (viewModel, _) = createViewModelWithSession()
+            coEvery {
+                ApiClient.hermesApi.getSessionMessages("session-456", any(), any(), any(), any())
+            } returns pagingResponse(100..102)
+
+            viewModel.switchSession("session-456")
+            runCurrent()
+            cacheRead.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(
+                (100..102).map { "rest-session-456-$it" } + localCommand.id,
+                viewModel.uiState.value.messages
+                    .map { it.id },
+            )
+        }
+
+    @Test
+    fun paging_staleCacheDoesNotDemoteOptimisticIdentity() =
+        runTest {
+            val cachedIds = seedPagingCache(3)
+            val cacheRead = CompletableDeferred<Unit>()
+            fakeRepo.dao.beforeRead = { cacheRead.await() }
+            val (viewModel, _) = createViewModelWithSession()
+            coEvery {
+                ApiClient.hermesApi.getSessionMessages("session-456", any(), any(), any(), any())
+            } returns pagingResponse(100..102)
+
+            viewModel.switchSession("session-456")
+            runCurrent()
+            val attachment = Attachment("content://test/file", "file.txt", "text/plain")
+            val optimistic =
+                ChatMessage(
+                    id = cachedIds[1],
+                    role = MessageRole.USER,
+                    content = "Cached message 2",
+                    attachments = listOf(attachment),
+                )
+
+            @Suppress("UNCHECKED_CAST")
+            val state =
+                ChatViewModel::class.java
+                    .getDeclaredField("_uiState")
+                    .apply { isAccessible = true }
+                    .get(viewModel) as MutableStateFlow<Any>
+            state.value = viewModel.uiState.value.copy(messages = viewModel.uiState.value.messages + optimistic)
+            cacheRead.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(
+                listOf(cachedIds[0], cachedIds[2]) + (100..102).map { "rest-session-456-$it" } + cachedIds[1],
+                viewModel.uiState.value.messages
+                    .map { it.id },
+            )
+            val retained =
+                viewModel.uiState.value.messages
+                    .last()
+            assertFalse(retained.isHistoricalCache)
+            assertEquals(listOf(attachment), retained.attachments)
+        }
+
     // Chat paging: deterministic regressions, with no real network or wall-clock timing.
     private fun seedPagingCache(
         count: Int,

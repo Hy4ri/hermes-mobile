@@ -227,6 +227,17 @@ internal fun mapServerMessages(
     val matches = matchTranscriptMessages(mappedTools, liveTools)
     val toolsById = mappedTools.indices.associate { index -> mappedTools[index].id to matches[index] }
     return mapped.map { message ->
-        toolsById[message.id]?.copy(restId = message.canonicalRestId) ?: message
+        val local = toolsById[message.id]
+        if (local?.isHistoricalCache == true && local.toolStatus == ToolStatus.RUNNING) {
+            // A canonical tool-result row settles a cached tool.start, not the reverse.
+            local.copy(
+                restId = message.canonicalRestId,
+                content = message.content,
+                toolStatus = ToolStatus.COMPLETED,
+                isHistoricalCache = false,
+            )
+        } else {
+            local?.copy(restId = message.canonicalRestId) ?: message
+        }
     }
 }

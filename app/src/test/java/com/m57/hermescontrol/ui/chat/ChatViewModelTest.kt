@@ -8,6 +8,7 @@ import android.net.Uri
 import android.util.Log
 import androidx.core.content.FileProvider
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.AttachmentSource
@@ -31,6 +32,7 @@ import com.m57.hermescontrol.data.ws.ConnectionOperationParser
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.JsonRpcError
+import com.m57.hermescontrol.data.ws.ModelCatalogStore
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.notification.TurnCorrelationTracker
@@ -301,6 +303,18 @@ class ChatViewModelTest {
         every { AuthManager.getToken() } returns "test-token"
         every { AuthManager.getBaseUrl() } returns "http://test.local/"
         every { AuthManager.getSelectedProfileId() } returns null
+        // sendVoiceNote snapshots the data scope for its ownership check
+        // (review, PR #1250). Default it to null: an unstubbed mockk call
+        // used to throw and be swallowed by the runCatching callers, which
+        // kept SwrCache keys unscoped in this class; returning a concrete
+        // scope here enables cross-test cache hits and skips sends other
+        // tests count. Scope-specific tests re-stub this with real scopes.
+        every { AuthManager.currentDataScope() } returns null
+        // ChatViewModel's model-switch delegate and the shared catalog store
+        // both collect this flow; park them on a never-emitting state so a
+        // later real-AuthManager emission cannot resume a stale
+        // Main-dispatched collector between test classes.
+        every { AuthManager.dataScopeFlow } returns MutableStateFlow<DataScope?>(null)
         mockkObject(ProfileSwitchCoordinator)
         every { ProfileSwitchCoordinator.switched } returns mockSwitchFlow
         every { ProfileSwitchCoordinator.connectionSwitched } returns MutableSharedFlow<String>()
@@ -1100,6 +1114,13 @@ class ChatViewModelTest {
     fun testBareModelCommand_opensPickerInsteadOfDispatch() =
         runTest {
             val (viewModel, _) = createViewModelWithSession()
+
+            // The shared catalog store may still hold another class's cached
+            // (possibly empty) state — reset it so the picker's load below
+            // fetches through this class's stubbed API.
+            ModelCatalogStore.shared.onScopeChanged(
+                DataScope("preload-reset", "http://preload-reset.test/", AuthManager.DEFAULT_PROFILE_ID),
+            )
 
             // A bare "/model" must NOT dispatch a slash command; it opens the picker.
             viewModel.sendMessage("/model")
@@ -9967,6 +9988,146 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun sendVoiceNote_whenDataScopeChangesDuringTranscription_doesNotSendIntoNewScope() =
+        runTest {
+            stubActiveProfile()
+            val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+            every { ApiClient.hermesApi } returns api
+            every { ApiClient.transcriptionService(any()) } returns api
+            val transcription = CompletableDeferred<Response<AudioTranscriptionResponse>>()
+            coEvery { api.transcribeAudio(any()) } coAnswers { transcription.await() }
+
+            every { AuthManager.currentDataScope() } returns
+                DataScope(
+                    connectionProfileId = "alpha",
+                    baseUrl = "http://alpha.test/",
+                    activeProfileId = AuthManager.DEFAULT_PROFILE_ID,
+                )
+
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            // A pending SESSION_CREATE is all this test needs; skipping the
+            // gateway preload keeps the shared ModelCatalogStore out of it.
+            viewModel.createNewSession()
+            advanceUntilIdle()
+
+            // SESSION_CREATE is still pending, so the storage session ID is
+            // null — exactly the window where the session-ID snapshot alone
+            // cannot detect a scope move.
+            assertNull(viewModel.uiState.value.currentSessionId)
+
+            val voiceFile =
+                java.io.File(attachmentCacheDir, "voice_scope_switch.m4a").apply {
+                    writeBytes(byteArrayOf(1, 2, 3))
+                }
+            viewModel.sendVoiceNote(voiceFile)
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isTranscribingVoiceNote)
+
+            // The user switches to another server/profile while STT runs; the
+            // replacement session create is pending as well, so both session
+            // IDs can stay null/null and only the data scope moves.
+            every { AuthManager.currentDataScope() } returns
+                DataScope(
+                    connectionProfileId = "beta",
+                    baseUrl = "http://beta.test/",
+                    activeProfileId = AuthManager.DEFAULT_PROFILE_ID,
+                )
+            advanceUntilIdle()
+
+            transcription.complete(
+                Response.success(
+                    AudioTranscriptionResponse(ok = true, transcript = "do not send this to the new server"),
+                ),
+            )
+            advanceUntilIdle()
+
+            // The transcript must not become the initial prompt of the new
+            // scope; it stays in the composer instead (review, PR #1250).
+            verify(exactly = 0) {
+                HermesWsClient.sendMessage(any(), "do not send this to the new server", any(), any())
+            }
+            assertEquals(
+                "do not send this to the new server",
+                viewModel.uiState.value.composerTextToRestore,
+            )
+            assertTrue(
+                viewModel.uiState.value.errorMessage
+                    ?.contains("transcript kept") == true,
+            )
+            assertFalse(viewModel.uiState.value.isTranscribingVoiceNote)
+            assertFalse(voiceFile.exists())
+        }
+
+    @Test
+    fun sendVoiceNote_whenServerProfileChangesDuringTranscription_doesNotSendIntoNewScope() =
+        runTest {
+            stubActiveProfile()
+            val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+            every { ApiClient.hermesApi } returns api
+            every { ApiClient.transcriptionService(any()) } returns api
+            val transcription = CompletableDeferred<Response<AudioTranscriptionResponse>>()
+            coEvery { api.transcribeAudio(any()) } coAnswers { transcription.await() }
+
+            every { AuthManager.currentDataScope() } returns
+                DataScope(
+                    connectionProfileId = "alpha",
+                    baseUrl = "http://alpha.test/",
+                    activeProfileId = "default",
+                )
+
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            // A pending SESSION_CREATE is all this test needs; skipping the
+            // gateway preload keeps the shared ModelCatalogStore out of it.
+            viewModel.createNewSession()
+            advanceUntilIdle()
+
+            val voiceFile =
+                java.io.File(attachmentCacheDir, "voice_profile_switch.m4a").apply {
+                    writeBytes(byteArrayOf(4, 5, 6))
+                }
+            viewModel.sendVoiceNote(voiceFile)
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isTranscribingVoiceNote)
+
+            // Same server, different server-side Hermes profile: the session
+            // IDs cannot see this change either, so the scope must.
+            every { AuthManager.currentDataScope() } returns
+                DataScope(
+                    connectionProfileId = "alpha",
+                    baseUrl = "http://alpha.test/",
+                    activeProfileId = "work",
+                )
+            advanceUntilIdle()
+
+            transcription.complete(
+                Response.success(
+                    AudioTranscriptionResponse(ok = true, transcript = "profile-scoped transcript"),
+                ),
+            )
+            advanceUntilIdle()
+
+            verify(exactly = 0) {
+                HermesWsClient.sendMessage(any(), "profile-scoped transcript", any(), any())
+            }
+            assertEquals(
+                "profile-scoped transcript",
+                viewModel.uiState.value.composerTextToRestore,
+            )
+            assertTrue(
+                viewModel.uiState.value.errorMessage
+                    ?.contains("transcript kept") == true,
+            )
+            assertFalse(viewModel.uiState.value.isTranscribingVoiceNote)
+            assertFalse(voiceFile.exists())
+        }
+
+    @Test
     fun canInterrupt_staysFalseWhileTypingWithNoRuntimeSession_thenTracksTheGeneration() =
         runTest {
             stubActiveProfile()
@@ -9996,8 +10157,13 @@ class ChatViewModelTest {
             assertFalse(vm.uiState.value.canInterrupt)
 
             // Once the runtime session exists and the prompt is dispatched,
-            // the running generation is interruptible.
-            val createReqId = "req-id-$reqCount"
+            // the running generation is interruptible. Read the captured
+            // session.create id instead of counting sends: a singleton store
+            // warmed by an earlier test can fire an extra model.options send
+            // in this gateway flow and shift the counter (see the resume
+            // tests, same pattern).
+            val createReqId =
+                sentRequestMethods.last { it.first == WsMethods.SESSION_CREATE }.second
             mockEventsFlow.emit(
                 WsEvent.RpcResult(
                     createReqId,

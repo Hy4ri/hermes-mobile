@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.local.SlashUsageStore
 import com.m57.hermescontrol.data.model.Attachment
@@ -2903,8 +2904,9 @@ class ChatViewModel(
      *
      * The recording belongs to the session that was active when it was taken:
      * transcription takes long enough for the socket, the profile, or the user
-     * to move on, so a transcript that can no longer land in that session is
-     * preserved in the composer instead of being dropped. Only one
+     * to move on, so a transcript that can no longer land in that session or
+     * connection/profile scope is preserved in the composer instead of being
+     * dropped. Only one
      * transcription runs at a time — [voiceNoteTranscriptionInFlight] keeps
      * every branch below single-flight (review, PR #1250).
      */
@@ -2920,6 +2922,11 @@ class ChatViewModel(
         }
         val recordedSessionId = _uiState.value.currentSessionId
         val recordedRuntimeSessionId = runtimeSessionId
+        // The recording also belongs to the connection/profile scope it was
+        // taken on: both session IDs can still be null/null across a scope
+        // switch while a replacement session create is pending, so the data
+        // scope is the deciding identity for that window (review, PR #1250).
+        val recordedDataScope = AuthManager.currentDataScope()
         voiceNoteTranscriptionInFlight = true
         viewModelScope.launch {
             _uiState.update { it.copy(isTranscribingVoiceNote = true) }
@@ -2942,6 +2949,7 @@ class ChatViewModel(
                                 transcript = transcript,
                                 recordedSessionId = recordedSessionId,
                                 recordedRuntimeSessionId = recordedRuntimeSessionId,
+                                recordedDataScope = recordedDataScope,
                             )
                         }
                     }
@@ -2972,11 +2980,17 @@ class ChatViewModel(
         transcript: String,
         recordedSessionId: String?,
         recordedRuntimeSessionId: String?,
+        recordedDataScope: DataScope?,
     ) {
         val sessionChanged =
             _uiState.value.currentSessionId != recordedSessionId ||
                 runtimeSessionId != recordedRuntimeSessionId
-        if (sessionChanged || !sendMessage(transcript)) {
+        // A connection/profile switch can leave the session IDs null on both
+        // sides of the recording (a replacement session create may still be
+        // pending), so the data scope is the ownership check that catches
+        // that move (review, PR #1250).
+        val scopeChanged = AuthManager.currentDataScope() != recordedDataScope
+        if (sessionChanged || scopeChanged || !sendMessage(transcript)) {
             _uiState.update {
                 it.copy(
                     composerTextToRestore = transcript,

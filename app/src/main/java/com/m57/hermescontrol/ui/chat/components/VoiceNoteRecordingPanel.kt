@@ -73,7 +73,9 @@ internal fun VoiceNoteRecordingPanel(
     ) {
         Icon(
             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-            contentDescription = stringResource(R.string.chat_voice_slide_to_cancel),
+            // Decorative: the adjacent "Slide to cancel" text carries the
+            // instruction, so the arrow must not repeat it (review, PR #1250).
+            contentDescription = null,
             tint = palette.placeholder,
             modifier = Modifier.size(16.dp),
         )

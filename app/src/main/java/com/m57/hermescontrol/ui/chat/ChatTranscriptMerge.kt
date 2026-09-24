@@ -331,17 +331,7 @@ internal fun dedupeCachedMessages(
             }.toMap()
     return unique.filterNot { it.id in echoes }.map { message ->
         aliases[message.id]?.let {
-            val preservedContent =
-                if (message.role == MessageRole.ASSISTANT &&
-                    ChatVerifierFooter.split(message.content) != null &&
-                    ChatVerifierFooter.matchesBase(message.content, it.content)
-                ) {
-                    message.content
-                } else {
-                    it.content
-                }
             message.copy(
-                content = preservedContent,
                 restId = it.canonicalRestId,
                 completionId = message.completionId ?: it.completionId,
                 displayKind = message.displayKind ?: it.displayKind,

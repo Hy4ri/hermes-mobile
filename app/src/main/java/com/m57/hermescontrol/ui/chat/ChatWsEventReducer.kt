@@ -296,7 +296,7 @@ object ChatWsEventReducer {
                     },
                 turnUsageBaselineCaptured = true,
             )
-        val newState = preState
+        val newState = preState.copy(replyFailure = null)
         val sid = newState.currentSessionId
         if (orphan != null && sid != null) {
             effects.add(ReducerEffect.PersistMessage(orphan, sid))
@@ -406,6 +406,8 @@ object ChatWsEventReducer {
         streamingState: StreamingState,
         event: WsEvent.MessageComplete,
     ): ReducerResult {
+        val failure = replyFailureFromPayload(event.rawPayload, event.text)
+        if (failure != null) return onReplyFailure(state, streamingState, event, failure)
         val finalSnapshot = event.rawPayload?.let(::parseUsageSnapshot)
         val usageState = finalSnapshot?.let { applyUsageSnapshot(state, it) } ?: state
         val turnUsage = finalSnapshot?.deltaFrom(streamingState.turnUsageBaseline)
@@ -513,6 +515,55 @@ object ChatWsEventReducer {
                 usageState.copy(
                     messages = usageState.messages.upsertById(msg),
                     isAgentTyping = false,
+                    clarifyRequest = null,
+                ),
+            streamingState = StreamingState(),
+            effects = effects,
+        )
+    }
+
+    // Keep terminal diagnostics out of normal assistant messages and persistence.
+    private fun onReplyFailure(
+        state: ChatUiState,
+        streamingState: StreamingState,
+        event: WsEvent.MessageComplete,
+        failure: ReplyFailure,
+    ): ReducerResult {
+        val usageState = event.rawPayload?.let(::parseUsageSnapshot)?.let { applyUsageSnapshot(state, it) } ?: state
+        val streaming = streamingState.streamingMessage
+        val text =
+            if (event.rawPayload?.get("partial") == true) {
+                event.text
+                    .takeIf { it.isNotBlank() }
+                    ?.let { stripSealedOrphanPrefix(it, state.messages, streamingState.sealedOrphanIds) }
+                    ?: streaming?.content.orEmpty()
+            } else {
+                streaming?.content.orEmpty()
+            }
+        val reasoning = streamingState.reasoningText.ifBlank { streaming?.reasoningText.orEmpty() }
+        val partial =
+            if (text.isNotBlank() || reasoning.isNotBlank()) {
+                (streaming ?: ChatMessage(role = MessageRole.ASSISTANT, content = "")).copy(
+                    content = text,
+                    reasoningText = reasoning,
+                    isStreaming = false,
+                    finishTimestamp = System.currentTimeMillis(),
+                )
+            } else {
+                null
+            }
+        val effects = mutableListOf<ReducerEffect>(ReducerEffect.RefreshSessions, ReducerEffect.RefreshContextUsage)
+        if (partial != null && state.currentSessionId != null) {
+            effects.add(ReducerEffect.PersistMessage(partial, state.currentSessionId))
+        }
+        return ReducerResult(
+            state =
+                usageState.copy(
+                    messages = partial?.let { usageState.messages.upsertById(it) } ?: usageState.messages,
+                    replyFailure = failure,
+                    isAgentTyping = false,
+                    isThinking = false,
+                    streamingMessage = null,
                     clarifyRequest = null,
                 ),
             streamingState = StreamingState(),

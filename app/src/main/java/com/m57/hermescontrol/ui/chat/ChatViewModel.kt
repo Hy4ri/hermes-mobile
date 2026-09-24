@@ -137,6 +137,8 @@ data class ChatUiState(
     /** Standalone streaming message — rendered after the main list. */
     val streamingMessage: ChatMessage? = null,
     val errorMessage: String? = null,
+    /** Persistent until dismissed/new turn; distinct from one-shot RPC/network snackbars. */
+    val replyFailure: ReplyFailure? = null,
     // Background job completion toast (issue #527) — non-blocking snackbar
     val backgroundCompleteMessage: String? = null,
     // Attachment feedback — surfaced as a non-blocking snackbar (issue #724)
@@ -842,6 +844,23 @@ class ChatViewModel(
     }
 
     private fun handleWsEvent(event: WsEvent) {
+        // Filter explicitly scoped terminal/start events before buffer resets and reduction.
+        // Legacy unscoped failures are ambiguous across sessions, so fail closed: gateways
+        // must include session_id for failed replies to be surfaced by this client.
+        val turnSessionId =
+            when (event) {
+                is WsEvent.MessageStart -> event.sessionId
+                is WsEvent.MessageComplete -> event.sessionId
+                is WsEvent.MessageDone -> event.sessionId
+                else -> null
+            }
+        if (turnSessionId != null && !isCurrentSession(turnSessionId)) return
+        if (event is WsEvent.MessageComplete && event.rawPayload?.get("status") == "error" &&
+            event.sessionId == null
+        ) {
+            return
+        }
+
         // RpcError is reduced before ViewModel request handling. Drop stale
         // session errors here so the shared reducer cannot clear loading or
         // surface an error for a newly selected session.
@@ -1238,10 +1257,13 @@ class ChatViewModel(
 
     // ── Message streaming ────────────────────────────────────────────────
 
-    /**
-     * Checks if an incoming WS event belongs to the currently active
-     * session. Returns true if the event should be processed.
-     */
+    fun dismissReplyFailure(id: String) {
+        _uiState.update { state ->
+            if (state.replyFailure?.id == id) state.copy(replyFailure = null) else state
+        }
+    }
+
+    /** Checks if an incoming WS event belongs to the currently active session. */
     private fun isCurrentSession(eventSessionId: String?): Boolean {
         // If the event has no session ID, process it (legacy compatibility)
         if (eventSessionId == null) return true
@@ -3522,6 +3544,7 @@ class ChatViewModel(
                 hasOlderMessages = false,
                 streamingMessage = null,
                 errorMessage = null,
+                replyFailure = null,
                 openError = null,
                 clarifyRequest = null,
                 sudoPrompt = null,

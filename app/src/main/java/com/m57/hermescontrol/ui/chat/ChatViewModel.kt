@@ -139,6 +139,8 @@ data class ChatUiState(
     val errorMessage: String? = null,
     /** Persistent until dismissed/new turn; distinct from one-shot RPC/network snackbars. */
     val replyFailure: ReplyFailure? = null,
+    /** Identity of the single non-durable failed assistant projection for this session lifecycle. */
+    val replyFailureProjection: ReplyFailureProjection? = null,
     // Background job completion toast (issue #527) — non-blocking snackbar
     val backgroundCompleteMessage: String? = null,
     // Attachment feedback — surfaced as a non-blocking snackbar (issue #724)
@@ -1532,20 +1534,23 @@ class ChatViewModel(
 
             WsMethods.SESSION_RESUME -> {
                 val resultMap = result as? Map<String, Any?>
+                // A resume response may carry retained terminal state. Correlate the
+                // exact request and stored session before binding the runtime id or
+                // projecting any failure; a late response must not touch the new chat.
+                val resumeRequest = request ?: return
+                val sessionId = resumeRequest.sessionId ?: return
+                if (sessionId != _uiState.value.currentSessionId) return
+                val resumedStoredId = (resultMap?.get("resumed") as? String)?.takeIf { it.isNotBlank() }
+                if (resumedStoredId != null && resumedStoredId != sessionId) return
                 val runtimeId = (resultMap?.get("session_id") as? String)?.takeIf { it.isNotBlank() }
                 if (runtimeId == null) {
-                    val sessionId = request?.sessionId ?: _uiState.value.currentSessionId ?: return
-                    handleResumeFailure(sessionId, sessionGeneration, "Invalid session resume response")
+                    handleResumeFailure(sessionId, resumeRequest.generation, "Invalid session resume response")
                     return
                 }
                 runtimeSessionId = runtimeId
                 connectionOperationDelegate.bindSession(runtimeId)
                 // Resume succeeded — the gateway confirmed the DB row.
                 sessionHasServerPresence = true
-                val sessionId =
-                    request?.sessionId
-                        ?: (resultMap["resumed"] as? String)
-                        ?: _uiState.value.currentSessionId
 
                 // Parse session info from backend — model, provider, reasoning_effort
                 val infoMap = resultMap["info"] as? Map<String, Any?>
@@ -1614,7 +1619,8 @@ class ChatViewModel(
                 ActiveSessionHolder.set(runtimeSessionId ?: sessionId, sessionId)
                 addSystemMessage("Session resumed")
                 fetchContextUsage()
-                val generation = request?.generation ?: sessionGeneration
+                projectRetainedReplyFailure(resultMap["inflight"] as? Map<String, Any?>, runtimeId)
+                val generation = resumeRequest.generation
                 resumedGeneration = generation
                 finishResumeWhenHydrated(generation)
                 subagentsDelegate.hydrateSubagents(runtimeSessionId ?: sessionId)
@@ -1683,6 +1689,25 @@ class ChatViewModel(
                 modelSwitchDelegate.handleConfigSetResult(id, result)
             }
         }
+    }
+
+    /**
+     * Replays a gateway-retained failed turn through the same reducer path as a
+     * live terminal `message.complete(status=error)`. The assistant field is
+     * the partial display projection; user/transcript fields are never exported
+     * as diagnostics, and reducer effects intentionally do not persist it.
+     */
+    private fun projectRetainedReplyFailure(
+        inflight: Map<String, Any?>?,
+        runtimeId: String,
+    ) {
+        if (inflight?.get("status") != "error") return
+        val result =
+            ChatWsEventReducer.reduceRetainedReplyFailure(_uiState.value, inflight, runtimeId)
+        _uiState.value = result.state
+        _streamingState.value = result.streamingState
+        dispatchReducerEffects(result.effects)
+        streamingController.resetStreaming()
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -3545,6 +3570,7 @@ class ChatViewModel(
                 streamingMessage = null,
                 errorMessage = null,
                 replyFailure = null,
+                replyFailureProjection = null,
                 openError = null,
                 clarifyRequest = null,
                 sudoPrompt = null,

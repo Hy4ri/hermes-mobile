@@ -460,6 +460,104 @@ class ChatViewModelTest {
             assertEquals("op-1218", operation?.opId)
         }
 
+    @Test
+    fun sessionResume_restoresRetainedFailureAsNonDurablePartial() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+            viewModel.switchSession("stored-session")
+            advanceUntilIdle()
+            val resumeRequestId = sentRequestMethods.last { it.first == WsMethods.SESSION_RESUME }.second
+
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    resumeRequestId,
+                    mapOf(
+                        "session_id" to "runtime-session",
+                        "resumed" to "stored-session",
+                        "inflight" to
+                            mapOf(
+                                "assistant" to "Retained partial answer",
+                                "user" to "Private user prompt",
+                                "streaming" to false,
+                                "status" to "error",
+                                "error" to "Provider failed",
+                                "recoverable" to true,
+                                "error_surface" to mapOf("provider" to "example", "code" to "rate_limit"),
+                            ),
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals("stored-session", viewModel.uiState.value.currentSessionId)
+            assertEquals(
+                "Retained partial answer",
+                viewModel.uiState.value.messages
+                    .last()
+                    .content,
+            )
+            assertEquals(
+                "code: rate_limit\nprovider: example\nProvider failed",
+                viewModel.uiState.value.replyFailure
+                    ?.details,
+            )
+            assertFalse(
+                viewModel.uiState.value.replyFailure!!
+                    .details
+                    .contains("Private user prompt"),
+            )
+            assertTrue(
+                fakeRepo.dao
+                    .getMessagesForSession("stored-session")
+                    .none { it.content == "Retained partial answer" },
+            )
+        }
+
+    @Test
+    fun staleSessionResumeFailureCannotClearHealthyCurrentStream() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+            viewModel.switchSession("stored-old")
+            advanceUntilIdle()
+            val staleResumeId = sentRequestMethods.last { it.first == WsMethods.SESSION_RESUME }.second
+
+            viewModel.switchSession("stored-current")
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.MessageStart("stored-current"))
+            mockEventsFlow.emit(WsEvent.MessageToken("Healthy current stream", "stored-current"))
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    staleResumeId,
+                    mapOf(
+                        "session_id" to "runtime-old",
+                        "inflight" to
+                            mapOf(
+                                "assistant" to "Old failed partial",
+                                "status" to "error",
+                                "error" to "Old provider failure",
+                            ),
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals("stored-current", viewModel.uiState.value.currentSessionId)
+            assertNull(viewModel.uiState.value.replyFailure)
+            assertEquals(
+                "Healthy current stream",
+                viewModel.streamingState.value.streamingMessage
+                    ?.content,
+            )
+            assertTrue(
+                viewModel.uiState.value.messages
+                    .none { it.content == "Old failed partial" },
+            )
+        }
+
     private fun connectionOperationSnapshot(
         sessionId: String,
         seq: Long = 1L,

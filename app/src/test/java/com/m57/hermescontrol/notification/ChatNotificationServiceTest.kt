@@ -1,9 +1,13 @@
 package com.m57.hermescontrol.notification
 
 import android.content.Context
+import com.m57.hermescontrol.data.ws.WsEvent
 import io.mockk.mockk
 import io.mockk.verify
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -103,5 +107,60 @@ class ChatNotificationServiceTest {
             false,
             atomicBoolean.get(),
         )
+    }
+
+    @Test
+    fun `terminal reply error uses generic failure notification without success affordances`() {
+        val rawDiagnostic = "Authorization: Bearer secret-token"
+        val plan =
+            messageCompleteNotificationPlan(
+                event =
+                    WsEvent.MessageComplete(
+                        text = rawDiagnostic,
+                        sessionId = "runtime-1",
+                        storedSessionId = "stored-1",
+                        completionId = "completion-1",
+                        rawPayload =
+                            mapOf(
+                                "status" to "error",
+                                "error" to rawDiagnostic,
+                            ),
+                    ),
+                targetSessionId = "stored-1",
+                newMessageText = "New message",
+                failureText = "Hermes couldn't finish this reply",
+            )
+
+        assertEquals("Hermes couldn't finish this reply", plan.text)
+        assertFalse(plan.text.contains(rawDiagnostic))
+        assertEquals("stored-1", plan.sessionId)
+        assertFalse(plan.isReplyMessage)
+        assertFalse(plan.allowInlineReply)
+        assertNull(plan.completionId)
+        assertNull(plan.correlationText)
+    }
+
+    @Test
+    fun `successful completion keeps reply correlation and inline reply`() {
+        val plan =
+            messageCompleteNotificationPlan(
+                event =
+                    WsEvent.MessageComplete(
+                        text = "Answer\ncontinued",
+                        sessionId = "runtime-1",
+                        completionId = "completion-1",
+                        rawPayload = mapOf("status" to "ok"),
+                    ),
+                targetSessionId = "stored-1",
+                newMessageText = "New message",
+                failureText = "Hermes couldn't finish this reply",
+            )
+
+        assertEquals("Answer continued", plan.text)
+        assertEquals("stored-1", plan.sessionId)
+        assertTrue(plan.isReplyMessage)
+        assertTrue(plan.allowInlineReply)
+        assertEquals("completion-1", plan.completionId)
+        assertEquals("Answer\ncontinued", plan.correlationText)
     }
 }

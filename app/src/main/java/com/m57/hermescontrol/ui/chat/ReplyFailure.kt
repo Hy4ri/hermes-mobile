@@ -8,6 +8,13 @@ data class ReplyFailure(
     val id: String = UUID.randomUUID().toString(),
 )
 
+/** Stable identity for the one transient failed-reply projection in a session lifecycle. */
+data class ReplyFailureProjection(
+    val messageId: String?,
+    val failureId: String,
+    val completionId: String? = null,
+)
+
 /** Only a terminal turn failure is a failed reply; RPC/transport errors are separate. */
 internal fun replyFailureFromPayload(
     payload: Map<String, Any?>?,

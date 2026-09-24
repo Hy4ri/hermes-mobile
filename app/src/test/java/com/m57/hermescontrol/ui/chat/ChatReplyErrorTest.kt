@@ -13,16 +13,23 @@ class ChatReplyErrorTest {
     fun failedCompletionKeepsPartialReplyAndStopsThinking() {
         val partial =
             ChatMessage(id = "partial", role = MessageRole.ASSISTANT, content = "Partial reply", isStreaming = true)
-        val state = ChatUiState(isAgentTyping = true, isThinking = true, streamingMessage = partial)
+        val state =
+            ChatUiState(
+                currentSessionId = "runtime",
+                isAgentTyping = true,
+                isThinking = true,
+                streamingMessage = partial,
+            )
         val streaming = StreamingState(streamingMessage = partial, isThinking = true)
 
         val event =
             WsEvent.MessageComplete(
                 text = "Partial reply",
-                sessionId = null,
+                sessionId = "runtime",
+                completionId = "completion-failed-1",
                 rawPayload = mapOf("status" to "error", "error" to "Provider failed", "partial" to true),
             )
-        val result = ChatWsEventReducer.reduce(state, streaming, event)
+        val result = ChatWsEventReducer.reduce(state, streaming, event, "runtime")
 
         assertFalse(result.state.isThinking)
         assertEquals(
@@ -34,6 +41,13 @@ class ChatReplyErrorTest {
         assertNotNull(result.state.replyFailure)
         assertFalse(result.state.isAgentTyping)
         assertNull(result.streamingState.streamingMessage)
+        assertEquals(
+            "completion-failed-1",
+            result.state.messages
+                .single { it.id == "partial" }
+                .completionId,
+        )
+        assertTrue(result.effects.none { it is ReducerEffect.PersistMessage })
     }
 
     @Test
@@ -147,10 +161,155 @@ class ChatReplyErrorTest {
     @Test
     fun nextTurnClearsFailureButDoneDoesNot() {
         val failure = ReplyFailure("Failed")
-        val state = ChatUiState(replyFailure = failure)
+        val failedPartial =
+            ChatMessage(id = "failed-partial", role = MessageRole.ASSISTANT, content = "Partial")
+        val state =
+            ChatUiState(
+                messages = listOf(ChatMessage(id = "normal", role = MessageRole.USER, content = "Keep"), failedPartial),
+                replyFailure = failure,
+                replyFailureProjection = ReplyFailureProjection("failed-partial", failure.id),
+            )
         val done = ChatWsEventReducer.reduce(state, StreamingState(), WsEvent.MessageDone(null))
         assertEquals(failure, done.state.replyFailure)
         val start = ChatWsEventReducer.reduce(state, StreamingState(), WsEvent.MessageStart(null))
         assertNull(start.state.replyFailure)
+        assertNull(start.state.replyFailureProjection)
+        assertEquals(listOf("normal"), start.state.messages.map { it.id })
+    }
+
+    @Test
+    fun retainedFailureWithEmptyAssistantNeverInheritsUnrelatedStream() {
+        val normal = ChatMessage(id = "normal", role = MessageRole.USER, content = "Keep")
+        val stale =
+            ChatMessage(
+                id = "unrelated-stream",
+                role = MessageRole.ASSISTANT,
+                content = "Stale text",
+                reasoningText = "Stale reasoning",
+                isStreaming = true,
+            )
+        val state =
+            ChatUiState(
+                messages = listOf(normal),
+                isAgentTyping = true,
+                isThinking = true,
+                thinkingText = "Stale thinking",
+                streamingMessage = stale,
+            )
+
+        val result =
+            ChatWsEventReducer.reduceRetainedReplyFailure(
+                state = state,
+                inflight = mapOf("assistant" to "", "status" to "error", "error" to "Provider failed"),
+                currentSessionId = "runtime",
+            )
+
+        assertEquals(listOf(normal), result.state.messages)
+        assertFalse(result.state.isAgentTyping)
+        assertFalse(result.state.isThinking)
+        assertEquals("", result.state.thinkingText)
+        assertNull(result.state.streamingMessage)
+        assertEquals(StreamingState(), result.streamingState)
+        assertNotNull(result.state.replyFailure)
+        assertNull(result.state.replyFailureProjection?.messageId)
+    }
+
+    @Test
+    fun duplicateRetainedFailureKeepsOneStableProjection() {
+        val normal = ChatMessage(id = "normal", role = MessageRole.USER, content = "Keep")
+        val inflight =
+            mapOf("assistant" to "Retained partial", "status" to "error", "error" to "Provider failed")
+
+        val first =
+            ChatWsEventReducer.reduceRetainedReplyFailure(
+                ChatUiState(messages = listOf(normal)),
+                inflight,
+                "runtime",
+            )
+        val second = ChatWsEventReducer.reduceRetainedReplyFailure(first.state, inflight, "runtime")
+
+        assertEquals(2, second.state.messages.size)
+        assertEquals(listOf("Keep", "Retained partial"), second.state.messages.map { it.content })
+        assertEquals(first.state.replyFailureProjection, second.state.replyFailureProjection)
+        assertEquals(first.state.replyFailure?.id, second.state.replyFailure?.id)
+    }
+
+    @Test
+    fun duplicateLiveFailureKeepsOneStableProjection() {
+        val normal = ChatMessage(id = "normal", role = MessageRole.USER, content = "Keep")
+        val partial =
+            ChatMessage(id = "live-partial", role = MessageRole.ASSISTANT, content = "Partial", isStreaming = true)
+        val event =
+            WsEvent.MessageComplete(
+                text = "Partial",
+                sessionId = "runtime",
+                completionId = "completion-1",
+                rawPayload = mapOf("status" to "error", "error" to "Provider failed", "partial" to true),
+            )
+
+        val first =
+            ChatWsEventReducer.reduce(
+                ChatUiState(messages = listOf(normal), currentSessionId = "runtime"),
+                StreamingState(streamingMessage = partial),
+                event,
+                "runtime",
+            )
+        val second = ChatWsEventReducer.reduce(first.state, first.streamingState, event, "runtime")
+
+        assertEquals(listOf("normal", "live-partial"), second.state.messages.map { it.id })
+        assertEquals(first.state.replyFailureProjection, second.state.replyFailureProjection)
+        assertEquals(first.state.replyFailure?.id, second.state.replyFailure?.id)
+    }
+
+    @Test
+    fun liveFailureThenResumeUpdatesSameProjection() {
+        val partial =
+            ChatMessage(
+                id = "live-partial",
+                role = MessageRole.ASSISTANT,
+                content = "Live partial",
+                isStreaming = true,
+            )
+        val live =
+            ChatWsEventReducer.reduce(
+                ChatUiState(currentSessionId = "stored"),
+                StreamingState(streamingMessage = partial),
+                WsEvent.MessageComplete(
+                    text = "Live partial",
+                    sessionId = "runtime",
+                    completionId = "completion-1",
+                    rawPayload = mapOf("status" to "error", "error" to "Provider failed", "partial" to true),
+                ),
+                "runtime",
+            )
+
+        val resumed =
+            ChatWsEventReducer.reduceRetainedReplyFailure(
+                live.state,
+                mapOf("assistant" to "Retained partial", "status" to "error", "error" to "Provider failed"),
+                "runtime",
+            )
+
+        assertEquals(1, resumed.state.messages.size)
+        assertEquals(
+            "live-partial",
+            resumed.state.messages
+                .single()
+                .id,
+        )
+        assertEquals(
+            "Retained partial",
+            resumed.state.messages
+                .single()
+                .content,
+        )
+        assertEquals(
+            "completion-1",
+            resumed.state.messages
+                .single()
+                .completionId,
+        )
+        assertEquals(live.state.replyFailureProjection, resumed.state.replyFailureProjection)
+        assertEquals(live.state.replyFailure?.id, resumed.state.replyFailure?.id)
     }
 }

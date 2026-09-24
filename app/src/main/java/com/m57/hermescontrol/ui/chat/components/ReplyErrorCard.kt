@@ -37,6 +37,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
@@ -56,6 +57,14 @@ fun ReplyErrorCard(
     var expanded by rememberSaveable(failure.id) { mutableStateOf(false) }
 
     val details = remember(failure.details) { sanitizeReplyErrorDetails(failure.details) }
+    val detailsStateDescription =
+        stringResource(
+            if (expanded) {
+                R.string.chat_reply_failed_details_expanded
+            } else {
+                R.string.chat_reply_failed_details_collapsed
+            },
+        )
     val colors = LocalHermesStatusColors.current
     Surface(
         modifier = Modifier.fillMaxWidth().padding(12.dp).testTag("reply_error_card"),
@@ -82,7 +91,10 @@ fun ReplyErrorCard(
                 }
             }
             Text(stringResource(R.string.chat_reply_failed_description), style = MaterialTheme.typography.bodyMedium)
-            TextButton(onClick = { expanded = !expanded }) {
+            TextButton(
+                onClick = { expanded = !expanded },
+                modifier = Modifier.semantics { stateDescription = detailsStateDescription },
+            ) {
                 Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, contentDescription = null)
                 Text(stringResource(R.string.chat_reply_failed_details))
             }
@@ -102,6 +114,7 @@ fun ReplyErrorCard(
                 OutlinedButton(onClick = { onCopy(details) }) { Text(stringResource(R.string.chat_reply_failed_copy)) }
                 OutlinedButton(
                     onClick = { onShare(details) },
+                    enabled = expanded,
                 ) { Text(stringResource(R.string.chat_reply_failed_share)) }
             }
         }

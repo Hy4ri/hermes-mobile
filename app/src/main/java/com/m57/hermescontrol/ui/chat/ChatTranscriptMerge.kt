@@ -185,6 +185,14 @@ internal class TranscriptComparison(
         val tb = trimmed.getOrPut(b.content) { b.content.trim() }
         if (a.role == MessageRole.USER && (ta.startsWith("/") || tb.startsWith("/"))) return false
         if (ta == tb) return true
+        if (a.role == MessageRole.ASSISTANT &&
+            (a.completionId != null || b.completionId != null) &&
+            a.completionId == b.completionId &&
+            ta.isNotBlank() && tb.isNotBlank() &&
+            ChatVerifierFooter.matchesBase(ta, tb)
+        ) {
+            return true
+        }
         if (a.role == MessageRole.USER &&
             captions.getOrPut(ta) { stripAttachmentRefLines(ta) } ==
             captions.getOrPut(tb) { stripAttachmentRefLines(tb) }
@@ -250,7 +258,17 @@ internal fun matchTranscriptMessages(
                     ) &&
                     // Distinct IDs within the same source are separate occurrences, not echoes.
                     ((message.canonicalRestId == null) != (other.canonicalRestId == null)) &&
-                    comparison.same(message, other)
+                    (
+                        comparison.same(message, other) ||
+                            (
+                                allowAssistantContentMatches &&
+                                    message.role == MessageRole.ASSISTANT &&
+                                    message.content.isNotBlank() && other.content.isNotBlank() &&
+                                    message.completionId != null &&
+                                    message.completionId == other.completionId &&
+                                    ChatVerifierFooter.matchesBase(message.content, other.content)
+                            )
+                    )
             }
         if (match != null) {
             used[match] = true
@@ -313,7 +331,17 @@ internal fun dedupeCachedMessages(
             }.toMap()
     return unique.filterNot { it.id in echoes }.map { message ->
         aliases[message.id]?.let {
+            val preservedContent =
+                if (message.role == MessageRole.ASSISTANT &&
+                    ChatVerifierFooter.split(message.content) != null &&
+                    ChatVerifierFooter.matchesBase(message.content, it.content)
+                ) {
+                    message.content
+                } else {
+                    it.content
+                }
             message.copy(
+                content = preservedContent,
                 restId = it.canonicalRestId,
                 completionId = message.completionId ?: it.completionId,
                 displayKind = message.displayKind ?: it.displayKind,
@@ -341,6 +369,20 @@ internal fun mergeCachedTranscriptPage(
         incoming
             .mapIndexedNotNull { index, message ->
                 val match = matches[index] ?: return@mapIndexedNotNull null
+                val preservedContent =
+                    if (match.role == MessageRole.ASSISTANT &&
+                        ChatVerifierFooter.split(match.content) != null &&
+                        ChatVerifierFooter.matchesBase(match.content, message.content)
+                    ) {
+                        match.content
+                    } else if (message.role == MessageRole.ASSISTANT &&
+                        ChatVerifierFooter.split(message.content) != null &&
+                        ChatVerifierFooter.matchesBase(message.content, match.content)
+                    ) {
+                        message.content
+                    } else {
+                        null
+                    }
                 val rich =
                     when {
                         // A late historical snapshot may contribute safe metadata, but it must
@@ -367,6 +409,7 @@ internal fun mergeCachedTranscriptPage(
                 match.id to
                     rich.copy(
                         id = match.id,
+                        content = preservedContent ?: rich.content,
                         restId = match.canonicalRestId ?: message.canonicalRestId,
                         completionId = match.completionId ?: message.completionId,
                         displayKind = match.displayKind ?: message.displayKind,
@@ -408,9 +451,18 @@ internal fun mergeTranscriptWithLive(
                 }
 
                 preserveLiveIds && match != null && !match.id.startsWith("rest-") -> {
+                    val mergedContent =
+                        if (match.role == MessageRole.ASSISTANT &&
+                            ChatVerifierFooter.split(match.content) != null &&
+                            ChatVerifierFooter.matchesBase(match.content, message.content)
+                        ) {
+                            match.content
+                        } else {
+                            message.content
+                        }
                     match.copy(
                         restId = message.canonicalRestId ?: match.canonicalRestId,
-                        content = message.content,
+                        content = mergedContent,
                         timestamp = message.timestamp,
                         isStreaming = message.isStreaming,
                         reasoningText = message.reasoningText.ifBlank { match.reasoningText },
@@ -426,7 +478,21 @@ internal fun mergeTranscriptWithLive(
                 }
 
                 else -> {
-                    message.copy(completionId = message.completionId ?: match?.completionId, isHistoricalCache = false)
+                    val mergedContent =
+                        if (message.role == MessageRole.ASSISTANT &&
+                            match != null &&
+                            ChatVerifierFooter.split(match.content) != null &&
+                            ChatVerifierFooter.matchesBase(match.content, message.content)
+                        ) {
+                            match.content
+                        } else {
+                            message.content
+                        }
+                    message.copy(
+                        content = mergedContent,
+                        completionId = message.completionId ?: match?.completionId,
+                        isHistoricalCache = false,
+                    )
                 }
             }
         }

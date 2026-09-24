@@ -13,6 +13,27 @@ import org.junit.Test
 
 class ChatPagingMergeTest {
     @Test
+    fun canonicalResultSettlesHistoricalRunningToolWithServerOutput() {
+        val cached =
+            ChatMessage(
+                id = "old-tool",
+                role = MessageRole.TOOL,
+                content = """{"name":"terminal","args":{"command":"pwd"}}""",
+                toolName = "terminal",
+                toolCallId = "call-42",
+                toolStatus = ToolStatus.RUNNING,
+                isHistoricalCache = true,
+            )
+        val page = mapServerMessages("s", listOf(serverTool(42, "call-42")), 0, true, listOf(cached))
+        val merged = mergeTranscriptWithLive(page, listOf(cached), preserveLiveIds = true).single()
+        assertEquals(cached.id, merged.id)
+        assertEquals("rest-s-42", merged.canonicalRestId)
+        assertEquals(ToolStatus.COMPLETED, merged.toolStatus)
+        assertTrue(merged.content.contains("exit_code"))
+        assertTrue(!merged.isHistoricalCache)
+    }
+
+    @Test
     fun confirmedLiveOccurrenceCannotConsumeEarlierIdenticalPage() {
         for (role in listOf(MessageRole.USER, MessageRole.ASSISTANT, MessageRole.TOOL)) {
             val content = if (role == MessageRole.TOOL) "{\"output\":\"ok\"}" else "continue"

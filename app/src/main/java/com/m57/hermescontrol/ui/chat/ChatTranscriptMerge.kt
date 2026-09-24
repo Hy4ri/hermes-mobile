@@ -381,6 +381,7 @@ internal fun mergeTranscriptWithLive(
                     match.copy(
                         restId = (message.canonicalRestId ?: match.canonicalRestId).takeUnless { it == match.id },
                         displayKind = message.displayKind ?: match.displayKind,
+                        isHistoricalCache = false,
                     )
                 }
 
@@ -398,11 +399,12 @@ internal fun mergeTranscriptWithLive(
                         displayKind = message.displayKind ?: match.displayKind,
                         tokenCount = message.tokenCount ?: match.tokenCount,
                         completionId = message.completionId ?: match.completionId,
+                        isHistoricalCache = false,
                     )
                 }
 
                 else -> {
-                    message.copy(completionId = message.completionId ?: match?.completionId)
+                    message.copy(completionId = message.completionId ?: match?.completionId, isHistoricalCache = false)
                 }
             }
         }
@@ -431,6 +433,8 @@ private fun List<ChatMessage>.inTranscriptOrder(
     resolvedOrders: Map<String, Long>,
 ): List<ChatMessage> {
     val latestCanonical = mapNotNull { it.canonicalOrder }.maxOrNull() ?: -1L
+    // Session-start markers use -1 and must remain before unresolved cached history.
+    val beforeCanonical = (mapNotNull { it.canonicalOrder }.filter { it >= 0L }.minOrNull() ?: 0L) - 1L
     var precedingCanonical: Long? = null
     var hasPendingPredecessor = false
     var pendingLocalOrder: Long? = null
@@ -442,6 +446,10 @@ private fun List<ChatMessage>.inTranscriptOrder(
             precedingCanonical = order
             hasPendingPredecessor = false
             pendingLocalOrder = null
+        } else if (message.isHistoricalCache) {
+            // Room groups UUID-only rows after all confirmed rows; that predecessor is
+            // not a chronological anchor. Keep unresolved history before the server window.
+            localAnchors[message.id] = beforeCanonical
         } else if (message.isPermanentlyLocal()) {
             localAnchors[message.id] =
                 if (hasPendingPredecessor) {

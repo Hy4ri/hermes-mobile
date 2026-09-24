@@ -3256,7 +3256,21 @@ class ChatViewModel(
             val snapshot = _uiState.value
             val computed =
                 withContext(historyDispatcher) {
-                    val page = mapPage(snapshot.messages)
+                    val mapped = mapPage(snapshot.messages)
+                    val currentById = snapshot.messages.associateBy { it.id }
+                    // Cache is historical unless a current optimistic delivery or live event
+                    // already owns the exact identity. This standalone branch has no busy-send
+                    // receipt store: upstream keeps every pending send in messages immediately.
+                    val page =
+                        if (cached) {
+                            mapped.map { message ->
+                                message.copy(
+                                    isHistoricalCache = currentById[message.id]?.isHistoricalCache != false,
+                                )
+                            }
+                        } else {
+                            mapped
+                        }
                     val merged =
                         if (cached) {
                             mergeCachedTranscriptPage(page, snapshot.messages)

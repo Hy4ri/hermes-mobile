@@ -91,11 +91,17 @@ data class ChatMessage(
     val restId: String? = null,
     /** Cache insertion sequence for unconfirmed local rows; null before first persistence. */
     val localOrder: Long? = null,
+    /** Read from history, not observed live in this view. Never persisted as delivery state. */
+    val isHistoricalCache: Boolean = false,
 )
 
 /** Cached REST rows already carry their canonical identity in the persisted primary key. */
 internal val ChatMessage.canonicalRestId: String?
     get() = restId ?: id.takeIf { it.startsWith("rest-") }
+
+/** A persisted RUNNING snapshot is not evidence of current tool activity. */
+internal val ChatMessage.isToolRunning: Boolean
+    get() = toolStatus == ToolStatus.RUNNING && !isHistoricalCache
 
 /**
  * Single live transcript log entry for subagent execution.

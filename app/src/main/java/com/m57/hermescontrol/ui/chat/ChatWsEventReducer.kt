@@ -681,6 +681,7 @@ object ChatWsEventReducer {
             messages[toolIdx].copy(
                 toolStatus = ToolStatus.COMPLETED,
                 content = contentJson,
+                isHistoricalCache = false,
             )
         messages[toolIdx] = updated
 
@@ -928,7 +929,11 @@ object ChatWsEventReducer {
         val toolIdx = findToolIndex(messages, event.name, event.toolId, ToolStatus.RUNNING)
         if (toolIdx < 0) return ReducerResult(state = state, streamingState = streamingState)
 
-        messages[toolIdx] = messages[toolIdx].copy(progressPreview = event.preview ?: "")
+        messages[toolIdx] =
+            messages[toolIdx].copy(
+                progressPreview = event.preview ?: "",
+                isHistoricalCache = false,
+            )
         return ReducerResult(
             state = state.copy(messages = messages),
             streamingState = streamingState,
@@ -944,7 +949,7 @@ object ChatWsEventReducer {
         val toolIdx = findToolIndex(messages, event.name, event.toolId, ToolStatus.RUNNING)
         if (toolIdx < 0) return ReducerResult(state = state, streamingState = streamingState)
 
-        messages[toolIdx] = messages[toolIdx].copy(progressPreview = "")
+        messages[toolIdx] = messages[toolIdx].copy(progressPreview = "", isHistoricalCache = false)
         return ReducerResult(
             state = state.copy(messages = messages),
             streamingState = streamingState,
@@ -965,7 +970,8 @@ object ChatWsEventReducer {
                         it.toolCallId == toolId &&
                         it.toolStatus == status
                 }
-            if (byId >= 0) return byId
+            // An explicit identity must never claim a different historical invocation.
+            return byId
         }
 
         return messages.indexOfLast {

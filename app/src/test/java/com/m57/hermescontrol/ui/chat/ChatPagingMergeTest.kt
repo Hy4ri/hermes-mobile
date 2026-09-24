@@ -656,6 +656,50 @@ class ChatPagingMergeTest {
     }
 
     @Test
+    fun verifierFooterReplyMatchesCanonicalCounterpartWithoutFooter() {
+        val footer =
+            """
+            ⚠️ File-mutation verifier: 1 file edit(s) FAILED this turn despite any wording above that may suggest otherwise. Run git status or read_file to confirm what actually landed.
+              • /tmp/skill_lang_audit.py — [write_file] Write denied: '/tmp/skill_lang_audit.py' is outside HERMES_WRITE_SAFE_ROOT (/opt/data). Unset the variable or add this path's directory prefix.
+            """.trimIndent()
+        val body = "I completed the audit. Here are the findings."
+        val liveAssistant =
+            ChatMessage(
+                id = "uuid-123",
+                role = MessageRole.ASSISTANT,
+                content = "$body\n\n$footer",
+                completionId = "comp-1",
+            )
+        val serverRow =
+            SessionMessage(
+                id = 42,
+                role = "assistant",
+                content = JsonPrimitive(body),
+            )
+
+        // 1. mapServerMessages correctly matches liveAssistant and acquires comp-1 and rich footer content
+        val mapped = mapServerMessages("session", listOf(serverRow), 0, true, listOf(liveAssistant))
+        assertEquals(1, mapped.size)
+        val canonical = mapped.single()
+        assertEquals("rest-session-42", canonical.id)
+        assertEquals("comp-1", canonical.completionId)
+        assertTrue("Canonical mapped row should retain verifier footer", canonical.content.contains(footer))
+
+        // 2. mergeTranscriptWithLive merges into a single message preserving footer and acquiring restId
+        val merged =
+            mergeTranscriptWithLive(
+                restMessages = mapped,
+                currentMessages = listOf(liveAssistant),
+                preserveLiveIds = true,
+            )
+        assertEquals(1, merged.size)
+        val single = merged.single()
+        assertEquals("uuid-123", single.id)
+        assertEquals("rest-session-42", single.restId)
+        assertTrue("Merged message must keep the verifier warning footer", single.content.contains(footer))
+    }
+
+    @Test
     fun permanentlyLocalRowsDoNotMatchCanonicalRowsByContent() {
         val localFeedback =
             ChatMessage(

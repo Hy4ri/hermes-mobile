@@ -536,7 +536,12 @@ private fun List<ChatMessage>.inTranscriptOrder(
                 if (hasPendingPredecessor) {
                     Long.MAX_VALUE
                 } else {
-                    precedingCanonical ?: latestCanonical
+                    precedingCanonical?.takeIf { it >= 0L }
+                        ?: if (message.role == MessageRole.USER) {
+                            precedingCanonical ?: latestCanonical
+                        } else {
+                            latestCanonical
+                        }
                 }
             if (hasPendingPredecessor) pendingOrderByLocal[message.id] = pendingLocalOrder ?: Long.MAX_VALUE
         } else if (message.isHistoricalCache || message.isRestoredUnconfirmed) {

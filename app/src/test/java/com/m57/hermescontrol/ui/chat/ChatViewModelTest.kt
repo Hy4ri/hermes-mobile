@@ -12,8 +12,8 @@ import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.AttachmentSource
-import com.m57.hermescontrol.data.model.BusySendMode
 import com.m57.hermescontrol.data.model.AudioTranscriptionResponse
+import com.m57.hermescontrol.data.model.BusySendMode
 import com.m57.hermescontrol.data.model.PaginationInfo
 import com.m57.hermescontrol.data.model.SessionMessage
 import com.m57.hermescontrol.data.model.SessionMessagesAroundPagination
@@ -10147,13 +10147,13 @@ class ChatViewModelTest {
                 id
             }
 
-            // Queued while session create is in flight: typing shows, but the
-            // session has no runtime to interrupt yet, so Stop must stay
+            // Queued while session create is in flight: sending is pending,
+            // but the session has no runtime to interrupt yet, so Stop must stay
             // hidden and interruptSession() must not be reachable from it
             // (review, PR #1250).
             vm.sendMessage("held under session preparation")
             advanceUntilIdle()
-            assertTrue(vm.uiState.value.isAgentTyping)
+            assertTrue(vm.uiState.value.isSending)
             assertFalse(vm.uiState.value.canInterrupt)
 
             // Once the runtime session exists and the prompt is dispatched,
@@ -10173,6 +10173,11 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             assertEquals(listOf("held under session preparation"), sentPrompts)
+            // A successful prompt.submit acknowledgement only means the
+            // gateway accepted it; the generation is interruptible only once
+            // the runtime reports message.start for its session.
+            mockEventsFlow.emit(WsEvent.MessageStart("session-969"))
+            advanceUntilIdle()
             assertTrue(vm.uiState.value.canInterrupt)
         }
 }

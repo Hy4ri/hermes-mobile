@@ -914,6 +914,7 @@ fun ChatScreen(
                 onStopGeneration = { viewModel.interruptSession() },
                 isAgentTyping = state.isAgentTyping,
                 isMainTurnBusy = state.isMainTurnBusy,
+                canInterrupt = state.canInterrupt,
                 isConnected = state.isConnected,
                 isSessionReady = state.isSessionReady && !timelineState.isHistorical,
                 sessionPreparationFailed = state.resumeError != null,

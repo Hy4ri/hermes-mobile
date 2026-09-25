@@ -554,7 +554,13 @@ fun ComposerToolbar(
                         }
                     }.combinedClickable(
                         enabled = actionEnabled,
-                        onClick = if (canInterrupt) onStopGeneration else if (showSend) onSend else onMicTap,
+                        onClick = {
+                            when {
+                                canInterrupt -> onStopGeneration()
+                                showSend -> onSend()
+                                else -> onMicTap()
+                            }
+                        },
                         onLongClick = if (showSend && showQueue) onStopAndSend else null,
                         onLongClickLabel = if (showSend && showQueue) stopAndSendLabel else null,
                     ).testTag(
@@ -595,7 +601,12 @@ fun ComposerToolbar(
                                 } else {
                                     "Stop listening"
                                 },
-                            tint = if (isListening && !canInterrupt) MaterialTheme.colorScheme.onErrorContainer else palette.onAction,
+                            tint =
+                                if (isListening && !canInterrupt) {
+                                    MaterialTheme.colorScheme.onErrorContainer
+                                } else {
+                                    palette.onAction
+                                },
                         )
                     }
 

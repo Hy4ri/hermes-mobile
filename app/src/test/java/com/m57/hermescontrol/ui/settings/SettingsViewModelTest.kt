@@ -73,6 +73,7 @@ class SettingsViewModelTest {
         every { AuthManager.isTypingEffectEnabled() } returns true
         every { AuthManager.getTypingEffectDelayMs() } returns 30
         every { AuthManager.getChatFontScale() } returns 1.0f
+        every { AuthManager.getChatFontFamily() } returns "system"
         every { AuthManager.isMessageStatsEnabled() } returns false
         every { AuthManager.isUserMessageTokensEnabled() } returns true
         every { AuthManager.isAssistantMessageTokensEnabled() } returns true
@@ -91,6 +92,7 @@ class SettingsViewModelTest {
         every { AuthManager.setTypingEffectEnabled(any()) } returns Unit
         every { AuthManager.setTypingEffectDelayMs(any()) } returns Unit
         every { AuthManager.setChatFontScale(any()) } returns Unit
+        every { AuthManager.setChatFontFamily(any()) } returns Unit
         every { AuthManager.setMessageStatsEnabled(any()) } returns Unit
         every { AuthManager.setUserMessageTokensEnabled(any()) } returns Unit
         every { AuthManager.setAssistantMessageTokensEnabled(any()) } returns Unit

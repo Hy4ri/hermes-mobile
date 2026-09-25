@@ -98,17 +98,17 @@ class ThemeMarketplaceViewModel(
     /**
      * Apply a marketplace theme: resolve the `.vsix` URL, download, parse
      * every contributed variant, convert, and publish. Surfaces row-level
-     * progress via [ThemeMarketplaceUiState.applyingId] and failures via
+     * progress via [ThemeMarketplaceUiState.applyingExtensionId] and failures via
      * [ThemeMarketplaceUiState.applyError].
      */
     fun applyTheme(entry: MarketplaceThemeEntry) {
-        if (_uiState.value.applyingId != null) return
+        if (_uiState.value.applyingExtensionId != null) return
         applyJob?.cancel()
         applyJob =
             viewModelScope.launch {
-                _uiState.update { it.copy(applyingId = entry.extensionId, applyError = null) }
+                _uiState.update { it.copy(applyingExtensionId = entry.extensionId, applyError = null) }
                 val failure = applyNow(entry)
-                _uiState.update { it.copy(applyingId = null, applyError = failure) }
+                _uiState.update { it.copy(applyingExtensionId = null, applyError = failure) }
             }
     }
 

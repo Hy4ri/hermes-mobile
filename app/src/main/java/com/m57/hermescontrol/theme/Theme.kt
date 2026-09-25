@@ -12,6 +12,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import com.m57.hermescontrol.theme.presets.AmoledTheme
 import com.m57.hermescontrol.theme.presets.CatppuccinTheme
 import com.m57.hermescontrol.theme.presets.DefaultTheme
@@ -32,7 +33,7 @@ enum class ThemePreset { DEFAULT, MONOCHROME, GRUVBOX, CATPPUCCIN, AMOLED, NORD,
 val LocalThemePreference = compositionLocalOf { ThemePreference.SYSTEM }
 val LocalThemePreset = compositionLocalOf { ThemePreset.DEFAULT }
 val LocalChatFontScale = compositionLocalOf { 1.0f }
-val LocalFontFamily = compositionLocalOf { AppFontFamily.SYSTEM.toFontFamily() }
+val LocalFontFamily = compositionLocalOf { AppFontFamily.SYSTEM.toFontFamily }
 
 /**
  * Custom theme palette applied from the marketplace (t_f3c6f528).
@@ -133,7 +134,7 @@ fun HermesControlTheme(
         LocalThemePreference provides themePreference,
         LocalThemePreset provides themePreset,
         LocalChatFontScale provides chatFontScale,
-        LocalFontFamily provides typography,
+        LocalFontFamily provides fontFamily,
         LocalHermesStatusColors provides statusColors,
         LocalSpacing provides SpacingDefaults,
         LocalMotion provides MotionDefaults,

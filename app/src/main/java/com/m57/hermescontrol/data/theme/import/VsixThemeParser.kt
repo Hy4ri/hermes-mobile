@@ -4,7 +4,6 @@ import com.m57.hermescontrol.data.remote.await
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.decodeToJsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.Call
@@ -99,7 +98,7 @@ class VsixThemeParser(
     private data class ThemeRef(val path: String, val label: String, val type: String)
 
     private fun parseContributedThemes(packageJson: String): List<ThemeRef> {
-        val obj = json.decodeToJsonElement(stripJsonc(packageJson)).jsonObject
+        val obj = json.parseToJsonElement(stripJsonc(packageJson)).jsonObject
         val contributes = obj["contributes"]?.jsonObject ?: return emptyList()
         val themes = contributes["themes"] as? JsonArray ?: return emptyList()
         return themes.mapNotNull { element ->
@@ -129,7 +128,7 @@ class VsixThemeParser(
     }
 
     private fun parseThemeFile(content: String, label: String, type: String): ThemeTokenSet {
-        val obj = json.decodeToJsonElement(stripJsonc(content)).jsonObject
+        val obj = json.parseToJsonElement(stripJsonc(content)).jsonObject
         val colorsObj = obj["colors"] as? JsonObject
         val colors = mutableMapOf<String, String>()
         colorsObj?.entries?.forEach { (key, value) ->

@@ -88,7 +88,7 @@ class MainActivity : ComponentActivity() {
                 useDynamicColors = useDynamicColors,
                 themePreset = themePreset,
                 chatFontScale = chatFontScale,
-                fontFamily = AppFontFamily.fromKey(chatFontFamily).toFontFamily(),
+                fontFamily = AppFontFamily.fromKey(chatFontFamily).toFontFamily,
             ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),

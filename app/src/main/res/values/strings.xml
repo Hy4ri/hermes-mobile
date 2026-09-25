@@ -123,6 +123,13 @@
     <string name="screen_gateway">Gateway</string>
     <string name="screen_toolsets">Toolsets</string>
     <string name="screen_plugins">Plugins</string>
+    <string name="screen_themes">Themes</string>
+    <string name="theme_marketplace_search_placeholder">Search themes…</string>
+    <string name="theme_marketplace_empty_title">No themes found</string>
+    <string name="theme_marketplace_empty_desc">No themes match your search query</string>
+    <string name="theme_marketplace_subtitle">%1$s · %2$s installs</string>
+    <string name="theme_marketplace_load_more">Load more themes</string>
+    <string name="theme_marketplace_applying">Applying…</string>
     <string name="screen_config">Config</string>
     <string name="screen_mcp_servers">MCP Servers</string>
     <string name="screen_memory">Memory</string>
@@ -206,6 +213,11 @@
     <string name="content_desc_scroll_to_bottom">Scroll to bottom</string>
     <string name="content_desc_copy">Copy</string>
     <string name="content_desc_copied">Copied</string>
+    <string name="content_desc_speak">Read aloud</string>
+    <string name="content_desc_stop_speaking">Stop speaking</string>
+    <string name="tts_error_network">Could not reach the Hermes server for speech</string>
+    <string name="tts_error_synthesis">Could not synthesize the message audio</string>
+    <string name="tts_error_playback">Could not play the message audio</string>
     <string name="content_desc_edit">Edit</string>
     <string name="chat_msg_tokens">%1$s tok</string>
     <string name="chat_msg_tps">%1$s t/s</string>
@@ -317,6 +329,11 @@
     <string name="theme_preset_catppuccin">Catppuccin</string>
     <string name="theme_preset_amoled">AMOLED Black (Dark only)</string>
     <string name="theme_preset_nord">Nord</string>
+    <string name="theme_preset_custom">Custom (marketplace)</string>
+
+    <!-- Chat Font Family -->
+    <string name="settings_item_chat_font_family">Chat Font Family</string>
+    <string name="settings_desc_chat_font_family">Choose the font family for chat messages</string>
 
     <!-- Language -->
     <string name="settings_item_language">Language</string>

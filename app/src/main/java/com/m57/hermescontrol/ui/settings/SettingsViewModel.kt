@@ -39,6 +39,7 @@ data class SettingsUiState(
     val typingEffectEnabled: Boolean = false,
     val typingEffectDelayMs: Int = 30,
     val chatFontScale: Float = 1.0f,
+    val chatFontFamily: String = "system",
     val messageStatsEnabled: Boolean = false,
     val showUserMessageTokens: Boolean = true,
     val showAssistantMessageTokens: Boolean = true,
@@ -87,6 +88,7 @@ class SettingsViewModel(
         val typingEffectEnabled = AuthManager.isTypingEffectEnabled()
         val typingEffectDelayMs = AuthManager.getTypingEffectDelayMs()
         val chatFontScale = AuthManager.getChatFontScale()
+        val chatFontFamily = AuthManager.getChatFontFamily()
         val messageStatsEnabled = AuthManager.isMessageStatsEnabled()
         val showUserMessageTokens = AuthManager.isUserMessageTokensEnabled()
         val showAssistantMessageTokens = AuthManager.isAssistantMessageTokensEnabled()
@@ -114,6 +116,7 @@ class SettingsViewModel(
                 typingEffectEnabled = typingEffectEnabled,
                 typingEffectDelayMs = typingEffectDelayMs,
                 chatFontScale = chatFontScale,
+                chatFontFamily = chatFontFamily,
                 messageStatsEnabled = messageStatsEnabled,
                 showUserMessageTokens = showUserMessageTokens,
                 showAssistantMessageTokens = showAssistantMessageTokens,
@@ -344,6 +347,11 @@ class SettingsViewModel(
     fun onChatFontScaleChange(scale: Float) {
         _uiState.update { it.copy(chatFontScale = scale, isSaved = false) }
         AuthManager.setChatFontScale(scale)
+    }
+
+    fun onChatFontFamilyChange(fontFamily: String) {
+        _uiState.update { it.copy(chatFontFamily = fontFamily, isSaved = false) }
+        AuthManager.setChatFontFamily(fontFamily)
     }
 
     fun onMessageStatsEnabledChange(enabled: Boolean) {

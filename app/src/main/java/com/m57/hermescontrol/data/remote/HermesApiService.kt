@@ -138,6 +138,8 @@ import com.m57.hermescontrol.data.model.UpdateProfileDescriptionRequest
 import com.m57.hermescontrol.data.model.UpdateProfileModelRequest
 import com.m57.hermescontrol.data.model.UpdateProfileSoulRequest
 import com.m57.hermescontrol.data.model.UpdateRawConfigRequest
+import com.m57.hermescontrol.data.model.TtsSpeakRequest
+import com.m57.hermescontrol.data.model.TtsSpeakResponse
 import com.m57.hermescontrol.data.model.UpdateReceiptResponse
 import com.m57.hermescontrol.data.model.WebhookSubscription
 import com.m57.hermescontrol.data.model.WebhookToggleSubscriptionRequest
@@ -859,6 +861,9 @@ interface HermesApiService : KanbanApiService {
     // receipt exists yet (handled as "no info to show", not an error).
     @GET("api/hermes/update/receipt")
     suspend fun getUpdateReceipt(): Response<UpdateReceiptResponse>
+
+    @POST("api/audio/speak")
+    suspend fun speakText(@Body request: TtsSpeakRequest): Response<TtsSpeakResponse>
 
     // ── Admin: Portal ─────────────────────────────────────────────────
     @GET("api/portal")

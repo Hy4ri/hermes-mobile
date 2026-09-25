@@ -103,7 +103,7 @@ Dynamic (Material You) color on API 31+ can optionally override the preset schem
 `useDynamicColors = true` (defaults to `false`). Semantic status colors are always resolved from the
 active preset via `LocalHermesStatusColors`.
 
-## Adding a new theme
+## Adding a new theme (preset)
 
 1. **Create** `presets/<Name>Scheme.kt` as a template fill (see above) —
    `buildTheme` for a full theme, `buildThemeDarkOnly` / `buildThemeLightOnly`
@@ -118,6 +118,23 @@ active preset via `LocalHermesStatusColors`.
    ```
    `ThemePaletteTest` asserts >= 3:1 contrast on every shipped mode's error
    slot pairs and the ThemeMode invariants — it must stay green.
+
+## Adding a marketplace theme (dynamic)
+
+Instead of adding a hardcoded preset, marketplace themes are applied at
+runtime via the theme apply pipeline:
+
+1. The `ThemeMarketplaceViewModel` fetches the catalog from `GET /api/dashboard/themes`.
+2. Each `ThemeMarketplaceEntry` may contain a `definition` map with parsed color tokens
+   and a `downloadUrl` for the `.vsix` package.
+3. `ThemeApplier.applyCustomTheme(name, palette)` stores the `ThemePalette`.
+4. `ThemePreset.CUSTOM` is selected in the UI (via `AppearanceSection`).
+5. `Theme.kt.themeFor(CUSTOM)` reads `customPalette` and applies it.
+
+The pipeline lives under `data/theme/import/`:
+- `VsixThemeParser` — downloads and parses `.vsix` ZIP archives
+- `ThemeDefinitionConverter` — maps VS Code token names to `PaletteColors`
+- `ThemeApplier` — runtime management of the custom theme
 
 ## Conventions
 

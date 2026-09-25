@@ -23,6 +23,7 @@ import com.m57.hermescontrol.data.update.UpdateNoticeManager
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.notification.NotificationHelper
 import com.m57.hermescontrol.notification.NotificationReplyReceiver
+import com.m57.hermescontrol.theme.AppFontFamily
 import com.m57.hermescontrol.theme.HermesControlTheme
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.LoadingState
@@ -81,11 +82,13 @@ class MainActivity : ComponentActivity() {
             val useDynamicColors by AuthManager.useDynamicColorsFlow.collectAsState()
             val themePreset by AuthManager.themePresetFlow.collectAsState()
             val chatFontScale by AuthManager.chatFontScaleFlow.collectAsState()
+            val chatFontFamily by AuthManager.fontFamilyFlow.collectAsState()
             HermesControlTheme(
                 themePreference = themePreference,
                 useDynamicColors = useDynamicColors,
                 themePreset = themePreset,
                 chatFontScale = chatFontScale,
+                fontFamily = AppFontFamily.fromKey(chatFontFamily).toFontFamily(),
             ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),

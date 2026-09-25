@@ -139,6 +139,8 @@ internal fun SettingsAppearancePage(
                 onUseDynamicColorsChange = viewModel::onUseDynamicColorsChange,
                 themePreset = state.themePreset,
                 onThemePresetChange = viewModel::onThemePresetChange,
+                chatFontFamily = state.chatFontFamily,
+                onChatFontFamilyChange = viewModel::onChatFontFamilyChange,
             )
         }
     }

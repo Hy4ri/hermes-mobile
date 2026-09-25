@@ -15,12 +15,15 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -40,6 +44,7 @@ import com.m57.hermescontrol.ui.chat.ImageViewerModel
 import com.m57.hermescontrol.ui.chat.InlineAttachment
 import com.m57.hermescontrol.ui.chat.MarkdownText
 import com.m57.hermescontrol.ui.chat.TokenEstimator
+import com.m57.hermescontrol.ui.chat.components.MessageSpeech
 import com.m57.hermescontrol.ui.chat.components.ReasoningCard
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -72,8 +77,11 @@ internal fun FullBleedAgentMessage(
 ) {
     val textColor = MaterialTheme.colorScheme.onSurface
     val clipboard = LocalClipboard.current
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var copied by remember { mutableStateOf(false) }
+    val speakingId by MessageSpeech.speakingId.collectAsState()
+    val isSpeakingThis = speakingId == message.id
 
     // Copy feedback: briefly show ✓ then revert
     LaunchedEffect(copied) {
@@ -158,6 +166,30 @@ internal fun FullBleedAgentMessage(
                     Icon(
                         imageVector = if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
                         contentDescription = stringResource(R.string.content_desc_copy),
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                IconButton(
+                    onClick = {
+                        if (isSpeakingThis) {
+                            MessageSpeech.stop()
+                        } else {
+                            MessageSpeech.speak(context, message.id, message.content)
+                        }
+                    },
+                    modifier = Modifier.size(28.dp).testTag("fullbleed_speak"),
+                ) {
+                    Icon(
+                        imageVector = if (isSpeakingThis) Icons.Filled.Stop else Icons.Filled.VolumeUp,
+                        contentDescription =
+                            stringResource(
+                                if (isSpeakingThis) {
+                                    R.string.content_desc_stop_speaking
+                                } else {
+                                    R.string.content_desc_speak
+                                },
+                            ),
                         modifier = Modifier.size(14.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

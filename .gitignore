@@ -27,5 +27,8 @@ ktlint
 
 # direnv
 .direnv/
+
+# Git worktree checkouts inside repo tree (auto-created by kanban dispatch)
+.worktrees/
 hermes-chat-redesign.html
 app-debug-835.apk

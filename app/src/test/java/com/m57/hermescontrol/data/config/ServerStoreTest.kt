@@ -17,6 +17,7 @@ class ServerStoreTest {
         assertTrue(state.autoReconnect)
         assertEquals("token", state.wsAuthParam)
         assertEquals(1.0f, state.chatFontScale)
+        assertEquals("system", state.chatFontFamily)
         assertFalse(state.showModelProvider)
         assertFalse(state.keepConnectedInBackground)
         assertTrue(state.connectionProfiles.isEmpty())
@@ -106,5 +107,20 @@ class ServerStoreTest {
         val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
         val decoded = json.decodeFromString<ServerStoreState>("{}")
         assertFalse(decoded.checkReleaseCandidateUpdates)
+    }
+
+    @Test
+    fun testChatFontFamilyDefault() {
+        val state = ServerStoreState()
+        assertEquals("system", state.chatFontFamily)
+        val updated = state.copy(chatFontFamily = "monospace")
+        assertEquals("monospace", updated.chatFontFamily)
+    }
+
+    @Test
+    fun testChatFontFamily_deserializationDefault() {
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        val decoded = json.decodeFromString<ServerStoreState>("{}")
+        assertEquals("system", decoded.chatFontFamily)
     }
 }

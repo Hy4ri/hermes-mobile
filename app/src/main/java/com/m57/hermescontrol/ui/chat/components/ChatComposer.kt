@@ -39,6 +39,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -83,6 +84,7 @@ fun ChatInputBar(
     isListening: Boolean,
     isAgentTyping: Boolean,
     isMainTurnBusy: Boolean = false,
+    canInterrupt: Boolean = false,
     isConnected: Boolean,
     commandCatalog: CommandCatalog,
     isSessionReady: Boolean,
@@ -108,6 +110,12 @@ fun ChatInputBar(
     showModelProvider: Boolean = false,
     reasoningWireLevel: String? = null,
     pendingReasoningLevel: String? = null,
+    onMicHoldStart: () -> Unit = {},
+    onMicHoldEnd: () -> Unit = {},
+    onMicHoldCancel: () -> Unit = {},
+    isRecordingVoice: Boolean = false,
+    voiceNoteAmplitude: State<Float> = remember { mutableStateOf(0f) },
+    onStopGeneration: () -> Unit = {},
 ) {
     // Allow sending while the agent is mid-turn or awaiting approval: the
     // gateway's prompt.submit busy-input policy queues it as the next turn
@@ -269,55 +277,64 @@ fun ChatInputBar(
                         }
                     val isInputRtl = inputLayoutDirection == LayoutDirection.Rtl
 
-                    CompositionLocalProvider(LocalLayoutDirection provides inputLayoutDirection) {
-                        BasicTextField(
-                            value = inputFieldValue,
-                            onValueChange = onInputChange,
-                            modifier =
-                                Modifier
-                                    .weight(1f)
-                                    .heightIn(min = 42.dp, max = 200.dp)
-                                    .padding(vertical = 4.dp)
-                                    .testTag("chat_input"),
-                            enabled = isConnected,
-                            textStyle =
-                                MaterialTheme.typography.bodyLarge.copy(
-                                    color = palette.text,
-                                    textAlign = if (isInputRtl) TextAlign.Right else TextAlign.Left,
-                                    textDirection = if (isInputRtl) TextDirection.Rtl else TextDirection.Ltr,
-                                ),
-                            singleLine = false,
-                            maxLines = 8,
-                            cursorBrush = SolidColor(palette.text),
-                            decorationBox = { innerTextField ->
-                                CompositionLocalProvider(LocalLayoutDirection provides ambientLayoutDirection) {
-                                    Box(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        contentAlignment =
-                                            if (isInputRtl) {
-                                                Alignment.CenterEnd
-                                            } else {
-                                                Alignment.CenterStart
-                                            },
-                                    ) {
-                                        CompositionLocalProvider(LocalLayoutDirection provides inputLayoutDirection) {
-                                            if (inputFieldValue.text.isEmpty()) {
-                                                Text(
-                                                    text = placeholderText,
-                                                    style = MaterialTheme.typography.bodyLarge,
-                                                    textAlign = if (isInputRtl) TextAlign.Right else TextAlign.Left,
-                                                    color = palette.placeholder,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                )
+                    if (isRecordingVoice) {
+                        VoiceNoteRecordingPanel(
+                            amplitude = voiceNoteAmplitude,
+                            modifier = Modifier.weight(1f),
+                        )
+                    } else {
+                        CompositionLocalProvider(LocalLayoutDirection provides inputLayoutDirection) {
+                            BasicTextField(
+                                value = inputFieldValue,
+                                onValueChange = onInputChange,
+                                modifier =
+                                    Modifier
+                                        .weight(1f)
+                                        .heightIn(min = 42.dp, max = 200.dp)
+                                        .padding(vertical = 4.dp)
+                                        .testTag("chat_input"),
+                                enabled = isConnected,
+                                textStyle =
+                                    MaterialTheme.typography.bodyLarge.copy(
+                                        color = palette.text,
+                                        textAlign = if (isInputRtl) TextAlign.Right else TextAlign.Left,
+                                        textDirection = if (isInputRtl) TextDirection.Rtl else TextDirection.Ltr,
+                                    ),
+                                singleLine = false,
+                                maxLines = 8,
+                                cursorBrush = SolidColor(palette.text),
+                                decorationBox = { innerTextField ->
+                                    CompositionLocalProvider(LocalLayoutDirection provides ambientLayoutDirection) {
+                                        Box(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            contentAlignment =
+                                                if (isInputRtl) {
+                                                    Alignment.CenterEnd
+                                                } else {
+                                                    Alignment.CenterStart
+                                                },
+                                        ) {
+                                            CompositionLocalProvider(
+                                                LocalLayoutDirection provides inputLayoutDirection,
+                                            ) {
+                                                if (inputFieldValue.text.isEmpty()) {
+                                                    Text(
+                                                        text = placeholderText,
+                                                        style = MaterialTheme.typography.bodyLarge,
+                                                        textAlign = if (isInputRtl) TextAlign.Right else TextAlign.Left,
+                                                        color = palette.placeholder,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                    )
+                                                }
+                                                innerTextField()
                                             }
-                                            innerTextField()
                                         }
                                     }
-                                }
-                            },
-                        )
+                                },
+                            )
+                        }
                     }
                 }
 
@@ -333,10 +350,15 @@ fun ChatInputBar(
                     onSend = onSend,
                     onQueue = { onBusySend(BusySendMode.QUEUE) },
                     onStopAndSend = { onBusySend(BusySendMode.INTERRUPT) },
+                    canInterrupt = canInterrupt,
+                    onStopGeneration = onStopGeneration,
                     onAttachTap = { showAttachmentTray = !showAttachmentTray },
                     onModelTap = onModelTap,
                     onReasoningSelected = onReasoningTap,
                     onMicTap = onMicTap,
+                    onMicHoldStart = onMicHoldStart,
+                    onMicHoldEnd = onMicHoldEnd,
+                    onMicHoldCancel = onMicHoldCancel,
                     modifier = Modifier.testTag("chat_composer_toolbar"),
                     canDisableReasoning = canDisableReasoning,
                     supportsReasoning = supportsReasoning,

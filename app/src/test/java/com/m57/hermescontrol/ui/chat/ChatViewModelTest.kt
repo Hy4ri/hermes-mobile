@@ -8,9 +8,11 @@ import android.net.Uri
 import android.util.Log
 import androidx.core.content.FileProvider
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.AttachmentSource
+import com.m57.hermescontrol.data.model.AudioTranscriptionResponse
 import com.m57.hermescontrol.data.model.BusySendMode
 import com.m57.hermescontrol.data.model.PaginationInfo
 import com.m57.hermescontrol.data.model.SessionMessage
@@ -30,6 +32,7 @@ import com.m57.hermescontrol.data.ws.ConnectionOperationParser
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.JsonRpcError
+import com.m57.hermescontrol.data.ws.ModelCatalogStore
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.notification.TurnCorrelationTracker
@@ -65,6 +68,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
@@ -75,6 +79,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import retrofit2.Response
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatViewModelTest {
@@ -298,6 +303,18 @@ class ChatViewModelTest {
         every { AuthManager.getToken() } returns "test-token"
         every { AuthManager.getBaseUrl() } returns "http://test.local/"
         every { AuthManager.getSelectedProfileId() } returns null
+        // sendVoiceNote snapshots the data scope for its ownership check
+        // (review, PR #1250). Default it to null: an unstubbed mockk call
+        // used to throw and be swallowed by the runCatching callers, which
+        // kept SwrCache keys unscoped in this class; returning a concrete
+        // scope here enables cross-test cache hits and skips sends other
+        // tests count. Scope-specific tests re-stub this with real scopes.
+        every { AuthManager.currentDataScope() } returns null
+        // ChatViewModel's model-switch delegate and the shared catalog store
+        // both collect this flow; park them on a never-emitting state so a
+        // later real-AuthManager emission cannot resume a stale
+        // Main-dispatched collector between test classes.
+        every { AuthManager.dataScopeFlow } returns MutableStateFlow<DataScope?>(null)
         mockkObject(ProfileSwitchCoordinator)
         every { ProfileSwitchCoordinator.switched } returns mockSwitchFlow
         every { ProfileSwitchCoordinator.connectionSwitched } returns MutableSharedFlow<String>()
@@ -1097,6 +1114,13 @@ class ChatViewModelTest {
     fun testBareModelCommand_opensPickerInsteadOfDispatch() =
         runTest {
             val (viewModel, _) = createViewModelWithSession()
+
+            // The shared catalog store may still hold another class's cached
+            // (possibly empty) state — reset it so the picker's load below
+            // fetches through this class's stubbed API.
+            ModelCatalogStore.shared.onScopeChanged(
+                DataScope("preload-reset", "http://preload-reset.test/", AuthManager.DEFAULT_PROFILE_ID),
+            )
 
             // A bare "/model" must NOT dispatch a slash command; it opens the picker.
             viewModel.sendMessage("/model")
@@ -9745,5 +9769,415 @@ class ChatViewModelTest {
                 api.getSessionMessages(any(), any(), any(), any(), any(), any())
             }
             assertNull(TurnCorrelationTracker.boundaryFor("default", sessionId))
+        }
+
+    @Test
+    fun sendVoiceNote_transcribesViaServerAndSubmitsTranscript() =
+        runTest {
+            TurnCorrelationTracker.resetForTest()
+            stubActiveProfile()
+            val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+            every { ApiClient.hermesApi } returns api
+            every { ApiClient.transcriptionService(any()) } returns api
+            coEvery { api.transcribeAudio(any()) } returns
+                Response.success(
+                    AudioTranscriptionResponse(ok = true, transcript = "hello from voice"),
+                )
+            val (viewModel, _) = createViewModelWithSession()
+
+            val submittedTexts = mutableListOf<String>()
+            every { HermesWsClient.sendMessage(any(), any(), any(), any()) } answers {
+                reqCount++
+                val id = "req-msg-$reqCount"
+                submittedTexts += arg<String>(1)
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            val voiceFile =
+                java.io.File(attachmentCacheDir, "voice_note.m4a").apply {
+                    writeBytes(byteArrayOf(1, 2, 3))
+                }
+            viewModel.sendVoiceNote(voiceFile)
+            advanceUntilIdle()
+
+            assertEquals("hello from voice", submittedTexts.lastOrNull())
+            assertFalse(voiceFile.exists())
+            assertNull(viewModel.uiState.value.errorMessage)
+            assertFalse(viewModel.uiState.value.isTranscribingVoiceNote)
+        }
+
+    @Test
+    fun sendVoiceNote_reportsTranscriptionFailureAndDeletesClip() =
+        runTest {
+            val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+            every { ApiClient.hermesApi } returns api
+            every { ApiClient.transcriptionService(any()) } returns api
+            coEvery { api.transcribeAudio(any()) } returns
+                Response.error(500, "transcribe failed".toResponseBody("text/plain".toMediaType()))
+            val (viewModel, _) = createViewModelWithSession()
+
+            val voiceFile =
+                java.io.File(attachmentCacheDir, "voice_fail.m4a").apply {
+                    writeBytes(byteArrayOf(9))
+                }
+            viewModel.sendVoiceNote(voiceFile)
+            advanceUntilIdle()
+
+            assertTrue(
+                viewModel.uiState.value.errorMessage
+                    ?.contains("Voice note transcription failed") == true,
+            )
+            assertFalse(voiceFile.exists())
+            assertFalse(viewModel.uiState.value.isTranscribingVoiceNote)
+        }
+
+    @Test
+    fun sendVoiceNote_emptyTranscriptShowsNoSpeechAndDoesNotSubmit() =
+        runTest {
+            val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+            every { ApiClient.hermesApi } returns api
+            every { ApiClient.transcriptionService(any()) } returns api
+            coEvery { api.transcribeAudio(any()) } returns
+                Response.success(AudioTranscriptionResponse(ok = true, transcript = "   "))
+            val (viewModel, _) = createViewModelWithSession()
+
+            val voiceFile =
+                java.io.File(attachmentCacheDir, "voice_silent.m4a").apply {
+                    writeBytes(byteArrayOf(0))
+                }
+            viewModel.sendVoiceNote(voiceFile)
+            advanceUntilIdle()
+
+            assertTrue(
+                viewModel.uiState.value.errorMessage
+                    ?.contains("No speech detected") == true,
+            )
+            verify(exactly = 0) { HermesWsClient.sendMessage(any(), any(), any(), any()) }
+        }
+
+    @Test
+    fun sendVoiceNote_whileDisconnectedDropsClipLocallyWithoutUploading() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            val voiceFile =
+                java.io.File(attachmentCacheDir, "voice_offline.m4a").apply {
+                    writeBytes(byteArrayOf(1))
+                }
+            viewModel.sendVoiceNote(voiceFile)
+            advanceUntilIdle()
+
+            assertFalse(voiceFile.exists())
+            assertTrue(
+                viewModel.uiState.value.errorMessage
+                    ?.contains("not connected") == true,
+            )
+        }
+
+    @Test
+    fun sendVoiceNote_whenSessionChangesMidTranscription_keepsTheTranscriptInTheComposer() =
+        runTest {
+            stubActiveProfile()
+            val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+            every { ApiClient.hermesApi } returns api
+            every { ApiClient.transcriptionService(any()) } returns api
+            val transcription = CompletableDeferred<Response<AudioTranscriptionResponse>>()
+            coEvery { api.transcribeAudio(any()) } coAnswers { transcription.await() }
+            val (viewModel, _) = createViewModelWithSession()
+
+            val voiceFile =
+                java.io.File(attachmentCacheDir, "voice_session_race.m4a").apply {
+                    writeBytes(byteArrayOf(7))
+                }
+            viewModel.sendVoiceNote(voiceFile)
+            advanceUntilIdle()
+
+            // The user moves to a new session while STT is still running.
+            viewModel.createNewSession()
+            advanceUntilIdle()
+
+            transcription.complete(
+                Response.success(AudioTranscriptionResponse(ok = true, transcript = "late transcript")),
+            )
+            advanceUntilIdle()
+
+            // The recording belonged to the old session: the transcript must
+            // survive in the composer instead of landing in a session it was
+            // never recorded for, or vanishing (review, PR #1250).
+            assertEquals("late transcript", viewModel.uiState.value.composerTextToRestore)
+            assertTrue(
+                viewModel.uiState.value.errorMessage
+                    ?.contains("transcript kept") == true,
+            )
+            verify(exactly = 0) { HermesWsClient.sendMessage(any(), any(), any(), any()) }
+            assertFalse(viewModel.uiState.value.isTranscribingVoiceNote)
+            assertFalse(voiceFile.exists())
+        }
+
+    @Test
+    fun sendVoiceNote_whenTheSendIsRejected_keepsTheTranscriptInTheComposer() =
+        runTest {
+            stubActiveProfile()
+            val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+            every { ApiClient.hermesApi } returns api
+            every { ApiClient.transcriptionService(any()) } returns api
+            coEvery { api.transcribeAudio(any()) } returns
+                Response.success(AudioTranscriptionResponse(ok = true, transcript = "keep me"))
+            val (viewModel, _) = createViewModelWithSession()
+
+            val voiceFile =
+                java.io.File(attachmentCacheDir, "voice_send_race.m4a").apply {
+                    writeBytes(byteArrayOf(8))
+                }
+            viewModel.sendVoiceNote(voiceFile)
+            // The connection drops while the transcript is being produced.
+            mockConnectionStatus.value = ConnectionStatus.DISCONNECTED
+            advanceUntilIdle()
+
+            assertEquals("keep me", viewModel.uiState.value.composerTextToRestore)
+            assertTrue(
+                viewModel.uiState.value.errorMessage
+                    ?.contains("transcript kept") == true,
+            )
+            verify(exactly = 0) { HermesWsClient.sendMessage(any(), any(), any(), any()) }
+        }
+
+    @Test
+    fun sendVoiceNote_whileATranscriptionIsInFlight_dropsTheSecondClip() =
+        runTest {
+            stubActiveProfile()
+            val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+            every { ApiClient.hermesApi } returns api
+            every { ApiClient.transcriptionService(any()) } returns api
+            val transcription = CompletableDeferred<Response<AudioTranscriptionResponse>>()
+            coEvery { api.transcribeAudio(any()) } coAnswers { transcription.await() }
+            val (viewModel, _) = createViewModelWithSession()
+
+            val submittedTexts = mutableListOf<String>()
+            every { HermesWsClient.sendMessage(any(), any(), any(), any()) } answers {
+                reqCount++
+                val id = "req-msg-$reqCount"
+                submittedTexts += arg<String>(1)
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            val firstFile =
+                java.io.File(attachmentCacheDir, "voice_first.m4a").apply { writeBytes(byteArrayOf(1)) }
+            val secondFile =
+                java.io.File(attachmentCacheDir, "voice_second.m4a").apply { writeBytes(byteArrayOf(2)) }
+            viewModel.sendVoiceNote(firstFile)
+            advanceUntilIdle()
+
+            viewModel.sendVoiceNote(secondFile)
+            advanceUntilIdle()
+
+            // Single-flight: the second clip is dropped without a second upload.
+            assertFalse(secondFile.exists())
+            coVerify(exactly = 1) { api.transcribeAudio(any()) }
+
+            transcription.complete(
+                Response.success(AudioTranscriptionResponse(ok = true, transcript = "only once")),
+            )
+            advanceUntilIdle()
+
+            assertEquals(listOf("only once"), submittedTexts)
+            assertFalse(viewModel.uiState.value.isTranscribingVoiceNote)
+        }
+
+    @Test
+    fun sendVoiceNote_whenDataScopeChangesDuringTranscription_doesNotSendIntoNewScope() =
+        runTest {
+            stubActiveProfile()
+            val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+            every { ApiClient.hermesApi } returns api
+            every { ApiClient.transcriptionService(any()) } returns api
+            val transcription = CompletableDeferred<Response<AudioTranscriptionResponse>>()
+            coEvery { api.transcribeAudio(any()) } coAnswers { transcription.await() }
+
+            every { AuthManager.currentDataScope() } returns
+                DataScope(
+                    connectionProfileId = "alpha",
+                    baseUrl = "http://alpha.test/",
+                    activeProfileId = AuthManager.DEFAULT_PROFILE_ID,
+                )
+
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            // A pending SESSION_CREATE is all this test needs; skipping the
+            // gateway preload keeps the shared ModelCatalogStore out of it.
+            viewModel.createNewSession()
+            advanceUntilIdle()
+
+            // SESSION_CREATE is still pending, so the storage session ID is
+            // null — exactly the window where the session-ID snapshot alone
+            // cannot detect a scope move.
+            assertNull(viewModel.uiState.value.currentSessionId)
+
+            val voiceFile =
+                java.io.File(attachmentCacheDir, "voice_scope_switch.m4a").apply {
+                    writeBytes(byteArrayOf(1, 2, 3))
+                }
+            viewModel.sendVoiceNote(voiceFile)
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isTranscribingVoiceNote)
+
+            // The user switches to another server/profile while STT runs; the
+            // replacement session create is pending as well, so both session
+            // IDs can stay null/null and only the data scope moves.
+            every { AuthManager.currentDataScope() } returns
+                DataScope(
+                    connectionProfileId = "beta",
+                    baseUrl = "http://beta.test/",
+                    activeProfileId = AuthManager.DEFAULT_PROFILE_ID,
+                )
+            advanceUntilIdle()
+
+            transcription.complete(
+                Response.success(
+                    AudioTranscriptionResponse(ok = true, transcript = "do not send this to the new server"),
+                ),
+            )
+            advanceUntilIdle()
+
+            // The transcript must not become the initial prompt of the new
+            // scope; it stays in the composer instead (review, PR #1250).
+            verify(exactly = 0) {
+                HermesWsClient.sendMessage(any(), "do not send this to the new server", any(), any())
+            }
+            assertEquals(
+                "do not send this to the new server",
+                viewModel.uiState.value.composerTextToRestore,
+            )
+            assertTrue(
+                viewModel.uiState.value.errorMessage
+                    ?.contains("transcript kept") == true,
+            )
+            assertFalse(viewModel.uiState.value.isTranscribingVoiceNote)
+            assertFalse(voiceFile.exists())
+        }
+
+    @Test
+    fun sendVoiceNote_whenServerProfileChangesDuringTranscription_doesNotSendIntoNewScope() =
+        runTest {
+            stubActiveProfile()
+            val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+            every { ApiClient.hermesApi } returns api
+            every { ApiClient.transcriptionService(any()) } returns api
+            val transcription = CompletableDeferred<Response<AudioTranscriptionResponse>>()
+            coEvery { api.transcribeAudio(any()) } coAnswers { transcription.await() }
+
+            every { AuthManager.currentDataScope() } returns
+                DataScope(
+                    connectionProfileId = "alpha",
+                    baseUrl = "http://alpha.test/",
+                    activeProfileId = "default",
+                )
+
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            // A pending SESSION_CREATE is all this test needs; skipping the
+            // gateway preload keeps the shared ModelCatalogStore out of it.
+            viewModel.createNewSession()
+            advanceUntilIdle()
+
+            val voiceFile =
+                java.io.File(attachmentCacheDir, "voice_profile_switch.m4a").apply {
+                    writeBytes(byteArrayOf(4, 5, 6))
+                }
+            viewModel.sendVoiceNote(voiceFile)
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isTranscribingVoiceNote)
+
+            // Same server, different server-side Hermes profile: the session
+            // IDs cannot see this change either, so the scope must.
+            every { AuthManager.currentDataScope() } returns
+                DataScope(
+                    connectionProfileId = "alpha",
+                    baseUrl = "http://alpha.test/",
+                    activeProfileId = "work",
+                )
+            advanceUntilIdle()
+
+            transcription.complete(
+                Response.success(
+                    AudioTranscriptionResponse(ok = true, transcript = "profile-scoped transcript"),
+                ),
+            )
+            advanceUntilIdle()
+
+            verify(exactly = 0) {
+                HermesWsClient.sendMessage(any(), "profile-scoped transcript", any(), any())
+            }
+            assertEquals(
+                "profile-scoped transcript",
+                viewModel.uiState.value.composerTextToRestore,
+            )
+            assertTrue(
+                viewModel.uiState.value.errorMessage
+                    ?.contains("transcript kept") == true,
+            )
+            assertFalse(viewModel.uiState.value.isTranscribingVoiceNote)
+            assertFalse(voiceFile.exists())
+        }
+
+    @Test
+    fun canInterrupt_staysFalseWhileTypingWithNoRuntimeSession_thenTracksTheGeneration() =
+        runTest {
+            stubActiveProfile()
+            val vm = createViewModel()
+            advanceUntilIdle()
+
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            val sentPrompts = mutableListOf<String>()
+            every { HermesWsClient.sendMessage(any(), any(), any(), any()) } answers {
+                reqCount++
+                val id = "req-msg-$reqCount"
+                sentPrompts += arg<String>(1)
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            // Queued while session create is in flight: sending is pending,
+            // but the session has no runtime to interrupt yet, so Stop must stay
+            // hidden and interruptSession() must not be reachable from it
+            // (review, PR #1250).
+            vm.sendMessage("held under session preparation")
+            advanceUntilIdle()
+            assertTrue(vm.uiState.value.isSending)
+            assertFalse(vm.uiState.value.canInterrupt)
+
+            // Once the runtime session exists and the prompt is dispatched,
+            // the running generation is interruptible. Read the captured
+            // session.create id instead of counting sends: a singleton store
+            // warmed by an earlier test can fire an extra model.options send
+            // in this gateway flow and shift the counter (see the resume
+            // tests, same pattern).
+            val createReqId =
+                sentRequestMethods.last { it.first == WsMethods.SESSION_CREATE }.second
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    createReqId,
+                    mapOf("session_id" to "session-969", "stored_session_id" to "session-storage-969"),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals(listOf("held under session preparation"), sentPrompts)
+            // A successful prompt.submit acknowledgement only means the
+            // gateway accepted it; the generation is interruptible only once
+            // the runtime reports message.start for its session.
+            mockEventsFlow.emit(WsEvent.MessageStart("session-969"))
+            advanceUntilIdle()
+            assertTrue(vm.uiState.value.canInterrupt)
         }
 }

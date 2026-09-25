@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.chat
 
 import android.app.Application
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.model.ActionResponse
 import com.m57.hermescontrol.data.remote.ApiClient
@@ -76,6 +77,14 @@ class ChatUpdateCommandTest {
         every { android.util.Log.e(any(), any(), any()) } returns 0
 
         mockkObject(AuthManager)
+        // ChatModelSwitchDelegate.preloadModelOptions() reads pinned models
+        // when the catalog load succeeds; without this stub the spy falls
+        // through to the real AuthManager and throws "not initialized".
+        every { AuthManager.getPinnedModels() } returns emptyList()
+        // The delegate and the shared catalog store both collect this flow;
+        // park them on a never-emitting state so a later real-AuthManager
+        // emission cannot resume a stale Main-dispatched collector.
+        every { AuthManager.dataScopeFlow } returns MutableStateFlow<DataScope?>(null)
         mockkObject(HermesWsClient)
         mockkObject(ApiClient)
         mockkObject(HermesDatabase)

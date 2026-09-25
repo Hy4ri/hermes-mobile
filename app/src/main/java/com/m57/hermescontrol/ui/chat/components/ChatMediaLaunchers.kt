@@ -12,6 +12,9 @@ import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,6 +30,8 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.ui.chat.ChatInputPolicy
 import com.m57.hermescontrol.ui.chat.SpeechInputHelper
+import com.m57.hermescontrol.ui.chat.VoiceNoteRecorder
+import kotlinx.coroutines.delay
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -34,10 +39,15 @@ import java.util.Locale
 
 class ChatMediaLaunchers(
     val isListening: Boolean,
+    val isRecordingVoice: Boolean,
+    val voiceNoteAmplitude: State<Float>,
     val onMicTap: () -> Unit,
     val onCameraTap: () -> Unit,
     val onImageTap: () -> Unit,
     val onFileTap: () -> Unit,
+    val onMicHoldStart: () -> Unit = {},
+    val onMicHoldEnd: () -> Unit = {},
+    val onMicHoldCancel: () -> Unit = {},
 )
 
 @Composable
@@ -46,8 +56,10 @@ fun rememberChatMediaLaunchers(
     onInputFieldValueChange: (TextFieldValue) -> Unit,
     onAddAttachment: (uri: String, name: String, mimeType: String, size: Long) -> Unit,
     onAddAttachments: (List<Attachment>) -> Unit,
+    onVoiceNoteRecorded: (file: File) -> Unit,
     onShowMessage: (String) -> Unit,
     launchExternalActivity: (() -> Unit) -> Unit,
+    isTranscribingVoiceNote: Boolean,
     context: Context = LocalContext.current,
 ): ChatMediaLaunchers {
     var isListening by remember { mutableStateOf(false) }
@@ -57,6 +69,7 @@ fun rememberChatMediaLaunchers(
     val currentOnInputFieldValueChange by rememberUpdatedState(onInputFieldValueChange)
     val currentOnAddAttachment by rememberUpdatedState(onAddAttachment)
     val currentOnAddAttachments by rememberUpdatedState(onAddAttachments)
+    val currentOnVoiceNoteRecorded by rememberUpdatedState(onVoiceNoteRecorded)
     val currentOnShowMessage by rememberUpdatedState(onShowMessage)
     val currentLaunchExternalActivity by rememberUpdatedState(launchExternalActivity)
 
@@ -64,6 +77,59 @@ fun rememberChatMediaLaunchers(
     val sttNotAvailableMsg = stringResource(R.string.stt_not_available)
     val sttPermissionDeniedMsg = stringResource(R.string.stt_permission_denied)
     val cameraErrorMsg = stringResource(R.string.chat_camera_error)
+    val voiceRecordFailedMsg = stringResource(R.string.chat_voice_record_failed)
+
+    // Hold-to-record voice note recorder: the clip uploads to the dashboard
+    // for server-side transcription, unlike the flat tap path below, which
+    // still drives the on-device recognizer.
+    val voiceNoteRecorder = remember { VoiceNoteRecorder(context) }
+    var isRecordingVoice by remember { mutableStateOf(false) }
+
+    // Live mic level for the recording panel — rises fast, decays slowly so
+    // the meter reads as voice activity instead of flicker.
+    val voiceNoteAmplitude = remember { mutableStateOf(0f) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(90)
+            val previous = voiceNoteAmplitude.value
+            val next =
+                if (voiceNoteRecorder.isActive) {
+                    maxOf(voiceNoteRecorder.currentAmplitude() / 32767f, previous * 0.8f)
+                } else {
+                    0f
+                }
+            if (next != previous) {
+                voiceNoteAmplitude.value = next
+            }
+        }
+    }
+
+    fun finishVoiceRecording() {
+        val recordedFile = voiceNoteRecorder.stop()
+        isRecordingVoice = false
+        if (recordedFile != null) {
+            currentOnVoiceNoteRecorded(recordedFile)
+        }
+    }
+
+    // App-owned max-duration cap: the timer drives the same
+    // finishVoiceRecording() path as the hold release, so exactly one code
+    // path ever calls stop() — MediaRecorder's own auto-stop used to race
+    // the release and discard a valid max-length clip (review, PR #1250).
+    LaunchedEffect(isRecordingVoice) {
+        if (isRecordingVoice) {
+            delay(VoiceNoteRecorder.MAX_DURATION_MS.toLong())
+            if (voiceNoteRecorder.isActive) {
+                finishVoiceRecording()
+            }
+        }
+    }
+
+    DisposableEffect(voiceNoteRecorder) {
+        onDispose {
+            voiceNoteRecorder.cancel()
+        }
+    }
 
     // Speech-to-text recognition launcher (issue #194)
     val speechLauncher =
@@ -113,6 +179,18 @@ fun rememberChatMediaLaunchers(
                     currentOnShowMessage(sttNotAvailableMsg)
                 }
             } else {
+                currentOnShowMessage(sttPermissionDeniedMsg)
+            }
+        }
+
+    // Hold-to-record permission: unlike the launcher above, granting does NOT
+    // auto-start dictation — the user records by holding the mic again.
+    val voiceNotePermissionLauncher =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestPermission(),
+        ) { granted ->
+            ExternalActivityLifecycleGuard.externalActivityReturned()
+            if (!granted) {
                 currentOnShowMessage(sttPermissionDeniedMsg)
             }
         }
@@ -183,7 +261,14 @@ fun rememberChatMediaLaunchers(
         }
 
     val onMicTap: () -> Unit = {
-        if (isListening) {
+        if (isTranscribingVoiceNote) {
+            // Single-flight: a server transcription owns the voice pipeline
+            // until it lands (review, PR #1250).
+        } else if (isRecordingVoice) {
+            // A tap while recording discards the in-flight voice note.
+            voiceNoteRecorder.cancel()
+            isRecordingVoice = false
+        } else if (isListening) {
             isListening = false
         } else if (
             ContextCompat.checkSelfPermission(
@@ -210,6 +295,45 @@ fun rememberChatMediaLaunchers(
                 micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
             }
         }
+    }
+
+    val onMicHoldStart: () -> Unit = {
+        if (isTranscribingVoiceNote) {
+            // Single-flight: no new recording while a transcription runs.
+        } else if (voiceNoteRecorder.isActive || isListening) {
+            // A voice note or a dictation session is already running.
+        } else if (
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.RECORD_AUDIO,
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            if (voiceNoteRecorder.start()) {
+                isRecordingVoice = true
+            } else {
+                currentOnShowMessage(voiceRecordFailedMsg)
+            }
+        } else {
+            // The denial message comes from voiceNotePermissionLauncher's
+            // result callback only — showing it here fired it before the
+            // dialog even opened (review, PR #1250).
+            currentLaunchExternalActivity {
+                voiceNotePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            }
+        }
+    }
+
+    val onMicHoldEnd: () -> Unit = {
+        if (voiceNoteRecorder.isActive) {
+            finishVoiceRecording()
+        }
+    }
+
+    val onMicHoldCancel: () -> Unit = {
+        if (voiceNoteRecorder.isActive) {
+            voiceNoteRecorder.cancel()
+        }
+        isRecordingVoice = false
     }
 
     val onCameraTap: () -> Unit = {
@@ -245,13 +369,18 @@ fun rememberChatMediaLaunchers(
         }
     }
 
-    return remember(isListening) {
+    return remember(isListening, isRecordingVoice, isTranscribingVoiceNote) {
         ChatMediaLaunchers(
-            isListening = isListening,
+            isListening = isListening || isRecordingVoice,
+            isRecordingVoice = isRecordingVoice,
+            voiceNoteAmplitude = voiceNoteAmplitude,
             onMicTap = onMicTap,
             onCameraTap = onCameraTap,
             onImageTap = onImageTap,
             onFileTap = onFileTap,
+            onMicHoldStart = onMicHoldStart,
+            onMicHoldEnd = onMicHoldEnd,
+            onMicHoldCancel = onMicHoldCancel,
         )
     }
 }

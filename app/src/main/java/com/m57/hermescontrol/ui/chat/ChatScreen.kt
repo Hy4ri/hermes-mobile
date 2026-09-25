@@ -440,12 +440,16 @@ fun ChatScreen(
             onAddAttachments = { attachments ->
                 viewModel.addAttachments(attachments)
             },
+            onVoiceNoteRecorded = { file ->
+                viewModel.sendVoiceNote(file)
+            },
             onShowMessage = { msg ->
                 scrollScope.launch {
                     snackbarHostState.showSnackbar(msg)
                 }
             },
             launchExternalActivity = launchExternalActivity,
+            isTranscribingVoiceNote = state.isTranscribingVoiceNote,
             context = context,
         )
 
@@ -901,9 +905,16 @@ fun ChatScreen(
                     }
                 },
                 onMicTap = mediaLaunchers.onMicTap,
-                isListening = mediaLaunchers.isListening,
+                onMicHoldStart = mediaLaunchers.onMicHoldStart,
+                onMicHoldEnd = mediaLaunchers.onMicHoldEnd,
+                onMicHoldCancel = mediaLaunchers.onMicHoldCancel,
+                isListening = mediaLaunchers.isListening || state.isTranscribingVoiceNote,
+                isRecordingVoice = mediaLaunchers.isRecordingVoice,
+                voiceNoteAmplitude = mediaLaunchers.voiceNoteAmplitude,
+                onStopGeneration = { viewModel.interruptSession() },
                 isAgentTyping = state.isAgentTyping,
                 isMainTurnBusy = state.isMainTurnBusy,
+                canInterrupt = state.canInterrupt,
                 isConnected = state.isConnected,
                 isSessionReady = state.isSessionReady && !timelineState.isHistorical,
                 sessionPreparationFailed = state.resumeError != null,

@@ -101,6 +101,12 @@ data class ChatMessage(
     val messageProvenance: MessageProvenance = MessageProvenance.UNKNOWN,
     /** Read from history, not observed live in this view. Never persisted as delivery state. */
     val isHistoricalCache: Boolean = false,
+    /**
+     * Legacy USER restored without a canonical identity or a current send receipt.
+     * Placement only: keep it outside the live tail without asserting delivery.
+     * Transient; UNKNOWN provenance and the persisted row remain unchanged.
+     */
+    val isRestoredUnconfirmed: Boolean = false,
 )
 
 /** Cached REST rows already carry their canonical identity in the persisted primary key. */

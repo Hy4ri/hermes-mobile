@@ -131,6 +131,38 @@ class ChatCachedHistoryTest {
     }
 
     @Test
+    fun restoredRepeatedUsersKeepBothOccurrencesUntilEachCanonicalPageConfirmsOne() {
+        val first =
+            ChatMessage(
+                id = "restored-first",
+                role = MessageRole.USER,
+                content = "continue",
+                localOrder = 1,
+                isRestoredUnconfirmed = true,
+            )
+        val second = first.copy(id = "restored-second", localOrder = 2)
+        val latest = ChatMessage(id = "rest-s-100", role = MessageRole.ASSISTANT, content = "Latest answer")
+        val restored = mergeCachedTranscriptPage(listOf(first, second), listOf(latest))
+        assertEquals(listOf(first.id, second.id, latest.id), restored.map { it.id })
+        assertTrue(restored.take(2).all { it.canonicalRestId == null })
+
+        val older = ChatMessage(id = "rest-s-20", role = MessageRole.USER, content = "continue")
+        val once = mergeTranscriptWithLive(listOf(older), restored, chronological = false)
+        assertEquals(2, once.count { it.role == MessageRole.USER })
+        assertEquals(1, once.count { it.canonicalRestId == older.id })
+        val confirmed = once.single { it.canonicalRestId == older.id }
+        assertFalse(confirmed.isRestoredUnconfirmed)
+        val remaining = once.single { it.role == MessageRole.USER && it.canonicalRestId == null }
+        assertTrue(remaining.isRestoredUnconfirmed)
+        assertEquals(MessageProvenance.UNKNOWN, remaining.messageProvenance)
+
+        val twice = mergeTranscriptWithLive(listOf(older.copy(id = "rest-s-21")), once, chronological = false)
+        assertEquals(listOf(first.id, second.id, latest.id), twice.map { it.id })
+        assertEquals(listOf("rest-s-20", "rest-s-21"), twice.take(2).map { it.canonicalRestId })
+        assertTrue(twice.none { it.isRestoredUnconfirmed })
+    }
+
+    @Test
     fun historicalRowsPrecedeCanonicalWindowWithoutChangingLiveTailOrAttachments() {
         val attachment = Attachment("content://test/file", "file.txt", "text/plain")
         val old =

@@ -2270,6 +2270,14 @@ class ChatViewModel(
                 role = MessageRole.USER,
                 content = displayContent,
                 tokenCount = TokenEstimator.estimate(displayContent).takeIf { it > 0 },
+                // Follow-up to #1253: stripped /queue text is an unconfirmed prompt,
+                // not a permanently-local command or an ambiguous legacy cache row.
+                messageProvenance =
+                    if (result is SlashResult.QueuePrompt && displayContent != command) {
+                        MessageProvenance.LOCAL_PENDING
+                    } else {
+                        MessageProvenance.UNKNOWN
+                    },
             )
         val sessionId = _uiState.value.currentSessionId
 
@@ -3308,8 +3316,8 @@ class ChatViewModel(
                     val mapped = mapPage(snapshot.messages)
                     val currentById = snapshot.messages.associateBy { it.id }
                     // Durable provenance distinguishes new unsent prompts after process death.
-                    // Legacy UUID-only USER rows remain conservatively unconfirmed: UNKNOWN is
-                    // not evidence that the server delivered them.
+                    // Legacy UUID-only USER rows remain unconfirmed, but restored placement is
+                    // independent of delivery: UNKNOWN must not pin old prompts after fresh replies.
                     val page =
                         if (cached) {
                             mapped.map { message ->
@@ -3322,6 +3330,23 @@ class ChatViewModel(
                                             message.canonicalRestId != null -> true
                                             message.role == MessageRole.USER -> false
                                             else -> true
+                                        },
+                                    isRestoredUnconfirmed =
+                                        when {
+                                            message.role != MessageRole.USER ||
+                                                message.canonicalRestId != null ||
+                                                message.isPermanentlyLocal() ||
+                                                message.messageProvenance == MessageProvenance.LOCAL_PENDING -> {
+                                                false
+                                            }
+
+                                            currentById[message.id] != null -> {
+                                                currentById.getValue(message.id).isRestoredUnconfirmed
+                                            }
+
+                                            else -> {
+                                                true
+                                            }
                                         },
                                 )
                             }

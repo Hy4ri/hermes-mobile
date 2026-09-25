@@ -30,7 +30,7 @@ coil = "3.6.3"
 room = "3.0.2"
 sqlcipher = "4.19.0"
 datastore = "1.1.2"
-latex = "1.5.5"
+latex = "1.5.6"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidxCore" }

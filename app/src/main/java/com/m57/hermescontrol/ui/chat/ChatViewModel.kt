@@ -30,6 +30,7 @@ import com.m57.hermescontrol.data.ws.CommandBlocklist
 import com.m57.hermescontrol.data.ws.CommandCatalog
 import com.m57.hermescontrol.data.ws.ConnectionOperationParser
 import com.m57.hermescontrol.data.ws.ConnectionStatus
+import com.m57.hermescontrol.data.ws.EventParser
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.JsonRpcError
 import com.m57.hermescontrol.data.ws.WsEvent
@@ -1532,7 +1533,65 @@ class ChatViewModel(
                     runtimeSessionId ?: _uiState.value.currentSessionId,
                 )
             }
+            // Session.info can carry "pending_clarify" the same way — restore
+            // the clarify bubble so a question asked while detached stays
+            // answerable after leaving and re-entering the chat.
+            val pendingClarify = info["pending_clarify"] as? Map<*, *>
+            if (pendingClarify != null) {
+                surfacePendingClarify(
+                    pendingClarify,
+                    runtimeSessionId ?: _uiState.value.currentSessionId,
+                )
+            }
         }
+    }
+
+    /**
+     * Restore a pending clarify from the "pending_clarify" replay payload that
+     * "session.resume" / "session.info" carry while a clarify blocks the turn
+     * server-side (gateway _live_session_payload). Without this, leaving and
+     * re-entering a chat shows the "waiting for input" status with no way to
+     * answer: the live "clarify.request" event only reached whatever client
+     * was attached when the agent asked.
+     *
+     * The payload has the same shape as a live "clarify.request" event (batch
+     * "questions" or legacy "question"/"choices", plus the "request_id" the
+     * answer must reference), so reuse [EventParser] and feed the typed event
+     * through [handleWsEvent] — the exact path a live question takes. Batch
+     * replays may also carry locked per-question "answers".
+     */
+    private fun surfacePendingClarify(
+        payload: Map<*, *>,
+        sessionId: String?,
+    ) {
+        val clarifyId = (payload["clarify_id"] ?: payload["request_id"]) as? String
+        if (clarifyId != null && _uiState.value.clarifyRequest?.clarifyId == clarifyId) {
+            // Already on screen — avoid clobbering in-progress answer state.
+            return
+        }
+        val clarifyPayload: Map<String, Any?> = payload.entries.associate { (k, v) -> k.toString() to v }
+        val event =
+            EventParser.parseParams(
+                mapOf(
+                    "type" to "clarify.request",
+                    "session_id" to sessionId,
+                    "payload" to clarifyPayload,
+                ),
+            ) as? WsEvent.ClarifyRequest ?: return
+        if (event.questions.isEmpty() && event.text.isNullOrBlank() && event.options.isNullOrEmpty()) {
+            return
+        }
+        // "answers" is replay-only (locked batch answers); mirror it into the
+        // event so restored questions render their answered state.
+        val lockedAnswers =
+            (clarifyPayload["answers"] as? Map<*, *>)
+                ?.mapNotNull { (qid, answer) ->
+                    val id = qid as? String ?: return@mapNotNull null
+                    val text = answer as? String ?: return@mapNotNull null
+                    id to text
+                }?.toMap()
+                ?: emptyMap()
+        handleWsEvent(event.copy(lockedAnswers = lockedAnswers))
     }
 
     // ── RPC response handling ────────────────────────────────────────────
@@ -1818,6 +1877,17 @@ class ChatViewModel(
                 if (pendingApproval != null) {
                     approvalsDelegate.maybeSurfacePendingApproval(
                         pendingApproval,
+                        runtimeSessionId ?: sessionId,
+                    )
+                }
+                // Reconnect replay: resume payload can carry "pending_clarify"
+                // (server _live_session_payload) — restore the clarify bubble
+                // so questions asked while the client was detached remain
+                // answerable after leaving and re-entering the session.
+                val pendingClarify = resultMap["pending_clarify"] as? Map<*, *>
+                if (pendingClarify != null) {
+                    surfacePendingClarify(
+                        pendingClarify,
                         runtimeSessionId ?: sessionId,
                     )
                 }

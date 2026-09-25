@@ -4425,15 +4425,24 @@ class ChatViewModel(
             // Receipt bubbles can be absent after rejection/reconnect. Offer their identities
             // to the canonical matcher without displaying unconfirmed messages again.
             val visibleIds = snapshot.messages.map { it.id }.toSet()
+            val currentSendScope = sendScope()
+            val receiptRows =
+                sendStore
+                    .all()
+                    .filter { it.scope == currentSendScope && it.sessionId == snapshot.currentSessionId }
+            val receiptBackedIds =
+                receiptRows
+                    .filter {
+                        it.state in
+                            setOf(PendingSendState.SENDING, PendingSendState.ACCEPTED, PendingSendState.UNKNOWN)
+                    }.mapTo(mutableSetOf()) { it.id }
             val receiptCandidates =
                 if (cached) {
                     emptyList()
                 } else {
-                    sendStore
-                        .all()
+                    receiptRows
                         .filter {
-                            it.scope == sendScope() && it.sessionId == snapshot.currentSessionId &&
-                                it.id !in visibleIds &&
+                            it.id !in visibleIds &&
                                 it.state in
                                 setOf(PendingSendState.SENDING, PendingSendState.ACCEPTED, PendingSendState.UNKNOWN)
                         }.map {
@@ -4472,7 +4481,8 @@ class ChatViewModel(
                                             message.role != MessageRole.USER ||
                                                 message.canonicalRestId != null ||
                                                 message.isPermanentlyLocal() ||
-                                                message.messageProvenance == MessageProvenance.LOCAL_PENDING -> {
+                                                message.messageProvenance == MessageProvenance.LOCAL_PENDING ||
+                                                message.id in receiptBackedIds -> {
                                                 false
                                             }
 

@@ -7681,6 +7681,88 @@ class ChatViewModelTest {
     }
 
     @Test
+    fun paging_coldRestartReceiptBackedUnknownUserRemainsLiveTail() =
+        runTest {
+            val receiptBacked =
+                ChatMessage(
+                    id = "receipt-backed-unknown-user",
+                    role = MessageRole.USER,
+                    content = "possibly accepted before restart",
+                    messageProvenance = MessageProvenance.UNKNOWN,
+                )
+            val rejected =
+                ChatMessage(
+                    id = "receipt-backed-rejected-user",
+                    role = MessageRole.USER,
+                    content = "rejected before restart",
+                    messageProvenance = MessageProvenance.UNKNOWN,
+                )
+            fakeRepo.persistMessage(receiptBacked, "session-456")
+            fakeRepo.persistMessage(rejected, "session-456")
+            val store = ChatSendStore()
+            val scope =
+                listOf(
+                    AuthManager.getBaseUrl(),
+                    AuthManager.getSelectedProfileId() ?: AuthManager.DEFAULT_PROFILE_ID,
+                    AuthManager.activeProfileId.value ?: AuthManager.DEFAULT_PROFILE_ID,
+                ).joinToString("\u001f")
+            store.put(
+                PendingSend(
+                    id = receiptBacked.id,
+                    scope = scope,
+                    sessionId = "session-456",
+                    text = receiptBacked.content,
+                    mode = BusySendMode.QUEUE,
+                    state = PendingSendState.UNKNOWN,
+                ),
+            )
+            store.put(
+                PendingSend(
+                    id = rejected.id,
+                    scope = scope,
+                    sessionId = "session-456",
+                    text = rejected.content,
+                    mode = BusySendMode.QUEUE,
+                    state = PendingSendState.REJECTED,
+                ),
+            )
+            val cacheRead = CompletableDeferred<Unit>()
+            fakeRepo.dao.beforeRead = { cacheRead.await() }
+            val (viewModel, _) = createViewModelWithSession(sendStore = store)
+            coEvery {
+                ApiClient.hermesApi.getSessionMessages("session-456", any(), any(), any(), any())
+            } returns pagingResponse(100..102)
+
+            viewModel.switchSession("session-456")
+            runCurrent()
+            cacheRead.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(
+                listOf(rejected.id) + (100..102).map { "rest-session-456-$it" } + receiptBacked.id,
+                viewModel.uiState.value.messages
+                    .map { it.id },
+            )
+            val rejectedRetained =
+                viewModel.uiState.value.messages
+                    .single { it.id == rejected.id }
+            assertTrue(rejectedRetained.isRestoredUnconfirmed)
+            assertEquals(MessageProvenance.UNKNOWN, rejectedRetained.messageProvenance)
+            val retained =
+                viewModel.uiState.value.messages
+                    .single { it.id == receiptBacked.id }
+            assertFalse(retained.isHistoricalCache)
+            assertFalse(retained.isRestoredUnconfirmed)
+            assertEquals(MessageProvenance.UNKNOWN, retained.messageProvenance)
+            assertNull(retained.canonicalRestId)
+            assertEquals(PendingSendState.UNKNOWN, store.all().single { it.id == receiptBacked.id }.state)
+            assertEquals(PendingSendState.REJECTED, store.all().single { it.id == rejected.id }.state)
+            verify(exactly = 0) {
+                HermesWsClient.sendMessage(any(), receiptBacked.content, any(), any())
+            }
+        }
+
+    @Test
     fun paging_coldRestartLegacyUnknownUserRemainsConservativelyUnconfirmed() =
         runTest {
             val ambiguous =

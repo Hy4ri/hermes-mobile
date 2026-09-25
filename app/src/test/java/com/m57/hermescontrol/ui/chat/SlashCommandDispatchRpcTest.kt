@@ -3,6 +3,8 @@ package com.m57.hermescontrol.ui.chat
 import android.app.Application
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.HermesDatabase
+import com.m57.hermescontrol.data.model.PaginationInfo
+import com.m57.hermescontrol.data.model.SessionMessagesResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.data.ws.ConnectionStatus
@@ -11,6 +13,7 @@ import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.ui.chat.fakes.FakeChatPersistenceRepository
 import com.m57.hermescontrol.ui.chat.fakes.FakeSlashUsageStore
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -742,6 +745,15 @@ class SlashCommandDispatchRpcTest {
                 arg<((String) -> Unit)?>(2)?.invoke(id)
                 id
             }
+            coEvery {
+                ApiClient.hermesApi.getSessionMessages("session-xyz", any(), any(), any(), any())
+            } returns
+                retrofit2.Response.success(
+                    SessionMessagesResponse(
+                        messages = emptyList(),
+                        pagination = PaginationInfo(order = "latest"),
+                    ),
+                )
 
             vm.sendMessage("/init")
             advanceUntilIdle()

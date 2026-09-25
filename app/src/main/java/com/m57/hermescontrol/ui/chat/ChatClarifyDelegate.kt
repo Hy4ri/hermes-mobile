@@ -11,6 +11,21 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
+internal fun buildLegacyClarifyBatchResponses(
+    questions: List<ClarifyQuestionUi>,
+    answers: Map<String, String>,
+    lockedAnswers: Map<String, String>,
+): List<Pair<String, String>> =
+    questions
+        .asSequence()
+        // A replayed pending_clarify can contain answers already locked by the
+        // server. ClarifyBubble has no editable input for those rows, so its
+        // answer map carries an empty placeholder. Never send that placeholder
+        // back through legacy clarify.respond and overwrite accepted state.
+        .filterNot { it.qid in lockedAnswers }
+        .map { it.qid to answers[it.qid]?.trim().orEmpty() }
+        .toList()
+
 class ChatClarifyDelegate(
     private val uiState: MutableStateFlow<ChatUiState>,
     private val scope: CoroutineScope,
@@ -114,14 +129,17 @@ class ChatClarifyDelegate(
             }
 
             if (isBatch) {
-                for (q in questions) {
-                    val ans = answers[q.qid]?.trim().orEmpty()
+                for ((questionId, ans) in buildLegacyClarifyBatchResponses(
+                    questions = questions,
+                    answers = answers,
+                    lockedAnswers = lockedAnswers,
+                )) {
                     val params =
                         mutableMapOf<String, Any>(
                             "session_id" to sessionId,
                             "response" to ans,
                             "answer" to ans,
-                            "question_id" to q.qid,
+                            "question_id" to questionId,
                         )
                     if (clarifyId != null) {
                         params["clarify_id"] = clarifyId

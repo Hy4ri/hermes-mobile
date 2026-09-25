@@ -141,7 +141,6 @@ fun ComposerToolbar(
     val currentIsConnected = rememberUpdatedState(isConnected)
     val currentShowSend = rememberUpdatedState(showSend)
     val currentCanInterrupt = rememberUpdatedState(canInterrupt)
-    val currentOnMicTap = rememberUpdatedState(onMicTap)
     val currentOnMicHoldStart = rememberUpdatedState(onMicHoldStart)
     val currentOnMicHoldEnd = rememberUpdatedState(onMicHoldEnd)
     val currentOnMicHoldCancel = rememberUpdatedState(onMicHoldCancel)
@@ -151,7 +150,6 @@ fun ComposerToolbar(
                 isEnabled = {
                     currentIsConnected.value && currentShowSend.value && !currentCanInterrupt.value
                 },
-                onShortPress = { currentOnMicTap.value() },
                 onHoldStart = { currentOnMicHoldStart.value() },
                 onHoldEnd = { currentOnMicHoldEnd.value() },
                 onHoldCancel = { currentOnMicHoldCancel.value() },
@@ -163,7 +161,6 @@ fun ComposerToolbar(
                 isEnabled = {
                     currentIsConnected.value && !currentShowSend.value && !currentCanInterrupt.value
                 },
-                onShortPress = { currentOnMicTap.value() },
                 onHoldStart = { currentOnMicHoldStart.value() },
                 onHoldEnd = { currentOnMicHoldEnd.value() },
                 onHoldCancel = { currentOnMicHoldCancel.value() },
@@ -492,7 +489,7 @@ fun ComposerToolbar(
                 }
             } else {
                 FilledIconButton(
-                    onClick = {},
+                    onClick = onMicTap,
                     enabled = isConnected,
                     colors = if (isListening) listeningIconButtonColors() else flatIconButtonColors(palette),
                     modifier =
@@ -724,8 +721,9 @@ fun buildReasoningLabel(
 /**
  * Telegram-style mic gesture: press and hold past [HOLD_TO_RECORD_THRESHOLD_MS]
  * records a voice note, release sends it, and sliding away (left or up) from
- * the button cancels instead of sending. A shorter press reports
- * [onShortPress] — the tap action (on-device dictation).
+ * the button cancels instead of sending. Short taps use the control's normal
+ * click handler for dictation, so touch and accessibility actions share one
+ * callback path.
  *
  * The whole down-to-up sequence lives in this one pointer loop, so the release
  * that submits can never be lost to a recomposition between press and
@@ -734,7 +732,6 @@ fun buildReasoningLabel(
  */
 private suspend fun PointerInputScope.micHoldHandler(
     isEnabled: () -> Boolean,
-    onShortPress: () -> Unit,
     onHoldStart: () -> Unit,
     onHoldEnd: () -> Unit,
     onHoldCancel: () -> Unit,
@@ -778,7 +775,6 @@ private suspend fun PointerInputScope.micHoldHandler(
             return@awaitEachGesture
         }
         if (earlyUp) {
-            onShortPress()
             return@awaitEachGesture
         }
 

@@ -335,6 +335,7 @@ internal fun dedupeCachedMessages(
                 restId = it.canonicalRestId,
                 completionId = message.completionId ?: it.completionId,
                 displayKind = message.displayKind ?: it.displayKind,
+                isRestoredUnconfirmed = false,
             )
         } ?: message
     }
@@ -403,6 +404,9 @@ internal fun mergeCachedTranscriptPage(
                         restId = match.canonicalRestId ?: message.canonicalRestId,
                         completionId = match.completionId ?: message.completionId,
                         displayKind = match.displayKind ?: message.displayKind,
+                        isRestoredUnconfirmed =
+                            match.isRestoredUnconfirmed && message.isRestoredUnconfirmed &&
+                                match.canonicalRestId == null && message.canonicalRestId == null,
                     )
             }.toMap()
     val resolvedOrders =
@@ -437,6 +441,7 @@ internal fun mergeTranscriptWithLive(
                         restId = (message.canonicalRestId ?: match.canonicalRestId).takeUnless { it == match.id },
                         displayKind = message.displayKind ?: match.displayKind,
                         isHistoricalCache = false,
+                        isRestoredUnconfirmed = false,
                     )
                 }
 
@@ -464,6 +469,7 @@ internal fun mergeTranscriptWithLive(
                         tokenCount = message.tokenCount ?: match.tokenCount,
                         completionId = message.completionId ?: match.completionId,
                         isHistoricalCache = false,
+                        isRestoredUnconfirmed = false,
                     )
                 }
 
@@ -482,6 +488,7 @@ internal fun mergeTranscriptWithLive(
                         content = mergedContent,
                         completionId = message.completionId ?: match?.completionId,
                         isHistoricalCache = false,
+                        isRestoredUnconfirmed = false,
                     )
                 }
             }
@@ -533,9 +540,10 @@ private fun List<ChatMessage>.inTranscriptOrder(
                         ?: latestCanonical
                 }
             if (hasPendingPredecessor) pendingOrderByLocal[message.id] = pendingLocalOrder ?: Long.MAX_VALUE
-        } else if (message.isHistoricalCache) {
+        } else if (message.isHistoricalCache || message.isRestoredUnconfirmed) {
             // Room groups UUID-only rows after all confirmed rows; that predecessor is
-            // not a chronological anchor. Keep unresolved history before the server window.
+            // not a chronological anchor. Restored legacy rows stay before the server
+            // window too, without promoting their uncertain delivery to confirmed history.
             localAnchors[message.id] = beforeCanonical
         } else {
             hasPendingPredecessor = true

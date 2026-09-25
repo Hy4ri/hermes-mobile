@@ -1543,6 +1543,7 @@
     <string name="media_player_play_video">تشغيل الفيديو</string>
     <string name="chat_session_preparing">جارٍ تجهيز الجلسة…</string>
     <string name="chat_session_not_ready">الجلسة غير جاهزة — أعد المحاولة للمتابعة</string>
+
     <string name="connection_setup_target_title">إعداد %1$s</string>
     <string name="connection_setup_progress">%1$d من %2$d</string>
     <string name="connection_setup_authorized_no_tools">تم التفويض، لكن الأدوات غير متاحة</string>
@@ -1556,4 +1557,25 @@
     <string name="connection_setup_required">%1$s مطلوب</string>
     <string name="connection_setup_request_failed">تعذر إرسال رد الإعداد. حاول مرة أخرى.</string>
     <string name="connection_setup_pending">بانتظار Hermes…</string>
+
+<string name="chat_busy_mode_title">أثناء عمل الوكيل</string>
+<string name="chat_busy_mode_desc">اختر كيفية وصول الرسالة الجديدة إلى المحادثة الحالية. تُرسل الرسائل بشكل عادي عند الخمول.</string>
+<string name="chat_busy_correct">تصحيح الدور الحالي</string>
+<string name="chat_busy_queue">الإرسال في الدور التالي</string>
+<string name="chat_busy_guide">توجيه عند النقطة الآمنة التالية</string>
+<string name="chat_busy_interrupt">مقاطعة قسرية ثم إرسال</string>
+<string name="chat_busy_interrupt_warning">قد توقف المقاطعة القسرية الوكلاء الفرعيين. يسمح الانتظار والتوجيه باستمرار العمل الحالي.</string>
+<string name="chat_busy_override">وضع إرسال هذه الرسالة</string>
+<string name="chat_busy_override_once">يسري هذا الاختيار مرة واحدة فقط ولا يغير الإعداد الافتراضي المحفوظ.</string>
+<string name="chat_pending_sends">رسائل معلّقة</string>
+<string name="chat_pending_queued">في قائمة الانتظار على هذا الجهاز</string>
+<string name="chat_pending_parked">موقوفة بعد الإيقاف</string>
+<string name="chat_pending_sending">جارٍ الإرسال…</string>
+<string name="chat_pending_accepted">قبلها الخادم؛ بانتظار ظهورها في السجل. قد تؤدي إعادة الإرسال إلى تكرارها.</string>
+<string name="chat_pending_unknown">حالة التسليم غير معروفة؛ قد يؤدي الإرسال مجددًا إلى تكرارها</string>
+<string name="chat_pending_rejected">لم تُسلّم؛ اختر الإرسال الآن لإعادة المحاولة</string>
+<string name="chat_pending_send_now">إرسال الآن</string>
+<string name="chat_pending_send_now_warning">قد يقطع إرسال رسالة معلّقة الآن العمل الجاري ويوقف الوكلاء الفرعيين.</string>
+<string name="chat_pending_send_again">إرسال مجددًا</string>
+<string name="chat_pending_attachments">ستُرسل المرفقات مع هذه الرسالة.</string>
 </resources>

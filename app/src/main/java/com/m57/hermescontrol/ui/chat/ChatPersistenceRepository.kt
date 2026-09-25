@@ -84,4 +84,8 @@ open class ChatPersistenceRepository(
     suspend fun clearMessagesForSession(sessionId: String) {
         daoProvider().deleteMessagesForSession(sessionId)
     }
+
+    suspend fun deleteMessage(id: String) {
+        daoProvider().deleteUnconfirmedMessage(id)
+    }
 }

@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.chat.components
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -37,6 +38,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.Attachment
+import com.m57.hermescontrol.data.model.BusySendMode
 import com.m57.hermescontrol.data.model.ProfileInfo
 import com.m57.hermescontrol.data.ws.CommandBlocklist
 import com.m57.hermescontrol.data.ws.CommandCatalog
@@ -75,9 +78,11 @@ fun ChatInputBar(
     inputFieldValue: TextFieldValue,
     onInputChange: (TextFieldValue) -> Unit,
     onSend: () -> Unit,
+    onBusySend: (BusySendMode) -> Unit = {},
     onMicTap: () -> Unit,
     isListening: Boolean,
     isAgentTyping: Boolean,
+    isMainTurnBusy: Boolean = false,
     isConnected: Boolean,
     commandCatalog: CommandCatalog,
     isSessionReady: Boolean,
@@ -111,10 +116,14 @@ fun ChatInputBar(
     val canSend =
         pendingReasoningLevel == null &&
             ChatInputPolicy.canSend(inputFieldValue.text, pendingAttachments, isConnected, isSessionReady)
+    val hasDraft = inputFieldValue.text.isNotBlank() || pendingAttachments.isNotEmpty()
+    val isSlashDraft = inputFieldValue.text.trimStart().startsWith("/")
+    val showBusyActions = isMainTurnBusy && hasDraft && !isSlashDraft
 
     // Attachment tray state
     var showAttachmentTray by remember { mutableStateOf(false) }
     val palette = composerPalette()
+    BackHandler(enabled = showAttachmentTray) { showAttachmentTray = false }
 
     AnimatedVisibility(
         visible = true,
@@ -319,8 +328,11 @@ fun ChatInputBar(
                     reasoningLevel = reasoningLevel,
                     isListening = isListening,
                     canSend = canSend,
-                    showSend = inputFieldValue.text.isNotBlank() || pendingAttachments.isNotEmpty(),
+                    showSend = hasDraft,
+                    showQueue = showBusyActions,
                     onSend = onSend,
+                    onQueue = { onBusySend(BusySendMode.QUEUE) },
+                    onStopAndSend = { onBusySend(BusySendMode.INTERRUPT) },
                     onAttachTap = { showAttachmentTray = !showAttachmentTray },
                     onModelTap = onModelTap,
                     onReasoningSelected = onReasoningTap,

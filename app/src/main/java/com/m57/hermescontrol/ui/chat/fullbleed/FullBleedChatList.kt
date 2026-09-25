@@ -104,8 +104,9 @@ fun FullBleedChatList(
     hasOlderMessages: Boolean = false,
     pagingSessionId: String? = null,
     onLoadOlder: () -> Unit = viewModel::loadOlderMessages,
+    replyErrorContent: (@Composable () -> Unit)? = null,
 ) {
-    if (messages.isEmpty() && !isLoading && !isAgentTyping) {
+    if (messages.isEmpty() && !isLoading && !isAgentTyping && replyErrorContent == null) {
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center,
@@ -145,6 +146,7 @@ fun FullBleedChatList(
         // A single ordered definition supplies both emitted tail rows and anchor keys.
         val tailItems =
             buildMap<String, @Composable () -> Unit> {
+                replyErrorContent?.let { put("reply_error", it) }
                 agentStatus?.let { status ->
                     put("agent_status") {
                         AgentStatusIndicator(status = status)

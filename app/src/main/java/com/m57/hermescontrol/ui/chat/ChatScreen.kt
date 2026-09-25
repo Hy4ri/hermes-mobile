@@ -64,9 +64,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
@@ -76,8 +78,10 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.BuildConfig
 import com.m57.hermescontrol.ExternalActivityLifecycleGuard
 import com.m57.hermescontrol.HistoryScreen
+import com.m57.hermescontrol.LogsScreen
 import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.Attachment
@@ -103,6 +107,7 @@ import com.m57.hermescontrol.ui.chat.components.ContextDetailSheet
 import com.m57.hermescontrol.ui.chat.components.ContextUsageChip
 import com.m57.hermescontrol.ui.chat.components.ReactionHeartsOverlay
 import com.m57.hermescontrol.ui.chat.components.ReloginDialog
+import com.m57.hermescontrol.ui.chat.components.ReplyErrorCard
 import com.m57.hermescontrol.ui.chat.components.SearchBarRow
 import com.m57.hermescontrol.ui.chat.components.SessionIntegrationsSheet
 import com.m57.hermescontrol.ui.chat.components.SideQuestionSheet
@@ -790,6 +795,39 @@ fun ChatScreen(
                     savingAttachmentPath = pendingSavePath ?: state.savingAttachmentPath,
                     openingAttachmentPath = state.openingAttachmentPath,
                     onImageClick = { viewingImage = it },
+                    replyErrorContent =
+                        state.replyFailure?.takeUnless { timelineState.isHistorical }?.let { failure ->
+                            {
+                                val clipboard = LocalClipboardManager.current
+                                val copiedMessage = stringResource(R.string.chat_reply_failed_copied)
+                                val shareTitle = stringResource(R.string.chat_reply_failed_share)
+                                val shareUnavailable = stringResource(R.string.chat_reply_failed_share_unavailable)
+                                ReplyErrorCard(
+                                    failure = failure,
+                                    onDismiss = { viewModel.dismissReplyFailure(failure.id) },
+                                    onOpenLogs = { NavigationController.navigateTo(LogsScreen) },
+                                    onCopy = { details ->
+                                        clipboard.setText(AnnotatedString(details))
+                                        scrollScope.launch { snackbarHostState.showSnackbar(copiedMessage) }
+                                    },
+                                    onShare = { details ->
+                                        val report = "Hermes Mobile ${BuildConfig.VERSION_NAME}\n\n$details"
+                                        val intent =
+                                            Intent(Intent.ACTION_SEND).apply {
+                                                type = "text/plain"
+                                                putExtra(Intent.EXTRA_TEXT, report)
+                                            }
+                                        try {
+                                            launchExternalActivity {
+                                                context.startActivity(Intent.createChooser(intent, shareTitle))
+                                            }
+                                        } catch (_: ActivityNotFoundException) {
+                                            scrollScope.launch { snackbarHostState.showSnackbar(shareUnavailable) }
+                                        }
+                                    },
+                                )
+                            }
+                        },
                 )
 
                 // Loading overlay

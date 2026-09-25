@@ -143,8 +143,8 @@ internal fun ToolBubble(
     val statusColors = LocalHermesStatusColors.current
 
     val view =
-        remember(message.content, message.toolName, message.toolStatus) {
-            parseToolOutput(message.content, message.toolName, message.toolStatus == ToolStatus.RUNNING)
+        remember(message.content, message.toolName, message.isToolRunning) {
+            parseToolOutput(message.content, message.toolName, message.isToolRunning)
         }
     val config = ToolSchemaRegistry.getDisplayConfig(message.toolName)
 
@@ -182,7 +182,7 @@ internal fun ToolBubble(
                 HeaderRow(message, config, contentColor, statusColors)
 
                 // ── Tool progress preview (tool.progress) ──
-                if (message.toolStatus == ToolStatus.RUNNING && !message.progressPreview.isNullOrEmpty()) {
+                if (message.isToolRunning && !message.progressPreview.isNullOrEmpty()) {
                     Text(
                         text = message.progressPreview,
                         style =
@@ -534,7 +534,7 @@ private fun HeaderRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         // Status icon or spinner
-        if (message.toolStatus == ToolStatus.RUNNING) {
+        if (message.isToolRunning) {
             CircularProgressIndicator(
                 modifier = Modifier.size(14.dp),
                 strokeWidth = 2.dp,

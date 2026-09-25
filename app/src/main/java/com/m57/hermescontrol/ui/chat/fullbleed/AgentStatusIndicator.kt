@@ -20,8 +20,8 @@ import com.m57.hermescontrol.ui.chat.ChatMessage
 import com.m57.hermescontrol.ui.chat.MessageRole
 import com.m57.hermescontrol.ui.chat.StreamingState
 import com.m57.hermescontrol.ui.chat.ToolSchemaRegistry
-import com.m57.hermescontrol.ui.chat.ToolStatus
 import com.m57.hermescontrol.ui.chat.components.TypingIndicator
+import com.m57.hermescontrol.ui.chat.isToolRunning
 import com.m57.hermescontrol.ui.chat.isUserTurnBoundary
 
 /** Live status for an agent turn before visible assistant prose is available. */
@@ -61,7 +61,7 @@ internal fun deriveAgentStatus(
             .asReversed()
             .firstOrNull {
                 it.role == MessageRole.TOOL &&
-                    it.toolStatus == ToolStatus.RUNNING
+                    it.isToolRunning
             }
     val hasVisibleStreamingContent = streamingState.streamingMessage?.content?.isNotBlank() == true
 

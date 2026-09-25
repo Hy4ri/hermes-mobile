@@ -147,6 +147,10 @@ data class ChatUiState(
     /** Standalone streaming message — rendered after the main list. */
     val streamingMessage: ChatMessage? = null,
     val errorMessage: String? = null,
+    /** Persistent until dismissed/new turn; distinct from one-shot RPC/network snackbars. */
+    val replyFailure: ReplyFailure? = null,
+    /** Identity of the single non-durable failed assistant projection for this session lifecycle. */
+    val replyFailureProjection: ReplyFailureProjection? = null,
     // Background job completion toast (issue #527) — non-blocking snackbar
     val backgroundCompleteMessage: String? = null,
     // Attachment feedback — surfaced as a non-blocking snackbar (issue #724)
@@ -923,6 +927,23 @@ class ChatViewModel(
     }
 
     private fun handleWsEvent(event: WsEvent) {
+        // Filter explicitly scoped terminal/start events before buffer resets and reduction.
+        // Legacy unscoped failures are ambiguous across sessions, so fail closed: gateways
+        // must include session_id for failed replies to be surfaced by this client.
+        val turnSessionId =
+            when (event) {
+                is WsEvent.MessageStart -> event.sessionId
+                is WsEvent.MessageComplete -> event.sessionId
+                is WsEvent.MessageDone -> event.sessionId
+                else -> null
+            }
+        if (turnSessionId != null && !isCurrentSession(turnSessionId)) return
+        if (event is WsEvent.MessageComplete && event.rawPayload?.get("status") == "error" &&
+            event.sessionId == null
+        ) {
+            return
+        }
+
         // RpcError is reduced before ViewModel request handling. Drop stale
         // session errors here so the shared reducer cannot clear loading or
         // surface an error for a newly selected session.
@@ -1339,10 +1360,13 @@ class ChatViewModel(
 
     // ── Message streaming ────────────────────────────────────────────────
 
-    /**
-     * Checks if an incoming WS event belongs to the currently active
-     * session. Returns true if the event should be processed.
-     */
+    fun dismissReplyFailure(id: String) {
+        _uiState.update { state ->
+            if (state.replyFailure?.id == id) state.copy(replyFailure = null) else state
+        }
+    }
+
+    /** Checks if an incoming WS event belongs to the currently active session. */
     private fun isCurrentSession(eventSessionId: String?): Boolean {
         // If the event has no session ID, process it (legacy compatibility)
         if (eventSessionId == null) return true
@@ -1676,10 +1700,17 @@ class ChatViewModel(
 
             WsMethods.SESSION_RESUME -> {
                 val resultMap = result as? Map<String, Any?>
+                // A resume response may carry retained terminal state. Correlate the
+                // exact request and stored session before binding the runtime id or
+                // projecting any failure; a late response must not touch the new chat.
+                val resumeRequest = request ?: return
+                val sessionId = resumeRequest.sessionId ?: return
+                if (sessionId != _uiState.value.currentSessionId) return
+                val resumedStoredId = (resultMap?.get("resumed") as? String)?.takeIf { it.isNotBlank() }
+                if (resumedStoredId != null && resumedStoredId != sessionId) return
                 val runtimeId = (resultMap?.get("session_id") as? String)?.takeIf { it.isNotBlank() }
                 if (runtimeId == null) {
-                    val sessionId = request?.sessionId ?: _uiState.value.currentSessionId ?: return
-                    handleResumeFailure(sessionId, sessionGeneration, "Invalid session resume response")
+                    handleResumeFailure(sessionId, resumeRequest.generation, "Invalid session resume response")
                     return
                 }
                 runtimeSessionId = runtimeId
@@ -1687,10 +1718,6 @@ class ChatViewModel(
                 mainTurnBusy = resultMap["running"] as? Boolean ?: false
                 // Resume succeeded — the gateway confirmed the DB row.
                 sessionHasServerPresence = true
-                val sessionId =
-                    request?.sessionId
-                        ?: (resultMap["resumed"] as? String)
-                        ?: _uiState.value.currentSessionId
 
                 // Parse session info from backend — model, provider, reasoning_effort
                 val infoMap = resultMap["info"] as? Map<String, Any?>
@@ -1759,7 +1786,8 @@ class ChatViewModel(
                 ActiveSessionHolder.set(runtimeSessionId ?: sessionId, sessionId)
                 addSystemMessage("Session resumed")
                 fetchContextUsage()
-                val generation = request?.generation ?: sessionGeneration
+                projectRetainedReplyFailure(resultMap["inflight"] as? Map<String, Any?>, runtimeId)
+                val generation = resumeRequest.generation
                 resumedGeneration = generation
                 finishResumeWhenHydrated(generation)
                 publishPendingSends()
@@ -1879,6 +1907,25 @@ class ChatViewModel(
                 modelSwitchDelegate.handleConfigSetResult(id, result)
             }
         }
+    }
+
+    /**
+     * Replays a gateway-retained failed turn through the same reducer path as a
+     * live terminal `message.complete(status=error)`. The assistant field is
+     * the partial display projection; user/transcript fields are never exported
+     * as diagnostics, and reducer effects intentionally do not persist it.
+     */
+    private fun projectRetainedReplyFailure(
+        inflight: Map<String, Any?>?,
+        runtimeId: String,
+    ) {
+        if (inflight?.get("status") != "error") return
+        val result =
+            ChatWsEventReducer.reduceRetainedReplyFailure(_uiState.value, inflight, runtimeId)
+        _uiState.value = result.state
+        _streamingState.value = result.streamingState
+        dispatchReducerEffects(result.effects)
+        streamingController.resetStreaming()
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -2671,6 +2718,7 @@ class ChatViewModel(
                 content = text,
                 attachments = if (attachments.isNotEmpty()) attachments else null,
                 tokenCount = TokenEstimator.estimate(text).takeIf { it > 0 },
+                messageProvenance = MessageProvenance.LOCAL_PENDING,
             )
 
         val storageSessionId = _uiState.value.currentSessionId
@@ -2864,6 +2912,7 @@ class ChatViewModel(
                 content = text,
                 attachments = if (attachments.isNotEmpty()) attachments else null,
                 tokenCount = TokenEstimator.estimate(text).takeIf { it > 0 },
+                messageProvenance = MessageProvenance.LOCAL_PENDING,
             )
         val attemptedReceipt =
             pendingReceipt
@@ -4392,7 +4441,29 @@ class ChatViewModel(
             val receiptCandidateIds = receiptCandidates.map { it.id }.toSet()
             val computed =
                 withContext(historyDispatcher) {
-                    val page = mapPage(snapshot.messages)
+                    val mapped = mapPage(snapshot.messages)
+                    val currentById = snapshot.messages.associateBy { it.id }
+                    // Durable provenance distinguishes new unsent prompts after process death.
+                    // Legacy UUID-only USER rows remain conservatively unconfirmed: UNKNOWN is
+                    // not evidence that the server delivered them.
+                    val page =
+                        if (cached) {
+                            mapped.map { message ->
+                                message.copy(
+                                    isHistoricalCache =
+                                        when {
+                                            currentById[message.id]?.isHistoricalCache == false -> false
+                                            message.isPermanentlyLocal() -> false
+                                            message.messageProvenance == MessageProvenance.LOCAL_PENDING -> false
+                                            message.canonicalRestId != null -> true
+                                            message.role == MessageRole.USER -> false
+                                            else -> true
+                                        },
+                                )
+                            }
+                        } else {
+                            mapped
+                        }
                     val merged =
                         if (cached) {
                             mergeCachedTranscriptPage(page, snapshot.messages)
@@ -4670,6 +4741,8 @@ class ChatViewModel(
                 hasOlderMessages = false,
                 streamingMessage = null,
                 errorMessage = null,
+                replyFailure = null,
+                replyFailureProjection = null,
                 openError = null,
                 clarifyRequest = null,
                 sudoPrompt = null,

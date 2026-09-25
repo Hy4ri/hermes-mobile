@@ -473,6 +473,104 @@ class ChatViewModelTest {
             assertEquals("op-1218", operation?.opId)
         }
 
+    @Test
+    fun sessionResume_restoresRetainedFailureAsNonDurablePartial() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+            viewModel.switchSession("stored-session")
+            advanceUntilIdle()
+            val resumeRequestId = sentRequestMethods.last { it.first == WsMethods.SESSION_RESUME }.second
+
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    resumeRequestId,
+                    mapOf(
+                        "session_id" to "runtime-session",
+                        "resumed" to "stored-session",
+                        "inflight" to
+                            mapOf(
+                                "assistant" to "Retained partial answer",
+                                "user" to "Private user prompt",
+                                "streaming" to false,
+                                "status" to "error",
+                                "error" to "Provider failed",
+                                "recoverable" to true,
+                                "error_surface" to mapOf("provider" to "example", "code" to "rate_limit"),
+                            ),
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals("stored-session", viewModel.uiState.value.currentSessionId)
+            assertEquals(
+                "Retained partial answer",
+                viewModel.uiState.value.messages
+                    .last()
+                    .content,
+            )
+            assertEquals(
+                "code: rate_limit\nprovider: example\nProvider failed",
+                viewModel.uiState.value.replyFailure
+                    ?.details,
+            )
+            assertFalse(
+                viewModel.uiState.value.replyFailure!!
+                    .details
+                    .contains("Private user prompt"),
+            )
+            assertTrue(
+                fakeRepo.dao
+                    .getMessagesForSession("stored-session")
+                    .none { it.content == "Retained partial answer" },
+            )
+        }
+
+    @Test
+    fun staleSessionResumeFailureCannotClearHealthyCurrentStream() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+            viewModel.switchSession("stored-old")
+            advanceUntilIdle()
+            val staleResumeId = sentRequestMethods.last { it.first == WsMethods.SESSION_RESUME }.second
+
+            viewModel.switchSession("stored-current")
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.MessageStart("stored-current"))
+            mockEventsFlow.emit(WsEvent.MessageToken("Healthy current stream", "stored-current"))
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    staleResumeId,
+                    mapOf(
+                        "session_id" to "runtime-old",
+                        "inflight" to
+                            mapOf(
+                                "assistant" to "Old failed partial",
+                                "status" to "error",
+                                "error" to "Old provider failure",
+                            ),
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals("stored-current", viewModel.uiState.value.currentSessionId)
+            assertNull(viewModel.uiState.value.replyFailure)
+            assertEquals(
+                "Healthy current stream",
+                viewModel.streamingState.value.streamingMessage
+                    ?.content,
+            )
+            assertTrue(
+                viewModel.uiState.value.messages
+                    .none { it.content == "Old failed partial" },
+            )
+        }
+
     private fun connectionOperationSnapshot(
         sessionId: String,
         seq: Long = 1L,
@@ -1399,6 +1497,96 @@ class ChatViewModelTest {
         }
 
     // ── Streaming tests ──────────────────────────────────────────────────────
+
+    @Test
+    fun terminalReplyFailureIsScopedDismissibleAndNeverResends() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            mockEventsFlow.emit(WsEvent.MessageToken("Partial", sessionId))
+            advanceUntilIdle()
+            mockEventsFlow.emit(
+                WsEvent.MessageComplete("Other error", "other-session", rawPayload = mapOf("status" to "error")),
+            )
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isAgentTyping)
+            assertNull(viewModel.uiState.value.replyFailure)
+            assertEquals(
+                "Partial",
+                viewModel.streamingState.value.streamingMessage
+                    ?.content,
+            )
+            mockEventsFlow.emit(
+                WsEvent.MessageComplete("Provider error", sessionId, rawPayload = mapOf("status" to "error")),
+            )
+            advanceUntilIdle()
+            val failure = viewModel.uiState.value.replyFailure!!
+            assertFalse(viewModel.uiState.value.isAgentTyping)
+            assertFalse(viewModel.uiState.value.isThinking)
+            assertTrue(
+                viewModel.uiState.value.messages
+                    .any { it.content == "Partial" },
+            )
+            assertFalse(
+                viewModel.uiState.value.messages
+                    .any { it.content == "Provider error" },
+            )
+            viewModel.dismissReplyFailure("stale-card")
+            advanceUntilIdle()
+            assertEquals(failure, viewModel.uiState.value.replyFailure)
+            viewModel.dismissReplyFailure(failure.id)
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.replyFailure)
+            verify(exactly = 0) { HermesWsClient.sendMessage(any(), any(), any(), any()) }
+        }
+
+    @Test
+    fun unscopedFailureCannotCrossSessionSwitch() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val failure = WsEvent.MessageComplete("Error", null, rawPayload = mapOf("status" to "error"))
+            mockEventsFlow.emit(failure)
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.replyFailure)
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            advanceUntilIdle()
+            viewModel.switchSession("another-session")
+            advanceUntilIdle()
+            // A delayed start without identity cannot authorize a failed turn on this chat.
+            mockEventsFlow.emit(WsEvent.MessageStart(null))
+            advanceUntilIdle()
+            mockEventsFlow.emit(failure)
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.replyFailure)
+            assertFalse(
+                viewModel.uiState.value.messages
+                    .any { it.content == "Error" },
+            )
+        }
+
+    @Test
+    fun unscopedFailureAfterForeignStartCannotUsePreviousSessionPin() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            mockEventsFlow.emit(WsEvent.MessageToken("Current partial", sessionId))
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.MessageStart("foreign-session"))
+            mockEventsFlow.emit(
+                WsEvent.MessageComplete("Foreign diagnostic", null, rawPayload = mapOf("status" to "error")),
+            )
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.replyFailure)
+            assertEquals(
+                "Current partial",
+                viewModel.streamingState.value.streamingMessage
+                    ?.content,
+            )
+            assertFalse(
+                viewModel.uiState.value.messages
+                    .any { it.content == "Foreign diagnostic" },
+            )
+        }
 
     @Test
     fun testMessageStreamingFlow() =
@@ -7285,6 +7473,200 @@ class ChatViewModelTest {
                 viewModel.uiState.value.messages
                     .any { it.id == "rest-session-456-160" },
             )
+        }
+
+    @Test
+    fun paging_staleCacheBeforeRestDoesNotBecomeTheLatestTail() =
+        runTest {
+            val cachedIds = seedPagingCache(3)
+            val response = CompletableDeferred<retrofit2.Response<SessionMessagesResponse>>()
+            val (viewModel, _) = createViewModelWithSession()
+            coEvery {
+                ApiClient.hermesApi.getSessionMessages("session-456", any(), any(), any(), any())
+            } coAnswers { response.await() }
+
+            viewModel.switchSession("session-456")
+            runCurrent()
+            assertEquals(
+                cachedIds,
+                viewModel.uiState.value.messages
+                    .map { it.id },
+            )
+            response.complete(pagingResponse(100..102))
+            advanceUntilIdle()
+
+            val expected = cachedIds + (100..102).map { "rest-session-456-$it" }
+            assertEquals(
+                expected,
+                viewModel.uiState.value.messages
+                    .map { it.id },
+            )
+            viewModel.syncCurrentSession()
+            advanceUntilIdle()
+            assertEquals(
+                expected,
+                viewModel.uiState.value.messages
+                    .map { it.id },
+            )
+            assertTrue(fakeRepo.dao.idsForSession("session-456").containsAll(cachedIds))
+        }
+
+    @Test
+    fun paging_staleCacheAfterRestDoesNotBecomeTheLatestTail() =
+        runTest {
+            val cachedIds = seedPagingCache(3)
+            val cacheRead = CompletableDeferred<Unit>()
+            fakeRepo.dao.beforeRead = { cacheRead.await() }
+            val (viewModel, _) = createViewModelWithSession()
+            coEvery {
+                ApiClient.hermesApi.getSessionMessages("session-456", any(), any(), any(), any())
+            } returns pagingResponse(100..102)
+
+            viewModel.switchSession("session-456")
+            runCurrent()
+            cacheRead.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(
+                cachedIds + (100..102).map { "rest-session-456-$it" },
+                viewModel.uiState.value.messages
+                    .map { it.id },
+            )
+        }
+
+    @Test
+    fun paging_coldRestartPendingLocalRemainsAfterCanonicalWindow() =
+        runTest {
+            val pending =
+                ChatMessage(
+                    id = "pending-local",
+                    role = MessageRole.USER,
+                    content = "not delivered yet",
+                    messageProvenance = MessageProvenance.LOCAL_PENDING,
+                )
+            fakeRepo.persistMessage(pending, "session-456")
+            val cacheRead = CompletableDeferred<Unit>()
+            fakeRepo.dao.beforeRead = { cacheRead.await() }
+            val (viewModel, _) = createViewModelWithSession()
+            coEvery {
+                ApiClient.hermesApi.getSessionMessages("session-456", any(), any(), any(), any())
+            } returns pagingResponse(100..102)
+
+            viewModel.switchSession("session-456")
+            runCurrent()
+            cacheRead.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(
+                (100..102).map { "rest-session-456-$it" } + pending.id,
+                viewModel.uiState.value.messages
+                    .map { it.id },
+            )
+        }
+
+    @Test
+    fun paging_coldRestartLegacyUnknownUserRemainsConservativelyUnconfirmed() =
+        runTest {
+            val ambiguous =
+                ChatMessage(
+                    id = "legacy-unknown-user",
+                    role = MessageRole.USER,
+                    content = "possibly unsent before migration",
+                )
+            fakeRepo.persistMessage(ambiguous, "session-456")
+            val cacheRead = CompletableDeferred<Unit>()
+            fakeRepo.dao.beforeRead = { cacheRead.await() }
+            val (viewModel, _) = createViewModelWithSession()
+            coEvery {
+                ApiClient.hermesApi.getSessionMessages("session-456", any(), any(), any(), any())
+            } returns pagingResponse(100..102)
+            viewModel.switchSession("session-456")
+            runCurrent()
+            cacheRead.complete(Unit)
+            advanceUntilIdle()
+            assertEquals(
+                (100..102).map { "rest-session-456-$it" } + ambiguous.id,
+                viewModel.uiState.value.messages
+                    .map { it.id },
+            )
+            assertFalse(
+                viewModel.uiState.value.messages
+                    .last()
+                    .isHistoricalCache,
+            )
+        }
+
+    @Test
+    fun paging_coldRestartPermanentLocalKeepsLocalOrdering() =
+        runTest {
+            val localCommand =
+                ChatMessage(
+                    id = "local-command",
+                    role = MessageRole.USER,
+                    content = "/help",
+                )
+            fakeRepo.persistMessage(localCommand, "session-456")
+            val cacheRead = CompletableDeferred<Unit>()
+            fakeRepo.dao.beforeRead = { cacheRead.await() }
+            val (viewModel, _) = createViewModelWithSession()
+            coEvery {
+                ApiClient.hermesApi.getSessionMessages("session-456", any(), any(), any(), any())
+            } returns pagingResponse(100..102)
+
+            viewModel.switchSession("session-456")
+            runCurrent()
+            cacheRead.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(
+                (100..102).map { "rest-session-456-$it" } + localCommand.id,
+                viewModel.uiState.value.messages
+                    .map { it.id },
+            )
+        }
+
+    @Test
+    fun paging_staleCacheDoesNotDemoteOptimisticIdentity() =
+        runTest {
+            val cachedIds = seedPagingCache(3)
+            val cacheRead = CompletableDeferred<Unit>()
+            fakeRepo.dao.beforeRead = { cacheRead.await() }
+            val (viewModel, _) = createViewModelWithSession()
+            coEvery {
+                ApiClient.hermesApi.getSessionMessages("session-456", any(), any(), any(), any())
+            } returns pagingResponse(100..102)
+
+            viewModel.switchSession("session-456")
+            runCurrent()
+            val attachment = Attachment("content://test/file", "file.txt", "text/plain")
+            val optimistic =
+                ChatMessage(
+                    id = cachedIds[1],
+                    role = MessageRole.USER,
+                    content = "Cached message 2",
+                    attachments = listOf(attachment),
+                )
+
+            @Suppress("UNCHECKED_CAST")
+            val state =
+                ChatViewModel::class.java
+                    .getDeclaredField("_uiState")
+                    .apply { isAccessible = true }
+                    .get(viewModel) as MutableStateFlow<Any>
+            state.value = viewModel.uiState.value.copy(messages = viewModel.uiState.value.messages + optimistic)
+            cacheRead.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(
+                listOf(cachedIds[0], cachedIds[2]) + (100..102).map { "rest-session-456-$it" } + cachedIds[1],
+                viewModel.uiState.value.messages
+                    .map { it.id },
+            )
+            val retained =
+                viewModel.uiState.value.messages
+                    .last()
+            assertFalse(retained.isHistoricalCache)
+            assertEquals(listOf(attachment), retained.attachments)
         }
 
     // Chat paging: deterministic regressions, with no real network or wall-clock timing.

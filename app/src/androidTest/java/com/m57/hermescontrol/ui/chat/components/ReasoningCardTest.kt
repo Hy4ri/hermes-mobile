@@ -71,4 +71,28 @@ class ReasoningCardTest {
         composeTestRule.onNodeWithTag("reasoning_card").performClick()
         composeTestRule.onNodeWithText("Show full").assertDoesNotExist()
     }
+
+    @Test
+    fun completedReasoning_rendersMarkdown() {
+        renderInLazyColumn("**Important** completed thought")
+
+        composeTestRule.onNodeWithTag("reasoning_card").performClick()
+        composeTestRule.onNodeWithText("Important completed thought").assertIsDisplayed()
+        composeTestRule.onNodeWithText("**Important** completed thought").assertDoesNotExist()
+    }
+
+    @Test
+    fun streamingReasoning_remainsRawText() {
+        composeTestRule.setContent {
+            LazyColumn {
+                item(key = "reasoning") {
+                    ReasoningCard(reasoningText = "**Thinking**", isStreaming = true)
+                }
+            }
+        }
+
+        composeTestRule.onNodeWithTag("reasoning_card").performClick()
+        composeTestRule.onNodeWithText("**Thinking**").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Thinking").assertDoesNotExist()
+    }
 }

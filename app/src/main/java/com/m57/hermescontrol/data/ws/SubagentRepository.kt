@@ -37,6 +37,7 @@ object SubagentRepository {
                     .request(
                         WsMethods.SUBAGENT_LIST,
                         mapOf("session_id" to sessionId),
+                        suppressErrorEvent = true,
                     ).await()
             decode<SubagentListResponse>(result)
         } catch (e: Exception) {
@@ -65,7 +66,13 @@ object SubagentRepository {
         if (sessionId.isNotBlank()) {
             params["session_id"] = sessionId
         }
-        val result = HermesWsClient.request(WsMethods.SUBAGENT_TAIL, params).await()
+        val result =
+            HermesWsClient
+                .request(
+                    WsMethods.SUBAGENT_TAIL,
+                    params,
+                    suppressErrorEvent = true,
+                ).await()
         return decode<SubagentTailResponse>(result)
     }
 

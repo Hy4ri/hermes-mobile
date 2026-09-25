@@ -34,6 +34,7 @@ class ComposerReadinessTest {
                 onMicTap = {},
                 isListening = false,
                 isAgentTyping = true,
+                canInterrupt = ready.value,
                 isConnected = true,
                 commandCatalog = CommandCatalog(),
                 isSessionReady = ready.value,
@@ -42,13 +43,20 @@ class ComposerReadinessTest {
         compose.onNodeWithTag("chat_input").performTextInput("held draft")
         compose.onNodeWithTag("chat_input").assertTextEquals("held draft")
         compose.onNodeWithTag("chat_session_preparing").assertExists()
+        // Nothing to interrupt while the session prepares: the action button
+        // must not offer Stop (review, PR #1250).
+        compose.onNodeWithTag("stop_button").assertDoesNotExist()
         compose.onNodeWithTag("send_button").assertIsNotEnabled().performClick()
         compose.runOnIdle { assertEquals(0, sends) }
         compose.runOnIdle { ready.value = true }
         compose.onNodeWithTag("chat_session_preparing").assertDoesNotExist()
+        // Ready + typing = an interruptible generation: Stop replaces the
+        // action glyph while queue-send stays available in the flat slot.
+        compose.onNodeWithTag("stop_button").assertExists()
         compose.onNodeWithTag("send_button").assertIsEnabled().performClick()
         compose.runOnIdle { assertEquals(1, sends) }
         compose.runOnIdle { ready.value = false }
+        compose.onNodeWithTag("stop_button").assertDoesNotExist()
         compose.onNodeWithTag("send_button").assertIsNotEnabled()
         compose.onNodeWithTag("chat_input").assertTextEquals("held draft")
     }

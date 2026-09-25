@@ -443,7 +443,15 @@ fun MarkdownText(
                 }
 
                 is MdBlock.Table -> {
-                    MarkdownTable(block = block, textColor = textColor)
+                    MarkdownTable(
+                        block = block,
+                        textColor = textColor,
+                        latexMeasurer = latexMeasurer,
+                        searchQuery = searchQuery,
+                        isCurrentMatch = isCurrentMatch,
+                        linkColor = linkColor,
+                        highlights = highlights,
+                    )
                 }
 
                 is MdBlock.Footnotes -> {

@@ -569,6 +569,64 @@ class MarkdownTextFeatureTest {
     }
 
     @Test
+    fun testNestedInlineStyles_preserveCodeAndEmphasisFormatting() {
+        val parsed = parseInline("**bold `code` and *italic***", Color.Black, "", false, Color.Blue, DEFAULT_HIGHLIGHTS)
+
+        assertEquals("bold code and italic", parsed.toString())
+        assertTrue(parsed.spanStyles.any { it.item.fontWeight == androidx.compose.ui.text.font.FontWeight.Bold })
+        assertTrue(parsed.spanStyles.any { it.item.fontFamily == androidx.compose.ui.text.font.FontFamily.Monospace })
+        assertTrue(parsed.spanStyles.any { it.item.fontStyle == androidx.compose.ui.text.font.FontStyle.Italic })
+        val codeStart = parsed.indexOf("code")
+        assertTrue(
+            parsed.spanStyles.any {
+                it.item.fontWeight == androidx.compose.ui.text.font.FontWeight.Bold &&
+                    it.start <= codeStart &&
+                    it.end >= codeStart + 4
+            },
+        )
+        assertTrue(
+            parsed.spanStyles.any {
+                it.item.fontFamily == androidx.compose.ui.text.font.FontFamily.Monospace &&
+                    it.start <= codeStart &&
+                    it.end >= codeStart + 4
+            },
+        )
+    }
+
+    @Test
+    fun testLinkLabel_nestedEmphasisAndCode() {
+        val parsed =
+            parseInline(
+                "[**bold `code`**](https://example.com)",
+                Color.Black,
+                "",
+                false,
+                Color.Blue,
+                DEFAULT_HIGHLIGHTS,
+            )
+
+        assertEquals("bold code", parsed.toString())
+        assertTrue(parsed.getLinkAnnotations(0, parsed.length).isNotEmpty())
+        assertTrue(parsed.spanStyles.any { it.item.fontFamily == androidx.compose.ui.text.font.FontFamily.Monospace })
+    }
+
+    @Test
+    fun testCodeSpan_doesNotParseInnerEmphasis() {
+        val parsed = parseInline("`**literal**`", Color.Black, "", false, Color.Blue, DEFAULT_HIGHLIGHTS)
+
+        assertEquals("**literal**", parsed.toString())
+        assertFalse(parsed.spanStyles.any { it.item.fontWeight == androidx.compose.ui.text.font.FontWeight.Bold })
+    }
+
+    @Test
+    fun testInlineCode_matchesSameLengthBacktickRunAndPreservesUnmatchedRun() {
+        val parsed = parseInline("``a ` tick`` and `unfinished", Color.Black, "", false, Color.Blue, DEFAULT_HIGHLIGHTS)
+
+        assertEquals("a ` tick and `unfinished", parsed.toString())
+        assertTrue(parsed.spanStyles.any { it.item.fontFamily == androidx.compose.ui.text.font.FontFamily.Monospace })
+    }
+
+    @Test
     fun testArabicStartingWithEnglishWord_wrapsEnglishInLtrIsolate() {
         val input = "Okay سكرت كلشي وصار كامل عربي متل ما بدك يا بوبو"
         val parsed = parseInline(input, Color.Black, "", false, Color.Blue, DEFAULT_HIGHLIGHTS)

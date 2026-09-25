@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.data.local
 
 import com.m57.hermescontrol.ui.chat.ChatMessage
+import com.m57.hermescontrol.ui.chat.MessageProvenance
 import com.m57.hermescontrol.ui.chat.MessageRole
 import com.m57.hermescontrol.ui.chat.ToolStatus
 import org.junit.Assert.assertEquals
@@ -185,6 +186,32 @@ class ChatMessageMapperTest {
 
         assertEquals("model_switch", roundTripped.displayKind)
         assertEquals(MessageRole.USER, roundTripped.role)
+    }
+
+    @Test
+    fun roundTripPreservesLocalPendingProvenance() {
+        val roundTripped =
+            ChatMessage(
+                id = "pending",
+                role = MessageRole.USER,
+                content = "not submitted",
+                messageProvenance = MessageProvenance.LOCAL_PENDING,
+            ).toEntity("s").toUiModel()
+        assertEquals(MessageProvenance.LOCAL_PENDING, roundTripped.messageProvenance)
+    }
+
+    @Test
+    fun unknownPersistedProvenanceDoesNotInventDeliveryEvidence() {
+        val entity =
+            ChatMessageEntity(
+                id = "legacy",
+                sessionId = "s",
+                role = "USER",
+                content = "ambiguous",
+                timestamp = 1L,
+                messageProvenance = "future-value",
+            )
+        assertEquals(MessageProvenance.UNKNOWN, entity.toUiModel().messageProvenance)
     }
 
     @Test

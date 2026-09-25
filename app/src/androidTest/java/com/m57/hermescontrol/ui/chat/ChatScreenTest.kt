@@ -4,16 +4,19 @@ import android.content.pm.PackageManager
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.core.content.ContextCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
 import com.m57.hermescontrol.data.model.Attachment
+import com.m57.hermescontrol.data.model.BusySendMode
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.ui.common.ActionProgressController
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
+import io.mockk.verify
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -124,5 +127,38 @@ class ChatScreenTest {
 
         composeTestRule.onNodeWithTag("chat_input").assertIsDisplayed()
         composeTestRule.onNodeWithTag("send_button").assertIsDisplayed()
+    }
+
+    @Test
+    fun chatScreen_primarySendUsesSavedBusyDefault() {
+        val uiState =
+            ChatUiState(
+                connectionStatus = ConnectionStatus.CONNECTED,
+                isSessionReady = true,
+                busySendMode = BusySendMode.QUEUE,
+            )
+        val mockViewModel = mockk<ChatViewModel>(relaxed = true)
+        every { mockViewModel.uiState } returns MutableStateFlow(uiState).asStateFlow()
+        every { mockViewModel.streamingState } returns MutableStateFlow(StreamingState()).asStateFlow()
+        every { mockViewModel.timelineState } returns MutableStateFlow(ChatTimelineState()).asStateFlow()
+        every { mockViewModel.connectionOperationState } returns
+            MutableStateFlow(ConnectionOperationUiState()).asStateFlow()
+        every { mockViewModel.actionProgress } returns
+            ActionProgressController(scope = CoroutineScope(Dispatchers.Main))
+        every { mockViewModel.sendMessage(any(), any()) } returns true
+
+        composeTestRule.setContent {
+            ChatScreen(
+                onOpenDrawer = {},
+                sessionId = null,
+                viewModel = mockViewModel,
+            )
+        }
+
+        composeTestRule.onNodeWithTag("chat_input").performTextInput("Use my saved default")
+        composeTestRule.onNodeWithTag("send_button").performClick()
+
+        verify(exactly = 1) { mockViewModel.sendMessage("Use my saved default", null) }
+        verify(exactly = 0) { mockViewModel.sendMessage("Use my saved default", BusySendMode.CORRECT) }
     }
 }

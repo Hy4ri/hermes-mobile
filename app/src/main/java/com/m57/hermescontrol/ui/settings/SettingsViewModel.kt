@@ -6,6 +6,7 @@ import com.m57.hermescontrol.data.config.ConnectionProfile
 import com.m57.hermescontrol.data.config.resolveBaseUrl
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.SessionListCacheStore
+import com.m57.hermescontrol.data.model.BusySendMode
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.CleartextPolicy
 import com.m57.hermescontrol.data.remote.NetworkResult
@@ -37,6 +38,7 @@ data class SettingsUiState(
     val testResult: String? = null,
     val isSaved: Boolean = false,
     val typingEffectEnabled: Boolean = false,
+    val busySendMode: BusySendMode = BusySendMode.CORRECT,
     val typingEffectDelayMs: Int = 30,
     val chatFontScale: Float = 1.0f,
     val messageStatsEnabled: Boolean = false,
@@ -85,6 +87,7 @@ class SettingsViewModel(
         val useDynamicColors = AuthManager.isUseDynamicColors()
         val themePreset = AuthManager.getThemePreset()
         val typingEffectEnabled = AuthManager.isTypingEffectEnabled()
+        val busySendMode = AuthManager.getBusySendMode()
         val typingEffectDelayMs = AuthManager.getTypingEffectDelayMs()
         val chatFontScale = AuthManager.getChatFontScale()
         val messageStatsEnabled = AuthManager.isMessageStatsEnabled()
@@ -112,6 +115,7 @@ class SettingsViewModel(
                 useDynamicColors = useDynamicColors,
                 themePreset = themePreset,
                 typingEffectEnabled = typingEffectEnabled,
+                busySendMode = busySendMode,
                 typingEffectDelayMs = typingEffectDelayMs,
                 chatFontScale = chatFontScale,
                 messageStatsEnabled = messageStatsEnabled,
@@ -334,6 +338,11 @@ class SettingsViewModel(
     fun onTypingEffectEnabledChange(enabled: Boolean) {
         _uiState.update { it.copy(typingEffectEnabled = enabled, isSaved = false) }
         AuthManager.setTypingEffectEnabled(enabled)
+    }
+
+    fun onBusySendModeChange(mode: BusySendMode) {
+        _uiState.update { it.copy(busySendMode = mode, isSaved = false) }
+        AuthManager.setBusySendMode(mode)
     }
 
     fun onTypingEffectDelayMsChange(delayMs: Int) {

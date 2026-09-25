@@ -94,6 +94,10 @@ class SlashCommandDispatchRpcTest {
         mockConnectionStatus.value = ConnectionStatus.DISCONNECTED
 
         every { AuthManager.getToken() } returns "test-token"
+        every { AuthManager.getPinnedModels() } returns emptyList()
+        every { AuthManager.getBaseUrl() } returns "http://test.local/"
+        every { AuthManager.getSelectedProfileId() } returns null
+        every { AuthManager.getBusySendMode() } returns com.m57.hermescontrol.data.model.BusySendMode.CORRECT
         every { AuthManager.isTypingEffectEnabled() } returns true
         every { AuthManager.getTypingEffectDelayMs() } returns 30
         every { AuthManager.isMessageStatsEnabled() } returns false
@@ -152,7 +156,15 @@ class SlashCommandDispatchRpcTest {
     }
 
     private suspend fun TestScope.createViewModelWithSession(): Pair<ChatViewModel, String> {
-        val vm = ChatViewModel(app, false, fakeRepo, FakeSlashUsageStore(), ioDispatcher = testDispatcher)
+        val vm =
+            ChatViewModel(
+                app,
+                false,
+                fakeRepo,
+                FakeSlashUsageStore(),
+                ioDispatcher = testDispatcher,
+                sendStore = ChatSendStore(),
+            )
         advanceUntilIdle()
         mockConnectionStatus.value = ConnectionStatus.CONNECTED
         mockEventsFlow.emit(WsEvent.GatewayReady(null))

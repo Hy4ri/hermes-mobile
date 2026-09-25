@@ -89,6 +89,7 @@ import com.m57.hermescontrol.theme.CodeTerminalBorder
 import com.m57.hermescontrol.theme.CodeTerminalMuted
 import com.m57.hermescontrol.theme.CodeTerminalText
 import com.m57.hermescontrol.ui.chat.ClarifyUi
+import com.m57.hermescontrol.ui.chat.MarkdownText
 import com.m57.hermescontrol.ui.chat.SubagentIndicator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -101,7 +102,8 @@ import kotlinx.coroutines.withContext
  * (reasoning-model thinking steps) before the final answer.
  *
  * Collapsed: "🧠 Reasoning · {N} steps" with chevron.
- * Expanded: reasoning text in monospace bodySmall, capped at ~40% of the
+ * Expanded: completed reasoning is Markdown; streaming text stays raw,
+ *           capped at ~40% of the
  *           screen height with internal scroll; "Show full" lifts the cap.
  * Long-press anywhere: copies the reasoning trace to the clipboard.
  * Streaming: pulsing indicator at the bottom while [isStreaming].
@@ -180,26 +182,35 @@ fun ReasoningCard(
             }
             AnimatedVisibility(visible = expanded) {
                 Column {
-                    Text(
-                        text = reasoningText,
-                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier =
-                            Modifier
-                                .padding(top = 4.dp)
-                                .then(
-                                    if (!fullHeight) {
-                                        // Capped at ~40% of the screen with internal scroll.
-                                        Modifier.heightIn(max = capHeight).verticalScroll(scrollState)
-                                    } else {
-                                        // "Show full": render the whole trace at natural height.
-                                        // A scrollable must NEVER be measured with an infinite
-                                        // max height — inside a LazyColumn item (unbounded main
-                                        // axis) that combination throws IllegalStateException.
-                                        Modifier
-                                    },
-                                ),
-                    )
+                    val contentModifier =
+                        Modifier
+                            .padding(top = 4.dp)
+                            .then(
+                                if (!fullHeight) {
+                                    // Capped at ~40% of the screen with internal scroll.
+                                    Modifier.heightIn(max = capHeight).verticalScroll(scrollState)
+                                } else {
+                                    // "Show full": render the whole trace at natural height.
+                                    // A scrollable must NEVER be measured with an infinite
+                                    // max height — inside a LazyColumn item (unbounded main
+                                    // axis) that combination throws IllegalStateException.
+                                    Modifier
+                                },
+                            )
+                    if (isStreaming) {
+                        Text(
+                            text = reasoningText,
+                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = contentModifier,
+                        )
+                    } else {
+                        MarkdownText(
+                            text = reasoningText,
+                            textColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = contentModifier,
+                        )
+                    }
                     if (isStreaming) {
                         ReasoningPulsingDot(modifier = Modifier.padding(top = 6.dp))
                     }

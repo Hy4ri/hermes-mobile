@@ -6,8 +6,12 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,6 +31,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddToQueue
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Stop
@@ -48,20 +53,27 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.PointerInputScope
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Bottom controls row for the chat composer, rendered inside the composer card.
@@ -83,6 +95,7 @@ import com.m57.hermescontrol.R
  * When [supportsReasoning] is false the model takes no reasoning parameter
  * and the level menu is disabled.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ComposerToolbar(
     isConnected: Boolean,
@@ -96,7 +109,10 @@ fun ComposerToolbar(
     modifier: Modifier = Modifier,
     canSend: Boolean = false,
     showSend: Boolean = canSend,
+    showQueue: Boolean = false,
     onSend: () -> Unit = {},
+    onQueue: () -> Unit = {},
+    onStopAndSend: () -> Unit = {},
     canDisableReasoning: Boolean? = null,
     supportsReasoning: Boolean? = null,
     fastMode: Boolean = false,
@@ -107,11 +123,49 @@ fun ComposerToolbar(
     reasoningWireLevel: String? = null,
     pendingReasoningLevel: String? = null,
     isSessionReady: Boolean = true,
+    canInterrupt: Boolean = false,
+    onMicHoldStart: () -> Unit = {},
+    onMicHoldEnd: () -> Unit = {},
+    onMicHoldCancel: () -> Unit = {},
+    onStopGeneration: () -> Unit = {},
 ) {
     var showReasoningMenu by remember { mutableStateOf(false) }
     val palette = composerPalette()
     val reasoningDisabledForModel = supportsReasoning == false
     val canDisable = canDisableReasoning
+
+    // Telegram-style voice notes: hold to record, release to send, slide away
+    // to cancel. Both mic controls run the same single pointer loop
+    // (micHoldHandler), which owns the whole press until finger-up — so the
+    // release that submits the note can never be lost between recompositions.
+    val currentIsConnected = rememberUpdatedState(isConnected)
+    val currentShowSend = rememberUpdatedState(showSend)
+    val currentCanInterrupt = rememberUpdatedState(canInterrupt)
+    val currentOnMicHoldStart = rememberUpdatedState(onMicHoldStart)
+    val currentOnMicHoldEnd = rememberUpdatedState(onMicHoldEnd)
+    val currentOnMicHoldCancel = rememberUpdatedState(onMicHoldCancel)
+    val flatMicGesture =
+        Modifier.pointerInput(Unit) {
+            micHoldHandler(
+                isEnabled = {
+                    currentIsConnected.value && currentShowSend.value && !currentCanInterrupt.value
+                },
+                onHoldStart = { currentOnMicHoldStart.value() },
+                onHoldEnd = { currentOnMicHoldEnd.value() },
+                onHoldCancel = { currentOnMicHoldCancel.value() },
+            )
+        }
+    val actionMicGesture =
+        Modifier.pointerInput(Unit) {
+            micHoldHandler(
+                isEnabled = {
+                    currentIsConnected.value && !currentShowSend.value && !currentCanInterrupt.value
+                },
+                onHoldStart = { currentOnMicHoldStart.value() },
+                onHoldEnd = { currentOnMicHoldEnd.value() },
+                onHoldCancel = { currentOnMicHoldCancel.value() },
+            )
+        }
 
     Row(
         modifier =
@@ -408,55 +462,118 @@ fun ComposerToolbar(
             }
         }
 
-        // Flat mic / stop button — only while the action button is in send mode
+        // Flat slot — mic while idle; while a generation can be interrupted it
+        // keeps queue-send available (the action button carries Stop). During
+        // session preparation the mic stays here and the action button is a
+        // disabled send: Stop must not appear when there is nothing to
+        // interrupt (review, PR #1250).
         AnimatedVisibility(
             visible = showSend,
             enter = fadeIn() + scaleIn(initialScale = 0.8f),
             exit = fadeOut() + scaleOut(targetScale = 0.8f),
         ) {
+            if (canInterrupt) {
+                FilledIconButton(
+                    onClick = onSend,
+                    enabled = canSend,
+                    colors = flatIconButtonColors(palette),
+                    modifier =
+                        Modifier
+                            .size(ControlSize)
+                            .testTag("send_button"),
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.Send,
+                        contentDescription = stringResource(R.string.chat_send_desc),
+                    )
+                }
+            } else {
+                FilledIconButton(
+                    onClick = onMicTap,
+                    enabled = isConnected,
+                    colors = if (isListening) listeningIconButtonColors() else flatIconButtonColors(palette),
+                    modifier =
+                        Modifier
+                            .size(ControlSize)
+                            .testTag(if (isListening) "mic_stop_button" else "mic_button")
+                            .then(flatMicGesture),
+                ) {
+                    Icon(
+                        imageVector = if (isListening) Icons.Default.Stop else Icons.Outlined.Mic,
+                        contentDescription = if (isListening) "Stop listening" else "Mic",
+                    )
+                }
+            }
+        }
+
+        AnimatedVisibility(
+            visible = showQueue,
+            enter = fadeIn() + scaleIn(initialScale = 0.8f),
+            exit = fadeOut() + scaleOut(targetScale = 0.8f),
+        ) {
             FilledIconButton(
-                onClick = onMicTap,
-                enabled = isConnected,
-                colors = if (isListening) listeningIconButtonColors() else flatIconButtonColors(palette),
-                modifier =
-                    Modifier
-                        .size(ControlSize)
-                        .testTag(if (isListening) "mic_stop_button" else "mic_button"),
+                onClick = onQueue,
+                enabled = canSend,
+                colors = flatIconButtonColors(palette),
+                modifier = Modifier.size(48.dp).testTag("queue_button"),
             ) {
                 Icon(
-                    imageVector = if (isListening) Icons.Default.Stop else Icons.Outlined.Mic,
-                    contentDescription = if (isListening) "Stop listening" else "Mic",
+                    imageVector = Icons.Default.AddToQueue,
+                    contentDescription = stringResource(R.string.chat_busy_queue_action),
+                    modifier = Modifier.size(20.dp),
                 )
             }
         }
 
         // Action button — send when a send is possible, mic / stop otherwise
-        FilledIconButton(
-            onClick = if (showSend) onSend else onMicTap,
-            enabled = if (showSend) canSend else isConnected,
-            colors =
-                if (!showSend && isListening) {
-                    listeningIconButtonColors()
-                } else {
-                    IconButtonDefaults.filledIconButtonColors(
-                        containerColor = palette.action,
-                        contentColor = palette.onAction,
-                    )
-                },
+        val stopAndSendLabel = stringResource(R.string.chat_busy_stop_and_send)
+        val actionEnabled = if (showSend) canSend else isConnected
+        Box(
             modifier =
                 Modifier
-                    .size(ControlSize)
-                    .testTag(
+                    .size(if (showSend) 48.dp else ControlSize)
+                    .clip(CircleShape)
+                    .background(
+                        if (!showSend && isListening) {
+                            MaterialTheme.colorScheme.errorContainer
+                        } else {
+                            palette.action
+                        },
+                    ).semantics {
+                        if (showSend && showQueue && canSend) {
+                            customActions =
+                                listOf(
+                                    CustomAccessibilityAction(stopAndSendLabel) {
+                                        onStopAndSend()
+                                        true
+                                    },
+                                )
+                        }
+                    }.combinedClickable(
+                        enabled = actionEnabled,
+                        onClick = {
+                            when {
+                                canInterrupt -> onStopGeneration()
+                                showSend -> onSend()
+                                else -> onMicTap()
+                            }
+                        },
+                        onLongClick = if (showSend && showQueue) onStopAndSend else null,
+                        onLongClickLabel = if (showSend && showQueue) stopAndSendLabel else null,
+                    ).testTag(
                         when {
+                            canInterrupt -> "stop_button"
                             showSend -> "send_button"
                             isListening -> "mic_stop_button"
                             else -> "mic_button"
                         },
-                    ),
+                    ).then(if (showSend || canInterrupt) Modifier else actionMicGesture),
+            contentAlignment = Alignment.Center,
         ) {
             Crossfade(
                 targetState =
                     when {
+                        canInterrupt -> ActionGlyph.STOP
                         showSend -> ActionGlyph.SEND
                         isListening -> ActionGlyph.STOP
                         else -> ActionGlyph.VOICE
@@ -468,15 +585,34 @@ fun ComposerToolbar(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.Send,
                             contentDescription = stringResource(R.string.chat_send_desc),
+                            tint = palette.onAction,
                         )
                     }
 
                     ActionGlyph.STOP -> {
-                        Icon(imageVector = Icons.Default.Stop, contentDescription = "Stop listening")
+                        Icon(
+                            imageVector = Icons.Default.Stop,
+                            contentDescription =
+                                if (canInterrupt) {
+                                    stringResource(R.string.chat_voice_stop_generating)
+                                } else {
+                                    "Stop listening"
+                                },
+                            tint =
+                                if (isListening && !canInterrupt) {
+                                    MaterialTheme.colorScheme.onErrorContainer
+                                } else {
+                                    palette.onAction
+                                },
+                        )
                     }
 
                     ActionGlyph.VOICE -> {
-                        Icon(imageVector = Icons.Outlined.Mic, contentDescription = "Mic")
+                        Icon(
+                            imageVector = Icons.Outlined.Mic,
+                            contentDescription = "Mic",
+                            tint = palette.onAction,
+                        )
                     }
                 }
             }
@@ -581,3 +717,91 @@ fun buildReasoningLabel(
     }
     return reqLabel
 }
+
+/**
+ * Telegram-style mic gesture: press and hold past [HOLD_TO_RECORD_THRESHOLD_MS]
+ * records a voice note, release sends it, and sliding away (left or up) from
+ * the button cancels instead of sending. Short taps use the control's normal
+ * click handler for dictation, so touch and accessibility actions share one
+ * callback path.
+ *
+ * The whole down-to-up sequence lives in this one pointer loop, so the release
+ * that submits can never be lost to a recomposition between press and
+ * finger-up — an earlier interaction-source based approach could lose it and
+ * leave the recorder running until some later tap "sent" the stale clip.
+ */
+private suspend fun PointerInputScope.micHoldHandler(
+    isEnabled: () -> Boolean,
+    onHoldStart: () -> Unit,
+    onHoldEnd: () -> Unit,
+    onHoldCancel: () -> Unit,
+) {
+    val cancelSlop = MIC_SLIDE_CANCEL_DP.dp.toPx()
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false)
+        if (!isEnabled()) {
+            return@awaitEachGesture
+        }
+
+        fun slidAway(position: Offset): Boolean {
+            val dx = position.x - down.position.x
+            val dy = position.y - down.position.y
+            return dx < -cancelSlop || dy < -cancelSlop
+        }
+
+        // Phase 1 — a finger-up before the threshold is a plain tap.
+        var earlyUp = false
+        var gestureAborted = false
+        withTimeoutOrNull(HOLD_TO_RECORD_THRESHOLD_MS) {
+            while (true) {
+                val event = awaitPointerEvent()
+                val change =
+                    event.changes.firstOrNull { it.id == down.id }
+                        ?: run {
+                            gestureAborted = true
+                            return@withTimeoutOrNull
+                        }
+                if (!change.pressed) {
+                    earlyUp = true
+                    return@withTimeoutOrNull
+                }
+                if (change.isConsumed || slidAway(change.position)) {
+                    gestureAborted = true
+                    return@withTimeoutOrNull
+                }
+            }
+        }
+        if (gestureAborted) {
+            return@awaitEachGesture
+        }
+        if (earlyUp) {
+            return@awaitEachGesture
+        }
+
+        // Phase 2 — the threshold passed with the finger down: record until
+        // the finger lifts (send) or slides away (cancel). No timeout here.
+        onHoldStart()
+        var send = false
+        try {
+            while (true) {
+                val event = awaitPointerEvent()
+                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                if (!change.pressed) {
+                    send = true
+                    break
+                }
+                if (change.isConsumed || slidAway(change.position)) {
+                    break
+                }
+            }
+        } finally {
+            if (send) onHoldEnd() else onHoldCancel()
+        }
+    }
+}
+
+/** A press shorter than this is a tap; longer arms voice-note recording. */
+private const val HOLD_TO_RECORD_THRESHOLD_MS = 400L
+
+/** Sliding this far from the mic button (left or up) cancels the recording. */
+private const val MIC_SLIDE_CANCEL_DP = 64

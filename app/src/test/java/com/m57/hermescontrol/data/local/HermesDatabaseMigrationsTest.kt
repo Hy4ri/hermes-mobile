@@ -97,4 +97,16 @@ class HermesDatabaseMigrationsTest {
                 )
             }
         }
+
+    @Test
+    fun migration9to10_addsDurableProvenanceWithoutInventingDeliveryState() =
+        runBlocking {
+            val connection = mockk<SQLiteConnection>(relaxed = true)
+            HermesDatabase.MIGRATION_9_10.migrate(connection)
+            verify(exactly = 1) {
+                connection.execSQL(
+                    "ALTER TABLE chat_messages ADD COLUMN message_provenance TEXT NOT NULL DEFAULT 'UNKNOWN'",
+                )
+            }
+        }
 }

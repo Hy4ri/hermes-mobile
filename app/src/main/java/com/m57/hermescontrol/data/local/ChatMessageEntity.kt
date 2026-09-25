@@ -54,6 +54,8 @@ data class ChatMessageEntity(
     val sortGroup: Int = 1,
     @ColumnInfo(name = "sort_order", defaultValue = "0")
     val sortOrder: Long = 0,
+    @ColumnInfo(name = "message_provenance", defaultValue = "'UNKNOWN'")
+    val messageProvenance: String = "UNKNOWN",
 )
 
 internal fun ChatMessageEntity.isSessionStartMarker(): Boolean =

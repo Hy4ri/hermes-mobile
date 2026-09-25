@@ -86,4 +86,7 @@ interface ChatMessageDao {
 
     @Query("DELETE FROM chat_messages WHERE session_id = :sessionId")
     suspend fun deleteMessagesForSession(sessionId: String)
+
+    @Query("DELETE FROM chat_messages WHERE id = :id AND rest_id IS NULL")
+    suspend fun deleteUnconfirmedMessage(id: String)
 }

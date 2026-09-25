@@ -7,6 +7,8 @@ import com.m57.hermescontrol.data.model.ActiveProfileResponse
 import com.m57.hermescontrol.data.model.AddMcpServerRequest
 import com.m57.hermescontrol.data.model.AgentPluginInstallBody
 import com.m57.hermescontrol.data.model.AnalyticsResponse
+import com.m57.hermescontrol.data.model.AudioTranscriptionRequest
+import com.m57.hermescontrol.data.model.AudioTranscriptionResponse
 import com.m57.hermescontrol.data.model.AuxiliaryModelsResponse
 import com.m57.hermescontrol.data.model.BackupTriggerRequest
 import com.m57.hermescontrol.data.model.BulkDeleteRequest
@@ -1030,4 +1032,14 @@ interface HermesApiService : KanbanApiService {
     suspend fun deleteManagedFile(
         @Body body: ManagedFileDelete,
     ): Response<ManagedFileActionResponse>
+
+    // ── Audio: server-side transcription ────────────────────────────────
+    // The dashboard's voice relay (hermes_cli/web_routers/audio.py) — the
+    // same endpoint the desktop client's voice notes use. The clip rides
+    // inline as a base64 data URL; the server resolves STT through the
+    // active profile's configured provider.
+    @POST("api/audio/transcribe")
+    suspend fun transcribeAudio(
+        @Body body: AudioTranscriptionRequest,
+    ): Response<AudioTranscriptionResponse>
 }

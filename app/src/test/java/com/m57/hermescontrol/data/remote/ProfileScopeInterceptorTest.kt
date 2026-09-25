@@ -2,8 +2,10 @@ package com.m57.hermescontrol.data.remote
 
 import com.m57.hermescontrol.data.local.AuthManager
 import okhttp3.HttpUrl
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -59,6 +61,7 @@ class ProfileScopeInterceptorTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
         val builder = Request.Builder().url(server.url(path))
         when (method) {
+            "POST" -> builder.post("{}".toRequestBody("application/json".toMediaType()))
             "DELETE" -> builder.delete()
             else -> builder.get()
         }
@@ -268,5 +271,28 @@ class ProfileScopeInterceptorTest {
         val url = server.takeRequest().requestUrl!!
         assertEquals("work", url.queryParameter("profile"))
         assertEquals("/api/status/health", url.encodedPath)
+    }
+
+    @Test
+    fun transcribeRoute_getsTheActiveNonDefaultProfile() {
+        // Review (PR #1250): /api/audio/transcribe resolves STT through the
+        // request's profile on the backend — the desktop sends this route
+        // `...profileScoped()`. Unscoped, a multi-profile host would
+        // transcribe under the launch profile instead of the user's pick.
+        val client = clientFor("work")
+
+        val url = requestedUrl(client, "api/audio/transcribe", method = "POST")
+
+        assertEquals("work", url.queryParameter("profile"))
+        assertEquals("/api/audio/transcribe", url.encodedPath)
+    }
+
+    @Test
+    fun lookalikeAudioPath_notScoped() {
+        val client = clientFor("work")
+
+        val url = requestedUrl(client, "api/audio-extras")
+
+        assertNull(url.queryParameter("profile"))
     }
 }

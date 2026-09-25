@@ -27,6 +27,21 @@ class FullBleedTurnsTest {
     private fun entries(vararg e: AgentEntry) = ChatTurn.Agent(e.toList())
 
     @Test
+    fun historicalRunningToolDoesNotClaimLiveActivity() {
+        val messages =
+            listOf(
+                msg("user", MessageRole.USER),
+                msg("old-tool", MessageRole.TOOL, toolStatus = ToolStatus.RUNNING)
+                    .copy(toolName = "terminal", isHistoricalCache = true),
+            )
+        assertEquals(AgentStatus.Typing, deriveAgentStatus(true, StreamingState(), messages))
+        assertEquals(
+            AgentStatus.Tool("terminal"),
+            deriveAgentStatus(true, StreamingState(), messages.map { it.copy(isHistoricalCache = false) }),
+        )
+    }
+
+    @Test
     fun `empty list produces no turns`() {
         assertEquals(emptyList<ChatTurn>(), groupIntoTurns(emptyList()))
     }

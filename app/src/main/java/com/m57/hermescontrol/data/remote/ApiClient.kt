@@ -4,9 +4,11 @@ import com.m57.hermescontrol.BuildConfig
 import com.m57.hermescontrol.data.local.AuthManager
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
+import java.util.concurrent.TimeUnit
 
 /**
  * Provides a Retrofit-backed [HermesApiService].
@@ -21,6 +23,9 @@ object ApiClient {
 
     @Volatile
     private var service: HermesApiService? = null
+
+    @Volatile
+    private var okHttpClient: OkHttpClient? = null
 
     /** The current [HermesApiService] instance. Lazily created on first access. */
     val hermesApi: HermesApiService
@@ -39,6 +44,7 @@ object ApiClient {
         synchronized(this) {
             retrofit = null
             service = null
+            okHttpClient = null
         }
     }
 
@@ -81,6 +87,64 @@ object ApiClient {
         return tempRetrofit.create(HermesApiService::class.java)
     }
 
+    /**
+     * Dedicated [HermesApiService] for the blocking voice-note transcription
+     * POST (`/api/audio/transcribe`).
+     *
+     * STT blocks until the profile's provider finishes, so it cannot run on
+     * the shared 30s client, and a re-submitted POST would repeat expensive
+     * provider work after the request may already have reached the server
+     * (the repository also passes `retries = 0`). The returned service reuses
+     * the shared connection pool and the auth/profile interceptor stack, and
+     * applies [readTimeoutMs] to reads and writes with transport retries
+     * disabled (review, PR #1250).
+     */
+    fun transcriptionService(readTimeoutMs: Long): HermesApiService {
+        val client =
+            OkHttpProvider
+                .base
+                .newBuilder()
+                .addInterceptor(restAuthInterceptor())
+                .addInterceptor(ProfileScopeInterceptor)
+                .authenticator(TokenRefreshAuthenticator)
+                .readTimeout(readTimeoutMs, TimeUnit.MILLISECONDS)
+                .writeTimeout(readTimeoutMs, TimeUnit.MILLISECONDS)
+                .retryOnConnectionFailure(false)
+                .build()
+        return Retrofit
+            .Builder()
+            .baseUrl(AuthManager.endpointForBuild().baseUrl)
+            .client(client)
+            .addConverterFactory(OkHttpProvider.json.asConverterFactory("application/json".toMediaType()))
+            .build()
+            .create(HermesApiService::class.java)
+    }
+
+    /**
+     * REST auth stamping shared by every client: token mode sends the bearer
+     * header; gated (basic-auth cookie) mode leaves the request alone because
+     * the shared CookieManager jar carries the session cookie and a stray
+     * Authorization header would 401 (issue #470).
+     */
+    private fun restAuthInterceptor(): Interceptor =
+        Interceptor { chain ->
+            val request = chain.request()
+            if (AuthManager.isGatedMode()) {
+                return@Interceptor chain.proceed(request)
+            }
+            val token = AuthManager.getToken()
+            if (!token.isNullOrBlank()) {
+                chain.proceed(
+                    request
+                        .newBuilder()
+                        .addHeader("Authorization", "Bearer $token")
+                        .build(),
+                )
+            } else {
+                chain.proceed(request)
+            }
+        }
+
     // ── Internal ─────────────────────────────────────────────────────────
 
     private fun buildService(): HermesApiService =
@@ -111,25 +175,7 @@ object ApiClient {
         //    must NOT stamp one here — otherwise every REST tab (skills, cron,
         //    config, ...) fails with "token expired" while the WS chat, which
         //    authenticates via ?ticket=, keeps working.
-        val authInterceptor =
-            Interceptor { chain ->
-                val request = chain.request()
-                if (AuthManager.isGatedMode()) {
-                    // Cookie in the shared jar is the only valid REST credential.
-                    return@Interceptor chain.proceed(request)
-                }
-                val token = AuthManager.getToken()
-                if (!token.isNullOrBlank()) {
-                    chain.proceed(
-                        request
-                            .newBuilder()
-                            .addHeader("Authorization", "Bearer $token")
-                            .build(),
-                    )
-                } else {
-                    chain.proceed(request)
-                }
-            }
+        val authInterceptor = restAuthInterceptor()
 
         val okHttp =
             OkHttpProvider

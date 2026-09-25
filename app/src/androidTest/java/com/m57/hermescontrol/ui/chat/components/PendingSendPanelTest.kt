@@ -27,7 +27,7 @@ class PendingSendPanelTest {
     @Test
     fun ordinarySendNeverShowsDeliveryPanel() {
         val state = mutableStateOf(PendingSendState.SENDING)
-        compose.setContent { PendingSendPanel(listOf(row(state.value)), onSendNow = {}) }
+        compose.setContent { PendingSendPanel(listOf(row(state.value)), mainTurnBusy = false, onSendNow = {}) }
         compose.onNodeWithText("My message").assertDoesNotExist()
         compose.onNodeWithText(compose.activity.getString(R.string.chat_pending_sends)).assertDoesNotExist()
         compose.runOnIdle { state.value = PendingSendState.ACCEPTED }
@@ -38,7 +38,7 @@ class PendingSendPanelTest {
     @Test
     fun queueDisappearsWhenDispatchedWithoutAwaitingLabel() {
         val state = mutableStateOf(PendingSendState.QUEUED)
-        compose.setContent { PendingSendPanel(listOf(row(state.value)), onSendNow = {}) }
+        compose.setContent { PendingSendPanel(listOf(row(state.value)), mainTurnBusy = false, onSendNow = {}) }
         compose.onNodeWithText(compose.activity.getString(R.string.chat_pending_queued)).assertIsDisplayed()
         compose.onNodeWithText(compose.activity.getString(R.string.chat_pending_send_now_warning)).assertDoesNotExist()
         compose.runOnIdle { state.value = PendingSendState.SENDING }
@@ -51,7 +51,13 @@ class PendingSendPanelTest {
     fun failedAndUncertainDeliveryRemainRecoverable() {
         val state = mutableStateOf(PendingSendState.REJECTED)
         var retried: String? = null
-        compose.setContent { PendingSendPanel(listOf(row(state.value)), onSendNow = { retried = it }) }
+        compose.setContent {
+            PendingSendPanel(
+                listOf(row(state.value)),
+                mainTurnBusy = false,
+                onSendNow = { retried = it },
+            )
+        }
         compose.onNodeWithText(compose.activity.getString(R.string.chat_pending_rejected)).assertIsDisplayed()
         compose.onNodeWithText(compose.activity.getString(R.string.chat_pending_send_now)).performClick()
         compose.runOnIdle {
@@ -60,5 +66,33 @@ class PendingSendPanelTest {
         }
         compose.onNodeWithText(compose.activity.getString(R.string.chat_pending_unknown)).assertIsDisplayed()
         compose.onNodeWithText(compose.activity.getString(R.string.chat_pending_send_now_warning)).assertIsDisplayed()
+    }
+
+    @Test
+    fun busyPanelWarnsAndLabelsEveryRecoverableActionAsStopAndSend() {
+        val state = mutableStateOf(PendingSendState.QUEUED)
+        compose.setContent {
+            PendingSendPanel(
+                sends = listOf(row(state.value)),
+                mainTurnBusy = true,
+                onSendNow = {},
+            )
+        }
+
+        listOf(
+            PendingSendState.QUEUED,
+            PendingSendState.PARKED,
+            PendingSendState.REJECTED,
+            PendingSendState.UNKNOWN,
+        ).forEach { pendingState ->
+            compose.runOnIdle { state.value = pendingState }
+            compose
+                .onNodeWithText(
+                    compose.activity.getString(R.string.chat_pending_send_now_warning),
+                ).assertIsDisplayed()
+            compose.onNodeWithText(compose.activity.getString(R.string.chat_busy_stop_and_send)).assertIsDisplayed()
+            compose.onNodeWithText(compose.activity.getString(R.string.chat_pending_send_now)).assertDoesNotExist()
+            compose.onNodeWithText(compose.activity.getString(R.string.chat_pending_send_again)).assertDoesNotExist()
+        }
     }
 }

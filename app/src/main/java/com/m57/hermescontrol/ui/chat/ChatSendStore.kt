@@ -19,6 +19,8 @@ data class PendingSend(
     val state: PendingSendState = PendingSendState.QUEUED,
     val createdAt: Long = System.currentTimeMillis(),
     val attempts: Int = 0,
+    /** Legacy source URIs are retained for an explicit user retry, never auto-dispatched. */
+    val requiresAttachmentRecovery: Boolean = false,
 )
 
 @Serializable
@@ -75,21 +77,32 @@ class ChatSendStore(
         // A request may have reached the gateway before process death. Never replay it automatically.
         replace(
             rows.map {
-                if (it.state == PendingSendState.SENDING || it.state == PendingSendState.ACCEPTED) {
-                    it.copy(state = PendingSendState.UNKNOWN)
-                } else {
-                    it
+                it.quarantineLegacyAttachments().let { quarantined ->
+                    if (quarantined.state == PendingSendState.SENDING ||
+                        quarantined.state == PendingSendState.ACCEPTED
+                    ) {
+                        quarantined.copy(state = PendingSendState.UNKNOWN)
+                    } else {
+                        quarantined
+                    }
                 }
             },
         )
     }
+
+    private fun PendingSend.quarantineLegacyAttachments(): PendingSend =
+        if (attachments.any { !it.uri.startsWith("file:", ignoreCase = true) }) {
+            copy(state = PendingSendState.REJECTED, requiresAttachmentRecovery = true)
+        } else {
+            this
+        }
 
     @Synchronized
     fun all(): List<PendingSend> = rows
 
     @Synchronized
     fun put(row: PendingSend) {
-        replace(rows.filterNot { it.id == row.id } + row)
+        replace(rows.filterNot { it.id == row.id } + row.quarantineLegacyAttachments())
     }
 
     @Synchronized

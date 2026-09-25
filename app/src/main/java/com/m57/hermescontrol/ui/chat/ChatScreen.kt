@@ -842,6 +842,7 @@ fun ChatScreen(
 
             com.m57.hermescontrol.ui.chat.components.PendingSendPanel(
                 sends = state.pendingSends,
+                mainTurnBusy = state.isMainTurnBusy,
                 onSendNow = viewModel::sendQueuedNow,
             )
 
@@ -849,7 +850,7 @@ fun ChatScreen(
                 inputFieldValue = inputFieldValue,
                 onInputChange = { inputFieldValue = it },
                 onSend = {
-                    if (viewModel.sendMessage(inputFieldValue.text, BusySendMode.CORRECT)) {
+                    if (viewModel.sendMessage(inputFieldValue.text)) {
                         inputFieldValue = TextFieldValue("")
                         // Jump only after an accepted send. A readiness race keeps the draft intact.
                         scrollController.jumpToBottom(animated = true)

@@ -24,6 +24,7 @@ import com.m57.hermescontrol.ui.chat.PendingSendState
 @Composable
 fun PendingSendPanel(
     sends: List<PendingSend>,
+    mainTurnBusy: Boolean,
     onSendNow: (String) -> Unit,
 ) {
     // Delivery receipts stay internal; only queued work and recovery need UI.
@@ -36,7 +37,7 @@ fun PendingSendPanel(
     ) {
         Column(modifier = Modifier.padding(8.dp)) {
             Text(stringResource(R.string.chat_pending_sends), style = MaterialTheme.typography.titleSmall)
-            if (visibleSends.any { it.state == PendingSendState.UNKNOWN }) {
+            if (mainTurnBusy || visibleSends.any { it.state == PendingSendState.UNKNOWN }) {
                 Text(
                     stringResource(R.string.chat_pending_send_now_warning),
                     style = MaterialTheme.typography.bodySmall,
@@ -78,7 +79,9 @@ fun PendingSendPanel(
                             TextButton(onClick = { onSendNow(send.id) }) {
                                 Text(
                                     stringResource(
-                                        if (send.state in
+                                        if (mainTurnBusy) {
+                                            R.string.chat_busy_stop_and_send
+                                        } else if (send.state in
                                             setOf(
                                                 PendingSendState.UNKNOWN,
                                                 PendingSendState.ACCEPTED,

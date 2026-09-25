@@ -10,18 +10,19 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import com.hrm.latex.renderer.measure.LatexMeasurerState
+import com.m57.hermescontrol.theme.SearchHighlightColors
 import com.m57.hermescontrol.util.BidiUtils
 
 private val TABLE_COL_WIDTH = 140.dp
@@ -30,6 +31,11 @@ private val TABLE_COL_WIDTH = 140.dp
 fun MarkdownTable(
     block: MdBlock.Table,
     textColor: Color,
+    latexMeasurer: LatexMeasurerState,
+    searchQuery: String,
+    isCurrentMatch: Boolean,
+    linkColor: Color,
+    highlights: SearchHighlightColors,
     modifier: Modifier = Modifier,
 ) {
     val isRtl =
@@ -49,18 +55,21 @@ fun MarkdownTable(
                     .padding(vertical = 4.dp),
         ) {
             // Header row
-            Row(modifier = Modifier.background(headerBg)) {
+            Row(modifier = Modifier.background(headerBg), verticalAlignment = Alignment.Top) {
                 block.header.forEachIndexed { idx, cell ->
-                    val cellRtl = BidiUtils.isRtlText(cell)
-                    Text(
-                        text = if (cellRtl) BidiUtils.anchorTrailingRtl(cell) else cell,
-                        textAlign = tableTextAlign(alignments.getOrNull(idx)),
-                        color = textColor,
+                    MarkdownInlineText(
+                        text = cell,
+                        textColor = textColor,
+                        latexMeasurer = latexMeasurer,
                         style =
                             MaterialTheme.typography.bodySmall.copy(
                                 fontWeight = FontWeight.Bold,
-                                textDirection = if (cellRtl) TextDirection.Rtl else TextDirection.Ltr,
+                                textAlign = tableTextAlign(alignments.getOrNull(idx)),
                             ),
+                        searchQuery = searchQuery,
+                        isCurrentMatch = isCurrentMatch,
+                        linkColor = linkColor,
+                        highlights = highlights,
                         modifier =
                             Modifier
                                 .width(TABLE_COL_WIDTH)
@@ -71,17 +80,20 @@ fun MarkdownTable(
             HorizontalDivider(color = textColor.copy(alpha = 0.25f))
             // Body rows
             block.rows.forEach { row ->
-                Row {
+                Row(verticalAlignment = Alignment.Top) {
                     row.forEachIndexed { idx, cell ->
-                        val cellRtl = BidiUtils.isRtlText(cell)
-                        Text(
-                            text = if (cellRtl) BidiUtils.anchorTrailingRtl(cell) else cell,
-                            textAlign = tableTextAlign(alignments.getOrNull(idx)),
-                            color = textColor,
+                        MarkdownInlineText(
+                            text = cell,
+                            textColor = textColor,
+                            latexMeasurer = latexMeasurer,
                             style =
                                 MaterialTheme.typography.bodySmall.copy(
-                                    textDirection = if (cellRtl) TextDirection.Rtl else TextDirection.Ltr,
+                                    textAlign = tableTextAlign(alignments.getOrNull(idx)),
                                 ),
+                            searchQuery = searchQuery,
+                            isCurrentMatch = isCurrentMatch,
+                            linkColor = linkColor,
+                            highlights = highlights,
                             modifier =
                                 Modifier
                                     .width(TABLE_COL_WIDTH)
@@ -95,9 +107,9 @@ fun MarkdownTable(
     }
 }
 
-private fun tableTextAlign(align: TableAlign?): TextAlign? =
+private fun tableTextAlign(align: TableAlign?): TextAlign =
     when (align) {
         TableAlign.CENTER -> TextAlign.Center
         TableAlign.RIGHT -> TextAlign.End
-        else -> null
+        else -> TextAlign.Start
     }

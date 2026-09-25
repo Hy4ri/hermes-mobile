@@ -4,6 +4,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import com.m57.hermescontrol.theme.presets.AmoledTheme
 import com.m57.hermescontrol.theme.presets.CatppuccinTheme
+import com.m57.hermescontrol.theme.presets.CyberpunkTheme
 import com.m57.hermescontrol.theme.presets.DefaultTheme
 import com.m57.hermescontrol.theme.presets.GruvboxTheme
 import com.m57.hermescontrol.theme.presets.MonochromeTheme
@@ -26,6 +27,7 @@ class ThemePaletteTest {
             ThemePreset.GRUVBOX to GruvboxTheme,
             ThemePreset.CATPPUCCIN to CatppuccinTheme,
             ThemePreset.AMOLED to AmoledTheme,
+            ThemePreset.CYBERPUNK to CyberpunkTheme,
         )
 
     @Test
@@ -69,6 +71,38 @@ class ThemePaletteTest {
                 assertTrue(
                     "$preset dark=$dark onSurfaceVariant/background contrast must be >= 3:1 (full-bleed header)",
                     contrast(scheme.onSurfaceVariant, scheme.background) >= 3f,
+                )
+            }
+        }
+    }
+
+    /**
+     * Cyberpunk accent-ink gate.
+     *
+     * The web source palette is shadcn-shaped: its `secondary`/`accent` tokens are
+     * SURFACES paired with a `…Foreground` ink. Material 3's `secondary`/`tertiary`
+     * are the opposite — accent INKS painted straight onto background/surface as
+     * icon tints, progress indicators and badge text (ToolBubble, CronJobsScreen,
+     * AchievementsScreen, SourceBadge, ContextUsageChip, GatewayScreen). Assigning
+     * the web surface token to the bare Material slot yields ~1.2:1 invisible ink,
+     * so this guards the corrected direction of that mapping.
+     *
+     * Scoped to CYBERPUNK deliberately: Nord light and Catppuccin light ship
+     * pastel accents at ~2.3:1 today, so a fleet-wide version of this gate would
+     * fail on pre-existing presets and is tracked separately.
+     */
+    @Test
+    fun cyberpunkAccentInksAreVisibleOnItsSurfaces() {
+        val scheme = CyberpunkTheme.darkScheme!!
+        listOf(
+            "secondary" to scheme.secondary,
+            "tertiary" to scheme.tertiary,
+            "outline" to scheme.outline,
+        ).forEach { (name, ink) ->
+            listOf("background" to scheme.background, "surface" to scheme.surface).forEach { (bgName, bg) ->
+                assertTrue(
+                    "Cyberpunk $name/$bgName contrast must be >= 3:1 (painted as icon tint/badge text)",
+                    contrast(ink, bg) >= 3f,
                 )
             }
         }

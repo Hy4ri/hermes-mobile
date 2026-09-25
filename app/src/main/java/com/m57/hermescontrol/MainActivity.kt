@@ -19,6 +19,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.data.update.UpdateNoticeManager
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.notification.NotificationHelper
@@ -68,6 +69,10 @@ class MainActivity : ComponentActivity() {
                 AuthManager.initializationState.collect { state ->
                     if (state == AuthManager.InitializationState.Ready) {
                         if (AuthManager.isGatedMode() || !AuthManager.getToken().isNullOrBlank()) {
+                            // Fresh installs have no local server-profile scope yet. Bootstrap it
+                            // before the first WS dial so session.create/resume carries
+                            // params.profile instead of silently landing in gateway default.
+                            ProfileSwitchCoordinator.restoreActiveProfileScopeIfMissing()
                             HermesWsClient.connect()
                         }
                     }

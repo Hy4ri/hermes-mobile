@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.data.config
 
+import com.m57.hermescontrol.data.model.BusySendMode
 import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
@@ -22,6 +23,7 @@ data class ServerStoreState(
     val pinnedModels: List<PinnedModel> = emptyList(),
     val wsAuthParam: String = "token",
     val typingEffectEnabled: Boolean = true,
+    val busySendMode: BusySendMode = BusySendMode.CORRECT,
     val typingEffectDelayMs: Int = 30,
     val chatFontScale: Float = 1.0f,
     val messageStatsEnabled: Boolean = false,

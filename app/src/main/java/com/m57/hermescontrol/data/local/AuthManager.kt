@@ -13,6 +13,7 @@ import com.m57.hermescontrol.data.config.ServerUrlMigration
 import com.m57.hermescontrol.data.config.resolvedBaseUrl
 import com.m57.hermescontrol.data.config.resolvedHost
 import com.m57.hermescontrol.data.config.resolvedPort
+import com.m57.hermescontrol.data.model.BusySendMode
 import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.data.remote.CleartextPolicy
 import com.m57.hermescontrol.data.remote.CookieManager
@@ -804,6 +805,12 @@ object AuthManager {
     // ── Typing Effect ───────────────────────────────────────────────────
 
     fun isTypingEffectEnabled(): Boolean = serverStore.getLatestState().typingEffectEnabled
+
+    fun getBusySendMode(): BusySendMode = serverStore.getLatestState().busySendMode
+
+    fun setBusySendMode(mode: BusySendMode) {
+        serverStore.update { it.copy(busySendMode = mode) }
+    }
 
     fun setTypingEffectEnabled(enabled: Boolean) {
         serverStore.update { it.copy(typingEffectEnabled = enabled) }

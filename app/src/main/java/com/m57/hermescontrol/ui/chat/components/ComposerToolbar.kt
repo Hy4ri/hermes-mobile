@@ -6,8 +6,10 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,6 +29,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddToQueue
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Stop
@@ -56,7 +59,9 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -83,6 +88,7 @@ import com.m57.hermescontrol.R
  * When [supportsReasoning] is false the model takes no reasoning parameter
  * and the level menu is disabled.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ComposerToolbar(
     isConnected: Boolean,
@@ -96,7 +102,10 @@ fun ComposerToolbar(
     modifier: Modifier = Modifier,
     canSend: Boolean = false,
     showSend: Boolean = canSend,
+    showQueue: Boolean = false,
     onSend: () -> Unit = {},
+    onQueue: () -> Unit = {},
+    onStopAndSend: () -> Unit = {},
     canDisableReasoning: Boolean? = null,
     supportsReasoning: Boolean? = null,
     fastMode: Boolean = false,
@@ -430,29 +439,62 @@ fun ComposerToolbar(
             }
         }
 
+        AnimatedVisibility(
+            visible = showQueue,
+            enter = fadeIn() + scaleIn(initialScale = 0.8f),
+            exit = fadeOut() + scaleOut(targetScale = 0.8f),
+        ) {
+            FilledIconButton(
+                onClick = onQueue,
+                enabled = canSend,
+                colors = flatIconButtonColors(palette),
+                modifier = Modifier.size(48.dp).testTag("queue_button"),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.AddToQueue,
+                    contentDescription = stringResource(R.string.chat_busy_queue_action),
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+
         // Action button — send when a send is possible, mic / stop otherwise
-        FilledIconButton(
-            onClick = if (showSend) onSend else onMicTap,
-            enabled = if (showSend) canSend else isConnected,
-            colors =
-                if (!showSend && isListening) {
-                    listeningIconButtonColors()
-                } else {
-                    IconButtonDefaults.filledIconButtonColors(
-                        containerColor = palette.action,
-                        contentColor = palette.onAction,
-                    )
-                },
+        val stopAndSendLabel = stringResource(R.string.chat_busy_stop_and_send)
+        val actionEnabled = if (showSend) canSend else isConnected
+        Box(
             modifier =
                 Modifier
-                    .size(ControlSize)
-                    .testTag(
+                    .size(if (showSend) 48.dp else ControlSize)
+                    .clip(CircleShape)
+                    .background(
+                        if (!showSend && isListening) {
+                            MaterialTheme.colorScheme.errorContainer
+                        } else {
+                            palette.action
+                        },
+                    ).semantics {
+                        if (showSend && showQueue && canSend) {
+                            customActions =
+                                listOf(
+                                    CustomAccessibilityAction(stopAndSendLabel) {
+                                        onStopAndSend()
+                                        true
+                                    },
+                                )
+                        }
+                    }.combinedClickable(
+                        enabled = actionEnabled,
+                        onClick = if (showSend) onSend else onMicTap,
+                        onLongClick = if (showSend && showQueue) onStopAndSend else null,
+                        onLongClickLabel = if (showSend && showQueue) stopAndSendLabel else null,
+                    ).testTag(
                         when {
                             showSend -> "send_button"
                             isListening -> "mic_stop_button"
                             else -> "mic_button"
                         },
                     ),
+            contentAlignment = Alignment.Center,
         ) {
             Crossfade(
                 targetState =
@@ -468,15 +510,24 @@ fun ComposerToolbar(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.Send,
                             contentDescription = stringResource(R.string.chat_send_desc),
+                            tint = palette.onAction,
                         )
                     }
 
                     ActionGlyph.STOP -> {
-                        Icon(imageVector = Icons.Default.Stop, contentDescription = "Stop listening")
+                        Icon(
+                            imageVector = Icons.Default.Stop,
+                            contentDescription = "Stop listening",
+                            tint = if (isListening) MaterialTheme.colorScheme.onErrorContainer else palette.onAction,
+                        )
                     }
 
                     ActionGlyph.VOICE -> {
-                        Icon(imageVector = Icons.Outlined.Mic, contentDescription = "Mic")
+                        Icon(
+                            imageVector = Icons.Outlined.Mic,
+                            contentDescription = "Mic",
+                            tint = palette.onAction,
+                        )
                     }
                 }
             }

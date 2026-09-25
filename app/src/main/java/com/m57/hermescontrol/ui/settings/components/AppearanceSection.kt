@@ -38,8 +38,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.model.BusySendMode
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
+import com.m57.hermescontrol.ui.chat.label
 import com.m57.hermescontrol.ui.settings.SectionCard
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -215,6 +217,8 @@ internal fun ChatSection(
     onTokensPerSecondChange: (Boolean) -> Unit = {},
     showModelProvider: Boolean = false,
     onShowModelProviderChange: (Boolean) -> Unit = {},
+    busySendMode: BusySendMode = BusySendMode.CORRECT,
+    onBusySendModeChange: (BusySendMode) -> Unit = {},
 ) {
     val fontScaleOptions = listOf(0.85f, 1.0f, 1.15f, 1.30f, 1.50f)
     val currentIndex =
@@ -223,6 +227,38 @@ internal fun ChatSection(
             .takeIf { it >= 0 } ?: 1
 
     SectionCard {
+        var busyModeExpanded by remember { mutableStateOf(false) }
+        Text(
+            text = stringResource(R.string.chat_busy_mode_title),
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        Text(
+            text = stringResource(R.string.chat_busy_mode_desc),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Box {
+            OutlinedButton(onClick = { busyModeExpanded = true }, modifier = Modifier.testTag("busy_send_default")) {
+                Text(busySendMode.label())
+            }
+            DropdownMenu(expanded = busyModeExpanded, onDismissRequest = { busyModeExpanded = false }) {
+                BusySendMode.entries.forEach { mode ->
+                    DropdownMenuItem(
+                        text = { Text(mode.label()) },
+                        onClick = {
+                            onBusySendModeChange(mode)
+                            busyModeExpanded = false
+                        },
+                    )
+                }
+            }
+        }
+        Text(
+            text = stringResource(R.string.chat_busy_interrupt_warning),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.height(16.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,

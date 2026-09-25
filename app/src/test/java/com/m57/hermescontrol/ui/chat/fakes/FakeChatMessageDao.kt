@@ -83,6 +83,10 @@ class FakeChatMessageDao : ChatMessageDao {
         messages.values.removeAll { it.sessionId == sessionId }
     }
 
+    override suspend fun deleteUnconfirmedMessage(id: String) {
+        if (messages[id]?.restId == null) messages.remove(id)
+    }
+
     /** Direct access for test setup — bypasses the suspend modifier. */
     fun addMessageDirect(message: ChatMessageEntity) {
         val existing = messages[message.id]

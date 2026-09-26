@@ -179,13 +179,18 @@ internal fun mapServerMessages(
                 ?: existingById[restId]?.timestamp
                 ?: System.currentTimeMillis()
 
-        val rawContent = msg.displayContentText ?: msg.contentText
+        val rawContent = msg.visibleText
+        // #1284: projected reasoning already excludes public commentary; it is authoritative.
         val rowReasoning =
-            msg.reasoningText.ifBlank {
-                if (role == MessageRole.ASSISTANT) {
-                    reasoningSources[index]?.reasoningText.orEmpty()
-                } else {
-                    existingById[restId]?.reasoningText.orEmpty()
+            if (msg.hasDisplayReasoning) {
+                msg.displayReasoningText
+            } else {
+                msg.reasoningText.ifBlank {
+                    if (role == MessageRole.ASSISTANT) {
+                        reasoningSources[index]?.reasoningText.orEmpty()
+                    } else {
+                        existingById[restId]?.reasoningText.orEmpty()
+                    }
                 }
             }
 

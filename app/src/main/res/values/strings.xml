@@ -1785,4 +1785,5 @@
     <string name="plugins_update_consent_text">Updating %1$s requires the additional capabilities below. Nothing has been installed yet. Accept these capabilities and update?</string>
     <string name="plugins_update_consent_missing">The server did not provide capability details.</string>
     <string name="plugins_update_accept">Accept and update</string>
+    <string name="sessions_storage_corrupt">Session storage is damaged for %1$s. History may be incomplete; previously loaded sessions are kept. Restore or recover the database on the server, then refresh.</string>
 </resources>

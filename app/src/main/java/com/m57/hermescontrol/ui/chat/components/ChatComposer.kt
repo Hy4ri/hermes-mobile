@@ -158,6 +158,17 @@ fun ChatInputBar(
         restoreInputFocus = inputWasFocused
         onMicHoldStart()
     }
+    // A hold can arm and still fail to start the recorder (permission denied,
+    // mic busy). Drop the focus snapshot then, so the end of some later
+    // recording cannot pop the keyboard on its behalf (review, PR #1280).
+    val handleMicHoldEnd = {
+        if (!isRecordingVoice) restoreInputFocus = false
+        onMicHoldEnd()
+    }
+    val handleMicHoldCancel = {
+        if (!isRecordingVoice) restoreInputFocus = false
+        onMicHoldCancel()
+    }
     LaunchedEffect(isRecordingVoice) {
         if (!isRecordingVoice && restoreInputFocus) {
             restoreInputFocus = false
@@ -429,8 +440,8 @@ fun ChatInputBar(
                         onReasoningSelected = onReasoningTap,
                         onMicTap = onMicTap,
                         onMicHoldStart = handleMicHoldStart,
-                        onMicHoldEnd = onMicHoldEnd,
-                        onMicHoldCancel = onMicHoldCancel,
+                        onMicHoldEnd = handleMicHoldEnd,
+                        onMicHoldCancel = handleMicHoldCancel,
                         onMicLock = onMicLock,
                         isVoiceNoteLocked = isVoiceNoteLocked,
                         onSlideProgress = { voiceSlideProgress.value = it },

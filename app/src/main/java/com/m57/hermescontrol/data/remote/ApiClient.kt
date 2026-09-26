@@ -95,9 +95,11 @@ object ApiClient {
      * the shared 30s client, and a re-submitted POST would repeat expensive
      * provider work after the request may already have reached the server
      * (the repository also passes `retries = 0`). The returned service reuses
-     * the shared connection pool and the auth/profile interceptor stack, and
-     * applies [readTimeoutMs] to reads and writes with transport retries
-     * disabled (review, PR #1250).
+     * the shared connection pool and the auth/profile interceptor stack. It
+     * applies [readTimeoutMs] to reads and writes and keeps transport-level
+     * retries on: those only re-dial a dead socket and, when the failure
+     * struck before the body was fully written, resend, while application
+     * retry stays off (review, PR #1250 / #1280).
      */
     fun transcriptionService(readTimeoutMs: Long): HermesApiService {
         val client =
@@ -113,10 +115,12 @@ object ApiClient {
                 // keeps connections far longer than the dashboard's keep-alive,
                 // so the first STT call after an idle spell can ride a socket
                 // the server just closed ("unexpected end of stream") — OkHttp
-                // re-dials and resends on a fresh connection. This does NOT
-                // duplicate provider work: a request that already reached the
-                // server (timeout, 5xx) is not replayed, and safeApiCall still
-                // runs with retries = 0 (review, PR #1250).
+                // re-dials and, when the failure struck before the body was
+                // fully written, resends; it can also retry across routes.
+                // Timeouts and 5xx are never replayed (safeApiCall still runs
+                // with retries = 0), but a reset or an early stream end after
+                // the body was sent may repeat the provider call, so the
+                // duplicate-work risk is small, not zero (review, PR #1280).
                 .retryOnConnectionFailure(true)
                 .build()
         return Retrofit

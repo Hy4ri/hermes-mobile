@@ -533,19 +533,30 @@ fun ComposerToolbar(
                     )
                 }
             } else {
-                FilledIconButton(
-                    onClick = onMicTap,
-                    enabled = isConnected,
-                    colors = if (isListening) listeningIconButtonColors() else flatIconButtonColors(palette),
+                // Plain Box, not FilledIconButton: the hold gesture must sit
+                // innermost in the pointer-modifier chain so it consumes the
+                // release before the tap handler — impossible while the button
+                // supplies its own clickable (review, PR #1280). Same
+                // arrangement as the action button below.
+                val micColors = if (isListening) listeningIconButtonColors() else flatIconButtonColors(palette)
+                Box(
                     modifier =
                         Modifier
                             .size(ControlSize)
-                            .testTag(if (isListening) "mic_stop_button" else "mic_button")
+                            .clip(CircleShape)
+                            .background(
+                                if (isConnected) micColors.containerColor else micColors.disabledContainerColor,
+                            ).combinedClickable(
+                                enabled = isConnected,
+                                onClick = onMicTap,
+                            ).testTag(if (isListening) "mic_stop_button" else "mic_button")
                             .then(flatMicGesture),
+                    contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         imageVector = if (isListening) Icons.Default.Stop else Icons.Outlined.Mic,
                         contentDescription = if (isListening) "Stop listening" else "Mic",
+                        tint = if (isConnected) micColors.contentColor else micColors.disabledContentColor,
                     )
                 }
             }
@@ -572,7 +583,17 @@ fun ComposerToolbar(
 
         // Action button — send when a send is possible, mic / stop otherwise
         val stopAndSendLabel = stringResource(R.string.chat_busy_stop_and_send)
-        val actionEnabled = if (showSend) canSend else isConnected
+        // While a recording is locked this button finishes the voice note, so
+        // it must stay enabled even when the draft alone would not send
+        // (review, PR #1280).
+        val actionEnabled =
+            if (isVoiceNoteLocked) {
+                true
+            } else if (showSend) {
+                canSend
+            } else {
+                isConnected
+            }
         Box(
             modifier =
                 Modifier
@@ -585,7 +606,7 @@ fun ComposerToolbar(
                             palette.action
                         },
                     ).semantics {
-                        if (showSend && showQueue && canSend) {
+                        if (showSend && showQueue && canSend && !isVoiceNoteLocked) {
                             customActions =
                                 listOf(
                                     CustomAccessibilityAction(stopAndSendLabel) {
@@ -598,13 +619,20 @@ fun ComposerToolbar(
                         enabled = actionEnabled,
                         onClick = {
                             when {
+                                // A locked recording always finishes with this
+                                // button, draft or agent state regardless
+                                // (review, PR #1280).
+                                isVoiceNoteLocked -> onMicTap()
+
                                 canInterrupt -> onStopGeneration()
+
                                 showSend -> onSend()
+
                                 else -> onMicTap()
                             }
                         },
-                        onLongClick = if (showSend && showQueue) onStopAndSend else null,
-                        onLongClickLabel = if (showSend && showQueue) stopAndSendLabel else null,
+                        onLongClick = if (showSend && showQueue && !isVoiceNoteLocked) onStopAndSend else null,
+                        onLongClickLabel = if (showSend && showQueue && !isVoiceNoteLocked) stopAndSendLabel else null,
                     ).testTag(
                         when {
                             isVoiceNoteLocked -> "voice_note_send_button"

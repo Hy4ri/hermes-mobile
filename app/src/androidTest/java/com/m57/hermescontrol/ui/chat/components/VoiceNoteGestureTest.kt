@@ -56,6 +56,7 @@ class VoiceNoteGestureTest {
     private var holdStarts = 0
     private var holdEnds = 0
     private var holdCancels = 0
+    private var sendCount = 0
     private var locks = 0
 
     /**
@@ -63,7 +64,10 @@ class VoiceNoteGestureTest {
      * flip the recording state, the lock callback flips the locked flag, and a
      * cancel releases both — exactly like ChatMediaLaunchers does.
      */
-    private fun setComposer(initiallyLocked: Boolean = false) {
+    private fun setComposer(
+        initiallyLocked: Boolean = false,
+        draft: String = "",
+    ) {
         // The lock-hint tooltip hides after the first successful lock and
         // persists that; start every run from a clean slate so the rendered
         // UI is deterministic.
@@ -80,9 +84,9 @@ class VoiceNoteGestureTest {
             Column(modifier = Modifier.fillMaxSize()) {
                 Spacer(modifier = Modifier.weight(1f))
                 ChatInputBar(
-                    inputFieldValue = TextFieldValue(""),
+                    inputFieldValue = TextFieldValue(draft),
                     onInputChange = {},
-                    onSend = {},
+                    onSend = { sendCount++ },
                     onMicTap = { micTaps++ },
                     isListening = false,
                     isAgentTyping = false,
@@ -235,6 +239,45 @@ class VoiceNoteGestureTest {
         composeTestRule.onNodeWithTag("voice_note_cancel_button").performClick()
         composeTestRule.runOnIdle {
             assertEquals("cancel must cancel the recording", 1, holdCancels)
+        }
+    }
+
+    @Test
+    fun holdReleaseWithDraft_doesNotRouteTapToDictation() {
+        // With a draft present the secondary mic ("mic_button") appears next to
+        // the input. Review, PR #1280: its gesture modifier is chained after
+        // the button's own clickable (the reverse of the action button), so a
+        // stationary hold-release must not leak a finger-up into onMicTap.
+        setComposer(draft = "draft")
+        val tapsBefore = micTaps
+
+        composeTestRule.onNodeWithTag("mic_button").performTouchInput { down(center) }
+        composeTestRule.mainClock.advanceTimeBy(600)
+        composeTestRule.onNodeWithTag("mic_button").performTouchInput { up() }
+        composeTestRule.waitForIdle()
+
+        composeTestRule.runOnIdle {
+            assertEquals("release must submit the note", 1, holdEnds)
+            assertEquals("a stationary hold-release must not fire a tap", tapsBefore, micTaps)
+        }
+    }
+
+    @Test
+    fun lockedWithDraft_actionButtonFinishesTheVoiceNote() {
+        // Blocker, review, PR #1280: with a draft present the action button is
+        // a send arrow; once the recording is locked it must finish the voice
+        // note instead of sending the draft text.
+        setComposer(draft = "draft")
+        composeTestRule.onNodeWithTag("mic_button").performTouchInput { down(center) }
+        composeTestRule.mainClock.advanceTimeBy(600)
+        composeTestRule.onNodeWithTag("mic_button").performTouchInput { moveBy(Offset(0f, -240f)) }
+        composeTestRule.onNodeWithTag("mic_button").performTouchInput { up() }
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithTag("voice_note_send_button").performClick()
+        composeTestRule.runOnIdle {
+            assertEquals("the tap must finish the voice note", 1, micTaps)
+            assertEquals("the draft text must not be sent", 0, sendCount)
         }
     }
 }

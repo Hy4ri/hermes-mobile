@@ -912,7 +912,6 @@ fun ChatScreen(
                 isListening = mediaLaunchers.isListening || state.isTranscribingVoiceNote,
                 isRecordingVoice = mediaLaunchers.isRecordingVoice,
                 isVoiceNoteLocked = mediaLaunchers.isVoiceNoteLocked,
-                voiceNoteAmplitude = mediaLaunchers.voiceNoteAmplitude,
                 onStopGeneration = { viewModel.interruptSession() },
                 isAgentTyping = state.isAgentTyping,
                 isMainTurnBusy = state.isMainTurnBusy,

@@ -1,11 +1,16 @@
 package com.m57.hermescontrol.ui.chat.components
 
+import android.content.Context
 import android.graphics.Bitmap
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsDisplayed
@@ -13,6 +18,7 @@ import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
@@ -58,40 +64,52 @@ class VoiceNoteGestureTest {
      * cancel releases both — exactly like ChatMediaLaunchers does.
      */
     private fun setComposer(initiallyLocked: Boolean = false) {
+        // The lock-hint tooltip hides after the first successful lock and
+        // persists that; start every run from a clean slate so the rendered
+        // UI is deterministic.
+        composeTestRule.activity
+            .getSharedPreferences("chat_voice_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .clear()
+            .commit()
         composeTestRule.setContent {
             var locked by remember { mutableStateOf(initiallyLocked) }
             var recording by remember { mutableStateOf(initiallyLocked) }
-            ChatInputBar(
-                inputFieldValue = TextFieldValue(""),
-                onInputChange = {},
-                onSend = {},
-                onMicTap = { micTaps++ },
-                isListening = false,
-                isAgentTyping = false,
-                isConnected = true,
-                commandCatalog = CommandCatalog(),
-                isSessionReady = true,
-                onMicHoldStart = {
-                    holdStarts++
-                    recording = true
-                },
-                onMicHoldEnd = {
-                    holdEnds++
-                    recording = false
-                },
-                onMicHoldCancel = {
-                    holdCancels++
-                    locked = false
-                    recording = false
-                },
-                onMicLock = {
-                    locks++
-                    locked = true
-                },
-                isVoiceNoteLocked = locked,
-                isRecordingVoice = recording,
-                voiceNoteAmplitude = remember { mutableStateOf(0.4f) },
-            )
+            // Bottom-anchor the bar like the real chat screen, so floating
+            // overlays above the card render inside the captured frame.
+            Column(modifier = Modifier.fillMaxSize()) {
+                Spacer(modifier = Modifier.weight(1f))
+                ChatInputBar(
+                    inputFieldValue = TextFieldValue(""),
+                    onInputChange = {},
+                    onSend = {},
+                    onMicTap = { micTaps++ },
+                    isListening = false,
+                    isAgentTyping = false,
+                    isConnected = true,
+                    commandCatalog = CommandCatalog(),
+                    isSessionReady = true,
+                    onMicHoldStart = {
+                        holdStarts++
+                        recording = true
+                    },
+                    onMicHoldEnd = {
+                        holdEnds++
+                        recording = false
+                    },
+                    onMicHoldCancel = {
+                        holdCancels++
+                        locked = false
+                        recording = false
+                    },
+                    onMicLock = {
+                        locks++
+                        locked = true
+                    },
+                    isVoiceNoteLocked = locked,
+                    isRecordingVoice = recording,
+                )
+            }
         }
     }
 
@@ -101,6 +119,14 @@ class VoiceNoteGestureTest {
 
         composeTestRule.onNodeWithTag("mic_button").performTouchInput { down(center) }
         composeTestRule.mainClock.advanceTimeBy(600)
+        // Mid-hold capture: the recording strip must be visible even though
+        // the mic button sits under the finger (device follow-up, #1247).
+        val shot = composeTestRule.onRoot().captureToImage().asAndroidBitmap()
+        File(composeTestRule.activity.getExternalFilesDir(null), "voice_note_recording.png")
+            .outputStream()
+            .use { shot.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        // The lock hint must exist while holding (it sits above the card).
+        composeTestRule.onNodeWithText("Slide up to lock recording").assertExists()
         composeTestRule.onNodeWithTag("mic_button").performTouchInput { up() }
         composeTestRule.waitForIdle()
 
@@ -195,20 +221,20 @@ class VoiceNoteGestureTest {
     }
 
     @Test
-    fun lockedRecording_showsDeleteActionAndRoutesCancel() {
+    fun lockedRecording_showsCancelActionAndRoutesCancel() {
         setComposer(initiallyLocked = true)
 
         composeTestRule.onNodeWithTag("voice_note_recording_panel").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("voice_note_delete_button").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("voice_note_cancel_button").assertIsDisplayed()
 
         val shot = composeTestRule.onRoot().captureToImage().asAndroidBitmap()
         val file =
             File(composeTestRule.activity.getExternalFilesDir(null), "voice_note_locked.png")
         file.outputStream().use { shot.compress(Bitmap.CompressFormat.PNG, 100, it) }
 
-        composeTestRule.onNodeWithTag("voice_note_delete_button").performClick()
+        composeTestRule.onNodeWithTag("voice_note_cancel_button").performClick()
         composeTestRule.runOnIdle {
-            assertEquals("delete must cancel the recording", 1, holdCancels)
+            assertEquals("cancel must cancel the recording", 1, holdCancels)
         }
     }
 }

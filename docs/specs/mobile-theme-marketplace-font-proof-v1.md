@@ -41,9 +41,9 @@ No implementation in this stage; this document is the gate for it.
   - `app/src/main/java/com/m57/hermescontrol/data/theme/marketplace/ThemeMarketplaceRepository.kt` —
     `GALLERY_BASE_URL = https://marketplace.visualstudio.com`,
     `GALLERY_QUERY_PATH = /_apis/public/gallery/extensionquery`, dedicated OkHttpClient
-    with no app cookie jar/auth interceptors (lines 32-33, 264-272), 15-min
-    `query|limit|page` cache, `looksLikeIconTheme` ported verbatim (lines 255-262),
-    4 MB response cap, 3 attempts with `jitteredBackoff`.
+    with no app cookie jar/auth interceptors (lines 32-33), 15-min
+    `query|limit|page` cache, `looksLikeIconTheme` ported verbatim (lines 280-288),
+    4 MB response cap, 3 attempts with `jitteredBackoff` (defaultClient at line 291).
   - Tests: `app/src/test/java/com/m57/hermescontrol/data/theme/marketplace/ThemeMarketplaceRepositoryTest.kt`.
 
 ### 2.2 Apply pipeline (already built, not to be reinvented)
@@ -70,7 +70,7 @@ No implementation in this stage; this document is the gate for it.
 
 - Global: `app/src/main/java/com/m57/hermescontrol/MainActivity.kt:91-99` collects `AuthManager.fontFamilyFlow` and passes
   `AppFontFamily.fromKey(chatFontFamily).toFontFamily` into `HermesControlTheme`
-  (`app/src/main/java/com/m57/hermescontrol/theme/Theme.kt:101`), which builds `createTypography(fontFamily)` (`app/src/main/java/com/m57/hermescontrol/theme/Type.kt:45`) and
+  (`app/src/main/java/com/m57/hermescontrol/theme/Theme.kt:104`), which builds `createTypography(fontFamily)` (`app/src/main/java/com/m57/hermescontrol/theme/Type.kt:45`) and
   installs it as `MaterialTheme.typography`. Persisted key:
   `ServerStoreState.chatFontFamily` (default `"system"`), written via
   `AuthManager.setChatFontFamily` (`app/src/main/java/com/m57/hermescontrol/data/local/AuthManager.kt:896-901`), selected in
@@ -79,10 +79,38 @@ No implementation in this stage; this document is the gate for it.
 - Chat bodies DO consume the global type scale: `app/src/main/java/com/m57/hermescontrol/ui/chat/ChatBubble.kt:200,347,656`
   (`bodyMedium`), `app/src/main/java/com/m57/hermescontrol/ui/chat/MarkdownText.kt:111,173,210+` (`bodyMedium` family), so a
   font-family change flows to normal message text.
-- Intentional monospace overrides (must be preserved): `app/src/main/java/com/m57/hermescontrol/ui/chat/ToolBubble.kt`
-  (many `bodySmall.copy(fontFamily = FontFamily.Monospace)` sites),
-  `app/src/main/java/com/m57/hermescontrol/ui/chat/components/MessageCards.kt:203,300`, `app/src/main/java/com/m57/hermescontrol/ui/chat/components/DiffViewCard.kt:238,328`,
-  `app/src/main/java/com/m57/hermescontrol/ui/chat/components/SubagentInspectionSheet.kt:632,919` (code/log surfaces).
+- Intentional monospace overrides (must be preserved): every `FontFamily.Monospace` use in the codebase is enumerated below. These are concrete code/log surfaces, not just the chat package:
+  - `ui/chat/ToolBubble.kt` — lines 191, 225, 238, 344, 358, 374, 390, 569, 684 (many `bodySmall.copy(fontFamily = FontFamily.Monospace)` and direct `fontFamily = FontFamily.Monospace` sites)
+  - `ui/chat/components/CodeTerminalCard.kt:128` (title label)
+  - `ui/chat/components/ReplyErrorCard.kt:107`
+  - `ui/chat/components/MessageCards.kt:203,300`
+  - `ui/chat/components/DiffViewCard.kt:238,328`
+  - `ui/chat/components/SubagentInspectionSheet.kt:632,919`
+  - `ui/chat/markdown/MarkdownInlineStyler.kt:97,246` (inline code spans)
+  - `ui/chat/ChatBubble.kt`, `ui/chat/MarkdownText.kt` — consume global type (inherited, NOT monospace overrides)
+  - `ui/logs/LogsScreen.kt:260`
+  - `ui/common/ActionProgressDialog.kt:158`
+  - `ui/plugins/MemoryProviderDetailScreen.kt:439,447,454`
+  - `ui/profiles/ProfilesScreen.kt:968`
+  - `ui/toolsets/ToolsetDetailScreen.kt:430,515,672`
+  - `ui/sessions/components/SessionCard.kt:87`
+  - `ui/channels/components/PlatformCard.kt:191`
+  - `ui/channels/ChannelsScreen.kt:295`
+  - `ui/mcp/components/McpDialogs.kt:169,172`
+  - `ui/mcp/components/ServerCard.kt:185,196,299`
+  - `ui/config/ConfigScreen.kt:311,455,671,986`
+  - `ui/skills/components/SkillEditorDialog.kt:145`
+  - `ui/skills/components/SkillPreviewDialog.kt:75`
+  - `ui/skills/components/SkillScanViews.kt:256`
+  - `ui/providers/ProvidersScreen.kt:373,448,456`
+  - `ui/keys/KeysScreen.kt:583,749`
+  - `ui/webhooks/WebhooksScreen.kt:534`
+  - `ui/cron/CronJobsScreen.kt:526`
+  - `ui/kanban/components/KanbanTaskCard.kt:145`
+  - `ui/kanban/KanbanTaskScreen.kt:1035`
+  - `ui/system/components/ActionLogSection.kt:117`
+  - **Total: 28 files / ~50+ sites** — implementer must re-verify by `grep -r "FontFamily.Monospace" app/src/main/java/` and attach the final list to the PR. Any new `FontFamily.Monospace` sites added in PR must be listed here.
+  - **NOT monospace overrides**: `app/src/main/java/com/m57/hermescontrol/theme/Type.kt:20-21,184` — `FontFamily.Default`/`FontFamily.SansSerif`/`FontFamily.Serif`/`FontFamily.Cursive` are the `AppFontFamily` enum values (global family selection), not monospace overrides.
 
 ## 3. Requirements
 
@@ -98,7 +126,7 @@ No implementation in this stage; this document is the gate for it.
   downloader/parser may run code. Implementation area: `app/src/main/java/com/m57/hermescontrol/data/theme/import/VsixThemeParser.kt`,
   `app/src/main/java/com/m57/hermescontrol/data/theme/import/ThemeDefinitionConverter.kt`.
 - M3. Browser UX. Initial browse list (empty query = most-installed), debounced
-  search-as-you-type (keep 300 ms, `ThemeMarketplaceViewModel:174`), pagination via
+  search-as-you-type (keep 300 ms, `ThemeMarketplaceViewModel:179`), pagination via
   LoadMore, and Loading/Empty/Error/Retry states (already present via
   `SkeletonListState`/`EmptyState`/`ErrorState`) must all remain and be covered by UI
   tests. Implementation area: `app/src/main/java/com/m57/hermescontrol/ui/thememarketplace/ThemeMarketplaceScreen.kt`,
@@ -135,19 +163,31 @@ No implementation in this stage; this document is the gate for it.
   every intentional monospace override (code/log). Baseline list is in §2.3; the
   implementer must re-verify by grep and attach the final list to the PR.
 - F2. Honest options. Ship only options proven visually distinct on supported devices,
-  or label true aliases as aliases. Concretely: measure System Default vs Sans Serif
-  vs Monospace on the API 34 ATD emulator (CI instrumented-tests) with a
-  discriminating sample (e.g. `Il1O0` + mixed case + digits); if Default ≡ SansSerif
-  glyph metrics, either drop/merge one entry or render its label as
-  "Sans Serif (same as System on this device)". Do not ship three labels that render
-  identically. Bundling small licensed fonts is allowed as an alternative, with
-  license files committed.
+  or label true aliases as aliases. **JVM object inequality of `FontFamily` instances
+  is NOT acceptance proof** — `FontFamily.Default` and `FontFamily.SansSerif` are
+  distinct Compose objects that may resolve to identical Android glyphs on some devices.
+  Concretely: measure System Default vs Sans Serif vs Serif vs Monospace vs Cursive
+  on the API 34 ATD emulator (CI instrumented-tests) with a discriminating sample
+  (e.g. `Il1O0` + mixed case + digits) and compare actual rendered glyph advance widths
+  via `Paint.measureText()` or screenshot pixel-diff; if two non-alias options measure
+  identical widths (within 1% tolerance), either drop/merge one entry or render its
+  label as "(same as System Default on this device)". Do not ship three labels that
+  render identically. Bundling small licensed fonts is allowed as an alternative,
+  with license files committed.
+  Proof evidence required for F2: a machine-readable artifact (CSV/JSON of measured
+  widths per option, or golden-diff PNG with pass/fail metadata) attached to the PR.
 - F3. Deterministic proof. Unit level: glyph-width assertions on a discriminating
-  sample per option (fails if two non-alias options measure identical). UI level:
-  screenshot/golden or `createTypography(family)` style assertion that each option
-  maps to a distinct `FontFamily`/metrics bucket. Persistence: round-trip
+  sample per option using `android.graphics.Paint.measureText()` or equivalent
+  (fails if two non-alias options measure identical widths within 1% tolerance).
+  **`createTypography(family)` producing distinct `Typography` objects is NOT
+  acceptance proof** — Compose `FontFamily` objects are always distinct even when
+  they resolve to the same Android typeface. UI level: screenshot/golden-diff
+  comparison (pixel-level pass/fail on a discriminating sample text) OR measured
+  glyph-width assertions on an API 34 ATD device/emulator. Persistence: round-trip
   `chatFontFamily` key through `ServerStoreState` + restart-restore test
-  (`fromKey` unknown-key → SYSTEM fallback covered).
+  (`fromKey` unknown-key → SYSTEM fallback covered). Each non-alias option must
+  have its own measured-width or golden-diff evidence; identical-measure pairs must
+  be merged or labeled as aliases.
 - F4. Monospace preservation. Code/log surfaces listed in §2.3 keep explicit
   `FontFamily.Monospace` regardless of the global setting; normal chat body follows
   the global setting. State both behaviors in the implementation PR description and
@@ -183,16 +223,16 @@ No implementation in this stage; this document is the gate for it.
 
 | Req | Source evidence | Acceptance proof | Implementation area |
 | --- | --------------- | ---------------- | ------------------- |
-| M1 | `app/src/main/java/com/m57/hermescontrol/data/theme/marketplace/ThemeMarketplaceRepository.kt:34-43,63`; desktop `vscode-marketplace.ts:searchMarketplaceThemes` | UI test: header/copy cites VS Code Gallery; no Hermes-backend URL in catalog path | `app/src/main/java/com/m57/hermescontrol/ui/thememarketplace/ThemeMarketplaceScreen.kt`, strings |
+| M1 | `app/src/main/java/com/m57/hermescontrol/data/theme/marketplace/ThemeMarketplaceRepository.kt:32-33,58-63`; desktop `vscode-marketplace.ts:searchMarketplaceThemes` | UI test: header/copy cites VS Code Gallery; no Hermes-backend URL in catalog path | `app/src/main/java/com/m57/hermescontrol/ui/thememarketplace/ThemeMarketplaceScreen.kt`, strings |
 | M2 | `app/src/main/java/com/m57/hermescontrol/data/theme/import/VsixThemeParser.kt:1-60`; desktop `vscode-marketplace.ts:5-10` ("never executed") | Fixture-vsix unit test incl. decoy JS ignored; dependency scan of import path | `app/src/main/java/com/m57/hermescontrol/data/theme/import/VsixThemeParser.kt`, `app/src/main/java/com/m57/hermescontrol/data/theme/import/ThemeDefinitionConverter.kt` |
-| M3 | `app/src/main/java/com/m57/hermescontrol/ui/thememarketplace/ThemeMarketplaceScreen.kt:66-114`; `app/src/main/java/com/m57/hermescontrol/ui/thememarketplace/ThemeMarketplaceViewModel.kt:73-100,133-176` | UI tests: initial/debounce/pagination/loading/empty/error/retry with fake repo | Screen + ViewModel |
+| M3 | `app/src/main/java/com/m57/hermescontrol/ui/thememarketplace/ThemeMarketplaceScreen.kt:65-133`; `app/src/main/java/com/m57/hermescontrol/ui/thememarketplace/ThemeMarketplaceViewModel.kt:73-100,133-179` | UI tests: initial/debounce/pagination/loading/empty/error/retry with fake repo | Screen + ViewModel |
 | M4 | `app/src/main/java/com/m57/hermescontrol/ui/thememarketplace/ThemeMarketplaceScreen.kt:154-158` (tap-to-apply today) | UI test: tap selects, preset unchanged; Apply button applies | `app/src/main/java/com/m57/hermescontrol/ui/thememarketplace/ThemeMarketplaceScreen.kt` (+ detail) |
 | M5 | `app/src/main/java/com/m57/hermescontrol/ui/thememarketplace/ThemeMarketplaceViewModel.kt:58`; `app/src/main/java/com/m57/hermescontrol/data/theme/import/ThemeApplier.kt:31-32`; `app/src/main/java/com/m57/hermescontrol/theme/Theme.kt:57-69` | UI test: badge follows `activeCustomThemeId`; fallback not labeled Marketplace | Screen + ViewModel |
-| M6 | `app/src/main/java/com/m57/hermescontrol/data/theme/import/ThemeApplier.kt:84-94`; `app/src/main/java/com/m57/hermescontrol/data/local/AuthManager.kt:244`; `app/src/main/java/com/m57/hermescontrol/data/config/ServerStoreState.kt:20-26` | Unit/UI test: corrupt tokens → unavailable-state + clear/re-apply | `app/src/main/java/com/m57/hermescontrol/data/theme/import/ThemeApplier.kt`, init path |
+| M6 | `app/src/main/java/com/m57/hermescontrol/data/theme/import/ThemeApplier.kt:88-102`; `app/src/main/java/com/m57/hermescontrol/data/local/AuthManager.kt:244`; `app/src/main/java/com/m57/hermescontrol/data/config/ServerStoreState.kt:20-26` | Unit/UI test: corrupt tokens → unavailable-state + clear/re-apply | `app/src/main/java/com/m57/hermescontrol/data/theme/import/ThemeApplier.kt`, init path |
 | M7 | `app/src/test/java/com/m57/hermescontrol/data/theme/marketplace/ThemeMarketplaceRepositoryTest.kt` (existing) | All above run offline; CI green | `app/src/test/.../marketplace/` |
-| F1 | `app/src/main/java/com/m57/hermescontrol/ui/chat/ChatBubble.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/MarkdownText.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/ToolBubble.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/components/MessageCards.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/components/DiffViewCard.kt` | Final consumer/override list attached to PR | `ui/chat/**` (read-only) |
-| F2 | `app/src/main/java/com/m57/hermescontrol/theme/Type.kt:15-25`; `app/src/test/java/com/m57/hermescontrol/theme/AppFontFamilyTest.kt` (keys only today) | Metric test on ATD-discriminating sample; alias labeling or removal | `app/src/main/java/com/m57/hermescontrol/theme/Type.kt`, `app/src/main/java/com/m57/hermescontrol/ui/settings/components/AppearanceSection.kt` |
-| F3 | `app/src/main/java/com/m57/hermescontrol/theme/Type.kt:45 createTypography`; `ServerStoreState.chatFontFamily` | Glyph-width + persistence round-trip tests | `theme/`, `data/config/` tests |
+| F1 | `app/src/main/java/com/m57/hermescontrol/ui/chat/ChatBubble.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/MarkdownText.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/ToolBubble.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/components/MessageCards.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/components/DiffViewCard.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/components/CodeTerminalCard.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/components/ReplyErrorCard.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/components/SubagentInspectionSheet.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/markdown/MarkdownInlineStyler.kt`, `app/src/main/java/com/m57/hermescontrol/ui/logs/LogsScreen.kt`, `app/src/main/java/com/m57/hermescontrol/ui/common/ActionProgressDialog.kt` (plus 18 more files per §2.3 enumeration) | Final consumer/override list (28 files, ~50+ sites) attached to PR; grep-verified | `ui/chat/**`, `ui/**` (read-only) |
+| F2 | `app/src/main/java/com/m57/hermescontrol/theme/Type.kt:15-25`; `app/src/test/java/com/m57/hermescontrol/theme/AppFontFamilyTest.kt` (keys only today) | Measured glyph-width CSV/JSON per option on ATD, or golden-diff PNG; alias labeling or removal | `app/src/main/java/com/m57/hermescontrol/theme/Type.kt`, `app/src/main/java/com/m57/hermescontrol/ui/settings/components/AppearanceSection.kt` |
+| F3 | `app/src/main/java/com/m57/hermescontrol/theme/Type.kt:45 createTypography`; `ServerStoreState.chatFontFamily` | `Paint.measureText()` width assertions per option (unit) + screenshot/golden-diff (UI) + persistence round-trip | `theme/`, `data/config/` tests |
 | F4 | §2.3 override list | Compose UI test: code monospace + body follows setting | `ui/chat/**` tests |
 
 ## 6. Suggested implementation shape (non-binding)
@@ -219,3 +259,10 @@ No implementation in this stage; this document is the gate for it.
   after the freeze (if any) is out of scope for these pins — re-verify line
   numbers if the baseline moves.
 - Markdown/link check: local script (no network, no Gradle, no ADB).
+- Typography inventory: `grep -r "FontFamily.Monospace" app/src/main/java/` confirmed
+  28 files / ~50+ sites across the entire codebase, not just the `ui/chat/`
+  package (audit correction applied).
+- Font proof correction: replaced `createTypography(family)` distinct-object
+  assertion with `Paint.measureText()` glyph-width assertions and screenshot/golden-diff
+  evidence requirements. `FontFamily.Default` vs `FontFamily.SansSerif` object
+  inequality is explicitly called out as NOT being acceptance proof (audit correction applied).

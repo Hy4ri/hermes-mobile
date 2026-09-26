@@ -71,6 +71,10 @@ class MainActivity : ComponentActivity() {
                 AuthManager.initializationState.collect { state ->
                     if (state == AuthManager.InitializationState.Ready) {
                         if (AuthManager.isGatedMode() || !AuthManager.getToken().isNullOrBlank()) {
+                            // Fresh installs have no local server-profile scope yet. Bootstrap it
+                            // before the first WS dial so session.create/resume carries
+                            // params.profile instead of silently landing in gateway default.
+                            ProfileSwitchCoordinator.restoreActiveProfileScopeIfMissing()
                             HermesWsClient.connect()
                         }
                     }

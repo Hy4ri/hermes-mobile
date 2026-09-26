@@ -140,6 +140,7 @@ internal fun AppearanceSection(
                         ThemePreset.CATPPUCCIN -> stringResource(R.string.theme_preset_catppuccin)
                         ThemePreset.AMOLED -> stringResource(R.string.theme_preset_amoled)
                         ThemePreset.NORD -> stringResource(R.string.theme_preset_nord)
+                        ThemePreset.CYBERPUNK -> stringResource(R.string.theme_preset_cyberpunk)
                         ThemePreset.CUSTOM -> stringResource(R.string.theme_preset_custom)
                     },
                 )
@@ -187,6 +188,12 @@ internal fun AppearanceSection(
                                     ThemePreset.NORD -> {
                                         stringResource(
                                             R.string.theme_preset_nord,
+                                        )
+                                    }
+
+                                    ThemePreset.CYBERPUNK -> {
+                                        stringResource(
+                                            R.string.theme_preset_cyberpunk,
                                         )
                                     }
 

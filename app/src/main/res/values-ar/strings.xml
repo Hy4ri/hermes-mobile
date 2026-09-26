@@ -278,6 +278,7 @@
     <string name="theme_preset_catppuccin">Catppuccin</string>
     <string name="theme_preset_amoled">أسود AMOLED (الوضع الداكن فقط)</string>
     <string name="theme_preset_nord">Nord</string>
+    <string name="theme_preset_cyberpunk">Cyberpunk (داكن فقط)</string>
     <string name="settings_item_language">اللغة</string>
     <string name="language_system">تلقائي (حسب النظام)</string>
     <string name="language_english">English</string>

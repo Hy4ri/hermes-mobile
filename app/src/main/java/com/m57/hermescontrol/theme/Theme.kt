@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import com.m57.hermescontrol.theme.presets.AmoledTheme
 import com.m57.hermescontrol.theme.presets.CatppuccinTheme
+import com.m57.hermescontrol.theme.presets.CyberpunkTheme
 import com.m57.hermescontrol.theme.presets.DefaultTheme
 import com.m57.hermescontrol.theme.presets.GruvboxTheme
 import com.m57.hermescontrol.theme.presets.MonochromeTheme
@@ -28,7 +29,7 @@ import kotlinx.serialization.Serializable
 enum class ThemePreference { SYSTEM, LIGHT, DARK }
 
 @Serializable
-enum class ThemePreset { DEFAULT, MONOCHROME, GRUVBOX, CATPPUCCIN, AMOLED, NORD, CUSTOM }
+enum class ThemePreset { DEFAULT, MONOCHROME, GRUVBOX, CATPPUCCIN, AMOLED, NORD, CYBERPUNK, CUSTOM }
 
 val LocalThemePreference = compositionLocalOf { ThemePreference.SYSTEM }
 val LocalThemePreset = compositionLocalOf { ThemePreset.DEFAULT }
@@ -60,6 +61,7 @@ private fun themeFor(preset: ThemePreset, custom: ThemePalette? = _customPalette
         ThemePreset.GRUVBOX -> GruvboxTheme
         ThemePreset.CATPPUCCIN -> CatppuccinTheme
         ThemePreset.AMOLED -> AmoledTheme
+        ThemePreset.CYBERPUNK -> CyberpunkTheme
         ThemePreset.NORD -> NordTheme
         ThemePreset.CUSTOM -> custom ?: DefaultTheme
     }

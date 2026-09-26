@@ -278,6 +278,7 @@
     <string name="theme_preset_catppuccin">Catppuccin</string>
     <string name="theme_preset_amoled">AMOLED 纯黑（仅深色）</string>
     <string name="theme_preset_nord">Nord</string>
+    <string name="theme_preset_cyberpunk">Cyberpunk（仅深色）</string>
     <string name="settings_item_language">语言</string>
     <string name="language_system">跟随系统</string>
     <string name="language_english">English</string>

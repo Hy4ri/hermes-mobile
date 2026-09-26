@@ -50,6 +50,38 @@ object ProfileSwitchCoordinator {
     private val _connectionSwitched = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val connectionSwitched: SharedFlow<String> = _connectionSwitched.asSharedFlow()
 
+    /**
+     * Restore the server-side Hermes profile scope on a cold/fresh app start.
+     *
+     * A fresh install has no encrypted active_profile_id yet. If chat opens
+     * before the user manually visits Profiles, WS session.create/resume omit
+     * params.profile and the multiplex gateway falls back to its launch profile
+     * (normally default). The server already persists the operator's active
+     * Hermes profile, so use that as bootstrap authority only when local scope
+     * is missing.
+     *
+     * A profile selected while the request is in flight wins: re-check local
+     * state before writing so startup never clobbers an explicit user switch.
+     */
+    suspend fun restoreActiveProfileScopeIfMissing(): String? {
+        AuthManager.activeProfileId.value?.takeIf { it.isNotBlank() }?.let { return it }
+
+        val result =
+            withContext(ioDispatcher) {
+                safeApiCall { ApiClient.hermesApi.getActiveProfile() }
+            }
+        val serverProfile =
+            (result as? NetworkResult.Success)
+                ?.data
+                ?.active
+                ?.takeIf { it.isNotBlank() }
+
+        if (serverProfile != null && AuthManager.activeProfileId.value.isNullOrBlank()) {
+            AuthManager.setActiveProfileId(serverProfile)
+        }
+        return AuthManager.activeProfileId.value
+    }
+
     suspend fun switchProfile(name: String): NetworkResult<Unit> {
         val result =
             withContext(ioDispatcher) {

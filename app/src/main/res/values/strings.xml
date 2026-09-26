@@ -1779,4 +1779,8 @@
     <string name="custom_headers_hide">Hide header values</string>
     <string name="custom_headers_invalid">Use unique HTTP header names and single-line ASCII values. Authorization, Cookie, Host, and connection headers are managed by the app.</string>
     <string name="custom_headers_save_failed">Could not save custom headers. Try again.</string>
+    <string name="plugins_update_consent_title">Review new capabilities</string>
+    <string name="plugins_update_consent_text">Updating %1$s requires the additional capabilities below. Nothing has been installed yet. Accept these capabilities and update?</string>
+    <string name="plugins_update_consent_missing">The server did not provide capability details.</string>
+    <string name="plugins_update_accept">Accept and update</string>
 </resources>

@@ -9,6 +9,8 @@ import com.m57.hermescontrol.data.model.AgentPluginInstallBody
 import com.m57.hermescontrol.data.model.PluginCatalogEntry
 import com.m57.hermescontrol.data.model.PluginInfo
 import com.m57.hermescontrol.data.model.PluginProvidersPutRequest
+import com.m57.hermescontrol.data.model.PluginUpdateRequest
+import com.m57.hermescontrol.data.model.PluginUpdateResult
 import com.m57.hermescontrol.data.model.PluginsHubResponse
 import com.m57.hermescontrol.data.model.ProviderOption
 import com.m57.hermescontrol.data.remote.ApiClient
@@ -33,6 +35,12 @@ enum class PluginsTab {
     CATALOG,
 }
 
+data class PluginUpdateConsent(
+    val name: String,
+    val result: PluginUpdateResult,
+    val scope: DataScope?,
+)
+
 data class PluginsUiState(
     val selectedTab: PluginsTab = PluginsTab.INSTALLED,
     val isLoading: Boolean = false,
@@ -55,6 +63,7 @@ data class PluginsUiState(
     val rowBusy: String? = null,
     // Confirm remove dialog
     val removeConfirmPlugin: String? = null,
+    val updateConsent: PluginUpdateConsent? = null,
     // Rescan
     val rescanBusy: Boolean = false,
     // Catalog state
@@ -99,6 +108,7 @@ class PluginsViewModel(
                 providerBusy = false,
                 rowBusy = null,
                 removeConfirmPlugin = null,
+                updateConsent = null,
                 rescanBusy = false,
             )
         }
@@ -450,23 +460,83 @@ class PluginsViewModel(
     }
 
     fun updatePlugin(name: String) {
-        viewModelScope.launch {
-            setRowBusy(name)
-            val result =
-                withContext(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.updatePlugin(name) }
-                }
-            when (result) {
-                is NetworkResult.Success -> {
-                    _uiState.update { it.copy(toastMessage = "Plugin updated successfully") }
-                    clearRowBusy(name)
-                    loadPlugins(forceRefresh = true)
-                }
+        if (_uiState.value.updateConsent != null) return
+        performPluginUpdate(name, acceptCapabilities = false)
+    }
 
-                is NetworkResult.Failure -> {
-                    _uiState.update { it.copy(toastMessage = "Failed to update plugin: ${result.error.message}") }
-                    clearRowBusy(name)
+    fun cancelPluginUpdate() {
+        _uiState.update { it.copy(updateConsent = null) }
+    }
+
+    fun confirmPluginUpdate() {
+        val consent = _uiState.value.updateConsent ?: return
+        if (_uiState.value.rowBusy != null) return
+        cancelPluginUpdate()
+        if (consent.scope != runCatching { AuthManager.currentDataScope() }.getOrNull()) return
+        performPluginUpdate(consent.name, acceptCapabilities = true)
+    }
+
+    private fun performPluginUpdate(
+        name: String,
+        acceptCapabilities: Boolean,
+    ) {
+        if (_uiState.value.rowBusy != null) return
+        val generation = scopeGeneration
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+        val api = ApiClient.hermesApi
+        setRowBusy(name)
+        _uiState.update { it.copy(toastMessage = null) }
+        viewModelScope.launch {
+            try {
+                val result = safeApiCall { api.updatePlugin(name, PluginUpdateRequest(acceptCapabilities)) }
+                if (generation != scopeGeneration ||
+                    requestScope != runCatching { AuthManager.currentDataScope() }.getOrNull()
+                ) {
+                    return@launch
                 }
+                when (result) {
+                    is NetworkResult.Success -> {
+                        val update = result.data
+                        // #1282: HTTP success is not update success; consent must be explicit.
+                        when {
+                            update.consentRequired -> {
+                                _uiState.update {
+                                    it.copy(updateConsent = PluginUpdateConsent(name, update, requestScope))
+                                }
+                            }
+
+                            !update.ok -> {
+                                _uiState.update {
+                                    it.copy(
+                                        toastMessage = "Failed to update plugin: ${update.error ?: "Update refused"}",
+                                    )
+                                }
+                            }
+
+                            else -> {
+                                _uiState.update {
+                                    it.copy(
+                                        toastMessage =
+                                            if (update.unchanged) {
+                                                "Plugin is already up to date"
+                                            } else {
+                                                "Plugin updated successfully"
+                                            },
+                                    )
+                                }
+                                loadPlugins(forceRefresh = true)
+                            }
+                        }
+                    }
+
+                    is NetworkResult.Failure -> {
+                        _uiState.update {
+                            it.copy(toastMessage = "Failed to update plugin: ${result.error.message}")
+                        }
+                    }
+                }
+            } finally {
+                if (generation == scopeGeneration) clearRowBusy(name)
             }
         }
     }

@@ -82,6 +82,26 @@ data class PluginsHubResponse(
 )
 
 @Serializable
+data class PluginUpdateRequest(
+    @SerialName("accept_capabilities") val acceptCapabilities: Boolean,
+)
+
+@Serializable
+data class PluginUpdateResult(
+    val ok: Boolean = false,
+    val unchanged: Boolean = false,
+    @SerialName("consent_required") val consentRequired: Boolean = false,
+    val delta: Map<String, List<String>>? = null,
+    @SerialName("delta_lines") val deltaLines: List<String>? = null,
+    val error: String? = null,
+) {
+    val capabilityDelta: List<String>
+        get() =
+            deltaLines?.takeIf { it.isNotEmpty() }
+                ?: delta.orEmpty().map { (surface, added) -> "$surface: ${added.joinToString() }" }
+}
+
+@Serializable
 data class AgentPluginInstallBody(
     val identifier: String = "",
     val force: Boolean = false,

@@ -81,6 +81,7 @@ data class SessionsUiState(
     val total: Int = 0,
     val hasMore: Boolean = false,
     val errorMessage: String? = null,
+    val corruptStorageProfiles: Set<String> = emptySet(),
     val stats: SessionStats = SessionStats(),
     val isLoadingStats: Boolean = false,
     val statsError: String? = null,
@@ -197,6 +198,7 @@ class SessionsViewModel(
                 val (requestScope, capturedSection) = scopeAndSection
                 val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
                 if (requestGeneration == generation && currentScope == requestScope) {
+                    if (handleStorageHealth(data)) return@refreshOnChange
                     val localKey = "${capturedSection.name}:${capturedSection.source}:${capturedSection.excludeSources}"
                     val inMemoryKey = requestScope?.inMemoryKey(localKey)
                     val persistentKey = requestScope?.persistentKey(localKey)
@@ -244,6 +246,7 @@ class SessionsViewModel(
                 selectedIds = emptySet(),
                 isSelecting = false,
                 errorMessage = null,
+                corruptStorageProfiles = emptySet(),
                 searchResults = emptyList(),
                 searchError = null,
                 searchLoadMoreError = null,
@@ -342,6 +345,7 @@ class SessionsViewModel(
                 total = 0,
                 hasMore = false,
                 errorMessage = null,
+                corruptStorageProfiles = emptySet(),
                 isSelecting = false,
                 selectedIds = emptySet(),
                 isSearching = false,
@@ -352,6 +356,26 @@ class SessionsViewModel(
         if (query.isBlank()) loadSessions() else setSearchQuery(query)
     }
 
+    // #1286: a partial/empty damaged-store page is not an authoritative replacement.
+    private fun handleStorageHealth(data: SessionListResponse): Boolean {
+        val corruptProfiles = data.storage.filterValues { it == "corrupt" }.keys
+        _uiState.update { state ->
+            if (corruptProfiles.isEmpty()) {
+                state.copy(corruptStorageProfiles = emptySet())
+            } else {
+                state.copy(
+                    isLoading = false,
+                    isLoadingMore = false,
+                    errorMessage = null,
+                    corruptStorageProfiles = corruptProfiles,
+                    sessions = (state.sessions + data.sessions).distinctBy { it.id },
+                    hasMore = false,
+                )
+            }
+        }
+        return corruptProfiles.isNotEmpty()
+    }
+
     /** Load (or reload) sessions from page 0. Used by pull-to-refresh and initial load. */
     fun loadSessions(forceRefresh: Boolean = false) {
         val requestGeneration = generation
@@ -360,10 +384,7 @@ class SessionsViewModel(
         val localKey = "${section.name}:${section.source}:${section.excludeSources}"
         val inMemoryKey = requestScope?.inMemoryKey(localKey)
         val persistentKey = requestScope?.persistentKey(localKey)
-        if (forceRefresh) {
-            if (inMemoryKey != null) sessionsPageCache.remove(inMemoryKey)
-            if (persistentKey != null) SessionListCacheStore.remove(persistentKey)
-        }
+        // #1286: keep the last good cache until a healthy refresh replaces it.
         val cached =
             if (!forceRefresh && inMemoryKey != null && persistentKey != null) {
                 sessionsPageCache.get(inMemoryKey)
@@ -418,6 +439,7 @@ class SessionsViewModel(
                 onSuccess = { data ->
                     val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
                     if (requestGeneration != generation || currentScope != requestScope) return@safeLaunchLoad
+                    if (handleStorageHealth(data)) return@safeLaunchLoad
                     if (inMemoryKey != null) sessionsPageCache.put(inMemoryKey, data)
                     if (persistentKey != null) SessionListCacheStore.put(persistentKey, data)
                     rawPaginationOffset = data.nextOffset(0)
@@ -495,6 +517,7 @@ class SessionsViewModel(
                 when (result) {
                     is NetworkResult.Success -> {
                         val data = result.data
+                        if (handleStorageHealth(data)) return@launch
                         rawPaginationOffset = data.nextOffset(offset)
                         _uiState.update {
                             val newSessions =

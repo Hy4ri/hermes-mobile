@@ -63,6 +63,7 @@ data class SessionListResponse(
     val total: Int = 0,
     val limit: Int = 0,
     val offset: Int = 0,
+    val storage: Map<String, String> = emptyMap(),
 )
 
 @Serializable

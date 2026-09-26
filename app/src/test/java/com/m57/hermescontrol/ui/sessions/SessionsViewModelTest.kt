@@ -100,6 +100,72 @@ class SessionsViewModelTest {
     }
 
     @Test
+    fun `corrupt refresh retains history and recovery replaces it`() {
+        coEvery { mockApi.getSessions(any(), any(), any(), any(), any()) } returnsMany
+            listOf(
+                Response.success(SessionListResponse(listOf(SessionInfo("cached")), total = 1)),
+                Response.success(
+                    SessionListResponse(emptyList(), storage = mapOf("default" to "corrupt")),
+                ),
+                Response.success(SessionListResponse(emptyList())),
+            )
+        val vm = createViewModel()
+        vm.loadSessions()
+        testDispatcher.scheduler.advanceUntilIdle()
+        vm.loadSessions(forceRefresh = true)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(
+            listOf("cached"),
+            vm.uiState.value.sessions
+                .map { it.id },
+        )
+        assertEquals(setOf("default"), vm.uiState.value.corruptStorageProfiles)
+        assertFalse(vm.uiState.value.isLoading)
+        assertFalse(vm.uiState.value.hasMore)
+        vm.loadSessions(forceRefresh = true)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue(
+            vm.uiState.value.sessions
+                .isEmpty(),
+        )
+        assertTrue(
+            vm.uiState.value.corruptStorageProfiles
+                .isEmpty(),
+        )
+    }
+
+    @Test
+    fun `corrupt first page retains partial rows and flags empty history`() {
+        val response =
+            kotlinx.serialization.json.Json.decodeFromString<SessionListResponse>(
+                """{"sessions":[],"storage":{"work":"corrupt"}}""",
+            )
+        coEvery { mockApi.getSessions(any(), any(), any(), any(), any()) } returns Response.success(response)
+        val vm = createViewModel()
+        vm.loadSessions()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(setOf("work"), vm.uiState.value.corruptStorageProfiles)
+        assertFalse(vm.uiState.value.isLoading)
+        coEvery { mockApi.getSessions(any(), any(), any(), any(), any()) } returns
+            Response.success(response.copy(sessions = listOf(SessionInfo("partial"))))
+        vm.loadSessions(forceRefresh = true)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(
+            listOf("partial"),
+            vm.uiState.value.sessions
+                .map { it.id },
+        )
+        assertEquals(setOf("work"), vm.uiState.value.corruptStorageProfiles)
+        assertTrue(
+            kotlinx.serialization.json.Json
+                .decodeFromString<SessionListResponse>(
+                    """{"sessions":[]}""",
+                ).storage
+                .isEmpty(),
+        )
+    }
+
+    @Test
     fun `wire paging metadata drives a second request without changing history paging`() {
         val first =
             kotlinx.serialization.json.Json.decodeFromString<SessionSearchResponse>(

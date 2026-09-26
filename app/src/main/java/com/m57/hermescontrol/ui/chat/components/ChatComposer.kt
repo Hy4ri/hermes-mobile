@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.chat.components
 
+import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -9,6 +10,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,11 +18,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -30,6 +35,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -47,9 +53,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -113,8 +124,9 @@ fun ChatInputBar(
     onMicHoldStart: () -> Unit = {},
     onMicHoldEnd: () -> Unit = {},
     onMicHoldCancel: () -> Unit = {},
+    onMicLock: () -> Unit = {},
+    isVoiceNoteLocked: Boolean = false,
     isRecordingVoice: Boolean = false,
-    voiceNoteAmplitude: State<Float> = remember { mutableStateOf(0f) },
     onStopGeneration: () -> Unit = {},
 ) {
     // Allow sending while the agent is mid-turn or awaiting approval: the
@@ -130,259 +142,407 @@ fun ChatInputBar(
 
     // Attachment tray state
     var showAttachmentTray by remember { mutableStateOf(false) }
+    // The voice-note strip replaces the input field, so the IME closes the
+    // moment recording starts. When the strip goes away (send, delete, or
+    // cancel), focus returns to the input and the keyboard re-opens if it was
+    // up before — the next message must not need an extra tap (device
+    // follow-up, #1247).
+    val inputFocusRequester = remember { FocusRequester() }
+    val softwareKeyboard = LocalSoftwareKeyboardController.current
+    var inputWasFocused by remember { mutableStateOf(false) }
+    var restoreInputFocus by remember { mutableStateOf(false) }
+    // Snapshot BEFORE the launcher flips isRecordingVoice — by the time the
+    // recomposition swaps the field out, focus is already on its way to the
+    // root, so the effect alone cannot read it reliably.
+    val handleMicHoldStart = {
+        restoreInputFocus = inputWasFocused
+        onMicHoldStart()
+    }
+    // A hold can arm and still fail to start the recorder (permission denied,
+    // mic busy). Drop the focus snapshot then, so the end of some later
+    // recording cannot pop the keyboard on its behalf (review, PR #1280).
+    val handleMicHoldEnd = {
+        if (!isRecordingVoice) restoreInputFocus = false
+        onMicHoldEnd()
+    }
+    val handleMicHoldCancel = {
+        if (!isRecordingVoice) restoreInputFocus = false
+        onMicHoldCancel()
+    }
+    LaunchedEffect(isRecordingVoice) {
+        if (!isRecordingVoice && restoreInputFocus) {
+            restoreInputFocus = false
+            inputFocusRequester.requestFocus()
+            softwareKeyboard?.show()
+        }
+    }
+    // Telegram parity: the strip's hint slides and fades with the drag, so
+    // the gesture reports its 1 → 0 cancel fraction here.
+    val voiceSlideProgress = remember { mutableStateOf(1f) }
+    // The "Slide up to lock recording" tooltip shows until the first
+    // successful lock, then stays away (persisted, like Telegram).
+    val context = LocalContext.current
+    var voiceLockHintDone by remember {
+        mutableStateOf(
+            context
+                .getSharedPreferences(VOICE_PREFS_NAME, Context.MODE_PRIVATE)
+                .getBoolean(VOICE_LOCK_HINT_KEY, false),
+        )
+    }
+    LaunchedEffect(isVoiceNoteLocked) {
+        if (isVoiceNoteLocked && !voiceLockHintDone) {
+            voiceLockHintDone = true
+            context
+                .getSharedPreferences(VOICE_PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putBoolean(VOICE_LOCK_HINT_KEY, true)
+                .apply()
+        }
+    }
     val palette = composerPalette()
     BackHandler(enabled = showAttachmentTray) { showAttachmentTray = false }
 
-    AnimatedVisibility(
-        visible = true,
-        enter = slideInVertically(initialOffsetY = { it }),
-        exit = slideOutVertically(targetOffsetY = { it }),
-    ) {
-        // One floating card holds the whole composer: suggestions, attachments,
-        // the input and the controls row. Flat fill, hairline edge, no shadow.
-        Surface(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-            shape = MaterialTheme.shapes.large,
-            color = palette.card,
-            border = BorderStroke(width = 1.dp, color = palette.cardBorder),
+    Box {
+        AnimatedVisibility(
+            visible = true,
+            enter = slideInVertically(initialOffsetY = { it }),
+            exit = slideOutVertically(targetOffsetY = { it }),
         ) {
-            Column(modifier = Modifier.padding(top = 8.dp, bottom = 10.dp)) {
-                // Commands hidden from the suggestion menu — desktop/CLI-only and
-                // TUI-only commands that don't function on mobile (issue #574).
-                // Single source of truth: CommandBlocklist.UNSUPPORTED, which is
-                // also enforced at dispatch time (issue #576, deliverable #3).
-                val hiddenSlashDisplay = CommandBlocklist.UNSUPPORTED
-                val commandNames =
-                    (commandCatalog.pairs.map { it[0] } + listOf("/btw", "/queue", "/fork", "/model", "/new", "/stop"))
-                        .distinct()
-                        .filter { it.lowercase() !in hiddenSlashDisplay }
+            // One floating card holds the whole composer: suggestions, attachments,
+            // the input and the controls row. Flat fill, hairline edge, no shadow.
+            Surface(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                shape = MaterialTheme.shapes.large,
+                color = palette.card,
+                border = BorderStroke(width = 1.dp, color = palette.cardBorder),
+            ) {
+                Column(modifier = Modifier.padding(top = 8.dp, bottom = 10.dp)) {
+                    // Commands hidden from the suggestion menu — desktop/CLI-only and
+                    // TUI-only commands that don't function on mobile (issue #574).
+                    // Single source of truth: CommandBlocklist.UNSUPPORTED, which is
+                    // also enforced at dispatch time (issue #576, deliverable #3).
+                    val hiddenSlashDisplay = CommandBlocklist.UNSUPPORTED
+                    val commandNames =
+                        (
+                            commandCatalog.pairs.map { it[0] } +
+                                listOf("/btw", "/queue", "/fork", "/model", "/new", "/stop")
+                        ).distinct()
+                            .filter { it.lowercase() !in hiddenSlashDisplay }
 
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = inputFieldValue.text.startsWith("/") && !inputFieldValue.text.contains(" "),
-                    enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
-                    exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically(),
-                ) {
-                    val filteredCommands =
-                        ChatInputPolicy.sortSlashSuggestions(
-                            commandNames.filter { it.startsWith(inputFieldValue.text, ignoreCase = true) },
-                            slashUsageCounts,
-                        )
-                    if (filteredCommands.isNotEmpty()) {
-                        androidx.compose.material3.Surface(
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            border =
-                                BorderStroke(
-                                    1.dp,
-                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                                ),
-                        ) {
-                            LazyColumn(
-                                modifier = Modifier.heightIn(max = 200.dp),
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = inputFieldValue.text.startsWith("/") && !inputFieldValue.text.contains(" "),
+                        enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
+                        exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically(),
+                    ) {
+                        val filteredCommands =
+                            ChatInputPolicy.sortSlashSuggestions(
+                                commandNames.filter { it.startsWith(inputFieldValue.text, ignoreCase = true) },
+                                slashUsageCounts,
+                            )
+                        if (filteredCommands.isNotEmpty()) {
+                            androidx.compose.material3.Surface(
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                border =
+                                    BorderStroke(
+                                        1.dp,
+                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                                    ),
                             ) {
-                                items(filteredCommands, key = { it }) { cmd ->
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                cmd,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.primary,
-                                            )
-                                        },
-                                        onClick = { onInputChange(ChatInputPolicy.commandFieldValue(cmd)) },
-                                    )
+                                LazyColumn(
+                                    modifier = Modifier.heightIn(max = 200.dp),
+                                ) {
+                                    items(filteredCommands, key = { it }) { cmd ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    cmd,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                )
+                                            },
+                                            onClick = { onInputChange(ChatInputPolicy.commandFieldValue(cmd)) },
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
-                }
 
-                // Attachment preview chips
-                AnimatedVisibility(
-                    visible = pendingAttachments.isNotEmpty(),
-                    enter = fadeIn() + expandVertically(),
-                    exit = fadeOut() + shrinkVertically(),
-                ) {
-                    LazyRow(
+                    // Attachment preview chips
+                    AnimatedVisibility(
+                        visible = pendingAttachments.isNotEmpty(),
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically(),
+                    ) {
+                        LazyRow(
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            itemsIndexed(pendingAttachments) { index, attachment ->
+                                AttachmentChip(
+                                    attachment = attachment,
+                                    onPreview = { onPreviewAttachment(attachment) },
+                                    onRemove = { onRemoveAttachment(index) },
+                                )
+                            }
+                        }
+                    }
+
+                    if (isConnected && !isSessionReady) {
+                        Text(
+                            text =
+                                stringResource(
+                                    if (sessionPreparationFailed) {
+                                        R.string.chat_session_not_ready
+                                    } else {
+                                        R.string.chat_session_preparing
+                                    },
+                                ),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = palette.placeholder,
+                            modifier = Modifier.padding(horizontal = 20.dp).testTag("chat_session_preparing"),
+                        )
+                    }
+
+                    // ── TOP ROW: Borderless input field ──
+                    Row(
                         modifier =
                             Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                .padding(horizontal = 20.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        itemsIndexed(pendingAttachments) { index, attachment ->
-                            AttachmentChip(
-                                attachment = attachment,
-                                onPreview = { onPreviewAttachment(attachment) },
-                                onRemove = { onRemoveAttachment(index) },
+                        val placeholderText =
+                            when {
+                                !isConnected -> {
+                                    stringResource(R.string.chat_input_placeholder_not_connected)
+                                }
+
+                                ChatInputPolicy.showQueuePlaceholder(inputFieldValue.text, isAgentTyping) -> {
+                                    stringResource(R.string.chat_input_placeholder_queue)
+                                }
+
+                                isAgentTyping -> {
+                                    stringResource(R.string.chat_input_placeholder_waiting)
+                                }
+
+                                else -> {
+                                    stringResource(R.string.chat_input_placeholder_type_message)
+                                }
+                            }
+
+                        val ambientLayoutDirection = LocalLayoutDirection.current
+                        val inputLayoutDirection =
+                            remember(inputFieldValue.text, ambientLayoutDirection) {
+                                BidiUtils.resolveLayoutDirection(
+                                    inputFieldValue.text,
+                                    fallback = ambientLayoutDirection,
+                                )
+                            }
+                        val isInputRtl = inputLayoutDirection == LayoutDirection.Rtl
+
+                        if (isRecordingVoice) {
+                            VoiceNoteRecordingPanel(
+                                slideProgress = voiceSlideProgress,
+                                locked = isVoiceNoteLocked,
+                                onCancel = onMicHoldCancel,
+                                modifier = Modifier.weight(1f),
                             )
-                        }
-                    }
-                }
-
-                if (isConnected && !isSessionReady) {
-                    Text(
-                        text =
-                            stringResource(
-                                if (sessionPreparationFailed) {
-                                    R.string.chat_session_not_ready
-                                } else {
-                                    R.string.chat_session_preparing
-                                },
-                            ),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = palette.placeholder,
-                        modifier = Modifier.padding(horizontal = 20.dp).testTag("chat_session_preparing"),
-                    )
-                }
-
-                // ── TOP ROW: Borderless input field ──
-                Row(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    val placeholderText =
-                        when {
-                            !isConnected -> {
-                                stringResource(R.string.chat_input_placeholder_not_connected)
-                            }
-
-                            ChatInputPolicy.showQueuePlaceholder(inputFieldValue.text, isAgentTyping) -> {
-                                stringResource(R.string.chat_input_placeholder_queue)
-                            }
-
-                            isAgentTyping -> {
-                                stringResource(R.string.chat_input_placeholder_waiting)
-                            }
-
-                            else -> {
-                                stringResource(R.string.chat_input_placeholder_type_message)
-                            }
-                        }
-
-                    val ambientLayoutDirection = LocalLayoutDirection.current
-                    val inputLayoutDirection =
-                        remember(inputFieldValue.text, ambientLayoutDirection) {
-                            BidiUtils.resolveLayoutDirection(inputFieldValue.text, fallback = ambientLayoutDirection)
-                        }
-                    val isInputRtl = inputLayoutDirection == LayoutDirection.Rtl
-
-                    if (isRecordingVoice) {
-                        VoiceNoteRecordingPanel(
-                            amplitude = voiceNoteAmplitude,
-                            modifier = Modifier.weight(1f),
-                        )
-                    } else {
-                        CompositionLocalProvider(LocalLayoutDirection provides inputLayoutDirection) {
-                            BasicTextField(
-                                value = inputFieldValue,
-                                onValueChange = onInputChange,
-                                modifier =
-                                    Modifier
-                                        .weight(1f)
-                                        .heightIn(min = 42.dp, max = 200.dp)
-                                        .padding(vertical = 4.dp)
-                                        .testTag("chat_input"),
-                                enabled = isConnected,
-                                textStyle =
-                                    MaterialTheme.typography.bodyLarge.copy(
-                                        color = palette.text,
-                                        textAlign = if (isInputRtl) TextAlign.Right else TextAlign.Left,
-                                        textDirection = if (isInputRtl) TextDirection.Rtl else TextDirection.Ltr,
-                                    ),
-                                singleLine = false,
-                                maxLines = 8,
-                                cursorBrush = SolidColor(palette.text),
-                                decorationBox = { innerTextField ->
-                                    CompositionLocalProvider(LocalLayoutDirection provides ambientLayoutDirection) {
-                                        Box(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            contentAlignment =
-                                                if (isInputRtl) {
-                                                    Alignment.CenterEnd
-                                                } else {
-                                                    Alignment.CenterStart
-                                                },
-                                        ) {
-                                            CompositionLocalProvider(
-                                                LocalLayoutDirection provides inputLayoutDirection,
-                                            ) {
-                                                if (inputFieldValue.text.isEmpty()) {
-                                                    Text(
-                                                        text = placeholderText,
-                                                        style = MaterialTheme.typography.bodyLarge,
-                                                        textAlign = if (isInputRtl) TextAlign.Right else TextAlign.Left,
-                                                        color = palette.placeholder,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis,
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                    )
+                        } else {
+                            CompositionLocalProvider(LocalLayoutDirection provides inputLayoutDirection) {
+                                BasicTextField(
+                                    value = inputFieldValue,
+                                    onValueChange = onInputChange,
+                                    modifier =
+                                        Modifier
+                                            .weight(1f)
+                                            .heightIn(min = 42.dp, max = 200.dp)
+                                            .padding(vertical = 4.dp)
+                                            .focusRequester(inputFocusRequester)
+                                            .onFocusChanged { focusState ->
+                                                if (!isRecordingVoice) {
+                                                    inputWasFocused = focusState.isFocused
                                                 }
-                                                innerTextField()
+                                            }.testTag("chat_input"),
+                                    enabled = isConnected,
+                                    textStyle =
+                                        MaterialTheme.typography.bodyLarge.copy(
+                                            color = palette.text,
+                                            textAlign = if (isInputRtl) TextAlign.Right else TextAlign.Left,
+                                            textDirection = if (isInputRtl) TextDirection.Rtl else TextDirection.Ltr,
+                                        ),
+                                    singleLine = false,
+                                    maxLines = 8,
+                                    cursorBrush = SolidColor(palette.text),
+                                    decorationBox = { innerTextField ->
+                                        CompositionLocalProvider(LocalLayoutDirection provides ambientLayoutDirection) {
+                                            Box(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                contentAlignment =
+                                                    if (isInputRtl) {
+                                                        Alignment.CenterEnd
+                                                    } else {
+                                                        Alignment.CenterStart
+                                                    },
+                                            ) {
+                                                CompositionLocalProvider(
+                                                    LocalLayoutDirection provides inputLayoutDirection,
+                                                ) {
+                                                    if (inputFieldValue.text.isEmpty()) {
+                                                        Text(
+                                                            text = placeholderText,
+                                                            style = MaterialTheme.typography.bodyLarge,
+                                                            textAlign =
+                                                                if (isInputRtl) TextAlign.Right else TextAlign.Left,
+                                                            color = palette.placeholder,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis,
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                        )
+                                                    }
+                                                    innerTextField()
+                                                }
                                             }
                                         }
-                                    }
-                                },
-                            )
+                                    },
+                                )
+                            }
                         }
                     }
+
+                    // ── BOTTOM ROW: Toolbar ──
+                    ComposerToolbar(
+                        isConnected = isConnected,
+                        currentSessionModel = currentSessionModel,
+                        reasoningLevel = reasoningLevel,
+                        isListening = isListening,
+                        canSend = canSend,
+                        showSend = hasDraft,
+                        showQueue = showBusyActions,
+                        onSend = onSend,
+                        onQueue = { onBusySend(BusySendMode.QUEUE) },
+                        onStopAndSend = { onBusySend(BusySendMode.INTERRUPT) },
+                        canInterrupt = canInterrupt,
+                        onStopGeneration = onStopGeneration,
+                        onAttachTap = { showAttachmentTray = !showAttachmentTray },
+                        onModelTap = onModelTap,
+                        onReasoningSelected = onReasoningTap,
+                        onMicTap = onMicTap,
+                        onMicHoldStart = handleMicHoldStart,
+                        onMicHoldEnd = handleMicHoldEnd,
+                        onMicHoldCancel = handleMicHoldCancel,
+                        onMicLock = onMicLock,
+                        isVoiceNoteLocked = isVoiceNoteLocked,
+                        onSlideProgress = { voiceSlideProgress.value = it },
+                        modifier = Modifier.testTag("chat_composer_toolbar"),
+                        canDisableReasoning = canDisableReasoning,
+                        supportsReasoning = supportsReasoning,
+                        fastMode = fastMode,
+                        fastSupported = fastSupported,
+                        isFastModeChanging = isFastModeChanging,
+                        onToggleFastMode = onToggleFastMode,
+                        showModelProvider = showModelProvider,
+                        reasoningWireLevel = reasoningWireLevel,
+                        pendingReasoningLevel = pendingReasoningLevel,
+                        isSessionReady = isSessionReady,
+                    )
+
+                    AttachmentTray(
+                        visible = showAttachmentTray,
+                        onDismissRequest = { showAttachmentTray = false },
+                        onCameraTap = onCameraTap,
+                        onImageTap = onImageTap,
+                        onFileTap = onFileTap,
+                    )
                 }
-
-                // ── BOTTOM ROW: Toolbar ──
-                ComposerToolbar(
-                    isConnected = isConnected,
-                    currentSessionModel = currentSessionModel,
-                    reasoningLevel = reasoningLevel,
-                    isListening = isListening,
-                    canSend = canSend,
-                    showSend = hasDraft,
-                    showQueue = showBusyActions,
-                    onSend = onSend,
-                    onQueue = { onBusySend(BusySendMode.QUEUE) },
-                    onStopAndSend = { onBusySend(BusySendMode.INTERRUPT) },
-                    canInterrupt = canInterrupt,
-                    onStopGeneration = onStopGeneration,
-                    onAttachTap = { showAttachmentTray = !showAttachmentTray },
-                    onModelTap = onModelTap,
-                    onReasoningSelected = onReasoningTap,
-                    onMicTap = onMicTap,
-                    onMicHoldStart = onMicHoldStart,
-                    onMicHoldEnd = onMicHoldEnd,
-                    onMicHoldCancel = onMicHoldCancel,
-                    modifier = Modifier.testTag("chat_composer_toolbar"),
-                    canDisableReasoning = canDisableReasoning,
-                    supportsReasoning = supportsReasoning,
-                    fastMode = fastMode,
-                    fastSupported = fastSupported,
-                    isFastModeChanging = isFastModeChanging,
-                    onToggleFastMode = onToggleFastMode,
-                    showModelProvider = showModelProvider,
-                    reasoningWireLevel = reasoningWireLevel,
-                    pendingReasoningLevel = pendingReasoningLevel,
-                    isSessionReady = isSessionReady,
-                )
-
-                AttachmentTray(
-                    visible = showAttachmentTray,
-                    onDismissRequest = { showAttachmentTray = false },
-                    onCameraTap = onCameraTap,
-                    onImageTap = onImageTap,
-                    onFileTap = onFileTap,
-                )
             }
+        }
+        // Zero-height anchor so the tooltip and lock icon float above the
+        // card, over the message list, like Telegram's lock control. It sits
+        // outside the animated card because AnimatedVisibility clips its
+        // children to the animation bounds.
+        Box(modifier = Modifier.fillMaxWidth().height(0.dp)) {
+            VoiceNoteLockHintOverlay(
+                visible = isRecordingVoice && !isVoiceNoteLocked,
+                showTextHint = !voiceLockHintDone && voiceSlideProgress.value >= 0.8f,
+                modifier =
+                    Modifier
+                        .wrapContentHeight(align = Alignment.Top, unbounded = true)
+                        .align(Alignment.TopEnd)
+                        .offset(y = (-42).dp)
+                        .padding(end = 12.dp),
+            )
         }
     }
 }
+
+/**
+ * Telegram-style lock affordance floating over the composer while a voice
+ * note records: the outlined lock icon with the "Slide up to lock recording"
+ * tooltip beside it. The tooltip shows only until the first successful lock
+ * (persisted in [VOICE_PREFS_NAME]); the icon rides along until the recording
+ * locks hands-free.
+ */
+@Composable
+private fun VoiceNoteLockHintOverlay(
+    visible: Boolean,
+    showTextHint: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    if (!visible) {
+        return
+    }
+    val palette = composerPalette()
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (showTextHint) {
+            Text(
+                text = stringResource(R.string.chat_voice_lock_hint),
+                style = MaterialTheme.typography.labelSmall,
+                color = palette.text,
+                maxLines = 1,
+                modifier =
+                    Modifier
+                        .background(palette.card, RoundedCornerShape(6.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+        }
+        Box(
+            modifier =
+                Modifier
+                    .size(36.dp)
+                    .background(palette.control, RoundedCornerShape(8.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Lock,
+                contentDescription = null,
+                tint = palette.placeholder,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+    }
+}
+
+/** Shared prefs file for the voice-note UI. */
+private const val VOICE_PREFS_NAME = "chat_voice_prefs"
+
+/** Set after the first successful hands-free lock, silencing the hint. */
+private const val VOICE_LOCK_HINT_KEY = "voice_note_lock_hint_done"
 
 /**
  * Reusable attachment chip composable for showing a pending attachment

@@ -14,7 +14,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,7 +39,7 @@ import java.util.Locale
 class ChatMediaLaunchers(
     val isListening: Boolean,
     val isRecordingVoice: Boolean,
-    val voiceNoteAmplitude: State<Float>,
+    val isVoiceNoteLocked: Boolean,
     val onMicTap: () -> Unit,
     val onCameraTap: () -> Unit,
     val onImageTap: () -> Unit,
@@ -48,6 +47,7 @@ class ChatMediaLaunchers(
     val onMicHoldStart: () -> Unit = {},
     val onMicHoldEnd: () -> Unit = {},
     val onMicHoldCancel: () -> Unit = {},
+    val onMicLock: () -> Unit = {},
 )
 
 @Composable
@@ -85,28 +85,14 @@ fun rememberChatMediaLaunchers(
     val voiceNoteRecorder = remember { VoiceNoteRecorder(context) }
     var isRecordingVoice by remember { mutableStateOf(false) }
 
-    // Live mic level for the recording panel — rises fast, decays slowly so
-    // the meter reads as voice activity instead of flicker.
-    val voiceNoteAmplitude = remember { mutableStateOf(0f) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(90)
-            val previous = voiceNoteAmplitude.value
-            val next =
-                if (voiceNoteRecorder.isActive) {
-                    maxOf(voiceNoteRecorder.currentAmplitude() / 32767f, previous * 0.8f)
-                } else {
-                    0f
-                }
-            if (next != previous) {
-                voiceNoteAmplitude.value = next
-            }
-        }
-    }
+    // Locked = the recording continues after the finger lifts (slide up
+    // during the hold); the action button then submits it.
+    var isVoiceNoteLocked by remember { mutableStateOf(false) }
 
     fun finishVoiceRecording() {
         val recordedFile = voiceNoteRecorder.stop()
         isRecordingVoice = false
+        isVoiceNoteLocked = false
         if (recordedFile != null) {
             currentOnVoiceNoteRecorded(recordedFile)
         }
@@ -264,6 +250,9 @@ fun rememberChatMediaLaunchers(
         if (isTranscribingVoiceNote) {
             // Single-flight: a server transcription owns the voice pipeline
             // until it lands (review, PR #1250).
+        } else if (isVoiceNoteLocked) {
+            // The locked recording's action button submits the note.
+            finishVoiceRecording()
         } else if (isRecordingVoice) {
             // A tap while recording discards the in-flight voice note.
             voiceNoteRecorder.cancel()
@@ -334,6 +323,15 @@ fun rememberChatMediaLaunchers(
             voiceNoteRecorder.cancel()
         }
         isRecordingVoice = false
+        isVoiceNoteLocked = false
+    }
+
+    // Locking keeps the recorder running once the finger lifts; only the
+    // panel's delete action or the action button can end it then.
+    val onMicLock: () -> Unit = {
+        if (voiceNoteRecorder.isActive) {
+            isVoiceNoteLocked = true
+        }
     }
 
     val onCameraTap: () -> Unit = {
@@ -369,11 +367,11 @@ fun rememberChatMediaLaunchers(
         }
     }
 
-    return remember(isListening, isRecordingVoice, isTranscribingVoiceNote) {
+    return remember(isListening, isRecordingVoice, isVoiceNoteLocked, isTranscribingVoiceNote) {
         ChatMediaLaunchers(
             isListening = isListening || isRecordingVoice,
             isRecordingVoice = isRecordingVoice,
-            voiceNoteAmplitude = voiceNoteAmplitude,
+            isVoiceNoteLocked = isVoiceNoteLocked,
             onMicTap = onMicTap,
             onCameraTap = onCameraTap,
             onImageTap = onImageTap,
@@ -381,6 +379,7 @@ fun rememberChatMediaLaunchers(
             onMicHoldStart = onMicHoldStart,
             onMicHoldEnd = onMicHoldEnd,
             onMicHoldCancel = onMicHoldCancel,
+            onMicLock = onMicLock,
         )
     }
 }

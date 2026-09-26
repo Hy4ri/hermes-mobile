@@ -16,7 +16,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import retrofit2.Response
 import java.io.File
+import java.net.ConnectException
 import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 
 class VoiceNoteRepositoryTest {
     private val api = mockk<HermesApiService>()
@@ -71,6 +73,40 @@ class VoiceNoteRepositoryTest {
 
             assertTrue(result is NetworkResult.Failure)
             coVerify(exactly = 1) { api.transcribeAudio(any()) }
+        }
+
+    @Test
+    fun transcribe_retriesOnceWhenTheConnectNeverEstablished() =
+        runTest {
+            // A connect failure means the request never reached the server, so
+            // one re-attempt is safe and rescues Wi-Fi/cellular handoffs that
+            // surface as "Network is unreachable" (device follow-up, #1247).
+            val file = tempVoiceFile()
+            var attempts = 0
+            coEvery { api.transcribeAudio(any()) } coAnswers {
+                attempts++
+                if (attempts == 1) {
+                    throw ConnectException("failed to connect to /192.168.1.10:8000")
+                }
+                Response.success(AudioTranscriptionResponse(ok = true, transcript = " hi "))
+            }
+
+            val result = VoiceNoteRepository { _ -> api }.transcribe(file)
+
+            assertEquals("hi", (result as NetworkResult.Success).data)
+            coVerify(exactly = 2) { api.transcribeAudio(any()) }
+        }
+
+    @Test
+    fun transcribe_givesUpAfterOneConnectRetry() =
+        runTest {
+            val file = tempVoiceFile()
+            coEvery { api.transcribeAudio(any()) } throws UnknownHostException("no dns")
+
+            val result = VoiceNoteRepository { _ -> api }.transcribe(file)
+
+            assertTrue(result is NetworkResult.Failure)
+            coVerify(exactly = 2) { api.transcribeAudio(any()) }
         }
 
     @Test

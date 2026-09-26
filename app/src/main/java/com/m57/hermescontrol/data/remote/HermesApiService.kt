@@ -670,7 +670,8 @@ interface HermesApiService : KanbanApiService {
     @POST("api/dashboard/agent-plugins/{name}/update")
     suspend fun updatePlugin(
         @Path("name", encoded = true) name: String,
-    ): Response<Unit>
+        @Body body: com.m57.hermescontrol.data.model.PluginUpdateRequest,
+    ): Response<com.m57.hermescontrol.data.model.PluginUpdateResult>
 
     @POST("api/dashboard/agent-plugins/{name}/enable")
     suspend fun enablePlugin(

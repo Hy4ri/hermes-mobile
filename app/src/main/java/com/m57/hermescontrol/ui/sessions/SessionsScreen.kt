@@ -711,6 +711,17 @@ fun SessionsScreen(
                         )
                     }
 
+                    state.sessions.isEmpty() && state.corruptStorageProfiles.isNotEmpty() -> {
+                        ErrorState(
+                            message =
+                                stringResource(
+                                    R.string.sessions_storage_corrupt,
+                                    state.corruptStorageProfiles.sorted().joinToString(", "),
+                                ),
+                            onRetry = { viewModel.loadSessions(forceRefresh = true) },
+                        )
+                    }
+
                     state.sessions.isEmpty() -> {
                         EmptyState(
                             title =
@@ -752,6 +763,18 @@ fun SessionsScreen(
 
                     else -> {
                         Column(modifier = Modifier.fillMaxSize()) {
+                            if (state.corruptStorageProfiles.isNotEmpty()) {
+                                Text(
+                                    text =
+                                        stringResource(
+                                            R.string.sessions_storage_corrupt,
+                                            state.corruptStorageProfiles.sorted().joinToString(", "),
+                                        ),
+                                    color = statusColors.warning,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(spacing.md),
+                                )
+                            }
                             // ── Stats row ───────────────────────────────────────
                             SessionsStatsRow(
                                 total = state.total,

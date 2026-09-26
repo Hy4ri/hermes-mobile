@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.ConnectionOperationTarget
 import com.m57.hermescontrol.data.model.ConnectionTargetState
+import com.m57.hermescontrol.ui.chat.ChatConnectionOperationDelegate
 import com.m57.hermescontrol.ui.chat.ConnectionOperationUiState
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -224,9 +225,24 @@ internal fun ConnectionSetupContent(
             }
         }
 
-        state.error?.let {
+        state.error?.let { error ->
             Text(
-                text = stringResource(R.string.connection_setup_request_failed),
+                text =
+                    stringResource(
+                        when (error.message) {
+                            ChatConnectionOperationDelegate.NOT_OWNER -> {
+                                R.string.session_integrations_err_not_owner
+                            }
+
+                            ChatConnectionOperationDelegate.UNSUPPORTED_RUNTIME -> {
+                                R.string.session_integrations_err_unsupported_runtime
+                            }
+
+                            else -> {
+                                R.string.connection_setup_request_failed
+                            }
+                        },
+                    ),
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.testTag("connection_setup_error"),
             )

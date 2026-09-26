@@ -44,7 +44,10 @@ class ConnectorRepositoryTest {
             val result = repo.listConnectors("sess-abc-123")
             assertTrue(result is ConnectorListResult.Success)
             assertEquals(WsMethods.CONNECTORS_LIST, recordedMethod)
-            assertEquals(mapOf("session_id" to "sess-abc-123"), recordedParams)
+            assertEquals(
+                mapOf("owner" to mapOf("type" to "session", "session_id" to "sess-abc-123")),
+                recordedParams,
+            )
             // Verify no profile or singular slug mutations
             assertFalse(recordedParams?.containsKey("profile") == true)
             assertFalse(recordedParams?.containsKey("connector") == true)
@@ -80,9 +83,14 @@ class ConnectorRepositoryTest {
 
             assertTrue(result is ConnectorConnectResult.Success)
             assertEquals(WsMethods.CONNECTORS_CONNECT, recordedMethod)
-            assertEquals("sess-456", recordedParams?.get("session_id"))
-            assertEquals(listOf("linear", "github_app-1"), recordedParams?.get("connectors"))
-            assertEquals(true, recordedParams?.get("reconnect"))
+            assertEquals(
+                mapOf(
+                    "owner" to mapOf("type" to "session", "session_id" to "sess-456"),
+                    "connectors" to listOf("linear", "github_app-1"),
+                    "reconnect" to true,
+                ),
+                recordedParams,
+            )
 
             // Verify no singular slug key mutation
             assertFalse(recordedParams?.containsKey("connector") == true)

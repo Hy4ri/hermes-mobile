@@ -24,7 +24,7 @@ object ConnectionOperationParser {
             return null
         }
         return ConnectionOperationSnapshot(
-            sessionId = (sessionId ?: payload["session_id"] as? String)?.takeIf { it.isNotBlank() },
+            sessionId = resolveSessionId(payload, sessionId),
             opId = opId,
             seq = seq,
             deadlineAt = deadlineAt,
@@ -37,6 +37,21 @@ object ConnectionOperationParser {
             settledBy = payload["settled_by"] as? String,
             targets = targets,
         )
+    }
+
+    /**
+     * Session that owns the operation. Since hermes-agent v0.21.5 updates carry `owner` (#1281):
+     * session-owned ones name their session; account-owned ones never bind to a chat.
+     */
+    private fun resolveSessionId(
+        payload: Map<String, Any?>,
+        envelopeSessionId: String?,
+    ): String? {
+        val owner = payload["owner"] as? Map<*, *>
+        if (owner?.get("type") == "account") return null
+        val ownerSessionId = (owner?.get("session_id") as? String).takeIf { owner?.get("type") == "session" }
+        return listOf(envelopeSessionId, ownerSessionId, payload["session_id"] as? String)
+            .firstOrNull { !it.isNullOrBlank() }
     }
 
     private fun parseTarget(raw: Map<*, *>?): ConnectionOperationTarget? {

@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.data.ws
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -61,6 +62,39 @@ class ConnectionOperationEventParserTest {
 
         assertTrue(event is WsEvent.Unknown)
         assertEquals("", (event as WsEvent.Unknown).raw)
+    }
+
+    @Test
+    fun connectionUpdate_bindsToSessionOwner() {
+        val event =
+            EventParser.parseParams(
+                mapOf(
+                    "type" to "connection.update",
+                    "payload" to
+                        operationPayload(seq = 2L) +
+                        mapOf("owner" to mapOf("type" to "session", "session_id" to "owner-session")),
+                ),
+            )
+
+        assertTrue(event is WsEvent.ConnectionUpdate)
+        assertEquals("owner-session", (event as WsEvent.ConnectionUpdate).snapshot.sessionId)
+    }
+
+    @Test
+    fun connectionUpdate_accountOwnerNeverBindsToSession() {
+        val event =
+            EventParser.parseParams(
+                mapOf(
+                    "type" to "connection.update",
+                    "session_id" to "",
+                    "payload" to
+                        operationPayload(seq = 2L) +
+                        mapOf("owner" to mapOf("type" to "account"), "session_id" to "stale-session"),
+                ),
+            )
+
+        assertTrue(event is WsEvent.ConnectionUpdate)
+        assertNull((event as WsEvent.ConnectionUpdate).snapshot.sessionId)
     }
 
     private fun operationPayload(seq: Long): Map<String, Any?> =

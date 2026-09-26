@@ -14,7 +14,7 @@ No implementation in this stage; this document is the gate for it.
    step, no detail/preview, and no active badge, even though the ViewModel already
    exposes `activeCustomThemeId: StateFlow<String?>` (from `ThemeApplier`) and the
    screen never collects it.
-3. `app/src/main/java/com/m57/hermescontrol/theme/Theme.kt:66` (`ThemePreset.CUSTOM -> custom ?: DefaultTheme`) is a correct
+3. `app/src/main/java/com/m57/hermescontrol/theme/Theme.kt:69` (`ThemePreset.CUSTOM -> custom ?: DefaultTheme`) is a correct
    crash-safety fallback, but when persisted tokens fail to restore the UI still
    presents whatever label was stored, which reads as a fake active Marketplace state.
 4. The font selector (`AppFontFamily`, `app/src/main/java/com/m57/hermescontrol/theme/Type.kt:15-25`) offers System Default, Sans
@@ -63,17 +63,17 @@ No implementation in this stage; this document is the gate for it.
   (`app/src/main/java/com/m57/hermescontrol/data/local/AuthManager.kt:244`) and is a
   silent no-op on corrupt/empty input.
 - `app/src/main/java/com/m57/hermescontrol/data/config/ServerStoreState.kt:20-26` —
-  persistence fields. `app/src/main/java/com/m57/hermescontrol/theme/Theme.kt:57-67` —
+  persistence fields. `app/src/main/java/com/m57/hermescontrol/theme/Theme.kt:57-69` —
   dispatcher with CUSTOM→Default fallback.
 
 ### 2.3 Typography today
 
 - Global: `app/src/main/java/com/m57/hermescontrol/MainActivity.kt:91-99` collects `AuthManager.fontFamilyFlow` and passes
   `AppFontFamily.fromKey(chatFontFamily).toFontFamily` into `HermesControlTheme`
-  (`app/src/main/java/com/m57/hermescontrol/theme/Theme.kt:106`), which builds `createTypography(fontFamily)` (`app/src/main/java/com/m57/hermescontrol/theme/Type.kt:46`) and
+  (`app/src/main/java/com/m57/hermescontrol/theme/Theme.kt:101`), which builds `createTypography(fontFamily)` (`app/src/main/java/com/m57/hermescontrol/theme/Type.kt:45`) and
   installs it as `MaterialTheme.typography`. Persisted key:
   `ServerStoreState.chatFontFamily` (default `"system"`), written via
-  `AuthManager.updateChatFontFamily` (`app/src/main/java/com/m57/hermescontrol/data/local/AuthManager.kt:892-895`), selected in
+  `AuthManager.setChatFontFamily` (`app/src/main/java/com/m57/hermescontrol/data/local/AuthManager.kt:896-901`), selected in
   `app/src/main/java/com/m57/hermescontrol/ui/settings/components/AppearanceSection.kt:236-260` (dropdown over
   `AppFontFamily.entries`).
 - Chat bodies DO consume the global type scale: `app/src/main/java/com/m57/hermescontrol/ui/chat/ChatBubble.kt:200,347,656`
@@ -185,14 +185,14 @@ No implementation in this stage; this document is the gate for it.
 | --- | --------------- | ---------------- | ------------------- |
 | M1 | `app/src/main/java/com/m57/hermescontrol/data/theme/marketplace/ThemeMarketplaceRepository.kt:34-43,63`; desktop `vscode-marketplace.ts:searchMarketplaceThemes` | UI test: header/copy cites VS Code Gallery; no Hermes-backend URL in catalog path | `app/src/main/java/com/m57/hermescontrol/ui/thememarketplace/ThemeMarketplaceScreen.kt`, strings |
 | M2 | `app/src/main/java/com/m57/hermescontrol/data/theme/import/VsixThemeParser.kt:1-60`; desktop `vscode-marketplace.ts:5-10` ("never executed") | Fixture-vsix unit test incl. decoy JS ignored; dependency scan of import path | `app/src/main/java/com/m57/hermescontrol/data/theme/import/VsixThemeParser.kt`, `app/src/main/java/com/m57/hermescontrol/data/theme/import/ThemeDefinitionConverter.kt` |
-| M3 | `app/src/main/java/com/m57/hermescontrol/ui/thememarketplace/ThemeMarketplaceScreen.kt:66-114`; `app/src/main/java/com/m57/hermescontrol/ui/thememarketplace/ThemeMarketplaceViewModel.kt:72-92,132-171` | UI tests: initial/debounce/pagination/loading/empty/error/retry with fake repo | Screen + ViewModel |
+| M3 | `app/src/main/java/com/m57/hermescontrol/ui/thememarketplace/ThemeMarketplaceScreen.kt:66-114`; `app/src/main/java/com/m57/hermescontrol/ui/thememarketplace/ThemeMarketplaceViewModel.kt:73-100,133-176` | UI tests: initial/debounce/pagination/loading/empty/error/retry with fake repo | Screen + ViewModel |
 | M4 | `app/src/main/java/com/m57/hermescontrol/ui/thememarketplace/ThemeMarketplaceScreen.kt:154-158` (tap-to-apply today) | UI test: tap selects, preset unchanged; Apply button applies | `app/src/main/java/com/m57/hermescontrol/ui/thememarketplace/ThemeMarketplaceScreen.kt` (+ detail) |
-| M5 | `app/src/main/java/com/m57/hermescontrol/ui/thememarketplace/ThemeMarketplaceViewModel.kt:57`; `app/src/main/java/com/m57/hermescontrol/data/theme/import/ThemeApplier.kt:31-32`; `app/src/main/java/com/m57/hermescontrol/theme/Theme.kt:57-67` | UI test: badge follows `activeCustomThemeId`; fallback not labeled Marketplace | Screen + ViewModel |
+| M5 | `app/src/main/java/com/m57/hermescontrol/ui/thememarketplace/ThemeMarketplaceViewModel.kt:58`; `app/src/main/java/com/m57/hermescontrol/data/theme/import/ThemeApplier.kt:31-32`; `app/src/main/java/com/m57/hermescontrol/theme/Theme.kt:57-69` | UI test: badge follows `activeCustomThemeId`; fallback not labeled Marketplace | Screen + ViewModel |
 | M6 | `app/src/main/java/com/m57/hermescontrol/data/theme/import/ThemeApplier.kt:84-94`; `app/src/main/java/com/m57/hermescontrol/data/local/AuthManager.kt:244`; `app/src/main/java/com/m57/hermescontrol/data/config/ServerStoreState.kt:20-26` | Unit/UI test: corrupt tokens → unavailable-state + clear/re-apply | `app/src/main/java/com/m57/hermescontrol/data/theme/import/ThemeApplier.kt`, init path |
 | M7 | `app/src/test/java/com/m57/hermescontrol/data/theme/marketplace/ThemeMarketplaceRepositoryTest.kt` (existing) | All above run offline; CI green | `app/src/test/.../marketplace/` |
 | F1 | `app/src/main/java/com/m57/hermescontrol/ui/chat/ChatBubble.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/MarkdownText.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/ToolBubble.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/components/MessageCards.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/components/DiffViewCard.kt` | Final consumer/override list attached to PR | `ui/chat/**` (read-only) |
 | F2 | `app/src/main/java/com/m57/hermescontrol/theme/Type.kt:15-25`; `app/src/test/java/com/m57/hermescontrol/theme/AppFontFamilyTest.kt` (keys only today) | Metric test on ATD-discriminating sample; alias labeling or removal | `app/src/main/java/com/m57/hermescontrol/theme/Type.kt`, `app/src/main/java/com/m57/hermescontrol/ui/settings/components/AppearanceSection.kt` |
-| F3 | `app/src/main/java/com/m57/hermescontrol/theme/Type.kt:46 createTypography`; `ServerStoreState.chatFontFamily` | Glyph-width + persistence round-trip tests | `theme/`, `data/config/` tests |
+| F3 | `app/src/main/java/com/m57/hermescontrol/theme/Type.kt:45 createTypography`; `ServerStoreState.chatFontFamily` | Glyph-width + persistence round-trip tests | `theme/`, `data/config/` tests |
 | F4 | §2.3 override list | Compose UI test: code monospace + body follows setting | `ui/chat/**` tests |
 
 ## 6. Suggested implementation shape (non-binding)
@@ -212,7 +212,10 @@ No implementation in this stage; this document is the gate for it.
 
 - Read the mobile files cited in §2–§5 and the desktop
   `apps/desktop/electron/vscode-marketplace.ts` function/signature level directly.
-- Path check: every `app/src/...:line` cited above was resolved against this worktree;
-  the desktop `apps/desktop/...` path was resolved against the sibling hermes-agent
-  checkout (`/home/sam/projects/hermes-agent`).
+- Path check: every `app/src/...:line` cited above was resolved against this worktree
+  at commit `bfc25e1b` (the committed baseline); the desktop `apps/desktop/...`
+  path was resolved against the sibling hermes-agent checkout
+  (`/home/sam/projects/hermes-agent`). Uncommitted working-tree work that landed
+  after the freeze (if any) is out of scope for these pins — re-verify line
+  numbers if the baseline moves.
 - Markdown/link check: local script (no network, no Gradle, no ADB).

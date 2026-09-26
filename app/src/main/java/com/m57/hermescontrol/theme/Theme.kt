@@ -41,11 +41,11 @@ val LocalFontFamily = compositionLocalOf { AppFontFamily.SYSTEM.toFontFamily }
  * Published by `ThemeApplier`; null when no custom theme is applied.
  * Observed by [HermesControlTheme] so applying a theme recomposes live.
  */
-private val _customPaletteFlow = MutableStateFlow<ThemePalette?>(null)
-val customPaletteFlow: StateFlow<ThemePalette?> = _customPaletteFlow.asStateFlow()
+private val customPaletteFlowInternal = MutableStateFlow<ThemePalette?>(null)
+val customPaletteFlow: StateFlow<ThemePalette?> = customPaletteFlowInternal.asStateFlow()
 
 fun setCustomPalette(palette: ThemePalette?) {
-    _customPaletteFlow.value = palette
+    customPaletteFlowInternal.value = palette
 }
 
 /**
@@ -54,7 +54,10 @@ fun setCustomPalette(palette: ThemePalette?) {
  * applied marketplace palette and falls back to Default when none is set
  * (e.g. preset persisted but tokens failed to restore) — never crashes.
  */
-private fun themeFor(preset: ThemePreset, custom: ThemePalette? = _customPaletteFlow.value): ThemePalette =
+private fun themeFor(
+    preset: ThemePreset,
+    custom: ThemePalette? = customPaletteFlowInternal.value,
+): ThemePalette =
     when (preset) {
         ThemePreset.DEFAULT -> DefaultTheme
         ThemePreset.MONOCHROME -> MonochromeTheme

@@ -31,15 +31,6 @@ import kotlinx.coroutines.withContext
  *     auto-creates a FRESH session in the new profile (desktop parity).
  *  4. Re-dial the WebSocket so the gateway re-homes chat to the new profile.
  */
-
-/**
- * Canonical-session intent that survives the socket re-dial.
- *
- * Scoped to target profile and switch generation so that [handleGatewayReady]
- * in [ChatViewModel] can verify it belongs to the current connection before
- * consuming it. Prevents cross-profile consumption and stale-intent races
- * from overlapping switches.
- */
 data class CanonicalSessionIntent(
     val sessionId: String,
     val profileName: String,
@@ -80,7 +71,10 @@ object ProfileSwitchCoordinator {
      * gateway.ready. Clear the intent with [clearCanonicalIntent] if the
      * switch fails or is cancelled.
      */
-    fun setCanonicalIntent(sessionId: String, profileName: String): Long {
+    fun setCanonicalIntent(
+        sessionId: String,
+        profileName: String,
+    ): Long {
         val generation = ++nextSwitchGeneration
         pendingCanonicalIntent = CanonicalSessionIntent(sessionId, profileName, generation)
         return generation
@@ -91,7 +85,10 @@ object ProfileSwitchCoordinator {
      * [generation] match the pending intent. Returns null on mismatch or when
      * no intent is set.
      */
-    fun consumeCanonicalIntent(profileName: String, generation: Long): String? {
+    fun consumeCanonicalIntent(
+        profileName: String,
+        generation: Long,
+    ): String? {
         val intent = pendingCanonicalIntent
         if (intent != null && intent.profileName == profileName && intent.generation == generation) {
             pendingCanonicalIntent = null
@@ -128,7 +125,9 @@ object ProfileSwitchCoordinator {
      * state before writing so startup never clobbers an explicit user switch.
      */
     suspend fun restoreActiveProfileScopeIfMissing(): String? {
-        AuthManager.activeProfileId.value?.takeIf { it.isNotBlank() }?.let { return it }
+        AuthManager.activeProfileId.value
+            ?.takeIf { it.isNotBlank() }
+            ?.let { return it }
 
         val result =
             withContext(ioDispatcher) {

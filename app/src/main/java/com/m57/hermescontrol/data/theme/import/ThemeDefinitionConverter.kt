@@ -26,13 +26,17 @@ import com.m57.hermescontrol.theme.buildThemeLightOnly
  * dark variant → dark palette. A single-variant theme fills both slots.
  */
 class ThemeDefinitionConverter {
-    data class ConvertedVariant(val palette: PaletteColors, val isDark: Boolean)
+    data class ConvertedVariant(
+        val palette: PaletteColors,
+        val isDark: Boolean,
+    )
 
     /** Convert one VS Code theme variant into [PaletteColors]. */
     fun convertVariant(tokens: ThemeTokenSet): ConvertedVariant {
         val colors = tokens.colors
-        val background = pick(colors, BACKGROUND_KEYS, Color.Black)
-            ?: Color(0xFF1E1E1E)
+        val background =
+            pick(colors, BACKGROUND_KEYS, Color.Black)
+                ?: Color(0xFF1E1E1E)
         val dark = isDarkType(tokens.type, background)
         val bg = pick(colors, BACKGROUND_KEYS, background) ?: fallbackBg(dark)
         val fg = pick(colors, FOREGROUND_KEYS, bg) ?: fallbackFg(dark)
@@ -156,7 +160,10 @@ class ThemeDefinitionConverter {
     }
 
     /** Legacy single-token entry point: same-variant fills per [mode]. */
-    fun convert(tokens: ThemeTokenSet, mode: ThemeMode = ThemeMode.DARK_ONLY): ThemePalette {
+    fun convert(
+        tokens: ThemeTokenSet,
+        mode: ThemeMode = ThemeMode.DARK_ONLY,
+    ): ThemePalette {
         val variant = convertVariant(tokens)
         return when (mode) {
             ThemeMode.FULL -> buildTheme(dark = variant.palette, light = variant.palette)
@@ -166,7 +173,11 @@ class ThemeDefinitionConverter {
         }
     }
 
-    private fun pick(colors: Map<String, String>, keys: List<String>, backdrop: Color): Color? {
+    private fun pick(
+        colors: Map<String, String>,
+        keys: List<String>,
+        backdrop: Color,
+    ): Color? {
         for (key in keys) {
             val parsed = ThemeColorUtils.parseLayer(colors[key], backdrop)
             if (parsed != null) return parsed
@@ -174,7 +185,10 @@ class ThemeDefinitionConverter {
         return null
     }
 
-    private fun isDarkType(type: String, background: Color): Boolean {
+    private fun isDarkType(
+        type: String,
+        background: Color,
+    ): Boolean {
         val t = type.lowercase()
         if (t.contains("light")) return false
         if (t == "dark" || t == "hc" || t == "hc-black" || t.contains("dark")) return true

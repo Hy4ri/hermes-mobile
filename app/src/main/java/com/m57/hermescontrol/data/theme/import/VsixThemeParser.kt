@@ -30,14 +30,13 @@ class VsixThemeParser(
     private val json: Json = Json { ignoreUnknownKeys = true },
 ) {
     /** Download the VSIX from [vsixUrl] and return all contributed themes. */
-    suspend fun parseVsix(vsixUrl: String): Result<List<ThemeTokenSet>> {
-        return try {
+    suspend fun parseVsix(vsixUrl: String): Result<List<ThemeTokenSet>> =
+        try {
             val bytes = downloadVsixBytes(vsixUrl)
             Result.success(extractVariants(bytes))
         } catch (e: Exception) {
             Result.failure(e)
         }
-    }
 
     private suspend fun downloadVsixBytes(vsixUrl: String): ByteArray {
         val request =
@@ -95,7 +94,11 @@ class VsixThemeParser(
         }
     }
 
-    private data class ThemeRef(val path: String, val label: String, val type: String)
+    private data class ThemeRef(
+        val path: String,
+        val label: String,
+        val type: String,
+    )
 
     private fun parseContributedThemes(packageJson: String): List<ThemeRef> {
         val obj = json.parseToJsonElement(stripJsonc(packageJson)).jsonObject
@@ -112,7 +115,11 @@ class VsixThemeParser(
         }
     }
 
-    private fun readThemeFile(zip: ZipFile, names: List<String>, ref: ThemeRef): String? {
+    private fun readThemeFile(
+        zip: ZipFile,
+        names: List<String>,
+        ref: ThemeRef,
+    ): String? {
         val candidates =
             listOf(
                 ref.path,
@@ -127,7 +134,11 @@ class VsixThemeParser(
         return null
     }
 
-    private fun parseThemeFile(content: String, label: String, type: String): ThemeTokenSet {
+    private fun parseThemeFile(
+        content: String,
+        label: String,
+        type: String,
+    ): ThemeTokenSet {
         val obj = json.parseToJsonElement(stripJsonc(content)).jsonObject
         val colorsObj = obj["colors"] as? JsonObject
         val colors = mutableMapOf<String, String>()

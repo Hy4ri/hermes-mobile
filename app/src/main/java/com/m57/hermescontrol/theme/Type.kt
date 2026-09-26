@@ -26,8 +26,7 @@ enum class AppFontFamily(
 
     companion object {
         /** Resolves a persisted [key] to its enum entry, defaulting to [SYSTEM]. */
-        fun fromKey(key: String): AppFontFamily =
-            entries.firstOrNull { it.key == key } ?: SYSTEM
+        fun fromKey(key: String): AppFontFamily = entries.firstOrNull { it.key == key } ?: SYSTEM
 
         /** All display names for the settings UI. */
         val displayNames: Array<String> = entries.map { it.displayName }.toTypedArray()

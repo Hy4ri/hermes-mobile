@@ -35,7 +35,11 @@ object ThemeApplier {
     val applyError: StateFlow<String?> = _applyError.asStateFlow()
 
     /** Apply a marketplace theme family; persists + selects CUSTOM. */
-    fun applyFamily(extensionId: String, displayName: String, variants: List<ThemeTokenSet>) {
+    fun applyFamily(
+        extensionId: String,
+        displayName: String,
+        variants: List<ThemeTokenSet>,
+    ) {
         val palette =
             try {
                 converter.buildFamily(variants)
@@ -81,7 +85,11 @@ object ThemeApplier {
      * `AuthManager.init` once the server store is loaded; no-op when nothing
      * was persisted or conversion fails (dispatcher falls back to Default).
      */
-    fun restorePersisted(id: String?, name: String?, tokensJson: String?) {
+    fun restorePersisted(
+        id: String?,
+        name: String?,
+        tokensJson: String?,
+    ) {
         if (tokensJson.isNullOrBlank()) return
         val variants =
             runCatching {

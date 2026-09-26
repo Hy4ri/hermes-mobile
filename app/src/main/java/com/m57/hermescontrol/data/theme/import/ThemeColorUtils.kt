@@ -15,7 +15,11 @@ import com.m57.hermescontrol.theme.parseHexColor
  */
 object ThemeColorUtils {
     /** sRGB lerp `a → b` by [t] in [0,1]. */
-    fun mix(a: Color, b: Color, t: Float): Color {
+    fun mix(
+        a: Color,
+        b: Color,
+        t: Float,
+    ): Color {
         val k = t.coerceIn(0f, 1f)
         return Color(
             red = a.red + (b.red - a.red) * k,
@@ -26,22 +30,28 @@ object ThemeColorUtils {
     }
 
     /** WCAG contrast ratio of [a] over [b] (>= 1). */
-    fun contrast(a: Color, b: Color): Float {
+    fun contrast(
+        a: Color,
+        b: Color,
+    ): Float {
         val lighter = maxOf(a.luminance(), b.luminance())
         val darker = minOf(a.luminance(), b.luminance())
         return (lighter + 0.05f) / (darker + 0.05f)
     }
 
     /** Black or white, whichever reads better on [background]. */
-    fun readableInk(background: Color): Color =
-        if (background.luminance() > 0.4f) Color.Black else Color.White
+    fun readableInk(background: Color): Color = if (background.luminance() > 0.4f) Color.Black else Color.White
 
     /**
      * Nudge [foreground] toward black/white until it reaches [minContrast]
      * against [background]. Returns the original when it already passes.
      * Bounded walk so pathological inputs terminate.
      */
-    fun ensureContrast(foreground: Color, background: Color, minContrast: Float): Color {
+    fun ensureContrast(
+        foreground: Color,
+        background: Color,
+        minContrast: Float,
+    ): Color {
         if (contrast(foreground, background) >= minContrast) return foreground
         val toLight = mix(foreground, Color.White, 0.12f)
         val toDark = mix(foreground, Color.Black, 0.12f)
@@ -61,7 +71,10 @@ object ThemeColorUtils {
      * [backdrop]. Alpha-bearing values composite over the backdrop like the
      * desktop `normalizeHex`; null when unparseable.
      */
-    fun parseLayer(raw: String?, backdrop: Color): Color? {
+    fun parseLayer(
+        raw: String?,
+        backdrop: Color,
+    ): Color? {
         if (raw.isNullOrBlank()) return null
         val clean = raw.trim().removePrefix("#")
         return try {
@@ -72,7 +85,11 @@ object ThemeColorUtils {
                     val b = "${clean[2]}${clean[2]}"
                     parseHexColor("#$r$g$b", Color.Unspecified).takeIf { it != Color.Unspecified }
                 }
-                6 -> parseHexColor("#$clean", Color.Unspecified).takeIf { it != Color.Unspecified }
+
+                6 -> {
+                    parseHexColor("#$clean", Color.Unspecified).takeIf { it != Color.Unspecified }
+                }
+
                 8 -> {
                     val argb = clean.toLong(16)
                     val alpha = ((argb shr 24) and 0xFF) / 255f
@@ -83,7 +100,10 @@ object ThemeColorUtils {
                         mix(src, backdrop, 1f - alpha).copy(alpha = 1f)
                     }
                 }
-                else -> null
+
+                else -> {
+                    null
+                }
             }
         } catch (_: Exception) {
             null

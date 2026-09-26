@@ -134,14 +134,14 @@ import com.m57.hermescontrol.data.model.ToolsetPostSetupResponse
 import com.m57.hermescontrol.data.model.ToolsetProviderSelectRequest
 import com.m57.hermescontrol.data.model.ToolsetProviderSelectResponse
 import com.m57.hermescontrol.data.model.ToolsetToggleRequest
+import com.m57.hermescontrol.data.model.TtsSpeakRequest
+import com.m57.hermescontrol.data.model.TtsSpeakResponse
 import com.m57.hermescontrol.data.model.UpdateCheckResponse
 import com.m57.hermescontrol.data.model.UpdateCronJobRequest
 import com.m57.hermescontrol.data.model.UpdateProfileDescriptionRequest
 import com.m57.hermescontrol.data.model.UpdateProfileModelRequest
 import com.m57.hermescontrol.data.model.UpdateProfileSoulRequest
 import com.m57.hermescontrol.data.model.UpdateRawConfigRequest
-import com.m57.hermescontrol.data.model.TtsSpeakRequest
-import com.m57.hermescontrol.data.model.TtsSpeakResponse
 import com.m57.hermescontrol.data.model.UpdateReceiptResponse
 import com.m57.hermescontrol.data.model.WebhookSubscription
 import com.m57.hermescontrol.data.model.WebhookToggleSubscriptionRequest
@@ -865,7 +865,9 @@ interface HermesApiService : KanbanApiService {
     suspend fun getUpdateReceipt(): Response<UpdateReceiptResponse>
 
     @POST("api/audio/speak")
-    suspend fun speakText(@Body request: TtsSpeakRequest): Response<TtsSpeakResponse>
+    suspend fun speakText(
+        @Body request: TtsSpeakRequest,
+    ): Response<TtsSpeakResponse>
 
     // ── Admin: Portal ─────────────────────────────────────────────────
     @GET("api/portal")

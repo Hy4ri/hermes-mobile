@@ -3,8 +3,7 @@ package com.m57.hermescontrol.data.theme.marketplace
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-/**
- * VS Code Gallery ExtensionQuery wire models (t_5316ccb7).
+/** VS Code Gallery ExtensionQuery wire models (t_5316ccb7).
  *
  * Field names are the gallery's own camelCase/PascalCase — always accessed
  * through the repository's dedicated `Json { ignoreUnknownKeys = true }`
@@ -17,9 +16,6 @@ import kotlinx.serialization.Serializable
  *   (`Microsoft.VisualStudio.Code`), 10 = SearchText, 12 = ExcludeWithFlags
  *   (`4096` = Unpublished).
  */
-
-// ── Request ──────────────────────────────────────────────────────────────
-
 @Serializable
 internal data class GalleryCriterion(
     @SerialName("filterType") val filterType: Int,
@@ -63,8 +59,8 @@ internal fun gallerySearchPayload(
 }
 
 /** Per-extension VSIX resolve payload: flags 914 includes files + asset URIs. */
-internal fun galleryResolvePayload(extensionId: String): GalleryQueryPayload {
-    return GalleryQueryPayload(
+internal fun galleryResolvePayload(extensionId: String): GalleryQueryPayload =
+    GalleryQueryPayload(
         filters =
             listOf(
                 GalleryFilter(
@@ -77,7 +73,6 @@ internal fun galleryResolvePayload(extensionId: String): GalleryQueryPayload {
             ),
         flags = 914,
     )
-}
 
 // ── Response (only the fields the catalog actually reads) ────────────────
 

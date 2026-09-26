@@ -241,7 +241,11 @@ object AuthManager {
                         _fontFamilyFlow.value = state.chatFontFamily
                         // Restore a persisted marketplace theme (t_f3c6f528) so
                         // ThemePreset.CUSTOM resolves after process restart.
-                        ThemeApplier.restorePersisted(state.customThemeId, state.customThemeName, state.customThemeTokensJson)
+                        ThemeApplier.restorePersisted(
+                            state.customThemeId,
+                            state.customThemeName,
+                            state.customThemeTokensJson,
+                        )
                         scope.launch {
                             store.stateFlow.collect { latest ->
                                 _themePreferenceFlow.value = latest.themePreference

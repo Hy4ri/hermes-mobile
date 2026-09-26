@@ -46,7 +46,10 @@ class ThemeMarketplaceRepository(
 
     private val json: Json = Json { ignoreUnknownKeys = true }
 
-    private data class CacheEntry(val atMs: Long, val entries: List<MarketplaceThemeEntry>)
+    private data class CacheEntry(
+        val atMs: Long,
+        val entries: List<MarketplaceThemeEntry>,
+    )
 
     private val cacheLock = Any()
     private val cache = mutableMapOf<String, CacheEntry>()
@@ -94,7 +97,10 @@ class ThemeMarketplaceRepository(
                 }
                 result
             }
-            is NetworkResult.Failure -> result
+
+            is NetworkResult.Failure -> {
+                result
+            }
         }
     }
 
@@ -118,17 +124,31 @@ class ThemeMarketplaceRepository(
         synchronized(cacheLock) {
             assetsCache[id]?.let { return NetworkResult.Success(it) }
         }
-        val result: NetworkResult<ThemeAssets> = postQuery(galleryResolvePayload(id)) { response ->
-            val extension = response.results.firstOrNull()?.extensions?.firstOrNull()
-                ?: throw NoSuchElementException("Extension \"$id\" was not found on the Marketplace.")
-            val version = extension.versions.firstOrNull()
-                ?: throw NoSuchElementException("Extension \"$id\" has no published versions.")
-            val files = version.files
-            val downloadUrl = files.firstOrNull { it.assetType == VSIX_ASSET_TYPE }?.source?.takeIf { it.isNotBlank() }
-                ?: throw NoSuchElementException("Could not find a downloadable package for \"$id\".")
-            val previewUrl = files.firstOrNull { it.assetType == ICON_ASSET_TYPE }?.source?.takeIf { it.isNotBlank() }
-            ThemeAssets(downloadUrl = downloadUrl, previewUrl = previewUrl)
-        }
+        val result: NetworkResult<ThemeAssets> =
+            postQuery(galleryResolvePayload(id)) { response ->
+                val extension =
+                    response.results
+                        .firstOrNull()
+                        ?.extensions
+                        ?.firstOrNull()
+                        ?: throw NoSuchElementException("Extension \"$id\" was not found on the Marketplace.")
+                val version =
+                    extension.versions.firstOrNull()
+                        ?: throw NoSuchElementException(
+                            "Extension \"$id\" has no published versions.",
+                        )
+                val files = version.files
+                val downloadUrl =
+                    files.firstOrNull { it.assetType == VSIX_ASSET_TYPE }?.source?.takeIf { it.isNotBlank() }
+                        ?: throw NoSuchElementException("Could not find a downloadable package for \"$id\".")
+                val previewUrl =
+                    files
+                        .firstOrNull {
+                            it.assetType == ICON_ASSET_TYPE
+                        }?.source
+                        ?.takeIf { it.isNotBlank() }
+                ThemeAssets(downloadUrl = downloadUrl, previewUrl = previewUrl)
+            }
         if (result is NetworkResult.Success) {
             synchronized(cacheLock) {
                 assetsCache[id] = result.data
@@ -157,7 +177,10 @@ class ThemeMarketplaceRepository(
 
     // ── Internal ─────────────────────────────────────────────────────────
 
-    private suspend fun <T> postQuery(payload: GalleryQueryPayload, parse: (GalleryResponse) -> T): NetworkResult<T> {
+    private suspend fun <T> postQuery(
+        payload: GalleryQueryPayload,
+        parse: (GalleryResponse) -> T,
+    ): NetworkResult<T> {
         val bodyJson = json.encodeToString(GalleryQueryPayload.serializer(), payload)
         var lastIo: IOException? = null
         repeat(MAX_ATTEMPTS) { attempt ->
@@ -221,7 +244,11 @@ class ThemeMarketplaceRepository(
 
     private fun toEntry(extension: GalleryExtension): MarketplaceThemeEntry {
         val publisherName = extension.publisher?.publisherName.orEmpty()
-        val installs = extension.statistics.firstOrNull { it.statisticName == "install" }?.value?.roundToLong() ?: 0L
+        val installs =
+            extension.statistics
+                .firstOrNull { it.statisticName == "install" }
+                ?.value
+                ?.roundToLong() ?: 0L
         return MarketplaceThemeEntry(
             extensionId = "$publisherName.${extension.extensionName}",
             displayName = extension.displayName.ifBlank { extension.extensionName },
@@ -261,14 +288,13 @@ class ThemeMarketplaceRepository(
             return ICON_TEXT_RE.containsMatchIn(text)
         }
 
-        private fun defaultClient(): OkHttpClient {
-            return OkHttpClient
+        private fun defaultClient(): OkHttpClient =
+            OkHttpClient
                 .Builder()
                 .connectTimeout(15, TimeUnit.SECONDS)
                 .readTimeout(20, TimeUnit.SECONDS)
                 .writeTimeout(15, TimeUnit.SECONDS)
                 .retryOnConnectionFailure(true)
                 .build()
-        }
     }
 }

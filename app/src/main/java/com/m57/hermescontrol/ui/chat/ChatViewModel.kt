@@ -946,7 +946,9 @@ class ChatViewModel(
                             activeProfile,
                             intentGeneration,
                         )
-                    } else null
+                    } else {
+                        null
+                    }
                 if (!canonicalSessionId.isNullOrBlank()) {
                     switchSession(canonicalSessionId)
                 } else if (AuthManager.isRestoreLastSession()) {

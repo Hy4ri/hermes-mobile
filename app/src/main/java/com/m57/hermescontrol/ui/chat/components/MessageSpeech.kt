@@ -13,7 +13,6 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.TtsSpeakRequest
 import com.m57.hermescontrol.data.model.TtsSpeakResponse
 import com.m57.hermescontrol.data.remote.ApiClient
-import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -22,6 +21,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.io.IOException
 
 /**
  * Per-message read-aloud for agent messages (TTS speak button).
@@ -128,7 +128,8 @@ object MessageSpeech {
         playerListener = listener
 
         val exo =
-            ExoPlayer.Builder(context)
+            ExoPlayer
+                .Builder(context)
                 .build()
                 .apply {
                     setAudioAttributes(
@@ -137,7 +138,8 @@ object MessageSpeech {
                             .setUsage(C.USAGE_MEDIA)
                             .setContentType(C.AUDIO_CONTENT_TYPE_SPEECH)
                             .build(),
-                        /* handleAudioFocus = */ true,
+                        // handleAudioFocus =
+                        true,
                     )
                     addListener(listener)
                     val item =
@@ -164,13 +166,19 @@ object MessageSpeech {
         _speakingId.value = null
     }
 
-    private fun fail(context: Context, detail: String?) {
+    private fun fail(
+        context: Context,
+        detail: String?,
+    ) {
         Log.w(TAG, "TTS synthesis failed${detail?.let { ": $it" } ?: ""}")
         toast(context, R.string.tts_error_synthesis)
         _speakingId.value = null
     }
 
-    private fun toast(context: Context, resId: Int) {
+    private fun toast(
+        context: Context,
+        resId: Int,
+    ) {
         Toast.makeText(context, context.getString(resId), Toast.LENGTH_SHORT).show()
     }
 }

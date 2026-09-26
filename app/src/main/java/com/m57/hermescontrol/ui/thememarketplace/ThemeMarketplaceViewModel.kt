@@ -49,7 +49,8 @@ class ThemeMarketplaceViewModel(
     private val repository: ThemeMarketplaceRepository = ThemeMarketplaceRepository(),
     private val vsixParser: VsixThemeParser = VsixThemeParser(),
     private val applier: ThemeApplier = ThemeApplier,
-) : ViewModel(), ToastHost {
+) : ViewModel(),
+    ToastHost {
     private val _uiState = MutableStateFlow(ThemeMarketplaceUiState())
     val uiState: StateFlow<ThemeMarketplaceUiState> = _uiState.asStateFlow()
 
@@ -129,7 +130,10 @@ class ThemeMarketplaceViewModel(
         return applier.applyError.value
     }
 
-    private fun runSearch(query: String, page: Int) {
+    private fun runSearch(
+        query: String,
+        page: Int,
+    ) {
         viewModelScope.launch {
             _uiState.update {
                 it.copy(
@@ -158,11 +162,12 @@ class ThemeMarketplaceViewModel(
                             isLoading = false,
                             // Keep stale rows on load-more failure; only surface
                             // the error when there is nothing to show.
-                            errorMessage = if (it.entries.isEmpty()) {
-                                "Failed to load themes: ${result.error.message}"
-                            } else {
-                                it.errorMessage
-                            },
+                            errorMessage =
+                                if (it.entries.isEmpty()) {
+                                    "Failed to load themes: ${result.error.message}"
+                                } else {
+                                    it.errorMessage
+                                },
                         )
                     }
                 }

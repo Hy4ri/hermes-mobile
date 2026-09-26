@@ -775,6 +775,7 @@ object HermesWsClient {
         val method: String,
         val deferred: CompletableDeferred<Any?>,
         var timeoutJob: Job? = null,
+        val suppressErrorEvent: Boolean = false,
     )
 
     /** Tracks in-flight [request] calls by their JSON-RPC id. */
@@ -794,11 +795,12 @@ object HermesWsClient {
         method: String,
         params: Map<String, Any> = emptyMap(),
         timeoutMs: Long = REQUEST_TIMEOUT_MS,
+        suppressErrorEvent: Boolean = false,
     ): CompletableDeferred<Any?> {
         val deferred = CompletableDeferred<Any?>()
         val id =
             send(method, params) { reqId ->
-                pendingCalls[reqId] = PendingCall(method, deferred)
+                pendingCalls[reqId] = PendingCall(method, deferred, suppressErrorEvent = suppressErrorEvent)
             }
         deferred.invokeOnCompletion { cause ->
             if (cause is CancellationException) {
@@ -1457,6 +1459,16 @@ object HermesWsClient {
                             pendingReply = false
                             disconnectIfIdleInBackground()
                         }
+                    }
+                    if (pendingCalls[event.id]?.suppressErrorEvent == true) {
+                        // Opt-in suppression: the caller already handles the
+                        // failure through the CompletableDeferred, so the event
+                        // copy would only surface a duplicate UI banner for
+                        // optional features (e.g. "subagent.list" on gateways
+                        // without the method, issue #1089). Default request()
+                        // behavior still emits the event for shared consumers.
+                        resolvePending(event.id, null, event.error)
+                        return
                     }
                     removeQueuedMessage(event.id)
                     resolvePending(event.id, null, event.error)

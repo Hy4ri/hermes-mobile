@@ -36,6 +36,16 @@ android {
     }
 
     signingConfigs {
+        getByName("debug") {
+            // Stable debug keystore committed to the repo so debug APKs keep
+            // the same signature across machines and CI runs. CI runners use
+            // an ephemeral default debug keystore otherwise, which makes every
+            // CI debug APK uninstallable over a previously installed build.
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
         create("release") {
             val isReleaseBuild =
                 gradle.startParameter.taskNames.any { name ->

@@ -2,7 +2,10 @@ package com.m57.hermescontrol.ui.chat
 
 import android.app.Application
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.local.HermesDatabase
+import com.m57.hermescontrol.data.model.PaginationInfo
+import com.m57.hermescontrol.data.model.SessionMessagesResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.data.ws.ConnectionStatus
@@ -11,6 +14,7 @@ import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.ui.chat.fakes.FakeChatPersistenceRepository
 import com.m57.hermescontrol.ui.chat.fakes.FakeSlashUsageStore
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -74,6 +78,14 @@ class SlashCommandDispatchRpcTest {
         // COMMAND_DISPATCH captures in suite order). setMain alone is safe —
         // the slash-dispatch send path is synchronous (no IO hop).
         mockkObject(AuthManager)
+        // ChatModelSwitchDelegate.preloadModelOptions() reads pinned models
+        // when the catalog load succeeds; without this stub the spy falls
+        // through to the real AuthManager and throws "not initialized".
+        every { AuthManager.getPinnedModels() } returns emptyList()
+        // The delegate and the shared catalog store both collect this flow;
+        // park them on a never-emitting state so a later real-AuthManager
+        // emission cannot resume a stale Main-dispatched collector.
+        every { AuthManager.dataScopeFlow } returns MutableStateFlow<DataScope?>(null)
         mockkObject(HermesWsClient)
         mockkObject(ApiClient)
         mockkObject(HermesDatabase)
@@ -94,6 +106,10 @@ class SlashCommandDispatchRpcTest {
         mockConnectionStatus.value = ConnectionStatus.DISCONNECTED
 
         every { AuthManager.getToken() } returns "test-token"
+        every { AuthManager.getPinnedModels() } returns emptyList()
+        every { AuthManager.getBaseUrl() } returns "http://test.local/"
+        every { AuthManager.getSelectedProfileId() } returns null
+        every { AuthManager.getBusySendMode() } returns com.m57.hermescontrol.data.model.BusySendMode.CORRECT
         every { AuthManager.isTypingEffectEnabled() } returns true
         every { AuthManager.getTypingEffectDelayMs() } returns 30
         every { AuthManager.isMessageStatsEnabled() } returns false
@@ -152,7 +168,15 @@ class SlashCommandDispatchRpcTest {
     }
 
     private suspend fun TestScope.createViewModelWithSession(): Pair<ChatViewModel, String> {
-        val vm = ChatViewModel(app, false, fakeRepo, FakeSlashUsageStore(), ioDispatcher = testDispatcher)
+        val vm =
+            ChatViewModel(
+                app,
+                false,
+                fakeRepo,
+                FakeSlashUsageStore(),
+                ioDispatcher = testDispatcher,
+                sendStore = ChatSendStore(),
+            )
         advanceUntilIdle()
         mockConnectionStatus.value = ConnectionStatus.CONNECTED
         mockEventsFlow.emit(WsEvent.GatewayReady(null))
@@ -444,7 +468,11 @@ class SlashCommandDispatchRpcTest {
             every {
                 HermesWsClient.request(capture(methodCalls), capture(paramsCalls), any())
             } answers {
-                val m = methodCalls.last()
+                // Read the method from THIS invocation, not from the shared
+                // capture list: a concurrent request() landing between capture
+                // and answer can leave .last() pointing at another call (CI:
+                // "Value not yet captured" for the submitted prompt).
+                val m = arg<String>(0)
                 val d = CompletableDeferred<Any?>()
                 if (m == WsMethods.COMMAND_DISPATCH) {
                     // Backend rejects /status with the registry-miss 4018 (issue #576).
@@ -714,7 +742,9 @@ class SlashCommandDispatchRpcTest {
                 HermesWsClient.request(capture(methodCalls), capture(paramsCalls), any())
             } answers {
                 val d = CompletableDeferred<Any?>()
-                if (methodCalls.last() == WsMethods.COMMAND_DISPATCH) {
+                // Read the method from THIS invocation, not from the shared
+                // capture list (see the 4018 test above).
+                if (arg<String>(0) == WsMethods.COMMAND_DISPATCH) {
                     // Backend /init returns type:"send" with the AGENTS.md prompt.
                     d.complete(mapOf("type" to "send", "message" to "Scan this repo and write AGENTS.md"))
                 } else {
@@ -730,6 +760,15 @@ class SlashCommandDispatchRpcTest {
                 arg<((String) -> Unit)?>(2)?.invoke(id)
                 id
             }
+            coEvery {
+                ApiClient.hermesApi.getSessionMessages("session-xyz", any(), any(), any(), any())
+            } returns
+                retrofit2.Response.success(
+                    SessionMessagesResponse(
+                        messages = emptyList(),
+                        pagination = PaginationInfo(order = "latest"),
+                    ),
+                )
 
             vm.sendMessage("/init")
             advanceUntilIdle()

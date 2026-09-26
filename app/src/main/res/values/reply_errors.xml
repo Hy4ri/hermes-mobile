@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_reply_failed_title">Hermes couldn\'t finish this reply</string>
+    <string name="chat_reply_failed_description">Something went wrong while Hermes was replying. Open the details or logs to understand what happened.</string>
+    <string name="chat_reply_failed_details">Details</string>
+    <string name="chat_reply_failed_details_collapsed">Collapsed</string>
+    <string name="chat_reply_failed_details_expanded">Expanded</string>
+    <string name="chat_reply_failed_copy">Copy error details</string>
+    <string name="chat_reply_failed_logs">Open logs</string>
+    <string name="chat_reply_failed_share">Share diagnostics</string>
+    <string name="chat_reply_failed_share_note">Review details before sharing. Diagnostics include this error and the app version, not your conversation or attachments.</string>
+    <string name="chat_reply_failed_dismiss">Dismiss error</string>
+
+    <string name="chat_reply_failed_copied">Error details copied</string>
+    <string name="chat_reply_failed_share_unavailable">No app available to share diagnostics</string>
+</resources>

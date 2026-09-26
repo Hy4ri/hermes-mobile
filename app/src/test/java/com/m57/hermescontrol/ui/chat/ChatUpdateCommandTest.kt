@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.chat
 
 import android.app.Application
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.model.ActionResponse
 import com.m57.hermescontrol.data.remote.ApiClient
@@ -76,6 +77,14 @@ class ChatUpdateCommandTest {
         every { android.util.Log.e(any(), any(), any()) } returns 0
 
         mockkObject(AuthManager)
+        // ChatModelSwitchDelegate.preloadModelOptions() reads pinned models
+        // when the catalog load succeeds; without this stub the spy falls
+        // through to the real AuthManager and throws "not initialized".
+        every { AuthManager.getPinnedModels() } returns emptyList()
+        // The delegate and the shared catalog store both collect this flow;
+        // park them on a never-emitting state so a later real-AuthManager
+        // emission cannot resume a stale Main-dispatched collector.
+        every { AuthManager.dataScopeFlow } returns MutableStateFlow<DataScope?>(null)
         mockkObject(HermesWsClient)
         mockkObject(ApiClient)
         mockkObject(HermesDatabase)
@@ -87,6 +96,10 @@ class ChatUpdateCommandTest {
         mockConnectionStatus.value = ConnectionStatus.DISCONNECTED
 
         every { AuthManager.getToken() } returns "test-token"
+        every { AuthManager.getPinnedModels() } returns emptyList()
+        every { AuthManager.getBaseUrl() } returns "http://test.local/"
+        every { AuthManager.getSelectedProfileId() } returns null
+        every { AuthManager.getBusySendMode() } returns com.m57.hermescontrol.data.model.BusySendMode.CORRECT
         every { AuthManager.isTypingEffectEnabled() } returns true
         every { AuthManager.getTypingEffectDelayMs() } returns 30
         every { AuthManager.isMessageStatsEnabled() } returns false
@@ -148,7 +161,15 @@ class ChatUpdateCommandTest {
         // threads — with a relaxed-mock app that NPEs on cacheDir and leaks
         // an uncaught exception into the NEXT runTest class (CI flakes:
         // UncaughtExceptionsBeforeTest).
-        val vm = ChatViewModel(app, false, fakeRepo, FakeSlashUsageStore(), ioDispatcher = testDispatcher)
+        val vm =
+            ChatViewModel(
+                app,
+                false,
+                fakeRepo,
+                FakeSlashUsageStore(),
+                ioDispatcher = testDispatcher,
+                sendStore = ChatSendStore(),
+            )
         advanceUntilIdle()
         mockConnectionStatus.value = ConnectionStatus.CONNECTED
         mockEventsFlow.emit(WsEvent.GatewayReady(null))
@@ -185,7 +206,15 @@ class ChatUpdateCommandTest {
     @Test
     fun `applyUpdate triggers the REST action and starts the progress popup`() =
         runTest {
-            val vm = ChatViewModel(app, false, fakeRepo, FakeSlashUsageStore(), ioDispatcher = testDispatcher)
+            val vm =
+                ChatViewModel(
+                    app,
+                    false,
+                    fakeRepo,
+                    FakeSlashUsageStore(),
+                    ioDispatcher = testDispatcher,
+                    sendStore = ChatSendStore(),
+                )
             coEvery { mockApi.updateHermes() } returns
                 Response.success(ActionResponse(ok = true, name = "hermes-update"))
             // One running poll, then the action exits — runTest's teardown
@@ -224,7 +253,15 @@ class ChatUpdateCommandTest {
     @Test
     fun `applyUpdate settles on success when the action exits cleanly`() =
         runTest {
-            val vm = ChatViewModel(app, false, fakeRepo, FakeSlashUsageStore(), ioDispatcher = testDispatcher)
+            val vm =
+                ChatViewModel(
+                    app,
+                    false,
+                    fakeRepo,
+                    FakeSlashUsageStore(),
+                    ioDispatcher = testDispatcher,
+                    sendStore = ChatSendStore(),
+                )
             coEvery { mockApi.updateHermes() } returns
                 Response.success(ActionResponse(ok = true, name = "hermes-update"))
             coEvery { mockApi.getActionStatus("hermes-update") } returns
@@ -252,7 +289,15 @@ class ChatUpdateCommandTest {
     @Test
     fun `applyUpdate surfaces a rejected trigger in the popup`() =
         runTest {
-            val vm = ChatViewModel(app, false, fakeRepo, FakeSlashUsageStore(), ioDispatcher = testDispatcher)
+            val vm =
+                ChatViewModel(
+                    app,
+                    false,
+                    fakeRepo,
+                    FakeSlashUsageStore(),
+                    ioDispatcher = testDispatcher,
+                    sendStore = ChatSendStore(),
+                )
             coEvery { mockApi.updateHermes() } returns
                 Response.error(404, "no update endpoint".toResponseBody())
 

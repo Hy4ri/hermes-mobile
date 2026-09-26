@@ -41,7 +41,7 @@ class ChatMessagePagingDeviceTest {
             Room
                 .databaseBuilder(context, HermesDatabase::class.java, databaseName)
                 .setDriver(driver())
-                .addMigrations(HermesDatabase.MIGRATION_8_9)
+                .addMigrations(HermesDatabase.MIGRATION_8_9, HermesDatabase.MIGRATION_9_10)
                 .build()
         repository = ChatPersistenceRepository(database.chatMessageDao())
     }
@@ -235,6 +235,29 @@ class ChatMessagePagingDeviceTest {
         }
 
     @Test
+    fun migration9to10PreservesAmbiguousUnsentUuidUserAsUnknown() =
+        runBlocking {
+            val unsent =
+                ChatMessageEntity(
+                    id = "pending-before-upgrade",
+                    sessionId = "session",
+                    role = "USER",
+                    content = "may not have reached the server",
+                    timestamp = 1L,
+                    sortOrder = 1L,
+                )
+            createVersion9(listOf(unsent))
+            openDatabase()
+            val restored = database.chatMessageDao().getMessage(unsent.id)!!
+            assertEquals("UNKNOWN", restored.messageProvenance)
+            assertEquals(
+                com.m57.hermescontrol.ui.chat.MessageProvenance.UNKNOWN,
+                restored.toUiModel().messageProvenance,
+            )
+            assertEquals(unsent.content, restored.content)
+        }
+
+    @Test
     fun confirmedAliasPreservesLivePayloadAndCanonicalOrderAcrossReopen() =
         runBlocking {
             val live =
@@ -347,6 +370,63 @@ class ChatMessagePagingDeviceTest {
                     }
                 }
             connection.execSQL("PRAGMA user_version = 8")
+        }
+    }
+
+    /** Build the exported v9 schema so Room validates the real non-destructive v9 -> v10 path. */
+    private fun createVersion9(rows: List<ChatMessageEntity>) {
+        database.close()
+        context.deleteDatabase(databaseName)
+        val schema =
+            InstrumentationRegistry
+                .getInstrumentation()
+                .context.assets
+                .open("com.m57.hermescontrol.data.local.HermesDatabase/9.json")
+                .bufferedReader()
+                .use { JSONObject(it.readText()).getJSONObject("database") }
+        val file = context.getDatabasePath(databaseName)
+        file.parentFile?.mkdirs()
+        driver().open(file.absolutePath).use { connection ->
+            val entity = schema.getJSONArray("entities").getJSONObject(0)
+            connection.execSQL(entity.getString("createSql").replace("\${TABLE_NAME}", "chat_messages"))
+            val indices = entity.getJSONArray("indices")
+            for (index in 0 until indices.length()) {
+                connection.execSQL(
+                    indices.getJSONObject(index).getString("createSql").replace("\${TABLE_NAME}", "chat_messages"),
+                )
+            }
+            val setup = schema.getJSONArray("setupQueries")
+            for (index in 0 until setup.length()) connection.execSQL(setup.getString(index))
+            connection
+                .prepare(
+                    "INSERT INTO chat_messages (id, session_id, role, content, reasoning_text, timestamp, " +
+                        "tool_name, tool_call_id, tool_status, is_streaming, display_kind, token_count, tps, " +
+                        "completion_id, rest_id, sort_group, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                ).use { insert ->
+                    rows.forEach { row ->
+                        insert.bindText(1, row.id)
+                        insert.bindText(2, row.sessionId)
+                        insert.bindText(3, row.role)
+                        insert.bindText(4, row.content)
+                        insert.bindText(5, row.reasoningText)
+                        insert.bindLong(6, row.timestamp)
+                        row.toolName?.let { insert.bindText(7, it) } ?: insert.bindNull(7)
+                        insert.bindText(8, row.toolCallId)
+                        row.toolStatus?.let { insert.bindText(9, it) } ?: insert.bindNull(9)
+                        insert.bindLong(10, if (row.isStreaming) 1L else 0L)
+                        row.displayKind?.let { insert.bindText(11, it) } ?: insert.bindNull(11)
+                        row.tokenCount?.let { insert.bindLong(12, it.toLong()) } ?: insert.bindNull(12)
+                        row.tps?.let { insert.bindDouble(13, it) } ?: insert.bindNull(13)
+                        row.completionId?.let { insert.bindText(14, it) } ?: insert.bindNull(14)
+                        row.restId?.let { insert.bindText(15, it) } ?: insert.bindNull(15)
+                        insert.bindLong(16, row.sortGroup.toLong())
+                        insert.bindLong(17, row.sortOrder)
+                        insert.step()
+                        insert.reset()
+                        insert.clearBindings()
+                    }
+                }
+            connection.execSQL("PRAGMA user_version = 9")
         }
     }
 

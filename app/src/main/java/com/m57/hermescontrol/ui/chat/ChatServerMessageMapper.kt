@@ -49,6 +49,7 @@ internal fun mapServerMessages(
         }
 
     val wsCompletionIdByRestIndex = mutableMapOf<Int, String>()
+    val verifierContentByRestIndex = mutableMapOf<Int, String>()
     if (!isPagingOlder) {
         // #129: reserve durable identity before matching any repeated live prose.
         // REST-only recovery remains fail-closed when the target row is absent.
@@ -89,6 +90,27 @@ internal fun mapServerMessages(
                 remainingWs.removeAt(wsIdx).completionId?.let { wsCompletionIdByRestIndex[i] = it }
             }
         }
+        // Fallback: match live assistant containing a file-mutation verifier footer against
+        // its footer-free REST counterpart (issue #1241).
+        for (i in messages.indices.reversed()) {
+            if (remainingWs.isEmpty()) break
+            if (i in wsCompletionIdByRestIndex || restIdAt(i) in reservedRestIds) continue
+            val m = messages[i]
+            if (m.role?.lowercase() in listOf("user", "system", "tool")) continue
+            val rawContent = m.displayContentText ?: m.contentText
+            if (rawContent.isBlank()) continue
+            val canonicalContent =
+                if (rawContent.contains("MEDIA:")) HostMediaExtractor.strip(rawContent).trim() else rawContent.trim()
+            val wsIdx = remainingWs.indexOfLast { ChatVerifierFooter.matchesBase(it.content, canonicalContent) }
+            if (wsIdx >= 0) {
+                val matchedWs = remainingWs.removeAt(wsIdx)
+                matchedWs.completionId?.let { wsCompletionIdByRestIndex[i] = it }
+                // Propagate the richer live footer content to the REST row so canonical mapping keeps it
+                if (ChatVerifierFooter.split(matchedWs.content) != null) {
+                    verifierContentByRestIndex[i] = matchedWs.content
+                }
+            }
+        }
     }
 
     // Reasoning follows the same reserved identities as completions, never a reusable text lookup.
@@ -117,6 +139,19 @@ internal fun mapServerMessages(
             }
             val content = HostMediaExtractor.strip(displayContent).trim()
             val match = remaining.indexOfLast { it.content.trim() == content }
+            if (match >= 0) reasoningSources[index] = remaining.removeAt(match)
+        }
+        for (index in messages.indices.reversed()) {
+            val row = messages[index]
+            val displayContent = row.displayContentText ?: row.contentText
+            if (reasoningSources[index] != null || displayContent.isBlank() ||
+                row.role?.lowercase() in listOf("user", "system", "tool") ||
+                liveByExactId[restIdAt(index)]?.completionId != null || index in wsCompletionIdByRestIndex
+            ) {
+                continue
+            }
+            val content = HostMediaExtractor.strip(displayContent).trim()
+            val match = remaining.indexOfLast { ChatVerifierFooter.matchesBase(it.content, content) }
             if (match >= 0) reasoningSources[index] = remaining.removeAt(match)
         }
     }
@@ -166,6 +201,8 @@ internal fun mapServerMessages(
         var finalContent =
             if (role == MessageRole.USER) {
                 stripGatewayAttachedContext(stripGatewaySteerWrapper(rawContent))
+            } else if (role == MessageRole.ASSISTANT && verifierContentByRestIndex.containsKey(index)) {
+                verifierContentByRestIndex[index] ?: rawContent
             } else {
                 rawContent
             }
@@ -227,6 +264,17 @@ internal fun mapServerMessages(
     val matches = matchTranscriptMessages(mappedTools, liveTools)
     val toolsById = mappedTools.indices.associate { index -> mappedTools[index].id to matches[index] }
     return mapped.map { message ->
-        toolsById[message.id]?.copy(restId = message.canonicalRestId) ?: message
+        val local = toolsById[message.id]
+        if (local?.isHistoricalCache == true && local.toolStatus == ToolStatus.RUNNING) {
+            // A canonical tool-result row settles a cached tool.start, not the reverse.
+            local.copy(
+                restId = message.canonicalRestId,
+                content = message.content,
+                toolStatus = ToolStatus.COMPLETED,
+                isHistoricalCache = false,
+            )
+        } else {
+            local?.copy(restId = message.canonicalRestId) ?: message
+        }
     }
 }

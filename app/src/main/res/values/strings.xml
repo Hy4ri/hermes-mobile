@@ -1763,4 +1763,16 @@
     <string name="kanban_attachment_error">Attachment error: %1$s</string>
     <string name="kanban_active_workers">Active workers</string>
     <string name="kanban_no_active_workers">No active workers</string>
+    <string name="custom_headers_title">Custom headers</string>
+    <string name="custom_headers_description">Saved securely for this server URL. Use Cloudflare Access service-token headers here. Hermes login is still required.</string>
+    <string name="custom_headers_name">Header name</string>
+    <string name="custom_headers_value">Header value</string>
+    <string name="custom_headers_add">Add header</string>
+    <string name="custom_headers_cloudflare">Add Cloudflare headers</string>
+    <string name="custom_headers_remove">Remove header</string>
+    <string name="custom_headers_remove_confirm">Remove this header? Save your changes to apply the removal.</string>
+    <string name="custom_headers_show">Show header values</string>
+    <string name="custom_headers_hide">Hide header values</string>
+    <string name="custom_headers_invalid">Use unique HTTP header names and single-line ASCII values. Authorization, Cookie, Host, and connection headers are managed by the app.</string>
+    <string name="custom_headers_save_failed">Could not save custom headers. Try again.</string>
 </resources>

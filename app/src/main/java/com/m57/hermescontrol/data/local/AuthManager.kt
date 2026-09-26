@@ -18,6 +18,7 @@ import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.data.remote.CleartextPolicy
 import com.m57.hermescontrol.data.remote.CookieManager
 import com.m57.hermescontrol.data.remote.ServerEndpoint
+import com.m57.hermescontrol.data.remote.ServerHeaders
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
@@ -215,6 +216,7 @@ object AuthManager {
                                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
                             )
                         migrateLegacyDefaultIfNeeded(p)
+                        ServerHeaders.initialize(p)
                         synchronized(this@AuthManager) {
                             readyPrefs = p
                             cachedToken = getTokenInternal(p)

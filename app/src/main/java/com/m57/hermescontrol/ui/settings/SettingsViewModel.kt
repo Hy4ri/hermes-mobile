@@ -265,6 +265,15 @@ class SettingsViewModel(
         ApiClient.rebuild()
     }
 
+    fun onCustomHeadersSaved() {
+        val editedEndpoint = ServerEndpoint.parseForBuild(_uiState.value.dialogProfileBaseUrl)
+        if (editedEndpoint.baseUrl == AuthManager.endpointForBuild().baseUrl) {
+            ApiClient.rebuild()
+            HermesWsClient.disconnect()
+            HermesWsClient.connect()
+        }
+    }
+
     // ── Delete confirmation ──────────────────────────────────────────────
 
     fun requestDeleteProfile(profileId: String) {

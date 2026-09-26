@@ -175,6 +175,7 @@ internal fun ConnectionSection(
             onTokenChange = viewModel::onDialogProfileTokenChange,
             onSave = viewModel::saveProfileFromDialog,
             onDismiss = viewModel::closeProfileDialog,
+            onHeadersSaved = viewModel::onCustomHeadersSaved,
         )
     }
 

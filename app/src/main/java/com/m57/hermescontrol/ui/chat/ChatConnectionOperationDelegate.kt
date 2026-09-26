@@ -1,6 +1,9 @@
 package com.m57.hermescontrol.ui.chat
 
 import com.m57.hermescontrol.data.model.ConnectionOperationSnapshot
+import com.m57.hermescontrol.data.model.ConnectorError
+import com.m57.hermescontrol.data.ws.ConnectorParser
+import com.m57.hermescontrol.data.ws.ConnectorRepository
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsMethods
 import kotlinx.coroutines.CancellationException
@@ -167,7 +170,7 @@ class ChatConnectionOperationDelegate(
             method = WsMethods.CONNECTION_RESPOND,
             params =
                 mapOf(
-                    "session_id" to requireSessionId(),
+                    "owner" to ConnectorRepository.sessionOwner(requireSessionId()),
                     "op_id" to snapshot.opId,
                     "result" to mapOf("targets" to listOf(answer)),
                 ),
@@ -180,7 +183,7 @@ class ChatConnectionOperationDelegate(
             method = WsMethods.CONNECTION_RESPOND,
             params =
                 mapOf(
-                    "session_id" to requireSessionId(),
+                    "owner" to ConnectorRepository.sessionOwner(requireSessionId()),
                     "op_id" to snapshot.opId,
                     "result" to mapOf("settled_by" to "continue"),
                 ),
@@ -193,7 +196,7 @@ class ChatConnectionOperationDelegate(
         val snapshot = begin(ConnectionPendingAction.Wake(current.opId, current.seq)) ?: return
         dispatch(
             method = WsMethods.CONNECTORS_OPERATION_WAKE,
-            params = mapOf("session_id" to requireSessionId(), "op_id" to snapshot.opId),
+            params = mapOf("owner" to ConnectorRepository.sessionOwner(requireSessionId()), "op_id" to snapshot.opId),
             clearOnSuccess = true,
             unknownOperationSettles = true,
         )
@@ -225,7 +228,7 @@ class ChatConnectionOperationDelegate(
                 _state.value =
                     _state.value.copy(
                         pendingAction = null,
-                        error = ConnectionOperationError("request_failed"),
+                        error = operationError(error),
                     )
             }
         }
@@ -243,6 +246,16 @@ class ChatConnectionOperationDelegate(
         }
         _state.value = _state.value.copy(pendingAction = action, error = null)
         return current
+    }
+
+    /** Typed, sanitized error: ownership/runtime failures cannot succeed on retry (#1281). */
+    private fun operationError(error: Exception): ConnectionOperationError {
+        val rpc = error as? HermesWsClient.HermesRpcException ?: return ConnectionOperationError(REQUEST_FAILED)
+        return when (ConnectorParser.mapRpcError(code = rpc.code, data = rpc.data)) {
+            is ConnectorError.NotOwner -> ConnectionOperationError(NOT_OWNER, retryable = false)
+            is ConnectorError.UnsupportedRuntime -> ConnectionOperationError(UNSUPPORTED_RUNTIME, retryable = false)
+            else -> ConnectionOperationError(REQUEST_FAILED)
+        }
     }
 
     private fun matchesSession(snapshot: ConnectionOperationSnapshot): Boolean =
@@ -263,7 +276,10 @@ class ChatConnectionOperationDelegate(
         _state.value = ConnectionOperationUiState()
     }
 
-    private companion object {
-        const val MAX_SETTLED_IDS = 32
+    companion object {
+        private const val MAX_SETTLED_IDS = 32
+        const val REQUEST_FAILED = "request_failed"
+        const val NOT_OWNER = "not_owner"
+        const val UNSUPPORTED_RUNTIME = "unsupported_runtime"
     }
 }

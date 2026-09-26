@@ -139,6 +139,16 @@ fun ServerCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
 
+                    if (server.isPluginOwned) {
+                        Text(
+                            text =
+                                server.plugin?.let { stringResource(R.string.mcp_servers_from_plugin, it) }
+                                    ?: stringResource(R.string.mcp_servers_plugin_managed),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
                     // Tool count & schema token overhead badge (issue #1029)
                     val toolInfos = testResult?.tools
                     val toolCount = toolInfos?.size ?: server.tools?.size
@@ -173,6 +183,7 @@ fun ServerCard(
                 }
                 Switch(
                     checked = server.enabled,
+                    enabled = !server.isPluginOwned,
                     onCheckedChange = { viewModel.toggleServer(server) },
                 )
             }
@@ -218,6 +229,7 @@ fun ServerCard(
                 if (server.auth == "oauth") {
                     FilledTonalButton(
                         onClick = { viewModel.startMcpOAuthFlow(server, onOpenBrowser) },
+                        enabled = !server.isPluginOwned,
                         modifier = Modifier.weight(1.2f),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
                     ) {
@@ -245,7 +257,10 @@ fun ServerCard(
                         Text(stringResource(R.string.mcp_servers_action_test), maxLines = 1)
                     }
                 }
-                IconButton(onClick = { viewModel.deleteServer(server.name) }) {
+                IconButton(
+                    onClick = { viewModel.deleteServer(server.name) },
+                    enabled = !server.isPluginOwned,
+                ) {
                     Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.action_delete))
                 }
             }
@@ -275,7 +290,7 @@ fun EnvVarSection(
     spacing: Spacing,
     modifier: Modifier = Modifier,
 ) {
-    val isEditing = state.editingEnvFor == server.name
+    val isEditing = !server.isPluginOwned && state.editingEnvFor == server.name
     val env = server.env ?: emptyMap()
 
     Column(modifier = modifier) {
@@ -300,7 +315,10 @@ fun EnvVarSection(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    IconButton(onClick = { viewModel.removeEnvVar(server.name, key) }) {
+                    IconButton(
+                        onClick = { viewModel.removeEnvVar(server.name, key) },
+                        enabled = !server.isPluginOwned,
+                    ) {
                         Icon(Icons.Filled.Close, contentDescription = "Remove", modifier = Modifier.size(16.dp))
                     }
                 }
@@ -342,7 +360,10 @@ fun EnvVarSection(
                 }
             }
         } else {
-            TextButton(onClick = { viewModel.startEditingEnv(server) }) {
+            TextButton(
+                onClick = { viewModel.startEditingEnv(server) },
+                enabled = !server.isPluginOwned,
+            ) {
                 Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(14.dp))
                 Spacer(modifier = Modifier.width(spacing.xs))
                 Text(stringResource(R.string.mcp_servers_env_add))

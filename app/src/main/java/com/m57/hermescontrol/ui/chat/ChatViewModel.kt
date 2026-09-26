@@ -933,15 +933,32 @@ class ChatViewModel(
             if (!initial.isNullOrBlank()) {
                 initialSessionId = null
                 switchSession(initial)
-            } else if (AuthManager.isRestoreLastSession()) {
-                val restoredId = AuthManager.getLastOpenedSessionId()
-                if (!restoredId.isNullOrBlank()) {
-                    switchSession(restoredId)
+            } else {
+                // Consume canonical-session intent from a Bot Chat profile
+                // switch, but only when the profile matches the current active
+                // profile. Prevents cross-profile consumption and stale intents
+                // from failed or cancelled switches.
+                val activeProfile = AuthManager.activeProfileId.value
+                val intentGeneration = ProfileSwitchCoordinator.canonicalIntentGeneration
+                val canonicalSessionId =
+                    if (activeProfile != null) {
+                        ProfileSwitchCoordinator.consumeCanonicalIntent(
+                            activeProfile,
+                            intentGeneration,
+                        )
+                    } else null
+                if (!canonicalSessionId.isNullOrBlank()) {
+                    switchSession(canonicalSessionId)
+                } else if (AuthManager.isRestoreLastSession()) {
+                    val restoredId = AuthManager.getLastOpenedSessionId()
+                    if (!restoredId.isNullOrBlank()) {
+                        switchSession(restoredId)
+                    } else {
+                        createNewSession(setLoading = false)
+                    }
                 } else {
                     createNewSession(setLoading = false)
                 }
-            } else {
-                createNewSession(setLoading = false)
             }
         }
     }

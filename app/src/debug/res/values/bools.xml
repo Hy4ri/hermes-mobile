@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Suppress the LeakCanary launcher icon in debug builds without
+        disabling leak detection. The watcher auto-install is controlled
+        by a separate @bool/leak_canary_watcher_auto_install (default true).
+        Override only the launcher icon bool; the detection provider stays
+        active so memory leaks are still caught and reported via the
+        notification channel (issue #LeakCanary-launcher).
+    -->
+    <bool name="leak_canary_add_launcher_icon">false</bool>
+</resources>

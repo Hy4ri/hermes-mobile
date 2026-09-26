@@ -19,7 +19,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import com.m57.hermescontrol.NavigationController
-import com.m57.hermescontrol.data.session.ActiveSessionHolder
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.notification.ReplyNotificationTracker
@@ -62,7 +62,7 @@ fun ChatLifecycleEffects(
         if (newChatRequest != null) {
             // Switch profile if requested
             newChatRequest.profileName?.let { profileName ->
-                if (profileName != ActiveSessionHolder.activeProfile) {
+                if (profileName != AuthManager.activeProfileId.value) {
                     ProfileSwitchCoordinator
                         .switchProfile(profileName)
                 }
@@ -74,7 +74,7 @@ fun ChatLifecycleEffects(
         if (!target.isNullOrBlank()) {
             // Switch profile if needed before switching sessions
             request?.profileName?.let { profileName ->
-                if (profileName != ActiveSessionHolder.activeProfile) {
+                if (profileName != AuthManager.activeProfileId.value) {
                     ProfileSwitchCoordinator
                         .switchProfile(profileName)
                 }

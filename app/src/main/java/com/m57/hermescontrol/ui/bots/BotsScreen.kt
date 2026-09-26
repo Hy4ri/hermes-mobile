@@ -71,6 +71,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.ProfileInfo
+import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.ui.common.BotAvatar
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
@@ -396,10 +397,24 @@ fun BotsScreen(
                                                     activeBots = state.activeNowBots,
                                                     onSelectBot = { bot ->
                                                         scope.launch {
-                                                            viewModel.selectBot(bot)
                                                             val canonicalId =
                                                                 bot.canonical_session?.resolved_id
                                                                     ?: bot.canonical_session?.id
+                                                            if (!canonicalId.isNullOrBlank()) {
+                                                                ProfileSwitchCoordinator
+                                                                    .setCanonicalIntent(
+                                                                        canonicalId,
+                                                                        bot.name,
+                                                                    )
+                                                            }
+                                                            val success = viewModel.selectBot(bot)
+                                                            if (!success) {
+                                                                // Switch failed — clear intent so
+                                                                // stale gateway.ready cannot resume it.
+                                                                ProfileSwitchCoordinator
+                                                                    .clearCanonicalIntent()
+                                                                return@launch
+                                                            }
                                                             if (!canonicalId.isNullOrBlank()) {
                                                                 // Register canonical session→profile mapping so proactive
                                                                 // notifications can resolve the owning profile.
@@ -432,10 +447,24 @@ fun BotsScreen(
                                                 isActiveProfile = profile.name == state.activeProfileName,
                                                 onClick = {
                                                     scope.launch {
-                                                        viewModel.selectBot(profile)
                                                         val canonicalId =
                                                             profile.canonical_session?.resolved_id
                                                                 ?: profile.canonical_session?.id
+                                                        if (!canonicalId.isNullOrBlank()) {
+                                                            ProfileSwitchCoordinator
+                                                                .setCanonicalIntent(
+                                                                    canonicalId,
+                                                                    profile.name,
+                                                                )
+                                                        }
+                                                        val success = viewModel.selectBot(profile)
+                                                        if (!success) {
+                                                            // Switch failed — clear intent so
+                                                            // stale gateway.ready cannot resume it.
+                                                            ProfileSwitchCoordinator
+                                                                .clearCanonicalIntent()
+                                                            return@launch
+                                                        }
                                                         if (!canonicalId.isNullOrBlank()) {
                                                             com.m57.hermescontrol.data.session.SessionProfileTracker
                                                                 .trackCanonical(

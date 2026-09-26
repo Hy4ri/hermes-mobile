@@ -224,5 +224,100 @@ class ProfileSwitchCoordinatorTest {
             assertEquals("prof-2", received.tryReceive().getOrNull())
         }
 
+    // ── Canonical session intent tests ─────────────────────────────
+
+    @Test
+    fun `canonical intent happy-path consume returns session id`() =
+        runTest {
+            val generation = ProfileSwitchCoordinator.setCanonicalIntent("sess-1", "karellen")
+
+            val result = ProfileSwitchCoordinator.consumeCanonicalIntent("karellen", generation)
+
+            assertEquals("sess-1", result)
+        }
+
+    @Test
+    fun `canonical intent mismatch profile returns null`() =
+        runTest {
+            ProfileSwitchCoordinator.setCanonicalIntent("sess-1", "karellen")
+
+            val result = ProfileSwitchCoordinator.consumeCanonicalIntent("default", 1L)
+
+            assertEquals(null, result)
+        }
+
+    @Test
+    fun `canonical intent mismatch generation returns null`() =
+        runTest {
+            val generation = ProfileSwitchCoordinator.setCanonicalIntent("sess-1", "karellen")
+
+            val result = ProfileSwitchCoordinator.consumeCanonicalIntent("karellen", generation - 1)
+
+            assertEquals(null, result)
+        }
+
+    @Test
+    fun `canonical intent cleared on switch failure`() =
+        runTest {
+            coEvery { mockApi.setActiveProfile(any()) } returns errorResponse(500)
+            ProfileSwitchCoordinator.setCanonicalIntent("sess-1", "karellen")
+
+            ProfileSwitchCoordinator.switchProfile("karellen")
+            runCurrent()
+
+            // After a failed switch the intent must be cleared so no stale
+            // gateway.ready can consume it under the wrong profile.
+            val generation = ProfileSwitchCoordinator.canonicalIntentGeneration
+            assertTrue(
+                ProfileSwitchCoordinator.consumeCanonicalIntent("karellen", generation) == null,
+            )
+        }
+
+    @Test
+    fun `canonical intent cleared explicitly`() =
+        runTest {
+            ProfileSwitchCoordinator.setCanonicalIntent("sess-1", "karellen")
+
+            ProfileSwitchCoordinator.clearCanonicalIntent()
+
+            val result = ProfileSwitchCoordinator.consumeCanonicalIntent("karellen", 1L)
+            assertEquals(null, result)
+        }
+
+    @Test
+    fun `overlapping switch uses newest intent generation`() =
+        runTest {
+            // First switch starts setting intent for profile A
+            val genA = ProfileSwitchCoordinator.setCanonicalIntent("sess-a", "alpha")
+            // Overlapping switch B starts before A's gateway.ready
+            val genB = ProfileSwitchCoordinator.setCanonicalIntent("sess-b", "beta")
+
+            // Consume with A's generation — should fail (stale by B overwriting)
+            assertEquals(
+                null,
+                ProfileSwitchCoordinator.consumeCanonicalIntent("alpha", genA),
+            )
+            // Consume with B's generation — should succeed
+            assertEquals(
+                "sess-b",
+                ProfileSwitchCoordinator.consumeCanonicalIntent("beta", genB),
+            )
+            // B's intent consumed once — second consume returns null
+            assertEquals(
+                null,
+                ProfileSwitchCoordinator.consumeCanonicalIntent("beta", genB),
+            )
+        }
+
+    @Test
+    fun `no canonical intent returns null`() =
+        runTest {
+            ProfileSwitchCoordinator.clearCanonicalIntent()
+
+            val result = ProfileSwitchCoordinator.consumeCanonicalIntent("karellen", 0L)
+
+            assertEquals(null, result)
+        }
+
     private fun <T> errorResponse(code: Int): Response<T> = Response.error(code, "{}".toResponseBody(null))
 }

@@ -259,6 +259,7 @@ internal fun mapServerMessages(
                 displayKind = msg.display_kind,
                 tokenCount = tokenCount,
                 completionId = completionId,
+                serverRowId = msg.id?.toLong()?.takeIf { it > 0L },
             ),
         )
     }
@@ -274,12 +275,13 @@ internal fun mapServerMessages(
             // A canonical tool-result row settles a cached tool.start, not the reverse.
             local.copy(
                 restId = message.canonicalRestId,
+                serverRowId = message.serverRowId,
                 content = message.content,
                 toolStatus = ToolStatus.COMPLETED,
                 isHistoricalCache = false,
             )
         } else {
-            local?.copy(restId = message.canonicalRestId) ?: message
+            local?.copy(restId = message.canonicalRestId, serverRowId = message.serverRowId) ?: message
         }
     }
 }

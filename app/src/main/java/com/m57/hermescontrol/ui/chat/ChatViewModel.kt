@@ -1063,6 +1063,7 @@ class ChatViewModel(
                 if (isCurrentSession(event.sessionId)) {
                     mainTurnBusy = false
                     lastMainCompletionAt = System.currentTimeMillis()
+                    retireReceiptForPersistedTurn(parsePersistedTurn(event.rawPayload))
                     refreshSendReceipts()
                 }
                 // Buffers cleared before reduce; ViewModel resets them after
@@ -1602,7 +1603,8 @@ class ChatViewModel(
         result: Any?,
     ) {
         val messageId = outgoingRequestById.remove(requestId) ?: return
-        val status = rpcResultMap(result)?.get("status") as? String
+        val resultMap = rpcResultMap(result)
+        val status = resultMap?.get("status") as? String
         val accepted =
             when (method) {
                 WsMethods.SESSION_REDIRECT -> status == "redirected" || status == "queued"
@@ -1611,6 +1613,24 @@ class ChatViewModel(
             }
         when {
             accepted -> {
+                // #1285: the submit ack names the row written for THIS input. Absent = unproven.
+                positiveRowId(resultMap?.get("user_row_id"))?.let { rowId ->
+                    sendStore.update(messageId) { it.copy(userRowId = rowId) }
+                    _uiState.update { state ->
+                        state.copy(
+                            messages =
+                                state.messages.map {
+                                    if (it.id == messageId &&
+                                        it.serverRowId == null
+                                    ) {
+                                        it.copy(serverRowId = rowId)
+                                    } else {
+                                        it
+                                    }
+                                },
+                        )
+                    }
+                }
                 markPendingSend(messageId, PendingSendState.ACCEPTED)
                 if (sendStore.all().any { it.id == messageId && lastMainCompletionAt >= it.createdAt }) {
                     refreshSendReceipts()
@@ -2487,6 +2507,23 @@ class ChatViewModel(
         sendStore.remove(messageId)
         viewModelScope.launch(ioDispatcher) { deleteQueuedAttachmentSnapshot(messageId) }
         publishPendingSends()
+    }
+
+    /**
+     * #1285: only a complete receipt proves the whole turn is durable, and only the receipt
+     * already bound to that exact `user_row_id` is retired. Partial or id-less receipts leave
+     * every local row to REST reconciliation; no row is ever inferred from text or position.
+     */
+    private fun retireReceiptForPersistedTurn(turn: PersistedTurn?) {
+        val userRowId = turn?.userRowId?.takeIf { turn.complete } ?: return
+        val sessionId = _uiState.value.currentSessionId ?: return
+        val scope = sendScope()
+        sendStore
+            .all()
+            .filter {
+                it.scope == scope && it.sessionId == sessionId && it.userRowId == userRowId &&
+                    it.state in setOf(PendingSendState.SENDING, PendingSendState.ACCEPTED, PendingSendState.UNKNOWN)
+            }.forEach { removePendingSend(it.id) }
     }
 
     private fun removeUnconfirmedBubble(messageId: String) {
@@ -4648,6 +4685,7 @@ class ChatViewModel(
                                 content = it.text,
                                 attachments = it.attachments,
                                 timestamp = it.createdAt,
+                                serverRowId = it.userRowId,
                             )
                         }
                 }

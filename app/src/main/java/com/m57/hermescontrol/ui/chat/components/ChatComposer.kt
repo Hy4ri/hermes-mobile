@@ -47,9 +47,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -132,6 +136,29 @@ fun ChatInputBar(
 
     // Attachment tray state
     var showAttachmentTray by remember { mutableStateOf(false) }
+    // The voice-note strip replaces the input field, so the IME closes the
+    // moment recording starts. When the strip goes away (send, delete, or
+    // cancel), focus returns to the input and the keyboard re-opens if it was
+    // up before — the next message must not need an extra tap (device
+    // follow-up, #1247).
+    val inputFocusRequester = remember { FocusRequester() }
+    val softwareKeyboard = LocalSoftwareKeyboardController.current
+    var inputWasFocused by remember { mutableStateOf(false) }
+    var restoreInputFocus by remember { mutableStateOf(false) }
+    // Snapshot BEFORE the launcher flips isRecordingVoice — by the time the
+    // recomposition swaps the field out, focus is already on its way to the
+    // root, so the effect alone cannot read it reliably.
+    val handleMicHoldStart = {
+        restoreInputFocus = inputWasFocused
+        onMicHoldStart()
+    }
+    LaunchedEffect(isRecordingVoice) {
+        if (!isRecordingVoice && restoreInputFocus) {
+            restoreInputFocus = false
+            inputFocusRequester.requestFocus()
+            softwareKeyboard?.show()
+        }
+    }
     val palette = composerPalette()
     BackHandler(enabled = showAttachmentTray) { showAttachmentTray = false }
 
@@ -296,7 +323,12 @@ fun ChatInputBar(
                                         .weight(1f)
                                         .heightIn(min = 42.dp, max = 200.dp)
                                         .padding(vertical = 4.dp)
-                                        .testTag("chat_input"),
+                                        .focusRequester(inputFocusRequester)
+                                        .onFocusChanged { focusState ->
+                                            if (!isRecordingVoice) {
+                                                inputWasFocused = focusState.isFocused
+                                            }
+                                        }.testTag("chat_input"),
                                 enabled = isConnected,
                                 textStyle =
                                     MaterialTheme.typography.bodyLarge.copy(
@@ -360,7 +392,7 @@ fun ChatInputBar(
                     onModelTap = onModelTap,
                     onReasoningSelected = onReasoningTap,
                     onMicTap = onMicTap,
-                    onMicHoldStart = onMicHoldStart,
+                    onMicHoldStart = handleMicHoldStart,
                     onMicHoldEnd = onMicHoldEnd,
                     onMicHoldCancel = onMicHoldCancel,
                     onMicLock = onMicLock,

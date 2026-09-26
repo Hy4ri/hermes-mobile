@@ -9,6 +9,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -52,13 +53,14 @@ class VoiceNoteGestureTest {
     private var locks = 0
 
     /**
-     * Renders the real input bar with the launcher's lock contract: the lock
-     * callback flips the locked flag exactly like ChatMediaLaunchers does,
-     * and a cancel releases it again.
+     * Renders the real input bar with the launcher's contract: hold start/end
+     * flip the recording state, the lock callback flips the locked flag, and a
+     * cancel releases both — exactly like ChatMediaLaunchers does.
      */
     private fun setComposer(initiallyLocked: Boolean = false) {
         composeTestRule.setContent {
             var locked by remember { mutableStateOf(initiallyLocked) }
+            var recording by remember { mutableStateOf(initiallyLocked) }
             ChatInputBar(
                 inputFieldValue = TextFieldValue(""),
                 onInputChange = {},
@@ -69,18 +71,25 @@ class VoiceNoteGestureTest {
                 isConnected = true,
                 commandCatalog = CommandCatalog(),
                 isSessionReady = true,
-                onMicHoldStart = { holdStarts++ },
-                onMicHoldEnd = { holdEnds++ },
+                onMicHoldStart = {
+                    holdStarts++
+                    recording = true
+                },
+                onMicHoldEnd = {
+                    holdEnds++
+                    recording = false
+                },
                 onMicHoldCancel = {
                     holdCancels++
                     locked = false
+                    recording = false
                 },
                 onMicLock = {
                     locks++
                     locked = true
                 },
                 isVoiceNoteLocked = locked,
-                isRecordingVoice = initiallyLocked,
+                isRecordingVoice = recording,
                 voiceNoteAmplitude = remember { mutableStateOf(0.4f) },
             )
         }
@@ -165,6 +174,24 @@ class VoiceNoteGestureTest {
             assertEquals("the locked send button must dispatch the mic action", 1, micTaps)
             assertEquals("sending must not re-lock", 1, locks)
         }
+    }
+
+    @Test
+    fun holdRelease_returnsFocusToTheInput() {
+        setComposer()
+
+        composeTestRule.onNodeWithTag("chat_input").performClick()
+        composeTestRule.onNodeWithTag("chat_input").assertIsFocused()
+
+        composeTestRule.onNodeWithTag("mic_button").performTouchInput { down(center) }
+        composeTestRule.mainClock.advanceTimeBy(600)
+        composeTestRule.onNodeWithTag("mic_button").performTouchInput { up() }
+        composeTestRule.waitForIdle()
+
+        // The strip replaced the input field while recording; the send must
+        // hand focus back so the keyboard re-opens without an extra tap
+        // (device follow-up, #1247).
+        composeTestRule.onNodeWithTag("chat_input").assertIsFocused()
     }
 
     @Test

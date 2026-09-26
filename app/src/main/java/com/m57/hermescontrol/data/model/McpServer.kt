@@ -20,7 +20,12 @@ data class McpServer(
     val error: String? = null,
     val auth: String? = null,
     val tools: List<String>? = null,
-)
+    val source: String = "config",
+    val plugin: String? = null,
+) {
+    // #1283: plugin-provided servers are managed by their owning plugin.
+    val isPluginOwned: Boolean get() = source == "plugin"
+}
 
 @Serializable
 data class McpServerTestResponse(

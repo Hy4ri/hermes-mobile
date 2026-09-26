@@ -1119,6 +1119,8 @@
 
     <!-- McpServers Screen -->
     <string name="mcp_servers_label_transport">Transport: %1$s</string>
+    <string name="mcp_servers_from_plugin">From plugin %1$s · Read-only</string>
+    <string name="mcp_servers_plugin_managed">Plugin-managed · Read-only</string>
     <string name="mcp_servers_label_command">Command:</string>
     <string name="mcp_servers_action_test">Test</string>
     <string name="mcp_servers_action_test_all">Test All</string>

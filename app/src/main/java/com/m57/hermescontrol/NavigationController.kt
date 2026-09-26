@@ -10,10 +10,14 @@ data class PendingChatNavigation(
     val sessionId: String,
     val scrollToBottom: Boolean,
     val requestId: Long,
+    /** Profile to switch to before opening this session (null = no switch needed). */
+    val profileName: String? = null,
 )
 
 data class PendingNewChatNavigation(
     val requestId: Long,
+    /** Profile to switch to before creating a new chat (null = keep current). */
+    val profileName: String? = null,
 )
 
 /**
@@ -76,8 +80,45 @@ object NavigationController {
         queueChatNavigation(sessionId, scrollToBottom = false)
     }
 
+    /**
+     * Open a chat session, switching to [profileName] first if provided.
+     * Used by BotsScreen when a bot's canonical session is tapped.
+     */
+    fun openChatSession(
+        sessionId: String,
+        profileName: String?,
+    ) {
+        if (sessionId.isBlank()) return
+        pendingChatNavigation =
+            PendingChatNavigation(
+                sessionId = sessionId,
+                scrollToBottom = false,
+                requestId = ++nextChatNavigationRequestId,
+                profileName = profileName,
+            )
+        navigateTo(ChatScreen)
+    }
+
     fun openChatSessionFromNotification(sessionId: String) {
         queueChatNavigation(sessionId, scrollToBottom = true)
+    }
+
+    /**
+     * Open a chat session from a notification, with an optional profile switch.
+     */
+    fun openChatSessionFromNotification(
+        sessionId: String,
+        profileName: String?,
+    ) {
+        if (sessionId.isBlank()) return
+        pendingChatNavigation =
+            PendingChatNavigation(
+                sessionId = sessionId,
+                scrollToBottom = true,
+                requestId = ++nextChatNavigationRequestId,
+                profileName = profileName,
+            )
+        navigateTo(ChatScreen)
     }
 
     fun openNewChat() {

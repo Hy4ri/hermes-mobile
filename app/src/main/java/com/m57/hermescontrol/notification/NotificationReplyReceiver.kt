@@ -10,6 +10,8 @@ import androidx.core.app.RemoteInput
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
+import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
+import com.m57.hermescontrol.data.session.SessionProfileTracker
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsMethods
 import kotlinx.coroutines.CoroutineScope
@@ -23,6 +25,7 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
     companion object {
         const val KEY_TEXT_REPLY = "key_text_reply"
         const val EXTRA_SESSION_ID = "extra_session_id"
+        const val EXTRA_PROFILE_NAME = "extra_profile_name"
         private const val REPLY_TIMEOUT_MS = 5_000L
 
         /**
@@ -63,6 +66,27 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
                 },
             ).build()
 
+    /**
+     * Returns the profile to switch to before handling a notification reply,
+     * or null if no switch is needed.
+     */
+    private fun resolveReplyProfile(
+        sessionId: String,
+        profileNameExtra: String?,
+    ): String? {
+        // 1. Prefer the explicit extra from the notification intent
+        if (profileNameExtra != null && profileNameExtra != AuthManager.activeProfileId.value) {
+            return profileNameExtra
+        }
+        // 2. Fall back to SessionProfileTracker
+        val trackedProfile = SessionProfileTracker.resolveProfile(sessionId)
+        if (trackedProfile != null && trackedProfile != AuthManager.activeProfileId.value) {
+            return trackedProfile
+        }
+        // 3. No switch needed — either already on the right profile or unknown
+        return null
+    }
+
     override fun onReceive(
         context: Context,
         intent: Intent,
@@ -70,6 +94,7 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
         val remoteInput = RemoteInput.getResultsFromIntent(intent)
         val replyText = remoteInput?.getCharSequence(KEY_TEXT_REPLY)?.toString()
         val sessionId = intent.getStringExtra(EXTRA_SESSION_ID)
+        val profileName = intent.getStringExtra(EXTRA_PROFILE_NAME)
 
         if (!replyText.isNullOrBlank() && !sessionId.isNullOrBlank()) {
             val pendingResult = goAsyncCompat()
@@ -87,6 +112,12 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
                                     "Ignoring reply for unknown session: $sessionId",
                                 )
                                 return@withContext
+                            }
+
+                            // Switch profile if the session belongs to a different profile
+                            val targetProfile = resolveReplyProfile(sessionId, profileName)
+                            if (targetProfile != null) {
+                                ProfileSwitchCoordinator.switchProfile(targetProfile)
                             }
 
                             // Mobile-originated follow-up turn: arm its durable
@@ -165,7 +196,7 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
         val runtimeSessionId =
             (result?.get("session_id") as? String)?.takeIf { it.isNotBlank() }
                 ?: error("Resume returned no runtime session id")
-        ActiveSessionHolder.set(runtimeSessionId, storedSessionId)
+        ActiveSessionHolder.set(runtimeSessionId, storedSessionId, profileName = profile)
         return runtimeSessionId
     }
 }

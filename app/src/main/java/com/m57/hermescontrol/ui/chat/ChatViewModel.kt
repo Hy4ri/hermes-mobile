@@ -1694,7 +1694,7 @@ class ChatViewModel(
                 // Mirror the active session id app-wide so session-scoped
                 // drawer screens (e.g. Processes, issue #532) can issue
                 // session-scoped RPCs. See ActiveSessionHolder.
-                ActiveSessionHolder.set(runtimeId, storageId)
+                ActiveSessionHolder.set(runtimeId, storageId, profileName = authProfileName())
                 _streamingState.update { StreamingState() }
                 addSystemMessage("Session created", persist = true)
                 loadSessions()
@@ -1747,7 +1747,7 @@ class ChatViewModel(
                 runtimeSessionId = runtimeId
                 connectionOperationDelegate.bindSession(runtimeId)
                 resumedGeneration = generation
-                ActiveSessionHolder.set(runtimeId, storageId)
+                ActiveSessionHolder.set(runtimeId, storageId, profileName = AuthManager.activeProfileId.value)
                 sessionHasServerPresence = false
                 sessionGoneRecoveryInFlight = false
                 addSystemMessage("Session branched", persist = true)
@@ -1861,7 +1861,11 @@ class ChatViewModel(
                 }
                 modelSwitchDelegate.syncCurrentModelCapabilities()
                 // Mirror the active runtime session id app-wide (issue #532).
-                ActiveSessionHolder.set(runtimeSessionId ?: sessionId, sessionId)
+                ActiveSessionHolder.set(
+                    runtimeSessionId ?: sessionId,
+                    sessionId,
+                    profileName = AuthManager.activeProfileId.value,
+                )
                 addSystemMessage("Session resumed")
                 fetchContextUsage()
                 projectRetainedReplyFailure(resultMap["inflight"] as? Map<String, Any?>, runtimeId)
@@ -3312,10 +3316,19 @@ class ChatViewModel(
                         fileRefs.joinToString("\n") +
                             if (text.isNotBlank()) "\n\n$text" else ""
                     }
-                if (isCurrentSendContext(owner)) {
+
+                if (dispatchGeneration != sessionGeneration) return@launch
+
+                // While a turn is actively streaming and this is a plain text prompt
+                // (no attachments — session.redirect carries text only), steer the
+                // in-flight turn via session.redirect instead of queueing a fresh
+                // prompt.submit. The backend rewrites the live turn when it can, or
+                // queues the correction as the next turn otherwise (issue #710).
+                if (dispatchGeneration == sessionGeneration) {
                     ActiveSessionHolder.set(
-                        owner.agentSessionId,
-                        owner.storageSessionId,
+                        agentSessionId,
+                        storageSessionId,
+                        profileName = AuthManager.activeProfileId.value,
                     )
                 }
                 captureTurnUsageBaselineIfNeeded()

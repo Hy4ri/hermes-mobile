@@ -19,6 +19,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
+import com.m57.hermescontrol.data.session.SessionProfileTracker
 import com.m57.hermescontrol.data.update.UpdateNoticeManager
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.notification.NotificationHelper
@@ -166,7 +168,24 @@ class MainActivity : ComponentActivity() {
         // honor intents stamped with our own notification action.
         if (intent?.action != ACTION_OPEN_CHAT_FROM_NOTIFICATION) return
         val sessionId = intent.getStringExtra(NotificationReplyReceiver.EXTRA_SESSION_ID)
+        val profileName = intent.getStringExtra(NotificationReplyReceiver.EXTRA_PROFILE_NAME)
         intent.removeExtra(NotificationReplyReceiver.EXTRA_SESSION_ID)
-        sessionId?.takeIf { it.isNotBlank() }?.let(NavigationController::openChatSessionFromNotification)
+        intent.removeExtra(NotificationReplyReceiver.EXTRA_PROFILE_NAME)
+        sessionId?.takeIf { it.isNotBlank() }?.let { sid ->
+            // Resolve profile: prefer intent extra, then SessionProfileTracker
+            val resolvedProfile =
+                profileName?.takeIf { it.isNotBlank() }
+                    ?: SessionProfileTracker.resolveProfile(sid)
+
+            // If the session belongs to a different profile, switch profile first
+            if (resolvedProfile != null && resolvedProfile != AuthManager.activeProfileId.value) {
+                lifecycleScope.launch {
+                    ProfileSwitchCoordinator.switchProfile(resolvedProfile)
+                    NavigationController.openChatSessionFromNotification(sid)
+                }
+            } else {
+                NavigationController.openChatSessionFromNotification(sid)
+            }
+        }
     }
 }

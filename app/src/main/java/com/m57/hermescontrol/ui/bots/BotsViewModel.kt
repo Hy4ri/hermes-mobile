@@ -280,6 +280,16 @@ class BotsViewModel(
                             errorMessage = null,
                         )
                     }
+                    // Register canonical session→profile mappings for proactive notification routing
+                    for (profile in profilesWithMeta) {
+                        val canonId = profile.canonical_session?.resolved_id ?: profile.canonical_session?.id
+                        if (!canonId.isNullOrBlank()) {
+                            com.m57.hermescontrol.data.session.SessionProfileTracker.trackCanonical(
+                                canonId,
+                                profile.name,
+                            )
+                        }
+                    }
                 } else if (profilesResult is NetworkResult.Success) {
                     val activeName = (activeResult as? NetworkResult.Success)?.data?.active
                     _uiState.update {
@@ -291,6 +301,17 @@ class BotsViewModel(
                             hiddenProfiles = AuthManager.getHiddenProfiles().toSet(),
                             errorMessage = null,
                         )
+                    }
+                    // Register canonical session→profile mappings for proactive notification routing
+                    val restProfiles = profilesResult.data.profiles.orEmpty()
+                    for (profile in restProfiles) {
+                        val canonId = profile.canonical_session?.resolved_id ?: profile.canonical_session?.id
+                        if (!canonId.isNullOrBlank()) {
+                            com.m57.hermescontrol.data.session.SessionProfileTracker.trackCanonical(
+                                canonId,
+                                profile.name,
+                            )
+                        }
                     }
                 } else {
                     val err =

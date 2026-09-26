@@ -176,9 +176,8 @@ class ChatNotificationService : Service() {
                                             // is strictly better than dismissing the wrong
                                             // duplicate reply.
                                             serverMessageId =
-                                                plan.correlationText?.let {
-                                                    coalesceTurnRow(plan.sessionId, it)
-                                                },
+                                                coalesceTurnRow(targetSessionId, event.text),
+                                            profileName = event.profileName,
                                         )
                                         // The wait is over — retire the foreground
                                         // service. The reply notification above
@@ -263,6 +262,7 @@ class ChatNotificationService : Service() {
         completionId: String? = null,
         serverMessageId: Int? = null,
         allowInlineReply: Boolean = true,
+        profileName: String? = null,
     ) {
         val builder =
             NotificationCompat
@@ -274,7 +274,7 @@ class ChatNotificationService : Service() {
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
                 .setAutoCancel(true)
-                .setContentIntent(buildContentIntent(sessionId))
+                .setContentIntent(buildContentIntent(sessionId, profileName))
 
         var replyGeneration: Long? = null
         if (isReplyMessage && !sessionId.isNullOrBlank() && !completionId.isNullOrBlank()) {
@@ -299,12 +299,18 @@ class ChatNotificationService : Service() {
                     serverMessageId?.let {
                         putInt(ReplyNotificationTracker.EXTRA_SERVER_MESSAGE_ID, it)
                     }
+                    profileName?.let {
+                        putString(NotificationReplyReceiver.EXTRA_PROFILE_NAME, it)
+                    }
                 },
             )
         } else {
             builder.addExtras(
                 android.os.Bundle().apply {
                     putString(ReplyNotificationTracker.EXTRA_NOTIF_KIND, ReplyNotificationTracker.KIND_ACTION)
+                    profileName?.let {
+                        putString(NotificationReplyReceiver.EXTRA_PROFILE_NAME, it)
+                    }
                 },
             )
         }
@@ -327,6 +333,9 @@ class ChatNotificationService : Service() {
                         )
                     setPackage(packageName)
                     putExtra(NotificationReplyReceiver.EXTRA_SESSION_ID, sessionId)
+                    profileName?.let {
+                        putExtra(NotificationReplyReceiver.EXTRA_PROFILE_NAME, it)
+                    }
                 }
 
             val replyPendingIntent =
@@ -364,7 +373,10 @@ class ChatNotificationService : Service() {
         }
     }
 
-    private fun buildContentIntent(sessionId: String?): PendingIntent {
+    private fun buildContentIntent(
+        sessionId: String?,
+        profileName: String? = null,
+    ): PendingIntent {
         val intent =
             Intent(this, MainActivity::class.java).apply {
                 action = MainActivity.ACTION_OPEN_CHAT_FROM_NOTIFICATION
@@ -373,6 +385,9 @@ class ChatNotificationService : Service() {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 if (!sessionId.isNullOrBlank()) {
                     putExtra(NotificationReplyReceiver.EXTRA_SESSION_ID, sessionId)
+                }
+                if (!profileName.isNullOrBlank()) {
+                    putExtra(NotificationReplyReceiver.EXTRA_PROFILE_NAME, profileName)
                 }
             }
         return PendingIntent.getActivity(

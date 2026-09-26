@@ -355,4 +355,100 @@ class BotsViewModelTest {
             assertEquals("Local Only Group", groups[1].name)
             assertEquals(1, groups[1].members.size)
         }
+
+    @Test
+    fun testCanonicalSessionResolvesToNavigationTarget() =
+        runTest(testDispatcher) {
+            val nowSeconds = (System.currentTimeMillis() / 1000).toDouble()
+
+            val karellenMeta =
+                BotRosterMeta(
+                    title = "Karellen",
+                    description = "Manager inbox bot",
+                    avatar = BotAvatarMeta(shape = "circle", color = "#FF6B35", icon = "inbox"),
+                )
+
+            val profiles =
+                listOf(
+                    ProfileInfo(
+                        name = "default",
+                        is_default = true,
+                        canonical_session =
+                            CanonicalSessionInfo(
+                                id = "canon-def",
+                                resolved_id = "resolved-canon-def",
+                                last_active = nowSeconds - 30,
+                            ),
+                    ),
+                    ProfileInfo(
+                        name = "karellen",
+                        ui_meta = mapOf("hermes-bots" to json.encodeToJsonElement(karellenMeta)),
+                        canonical_session =
+                            CanonicalSessionInfo(
+                                id = "canon-karellen",
+                                resolved_id = "resolved-canon-karellen",
+                                last_active = nowSeconds - 10,
+                                preview = "Task completed successfully",
+                            ),
+                        worker_session =
+                            ProfileWorkerSummary(
+                                id = "worker-1",
+                                source = "kanban",
+                                last_active = nowSeconds - 5,
+                            ),
+                    ),
+                    ProfileInfo(
+                        name = "scout",
+                        canonical_session =
+                            CanonicalSessionInfo(
+                                id = "canon-scout",
+                                last_active = nowSeconds - 500,
+                            ),
+                    ),
+                )
+
+            coEvery { mockApi.getProfiles() } returns Response.success(ProfilesResponse(profiles))
+            coEvery { mockApi.getActiveProfile() } returns Response.success(ActiveProfileResponse(active = "default"))
+
+            val viewModel = BotsViewModel(ioDispatcher = testDispatcher, autoLoad = false)
+            viewModel.loadBots()
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+
+            // Verify all 3 profiles loaded
+            assertEquals(3, state.profiles.size)
+
+            // Verify displayProfiles order: active profile first, then by canonical last_active desc
+            val displayed = state.displayProfiles
+            assertEquals("default", displayed[0].name)
+            assertEquals("karellen", displayed[1].name)
+            assertEquals("scout", displayed[2].name)
+
+            // Verify canonical session info is present for each profile
+            val defaultProfile = state.profiles.find { it.name == "default" }
+            assertNotNull(defaultProfile?.canonical_session)
+            assertEquals("resolved-canon-def", defaultProfile?.canonical_session?.resolved_id)
+
+            val karellenProfile = state.profiles.find { it.name == "karellen" }
+            assertNotNull(karellenProfile?.canonical_session)
+            assertEquals("resolved-canon-karellen", karellenProfile?.canonical_session?.resolved_id)
+            assertNotNull(karellenProfile?.canonical_session?.preview)
+            assertEquals("Task completed successfully", karellenProfile?.canonical_session?.preview)
+
+            // Verify active-now includes karellen (has worker_session) and default (active profile)
+            val activeNowNames = state.activeNowBots.map { it.name }
+            assertTrue(activeNowNames.contains("default"))
+            assertTrue(activeNowNames.contains("karellen"))
+            assertFalse(activeNowNames.contains("scout"))
+
+            // Karellen has a worker session and active canonical — should be in active now
+            assertNotNull(karellenProfile?.worker_session)
+
+            // Verify canonical resolution for navigation: the resolved_id should be used as navigation target
+            val karellenCanonicalId =
+                karellenProfile?.canonical_session?.resolved_id
+                    ?: karellenProfile?.canonical_session?.id
+            assertEquals("resolved-canon-karellen", karellenCanonicalId)
+        }
 }

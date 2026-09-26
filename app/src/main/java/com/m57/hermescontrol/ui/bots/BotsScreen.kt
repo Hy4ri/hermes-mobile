@@ -401,7 +401,17 @@ fun BotsScreen(
                                                                 bot.canonical_session?.resolved_id
                                                                     ?: bot.canonical_session?.id
                                                             if (!canonicalId.isNullOrBlank()) {
-                                                                NavigationController.openChatSession(canonicalId)
+                                                                // Register canonical session→profile mapping so proactive
+                                                                // notifications can resolve the owning profile.
+                                                                com.m57.hermescontrol.data.session.SessionProfileTracker
+                                                                    .trackCanonical(
+                                                                        canonicalId,
+                                                                        bot.name,
+                                                                    )
+                                                                NavigationController.openChatSession(
+                                                                    canonicalId,
+                                                                    profileName = bot.name,
+                                                                )
                                                             } else {
                                                                 NavigationController.navigateTo(
                                                                     com.m57.hermescontrol.ChatScreen,
@@ -427,7 +437,15 @@ fun BotsScreen(
                                                             profile.canonical_session?.resolved_id
                                                                 ?: profile.canonical_session?.id
                                                         if (!canonicalId.isNullOrBlank()) {
-                                                            NavigationController.openChatSession(canonicalId)
+                                                            com.m57.hermescontrol.data.session.SessionProfileTracker
+                                                                .trackCanonical(
+                                                                    canonicalId,
+                                                                    profile.name,
+                                                                )
+                                                            NavigationController.openChatSession(
+                                                                canonicalId,
+                                                                profileName = profile.name,
+                                                            )
                                                         } else {
                                                             NavigationController.navigateTo(
                                                                 com.m57.hermescontrol.ChatScreen,

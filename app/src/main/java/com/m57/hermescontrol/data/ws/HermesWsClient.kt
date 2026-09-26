@@ -1143,6 +1143,13 @@ object HermesWsClient {
                                                 ActiveSessionHolder.resolveStoredSessionId(
                                                     parsedEvent.sessionId,
                                                 ),
+                                            profileName =
+                                                parsedEvent.sessionId?.let { sid ->
+                                                    com.m57.hermescontrol.data.session.SessionProfileTracker
+                                                        .resolveProfile(
+                                                            sid,
+                                                        )
+                                                },
                                         )
                                     } else {
                                         parsedEvent
@@ -1417,6 +1424,12 @@ object HermesWsClient {
                                 if (parsed is WsEvent.MessageComplete) {
                                     parsed.copy(
                                         storedSessionId = ActiveSessionHolder.resolveStoredSessionId(parsed.sessionId),
+                                        profileName =
+                                            parsed.sessionId?.let { sid ->
+                                                com.m57.hermescontrol.data.session.SessionProfileTracker.resolveProfile(
+                                                    sid,
+                                                )
+                                            },
                                     )
                                 } else {
                                     parsed
@@ -1435,6 +1448,11 @@ object HermesWsClient {
                     if (parsed is WsEvent.MessageComplete) {
                         parsed.copy(
                             storedSessionId = ActiveSessionHolder.resolveStoredSessionId(parsed.sessionId),
+                            profileName =
+                                parsed.sessionId?.let { sid ->
+                                    com.m57.hermescontrol.data.session.SessionProfileTracker
+                                        .resolveProfile(sid)
+                                },
                         )
                     } else {
                         parsed

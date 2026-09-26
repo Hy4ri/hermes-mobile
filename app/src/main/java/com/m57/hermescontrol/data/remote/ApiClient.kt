@@ -109,7 +109,15 @@ object ApiClient {
                 .authenticator(TokenRefreshAuthenticator)
                 .readTimeout(readTimeoutMs, TimeUnit.MILLISECONDS)
                 .writeTimeout(readTimeoutMs, TimeUnit.MILLISECONDS)
-                .retryOnConnectionFailure(false)
+                // Transport-level stale-socket rescue stays ON: the shared pool
+                // keeps connections far longer than the dashboard's keep-alive,
+                // so the first STT call after an idle spell can ride a socket
+                // the server just closed ("unexpected end of stream") — OkHttp
+                // re-dials and resends on a fresh connection. This does NOT
+                // duplicate provider work: a request that already reached the
+                // server (timeout, 5xx) is not replayed, and safeApiCall still
+                // runs with retries = 0 (review, PR #1250).
+                .retryOnConnectionFailure(true)
                 .build()
         return Retrofit
             .Builder()

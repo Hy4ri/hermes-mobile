@@ -13,6 +13,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.captureToImage
@@ -230,6 +234,13 @@ class VoiceNoteGestureTest {
 
         composeTestRule.onNodeWithTag("voice_note_recording_panel").assertIsDisplayed()
         composeTestRule.onNodeWithTag("voice_note_cancel_button").assertIsDisplayed()
+        // Accessibility (review, PR #1280): the locked CANCEL is a real
+        // button. Its hit area is expanded by minimumInteractiveComponentSize
+        // (Compose keeps the visual text compact and widens the touch target),
+        // so the assertion pins the button role rather than layout bounds.
+        composeTestRule
+            .onNodeWithTag("voice_note_cancel_button")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
 
         val shot = composeTestRule.onRoot().captureToImage().asAndroidBitmap()
         val file =

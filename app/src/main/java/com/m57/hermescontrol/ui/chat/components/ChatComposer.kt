@@ -530,7 +530,7 @@ private fun VoiceNoteLockHintOverlay(
         ) {
             Icon(
                 imageVector = Icons.Filled.Lock,
-                contentDescription = stringResource(R.string.chat_voice_lock_hint),
+                contentDescription = null,
                 tint = palette.placeholder,
                 modifier = Modifier.size(18.dp),
             )

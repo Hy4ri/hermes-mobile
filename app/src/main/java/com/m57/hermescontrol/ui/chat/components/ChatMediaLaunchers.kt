@@ -14,7 +14,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,7 +40,6 @@ class ChatMediaLaunchers(
     val isListening: Boolean,
     val isRecordingVoice: Boolean,
     val isVoiceNoteLocked: Boolean,
-    val voiceNoteAmplitude: State<Float>,
     val onMicTap: () -> Unit,
     val onCameraTap: () -> Unit,
     val onImageTap: () -> Unit,
@@ -90,25 +88,6 @@ fun rememberChatMediaLaunchers(
     // Locked = the recording continues after the finger lifts (slide up
     // during the hold); the action button then submits it.
     var isVoiceNoteLocked by remember { mutableStateOf(false) }
-
-    // Live mic level for the recording panel — rises fast, decays slowly so
-    // the meter reads as voice activity instead of flicker.
-    val voiceNoteAmplitude = remember { mutableStateOf(0f) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(90)
-            val previous = voiceNoteAmplitude.value
-            val next =
-                if (voiceNoteRecorder.isActive) {
-                    maxOf(voiceNoteRecorder.currentAmplitude() / 32767f, previous * 0.8f)
-                } else {
-                    0f
-                }
-            if (next != previous) {
-                voiceNoteAmplitude.value = next
-            }
-        }
-    }
 
     fun finishVoiceRecording() {
         val recordedFile = voiceNoteRecorder.stop()
@@ -393,7 +372,6 @@ fun rememberChatMediaLaunchers(
             isListening = isListening || isRecordingVoice,
             isRecordingVoice = isRecordingVoice,
             isVoiceNoteLocked = isVoiceNoteLocked,
-            voiceNoteAmplitude = voiceNoteAmplitude,
             onMicTap = onMicTap,
             onCameraTap = onCameraTap,
             onImageTap = onImageTap,

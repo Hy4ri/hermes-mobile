@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
@@ -42,6 +43,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -140,7 +142,8 @@ internal fun VoiceNoteRecordingPanel(
                     color = palette.text,
                     modifier =
                         Modifier
-                            .clickable {
+                            .minimumInteractiveComponentSize()
+                            .clickable(role = Role.Button) {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 onCancel()
                             }.testTag("voice_note_cancel_button"),
@@ -173,17 +176,14 @@ internal fun VoiceNoteRecordingPanel(
 @Composable
 private fun slideToCancelText(palette: ComposerPalette) =
     buildAnnotatedString {
-        val base = stringResource(R.string.chat_voice_slide_to_cancel)
-        val cancelIndex = base.indexOf("cancel", ignoreCase = true)
-        if (cancelIndex < 0) {
-            withStyle(SpanStyle(color = palette.placeholder)) { append(base) }
-        } else {
-            val cancelEnd = cancelIndex + "cancel".length
-            withStyle(SpanStyle(color = palette.placeholder)) { append(base.substring(0, cancelIndex)) }
-            withStyle(SpanStyle(color = palette.text, fontWeight = FontWeight.Bold)) {
-                append(base.substring(cancelIndex, cancelEnd))
-            }
-            withStyle(SpanStyle(color = palette.placeholder)) { append(base.substring(cancelEnd)) }
+        // Two resources so translators control both parts independently; the
+        // space between them is added here (review, PR #1280).
+        withStyle(SpanStyle(color = palette.placeholder)) {
+            append(stringResource(R.string.chat_voice_slide_to_cancel_prefix))
+            append(" ")
+        }
+        withStyle(SpanStyle(color = palette.text, fontWeight = FontWeight.Bold)) {
+            append(stringResource(R.string.chat_voice_slide_to_cancel_action))
         }
     }
 

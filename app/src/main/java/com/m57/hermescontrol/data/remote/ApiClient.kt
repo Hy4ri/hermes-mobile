@@ -97,9 +97,10 @@ object ApiClient {
      * (the repository also passes `retries = 0`). The returned service reuses
      * the shared connection pool and the auth/profile interceptor stack. It
      * applies [readTimeoutMs] to reads and writes and keeps transport-level
-     * retries on: those only re-dial a dead socket and, when the failure
-     * struck before the body was fully written, resend, while application
-     * retry stays off (review, PR #1250 / #1280).
+     * retries on: they re-dial and can resend depending on when a failure
+     * struck, so they do not guarantee the absence of duplicate provider
+     * work — the risk is small, not zero. Application-level retry stays off
+     * (review, PR #1250 / #1280).
      */
     fun transcriptionService(readTimeoutMs: Long): HermesApiService {
         val client =
@@ -114,13 +115,12 @@ object ApiClient {
                 // Transport-level stale-socket rescue stays ON: the shared pool
                 // keeps connections far longer than the dashboard's keep-alive,
                 // so the first STT call after an idle spell can ride a socket
-                // the server just closed ("unexpected end of stream") — OkHttp
-                // re-dials and, when the failure struck before the body was
-                // fully written, resends; it can also retry across routes.
-                // Timeouts and 5xx are never replayed (safeApiCall still runs
-                // with retries = 0), but a reset or an early stream end after
-                // the body was sent may repeat the provider call, so the
-                // duplicate-work risk is small, not zero (review, PR #1280).
+                // the server just closed ("unexpected end of stream"). OkHttp
+                // re-dials and can resend depending on when the failure struck,
+                // and it may retry across routes — duplicate provider work is
+                // possible, though rare. Timeouts and 5xx are never replayed
+                // (safeApiCall still runs with retries = 0). Risk small, not
+                // zero (review, PR #1280).
                 .retryOnConnectionFailure(true)
                 .build()
         return Retrofit

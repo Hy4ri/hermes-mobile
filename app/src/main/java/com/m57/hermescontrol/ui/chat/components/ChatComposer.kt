@@ -113,6 +113,8 @@ fun ChatInputBar(
     onMicHoldStart: () -> Unit = {},
     onMicHoldEnd: () -> Unit = {},
     onMicHoldCancel: () -> Unit = {},
+    onMicLock: () -> Unit = {},
+    isVoiceNoteLocked: Boolean = false,
     isRecordingVoice: Boolean = false,
     voiceNoteAmplitude: State<Float> = remember { mutableStateOf(0f) },
     onStopGeneration: () -> Unit = {},
@@ -280,6 +282,8 @@ fun ChatInputBar(
                     if (isRecordingVoice) {
                         VoiceNoteRecordingPanel(
                             amplitude = voiceNoteAmplitude,
+                            locked = isVoiceNoteLocked,
+                            onCancel = onMicHoldCancel,
                             modifier = Modifier.weight(1f),
                         )
                     } else {
@@ -359,6 +363,8 @@ fun ChatInputBar(
                     onMicHoldStart = onMicHoldStart,
                     onMicHoldEnd = onMicHoldEnd,
                     onMicHoldCancel = onMicHoldCancel,
+                    onMicLock = onMicLock,
+                    isVoiceNoteLocked = isVoiceNoteLocked,
                     modifier = Modifier.testTag("chat_composer_toolbar"),
                     canDisableReasoning = canDisableReasoning,
                     supportsReasoning = supportsReasoning,

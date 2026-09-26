@@ -14,7 +14,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,6 +30,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -38,12 +42,16 @@ import kotlinx.coroutines.delay
  * Telegram-style recording strip shown in place of the input field while a
  * voice note is being recorded: a slide-to-cancel hint, an elapsed timer, and
  * a live mic level meter so the press and the captured audio are both visible
- * even when the mic button itself is under the thumb.
+ * even when the mic button itself is under the thumb. When the gesture slides
+ * up to lock the recording, the strip swaps the cancel hint for a delete
+ * action; the action button then submits the note.
  */
 @Composable
 internal fun VoiceNoteRecordingPanel(
     amplitude: State<Float>,
     modifier: Modifier = Modifier,
+    locked: Boolean = false,
+    onCancel: () -> Unit = {},
 ) {
     val palette = composerPalette()
     var elapsedSeconds by remember { mutableStateOf(0L) }
@@ -71,16 +79,42 @@ internal fun VoiceNoteRecordingPanel(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Icon(
-            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-            // Decorative: the adjacent "Slide to cancel" text carries the
-            // instruction, so the arrow must not repeat it (review, PR #1250).
-            contentDescription = null,
-            tint = palette.placeholder,
-            modifier = Modifier.size(16.dp),
-        )
+        if (locked) {
+            val haptic = LocalHapticFeedback.current
+            IconButton(
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onCancel()
+                },
+                modifier =
+                    Modifier
+                        .size(28.dp)
+                        .testTag("voice_note_delete_button"),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Delete,
+                    contentDescription = stringResource(R.string.chat_voice_delete),
+                    tint = palette.placeholder,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        } else {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                // Decorative: the adjacent "Slide to cancel" text carries the
+                // instruction, so the arrow must not repeat it (review, PR #1250).
+                contentDescription = null,
+                tint = palette.placeholder,
+                modifier = Modifier.size(16.dp),
+            )
+        }
         Text(
-            text = stringResource(R.string.chat_voice_slide_to_cancel),
+            text =
+                if (locked) {
+                    stringResource(R.string.chat_voice_locked)
+                } else {
+                    stringResource(R.string.chat_voice_slide_to_cancel)
+                },
             style = MaterialTheme.typography.labelMedium,
             color = palette.placeholder,
             maxLines = 1,

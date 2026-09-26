@@ -17,10 +17,12 @@ No implementation in this stage; this document is the gate for it.
 3. `app/src/main/java/com/m57/hermescontrol/theme/Theme.kt:69` (`ThemePreset.CUSTOM -> custom ?: DefaultTheme`) is a correct
    crash-safety fallback, but when persisted tokens fail to restore the UI still
    presents whatever label was stored, which reads as a fake active Marketplace state.
-4. The font selector (`AppFontFamily`, `app/src/main/java/com/m57/hermescontrol/theme/Type.kt:15-25`) offers System Default, Sans
-   Serif, and Monospace, but on Android `FontFamily.Default` and `FontFamily.SansSerif`
+4. The font selector (`AppFontFamily`, `app/src/main/java/com/m57/hermescontrol/theme/Type.kt:20-24`) offers five options —
+   System Default, Sans Serif, Serif, Monospace, and Cursive — but on Android `FontFamily.Default` and `FontFamily.SansSerif`
    may resolve to the same glyphs, and the current `AppFontFamilyTest` only asserts
-   keys/display names exist — never that options render distinctly.
+   keys/display names exist — never that options render distinctly. Removing a key is not free:
+   `ServerStoreState.chatFontFamily` persists the key string, so a removed key must keep round-tripping
+   to `SYSTEM` via `AppFontFamily.fromKey` (`app/src/main/java/com/m57/hermescontrol/theme/Type.kt:29`).
 
 ## 2. Ground truth (read, not assumed)
 
@@ -86,6 +88,7 @@ No implementation in this stage; this document is the gate for it.
   - `ui/chat/components/MessageCards.kt:203,300`
   - `ui/chat/components/DiffViewCard.kt:238,328`
   - `ui/chat/components/SubagentInspectionSheet.kt:632,919`
+- `ui/bots/group/components/GroupChatToolChip.kt:157,186`
   - `ui/chat/markdown/MarkdownInlineStyler.kt:97,246` (inline code spans)
   - `ui/chat/ChatBubble.kt`, `ui/chat/MarkdownText.kt` — consume global type (inherited, NOT monospace overrides)
   - `ui/logs/LogsScreen.kt:260`
@@ -109,8 +112,18 @@ No implementation in this stage; this document is the gate for it.
   - `ui/kanban/components/KanbanTaskCard.kt:145`
   - `ui/kanban/KanbanTaskScreen.kt:1035`
   - `ui/system/components/ActionLogSection.kt:117`
-  - **Total: 28 files / ~50+ sites** — implementer must re-verify by `grep -r "FontFamily.Monospace" app/src/main/java/` and attach the final list to the PR. Any new `FontFamily.Monospace` sites added in PR must be listed here.
+  - **Total: 29 files / 55 sites** — implementer must re-verify by `grep -r "FontFamily.Monospace" app/src/main/java/` and attach the final list to the PR. Any new `FontFamily.Monospace` sites added in PR must be listed here.
   - **NOT monospace overrides**: `app/src/main/java/com/m57/hermescontrol/theme/Type.kt:20-21,184` — `FontFamily.Default`/`FontFamily.SansSerif`/`FontFamily.Serif`/`FontFamily.Cursive` are the `AppFontFamily` enum values (global family selection), not monospace overrides.
+
+### 2.4 Wiring and CI pins the implementer will need
+
+- NavKey: `app/src/main/java/com/m57/hermescontrol/NavigationKeys.kt:83` (`ThemeMarketplaceScreen`); drawer entry
+  wiring `app/src/main/java/com/m57/hermescontrol/ScreenRegistry.kt:145-150` (gesture-enabled primary screen,
+  `app/src/main/java/com/m57/hermescontrol/ui/thememarketplace/ThemeMarketplaceScreen.kt:63`).
+- CI: `.github/workflows/android.yml:317-326` (`instrumented-tests`: `api-level: 34`, `target: aosp_atd`) — the only
+  emulator F2/F3 metric proof can run on.
+- Reusable components that already exist: `ui/common/DetailDialog.kt`, `ui/common/DetailRows.kt`,
+  `ui/common/StateViews.kt`, `ui/common/HermesScaffold.kt`.
 
 ## 3. Requirements
 
@@ -141,12 +154,23 @@ No implementation in this stage; this document is the gate for it.
   `ThemeMarketplaceScreen` must collect it). The detail/header must show the active
   theme's display name + source extension id, distinguish built-in presets from the
   imported theme, and never label the CUSTOM→Default safety fallback as an installed
-  Marketplace theme.
+  Marketplace theme. Confusing-label mechanism (cite in the UI test): `Custom (marketplace)` is a real
+  string (`app/src/main/res/values/strings.xml:359`, `name="theme_preset_custom"` — resolve by name, not line,
+  while uncommitted marketplace strings shift it), rendered unconditionally whenever the stored preset
+  is `CUSTOM` at `app/src/main/java/com/m57/hermescontrol/ui/settings/components/AppearanceSection.kt:144` (collapsed label)
+  and `:202` (dropdown item) — regardless of
+  whether a palette actually restored.
 - M6. Persistence + honest recovery. Restart must restore via the existing
-  `ThemeApplier.restorePersisted` path. If `themePreset == CUSTOM` but tokens are
-  missing/corrupt (palette null), the UI must surface "Custom theme unavailable;
-  using Default" with an action (re-apply or clear via `clearCustomTheme`), not a
-  fake active Marketplace label. Implementation area: `app/src/main/java/com/m57/hermescontrol/data/theme/import/ThemeApplier.kt`,
+  `ThemeApplier.restorePersisted` path. Honest-unavailable predicate (state explicitly, do not re-derive):
+  `themePreset == CUSTOM && activeCustomThemeId == null` (`app/src/main/java/com/m57/hermescontrol/data/theme/import/ThemeApplier.kt:31-32`; `customPaletteFlow == null`,
+  `app/src/main/java/com/m57/hermescontrol/theme/Theme.kt:45`, so `Theme.kt` renders `DefaultTheme`). `restorePersisted`
+  (`app/src/main/java/com/m57/hermescontrol/data/theme/import/ThemeApplier.kt:88-101`) returns
+  early without publishing a palette and without clearing persisted state when tokens are blank (:93), the JSON
+  is undecodable or decodes to an empty list (:97), or `ThemeDefinitionConverter.buildFamily` throws (:98); it is
+  called from `AuthManager.init` (`app/src/main/java/com/m57/hermescontrol/data/local/AuthManager.kt:244`), leaving `customThemeName`/`customThemeId` populated while
+  nothing is applied. The UI must surface "Custom theme unavailable;
+  using Default" with an action (re-apply, or clear via `ThemeApplier.clearCustomTheme`, `app/src/main/java/com/m57/hermescontrol/data/theme/import/ThemeApplier.kt:68`),
+  not a fake active Marketplace label. Implementation area: `app/src/main/java/com/m57/hermescontrol/data/theme/import/ThemeApplier.kt`,
   `app/src/main/java/com/m57/hermescontrol/data/local/AuthManager.kt` init path, settings/themes surfaces.
 - M7. Offline test strategy. All of M1–M6 provable without network: fake
   `ThemeMarketplaceRepository` (gallery payload mapping, pagination, error mapping),
@@ -155,6 +179,13 @@ No implementation in this stage; this document is the gate for it.
   (import path parses JSON only — no classloading/eval/JS-engine invocation; test
   scans the import pipeline's dependency set or asserts parser output for a fixture
   `.vsix` containing a decoy JS file that must be ignored).
+  Named offline seams (use these; do not write apply-path tests against the live network):
+  `ThemeMarketplaceRepository` ctor (`app/src/main/java/com/m57/hermescontrol/data/theme/marketplace/ThemeMarketplaceRepository.kt:37-42`: base URL, `cacheTtlMs`, clock,
+  `OkHttpClient`) driven with MockWebServer (`app/build.gradle.kts:214` okhttp-mockwebserver, `:216` mockk);
+  `VsixThemeParser` ctor (`app/src/main/java/com/m57/hermescontrol/data/theme/import/VsixThemeParser.kt:28-31`) takes an `OkHttpClient`, so the decoy-vsix fixture is served
+  locally; `ThemeApplier` is a Kotlin `object` writing through `AuthManager.serverStore`, which throws unless
+  initialised — use the established reflective-injection pattern
+  (`app/src/test/java/com/m57/hermescontrol/data/local/AuthManagerTest.kt:80-89`).
 
 ### F — Typography
 
@@ -223,14 +254,14 @@ No implementation in this stage; this document is the gate for it.
 
 | Req | Source evidence | Acceptance proof | Implementation area |
 | --- | --------------- | ---------------- | ------------------- |
-| M1 | `app/src/main/java/com/m57/hermescontrol/data/theme/marketplace/ThemeMarketplaceRepository.kt:32-33,58-63`; desktop `vscode-marketplace.ts:searchMarketplaceThemes` | UI test: header/copy cites VS Code Gallery; no Hermes-backend URL in catalog path | `app/src/main/java/com/m57/hermescontrol/ui/thememarketplace/ThemeMarketplaceScreen.kt`, strings |
-| M2 | `app/src/main/java/com/m57/hermescontrol/data/theme/import/VsixThemeParser.kt:1-60`; desktop `vscode-marketplace.ts:5-10` ("never executed") | Fixture-vsix unit test incl. decoy JS ignored; dependency scan of import path | `app/src/main/java/com/m57/hermescontrol/data/theme/import/VsixThemeParser.kt`, `app/src/main/java/com/m57/hermescontrol/data/theme/import/ThemeDefinitionConverter.kt` |
+| M1 | `app/src/main/java/com/m57/hermescontrol/data/theme/marketplace/ThemeMarketplaceRepository.kt:32-33,58-63`; desktop `/home/sam/projects/hermes-agent/apps/desktop/electron/vscode-marketplace.ts:searchMarketplaceThemes` | UI test: header/copy cites VS Code Gallery; no Hermes-backend URL in catalog path | `app/src/main/java/com/m57/hermescontrol/ui/thememarketplace/ThemeMarketplaceScreen.kt`, strings |
+| M2 | `app/src/main/java/com/m57/hermescontrol/data/theme/import/VsixThemeParser.kt:1-60`; desktop `/home/sam/projects/hermes-agent/apps/desktop/electron/vscode-marketplace.ts:6` ("never executed") | Fixture-vsix unit test incl. decoy JS ignored; dependency scan of import path | `app/src/main/java/com/m57/hermescontrol/data/theme/import/VsixThemeParser.kt`, `app/src/main/java/com/m57/hermescontrol/data/theme/import/ThemeDefinitionConverter.kt` |
 | M3 | `app/src/main/java/com/m57/hermescontrol/ui/thememarketplace/ThemeMarketplaceScreen.kt:65-133`; `app/src/main/java/com/m57/hermescontrol/ui/thememarketplace/ThemeMarketplaceViewModel.kt:73-100,133-179` | UI tests: initial/debounce/pagination/loading/empty/error/retry with fake repo | Screen + ViewModel |
 | M4 | `app/src/main/java/com/m57/hermescontrol/ui/thememarketplace/ThemeMarketplaceScreen.kt:154-158` (tap-to-apply today) | UI test: tap selects, preset unchanged; Apply button applies | `app/src/main/java/com/m57/hermescontrol/ui/thememarketplace/ThemeMarketplaceScreen.kt` (+ detail) |
 | M5 | `app/src/main/java/com/m57/hermescontrol/ui/thememarketplace/ThemeMarketplaceViewModel.kt:58`; `app/src/main/java/com/m57/hermescontrol/data/theme/import/ThemeApplier.kt:31-32`; `app/src/main/java/com/m57/hermescontrol/theme/Theme.kt:57-69` | UI test: badge follows `activeCustomThemeId`; fallback not labeled Marketplace | Screen + ViewModel |
 | M6 | `app/src/main/java/com/m57/hermescontrol/data/theme/import/ThemeApplier.kt:88-102`; `app/src/main/java/com/m57/hermescontrol/data/local/AuthManager.kt:244`; `app/src/main/java/com/m57/hermescontrol/data/config/ServerStoreState.kt:20-26` | Unit/UI test: corrupt tokens → unavailable-state + clear/re-apply | `app/src/main/java/com/m57/hermescontrol/data/theme/import/ThemeApplier.kt`, init path |
 | M7 | `app/src/test/java/com/m57/hermescontrol/data/theme/marketplace/ThemeMarketplaceRepositoryTest.kt` (existing) | All above run offline; CI green | `app/src/test/.../marketplace/` |
-| F1 | `app/src/main/java/com/m57/hermescontrol/ui/chat/ChatBubble.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/MarkdownText.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/ToolBubble.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/components/MessageCards.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/components/DiffViewCard.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/components/CodeTerminalCard.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/components/ReplyErrorCard.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/components/SubagentInspectionSheet.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/markdown/MarkdownInlineStyler.kt`, `app/src/main/java/com/m57/hermescontrol/ui/logs/LogsScreen.kt`, `app/src/main/java/com/m57/hermescontrol/ui/common/ActionProgressDialog.kt` (plus 18 more files per §2.3 enumeration) | Final consumer/override list (28 files, ~50+ sites) attached to PR; grep-verified | `ui/chat/**`, `ui/**` (read-only) |
+| F1 | `app/src/main/java/com/m57/hermescontrol/ui/chat/ChatBubble.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/MarkdownText.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/ToolBubble.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/components/MessageCards.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/components/DiffViewCard.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/components/CodeTerminalCard.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/components/ReplyErrorCard.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/components/SubagentInspectionSheet.kt`, `app/src/main/java/com/m57/hermescontrol/ui/chat/markdown/MarkdownInlineStyler.kt`, `app/src/main/java/com/m57/hermescontrol/ui/bots/group/components/GroupChatToolChip.kt`, `app/src/main/java/com/m57/hermescontrol/ui/logs/LogsScreen.kt`, `app/src/main/java/com/m57/hermescontrol/ui/common/ActionProgressDialog.kt` (plus 17 more files per §2.3 enumeration) | Final consumer/override list (29 files, 55 sites) attached to PR; grep-verified | `ui/chat/**`, `ui/**` (read-only) |
 | F2 | `app/src/main/java/com/m57/hermescontrol/theme/Type.kt:15-25`; `app/src/test/java/com/m57/hermescontrol/theme/AppFontFamilyTest.kt` (keys only today) | Measured glyph-width CSV/JSON per option on ATD, or golden-diff PNG; alias labeling or removal | `app/src/main/java/com/m57/hermescontrol/theme/Type.kt`, `app/src/main/java/com/m57/hermescontrol/ui/settings/components/AppearanceSection.kt` |
 | F3 | `app/src/main/java/com/m57/hermescontrol/theme/Type.kt:45 createTypography`; `ServerStoreState.chatFontFamily` | `Paint.measureText()` width assertions per option (unit) + screenshot/golden-diff (UI) + persistence round-trip | `theme/`, `data/config/` tests |
 | F4 | §2.3 override list | Compose UI test: code monospace + body follows setting | `ui/chat/**` tests |
@@ -258,6 +289,11 @@ No implementation in this stage; this document is the gate for it.
   (`/home/sam/projects/hermes-agent`). Uncommitted working-tree work that landed
   after the freeze (if any) is out of scope for these pins — re-verify line
   numbers if the baseline moves.
+  (Confirmed 2026-09-26: repository pins `looksLikeIconTheme` `:280-288` and `defaultClient` `:291` are exact
+  at `9554507b`. Concurrent uncommitted implementation in this worktree — `getEntryById` inserted after
+  repository line ~170 plus marketplace strings/NavKey additions — shifts worktree lines below the insertion
+  point (e.g. `strings.xml` `theme_preset_custom` `:359`→`:370`) without invalidating the baseline pins.
+  Re-run `check_citations.py` against the implementation-PR baseline before building.)
 - Markdown/link check: local script (no network, no Gradle, no ADB).
 - Typography inventory: `grep -r "FontFamily.Monospace" app/src/main/java/` confirmed
   28 files / ~50+ sites across the entire codebase, not just the `ui/chat/`
@@ -266,3 +302,15 @@ No implementation in this stage; this document is the gate for it.
   assertion with `Paint.measureText()` glyph-width assertions and screenshot/golden-diff
   evidence requirements. `FontFamily.Default` vs `FontFamily.SansSerif` object
   inequality is explicitly called out as NOT being acceptance proof (audit correction applied).
+- Re-verified at this commit: `AppFontFamily` five entries (`app/src/main/java/com/m57/hermescontrol/theme/Type.kt:20-24`, `fromKey` fallback `:29`);
+  monospace inventory `29 files / 55 sites` including `app/src/main/java/com/m57/hermescontrol/ui/bots/group/components/GroupChatToolChip.kt:157,186`;
+  confusing-label string (`strings.xml` `name="theme_preset_custom"`, `:359` at baseline — resolve by name:
+  uncommitted marketplace strings above it shift the line) rendered at `app/src/main/java/com/m57/hermescontrol/ui/settings/components/AppearanceSection.kt:144,202`;
+  unavailable predicate `themePreset == CUSTOM && activeCustomThemeId == null`
+  (`app/src/main/java/com/m57/hermescontrol/data/theme/import/ThemeApplier.kt:31-32`, `restorePersisted` early-returns `:93,97,98`, `clearCustomTheme` `:68`);
+  offline seams (repository ctor `:37-42`, MockWebServer `app/build.gradle.kts:214`, mockk `:216`,
+  `VsixThemeParser` ctor `app/src/main/java/com/m57/hermescontrol/data/theme/import/VsixThemeParser.kt:28-31`, reflective `AuthManager` injection `app/src/test/java/com/m57/hermescontrol/data/local/AuthManagerTest.kt:80-89`);
+  wiring (`app/src/main/java/com/m57/hermescontrol/NavigationKeys.kt:83`, `app/src/main/java/com/m57/hermescontrol/ScreenRegistry.kt:145-150`, `app/src/main/java/com/m57/hermescontrol/ui/thememarketplace/ThemeMarketplaceScreen.kt:63`);
+  CI emulator (`.github/workflows/android.yml:317-326`, api 34 `aosp_atd`).
+- Stale preset-count follow-ups (separate cards, not this spec): `ThemePreset` has seven built-ins plus
+  `CUSTOM` (`app/src/main/java/com/m57/hermescontrol/theme/Theme.kt:32`); prose still saying "six" (e.g. `AGENTS.md` theme section) is stale.

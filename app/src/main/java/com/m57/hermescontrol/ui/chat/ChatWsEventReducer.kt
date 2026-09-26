@@ -515,6 +515,9 @@ object ChatWsEventReducer {
                 effects = effects,
             )
         }
+        // #1285: bind the committed final row only when this bubble carries the whole reply body;
+        // a stripped commentary prefix means the local bubble is not that row's exact content.
+        val finalRowId = parsePersistedTurn(event.rawPayload)?.finalAssistantRowId?.takeIf { text == event.text }
         val tps = turnUsage?.avgTps.validTpsOrNull() ?: usageState.latestTps.validTpsOrNull()
         val tokenCount =
             if (turnUsage?.outputTokens != null) {
@@ -531,6 +534,7 @@ object ChatWsEventReducer {
                 tokenCount = tokenCount,
                 tps = tps,
                 completionId = event.completionId,
+                serverRowId = finalRowId ?: streaming.serverRowId,
             ) ?: ChatMessage(
                 role = MessageRole.ASSISTANT,
                 content = text,
@@ -539,6 +543,7 @@ object ChatWsEventReducer {
                 tokenCount = tokenCount,
                 tps = tps,
                 completionId = event.completionId,
+                serverRowId = finalRowId,
             )
         val effects = mutableListOf<ReducerEffect>()
         val sid = state.currentSessionId

@@ -316,7 +316,7 @@ class ChatPagingMergeTest {
 
         val mapped = mapServerMessages("s", listOf(serverTool(42, "call-42")), 0, true, listOf(live, echo))
 
-        assertEquals(listOf(live.copy(restId = "rest-s-42")), mapped)
+        assertEquals(listOf(live.copy(restId = "rest-s-42", serverRowId = 42L)), mapped)
     }
 
     @Test
@@ -328,7 +328,10 @@ class ChatPagingMergeTest {
         val mapped = mapServerMessages("s", listOf(serverTool(42), serverTool(43)), 0, true, cache)
 
         assertEquals(
-            listOf(first.copy(restId = "rest-s-42"), second.copy(restId = "rest-s-43")),
+            listOf(
+                first.copy(restId = "rest-s-42", serverRowId = 42L),
+                second.copy(restId = "rest-s-43", serverRowId = 43L),
+            ),
             mapped,
         )
         assertEquals(2, mapped.map { it.id }.toSet().size)

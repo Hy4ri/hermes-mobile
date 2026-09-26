@@ -3517,6 +3517,112 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun completePersistedTurnRetiresOnlyTheReceiptBoundToItsUserRow() =
+        runTest {
+            val sendStore = ChatSendStore()
+            val (viewModel, sessionId) = createViewModelWithSession(sendStore = sendStore)
+            every { HermesWsClient.sendMessage(sessionId, "Durable", any(), any()) } answers {
+                arg<((String) -> Unit)?>(2)?.invoke("durable-submit")
+                "durable-submit"
+            }
+            viewModel.sendMessage("Durable")
+            advanceUntilIdle()
+            mockEventsFlow.emit(
+                WsEvent.RpcResult("durable-submit", mapOf("status" to "streaming", "user_row_id" to 77)),
+            )
+            advanceUntilIdle()
+
+            val receipt = sendStore.all().single()
+            assertEquals(77L, receipt.userRowId)
+            assertEquals(
+                77L,
+                viewModel.uiState.value.messages
+                    .single { it.id == receipt.id }
+                    .serverRowId,
+            )
+
+            // Partial and foreign receipts never retire the local turn.
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            mockEventsFlow.emit(
+                WsEvent.MessageComplete(
+                    "Reply",
+                    sessionId,
+                    rawPayload =
+                        mapOf(
+                            "persisted_turn" to
+                                mapOf(
+                                    "row_ids" to listOf(77),
+                                    "complete" to false,
+                                    "user_row_id" to 77,
+                                ),
+                        ),
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals(listOf(receipt.id), sendStore.all().map { it.id })
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            mockEventsFlow.emit(
+                WsEvent.MessageComplete(
+                    "Reply",
+                    sessionId,
+                    rawPayload =
+                        mapOf(
+                            "persisted_turn" to mapOf("row_ids" to listOf(78), "complete" to true, "user_row_id" to 78),
+                        ),
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals(listOf(receipt.id), sendStore.all().map { it.id })
+
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            mockEventsFlow.emit(
+                WsEvent.MessageComplete(
+                    "Reply",
+                    sessionId,
+                    rawPayload =
+                        mapOf(
+                            "persisted_turn" to
+                                mapOf(
+                                    "row_ids" to listOf(77, 79),
+                                    "complete" to true,
+                                    "user_row_id" to 77,
+                                    "final_assistant_row_id" to 79,
+                                ),
+                        ),
+                ),
+            )
+            advanceUntilIdle()
+            assertTrue(sendStore.all().isEmpty())
+            assertTrue(
+                viewModel.uiState.value.messages
+                    .any { it.id == receipt.id },
+            )
+        }
+
+    @Test
+    fun submitAckWithoutUserRowIdLeavesReceiptUnproven() =
+        runTest {
+            val sendStore = ChatSendStore()
+            val (viewModel, sessionId) = createViewModelWithSession(sendStore = sendStore)
+            every { HermesWsClient.sendMessage(sessionId, "Legacy", any(), any()) } answers {
+                arg<((String) -> Unit)?>(2)?.invoke("legacy-submit")
+                "legacy-submit"
+            }
+            viewModel.sendMessage("Legacy")
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.RpcResult("legacy-submit", mapOf("status" to "streaming")))
+            advanceUntilIdle()
+
+            val receipt = sendStore.all().single()
+            assertNull(receipt.userRowId)
+            assertEquals(PendingSendState.ACCEPTED, receipt.state)
+            assertTrue(
+                viewModel.uiState.value.messages
+                    .any { it.id == receipt.id && it.serverRowId == null },
+            )
+        }
+
+    @Test
     fun busyGuideUsesSteerAndUnsupportedFallsBackToQueueWithoutInterrupt() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()

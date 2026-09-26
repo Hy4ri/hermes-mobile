@@ -151,6 +151,8 @@ internal class TranscriptComparison(
         b: ChatMessage,
     ): Boolean {
         if (a.role != b.role) return false
+        // #1285: two proven row ids decide identity; a missing one is unproven, so fall through.
+        if (a.serverRowId != null && b.serverRowId != null) return a.serverRowId == b.serverRowId
         val aRestId = a.canonicalRestId
         val bRestId = b.canonicalRestId
         if (aRestId != null && bRestId != null) return aRestId == bRestId
@@ -213,10 +215,20 @@ internal fun matchTranscriptMessages(
     val byId = existing.withIndex().associate { it.value.id to it.index }
     val byRestId =
         existing.withIndex().mapNotNull { (index, message) -> message.canonicalRestId?.let { it to index } }.toMap()
+    val byRowId =
+        existing
+            .withIndex()
+            .mapNotNull { (index, message) ->
+                message.serverRowId?.let { (message.role to it) to index }
+            }.toMap()
     val used = BooleanArray(existing.size)
     val matches = arrayOfNulls<ChatMessage>(incoming.size)
     incoming.forEachIndexed { index, message ->
-        (byId[message.id] ?: message.canonicalRestId?.let { byRestId[it] })?.let { match ->
+        (
+            byId[message.id]
+                ?: message.canonicalRestId?.let { byRestId[it] }
+                ?: message.serverRowId?.let { byRowId[message.role to it] }
+        )?.let { match ->
             if (!used[match]) {
                 used[match] = true
                 matches[index] = existing[match]
@@ -333,6 +345,7 @@ internal fun dedupeCachedMessages(
         aliases[message.id]?.let {
             message.copy(
                 restId = it.canonicalRestId,
+                serverRowId = message.serverRowId ?: it.serverRowId,
                 completionId = message.completionId ?: it.completionId,
                 displayKind = message.displayKind ?: it.displayKind,
                 isRestoredUnconfirmed = false,
@@ -402,6 +415,7 @@ internal fun mergeCachedTranscriptPage(
                         id = match.id,
                         content = preservedContent ?: rich.content,
                         restId = match.canonicalRestId ?: message.canonicalRestId,
+                        serverRowId = match.serverRowId ?: message.serverRowId,
                         completionId = match.completionId ?: message.completionId,
                         displayKind = match.displayKind ?: message.displayKind,
                         isRestoredUnconfirmed =
@@ -439,6 +453,7 @@ internal fun mergeTranscriptWithLive(
                 match?.role == MessageRole.USER -> {
                     match.copy(
                         restId = (message.canonicalRestId ?: match.canonicalRestId).takeUnless { it == match.id },
+                        serverRowId = message.serverRowId ?: match.serverRowId,
                         displayKind = message.displayKind ?: match.displayKind,
                         isHistoricalCache = false,
                         isRestoredUnconfirmed = false,
@@ -457,6 +472,7 @@ internal fun mergeTranscriptWithLive(
                         }
                     match.copy(
                         restId = message.canonicalRestId ?: match.canonicalRestId,
+                        serverRowId = message.serverRowId ?: match.serverRowId,
                         content = mergedContent,
                         timestamp = message.timestamp,
                         isStreaming = message.isStreaming,

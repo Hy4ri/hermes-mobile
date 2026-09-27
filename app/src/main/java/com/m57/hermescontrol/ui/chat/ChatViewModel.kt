@@ -483,7 +483,13 @@ class ChatViewModel(
         val originalPending: PendingSend? = null,
     )
 
+    private data class PendingBranchRequest(
+        val generation: Long,
+        val params: Map<String, Any>,
+    )
+
     private val sessionRequestById = ConcurrentHashMap<String, SessionRequest>()
+    private val branchWholeRequests = ConcurrentHashMap<String, PendingBranchRequest>()
     private val outgoingRequestById = ConcurrentHashMap<String, String>()
     private val hardInterruptRequestById = ConcurrentHashMap<String, HardInterruptRequest>()
     private val queuedStagingIds = ConcurrentHashMap.newKeySet<String>()
@@ -1663,6 +1669,7 @@ class ChatViewModel(
     ) {
         val method = idToMethod.remove(id) ?: return
         val request = sessionRequestById.remove(id)
+        branchWholeRequests.remove(id)
         if (request != null && isStaleSessionRequest(request)) {
             outgoingRequestById.remove(id)?.let { markPendingSend(it, PendingSendState.UNKNOWN) }
             hardInterruptRequestById.remove(id)?.let { markPendingSend(it.messageId, PendingSendState.UNKNOWN) }
@@ -1749,7 +1756,9 @@ class ChatViewModel(
                 }
             }
 
-            WsMethods.SESSION_BRANCH -> {
+            WsMethods.SESSION_BRANCH,
+            WsMethods.SESSION_BRANCH_WHOLE,
+            -> {
                 val resultMap = result as? Map<String, Any?> ?: return
                 // The result carries BOTH ids: `session_id` is the runtime
                 // registry id, `stored_session_id` is the DB key. currentSessionId
@@ -2086,6 +2095,7 @@ class ChatViewModel(
     ) {
         val method = idToMethod.remove(id) ?: return
         val request = sessionRequestById.remove(id)
+        val pendingBranch = branchWholeRequests.remove(id)
         if (request != null && isStaleSessionRequest(request)) {
             outgoingRequestById.remove(id)?.let { markPendingSend(it, PendingSendState.UNKNOWN) }
             hardInterruptRequestById.remove(id)?.let { markPendingSend(it.messageId, PendingSendState.UNKNOWN) }
@@ -2162,6 +2172,26 @@ class ChatViewModel(
                         errorMessage = "Failed to create session: $errorMsg",
                     )
                 }
+            }
+        }
+
+        if (method == WsMethods.SESSION_BRANCH_WHOLE) {
+            val code =
+                (error as? JsonRpcError)?.code
+                    ?: (error as? Map<*, *>)?.get("code") as? Int
+            if (code == -32601 && pendingBranch != null && pendingBranch.generation == sessionGeneration) {
+                val params = pendingBranch.params
+                val generation = pendingBranch.generation
+                viewModelScope.launch(ioDispatcher) {
+                    wsClient.send(
+                        WsMethods.SESSION_BRANCH,
+                        params,
+                        onSent = { branchId ->
+                            trackSessionRequest(branchId, WsMethods.SESSION_BRANCH, generation)
+                        },
+                    )
+                }
+                return
             }
         }
 
@@ -3940,9 +3970,8 @@ class ChatViewModel(
     }
 
     /**
-     * Fork the active conversation via the session.branch WS RPC (issue #533).
-     * The backend already supports session.branch; the mobile previously had
-     * no client surface, so `/fork` fell through to command.dispatch and 4018'd.
+     * Fork the active conversation via the lightweight session.branch_whole WS RPC (issue #1289).
+     * Falls back to session.branch if the gateway answers -32601 (unknown method).
      * The optional arg becomes the new branch's title.
      */
     private fun branchSession(command: String) {
@@ -3957,9 +3986,12 @@ class ChatViewModel(
         val generation = sessionGeneration
         viewModelScope.launch(ioDispatcher) {
             wsClient.send(
-                WsMethods.SESSION_BRANCH,
+                WsMethods.SESSION_BRANCH_WHOLE,
                 params,
-                onSent = { id -> trackSessionRequest(id, WsMethods.SESSION_BRANCH, generation) },
+                onSent = { id ->
+                    branchWholeRequests[id] = PendingBranchRequest(generation, params)
+                    trackSessionRequest(id, WsMethods.SESSION_BRANCH_WHOLE, generation)
+                },
             )
         }
     }
@@ -6006,6 +6038,7 @@ class ChatViewModel(
     private fun forgetRequest(id: String) {
         idToMethod.remove(id)
         sessionRequestById.remove(id)
+        branchWholeRequests.remove(id)
     }
 
     // ── Search ────────────────────────────────────────────────────────────

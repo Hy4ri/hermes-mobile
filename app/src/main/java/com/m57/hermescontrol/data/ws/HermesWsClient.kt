@@ -415,6 +415,7 @@ object HermesWsClient {
 
     @VisibleForTesting
     internal fun probeLivenessOnTransportChange(
+        timeoutMs: Long = LIVENESS_PROBE_TIMEOUT_MS,
         onFailureAction: () -> Unit = {
             synchronized(outboundLock) {
                 if (connected.get()) webSocket?.cancel()
@@ -426,7 +427,7 @@ object HermesWsClient {
         transportProbeJob =
             wsScope.launch {
                 Log.d(TAG, "Network transport changed — probing WebSocket liveness")
-                val alive = runCatching { ping(LIVENESS_PROBE_TIMEOUT_MS) }.isSuccess
+                val alive = runCatching { ping(timeoutMs) }.isSuccess
                 if (alive) {
                     Log.d(TAG, "WebSocket liveness probe succeeded on new transport")
                     return@launch

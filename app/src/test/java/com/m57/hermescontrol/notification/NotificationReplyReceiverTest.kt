@@ -412,16 +412,23 @@ class NotificationReplyReceiverTest {
             kotlinx.coroutines.delay(10000)
         }
 
-        receiver.onReceive(mockContext, mockIntent)
+        // Same timeout path as production, with a short deadline instead of 5s.
+        val shortTimeoutReceiver =
+            object : NotificationReplyReceiver() {
+                override fun goAsyncCompat(): BroadcastReceiver.PendingResult = mockPendingResult
 
-        // Wait longer than the 5-second timeout, but less than the 10-second delay
-        Thread.sleep(6000)
+                override fun buildReplyNotification(context: Context): Notification = mockNotification
+
+                override val persistenceTimeoutMs: Long = 50L
+            }
+
+        shortTimeoutReceiver.onReceive(mockContext, mockIntent)
 
         // Timeout should be caught in catch block and logged
-        verify { android.util.Log.e("NotificationReply", any<String>(), any()) }
+        verify(timeout = 3_000) { android.util.Log.e("NotificationReply", any<String>(), any()) }
 
         // Pending result must still finish after timeout
-        verify { mockPendingResult.finish() }
+        verify(timeout = 3_000) { mockPendingResult.finish() }
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────

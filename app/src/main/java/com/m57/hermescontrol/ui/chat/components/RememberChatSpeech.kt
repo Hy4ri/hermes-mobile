@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -33,6 +34,7 @@ fun rememberChatSpeech(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
+    val errorSynthesisMessage = stringResource(R.string.tts_error_synthesis)
 
     val dataScope by AuthManager.dataScopeFlow.collectAsStateWithLifecycle()
     val activeSessionId by ActiveSessionHolder.activeSessionId.collectAsStateWithLifecycle()
@@ -55,7 +57,7 @@ fun rememberChatSpeech(
         }
 
     val controller =
-        remember(scope, resolvedSynthesizer, resolvedPlayer) {
+        remember(scope, resolvedSynthesizer, resolvedPlayer, errorSynthesisMessage) {
             SpeechController(
                 scope = scope,
                 synthesizer = resolvedSynthesizer,
@@ -64,7 +66,7 @@ fun rememberChatSpeech(
                     onError?.invoke() ?: Toast
                         .makeText(
                             context,
-                            context.getString(R.string.tts_error_synthesis),
+                            errorSynthesisMessage,
                             Toast.LENGTH_SHORT,
                         ).show()
                 },

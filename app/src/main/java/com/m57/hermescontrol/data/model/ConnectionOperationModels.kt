@@ -13,6 +13,7 @@ data class ConnectionOperationSnapshot(
     val settled: Boolean,
     val settledBy: String?,
     val targets: List<ConnectionOperationTarget>,
+    val accountOwned: Boolean = false,
 )
 
 data class ConnectionOperationTarget(

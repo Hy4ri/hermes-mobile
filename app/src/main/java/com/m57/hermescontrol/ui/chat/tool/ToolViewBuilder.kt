@@ -1,7 +1,10 @@
 package com.m57.hermescontrol.ui.chat.tool
 
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 
 /**
  * The tool-display engine's orchestrator — a port of the desktop app's
@@ -48,12 +51,14 @@ object ToolViewBuilder {
                 ToolStatusResolver.errorText(call, isError)
             }
 
+        val serverTitle = serverLabelTitle(call.args)
         val title =
-            when {
-                running -> renderer.pendingTitle(call)
-                error.isNotEmpty() -> renderer.errorTitle(call)
-                else -> renderer.doneTitle(call)
-            } ?: ToolJson.titleForTool(toolName)
+            serverTitle
+                ?: when {
+                    running -> renderer.pendingTitle(call)
+                    error.isNotEmpty() -> renderer.errorTitle(call)
+                    else -> renderer.doneTitle(call)
+                } ?: ToolJson.titleForTool(toolName)
 
         val subtitle =
             if (error.isNotEmpty()) {
@@ -103,6 +108,7 @@ object ToolViewBuilder {
         return ToolView(
             status = status,
             title = title,
+            serverDisplayName = serverTitle,
             subtitle = subtitle,
             detail = clampedDetail,
             detailLabel = extras.detailLabel,
@@ -124,6 +130,20 @@ object ToolViewBuilder {
             error = error.ifEmpty { null },
         )
     }
+
+    /** #1288: server display metadata, not the real tool's `labels` argument. */
+    internal fun serverLabelTitle(args: JsonObject?): String? =
+        (args?.get("hermes_tool_labels") as? JsonArray)
+            ?.mapNotNull { entry ->
+                val row = entry as? JsonObject ?: return@mapNotNull null
+                val text =
+                    (row["text"] as? JsonPrimitive)?.contentOrNull?.takeIf(String::isNotBlank)
+                        ?: return@mapNotNull null
+                val app = (row["app"] as? JsonPrimitive)?.contentOrNull.orEmpty()
+                if (app.isNotBlank() && !text.contains(app, ignoreCase = true)) "$app · $text" else text
+            }?.distinct()
+            ?.joinToString(" · ")
+            ?.takeIf(String::isNotBlank)
 
     /** Subtitle fallback: first line of the heuristic summary, then contexts. */
     private fun genericSubtitle(call: ToolCall): String {

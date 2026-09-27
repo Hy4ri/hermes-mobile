@@ -231,3 +231,70 @@ sealed interface ConnectorConnectResult {
 
     fun errorOrNull(): ConnectorError? = (this as? Error)?.error
 }
+
+/** Account-level connector records exposed outside the chat session lifecycle. */
+data class ConnectorAccount(
+    val connectionId: String,
+    val connector: String,
+    val status: String,
+    val statusReason: String?,
+    val label: String,
+    val alias: String?,
+    val active: Boolean,
+    val createdAt: String,
+    val updatedAt: String,
+)
+
+data class ConnectorCatalogEntry(
+    val slug: String,
+    val name: String,
+    val description: String,
+    val category: String,
+)
+
+data class ConnectorTool(
+    val slug: String,
+    val name: String,
+    val description: String,
+    val facet: String,
+    val deprecated: Boolean,
+    val hints: List<String> = emptyList(),
+)
+
+data class ConnectorPolicy(
+    val revision: String,
+    val mode: String,
+    val connectors: List<String>,
+    val disabledConnectors: List<String>,
+    val tools: Map<String, List<String>>,
+    val enabledTags: List<String> = emptyList(),
+    val disabledTags: List<String> = emptyList(),
+    val member: ConnectorPolicy? = null,
+    val inherited: List<ConnectorPolicy> = emptyList(),
+) {
+    fun toolEnabled(
+        slug: String,
+        tool: ConnectorTool,
+    ): Boolean =
+        connectorEnabled(slug) && tool.slug !in tools[slug].orEmpty() &&
+            disabledTags.none { it in tool.hints } && (enabledTags.isEmpty() || enabledTags.any { it in tool.hints })
+
+    fun connectorEnabled(slug: String): Boolean =
+        when (mode) {
+            "unrestricted" -> true
+            "deny-all" -> false
+            "allow" -> slug in connectors
+            "deny" -> slug !in disabledConnectors
+            else -> false
+        }
+}
+
+sealed interface AccountConnectorResult<out T> {
+    data class Success<T>(
+        val value: T,
+    ) : AccountConnectorResult<T>
+
+    data class Failure(
+        val error: ConnectorError,
+    ) : AccountConnectorResult<Nothing>
+}

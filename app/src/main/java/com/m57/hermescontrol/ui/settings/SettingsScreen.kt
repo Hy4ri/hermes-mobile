@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.ListAlt
 import androidx.compose.material.icons.filled.ChatBubbleOutline
+import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
@@ -34,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.AccountConnectorsScreen
 import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.SettingsAbout
@@ -86,6 +88,12 @@ fun SettingsScreen(
                                     null
                                 },
                             onClick = { NavigationController.navigateTo(SettingsConnection) },
+                        ),
+                        SettingsRow(
+                            icon = Icons.Filled.Extension,
+                            label = stringResource(R.string.screen_account_connectors),
+                            summary = stringResource(R.string.account_connectors_summary),
+                            onClick = { NavigationController.navigateTo(AccountConnectorsScreen) },
                         ),
                         SettingsRow(
                             icon = Icons.Filled.Palette,

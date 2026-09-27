@@ -36,6 +36,7 @@ object ConnectionOperationParser {
             settled = payload["settled"] as? Boolean ?: false,
             settledBy = payload["settled_by"] as? String,
             targets = targets,
+            accountOwned = (payload["owner"] as? Map<*, *>)?.get("type") == "account",
         )
     }
 

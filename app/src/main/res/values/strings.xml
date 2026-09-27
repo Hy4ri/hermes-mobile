@@ -87,6 +87,7 @@
     <string name="screen_cron">Cron</string>
     <string name="screen_system">System</string>
     <string name="screen_settings">Settings</string>
+    <string name="screen_account_connectors">Connectors</string>
     <string name="screen_profiles">Profiles</string>
     <string name="screen_bots">Bots</string>
     <string name="bots_active_now">Active Now</string>
@@ -248,6 +249,17 @@
 
     <!-- Settings Screen -->
     <string name="settings_sec_connection">Connection</string>
+    <string name="account_connectors_title">Account connectors</string>
+    <string name="account_connectors_summary">Manage account authorizations and tool access without a chat session.</string>
+    <string name="account_connectors_accounts">Authorized accounts</string>
+    <string name="account_connectors_connect">Connect</string>
+    <string name="account_connectors_tools">Tools</string>
+    <string name="account_connectors_enabled">Enabled</string>
+    <string name="account_connectors_not_connected">Not connected</string>
+    <string name="account_connectors_no_accounts">No authorized connector accounts.</string>
+    <string name="account_connectors_remove">Remove</string>
+    <string name="account_connectors_remove_confirm_title">Remove connector account?</string>
+    <string name="account_connectors_remove_confirm_message">Remove %1$s? You may need to authorize it again.</string>
     <string name="settings_field_token">Auth Token</string>
     <string name="settings_keep_connected_in_background_title">Stay connected in background</string>
     <string name="settings_keep_connected_in_background_desc">Keep Hermes connected while using other apps. Shows an ongoing notification and may use more battery.</string>
@@ -1804,4 +1816,7 @@
     <string name="plugins_update_consent_missing">The server did not provide capability details.</string>
     <string name="plugins_update_accept">Accept and update</string>
     <string name="sessions_storage_corrupt">Session storage is damaged for %1$s. History may be incomplete; previously loaded sessions are kept. Restore or recover the database on the server, then refresh.</string>
+    <string name="account_connectors_reconnect">Reconnect</string>
+    <string name="account_connectors_no_tools">No tools available</string>
+    <string name="account_connectors_policy_locked">Read-only policy restrictions</string>
 </resources>

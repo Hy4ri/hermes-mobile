@@ -64,4 +64,5 @@ data class ToolView(
     val searchQuery: String? = null,
     /** Detected error text (destructive styling in the view). */
     val error: String? = null,
+    val serverDisplayName: String? = null,
 )

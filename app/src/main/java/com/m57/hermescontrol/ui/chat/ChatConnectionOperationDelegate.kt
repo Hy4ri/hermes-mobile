@@ -60,7 +60,10 @@ internal class ConnectionResumeCheckpoint(
 /** Session-scoped authoritative reducer for backend-owned connector operations. */
 class ChatConnectionOperationDelegate(
     private val requester: ConnectionOperationRequester,
+    private val accountOwned: Boolean,
 ) {
+    constructor(requester: ConnectionOperationRequester) : this(requester, false)
+
     private val _state = MutableStateFlow(ConnectionOperationUiState())
     val state: StateFlow<ConnectionOperationUiState> = _state.asStateFlow()
     private var sessionId: String? = null
@@ -170,7 +173,7 @@ class ChatConnectionOperationDelegate(
             method = WsMethods.CONNECTION_RESPOND,
             params =
                 mapOf(
-                    "owner" to ConnectorRepository.sessionOwner(requireSessionId()),
+                    "owner" to ownerParams(),
                     "op_id" to snapshot.opId,
                     "result" to mapOf("targets" to listOf(answer)),
                 ),
@@ -183,7 +186,7 @@ class ChatConnectionOperationDelegate(
             method = WsMethods.CONNECTION_RESPOND,
             params =
                 mapOf(
-                    "owner" to ConnectorRepository.sessionOwner(requireSessionId()),
+                    "owner" to ownerParams(),
                     "op_id" to snapshot.opId,
                     "result" to mapOf("settled_by" to "continue"),
                 ),
@@ -196,7 +199,7 @@ class ChatConnectionOperationDelegate(
         val snapshot = begin(ConnectionPendingAction.Wake(current.opId, current.seq)) ?: return
         dispatch(
             method = WsMethods.CONNECTORS_OPERATION_WAKE,
-            params = mapOf("owner" to ConnectorRepository.sessionOwner(requireSessionId()), "op_id" to snapshot.opId),
+            params = mapOf("owner" to ownerParams(), "op_id" to snapshot.opId),
             clearOnSuccess = true,
             unknownOperationSettles = true,
         )
@@ -237,7 +240,7 @@ class ChatConnectionOperationDelegate(
     @Synchronized
     private fun begin(action: ConnectionPendingAction): ConnectionOperationSnapshot? {
         val current = _state.value.operation ?: return null
-        if (sessionId.isNullOrBlank() ||
+        if ((!accountOwned && sessionId.isNullOrBlank()) ||
             _state.value.pendingAction != null ||
             current.opId != action.opId ||
             current.seq != action.observedSeq
@@ -259,9 +262,15 @@ class ChatConnectionOperationDelegate(
     }
 
     private fun matchesSession(snapshot: ConnectionOperationSnapshot): Boolean =
-        !sessionId.isNullOrBlank() && snapshot.sessionId == sessionId
+        if (accountOwned) {
+            snapshot.accountOwned
+        } else {
+            !snapshot.accountOwned && !sessionId.isNullOrBlank() &&
+                snapshot.sessionId == sessionId
+        }
 
-    private fun requireSessionId(): String = checkNotNull(sessionId?.takeIf { it.isNotBlank() })
+    private fun ownerParams(): Map<String, String> =
+        if (accountOwned) mapOf("type" to "account") else ConnectorRepository.sessionOwner(checkNotNull(sessionId))
 
     private fun currentOp(): String =
         _state.value.operation

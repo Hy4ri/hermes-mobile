@@ -339,7 +339,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   ci-summary:
     name: CI Summary
-    needs: [changes, ktlint, android-lint, unit-tests, build, release-compile]
+    needs: [changes, ktlint, android-lint, unit-tests, build, release-compile, instrumented-tests]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     if: always()
@@ -355,11 +355,12 @@ jobs:
           TEST_RESULT: ${{ needs.unit-tests.result }}
           BUILD_RESULT: ${{ needs.build.result }}
           RELEASE_COMPILE_RESULT: ${{ needs.release-compile.result }}
+          INSTRUMENTED_RESULT: ${{ needs.instrumented-tests.result }}
         run: |
           LABEL="ci-red"
           FAILED=0
           FAILED_JOBS=""
-          for entry in "ktlint:$KTLINT_RESULT" "android-lint:$LINT_RESULT" "unit-tests:$TEST_RESULT" "build:$BUILD_RESULT" "release-compile:$RELEASE_COMPILE_RESULT"; do
+          for entry in "ktlint:$KTLINT_RESULT" "android-lint:$LINT_RESULT" "unit-tests:$TEST_RESULT" "build:$BUILD_RESULT" "release-compile:$RELEASE_COMPILE_RESULT" "instrumented-tests:$INSTRUMENTED_RESULT"; do
             name="${entry%%:*}"
             result="${entry#*:}"
             echo "::notice::$name = $result"

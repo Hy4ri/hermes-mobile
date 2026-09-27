@@ -25,6 +25,9 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
         const val EXTRA_SESSION_ID = "extra_session_id"
         private const val REPLY_TIMEOUT_MS = 5_000L
 
+        /** Overall deadline for persisting and submitting one notification reply. */
+        private const val PERSISTENCE_TIMEOUT_MS = 5_000L
+
         /**
          * Turn-boundary read budget inside the reply deadline. Deliberately tight:
          * the probe sits on the reply path, so a slow or unreachable gateway must
@@ -43,6 +46,9 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
      * via anonymous subclass to inject a fake [PendingResult].
      */
     internal open fun goAsyncCompat(): BroadcastReceiver.PendingResult = goAsync()
+
+    /** Overridable so tests can prove the timeout path without waiting 5s. */
+    internal open val persistenceTimeoutMs: Long get() = PERSISTENCE_TIMEOUT_MS
 
     /**
      * Test-friendly wrapper for notification creation. Override in tests to
@@ -75,7 +81,7 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
             val pendingResult = goAsyncCompat()
             replyScope.launch {
                 try {
-                    withTimeout(5000L) {
+                    withTimeout(persistenceTimeoutMs) {
                         withContext(Dispatchers.IO) {
                             val db =
                                 com.m57.hermescontrol.data.local.HermesDatabase

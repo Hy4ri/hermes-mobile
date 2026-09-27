@@ -73,7 +73,6 @@ object CommandBlocklist {
             "/image",
             "/quit",
             // TUI-only extras (meaningless outside the TUI)
-            "/compact",
             "/logs",
             "/mouse",
         )

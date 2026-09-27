@@ -807,6 +807,8 @@ fun ChatScreen(
                     onSaveAttachment = onSaveAttachment,
                     savingAttachmentPath = pendingSavePath ?: state.savingAttachmentPath,
                     openingAttachmentPath = state.openingAttachmentPath,
+                    isCompressing = state.isCompressing && !timelineState.isHistorical,
+                    compressionStatus = state.compressionStatus.takeUnless { timelineState.isHistorical },
                     onImageClick = { viewingImage = it },
                     speakingMessageId = speakingMessageId,
                     onToggleSpeak = { message ->

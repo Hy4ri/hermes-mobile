@@ -208,7 +208,7 @@ object ChatWsEventReducer {
 
             is WsEvent.SessionUpdated -> onSessionUpdated(state, streamingState)
 
-            is WsEvent.StatusUpdate -> onStatusUpdate(state, streamingState)
+            is WsEvent.StatusUpdate -> onStatusUpdate(state, streamingState, event)
 
             is WsEvent.ConnectionRequest,
             is WsEvent.ConnectionUpdate,
@@ -1046,7 +1046,38 @@ object ChatWsEventReducer {
     private fun onStatusUpdate(
         state: ChatUiState,
         streamingState: StreamingState,
-    ): ReducerResult = ReducerResult(state = state, streamingState = streamingState)
+        event: WsEvent.StatusUpdate,
+    ): ReducerResult {
+        val kind = event.data?.get("kind") as? String
+        val text = event.data?.get("text") as? String
+        return when (kind) {
+            "compressing", "compacting" -> {
+                ReducerResult(
+                    state =
+                        state.copy(
+                            isCompressing = true,
+                            compressionStatus = text ?: "⏳ Compressing context...",
+                        ),
+                    streamingState = streamingState,
+                )
+            }
+
+            "compacted" -> {
+                ReducerResult(
+                    state =
+                        state.copy(
+                            isCompressing = false,
+                            compressionStatus = text,
+                        ),
+                    streamingState = streamingState,
+                )
+            }
+
+            else -> {
+                ReducerResult(state = state, streamingState = streamingState)
+            }
+        }
+    }
 
     private fun onUnknown(
         state: ChatUiState,

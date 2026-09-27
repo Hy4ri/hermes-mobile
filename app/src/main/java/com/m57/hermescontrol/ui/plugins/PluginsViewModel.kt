@@ -6,6 +6,7 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.AgentPluginInstallBody
+import com.m57.hermescontrol.data.model.EnvVarUpdate
 import com.m57.hermescontrol.data.model.PluginCatalogEntry
 import com.m57.hermescontrol.data.model.PluginInfo
 import com.m57.hermescontrol.data.model.PluginProvidersPutRequest
@@ -16,7 +17,11 @@ import com.m57.hermescontrol.data.model.ProviderOption
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.ws.AgentPluginRow
+import com.m57.hermescontrol.data.ws.PluginManageRepository
 import com.m57.hermescontrol.data.ws.PluginRemovalRepository
+import com.m57.hermescontrol.data.ws.PluginSettingField
+import com.m57.hermescontrol.data.ws.PluginSettingFieldType
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchAction
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
@@ -29,6 +34,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.longOrNull
 
 enum class PluginsTab {
     INSTALLED,
@@ -64,6 +75,12 @@ data class PluginsUiState(
     // Confirm remove dialog
     val removeConfirmPlugin: String? = null,
     val updateConsent: PluginUpdateConsent? = null,
+    // Active plugin detail with settings & diagnostics
+    val activeDetailPlugin: PluginInfo? = null,
+    val isPluginDetailLoading: Boolean = false,
+    val pluginDetailRow: AgentPluginRow? = null,
+    val pluginDetailEdits: Map<String, String> = emptyMap(),
+    val isPluginDetailSaving: Boolean = false,
     // Rescan
     val rescanBusy: Boolean = false,
     // Catalog state
@@ -85,6 +102,7 @@ data class PluginsUiState(
 
 class PluginsViewModel(
     private val pluginRemoval: PluginRemovalRepository = PluginRemovalRepository(),
+    private val pluginManage: PluginManageRepository = PluginManageRepository(),
 ) : ViewModel(),
     ToastHost {
     private val _uiState = MutableStateFlow(PluginsUiState())
@@ -109,6 +127,9 @@ class PluginsViewModel(
                 rowBusy = null,
                 removeConfirmPlugin = null,
                 updateConsent = null,
+                activeDetailPlugin = null,
+                pluginDetailRow = null,
+                pluginDetailEdits = emptyMap(),
                 rescanBusy = false,
             )
         }
@@ -682,6 +703,198 @@ class PluginsViewModel(
                 _uiState.update { it.copy(catalogInstallingName = null) }
             },
         )
+    }
+
+    fun openPluginDetail(plugin: PluginInfo) {
+        _uiState.update {
+            it.copy(
+                activeDetailPlugin = plugin,
+                isPluginDetailLoading = true,
+                pluginDetailRow = null,
+                pluginDetailEdits = emptyMap(),
+            )
+        }
+        viewModelScope.launch {
+            try {
+                val profile = AuthManager.activeProfileId.value
+                val rows = pluginManage.listPlugins(profile)
+                val matchingRow = rows.firstOrNull { it.key == plugin.name || it.name == plugin.name }
+                val initialEdits = mutableMapOf<String, String>()
+                matchingRow?.settingsSchema?.forEach { field ->
+                    if (field.type != PluginSettingFieldType.SECRET) {
+                        val strVal =
+                            when (val v = field.value ?: field.default) {
+                                null -> ""
+                                is JsonPrimitive -> v.content
+                                else -> v.toString()
+                            }
+                        initialEdits[field.key] = strVal
+                    }
+                }
+                _uiState.update {
+                    it.copy(
+                        isPluginDetailLoading = false,
+                        pluginDetailRow = matchingRow,
+                        pluginDetailEdits = initialEdits,
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isPluginDetailLoading = false,
+                        pluginDetailRow = null,
+                    )
+                }
+            }
+        }
+    }
+
+    fun closePluginDetail() {
+        _uiState.update {
+            it.copy(
+                activeDetailPlugin = null,
+                pluginDetailRow = null,
+                pluginDetailEdits = emptyMap(),
+                isPluginDetailSaving = false,
+            )
+        }
+    }
+
+    fun setPluginDetailEdit(
+        key: String,
+        value: String,
+    ) {
+        _uiState.update {
+            it.copy(pluginDetailEdits = it.pluginDetailEdits + (key to value))
+        }
+    }
+
+    fun savePluginSettings() {
+        val plugin = _uiState.value.pluginDetailRow ?: return
+        val schema = plugin.settingsSchema ?: return
+        val canonicalKey = plugin.key ?: plugin.name
+        val currentEdits = _uiState.value.pluginDetailEdits
+
+        _uiState.update { it.copy(isPluginDetailSaving = true) }
+        viewModelScope.launch {
+            try {
+                val profile = AuthManager.activeProfileId.value
+                val valuesToSave = mutableMapOf<String, JsonElement>()
+
+                for (field in schema) {
+                    val raw = currentEdits[field.key] ?: ""
+                    when (field.type) {
+                        PluginSettingFieldType.SECRET -> {
+                            val envVar = field.env
+                            if (raw.isNotBlank() && !envVar.isNullOrBlank()) {
+                                val envResult =
+                                    safeApiCall {
+                                        ApiClient.hermesApi.updateEnvVar(EnvVarUpdate(key = envVar, value = raw))
+                                    }
+                                if (envResult is NetworkResult.Failure) {
+                                    throw IllegalStateException(
+                                        "Failed to update secret $envVar: ${envResult.error.message}",
+                                    )
+                                }
+                            }
+                        }
+
+                        PluginSettingFieldType.STRING -> {
+                            valuesToSave[field.key] = JsonPrimitive(raw)
+                        }
+
+                        PluginSettingFieldType.NUMBER -> {
+                            val num =
+                                raw.trim().toLongOrNull()
+                                    ?: raw.trim().toDoubleOrNull()
+                            if (num != null) {
+                                valuesToSave[field.key] =
+                                    if (num is Long) JsonPrimitive(num) else JsonPrimitive(num as Double)
+                            } else if (raw.trim().isNotEmpty()) {
+                                throw IllegalArgumentException("${field.label}: expected a number")
+                            }
+                        }
+
+                        PluginSettingFieldType.BOOLEAN -> {
+                            valuesToSave[field.key] = JsonPrimitive(raw.trim().equals("true", ignoreCase = true))
+                        }
+
+                        PluginSettingFieldType.ENUM -> {
+                            if (!field.choices.isNullOrEmpty() && raw.trim() !in field.choices) {
+                                throw IllegalArgumentException(
+                                    "${field.label}: must be one of ${field.choices.joinToString()}",
+                                )
+                            }
+                            valuesToSave[field.key] = JsonPrimitive(raw.trim())
+                        }
+
+                        PluginSettingFieldType.JSON -> {
+                            val parsed =
+                                if (raw.trim().isEmpty()) {
+                                    JsonPrimitive("")
+                                } else {
+                                    Json.parseToJsonElement(raw.trim())
+                                }
+                            valuesToSave[field.key] = parsed
+                        }
+                    }
+                }
+
+                if (valuesToSave.isNotEmpty()) {
+                    val result = pluginManage.saveSettings(canonicalKey, valuesToSave, profile)
+                    if (!result.ok) {
+                        throw IllegalStateException(result.error ?: "Failed to save settings")
+                    }
+                    if (result.plugin != null) {
+                        val refreshed = result.plugin
+                        val newEdits = mutableMapOf<String, String>()
+                        refreshed.settingsSchema?.forEach { f ->
+                            if (f.type != PluginSettingFieldType.SECRET) {
+                                val strVal =
+                                    when (val v = f.value ?: f.default) {
+                                        null -> ""
+                                        is JsonPrimitive -> v.content
+                                        else -> v.toString()
+                                    }
+                                newEdits[f.key] = strVal
+                            }
+                        }
+                        _uiState.update {
+                            it.copy(
+                                isPluginDetailSaving = false,
+                                pluginDetailRow = refreshed,
+                                pluginDetailEdits = newEdits,
+                                toastMessage = "Plugin settings saved",
+                            )
+                        }
+                        return@launch
+                    }
+                }
+
+                // If only secrets were saved or result plugin is null
+                _uiState.update {
+                    it.copy(
+                        isPluginDetailSaving = false,
+                        pluginDetailEdits =
+                            it.pluginDetailEdits.filterKeys { k ->
+                                schema.none { f -> f.key == k && f.type == PluginSettingFieldType.SECRET }
+                            },
+                        toastMessage = "Plugin settings saved",
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isPluginDetailSaving = false,
+                        toastMessage = "Failed to save settings: ${e.message}",
+                    )
+                }
+            }
+        }
     }
 
     override fun clearToast() {

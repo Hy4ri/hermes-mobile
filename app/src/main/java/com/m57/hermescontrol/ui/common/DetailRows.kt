@@ -131,7 +131,7 @@ fun WebhookSubscription.toDetailRows(): List<DetailRow> =
  * Map a free-form status string to a semantic tone. Recognises the app's
  * common status vocabulary (enabled/active/running/ok → success, etc.).
  */
-private fun toneForStatus(status: String?): DetailRowTone {
+fun toneForStatus(status: String?): DetailRowTone {
     if (status.isNullOrBlank()) return DetailRowTone.NONE
     return when (status.lowercase()) {
         "enabled", "active", "running", "ok", "online", "connected" -> DetailRowTone.SUCCESS

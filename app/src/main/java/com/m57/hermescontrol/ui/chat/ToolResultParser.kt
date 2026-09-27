@@ -52,7 +52,22 @@ fun parseToolOutput(
             } else {
                 rawArgs
             }
-        val result = element["result"] as? JsonObject ?: element
+        val rawResultObj = element["result"] as? JsonObject
+        val displayMetadata = element["display_metadata"]
+        val result =
+            when {
+                rawResultObj != null && displayMetadata != null && !rawResultObj.containsKey("display_metadata") -> {
+                    JsonObject(rawResultObj + ("display_metadata" to displayMetadata))
+                }
+
+                rawResultObj != null -> {
+                    rawResultObj
+                }
+
+                else -> {
+                    element
+                }
+            }
 
         ToolViewBuilder.build(
             toolName = resolvedToolName ?: "tool",

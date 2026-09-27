@@ -69,6 +69,7 @@ import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
 import com.m57.hermescontrol.ui.common.toDetailRows
 import com.m57.hermescontrol.ui.plugins.components.CatalogPluginsView
+import com.m57.hermescontrol.ui.plugins.components.PluginDetailDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -273,7 +274,7 @@ fun PluginsScreen(
                                         plugin = plugin,
                                         state = state,
                                         viewModel = viewModel,
-                                        onClick = { showDetail = plugin },
+                                        onClick = { viewModel.openPluginDetail(plugin) },
                                     )
                                 }
 
@@ -289,7 +290,10 @@ fun PluginsScreen(
                                         )
                                     }
                                     items(state.orphanPlugins, key = { "orphan-${it.name}" }) { plugin ->
-                                        OrphanPluginCard(plugin = plugin, onClick = { showDetail = plugin })
+                                        OrphanPluginCard(
+                                            plugin = plugin,
+                                            onClick = { viewModel.openPluginDetail(plugin) },
+                                        )
                                     }
                                 }
                             }
@@ -313,11 +317,19 @@ fun PluginsScreen(
         }
     }
 
-    showDetail?.let { plugin ->
-        DetailDialog(
-            title = plugin.name,
-            rows = plugin.toDetailRows(),
-            onDismiss = { showDetail = null },
+    state.activeDetailPlugin?.let { plugin ->
+        PluginDetailDialog(
+            plugin = plugin,
+            agentPluginRow = state.pluginDetailRow,
+            isLoading = state.isPluginDetailLoading,
+            isSaving = state.isPluginDetailSaving,
+            edits = state.pluginDetailEdits,
+            onFieldChange = { key, value -> viewModel.setPluginDetailEdit(key, value) },
+            onSaveSettings = { viewModel.savePluginSettings() },
+            onDismiss = {
+                showDetail = null
+                viewModel.closePluginDetail()
+            },
         )
     }
 

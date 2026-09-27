@@ -1,5 +1,8 @@
 package com.m57.hermescontrol.data.ws
 
+import com.m57.hermescontrol.data.model.CatalogScanStatus
+import com.m57.hermescontrol.data.model.ConnectionCatalogInfo
+import com.m57.hermescontrol.data.model.ConnectionCatalogScan
 import com.m57.hermescontrol.data.model.ConnectionEnvField
 import com.m57.hermescontrol.data.model.ConnectionOperationSnapshot
 import com.m57.hermescontrol.data.model.ConnectionOperationTarget
@@ -58,14 +61,15 @@ object ConnectionOperationParser {
         val map = raw ?: return null
         val name = (map["name"] as? String)?.trim() ?: return null
         if (name.isBlank()) return null
+        val kind =
+            enumValue(
+                map["kind"] as? String,
+                ConnectionTargetKind.values(),
+                ConnectionTargetKind.UNKNOWN,
+            )
         return ConnectionOperationTarget(
             name = name,
-            kind =
-                enumValue(
-                    map["kind"] as? String,
-                    ConnectionTargetKind.values(),
-                    ConnectionTargetKind.UNKNOWN,
-                ),
+            kind = kind,
             action =
                 enumValue(
                     map["action"] as? String,
@@ -90,8 +94,49 @@ object ConnectionOperationParser {
                     ?: emptyList(),
             tools = (map["tools"] as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
             hint = map["hint"] as? String,
+            catalog = if (kind.isCatalog) parseCatalog(map, name) else null,
         )
     }
+
+    private fun parseCatalog(
+        map: Map<*, *>,
+        name: String,
+    ): ConnectionCatalogInfo =
+        ConnectionCatalogInfo(
+            display = map.text("display") ?: name,
+            description = map.text("description"),
+            tier = map.text("tier"),
+            platforms = map.strings("platforms"),
+            repo = map.text("repo"),
+            sha = map.text("sha"),
+            subdir = map.text("subdir"),
+            scan =
+                (map["scan"] as? Map<*, *>)?.let { scan ->
+                    ConnectionCatalogScan(
+                        status =
+                            enumValue(
+                                scan["status"] as? String,
+                                CatalogScanStatus.values(),
+                                CatalogScanStatus.UNKNOWN,
+                            ),
+                        summary = scan.text("summary"),
+                    )
+                },
+            requirements = map.strings("requirements"),
+            targetProfile = map.text("target_profile") ?: DEFAULT_PROFILE,
+            skill = map.text("skill"),
+        )
+
+    private fun Map<*, *>.text(key: String): String? = (this[key] as? String)?.trim()?.takeIf { it.isNotEmpty() }
+
+    private fun Map<*, *>.strings(key: String): List<String> =
+        (this[key] as? List<*>)
+            ?.filterIsInstance<String>()
+            ?.map(String::trim)
+            ?.filter(String::isNotEmpty)
+            ?: emptyList()
+
+    private const val DEFAULT_PROFILE = "default"
 
     private fun parseEnv(raw: Map<*, *>?): ConnectionEnvField? {
         val map = raw ?: return null

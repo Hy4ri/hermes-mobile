@@ -352,7 +352,7 @@ fun MarkdownText(
 
                 is MdBlock.Video -> {
                     val resolvedUri = remember(block.uri) { MarkdownMediaResolver.resolveImageUrl(block.uri) }
-                    var showVideoDialog by remember { mutableStateOf(false) }
+                    var showVideoDialog by remember(block.uri) { mutableStateOf(false) }
                     androidx.compose.foundation.layout.Box(
                         modifier =
                             Modifier

@@ -29,6 +29,8 @@ data class ConnectionOperationTarget(
     val requiredEnv: List<ConnectionEnvField>,
     val tools: List<String>,
     val hint: String?,
+    /** Catalog facts for [ConnectionTargetKind.PLUGIN] / [ConnectionTargetKind.SKILL] rows only. */
+    val catalog: ConnectionCatalogInfo? = null,
 ) {
     /** Safe validated browser URL. OAuth query parameters stay redacted from [toString]. */
     val safeConnectUrl: String?
@@ -40,8 +42,31 @@ data class ConnectionOperationTarget(
             "instructions=$instructions, discoveryError=$discoveryError, " +
             "connectUrl=${if (connectUrl == null) "null" else "[REDACTED]"}, " +
             "connectionId=$connectionId, attempt=$attempt, requiredEnv=$requiredEnv, " +
-            "tools=$tools, hint=$hint)"
+            "tools=$tools, hint=$hint, catalog=$catalog)"
 }
+
+/** Host-resolved catalog row facts (hermes-agent `manage_catalog`); the model supplies only the id. */
+data class ConnectionCatalogInfo(
+    val display: String,
+    val description: String?,
+    val tier: String?,
+    val platforms: List<String>,
+    val repo: String?,
+    val sha: String?,
+    val subdir: String?,
+    val scan: ConnectionCatalogScan?,
+    val requirements: List<String>,
+    val targetProfile: String,
+    /** On an installed row: the skill the model can now load. */
+    val skill: String?,
+)
+
+data class ConnectionCatalogScan(
+    val status: CatalogScanStatus,
+    val summary: String?,
+)
+
+enum class CatalogScanStatus { PASSED, WARNINGS, FAILED, UNKNOWN }
 
 data class ConnectionEnvField(
     val name: String,
@@ -51,7 +76,16 @@ data class ConnectionEnvField(
     val prompt: String?,
 )
 
-enum class ConnectionTargetKind { CONNECTOR, MCP, UNKNOWN }
+enum class ConnectionTargetKind {
+    CONNECTOR,
+    MCP,
+    PLUGIN,
+    SKILL,
+    UNKNOWN,
+    ;
+
+    val isCatalog: Boolean get() = this == PLUGIN || this == SKILL
+}
 
 enum class ConnectionTargetAction {
     AUTHORIZE,

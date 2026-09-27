@@ -53,6 +53,14 @@ import com.m57.hermescontrol.ui.chat.components.VaultUnlockCard
 import com.m57.hermescontrol.ui.chat.toolCallMilestones
 import com.m57.hermescontrol.ui.common.EmptyState
 
+private object FullBleedContentType {
+    const val USER: String = "user"
+    const val REASONING: String = "reasoning"
+    const val PROSE: String = "prose"
+    const val TOOL: String = "tool"
+    const val SYSTEM_EVENT: String = "system_event"
+}
+
 /**
  * The chat message list for FULL-BLEED style (issue #866) — the single chat
  * surface since the bubble renderer was removed. User messages keep their
@@ -321,7 +329,10 @@ fun FullBleedChatList(
                                 // Eager captures: item lambda reads these at
                                 // composition time (lazy), so capture now.
                                 val userMessage = turn.message
-                                item(key = "user-${userMessage.id}") {
+                                item(
+                                    key = "user-${userMessage.id}",
+                                    contentType = FullBleedContentType.USER,
+                                ) {
                                     Column(modifier = Modifier.padding(bottom = 12.dp)) {
                                         renderChatBubble(
                                             message = userMessage,
@@ -352,7 +363,10 @@ fun FullBleedChatList(
                                         .firstOrNull { it.message.reasoningText.isNotBlank() }
                                 if (turnReasoning != null) {
                                     val reasoning = turnReasoning.message
-                                    item(key = "reasoning-${reasoning.id}") {
+                                    item(
+                                        key = "reasoning-${reasoning.id}",
+                                        contentType = FullBleedContentType.REASONING,
+                                    ) {
                                         Column(modifier = Modifier.padding(bottom = 6.dp)) {
                                             ReasoningCard(
                                                 reasoningText = reasoning.reasoningText,
@@ -371,7 +385,10 @@ fun FullBleedChatList(
                                             if (!proseMessage.hasVisibleAgentContent() && !hoistedReasoning &&
                                                 proseMessage.reasoningText.isNotBlank()
                                             ) {
-                                                item(key = "reasoning-${proseMessage.id}") {
+                                                item(
+                                                    key = "reasoning-${proseMessage.id}",
+                                                    contentType = FullBleedContentType.REASONING,
+                                                ) {
                                                     ReasoningCard(
                                                         reasoningText = proseMessage.reasoningText,
                                                         isStreaming = proseMessage.isStreaming,
@@ -379,7 +396,10 @@ fun FullBleedChatList(
                                                 }
                                             }
                                             if (proseMessage.hasVisibleAgentContent()) {
-                                                item(key = "prose-${proseMessage.id}") {
+                                                item(
+                                                    key = "prose-${proseMessage.id}",
+                                                    contentType = FullBleedContentType.PROSE,
+                                                ) {
                                                     Column(modifier = Modifier.padding(bottom = 12.dp)) {
                                                         if (proseMessage.isStreaming && typingEffectEnabled) {
                                                             StreamingFullBleedWithTypingEffect(
@@ -434,7 +454,10 @@ fun FullBleedChatList(
                                         is AgentEntry.ToolRow -> {
                                             val toolMessage = entry.message
                                             val milestone = toolMilestones[toolMessage.id]
-                                            item(key = "tool-${toolMessage.id}") {
+                                            item(
+                                                key = "tool-${toolMessage.id}",
+                                                contentType = FullBleedContentType.TOOL,
+                                            ) {
                                                 Column(modifier = Modifier.padding(bottom = 6.dp)) {
                                                     FullBleedToolRow(toolMessage)
                                                     milestone?.let { count ->
@@ -446,7 +469,10 @@ fun FullBleedChatList(
 
                                         is AgentEntry.SystemEvent -> {
                                             val sysMessage = entry.message
-                                            item(key = "sys-${sysMessage.id}") {
+                                            item(
+                                                key = "sys-${sysMessage.id}",
+                                                contentType = FullBleedContentType.SYSTEM_EVENT,
+                                            ) {
                                                 Column(modifier = Modifier.padding(bottom = 6.dp)) {
                                                     if (sysMessage.displayKind != null) {
                                                         // Timeline marker (issue #904):
@@ -469,7 +495,11 @@ fun FullBleedChatList(
                     }
 
                     tailItems.forEach { (key, content) ->
-                        item(key = key) { content() }
+                        item(
+                            key = key,
+                            // Tail keys are fixed per kind, so the key doubles as the slot type.
+                            contentType = key,
+                        ) { content() }
                     }
                 }
                 // Loading history must never become the list's first visible anchor.

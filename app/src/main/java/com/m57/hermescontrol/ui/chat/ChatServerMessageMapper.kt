@@ -6,6 +6,8 @@ import com.m57.hermescontrol.data.model.AttachmentSource
 import com.m57.hermescontrol.data.model.SessionMessage
 import com.m57.hermescontrol.data.remote.GatewayFileClient
 import com.m57.hermescontrol.notification.ReplyNotificationTracker
+import com.m57.hermescontrol.ui.chat.tool.ToolJson
+import kotlinx.serialization.json.JsonObject
 
 /**
  * Maps REST transcript rows ([SessionMessage]) into UI [ChatMessage]s.
@@ -179,7 +181,19 @@ internal fun mapServerMessages(
                 ?: existingById[restId]?.timestamp
                 ?: System.currentTimeMillis()
 
-        val rawContent = msg.visibleText
+        val rawContent =
+            if (role == MessageRole.TOOL && msg.display_metadata != null) {
+                // Enrich tool content with display_metadata so persisted edit previews
+                // (inline_diff) survive reload into the diff renderer
+                val parsedContent = ToolJson.parseMaybeObject(msg.content)
+                if (parsedContent != null && !parsedContent.containsKey("display_metadata")) {
+                    JsonObject(parsedContent + ("display_metadata" to msg.display_metadata)).toString()
+                } else {
+                    msg.visibleText
+                }
+            } else {
+                msg.visibleText
+            }
         // #1284: projected reasoning already excludes public commentary; it is authoritative.
         val rowReasoning =
             if (msg.hasDisplayReasoning) {

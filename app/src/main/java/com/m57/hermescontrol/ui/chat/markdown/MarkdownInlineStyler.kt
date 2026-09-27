@@ -68,6 +68,9 @@ object MarkdownInlineStyler {
             val src = text
 
             while (i < src.length) {
+                // Cheap prefix gate: URL_PATTERN only matches at "http(s)://", so skip the regex elsewhere.
+                val urlMatch =
+                    if (src.startsWith("http", i, ignoreCase = true)) URL_PATTERN.matchAt(src, i) else null
                 when {
                     // Inline code is opaque to emphasis parsing, and delimiters must match by run length.
                     src[i] == '`' -> {
@@ -312,9 +315,8 @@ object MarkdownInlineStyler {
                     }
 
                     // bare URL
-                    URL_PATTERN.matchAt(src, i) != null -> {
-                        val match = URL_PATTERN.matchAt(src, i)!!
-                        val url = match.value
+                    urlMatch != null -> {
+                        val url = urlMatch.value
                         val urlToAppend = if (isRtl) BidiUtils.wrapLtrIsolate(url) else url
                         pushLink(LinkAnnotation.Url(url))
                         withStyle(
@@ -326,7 +328,7 @@ object MarkdownInlineStyler {
                             append(urlToAppend)
                         }
                         pop()
-                        i = match.range.last + 1
+                        i = urlMatch.range.last + 1
                     }
 
                     // Plain text / words in RTL

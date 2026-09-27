@@ -76,8 +76,9 @@
           ANDROID_SDK_ROOT = "${androidSdk}/libexec/android-sdk";
           JAVA_HOME = "${pkgs.jdk21}";
 
-          # Gradle needs a writable home
-          GRADLE_USER_HOME = "$PWD/.gradle-home";
+          # GRADLE_USER_HOME stays at the default ~/.gradle: Nix attrs are not
+          # shell-expanded, so "$PWD/..." gave every checkout and worktree its
+          # own cache and daemon pool, and idle daemons piled up in RAM.
 
           shellHook = ''
             echo " HermesControl Android dev shell"
@@ -89,9 +90,6 @@
 
             # Ensure Android CLI tools and local user binaries are on PATH
             export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$HOME/.local/bin:$PATH"
-
-            # Writable gradle home
-            mkdir -p "$GRADLE_USER_HOME"
 
             # Enable host keyboard input for the project's existing AVD.
             hermesAvdConfig="''${ANDROID_AVD_HOME:-''${ANDROID_USER_HOME:-$HOME/.android}/avd}/hermes_dev.avd/config.ini"

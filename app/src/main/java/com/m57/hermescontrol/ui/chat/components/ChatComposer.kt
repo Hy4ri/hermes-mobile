@@ -73,7 +73,6 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.Attachment
-import com.m57.hermescontrol.data.model.BusySendMode
 import com.m57.hermescontrol.data.model.ProfileInfo
 import com.m57.hermescontrol.data.ws.CommandBlocklist
 import com.m57.hermescontrol.data.ws.CommandCatalog
@@ -90,11 +89,9 @@ fun ChatInputBar(
     inputFieldValue: TextFieldValue,
     onInputChange: (TextFieldValue) -> Unit,
     onSend: () -> Unit,
-    onBusySend: (BusySendMode) -> Unit = {},
     onMicTap: () -> Unit,
     isListening: Boolean,
     isAgentTyping: Boolean,
-    isMainTurnBusy: Boolean = false,
     canInterrupt: Boolean = false,
     isConnected: Boolean,
     commandCatalog: CommandCatalog,
@@ -137,8 +134,6 @@ fun ChatInputBar(
         pendingReasoningLevel == null &&
             ChatInputPolicy.canSend(inputFieldValue.text, pendingAttachments, isConnected, isSessionReady)
     val hasDraft = inputFieldValue.text.isNotBlank() || pendingAttachments.isNotEmpty()
-    val isSlashDraft = inputFieldValue.text.trimStart().startsWith("/")
-    val showBusyActions = isMainTurnBusy && hasDraft && !isSlashDraft
 
     // Attachment tray state
     var showAttachmentTray by remember { mutableStateOf(false) }
@@ -429,10 +424,7 @@ fun ChatInputBar(
                         isListening = isListening,
                         canSend = canSend,
                         showSend = hasDraft,
-                        showQueue = showBusyActions,
                         onSend = onSend,
-                        onQueue = { onBusySend(BusySendMode.QUEUE) },
-                        onStopAndSend = { onBusySend(BusySendMode.INTERRUPT) },
                         canInterrupt = canInterrupt,
                         onStopGeneration = onStopGeneration,
                         onAttachTap = { showAttachmentTray = !showAttachmentTray },

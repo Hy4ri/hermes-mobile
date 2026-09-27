@@ -87,7 +87,6 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.AttachmentSource
-import com.m57.hermescontrol.data.model.BusySendMode
 import com.m57.hermescontrol.data.model.reasoningSupport
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.ConnectionStatus
@@ -178,11 +177,7 @@ fun ChatScreen(
     // Snapshot-backed search state — read directly so only the scopes that
     // read its fields recompose on search changes (bar, matched bubbles).
     val searchState = viewModel.searchState
-    val sourceMessages = timelineState.historyMessages ?: state.messages
-    val displayedMessages =
-        remember(sourceMessages, state.pendingSends) {
-            messagesWithoutUnsentQueue(sourceMessages, state.pendingSends)
-        }
+    val displayedMessages = timelineState.historyMessages ?: state.messages
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
     var browserAuthInFlight by rememberSaveable { mutableStateOf(false) }
@@ -904,12 +899,6 @@ fun ChatScreen(
                     },
             )
 
-            com.m57.hermescontrol.ui.chat.components.PendingSendPanel(
-                sends = state.pendingSends,
-                mainTurnBusy = state.isMainTurnBusy,
-                onSendNow = viewModel::sendQueuedNow,
-            )
-
             ChatInputBar(
                 inputFieldValue = inputFieldValue,
                 onInputChange = { inputFieldValue = it },
@@ -917,12 +906,6 @@ fun ChatScreen(
                     if (viewModel.sendMessage(inputFieldValue.text)) {
                         inputFieldValue = TextFieldValue("")
                         // Jump only after an accepted send. A readiness race keeps the draft intact.
-                        scrollController.jumpToBottom(animated = true)
-                    }
-                },
-                onBusySend = { mode ->
-                    if (viewModel.sendMessage(inputFieldValue.text, mode)) {
-                        inputFieldValue = TextFieldValue("")
                         scrollController.jumpToBottom(animated = true)
                     }
                 },
@@ -936,7 +919,6 @@ fun ChatScreen(
                 isVoiceNoteLocked = mediaLaunchers.isVoiceNoteLocked,
                 onStopGeneration = { viewModel.interruptSession() },
                 isAgentTyping = state.isAgentTyping,
-                isMainTurnBusy = state.isMainTurnBusy,
                 canInterrupt = state.canInterrupt,
                 isConnected = state.isConnected,
                 isSessionReady = state.isSessionReady && !timelineState.isHistorical,

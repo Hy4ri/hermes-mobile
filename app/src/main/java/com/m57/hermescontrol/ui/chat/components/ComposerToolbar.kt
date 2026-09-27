@@ -31,7 +31,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AddToQueue
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Stop
@@ -69,9 +68,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -113,10 +110,7 @@ fun ComposerToolbar(
     modifier: Modifier = Modifier,
     canSend: Boolean = false,
     showSend: Boolean = canSend,
-    showQueue: Boolean = false,
     onSend: () -> Unit = {},
-    onQueue: () -> Unit = {},
-    onStopAndSend: () -> Unit = {},
     canDisableReasoning: Boolean? = null,
     supportsReasoning: Boolean? = null,
     fastMode: Boolean = false,
@@ -562,27 +556,7 @@ fun ComposerToolbar(
             }
         }
 
-        AnimatedVisibility(
-            visible = showQueue,
-            enter = fadeIn() + scaleIn(initialScale = 0.8f),
-            exit = fadeOut() + scaleOut(targetScale = 0.8f),
-        ) {
-            FilledIconButton(
-                onClick = onQueue,
-                enabled = canSend,
-                colors = flatIconButtonColors(palette),
-                modifier = Modifier.size(48.dp).testTag("queue_button"),
-            ) {
-                Icon(
-                    imageVector = Icons.Default.AddToQueue,
-                    contentDescription = stringResource(R.string.chat_busy_queue_action),
-                    modifier = Modifier.size(20.dp),
-                )
-            }
-        }
-
         // Action button — send when a send is possible, mic / stop otherwise
-        val stopAndSendLabel = stringResource(R.string.chat_busy_stop_and_send)
         // While a recording is locked this button finishes the voice note, so
         // it must stay enabled even when the draft alone would not send
         // (review, PR #1280).
@@ -605,17 +579,7 @@ fun ComposerToolbar(
                         } else {
                             palette.action
                         },
-                    ).semantics {
-                        if (showSend && showQueue && canSend && !isVoiceNoteLocked) {
-                            customActions =
-                                listOf(
-                                    CustomAccessibilityAction(stopAndSendLabel) {
-                                        onStopAndSend()
-                                        true
-                                    },
-                                )
-                        }
-                    }.combinedClickable(
+                    ).combinedClickable(
                         enabled = actionEnabled,
                         onClick = {
                             when {
@@ -631,8 +595,6 @@ fun ComposerToolbar(
                                 else -> onMicTap()
                             }
                         },
-                        onLongClick = if (showSend && showQueue && !isVoiceNoteLocked) onStopAndSend else null,
-                        onLongClickLabel = if (showSend && showQueue && !isVoiceNoteLocked) stopAndSendLabel else null,
                     ).testTag(
                         when {
                             isVoiceNoteLocked -> "voice_note_send_button"

@@ -237,6 +237,11 @@
     <string name="content_desc_scroll_to_bottom">Scroll to bottom</string>
     <string name="content_desc_copy">Copy</string>
     <string name="content_desc_copied">Copied</string>
+    <string name="content_desc_speak">Read aloud</string>
+    <string name="content_desc_stop_speaking">Stop speaking</string>
+    <string name="tts_error_network">Could not reach the Hermes server for speech</string>
+    <string name="tts_error_synthesis">Could not synthesize the message audio</string>
+    <string name="tts_error_playback">Could not play the message audio</string>
     <string name="content_desc_edit">Edit</string>
     <string name="chat_msg_tokens">%1$s tok</string>
     <string name="chat_msg_tps">%1$s t/s</string>

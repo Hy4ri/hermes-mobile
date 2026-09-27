@@ -84,10 +84,12 @@ import com.m57.hermescontrol.HistoryScreen
 import com.m57.hermescontrol.LogsScreen
 import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.AttachmentSource
 import com.m57.hermescontrol.data.model.BusySendMode
 import com.m57.hermescontrol.data.model.reasoningSupport
+import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.notification.NotificationHelper
@@ -111,10 +113,13 @@ import com.m57.hermescontrol.ui.chat.components.ReplyErrorCard
 import com.m57.hermescontrol.ui.chat.components.SearchBarRow
 import com.m57.hermescontrol.ui.chat.components.SessionIntegrationsSheet
 import com.m57.hermescontrol.ui.chat.components.SideQuestionSheet
+import com.m57.hermescontrol.ui.chat.components.SpeechRequest
+import com.m57.hermescontrol.ui.chat.components.SpeechText
 import com.m57.hermescontrol.ui.chat.components.SubagentInspectionSheet
 import com.m57.hermescontrol.ui.chat.components.TaskProgressChip
 import com.m57.hermescontrol.ui.chat.components.rememberChatMediaLaunchers
 import com.m57.hermescontrol.ui.chat.components.rememberChatScrollController
+import com.m57.hermescontrol.ui.chat.components.rememberChatSpeech
 import com.m57.hermescontrol.ui.chat.components.shouldShowProgressChip
 import com.m57.hermescontrol.ui.chat.components.tailContentKey
 import com.m57.hermescontrol.ui.chat.fullbleed.FullBleedChatList
@@ -249,6 +254,10 @@ fun ChatScreen(
     }
 
     val browserEvent = connectorsState.browserLaunchEvent
+    val speechController = rememberChatSpeech()
+    val speakingMessageId by speechController.speakingId.collectAsStateWithLifecycle()
+    val dataScope by AuthManager.dataScopeFlow.collectAsStateWithLifecycle()
+    val activeSessionId by ActiveSessionHolder.activeSessionId.collectAsStateWithLifecycle()
     val listState = rememberLazyListState(prefetchStrategy = ChatTimelineNoPrefetchStrategy)
     val scrollScope = rememberCoroutineScope()
     val scrollController = rememberChatScrollController(listState, scrollScope)
@@ -799,6 +808,17 @@ fun ChatScreen(
                     savingAttachmentPath = pendingSavePath ?: state.savingAttachmentPath,
                     openingAttachmentPath = state.openingAttachmentPath,
                     onImageClick = { viewingImage = it },
+                    speakingMessageId = speakingMessageId,
+                    onToggleSpeak = { message ->
+                        val scopeKey = "${dataScope?.inMemoryKey(localKey = activeSessionId ?: "none")}"
+                        speechController.toggle(
+                            SpeechRequest(
+                                scopeKey = scopeKey,
+                                messageId = message.id,
+                                text = SpeechText.stripMarkdownForSpeech(message.content),
+                            ),
+                        )
+                    },
                     replyErrorContent =
                         state.replyFailure?.takeUnless { timelineState.isHistorical }?.let { failure ->
                             {

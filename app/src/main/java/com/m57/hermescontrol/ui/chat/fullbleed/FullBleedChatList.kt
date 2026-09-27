@@ -105,6 +105,8 @@ fun FullBleedChatList(
     pagingSessionId: String? = null,
     onLoadOlder: () -> Unit = viewModel::loadOlderMessages,
     replyErrorContent: (@Composable () -> Unit)? = null,
+    speakingMessageId: String? = null,
+    onToggleSpeak: ((ChatMessage) -> Unit)? = null,
 ) {
     if (messages.isEmpty() && !isLoading && !isAgentTyping && replyErrorContent == null) {
         Box(
@@ -363,6 +365,15 @@ fun FullBleedChatList(
                                                                 showReasoning = !hoistedReasoning,
                                                             )
                                                         } else {
+                                                            val isSpeakingThis =
+                                                                speakingMessageId != null &&
+                                                                    speakingMessageId == proseMessage.id
+                                                            val toggleSpeakAction =
+                                                                if (onToggleSpeak != null) {
+                                                                    { onToggleSpeak(proseMessage) }
+                                                                } else {
+                                                                    null
+                                                                }
                                                             FullBleedAgentMessage(
                                                                 message = proseMessage,
                                                                 // Highlight only bubbles that actually contain a match —
@@ -385,6 +396,8 @@ fun FullBleedChatList(
                                                                 openingAttachmentPath = openingAttachmentPath,
                                                                 canSaveAttachment = savingAttachmentPath == null,
                                                                 onImageClick = onImageClick,
+                                                                isSpeaking = isSpeakingThis,
+                                                                onToggleSpeak = toggleSpeakAction,
                                                                 messageStatsEnabled = messageStatsEnabled,
                                                                 showAssistantMessageTokens = showAssistantMessageTokens,
                                                                 showTokensPerSecond = showTokensPerSecond,

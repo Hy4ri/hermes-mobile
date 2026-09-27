@@ -71,19 +71,31 @@ internal fun StreamingFullBleedWithTypingEffect(
     }
 
     // Derive display text from the latest full content at each recomposition
-    val words = streaming.content.split(" ")
+    val words = remember(streaming.content) { streaming.content.split(" ") }
     val visibleCount =
         if (visibleWordCount >= Int.MAX_VALUE / 2) {
             words.size
         } else {
             visibleWordCount.coerceIn(0, words.size)
         }
+    val isStreaming = currentIsStreaming.value
     val displayText =
-        words.take(visibleCount.coerceAtLeast(1)).joinToString(" ") +
-            if (caretVisible && currentIsStreaming.value) "▍" else ""
+        remember(words, visibleCount, caretVisible, isStreaming) {
+            words.take(visibleCount.coerceAtLeast(1)).joinToString(" ") +
+                if (caretVisible && isStreaming) "▍" else ""
+        }
+
+    val displayMessage =
+        remember(streaming, displayText) {
+            if (streaming.content == displayText) {
+                streaming
+            } else {
+                streaming.copy(content = displayText)
+            }
+        }
 
     FullBleedAgentMessage(
-        message = streaming.copy(content = displayText),
+        message = displayMessage,
         showReasoning = showReasoning,
         searchQuery = "",
         isCurrentMatch = false,

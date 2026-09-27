@@ -201,6 +201,9 @@ internal class TranscriptComparison(
         ) {
             return true
         }
+        // #842 / #1335: prefix drift only exists for sealed assistant narration; two REST
+        // rows already returned above, so user rows must never collapse by prefix.
+        if (a.role != MessageRole.ASSISTANT) return false
         return ta.length >= 40 && tb.length >= 40 && (tb.startsWith(ta) || ta.startsWith(tb))
     }
 }

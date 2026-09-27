@@ -289,7 +289,7 @@ class WsProfileParamsTest {
      * home) without being listed here, this test fails — the set cannot drift.
      *
      * Methods that operate on an ALREADY-BOUND session (session.usage,
-     * session.interrupt, session.branch, session.redirect,
+     * session.interrupt, session.branch, session.branch_whole, session.redirect,
      * session.context_breakdown, prompt.submit, slash/command dispatch,
      * approval/clarify/secret/sudo responses, file attach, process.*,
      * subscription.*, commands_catalog, usage.bars) resolve via the

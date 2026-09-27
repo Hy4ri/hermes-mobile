@@ -630,12 +630,23 @@ private fun ToolRawJsonView(
     modifier: Modifier = Modifier,
 ) {
     var formatJson by remember { mutableStateOf(true) }
-    val formattedContent = remember(rawContent) { ToolJson.prettyPrintJson(rawContent) }
-    val isFormatDifferent = formattedContent != rawContent
-    val displayText = if (formatJson && isFormatDifferent) formattedContent else rawContent
+    val clampedRaw = remember(rawContent) { ToolJson.clampForDisplay(rawContent) }
+
+    // Full pretty text (for copy) + clamped copy (for display); null when formatting changes nothing.
+    val formatted by produceState<Pair<String, String>?>(initialValue = null, key1 = rawContent) {
+        value =
+            withContext(Dispatchers.Default) {
+                val full = ToolJson.prettyPrintJson(rawContent)
+                if (full != rawContent) full to ToolJson.clampForDisplay(full) else null
+            }
+    }
+
+    val isFormatDifferent = formatted != null
+    val displayText = formatted?.takeIf { formatJson }?.second ?: clampedRaw
+    val copyText = formatted?.takeIf { formatJson }?.first ?: rawContent
 
     val highlighted by produceState(
-        initialValue = remember(displayText) { AnnotatedString(displayText) },
+        initialValue = remember(clampedRaw) { AnnotatedString(clampedRaw) },
         key1 = displayText,
     ) {
         value =
@@ -645,7 +656,7 @@ private fun ToolRawJsonView(
     }
 
     CodeTerminalCard(
-        textToCopy = displayText,
+        textToCopy = copyText,
         modifier = modifier,
         testTag = "tool_raw_json",
         title = "JSON",

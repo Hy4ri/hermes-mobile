@@ -234,13 +234,16 @@ class ConnectionSetupSheetTest {
         composeTestRule
             .onNodeWithTag(
                 "connection_catalog_source",
-            ).assertTextContains("NousResearch/hermes-plugins/linear")
-        composeTestRule.onNodeWithTag("connection_catalog_pin").assertTextContains("0123456789ab")
+            ).assertTextContains("NousResearch/hermes-plugins/linear", substring = true)
+        composeTestRule.onNodeWithTag("connection_catalog_pin").assertTextContains("0123456789ab", substring = true)
         composeTestRule
             .onNodeWithTag("connection_catalog_scan")
             .assertTextContains("Security scan found warnings · 1 advisory")
-        composeTestRule.onNodeWithTag("connection_catalog_requirements").assertTextContains("Hermes >=0.21")
-        composeTestRule.onNodeWithTag("connection_catalog_profile").assertTextContains("default")
+        composeTestRule
+            .onNodeWithTag(
+                "connection_catalog_requirements",
+            ).assertTextContains("Hermes >=0.21", substring = true)
+        composeTestRule.onNodeWithTag("connection_catalog_profile").assertTextContains("default", substring = true)
         composeTestRule.onNodeWithText("This setup step is not supported by this app version.").assertDoesNotExist()
 
         composeTestRule.onNodeWithTag("connection_setup_connect").assertTextContains("Install").performClick()

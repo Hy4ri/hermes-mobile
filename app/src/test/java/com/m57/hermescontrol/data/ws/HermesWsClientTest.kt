@@ -2188,12 +2188,13 @@ class HermesWsClientTest {
 
         val failureLatch = CountDownLatch(1)
         HermesWsClient.probeLivenessOnTransportChange(
+            timeoutMs = 50L,
             onFailureAction = {
                 failureLatch.countDown()
             },
         )
 
-        assertTrue("Expected failure action to be invoked on failed ping", failureLatch.await(6, TimeUnit.SECONDS))
+        assertTrue("Expected failure action to be invoked on failed ping", failureLatch.await(3, TimeUnit.SECONDS))
     }
 
     @Test

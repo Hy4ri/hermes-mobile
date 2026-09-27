@@ -77,6 +77,11 @@ class SlashCommandDispatcher {
                 SlashResult.Undo(count = arg)
             }
 
+            "/compress", "/compact" -> {
+                val arg = command.split(" ", limit = 2).getOrElse(1) { "" }.trim()
+                SlashResult.Compress(focusTopic = arg)
+            }
+
             else -> {
                 SlashResult.RpcDispatch
             }
@@ -171,5 +176,12 @@ sealed class SlashResult {
      */
     data class Undo(
         val count: String,
+    ) : SlashResult()
+
+    /**
+     * Compress session context via the session.compress WebSocket RPC.
+     */
+    data class Compress(
+        val focusTopic: String,
     ) : SlashResult()
 }

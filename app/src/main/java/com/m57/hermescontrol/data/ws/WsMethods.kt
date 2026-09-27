@@ -16,6 +16,7 @@ object WsMethods {
     const val SESSION_TITLE = "session.title"
     const val SESSION_BRANCH = "session.branch"
     const val SESSION_BRANCH_WHOLE = "session.branch_whole"
+    const val SESSION_COMPRESS = "session.compress"
 
     /** Replay recorded events newer than client's last-seen seq for a session. */
     const val SESSION_EVENTS_SINCE = "session.events.since"

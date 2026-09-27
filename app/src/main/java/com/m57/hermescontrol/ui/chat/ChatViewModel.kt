@@ -14,6 +14,7 @@ import com.m57.hermescontrol.data.model.BusySendMode
 import com.m57.hermescontrol.data.model.ModelCapabilities
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
+import com.m57.hermescontrol.data.model.SessionCompressResponse
 import com.m57.hermescontrol.data.model.SessionTimelineEntry
 import com.m57.hermescontrol.data.model.UsageSnapshotResponse
 import com.m57.hermescontrol.data.model.parseContextBreakdown
@@ -234,6 +235,8 @@ data class ChatUiState(
     // until the first successful session.usage fetch) — drives the
     // "compressed ×N" badge on the context chip.
     val compressionCount: Int? = null,
+    val isCompressing: Boolean = false,
+    val compressionStatus: String? = null,
     /** Rolling output tokens/sec over the last ~10 calls. */
     val latestTps: Double? = null,
     /** Latest cumulative backend usage snapshot for the current session. */
@@ -3701,6 +3704,10 @@ class ChatViewModel(
                 handleUndoCommand(result.count)
             }
 
+            is SlashResult.Compress -> {
+                compressSession(result.focusTopic)
+            }
+
             is SlashResult.RpcDispatch -> {
                 dispatchViaRpc(command)
             }
@@ -4123,6 +4130,113 @@ class ChatViewModel(
                 addAssistantMessage(e.message ?: "Failed to undo.")
             }
         }
+    }
+
+    private fun compressSession(focusTopic: String) {
+        val sessionId = runtimeSessionId ?: _uiState.value.currentSessionId
+        if (sessionId == null) {
+            addAssistantMessage("No active session to compress.")
+            return
+        }
+        if (_uiState.value.isCompressing) {
+            return
+        }
+
+        _uiState.update {
+            it.copy(
+                isCompressing = true,
+                compressionStatus = "⏳ Compressing context...",
+            )
+        }
+
+        viewModelScope.launch(ioDispatcher) {
+            try {
+                val params =
+                    buildMap<String, Any> {
+                        put("session_id", sessionId)
+                        if (focusTopic.isNotBlank()) {
+                            put("focus_topic", focusTopic)
+                        }
+                    }
+                // Use extended timeout (e.g. 300_000L / 5 minutes) so LLM summarization doesn't timeout
+                val result =
+                    wsClient
+                        .request(
+                            WsMethods.SESSION_COMPRESS,
+                            params,
+                            timeoutMs = 300_000L,
+                        ).await()
+
+                handleCompressionResult(result)
+            } catch (e: HermesWsClient.HermesRpcException) {
+                addAssistantMessage("/compress: ${e.message ?: "compression failed"}")
+            } catch (e: Exception) {
+                addAssistantMessage("/compress: ${e.message ?: "compression failed"}")
+            } finally {
+                _uiState.update {
+                    it.copy(
+                        isCompressing = false,
+                        compressionStatus = null,
+                    )
+                }
+            }
+        }
+    }
+
+    private suspend fun handleCompressionResult(result: Any?) {
+        val response =
+            try {
+                val jsonElement = result.toJsonElement()
+                OkHttpProvider.json.decodeFromJsonElement<SessionCompressResponse>(jsonElement)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to decode session.compress response", e)
+                null
+            }
+
+        val sessionId = runtimeSessionId ?: _uiState.value.currentSessionId
+
+        // 1. Authoritative transcript replacement
+        if (response?.messages != null && sessionId != null) {
+            val replacementMessages =
+                withContext(historyDispatcher) {
+                    mapServerMessages(
+                        sessionId = sessionId,
+                        messages = response.messages,
+                        offset = 0,
+                        latestPaging = latestPaging,
+                        liveMessages = emptyList(),
+                        context = getApplication(),
+                    )
+                }
+            _uiState.update { it.copy(messages = replacementMessages) }
+            persistHistoryPage(replacementMessages, sessionId)
+        }
+
+        // 2. Display result summary via addAssistantMessage
+        val summary = response?.summary
+        val lines = mutableListOf<String>()
+        summary?.headline?.takeIf { it.isNotBlank() }?.let { lines.add(it) }
+        summary?.token_line?.takeIf { it.isNotBlank() }?.let { lines.add(it) }
+        summary?.note?.takeIf { it.isNotBlank() }?.let { lines.add(it) }
+
+        val feedback =
+            if (lines.isNotEmpty()) {
+                lines.joinToString("\n")
+            } else {
+                response?.message ?: "Context compressed."
+            }
+        addAssistantMessage(feedback)
+
+        // 3. Refresh usage & sessions
+        fetchContextUsage()
+        loadSessions()
+
+        // 4. Handle lineage/session info if provided
+        response?.info?.let { infoElement ->
+            val infoMap = (infoElement.toAny() as? Map<*, *>)?.filterKeys { it is String } as? Map<String, Any?>
+            handleSessionInfo(infoMap)
+        }
+        sessionHasServerPresence = true
     }
 
     private fun handlePrefillResult(

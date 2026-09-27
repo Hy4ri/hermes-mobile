@@ -94,8 +94,6 @@ class FullBleedChatListTest {
                         listState = listState,
                         scope = CoroutineScope(Dispatchers.Main.immediate),
                     ),
-                lastAnimatedMessageId = null,
-                onLastAnimatedMessageIdChange = {},
                 viewModel = mockk<ChatViewModel>(relaxed = true),
                 clarifyRequest =
                     if (clarify) {

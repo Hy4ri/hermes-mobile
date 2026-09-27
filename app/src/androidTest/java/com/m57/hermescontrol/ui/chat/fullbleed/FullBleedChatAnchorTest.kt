@@ -133,8 +133,6 @@ class FullBleedChatAnchorTest {
                     isLoadingOlder = loading.value,
                     listState = listState,
                     scrollController = controller,
-                    lastAnimatedMessageId = null,
-                    onLastAnimatedMessageIdChange = {},
                     viewModel = viewModel,
                     pagingSessionId = session.value,
                     clarifyRequest = if (tailKey != null) ClarifyUi("Choose an option", listOf("Yes")) else null,

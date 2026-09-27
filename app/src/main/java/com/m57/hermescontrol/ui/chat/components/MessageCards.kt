@@ -90,7 +90,6 @@ import com.m57.hermescontrol.theme.CodeTerminalMuted
 import com.m57.hermescontrol.theme.CodeTerminalText
 import com.m57.hermescontrol.ui.chat.ClarifyUi
 import com.m57.hermescontrol.ui.chat.MarkdownText
-import com.m57.hermescontrol.ui.chat.SubagentIndicator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -400,14 +399,6 @@ private data class TokenPattern(
     val color: Color,
 )
 
-private fun copyToClipboard(
-    context: Context,
-    text: String,
-) {
-    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
-    clipboard.setPrimaryClip(ClipData.newPlainText(null, text))
-}
-
 // ── ClarifyBubble ─────────────────────────────────────────────────────────
 
 /**
@@ -668,58 +659,6 @@ fun ClarifyBubble(
         onDismiss = onDismiss,
         modifier = modifier,
     )
-}
-
-// ── SubagentCard ──────────────────────────────────────────────────────────
-
-/**
- * Inline card showing subagent task progress.
- *
- * - While running: [CircularProgressIndicator] + goal text on [tertiaryContainer].
- * - On completion: ✅ checkmark + summary text.
- */
-@Composable
-fun SubagentCard(
-    indicator: SubagentIndicator,
-    modifier: Modifier = Modifier,
-) {
-    val isComplete = indicator.type == "subagent.complete"
-    Surface(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp).testTag("subagent_card"),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.tertiaryContainer,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (isComplete) {
-                Text(text = "✅", fontSize = 14.sp)
-            } else {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(16.dp),
-                    strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer,
-                )
-            }
-            Spacer(Modifier.width(8.dp))
-            val displayText =
-                if (isComplete && !indicator.summary.isNullOrBlank()) {
-                    indicator.summary
-                } else if (!indicator.goal.isNullOrBlank()) {
-                    indicator.goal
-                } else {
-                    "Subagent task"
-                }
-            Text(
-                text = displayText,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onTertiaryContainer,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
 }
 
 // ── TypingIndicator ───────────────────────────────────────────────────────

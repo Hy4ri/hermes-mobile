@@ -40,10 +40,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
  */
 data class ToolDisplayConfig(
     val name: String,
-    /** Key into the `args` dict for the one-line summary (e.g. "command" for terminal). */
-    val summaryArgKey: String? = null,
-    /** Prefix for the summary line (e.g. "$ " for terminal). Emoji-free. */
-    val summaryPrefix: String = "",
     /** Material icon for this tool type. */
     val icon: ImageVector = Icons.Filled.Build,
 )
@@ -55,285 +51,238 @@ object ToolSchemaRegistry {
             "terminal" to
                 ToolDisplayConfig(
                     name = "terminal",
-                    summaryArgKey = "command",
-                    summaryPrefix = "$ ",
                     icon = Icons.Filled.Terminal,
                 ),
             "read_file" to
                 ToolDisplayConfig(
                     name = "read_file",
-                    summaryArgKey = "path",
                     icon = Icons.Filled.Description,
                 ),
             "write_file" to
                 ToolDisplayConfig(
                     name = "write_file",
-                    summaryArgKey = "path",
                     icon = Icons.Filled.Edit,
                 ),
             "patch" to
                 ToolDisplayConfig(
                     name = "patch",
-                    summaryArgKey = "path",
                     icon = Icons.Filled.Build,
                 ),
             "search_files" to
                 ToolDisplayConfig(
                     name = "search_files",
-                    summaryArgKey = "pattern",
                     icon = Icons.Filled.Search,
                 ),
             "web_search" to
                 ToolDisplayConfig(
                     name = "web_search",
-                    summaryArgKey = "query",
                     icon = Icons.Filled.Public,
                 ),
             "browser_navigate" to
                 ToolDisplayConfig(
                     name = "browser_navigate",
-                    summaryArgKey = "url",
                     icon = Icons.Filled.Language,
                 ),
             "browser_click" to
                 ToolDisplayConfig(
                     name = "browser_click",
-                    summaryArgKey = "ref",
                     icon = Icons.Filled.TouchApp,
                 ),
             "browser_snapshot" to
                 ToolDisplayConfig(
                     name = "browser_snapshot",
-                    summaryArgKey = null,
                     icon = Icons.Filled.Photo,
                 ),
             "clarify" to
                 ToolDisplayConfig(
                     name = "clarify",
-                    summaryArgKey = "question",
                     icon = Icons.Filled.ChatBubble,
                 ),
             "delegate_task" to
                 ToolDisplayConfig(
                     name = "delegate_task",
-                    summaryArgKey = "goal",
                     icon = Icons.Filled.AccountTree,
                 ),
             "execute_code" to
                 ToolDisplayConfig(
                     name = "execute_code",
-                    summaryArgKey = "code",
                     icon = Icons.Filled.PlayArrow,
                 ),
             "todo" to
                 ToolDisplayConfig(
                     name = "todo",
-                    summaryArgKey = null,
                     icon = Icons.Filled.Checklist,
                 ),
             "todo_list" to
                 ToolDisplayConfig(
                     name = "todo_list",
-                    summaryArgKey = null,
                     icon = Icons.Filled.Checklist,
                 ),
             "fact_store" to
                 ToolDisplayConfig(
                     name = "fact_store",
-                    summaryArgKey = null,
                     icon = Icons.Filled.Psychology,
                 ),
             "session_search" to
                 ToolDisplayConfig(
                     name = "session_search",
-                    summaryArgKey = null,
                     icon = Icons.Filled.Search,
                 ),
             // ── Action-based tools ──
             "cronjob" to
                 ToolDisplayConfig(
                     name = "cronjob",
-                    summaryArgKey = "action",
                     icon = Icons.Filled.Schedule,
                 ),
             "cronjob_manage" to
                 ToolDisplayConfig(
                     name = "cronjob_manage",
-                    summaryArgKey = "action",
                     icon = Icons.Filled.Schedule,
                 ),
             "memory" to
                 ToolDisplayConfig(
                     name = "memory",
-                    summaryArgKey = "action",
                     icon = Icons.Filled.Memory,
                 ),
             "fact_feedback" to
                 ToolDisplayConfig(
                     name = "fact_feedback",
-                    summaryArgKey = "action",
                     icon = Icons.Filled.ThumbUp,
                 ),
             "process" to
                 ToolDisplayConfig(
                     name = "process",
-                    summaryArgKey = "action",
                     icon = Icons.Filled.Settings,
                 ),
             "process_manage" to
                 ToolDisplayConfig(
                     name = "process_manage",
-                    summaryArgKey = "action",
                     icon = Icons.Filled.Settings,
                 ),
             "skill_manage" to
                 ToolDisplayConfig(
                     name = "skill_manage",
-                    summaryArgKey = "action",
                     icon = Icons.Filled.Build,
                 ),
             // ── Web / Browser tools ──
             "web_extract" to
                 ToolDisplayConfig(
                     name = "web_extract",
-                    summaryArgKey = "urls",
                     icon = Icons.Filled.Language,
                 ),
             "browser_type" to
                 ToolDisplayConfig(
                     name = "browser_type",
-                    summaryArgKey = null,
                     icon = Icons.Filled.Keyboard,
                 ),
             "browser_scroll" to
                 ToolDisplayConfig(
                     name = "browser_scroll",
-                    summaryArgKey = "direction",
                     icon = Icons.Filled.TouchApp,
                 ),
             "browser_back" to
                 ToolDisplayConfig(
                     name = "browser_back",
-                    summaryArgKey = null,
                     icon = Icons.Filled.Language,
                 ),
             "browser_press" to
                 ToolDisplayConfig(
                     name = "browser_press",
-                    summaryArgKey = "key",
                     icon = Icons.Filled.Keyboard,
                 ),
             "browser_get_images" to
                 ToolDisplayConfig(
                     name = "browser_get_images",
-                    summaryArgKey = null,
                     icon = Icons.Filled.Image,
                 ),
             "browser_vision" to
                 ToolDisplayConfig(
                     name = "browser_vision",
-                    summaryArgKey = "question",
                     icon = Icons.Filled.Visibility,
                 ),
             "browser_console" to
                 ToolDisplayConfig(
                     name = "browser_console",
-                    summaryArgKey = null,
                     icon = Icons.Filled.Terminal,
                 ),
             "browser_cdp" to
                 ToolDisplayConfig(
                     name = "browser_cdp",
-                    summaryArgKey = "action",
                     icon = Icons.Filled.Build,
                 ),
             "browser_dialog" to
                 ToolDisplayConfig(
                     name = "browser_dialog",
-                    summaryArgKey = "action",
                     icon = Icons.Filled.ChatBubble,
                 ),
             // ── Media / Vision tools ──
             "vision_analyze" to
                 ToolDisplayConfig(
                     name = "vision_analyze",
-                    summaryArgKey = "image_url",
                     icon = Icons.Filled.Visibility,
                 ),
             "text_to_speech" to
                 ToolDisplayConfig(
                     name = "text_to_speech",
-                    summaryArgKey = null,
                     icon = Icons.AutoMirrored.Filled.VolumeUp,
                 ),
             "video_generate" to
                 ToolDisplayConfig(
                     name = "video_generate",
-                    summaryArgKey = null,
                     icon = Icons.Filled.Movie,
                 ),
             "image_generate" to
                 ToolDisplayConfig(
                     name = "image_generate",
-                    summaryArgKey = null,
                     icon = Icons.Filled.Image,
                 ),
             // ── Social / Messaging tools ──
             "x_search" to
                 ToolDisplayConfig(
                     name = "x_search",
-                    summaryArgKey = "query",
                     icon = Icons.Filled.Forum,
                 ),
             "send_message" to
                 ToolDisplayConfig(
                     name = "send_message",
-                    summaryArgKey = null,
                     icon = Icons.AutoMirrored.Filled.Send,
                 ),
             // ── Skills tools ──
             "skills_list" to
                 ToolDisplayConfig(
                     name = "skills_list",
-                    summaryArgKey = null,
                     icon = Icons.AutoMirrored.Filled.MenuBook,
                 ),
             "skill_view" to
                 ToolDisplayConfig(
                     name = "skill_view",
-                    summaryArgKey = "name",
                     icon = Icons.Filled.AutoStories,
                 ),
             // ── On-demand tools ──
             "tool_search" to
                 ToolDisplayConfig(
                     name = "tool_search",
-                    summaryArgKey = "query",
                     icon = Icons.Filled.Search,
                 ),
             "tool_describe" to
                 ToolDisplayConfig(
                     name = "tool_describe",
-                    summaryArgKey = "name",
                     icon = Icons.Filled.AutoStories,
                 ),
             "tool_call" to
                 ToolDisplayConfig(
                     name = "tool_call",
-                    summaryArgKey = "name",
                     icon = Icons.Filled.Build,
                 ),
             // ── Misc ──
             "read_terminal" to
                 ToolDisplayConfig(
                     name = "read_terminal",
-                    summaryArgKey = "session_id",
                     icon = Icons.Filled.Computer,
                 ),
             "computer_use" to
                 ToolDisplayConfig(
                     name = "computer_use",
-                    summaryArgKey = "action",
                     icon = Icons.Filled.Computer,
                 ),
         )

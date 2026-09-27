@@ -74,7 +74,6 @@ import com.m57.hermescontrol.ui.chat.markdown.splitInlineMath
 import com.m57.hermescontrol.util.BidiUtils
 
 private val URL_PATTERN = Regex("""https?://[^\s)>\[\]"'‘’]+""")
-private val TABLE_COL_WIDTH = 160.dp
 
 private fun bidiTextDirection(isRtl: Boolean): TextDirection = if (isRtl) TextDirection.Rtl else TextDirection.Ltr
 
@@ -359,13 +358,13 @@ fun MarkdownText(
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp),
                     ) {
-                        com.m57.hermescontrol.ui.chat.components.InlineVideoPlayer(
-                            videoUri = resolvedUri,
+                        com.m57.hermescontrol.ui.chat.components.InlineMediaPlayer(
+                            uri = resolvedUri,
                             onFullScreenClick = { showVideoDialog = true },
                         )
                         if (showVideoDialog) {
-                            com.m57.hermescontrol.ui.chat.components.VideoViewerDialog(
-                                videoUri = resolvedUri,
+                            com.m57.hermescontrol.ui.chat.components.MediaViewerDialog(
+                                mediaUri = resolvedUri,
                                 onDismissRequest = { showVideoDialog = false },
                             )
                         }

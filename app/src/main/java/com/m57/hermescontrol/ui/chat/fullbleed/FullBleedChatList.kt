@@ -85,8 +85,6 @@ fun FullBleedChatList(
     isLoadingOlder: Boolean,
     listState: androidx.compose.foundation.lazy.LazyListState,
     scrollController: ChatScrollController,
-    lastAnimatedMessageId: String?,
-    onLastAnimatedMessageIdChange: (String?) -> Unit,
     viewModel: ChatViewModel,
     clarifyRequest: ClarifyUi? = null,
     onRespondClarify: ((String) -> Unit)? = null,

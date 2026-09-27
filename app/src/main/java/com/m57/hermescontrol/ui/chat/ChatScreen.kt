@@ -375,7 +375,6 @@ fun ChatScreen(
             viewModel.consumeComposerTextRestore()
         }
     }
-    var lastAnimatedMessageId by rememberSaveable { mutableStateOf<String?>(null) }
     var showReloginDialog by rememberSaveable { mutableStateOf(false) }
     var showSubagentInspectionSheet by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(showSubagentInspectionSheet) {
@@ -783,8 +782,6 @@ fun ChatScreen(
                         },
                     listState = listState,
                     scrollController = scrollController,
-                    lastAnimatedMessageId = lastAnimatedMessageId,
-                    onLastAnimatedMessageIdChange = { lastAnimatedMessageId = it },
                     viewModel = viewModel,
                     clarifyRequest = state.clarifyRequest.takeUnless { timelineState.isHistorical },
                     onRespondClarify = viewModel::respondToClarify,

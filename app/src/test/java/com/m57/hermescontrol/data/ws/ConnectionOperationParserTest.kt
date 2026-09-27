@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.data.ws
 
+import com.m57.hermescontrol.data.model.CatalogScanStatus
 import com.m57.hermescontrol.data.model.ConnectionTargetAction
 import com.m57.hermescontrol.data.model.ConnectionTargetKind
 import com.m57.hermescontrol.data.model.ConnectionTargetState
@@ -58,6 +59,73 @@ class ConnectionOperationParserTest {
         assertEquals(ConnectionTargetKind.UNKNOWN, target.kind)
         assertEquals(ConnectionTargetAction.UNKNOWN, target.action)
         assertEquals(ConnectionTargetState.UNKNOWN, target.state)
+    }
+
+    @Test
+    fun pluginAndSkillTargets_parseKindAndCatalogFacts() {
+        val payload =
+            completePayload() +
+                (
+                    "targets" to
+                        listOf(
+                            mapOf(
+                                "name" to "linear",
+                                "kind" to "plugin",
+                                "action" to "install",
+                                "state" to "pending",
+                                "display" to " Linear ",
+                                "description" to "Linear issues.",
+                                "tier" to "official",
+                                "repo" to "NousResearch/hermes-plugins",
+                                "sha" to "0123456789abcdef0123456789abcdef01234567",
+                                "subdir" to "linear",
+                                "scan" to mapOf("status" to "warnings", "summary" to "1 advisory"),
+                                "requirements" to listOf("Hermes >=0.21", "LINEAR_API_KEY environment variable"),
+                                "platforms" to listOf("linux", ""),
+                                "target_profile" to "work",
+                                "required_env" to
+                                    listOf(mapOf("name" to "LINEAR_API_KEY", "required" to false, "secret" to true)),
+                            ),
+                            mapOf(
+                                "name" to "owner/skills/review",
+                                "kind" to "skill",
+                                "action" to "install",
+                                "state" to "connected",
+                                "skill" to "review",
+                                "scan" to mapOf("status" to "future-status"),
+                            ),
+                        )
+                )
+
+        val (plugin, skill) = ConnectionOperationParser.parse(payload, "runtime-session")!!.targets
+
+        assertEquals(ConnectionTargetKind.PLUGIN, plugin.kind)
+        val catalog = plugin.catalog!!
+        assertEquals("Linear", catalog.display)
+        assertEquals("official", catalog.tier)
+        assertEquals("NousResearch/hermes-plugins", catalog.repo)
+        assertEquals("0123456789abcdef0123456789abcdef01234567", catalog.sha)
+        assertEquals("linear", catalog.subdir)
+        assertEquals(CatalogScanStatus.WARNINGS, catalog.scan?.status)
+        assertEquals("1 advisory", catalog.scan?.summary)
+        assertEquals(2, catalog.requirements.size)
+        assertEquals(listOf("linux"), catalog.platforms)
+        assertEquals("work", catalog.targetProfile)
+        assertEquals(listOf("LINEAR_API_KEY"), plugin.requiredEnv.map { it.name })
+
+        assertEquals(ConnectionTargetKind.SKILL, skill.kind)
+        assertEquals("owner/skills/review", skill.catalog?.display)
+        assertEquals("default", skill.catalog?.targetProfile)
+        assertEquals("review", skill.catalog?.skill)
+        assertEquals(CatalogScanStatus.UNKNOWN, skill.catalog?.scan?.status)
+        assertNull(skill.catalog?.repo)
+    }
+
+    @Test
+    fun nonCatalogTargets_carryNoCatalogFacts() {
+        val targets = ConnectionOperationParser.parse(completePayload(), "runtime-session")!!.targets
+
+        assertTrue(targets.all { it.catalog == null })
     }
 
     @Test

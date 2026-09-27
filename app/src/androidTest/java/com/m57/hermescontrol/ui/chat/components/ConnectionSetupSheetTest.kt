@@ -1,5 +1,8 @@
 package com.m57.hermescontrol.ui.chat.components
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -11,6 +14,9 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
+import com.m57.hermescontrol.data.model.CatalogScanStatus
+import com.m57.hermescontrol.data.model.ConnectionCatalogInfo
+import com.m57.hermescontrol.data.model.ConnectionCatalogScan
 import com.m57.hermescontrol.data.model.ConnectionEnvField
 import com.m57.hermescontrol.data.model.ConnectionOperationSnapshot
 import com.m57.hermescontrol.data.model.ConnectionOperationTarget
@@ -211,6 +217,115 @@ class ConnectionSetupSheetTest {
         composeTestRule.onNodeWithTag("connection_setup_continue").assertIsDisplayed()
         composeTestRule.onNodeWithTag("connection_setup_skip").assertDoesNotExist()
     }
+
+    @Test
+    fun pluginTarget_showsSourcePinScanAndRequirements_andApprovesWithoutSecrets() {
+        var response: Triple<String, Map<String, String>, Boolean>? = null
+        composeTestRule.setContent {
+            ConnectionSetupContent(
+                state = state(pluginTarget()),
+                onRespond = { name, values, approved -> response = Triple(name, values, approved) },
+                onContinue = {},
+                onOpenBrowser = { _, _ -> },
+            )
+        }
+
+        composeTestRule.onNodeWithText("Install Linear").assertIsDisplayed()
+        composeTestRule
+            .onNodeWithTag(
+                "connection_catalog_source",
+            ).assertTextContains("NousResearch/hermes-plugins/linear", substring = true)
+        composeTestRule.onNodeWithTag("connection_catalog_pin").assertTextContains("0123456789ab", substring = true)
+        composeTestRule
+            .onNodeWithTag("connection_catalog_scan")
+            .assertTextContains("Security scan found warnings · 1 advisory")
+        composeTestRule
+            .onNodeWithTag(
+                "connection_catalog_requirements",
+            ).assertTextContains("Hermes >=0.21", substring = true)
+        composeTestRule.onNodeWithTag("connection_catalog_profile").assertTextContains("default", substring = true)
+        composeTestRule.onNodeWithText("This setup step is not supported by this app version.").assertDoesNotExist()
+
+        composeTestRule.onNodeWithTag("connection_setup_connect").assertTextContains("Install").performClick()
+
+        assertEquals("linear", response?.first)
+        assertEquals(mapOf("LINEAR_API_KEY" to ""), response?.second)
+        assertEquals(true, response?.third)
+    }
+
+    @Test
+    fun pluginTarget_installingAndFailedStates() {
+        var target = pluginTarget(state = ConnectionTargetState.INITIATED)
+        var current by mutableStateOf(state(target))
+        composeTestRule.setContent {
+            ConnectionSetupContent(
+                state = current,
+                onRespond = { _, _, _ -> },
+                onContinue = {},
+                onOpenBrowser = { _, _ -> },
+            )
+        }
+
+        composeTestRule.onNodeWithTag("connection_catalog_installing").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("connection_setup_connect").assertDoesNotExist()
+
+        target = pluginTarget(state = ConnectionTargetState.FAILED, detail = "blocked by the kill list")
+        current = state(target)
+        composeTestRule.onNodeWithText("blocked by the kill list").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("connection_setup_connect").assertTextContains("Try again")
+    }
+
+    @Test
+    fun installedSkill_reportsTheLoadableSkill() {
+        composeTestRule.setContent {
+            ConnectionSetupContent(
+                state =
+                    state(
+                        pluginTarget(state = ConnectionTargetState.CONNECTED).copy(
+                            kind = ConnectionTargetKind.SKILL,
+                            catalog = pluginCatalog().copy(display = "Review", skill = "review", scan = null),
+                        ),
+                    ),
+                onRespond = { _, _, _ -> },
+                onContinue = {},
+                onOpenBrowser = { _, _ -> },
+            )
+        }
+
+        composeTestRule.onNodeWithText("Skill available: review").assertIsDisplayed()
+        composeTestRule.onNodeWithText("No security scan reported").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("connection_setup_skip").assertDoesNotExist()
+    }
+
+    private fun pluginCatalog(): ConnectionCatalogInfo =
+        ConnectionCatalogInfo(
+            display = "Linear",
+            description = "Linear issues.",
+            tier = "official",
+            platforms = emptyList(),
+            repo = "NousResearch/hermes-plugins",
+            sha = "0123456789abcdef0123456789abcdef01234567",
+            subdir = "linear",
+            scan = ConnectionCatalogScan(CatalogScanStatus.WARNINGS, "1 advisory"),
+            requirements = listOf("Hermes >=0.21"),
+            targetProfile = "default",
+            skill = null,
+        )
+
+    private fun pluginTarget(
+        state: ConnectionTargetState = ConnectionTargetState.PENDING,
+        detail: String? = null,
+    ): ConnectionOperationTarget =
+        target(
+            name = "linear",
+            state = state,
+            requiredEnv = listOf(env("LINEAR_API_KEY", required = false, secret = true)),
+        ).copy(
+            kind = ConnectionTargetKind.PLUGIN,
+            action = ConnectionTargetAction.INSTALL,
+            detail = detail,
+            catalog = pluginCatalog(),
+        )
 
     private fun state(target: ConnectionOperationTarget): ConnectionOperationUiState =
         ConnectionOperationUiState(operation = operation(target))

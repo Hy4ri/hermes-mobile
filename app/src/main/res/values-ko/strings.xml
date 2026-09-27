@@ -1213,6 +1213,24 @@
     <string name="connection_setup_required">%1$s은(는) 필수입니다</string>
     <string name="connection_setup_request_failed">설정 응답을 보낼 수 없습니다. 다시 시도하세요.</string>
     <string name="connection_setup_pending">Hermes를 기다리는 중…</string>
+    <string name="connection_catalog_title">%1$s 설치</string>
+    <string name="connection_catalog_kind_plugin">플러그인</string>
+    <string name="connection_catalog_kind_skill">스킬</string>
+    <string name="connection_catalog_tier_official">공식</string>
+    <string name="connection_catalog_tier_community">커뮤니티</string>
+    <string name="connection_catalog_source">소스: %1$s</string>
+    <string name="connection_catalog_pin">고정 커밋: %1$s</string>
+    <string name="connection_catalog_platforms">플랫폼: %1$s</string>
+    <string name="connection_catalog_requirements">요구 사항: %1$s</string>
+    <string name="connection_catalog_target_profile">설치 대상 프로필: %1$s</string>
+    <string name="connection_catalog_scan_passed">보안 검사 통과</string>
+    <string name="connection_catalog_scan_warnings">보안 검사에서 경고 발견</string>
+    <string name="connection_catalog_scan_failed">보안 검사 실패</string>
+    <string name="connection_catalog_scan_unreported">보고된 보안 검사 없음</string>
+    <string name="connection_catalog_install">설치</string>
+    <string name="connection_catalog_retry">다시 시도</string>
+    <string name="connection_catalog_installing">설치 중…</string>
+    <string name="connection_catalog_skill_ready">사용 가능한 스킬: %1$s</string>
 
     <!-- Kanban task detail -->
     <string name="kanban_specify_task">작업 지정</string>

@@ -102,8 +102,14 @@ internal fun ConnectionSetupContent(
                 .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
+        val catalog = target.catalog
         Text(
-            text = stringResource(R.string.connection_setup_target_title, target.name),
+            text =
+                if (catalog != null) {
+                    stringResource(R.string.connection_catalog_title, catalog.display)
+                } else {
+                    stringResource(R.string.connection_setup_target_title, target.name)
+                },
             style = MaterialTheme.typography.titleLarge,
             modifier = Modifier.testTag("connection_setup_title"),
         )
@@ -120,6 +126,7 @@ internal fun ConnectionSetupContent(
         target.instructions?.takeIf { it.isNotBlank() }?.let { instructions ->
             Text(instructions, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        catalog?.let { ConnectionCatalogDetails(kind = target.kind, catalog = it) }
 
         when {
             target.state == ConnectionTargetState.CONNECTED && !target.discoveryError.isNullOrBlank() -> {
@@ -138,6 +145,12 @@ internal fun ConnectionSetupContent(
                 if (target.tools.isNotEmpty()) {
                     Text(
                         text = stringResource(R.string.connection_setup_tools_available, target.tools.size),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                catalog?.skill?.let { skill ->
+                    Text(
+                        text = stringResource(R.string.connection_catalog_skill_ready, skill),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -164,6 +177,21 @@ internal fun ConnectionSetupContent(
                             .testTag("connection_setup_open_browser"),
                 ) {
                     Text(stringResource(R.string.connection_setup_open_browser))
+                }
+            }
+
+            catalog != null && target.state == ConnectionTargetState.INITIATED -> {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.testTag("connection_catalog_installing"),
+                ) {
+                    CircularProgressIndicator()
+                    Text(
+                        text =
+                            target.detail?.takeIf { it.isNotBlank() }
+                                ?: stringResource(R.string.connection_catalog_installing),
+                    )
                 }
             }
 
@@ -220,7 +248,15 @@ internal fun ConnectionSetupContent(
                             .fillMaxWidth()
                             .testTag("connection_setup_connect"),
                 ) {
-                    Text(stringResource(R.string.connection_setup_connect))
+                    Text(
+                        stringResource(
+                            when {
+                                catalog == null -> R.string.connection_setup_connect
+                                target.state == ConnectionTargetState.FAILED -> R.string.connection_catalog_retry
+                                else -> R.string.connection_catalog_install
+                            },
+                        ),
+                    )
                 }
             }
         }

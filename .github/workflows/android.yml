@@ -97,11 +97,8 @@ jobs:
       - name: Add local bin to PATH
         run: echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Run ktlintCheck
-        run: ./gradlew ktlintCheck
-
-      - name: Run checkColorLiterals (hardcoded Color guard, issue #622)
-        run: ./gradlew checkColorLiterals
+      - name: Run ktlintCheck + checkColorLiterals (hardcoded Color guard, issue #622)
+        run: ./gradlew ktlintCheck checkColorLiterals --continue
 
       - name: Upload ktlint reports
         if: always()
@@ -185,6 +182,25 @@ jobs:
       - name: Run test
         run: ./gradlew test
 
+      # Telemetry only, never a gate: surfaces the slowest classes so perf work
+      # targets real offenders.
+      - name: Slowest unit-test classes
+        if: always()
+        run: |
+          python3 - <<'EOF' >> "$GITHUB_STEP_SUMMARY"
+          import glob, xml.etree.ElementTree as ET
+          rows = []
+          for path in glob.glob("app/build/test-results/testDebugUnitTest/*.xml"):
+              root = ET.parse(path).getroot()
+              rows.append((float(root.get("time", 0)), int(root.get("tests", 0)), root.get("name", path)))
+          rows.sort(reverse=True)
+          print("### Slowest unit-test classes\n")
+          print(f"{len(rows)} classes, {sum(r[0] for r in rows):.0f}s summed across forks\n")
+          print("| Time | Tests | Class |\n|---:|---:|---|")
+          for secs, count, name in rows[:20]:
+              print(f"| {secs:.1f}s | {count} | `{name.rsplit('.', 1)[-1]}` |")
+          EOF
+
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v7
@@ -194,11 +210,11 @@ jobs:
           retention-days: 7
 
   # ─────────────────────────────────────────────────────────────────────
-  # Job 4: Build Debug APK — depends on all three above passing.
+  # Job 4: Build Debug APK — runs in parallel; CI Summary gates the result.
   # ─────────────────────────────────────────────────────────────────────
   build:
     name: Build Debug APK
-    needs: [changes, ktlint, android-lint, unit-tests]
+    needs: [changes]
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -241,7 +257,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   release-compile:
     name: Release Compile Check
-    needs: [changes, ktlint, android-lint, unit-tests]
+    needs: [changes]
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -339,7 +355,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   ci-summary:
     name: CI Summary
-    needs: [changes, ktlint, android-lint, unit-tests, build, release-compile]
+    needs: [changes, ktlint, android-lint, unit-tests, build, release-compile, instrumented-tests]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     if: always()
@@ -355,11 +371,12 @@ jobs:
           TEST_RESULT: ${{ needs.unit-tests.result }}
           BUILD_RESULT: ${{ needs.build.result }}
           RELEASE_COMPILE_RESULT: ${{ needs.release-compile.result }}
+          INSTRUMENTED_RESULT: ${{ needs.instrumented-tests.result }}
         run: |
           LABEL="ci-red"
           FAILED=0
           FAILED_JOBS=""
-          for entry in "ktlint:$KTLINT_RESULT" "android-lint:$LINT_RESULT" "unit-tests:$TEST_RESULT" "build:$BUILD_RESULT" "release-compile:$RELEASE_COMPILE_RESULT"; do
+          for entry in "ktlint:$KTLINT_RESULT" "android-lint:$LINT_RESULT" "unit-tests:$TEST_RESULT" "build:$BUILD_RESULT" "release-compile:$RELEASE_COMPILE_RESULT" "instrumented-tests:$INSTRUMENTED_RESULT"; do
             name="${entry%%:*}"
             result="${entry#*:}"
             echo "::notice::$name = $result"

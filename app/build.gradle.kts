@@ -309,6 +309,13 @@ tasks.named("check") {
     dependsOn("checkColorLiterals")
 }
 
-tasks.withType<Test> {
+val includeBenchmarks = providers.gradleProperty("includeBenchmarks").isPresent
+
+tasks.withType<Test>().configureEach {
     useJUnitPlatform()
+    maxParallelForks = 2
+    // Assertion-free timing probes are opt-in: ./gradlew testDebugUnitTest -PincludeBenchmarks
+    if (!includeBenchmarks) {
+        filter { excludeTestsMatching("*Benchmark") }
+    }
 }

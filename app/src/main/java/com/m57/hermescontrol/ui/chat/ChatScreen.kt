@@ -106,6 +106,7 @@ import com.m57.hermescontrol.ui.chat.components.ChatTimelineSheet
 import com.m57.hermescontrol.ui.chat.components.ConnectionSetupSheet
 import com.m57.hermescontrol.ui.chat.components.ContextDetailSheet
 import com.m57.hermescontrol.ui.chat.components.ContextUsageChip
+import com.m57.hermescontrol.ui.chat.components.MediaViewerDialog
 import com.m57.hermescontrol.ui.chat.components.ReactionHeartsOverlay
 import com.m57.hermescontrol.ui.chat.components.ReloginDialog
 import com.m57.hermescontrol.ui.chat.components.ReplyErrorCard
@@ -1066,9 +1067,11 @@ fun ChatScreen(
         }
 
         viewingImage?.let { image ->
-            ImageViewerDialog(
-                image = image,
-                onDismiss = { viewingImage = null },
+            MediaViewerDialog(
+                mediaUri = image.model,
+                onDismissRequest = { viewingImage = null },
+                title = image.name.ifBlank { null },
+                mimeType = image.mimeType,
             )
         }
 

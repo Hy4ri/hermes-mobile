@@ -251,7 +251,15 @@ class ChatReadNotificationTest {
                 SessionMessage(id = 10, role = "assistant", content = JsonPrimitive("Done")),
                 SessionMessage(id = 52, role = "assistant", content = JsonPrimitive("Done")),
             )
-        val messages = mapServerMessages(sessionId, history, 0, true, emptyList(), context = context)
+        val messages =
+            mapServerMessages(
+                sessionId,
+                history,
+                0,
+                true,
+                emptyList(),
+                activeReplyTarget = ReplyNotificationTracker.getActiveTarget(context),
+            )
         assertEquals("Older duplicate must stay unmapped", null, messages[0].completionId)
         assertEquals("Exact row must receive the completion id", "comp-exact-row", messages[1].completionId)
 

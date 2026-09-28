@@ -21,6 +21,7 @@ import com.m57.hermescontrol.data.model.parseContextBreakdown
 import com.m57.hermescontrol.data.model.parseUsageSnapshot
 import com.m57.hermescontrol.data.model.reasoningSupport
 import com.m57.hermescontrol.data.remote.ApiClient
+import com.m57.hermescontrol.data.remote.GatewayFileClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.safeApiCall
@@ -38,6 +39,7 @@ import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.data.ws.toAny
 import com.m57.hermescontrol.data.ws.toJsonElement
+import com.m57.hermescontrol.notification.ReplyNotificationTracker
 import com.m57.hermescontrol.notification.captureTurnBoundary
 import com.m57.hermescontrol.notification.correlationScopeId
 import com.m57.hermescontrol.ui.chat.fullbleed.TranscriptUiState
@@ -2249,6 +2251,10 @@ class ChatViewModel(
 
     // ── Send message ─────────────────────────────────────────────────────
 
+    /** Authenticated gateway URL for a host `MEDIA:` path; kept out of the pure mapper (#1337). */
+    private fun gatewayMediaUrl(path: String): String? =
+        GatewayFileClient.buildMediaUrl(AuthManager.getBaseUrl(), AuthManager.getToken().orEmpty(), path)
+
     private fun sendScope(): String =
         listOf(
             AuthManager.getBaseUrl(),
@@ -4242,7 +4248,8 @@ class ChatViewModel(
                         offset = 0,
                         latestPaging = latestPaging,
                         liveMessages = emptyList(),
-                        context = getApplication(),
+                        activeReplyTarget = ReplyNotificationTracker.getActiveTarget(getApplication()),
+                        mediaUrl = ::gatewayMediaUrl,
                     )
                 }
             _uiState.update { it.copy(messages = replacementMessages) }
@@ -4736,7 +4743,8 @@ class ChatViewModel(
                                         liveMessages = _uiState.value.messages,
                                         isPagingOlder = true,
                                         stableRowIds = true,
-                                        context = getApplication(),
+                                        activeReplyTarget = ReplyNotificationTracker.getActiveTarget(getApplication()),
+                                        mediaUrl = ::gatewayMediaUrl,
                                     )
                                 }
                             if (!valid()) return@launch
@@ -5046,7 +5054,8 @@ class ChatViewModel(
                                         serverOffset,
                                         useLatest,
                                         current,
-                                        context = getApplication(),
+                                        activeReplyTarget = ReplyNotificationTracker.getActiveTarget(getApplication()),
+                                        mediaUrl = ::gatewayMediaUrl,
                                     )
                                 } ?: return@launch
                             persistHistoryPage(page, sessionId)
@@ -5503,7 +5512,8 @@ class ChatViewModel(
                                         useLatest,
                                         current,
                                         isPagingOlder = true,
-                                        context = getApplication(),
+                                        activeReplyTarget = ReplyNotificationTracker.getActiveTarget(getApplication()),
+                                        mediaUrl = ::gatewayMediaUrl,
                                     )
                                 } ?: return@launch
                             persistHistoryPage(page, sessionId)
@@ -5584,7 +5594,8 @@ class ChatViewModel(
                                     current,
                                     // Sync fetches recent replies, so confirm live completion identities.
                                     isPagingOlder = false,
-                                    context = getApplication(),
+                                    activeReplyTarget = ReplyNotificationTracker.getActiveTarget(getApplication()),
+                                    mediaUrl = ::gatewayMediaUrl,
                                 )
                             } ?: return@launch
                         persistHistoryPage(page, sessionId)

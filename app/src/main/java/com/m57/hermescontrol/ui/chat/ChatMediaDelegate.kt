@@ -60,6 +60,7 @@ class ChatMediaDelegate(
                     size = 0,
                     gatewayUrl = url,
                     source = AttachmentSource.GATEWAY,
+                    contentOffset = item.offset,
                 )
             }
         if (newAttachments.isEmpty()) return

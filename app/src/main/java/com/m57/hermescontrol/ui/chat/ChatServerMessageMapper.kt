@@ -247,6 +247,7 @@ internal fun mapServerMessages(
                                 size = 0,
                                 gatewayUrl = url,
                                 source = AttachmentSource.GATEWAY,
+                                contentOffset = item.offset,
                             )
                         }.takeIf { it.isNotEmpty() }
             }

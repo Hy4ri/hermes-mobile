@@ -1042,13 +1042,7 @@ class ChatViewModel(
             is WsEvent.MessageDone,
             is WsEvent.ToolStart,
             -> {
-                streamingController.flushPendingReasoning()
-                // Issue #842: the token buffer can hold deltas that landed
-                // <33ms before the transition. The reducer seals the
-                // streaming message into the orphan at tool.start — flush
-                // first so the seal carries the COMPLETE narration (a
-                // truncated seal fails the later REST dedupe and ghosts).
-                streamingController.flushPendingTokens()
+                streamingController.flushPendingTransition()
             }
 
             else -> {}

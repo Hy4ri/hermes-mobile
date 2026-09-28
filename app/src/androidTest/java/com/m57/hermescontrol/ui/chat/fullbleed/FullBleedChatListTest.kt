@@ -25,6 +25,7 @@ import com.m57.hermescontrol.ui.chat.ChatSearchState
 import com.m57.hermescontrol.ui.chat.ChatTimelineState
 import com.m57.hermescontrol.ui.chat.ChatUiState
 import com.m57.hermescontrol.ui.chat.MessageRole
+import com.m57.hermescontrol.ui.chat.SearchTarget
 import com.m57.hermescontrol.ui.chat.StreamingState
 import com.m57.hermescontrol.ui.chat.ToolStatus
 import com.m57.hermescontrol.ui.chat.components.ChatScrollController
@@ -78,6 +79,7 @@ class FullBleedChatListTest {
         showUserMessageTokens: Boolean = true,
         showAssistantMessageTokens: Boolean = true,
         showTokensPerSecond: Boolean = true,
+        searchState: ChatSearchState = ChatSearchState(),
         onController: (ChatScrollController) -> Unit = {},
     ) {
         composeTestRule.setContent {
@@ -119,7 +121,7 @@ class FullBleedChatListTest {
                         speakingMessageId = null,
                     ),
                 actions = testTranscriptActions(),
-                searchState = ChatSearchState(),
+                searchState = searchState,
                 listState = listState,
                 scrollController = scrollController,
             )
@@ -137,6 +139,30 @@ class FullBleedChatListTest {
         composeTestRule.waitForIdle()
         composeTestRule.onRoot().performTouchInput { swipeDown() }
         composeTestRule.runOnIdle { assertFalse(scrollController.isFollowingBottom) }
+    }
+
+    @Test
+    fun searchNavigatesToToolRowBeyondInitialViewport() {
+        val search =
+            ChatSearchState().apply {
+                isActive = true
+                query = "terminal"
+                matchIndices = listOf(30)
+                matchOffsets = listOf(0)
+                matchTargets = listOf(SearchTarget.TOOL)
+                currentIndex = 0
+                matchedIds = setOf("tool")
+                currentMatchId = "tool"
+            }
+        render(
+            messages =
+                List(30) { index -> msg("user-$index", MessageRole.USER) } +
+                    ChatMessage("tool", MessageRole.TOOL, "opaque", toolName = "terminal"),
+            searchState = search,
+        )
+
+        composeTestRule.onNodeWithTag("fullbleed_tool_row").assertIsDisplayed()
+        composeTestRule.onNodeWithText("terminal").assertIsDisplayed()
     }
 
     @Test

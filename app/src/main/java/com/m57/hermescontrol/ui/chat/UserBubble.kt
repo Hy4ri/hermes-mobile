@@ -49,19 +49,14 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDirection
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.theme.DarkOnSurface
-import com.m57.hermescontrol.theme.HermesStatusColors
 import com.m57.hermescontrol.theme.LightOnSurface
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
-import com.m57.hermescontrol.theme.onColorFor
 import com.m57.hermescontrol.ui.chat.components.rememberCopyFeedback
 import com.m57.hermescontrol.util.BidiUtils
 import kotlinx.coroutines.launch
@@ -251,44 +246,6 @@ fun UserBubble(
                         }
                     }
                 }
-            }
-        }
-    }
-}
-
-/**
- * Build an AnnotatedString with search matches highlighted.
- */
-private fun buildHighlightedString(
-    text: String,
-    query: String,
-    isCurrentMatch: Boolean = false,
-    statusColors: HermesStatusColors,
-): AnnotatedString {
-    val (highlightColor, highlightText) =
-        if (isCurrentMatch) {
-            statusColors.warning to statusColors.onWarning
-        } else {
-            statusColors.warningContainer to onColorFor(statusColors.warningContainer)
-        }
-    return buildAnnotatedString {
-        var i = 0
-        while (i < text.length) {
-            val matchEnd = text.indexOf(query, i, ignoreCase = true)
-            if (matchEnd == -1) {
-                // No more matches — append the rest
-                append(text.substring(i))
-                i = text.length
-            } else {
-                // Append text before the match
-                if (matchEnd > i) {
-                    append(text.substring(i, matchEnd))
-                }
-                // Append the match highlighted
-                withStyle(SpanStyle(background = highlightColor, color = highlightText)) {
-                    append(text.substring(matchEnd, matchEnd + query.length))
-                }
-                i = matchEnd + query.length
             }
         }
     }

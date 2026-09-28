@@ -3,6 +3,7 @@ package com.m57.hermescontrol.ui.chat
 import com.m57.hermescontrol.ui.chat.fullbleed.fullBleedItemKeys
 import com.m57.hermescontrol.ui.chat.fullbleed.groupIntoTurns
 import com.m57.hermescontrol.ui.chat.fullbleed.messageIdToLazyIndex
+import com.m57.hermescontrol.ui.chat.fullbleed.searchMatchToLazyIndex
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -22,6 +23,21 @@ class FullBleedItemKeysTest {
         assertEquals(listOf("user-u", "reasoning-a", "tool-t", "prose-a", "sys-s"), fullBleedItemKeys(turns))
         assertEquals(mapOf("u" to 0, "a" to 3), messageIdToLazyIndex(turns))
         assertEquals(mapOf("u" to 2, "a" to 5), messageIdToLazyIndex(turns, leadingItems = 2))
+    }
+
+    @Test
+    fun searchTargetsResolveHoistedReasoningAndToolRows() {
+        val messages =
+            listOf(
+                ChatMessage("u", MessageRole.USER, "question"),
+                ChatMessage("t", MessageRole.TOOL, "output", toolName = "terminal"),
+                ChatMessage("a", MessageRole.ASSISTANT, "answer", reasoningText = "thinking"),
+            )
+        val turns = groupIntoTurns(messages)
+
+        assertEquals(1, searchMatchToLazyIndex(turns, messages, SearchMatch(2, 0, SearchTarget.REASONING)))
+        assertEquals(2, searchMatchToLazyIndex(turns, messages, SearchMatch(1, 0, SearchTarget.TOOL)))
+        assertEquals(3, searchMatchToLazyIndex(turns, messages, SearchMatch(2, 0)))
     }
 
     @Test

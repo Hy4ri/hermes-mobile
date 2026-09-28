@@ -2,6 +2,8 @@ package com.m57.hermescontrol.ui.chat.fullbleed
 
 import com.m57.hermescontrol.ui.chat.ChatMessage
 import com.m57.hermescontrol.ui.chat.MessageRole
+import com.m57.hermescontrol.ui.chat.SearchMatch
+import com.m57.hermescontrol.ui.chat.SearchTarget
 
 /**
  * Turn model for the full-bleed chat renderer (issue #866).
@@ -52,7 +54,7 @@ internal fun ChatMessage.hasVisibleAgentContent(): Boolean = content.isNotBlank(
 private const val MAX_ITERATIONS_SYSTEM_MARKER =
     "You've reached the maximum number of tool-calling iterations allowed."
 
-private fun ChatMessage.isSyntheticSystemRow(): Boolean =
+internal fun ChatMessage.isSyntheticSystemRow(): Boolean =
     role == MessageRole.USER &&
         displayKind == null &&
         content.startsWith(MAX_ITERATIONS_SYSTEM_MARKER)
@@ -185,6 +187,21 @@ fun messageIdToLazyIndex(
                 null
             }
         }.toMap()
+
+fun searchMatchToLazyIndex(
+    turns: List<ChatTurn>,
+    messages: List<ChatMessage>,
+    match: SearchMatch,
+): Int? {
+    val message = messages.getOrNull(match.messageIndex) ?: return null
+    val prefix =
+        when (match.target) {
+            SearchTarget.CONTENT -> if (message.role == MessageRole.USER) "user" else "prose"
+            SearchTarget.REASONING -> "reasoning"
+            SearchTarget.TOOL -> "tool"
+        }
+    return fullBleedItemKeys(turns).indexOf("$prefix-${message.id}").takeIf { it >= 0 }
+}
 
 /** Lazy row identities, including hoisted reasoning and grouped tool/system entries. */
 internal fun fullBleedItemKeys(turns: List<ChatTurn>): List<String> =

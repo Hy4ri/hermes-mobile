@@ -38,6 +38,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,7 +55,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.chat.MarkdownText
+import com.m57.hermescontrol.ui.chat.buildHighlightedString
 
 /**
  * Collapsible card showing the assistant's reasoning trace
@@ -73,13 +76,25 @@ fun ReasoningCard(
     reasoningText: String,
     isStreaming: Boolean = false,
     modifier: Modifier = Modifier,
+    searchQuery: String = "",
+    isCurrentMatch: Boolean = false,
+    searchOffset: Int = 0,
 ) {
     val context = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
+    LaunchedEffect(isCurrentMatch, searchQuery) {
+        if (isCurrentMatch && searchQuery.isNotBlank()) expanded = true
+    }
     var fullHeight by remember { mutableStateOf(false) }
     // Copy feedback: briefly show "Copied" then revert
     var copied by rememberCopyFeedback()
     val scrollState = rememberScrollState()
+    LaunchedEffect(expanded, isCurrentMatch, searchQuery, searchOffset, scrollState.maxValue) {
+        if (expanded && isCurrentMatch && searchQuery.isNotBlank() && scrollState.maxValue > 0) {
+            val fraction = searchOffset.toFloat() / reasoningText.length.coerceAtLeast(1)
+            scrollState.scrollTo((scrollState.maxValue * fraction).toInt())
+        }
+    }
     val stepCount = remember(reasoningText) { reasoningText.count { it == '\n' } + 1 }
     val capHeight = with(LocalConfiguration.current) { (screenHeightDp * 0.4f).dp }
 
@@ -150,8 +165,9 @@ fun ReasoningCard(
                                 },
                             )
                     if (isStreaming) {
+                        val statusColors = LocalHermesStatusColors.current
                         Text(
-                            text = reasoningText,
+                            text = buildHighlightedString(reasoningText, searchQuery, isCurrentMatch, statusColors),
                             style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = contentModifier,
@@ -160,6 +176,8 @@ fun ReasoningCard(
                         MarkdownText(
                             text = reasoningText,
                             textColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            searchQuery = searchQuery,
+                            isCurrentMatch = isCurrentMatch,
                             modifier = contentModifier,
                         )
                     }

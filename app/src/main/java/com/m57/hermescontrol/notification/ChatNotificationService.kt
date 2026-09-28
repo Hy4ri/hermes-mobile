@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
 import com.m57.hermescontrol.MainActivity
@@ -18,6 +19,7 @@ import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsEvent
+import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.ui.chat.replyFailureFromPayload
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -37,6 +39,37 @@ internal data class MessageCompleteNotificationPlan(
     val correlationText: String?,
     val allowInlineReply: Boolean,
 )
+
+internal data class CompletedSessionRef(
+    val storedId: String,
+    val title: String?,
+)
+
+private const val TAG = "ChatNotificationService"
+
+/**
+ * Map a WS event's runtime session id to the STORED session row the app can
+ * open. The gateway emits `message.complete` with its ephemeral transport id
+ * (`uuid4().hex[:8]`), while History/`switchSession` use the persisted
+ * `session_key` — a runtime id taps into a blank chat. `session.active_list`
+ * lists every live session (idle included) with both ids plus the title.
+ */
+internal fun parseActiveSessionLookup(
+    raw: Any?,
+    runtimeId: String,
+): CompletedSessionRef? {
+    if (runtimeId.isBlank()) return null
+    val sessions = (raw as? Map<*, *>)?.get("sessions") as? List<*> ?: return null
+    for (item in sessions) {
+        val row = item as? Map<*, *> ?: continue
+        if (row["id"] != runtimeId) continue
+        val storedId = (row["session_key"] as? String)?.trim().orEmpty()
+        if (storedId.isBlank()) return null
+        val title = (row["title"] as? String)?.trim()?.takeIf { it.isNotEmpty() }
+        return CompletedSessionRef(storedId, title)
+    }
+    return null
+}
 
 internal fun messageCompleteNotificationPlan(
     event: WsEvent.MessageComplete,
@@ -204,14 +237,32 @@ class ChatNotificationService : Service() {
                                                 // A delayed completion must not retire a newer turn/start.
                                                 BackgroundConnectionController.default.onReplyCompleted(generation)
                                             } else {
-                                                // Another session finished. Plain notification —
-                                                // no inline reply, no reply-tracker registration —
-                                                // and the service must keep listening for the next
-                                                // completion (the opt-in demand holds it).
-                                                showSessionCompleteNotification(
-                                                    sessionId = targetSessionId,
-                                                    text = event.text,
-                                                )
+                                                // Another session finished. Resolve its runtime
+                                                // id to the STORED session row (the gateway's
+                                                // transport id means nothing to History/chat);
+                                                // without the stored id the tap would open a
+                                                // blank chat, so skip instead. The notification
+                                                // is plain — no inline reply, no reply-tracker
+                                                // registration — and the service keeps listening
+                                                // for the next completion (the opt-in demand
+                                                // holds it).
+                                                val ref =
+                                                    runCatching {
+                                                        parseActiveSessionLookup(
+                                                            HermesWsClient
+                                                                .request(WsMethods.SESSION_ACTIVE_LIST)
+                                                                .await(),
+                                                            event.sessionId.orEmpty(),
+                                                        )
+                                                    }.getOrNull()
+                                                if (ref != null) {
+                                                    showSessionCompleteNotification(ref, event.text)
+                                                } else {
+                                                    Log.w(
+                                                        TAG,
+                                                        "Session-complete notification skipped: no stored id for runtime ${event.sessionId}",
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -391,16 +442,15 @@ class ChatNotificationService : Service() {
 
     /**
      * A completion from a session the phone did not submit (cron, another
-     * client). Fires only when "notify on session completion" is on. Plain
-     * alert: tap opens that session, auto-cancel. Uses a per-session id —
-     * never the reply slot — so it cannot clobber a live reply notification
-     * or tombstone the reply-tracker target.
+     * client). Fires only when "notify on session completion" is on, with the
+     * session's STORED id (tap opens the real transcript) and its title when
+     * the gateway reported one. Plain alert, auto-cancel; per-session id so it
+     * can never clobber a live reply notification or tombstone the tracker.
      */
     private fun showSessionCompleteNotification(
-        sessionId: String?,
+        ref: CompletedSessionRef,
         text: String,
     ) {
-        if (sessionId.isNullOrBlank()) return
         val snippet =
             text
                 .take(100)
@@ -411,16 +461,16 @@ class ChatNotificationService : Service() {
             NotificationCompat
                 .Builder(this, CHAT_CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notification)
-                .setContentTitle(getString(R.string.notif_title))
+                .setContentTitle(ref.title ?: getString(R.string.notif_title))
                 .setContentText(body)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(body))
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
                 .setAutoCancel(true)
-                .setContentIntent(buildContentIntent(sessionId))
+                .setContentIntent(buildContentIntent(ref.storedId))
                 .build()
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
-        manager.notify(sessionCompleteNotificationId(sessionId), notification)
+        manager.notify(sessionCompleteNotificationId(ref.storedId), notification)
     }
 
     /** Distinct stable id per session, clear of the service/reply slots. */

@@ -22,10 +22,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -43,13 +40,13 @@ import com.m57.hermescontrol.ui.chat.InlineAttachment
 import com.m57.hermescontrol.ui.chat.MarkdownText
 import com.m57.hermescontrol.ui.chat.TokenEstimator
 import com.m57.hermescontrol.ui.chat.components.ReasoningCard
-import kotlinx.coroutines.delay
+import com.m57.hermescontrol.ui.chat.components.rememberCopyFeedback
 import kotlinx.coroutines.launch
 
 /**
  * Full-bleed renderer for ONE agent (assistant) message (issue #866).
  *
- * Unlike [com.m57.hermescontrol.ui.chat.ChatBubble], agent prose renders
+ * Unlike [com.m57.hermescontrol.ui.chat.UserBubble], agent prose renders
  * directly on the background — no bubble container, no width cap — with a
  * trailing copy affordance. User messages keep their bubbles; this composable
  * is only used for ASSISTANT messages.
@@ -77,15 +74,8 @@ internal fun FullBleedAgentMessage(
     val textColor = MaterialTheme.colorScheme.onSurface
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
-    var copied by remember { mutableStateOf(false) }
-
     // Copy feedback: briefly show ✓ then revert
-    LaunchedEffect(copied) {
-        if (copied) {
-            delay(1500)
-            copied = false
-        }
-    }
+    var copied by rememberCopyFeedback()
 
     Column(
         modifier =

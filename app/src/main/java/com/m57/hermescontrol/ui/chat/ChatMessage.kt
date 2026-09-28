@@ -117,7 +117,7 @@ data class ChatMessage(
 
 /** Cached REST rows already carry their canonical identity in the persisted primary key. */
 internal val ChatMessage.canonicalRestId: String?
-    get() = restId ?: id.takeIf { it.startsWith("rest-") }
+    get() = restId ?: id.takeIf(RestMessageId::isRest)
 
 /** A persisted RUNNING snapshot is not evidence of current tool activity. */
 internal val ChatMessage.isToolRunning: Boolean

@@ -51,9 +51,9 @@ internal fun mapServerMessages(
 
     fun restIdAt(index: Int): String =
         if (stableRowIds) {
-            "rest-$sessionId-${requireNotNull(messages[index].id) { "Latest transcript row has no stable id" }}"
+            RestMessageId.of(sessionId, requireNotNull(messages[index].id) { "Latest transcript row has no stable id" })
         } else {
-            "rest-$sessionId-${offset + index}"
+            RestMessageId.of(sessionId, offset + index)
         }
 
     val wsCompletionIdByRestIndex = mutableMapOf<Int, String>()
@@ -278,7 +278,7 @@ internal fun mapServerMessages(
     }
 
     // REST echoes must not reserve a match before the richer WS copy of that tool.
-    val liveTools = liveMessages.filter { it.role == MessageRole.TOOL && !it.id.startsWith("rest-") }
+    val liveTools = liveMessages.filter { it.role == MessageRole.TOOL && !RestMessageId.isRest(it.id) }
     val mappedTools = mapped.filter { it.role == MessageRole.TOOL }
     val matches = matchTranscriptMessages(mappedTools, liveTools)
     val toolsById = mappedTools.indices.associate { index -> mappedTools[index].id to matches[index] }

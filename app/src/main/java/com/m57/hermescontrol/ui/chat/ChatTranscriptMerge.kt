@@ -174,12 +174,12 @@ internal class TranscriptComparison(
         // Rows generated only by Mobile never have a canonical REST counterpart.
         // Do not let coincidentally identical server text claim their identity.
         if (a.role == MessageRole.ASSISTANT &&
-            (a.displayKind == "local_feedback" || b.displayKind == "local_feedback")
+            (a.displayKind == DisplayKind.LOCAL_FEEDBACK || b.displayKind == DisplayKind.LOCAL_FEEDBACK)
         ) {
             return false
         }
         if (a.role == MessageRole.USER &&
-            (a.displayKind == "clarify_response" || b.displayKind == "clarify_response")
+            (a.displayKind == DisplayKind.CLARIFY_RESPONSE || b.displayKind == DisplayKind.CLARIFY_RESPONSE)
         ) {
             return false
         }
@@ -323,8 +323,8 @@ internal fun dedupeCachedMessages(
     confirmedOnly: Boolean = false,
 ): List<ChatMessage> {
     val unique = messages.dedupeById()
-    val rest = unique.filter { it.id.startsWith("rest-") }
-    val live = unique.filterNot { it.id.startsWith("rest-") }
+    val rest = unique.filter { RestMessageId.isRest(it.id) }
+    val live = unique.filterNot { RestMessageId.isRest(it.id) }
     if (rest.isEmpty() || live.isEmpty()) return unique
     val matches =
         matchTranscriptMessages(rest, live).mapIndexed { index, match ->
@@ -405,7 +405,7 @@ internal fun mergeCachedTranscriptPage(
                             )
                         }
 
-                        match.id.startsWith("rest-") && !message.id.startsWith("rest-") -> {
+                        RestMessageId.isRest(match.id) && !RestMessageId.isRest(message.id) -> {
                             message
                         }
 
@@ -463,7 +463,7 @@ internal fun mergeTranscriptWithLive(
                     )
                 }
 
-                preserveLiveIds && match != null && !match.id.startsWith("rest-") -> {
+                preserveLiveIds && match != null && !RestMessageId.isRest(match.id) -> {
                     val mergedContent =
                         if (match.role == MessageRole.ASSISTANT &&
                             ChatVerifierFooter.split(match.content) != null &&
@@ -586,8 +586,8 @@ private fun List<ChatMessage>.inTranscriptOrder(
 
 internal fun ChatMessage.isPermanentlyLocal(): Boolean =
     role == MessageRole.SYSTEM ||
-        (role == MessageRole.USER && (content.startsWith("/") || displayKind == "clarify_response")) ||
-        (role == MessageRole.ASSISTANT && displayKind == "local_feedback")
+        (role == MessageRole.USER && (content.startsWith("/") || displayKind == DisplayKind.CLARIFY_RESPONSE)) ||
+        (role == MessageRole.ASSISTANT && displayKind == DisplayKind.LOCAL_FEEDBACK)
 
 internal fun ChatMessage.isSessionStartMarker(): Boolean =
     role == MessageRole.SYSTEM && (content == "Session created" || content == "Session branched")
@@ -635,6 +635,6 @@ internal fun mergeIncrementalTranscriptPage(
 internal fun serverMessageIndex(
     id: String,
     sessionId: String,
-): Int? = id.removePrefix("rest-$sessionId-").takeIf { it != id }?.toIntOrNull()
+): Int? = id.removePrefix(RestMessageId.sessionPrefix(sessionId)).takeIf { it != id }?.toIntOrNull()
 
 internal fun List<ChatMessage>.dedupeById(): List<ChatMessage> = associateBy { it.id }.values.toList()

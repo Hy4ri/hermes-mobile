@@ -35,6 +35,39 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.Attachment
 
 /**
+ * Renders a message's attachments, shared by user bubbles and agent messages.
+ * Emits directly into the caller's Column (no wrapper) so spacing is unchanged:
+ * 6dp before the list, 4dp after each item. Renders nothing when empty.
+ */
+@Composable
+internal fun InlineAttachmentList(
+    attachments: List<Attachment>?,
+    textColor: Color,
+    onOpen: (Attachment) -> Unit,
+    onSave: (Attachment) -> Unit,
+    savingPath: String?,
+    openingPath: String?,
+    canSave: Boolean,
+    onImageClick: (ImageViewerModel) -> Unit,
+) {
+    if (attachments.isNullOrEmpty()) return
+    Spacer(modifier = Modifier.height(6.dp))
+    attachments.forEach { attachment ->
+        InlineAttachment(
+            attachment = attachment,
+            textColor = textColor,
+            onOpen = onOpen,
+            onSave = onSave,
+            savingPath = savingPath,
+            openingPath = openingPath,
+            canSave = canSave,
+            onImageClick = onImageClick,
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+    }
+}
+
+/**
  * Renders an attachment inline inside a chat bubble.
  * Images are displayed as thumbnails; other files show a compact card.
  */

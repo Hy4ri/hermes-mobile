@@ -36,7 +36,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.ui.chat.ChatMessage
 import com.m57.hermescontrol.ui.chat.ImageViewerModel
-import com.m57.hermescontrol.ui.chat.InlineAttachment
+import com.m57.hermescontrol.ui.chat.InlineAttachmentList
 import com.m57.hermescontrol.ui.chat.MarkdownText
 import com.m57.hermescontrol.ui.chat.TokenEstimator
 import com.m57.hermescontrol.ui.chat.components.ReasoningCard
@@ -109,24 +109,18 @@ internal fun FullBleedAgentMessage(
             }
         }
 
-        // Render inline attachments (mirrors ChatBubble so agent-delivered
+        // Inline attachments (shared with UserBubble so agent-delivered
         // media — images, files — shows in full-bleed mode too).
-        if (!message.attachments.isNullOrEmpty()) {
-            Spacer(modifier = Modifier.height(6.dp))
-            message.attachments.forEach { attachment ->
-                InlineAttachment(
-                    attachment = attachment,
-                    textColor = textColor,
-                    onOpen = { onOpenAttachment(it) },
-                    onSave = { onSaveAttachment(it) },
-                    savingPath = savingAttachmentPath,
-                    openingPath = openingAttachmentPath,
-                    canSave = canSaveAttachment,
-                    onImageClick = onImageClick,
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-            }
-        }
+        InlineAttachmentList(
+            attachments = message.attachments,
+            textColor = textColor,
+            onOpen = onOpenAttachment,
+            onSave = onSaveAttachment,
+            savingPath = savingAttachmentPath,
+            openingPath = openingAttachmentPath,
+            canSave = canSaveAttachment,
+            onImageClick = onImageClick,
+        )
 
         if (!message.isStreaming && message.content.isNotBlank()) {
             val showTokenStat =

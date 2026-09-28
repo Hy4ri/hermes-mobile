@@ -177,22 +177,16 @@ fun UserBubble(
                                 )
                             }
                             // Render inline attachments
-                            if (!message.attachments.isNullOrEmpty()) {
-                                Spacer(modifier = Modifier.height(6.dp))
-                                message.attachments.forEach { attachment ->
-                                    InlineAttachment(
-                                        attachment = attachment,
-                                        textColor = userBubbleTextColor,
-                                        onOpen = { onOpenAttachment(it) },
-                                        onSave = { onSaveAttachment(it) },
-                                        savingPath = savingAttachmentPath,
-                                        openingPath = openingAttachmentPath,
-                                        canSave = canSaveAttachment,
-                                        onImageClick = onImageClick,
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                }
-                            }
+                            InlineAttachmentList(
+                                attachments = message.attachments,
+                                textColor = userBubbleTextColor,
+                                onOpen = onOpenAttachment,
+                                onSave = onSaveAttachment,
+                                savingPath = savingAttachmentPath,
+                                openingPath = openingAttachmentPath,
+                                canSave = canSaveAttachment,
+                                onImageClick = onImageClick,
+                            )
                             if (!message.isStreaming) {
                                 FlowRow(
                                     modifier =

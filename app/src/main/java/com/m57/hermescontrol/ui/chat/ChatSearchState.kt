@@ -34,6 +34,10 @@ class ChatSearchState {
     var matchOffsets by mutableStateOf(emptyList<Int>())
         internal set
 
+    /** Parallel to [matchIndices]: rendered surface for each occurrence. */
+    var matchTargets by mutableStateOf(emptyList<SearchTarget>())
+        internal set
+
     var currentIndex by mutableStateOf(-1)
         internal set
 

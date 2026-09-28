@@ -61,4 +61,21 @@ class MarkdownHeadingRenderingTest {
         composeTestRule.onNodeWithText("val quoted = 1", substring = true).assertIsDisplayed()
         composeTestRule.onNodeWithText("val listed = 2", substring = true).assertIsDisplayed()
     }
+
+    @Test
+    fun streamingMarkdownRendersBlocksBeforeCompletion() {
+        composeTestRule.setContent {
+            MaterialTheme {
+                MarkdownText(
+                    text = "## Live heading\n\n**ready**\n\n```kotlin\nval x = 1\n```",
+                    textColor = MaterialTheme.colorScheme.onSurface,
+                    isStreaming = true,
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithText("Live heading").assertIsDisplayed()
+        composeTestRule.onNodeWithText("ready").assertIsDisplayed()
+        composeTestRule.onAllNodesWithTag("code_block").assertCountEquals(1)
+    }
 }

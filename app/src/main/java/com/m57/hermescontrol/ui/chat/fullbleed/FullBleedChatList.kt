@@ -35,6 +35,7 @@ import com.m57.hermescontrol.theme.LocalChatFontScale
 import com.m57.hermescontrol.ui.chat.ChatMessage
 import com.m57.hermescontrol.ui.chat.ChatSearchState
 import com.m57.hermescontrol.ui.chat.ImageViewerModel
+import com.m57.hermescontrol.ui.chat.SearchTarget
 import com.m57.hermescontrol.ui.chat.ToolCallDivider
 import com.m57.hermescontrol.ui.chat.UserBubble
 import com.m57.hermescontrol.ui.chat.components.ChatHistoryPrefetch
@@ -260,32 +261,13 @@ fun FullBleedChatList(
             }
         }
 
-        // Scroll the current search match into view, word-focused. Lives here
-        // (not in ChatLifecycleEffects) because only this composable knows
-        // the message-id → lazy-item-index mapping. Reads search fields in
-        // the effect (not the body), so only this effect restarts on change.
-        LaunchedEffect(
-            searchState.isActive,
-            searchState.currentIndex,
-            searchState.matchIndices,
-            searchState.matchOffsets,
-            renderedMessages.firstOrNull()?.id,
-        ) {
-            if (searchState.isActive &&
-                searchState.currentIndex >= 0 &&
-                searchState.currentIndex < searchState.matchIndices.size
-            ) {
-                val messageIndex = searchState.matchIndices[searchState.currentIndex]
-                if (messageIndex < 0 || messageIndex >= messages.size) return@LaunchedEffect
-                // Search indices refer to incoming messages; resolve by id into the
-                // rendered rows. A hit in a staged prefix is retried when it becomes visible.
-                val lazyIndexById = messageIdToLazyIndex(turns)
-                val lazyIndex = lazyIndexById[messages[messageIndex].id] ?: return@LaunchedEffect
-                val contentOffset = searchState.matchOffsets.getOrElse(searchState.currentIndex) { 0 }
-                val contentLength = messages[messageIndex].content.length
-                scrollController.scrollToSearchMatch(lazyIndex, contentOffset, contentLength)
-            }
-        }
+        ChatSearchScrollEffect(
+            searchState = searchState,
+            messages = messages,
+            renderedFirstId = renderedMessages.firstOrNull()?.id,
+            turns = turns,
+            scrollController = scrollController,
+        )
 
         val currentDensity = LocalDensity.current
         val chatFontScale = LocalChatFontScale.current
@@ -352,6 +334,22 @@ fun FullBleedChatList(
                                             ReasoningCard(
                                                 reasoningText = reasoning.reasoningText,
                                                 isStreaming = reasoning.isStreaming,
+                                                searchQuery =
+                                                    if (reasoning.id in
+                                                        searchState.matchedIds
+                                                    ) {
+                                                        searchState.query
+                                                    } else {
+                                                        ""
+                                                    },
+                                                isCurrentMatch =
+                                                    searchState.currentMatchId == reasoning.id &&
+                                                        searchState.matchTargets.getOrNull(searchState.currentIndex) ==
+                                                        SearchTarget.REASONING,
+                                                searchOffset =
+                                                    searchState.matchOffsets.getOrElse(
+                                                        searchState.currentIndex,
+                                                    ) { 0 },
                                             )
                                         }
                                     }
@@ -373,6 +371,22 @@ fun FullBleedChatList(
                                                     ReasoningCard(
                                                         reasoningText = proseMessage.reasoningText,
                                                         isStreaming = proseMessage.isStreaming,
+                                                        searchQuery =
+                                                            if (proseMessage.id in searchState.matchedIds) {
+                                                                searchState.query
+                                                            } else {
+                                                                ""
+                                                            },
+                                                        isCurrentMatch =
+                                                            searchState.currentMatchId == proseMessage.id &&
+                                                                searchState.matchTargets.getOrNull(
+                                                                    searchState.currentIndex,
+                                                                ) ==
+                                                                SearchTarget.REASONING,
+                                                        searchOffset =
+                                                            searchState.matchOffsets.getOrElse(
+                                                                searchState.currentIndex,
+                                                            ) { 0 },
                                                     )
                                                 }
                                             }
@@ -407,8 +421,11 @@ fun FullBleedChatList(
                                                                         ""
                                                                     },
                                                                 isCurrentMatch =
-                                                                    searchState.currentMatchId != null &&
-                                                                        searchState.currentMatchId == proseMessage.id,
+                                                                    searchState.currentMatchId == proseMessage.id &&
+                                                                        searchState.matchTargets.getOrNull(
+                                                                            searchState.currentIndex,
+                                                                        ) ==
+                                                                        SearchTarget.CONTENT,
                                                                 showReasoning = !hoistedReasoning,
                                                                 onOpenAttachment = actions.onOpenAttachment,
                                                                 onSaveAttachment = actions.onSaveAttachment,
@@ -436,7 +453,21 @@ fun FullBleedChatList(
                                                 contentType = FullBleedContentType.TOOL,
                                             ) {
                                                 Column(modifier = Modifier.padding(bottom = 6.dp)) {
-                                                    FullBleedToolRow(toolMessage)
+                                                    FullBleedToolRow(
+                                                        message = toolMessage,
+                                                        searchQuery =
+                                                            if (toolMessage.id in searchState.matchedIds) {
+                                                                searchState.query
+                                                            } else {
+                                                                ""
+                                                            },
+                                                        isCurrentMatch =
+                                                            searchState.currentMatchId == toolMessage.id &&
+                                                                searchState.matchTargets.getOrNull(
+                                                                    searchState.currentIndex,
+                                                                ) ==
+                                                                SearchTarget.TOOL,
+                                                    )
                                                     milestone?.let { count ->
                                                         ToolCallDivider(count = count, maxPerTurn = maxToolCallsPerTurn)
                                                     }

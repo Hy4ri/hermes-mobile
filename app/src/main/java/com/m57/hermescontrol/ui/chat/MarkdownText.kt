@@ -78,9 +78,9 @@ private val URL_PATTERN = Regex("""https?://[^\s)>\[\]"'‘’]+""")
 private fun bidiTextDirection(isRtl: Boolean): TextDirection = if (isRtl) TextDirection.Rtl else TextDirection.Ltr
 
 /**
- * Renders chat assistant text as Markdown — but ONLY once the message has finished streaming.
- * While [isStreaming] is true we show the raw text to avoid flicker / re-parse churn, then swap
- * to the formatted view on completion (and for all historical/restored messages).
+ * Renders chat assistant text as Markdown, including while it streams. The
+ * upstream token buffer coalesces deltas; parsing is memoized for identical text
+ * so completion does not swap a plain-text row for a differently sized block tree.
  *
  * Supports: fenced ```code``` blocks (horizontal scroll + copy), inline `code`, **bold**, *italic*,
  * ***bold italic***, ~~strike~~, ==highlight==, ^sup^ / ~sub~, <kbd>keys</kbd>, headings,
@@ -99,25 +99,8 @@ fun MarkdownText(
 ) {
     val statusColors = LocalHermesStatusColors.current
     val highlights = searchHighlightColors(statusColors)
-    if (isStreaming) {
-        val isRtl = remember(text) { BidiUtils.isRtlText(text) }
-        val streamingDirection = if (isRtl) LayoutDirection.Rtl else LocalLayoutDirection.current
-        CompositionLocalProvider(LocalLayoutDirection provides streamingDirection) {
-            Text(
-                text = if (isRtl) BidiUtils.anchorTrailingRtl(text) else text,
-                color = textColor,
-                style =
-                    MaterialTheme.typography.bodyMedium.copy(
-                        textDirection = bidiTextDirection(isRtl),
-                    ),
-                modifier = modifier,
-            )
-        }
-        return
-    }
-
     val linkColor = MaterialTheme.colorScheme.primary
-    val blocks = remember(text) { parseBlocks(text) }
+    val blocks = remember(text, isStreaming) { parseBlocks(text) }
     val latexMeasurer = rememberLatexMeasurer()
 
     Column(modifier = modifier.fillMaxWidth()) {

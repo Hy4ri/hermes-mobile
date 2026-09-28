@@ -32,7 +32,6 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.LocalChatFontScale
-import com.m57.hermescontrol.ui.chat.ChatBubble
 import com.m57.hermescontrol.ui.chat.ChatMessage
 import com.m57.hermescontrol.ui.chat.ChatSearchState
 import com.m57.hermescontrol.ui.chat.ChatViewModel
@@ -40,6 +39,7 @@ import com.m57.hermescontrol.ui.chat.ClarifyUi
 import com.m57.hermescontrol.ui.chat.ImageViewerModel
 import com.m57.hermescontrol.ui.chat.StreamingState
 import com.m57.hermescontrol.ui.chat.ToolCallDivider
+import com.m57.hermescontrol.ui.chat.UserBubble
 import com.m57.hermescontrol.ui.chat.VaultCodePromptUi
 import com.m57.hermescontrol.ui.chat.VaultSaveLoginPromptUi
 import com.m57.hermescontrol.ui.chat.VaultUnlockPromptUi
@@ -332,7 +332,7 @@ fun FullBleedChatList(
                                     contentType = FullBleedContentType.USER,
                                 ) {
                                     Column(modifier = Modifier.padding(bottom = 12.dp)) {
-                                        renderChatBubble(
+                                        renderUserBubble(
                                             message = userMessage,
                                             searchQuery = if (searchState.isActive) searchState.query else "",
                                             isCurrentMatch =
@@ -512,7 +512,7 @@ fun FullBleedChatList(
 }
 
 @Composable
-private fun renderChatBubble(
+private fun renderUserBubble(
     message: ChatMessage,
     searchQuery: String,
     isCurrentMatch: Boolean,
@@ -524,7 +524,7 @@ private fun renderChatBubble(
     messageStatsEnabled: Boolean,
     showUserMessageTokens: Boolean,
 ) {
-    ChatBubble(
+    UserBubble(
         message = message,
         searchQuery = searchQuery,
         isCurrentMatch = isCurrentMatch,

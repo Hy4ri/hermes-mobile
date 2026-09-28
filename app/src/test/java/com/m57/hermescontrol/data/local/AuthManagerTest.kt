@@ -35,6 +35,7 @@ class AuthManagerTest {
     @Before
     fun setUp() {
         mockPrefs = mockk(relaxed = true)
+        every { mockPrefs.getString("server_custom_headers", null) } returns null
         mockEditor = mockk(relaxed = true)
         mockContext = mockk(relaxed = true)
 

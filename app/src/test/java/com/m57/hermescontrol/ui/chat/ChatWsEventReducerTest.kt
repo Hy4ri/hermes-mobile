@@ -1478,4 +1478,131 @@ class ChatWsEventReducerTest {
         assertTrue(result.state.messages.none { it.id != "orphan" })
         assertTrue(!result.streamingState.turnUsageBaselineCaptured)
     }
+
+    @Test
+    fun testStatusUpdate_compressingState() {
+        val initialMessage = ChatMessage(role = MessageRole.USER, content = "hello")
+        val state =
+            ChatUiState(
+                currentSessionId = "session-1",
+                messages = listOf(initialMessage),
+                isCompressing = false,
+                compressionStatus = null,
+            )
+        val event =
+            WsEvent.StatusUpdate(
+                status = null,
+                data =
+                    mapOf(
+                        "kind" to "compressing",
+                        "text" to "⏳ Compressing context...",
+                    ),
+            )
+
+        val result =
+            ChatWsEventReducer.reduce(
+                state = state,
+                streamingState = StreamingState(),
+                event = event,
+                currentSessionId = "session-1",
+            )
+
+        assertTrue(result.state.isCompressing)
+        assertEquals("⏳ Compressing context...", result.state.compressionStatus)
+        assertEquals(listOf(initialMessage), result.state.messages)
+    }
+
+    @Test
+    fun testStatusUpdate_compactingState() {
+        val state =
+            ChatUiState(
+                currentSessionId = "session-1",
+                isCompressing = false,
+                compressionStatus = null,
+            )
+        val event =
+            WsEvent.StatusUpdate(
+                status = null,
+                data =
+                    mapOf(
+                        "kind" to "compacting",
+                        "text" to "🗜️ Compacting...",
+                    ),
+            )
+
+        val result =
+            ChatWsEventReducer.reduce(
+                state = state,
+                streamingState = StreamingState(),
+                event = event,
+                currentSessionId = "session-1",
+            )
+
+        assertTrue(result.state.isCompressing)
+        assertEquals("🗜️ Compacting...", result.state.compressionStatus)
+    }
+
+    @Test
+    fun testStatusUpdate_compactedState() {
+        val state =
+            ChatUiState(
+                currentSessionId = "session-1",
+                isCompressing = true,
+                compressionStatus = "🗜️ Compacting...",
+            )
+        val event =
+            WsEvent.StatusUpdate(
+                status = null,
+                data =
+                    mapOf(
+                        "kind" to "compacted",
+                        "text" to "Finished",
+                    ),
+            )
+
+        val result =
+            ChatWsEventReducer.reduce(
+                state = state,
+                streamingState = StreamingState(),
+                event = event,
+                currentSessionId = "session-1",
+            )
+
+        assertFalse(result.state.isCompressing)
+        // Accepts either "Finished" or null if cleared
+        assertTrue(result.state.compressionStatus == "Finished" || result.state.compressionStatus == null)
+    }
+
+    @Test
+    fun testStatusUpdate_unrelatedKindIgnored() {
+        val initialMessages = listOf(ChatMessage(role = MessageRole.USER, content = "test"))
+        val state =
+            ChatUiState(
+                currentSessionId = "session-1",
+                messages = initialMessages,
+                isCompressing = false,
+                compressionStatus = "idle",
+            )
+        val event =
+            WsEvent.StatusUpdate(
+                status = null,
+                data =
+                    mapOf(
+                        "kind" to "other",
+                        "text" to "Something else",
+                    ),
+            )
+
+        val result =
+            ChatWsEventReducer.reduce(
+                state = state,
+                streamingState = StreamingState(),
+                event = event,
+                currentSessionId = "session-1",
+            )
+
+        assertFalse(result.state.isCompressing)
+        assertEquals("idle", result.state.compressionStatus)
+        assertEquals(initialMessages, result.state.messages)
+    }
 }

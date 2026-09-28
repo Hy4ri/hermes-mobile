@@ -5,6 +5,8 @@ import com.m57.hermescontrol.data.model.PluginCatalogCapabilities
 import com.m57.hermescontrol.data.model.PluginCatalogEntry
 import com.m57.hermescontrol.data.model.PluginCatalogResponse
 import com.m57.hermescontrol.data.model.PluginInfo
+import com.m57.hermescontrol.data.model.PluginUpdateRequest
+import com.m57.hermescontrol.data.model.PluginUpdateResult
 import com.m57.hermescontrol.data.model.PluginsHubResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.HermesApiService
@@ -70,6 +72,107 @@ class PluginsViewModelTest {
     fun tearDown() {
         Dispatchers.resetMain()
         unmockkAll()
+    }
+
+    @Test
+    fun `update waits for consent and only accepts on explicit confirmation`() {
+        coEvery { mockApi.updatePlugin("snyk", PluginUpdateRequest(false)) } returns
+            Response.success(PluginUpdateResult(consentRequired = true, deltaLines = listOf("tools: scan")))
+        coEvery { mockApi.updatePlugin("snyk", PluginUpdateRequest(true)) } returns
+            Response.success(PluginUpdateResult(ok = true))
+        coEvery { mockApi.getPlugins() } returns Response.success(PluginsHubResponse(emptyList()))
+        val viewModel = PluginsViewModel()
+        viewModel.updatePlugin("snyk")
+        viewModel.updatePlugin("snyk")
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(
+            listOf("tools: scan"),
+            viewModel.uiState.value.updateConsent
+                ?.result
+                ?.capabilityDelta,
+        )
+        assertNull(viewModel.uiState.value.toastMessage)
+        assertNull(viewModel.uiState.value.rowBusy)
+        coVerify(exactly = 0) { mockApi.updatePlugin(any(), PluginUpdateRequest(true)) }
+        coVerify(exactly = 0) { mockApi.getPlugins() }
+        viewModel.confirmPluginUpdate()
+        viewModel.confirmPluginUpdate()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertNull(viewModel.uiState.value.updateConsent)
+        assertEquals("Plugin updated successfully", viewModel.uiState.value.toastMessage)
+        coVerify(exactly = 1) { mockApi.updatePlugin("snyk", PluginUpdateRequest(false)) }
+        coVerify(exactly = 1) { mockApi.updatePlugin("snyk", PluginUpdateRequest(true)) }
+        coVerify(exactly = 1) { mockApi.getPlugins() }
+    }
+
+    @Test
+    fun `cancel consent never retries the update`() {
+        coEvery { mockApi.updatePlugin(any(), any()) } returns
+            Response.success(PluginUpdateResult(consentRequired = true))
+        val viewModel = PluginsViewModel()
+        viewModel.updatePlugin("snyk")
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.cancelPluginUpdate()
+        viewModel.confirmPluginUpdate()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertNull(viewModel.uiState.value.updateConsent)
+        assertNull(viewModel.uiState.value.toastMessage)
+        coVerify(exactly = 1) { mockApi.updatePlugin(any(), any()) }
+    }
+
+    @Test
+    fun `ok false is a failure even with HTTP 200 and unchanged true`() {
+        coEvery { mockApi.updatePlugin(any(), any()) } returns
+            Response.success(PluginUpdateResult(unchanged = true, error = "Update refused"))
+        val viewModel = PluginsViewModel()
+        viewModel.updatePlugin("snyk")
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals("Failed to update plugin: Update refused", viewModel.uiState.value.toastMessage)
+        assertNull(viewModel.uiState.value.rowBusy)
+        coVerify(exactly = 0) { mockApi.getPlugins() }
+    }
+
+    @Test
+    fun `unchanged success reports already up to date`() {
+        coEvery { mockApi.updatePlugin(any(), any()) } returns
+            Response.success(PluginUpdateResult(ok = true, unchanged = true))
+        coEvery { mockApi.getPlugins() } returns Response.success(PluginsHubResponse(emptyList()))
+        val viewModel = PluginsViewModel()
+        viewModel.updatePlugin("snyk")
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals("Plugin is already up to date", viewModel.uiState.value.toastMessage)
+        assertNull(viewModel.uiState.value.rowBusy)
+    }
+
+    @Test
+    fun `scope switch discards late update consent`() {
+        val reply = CompletableDeferred<Response<PluginUpdateResult>>()
+        coEvery { mockApi.updatePlugin(any(), any()) } coAnswers { reply.await() }
+        val viewModel = PluginsViewModel()
+        viewModel.updatePlugin("snyk")
+        testDispatcher.scheduler.runCurrent()
+        viewModel.clearScopeOwnedState()
+        reply.complete(Response.success(PluginUpdateResult(consentRequired = true)))
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.confirmPluginUpdate()
+        assertNull(viewModel.uiState.value.updateConsent)
+        assertNull(viewModel.uiState.value.rowBusy)
+        assertNull(viewModel.uiState.value.toastMessage)
+        coVerify(exactly = 1) { mockApi.updatePlugin(any(), any()) }
+    }
+
+    @Test
+    fun `HTTP update failure releases busy state`() {
+        coEvery { mockApi.updatePlugin(any(), any()) } returns Response.error(503, "offline".toResponseBody())
+        val viewModel = PluginsViewModel()
+        viewModel.updatePlugin("snyk")
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue(
+            viewModel.uiState.value.toastMessage!!
+                .contains("Failed to update"),
+        )
+        assertNull(viewModel.uiState.value.rowBusy)
+        coVerify(exactly = 0) { mockApi.getPlugins() }
     }
 
     @Test

@@ -761,12 +761,12 @@ class ChatViewModelTest {
                 id
             }
 
-            // /fork with an optional branch title.
+            // /fork with an optional branch title sends session.branch_whole.
             viewModel.sendMessage("/fork my-fork")
             advanceUntilIdle()
 
-            val branchSent = captured.firstOrNull { it.first == WsMethods.SESSION_BRANCH }
-            assertNotNull("session.branch should be dispatched for /fork", branchSent)
+            val branchSent = captured.firstOrNull { it.first == WsMethods.SESSION_BRANCH_WHOLE }
+            assertNotNull("session.branch_whole should be dispatched for /fork", branchSent)
             assertEquals(sessionId, branchSent!!.second["session_id"])
             assertEquals("my-fork", branchSent.second["name"])
         }
@@ -811,10 +811,145 @@ class ChatViewModelTest {
             viewModel.sendMessage("/fork")
             advanceUntilIdle()
 
-            val branchSent = captured.firstOrNull { it.first == WsMethods.SESSION_BRANCH }
-            assertNotNull("session.branch should be dispatched for /fork", branchSent)
+            val branchSent = captured.firstOrNull { it.first == WsMethods.SESSION_BRANCH_WHOLE }
+            assertNotNull("session.branch_whole should be dispatched for /fork", branchSent)
             assertEquals(sessionId, branchSent!!.second["session_id"])
             assertFalse("name param should be omitted when no title given", branchSent.second.containsKey("name"))
+        }
+
+    @Test
+    fun testSlashCommand_fork_branchWholeSuccess_handledLikeSessionBranch() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            val captured = mutableListOf<Pair<String, Map<String, Any>>>()
+            every { HermesWsClient.send(any(), any(), any()) } answers {
+                val id = "req-${captured.size + 1}"
+                captured.add(arg<String>(0) to (arg<Map<String, Any>>(1)))
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            viewModel.sendMessage("/fork")
+            advanceUntilIdle()
+
+            val branchWholeSent = captured.firstOrNull { it.first == WsMethods.SESSION_BRANCH_WHOLE }
+            assertNotNull("session.branch_whole dispatched", branchWholeSent)
+
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    "req-1",
+                    mapOf(
+                        "session_id" to "runtime-branch-whole",
+                        "stored_session_id" to "stored-branch-whole",
+                        "title" to "Whole Branch",
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals("runtime-branch-whole", ActiveSessionHolder.activeSessionId.value)
+            assertEquals("stored-branch-whole", viewModel.uiState.value.currentSessionId)
+            assertTrue(
+                "System message 'Session branched' should be added",
+                viewModel.uiState.value.messages
+                    .any { it.content.contains("Session branched") },
+            )
+            // No fallback was sent
+            assertEquals(0, captured.count { it.first == WsMethods.SESSION_BRANCH })
+            assertEquals(1, captured.count { it.first == WsMethods.SESSION_BRANCH_WHOLE })
+        }
+
+    @Test
+    fun testSlashCommand_fork_branchWholeError32601_retriesWithSessionBranch() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val captured = mutableListOf<Pair<String, Map<String, Any>>>()
+            every { HermesWsClient.send(any(), any(), any()) } answers {
+                val id = "req-${captured.size + 1}"
+                captured.add(arg<String>(0) to (arg<Map<String, Any>>(1)))
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            viewModel.sendMessage("/fork my-retry-branch")
+            advanceUntilIdle()
+
+            val branchWholeSent = captured.firstOrNull { it.first == WsMethods.SESSION_BRANCH_WHOLE }
+            assertNotNull("session.branch_whole should be sent", branchWholeSent)
+            assertEquals("my-retry-branch", branchWholeSent!!.second["name"])
+            assertEquals(sessionId, branchWholeSent.second["session_id"])
+
+            // Backend answers -32601 unknown method
+            mockEventsFlow.emit(
+                WsEvent.RpcError(
+                    "req-1",
+                    JsonRpcError(code = -32601, message = "unknown method: session.branch_whole"),
+                ),
+            )
+            advanceUntilIdle()
+
+            // Retries ONCE with session.branch using same params
+            val branchSent = captured.firstOrNull { it.first == WsMethods.SESSION_BRANCH }
+            assertNotNull("session.branch fallback should be sent", branchSent)
+            assertEquals("my-retry-branch", branchSent!!.second["name"])
+            assertEquals(sessionId, branchSent.second["session_id"])
+            assertEquals(1, captured.count { it.first == WsMethods.SESSION_BRANCH })
+
+            // session.branch result is then handled
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    "req-2",
+                    mapOf(
+                        "session_id" to "runtime-branch-fallback",
+                        "stored_session_id" to "stored-branch-fallback",
+                        "title" to "my-retry-branch",
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals("runtime-branch-fallback", ActiveSessionHolder.activeSessionId.value)
+            assertEquals("stored-branch-fallback", viewModel.uiState.value.currentSessionId)
+            assertTrue(
+                "System message 'Session branched' should be added",
+                viewModel.uiState.value.messages
+                    .any { it.content.contains("Session branched") },
+            )
+        }
+
+    @Test
+    fun testSlashCommand_fork_branchWholeOtherError_noFallback() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            val captured = mutableListOf<Pair<String, Map<String, Any>>>()
+            every { HermesWsClient.send(any(), any(), any()) } answers {
+                val id = "req-${captured.size + 1}"
+                captured.add(arg<String>(0) to (arg<Map<String, Any>>(1)))
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            viewModel.sendMessage("/fork")
+            advanceUntilIdle()
+
+            val branchWholeSent = captured.firstOrNull { it.first == WsMethods.SESSION_BRANCH_WHOLE }
+            assertNotNull("session.branch_whole should be sent", branchWholeSent)
+
+            // Backend answers with code other than -32601
+            mockEventsFlow.emit(
+                WsEvent.RpcError(
+                    "req-1",
+                    JsonRpcError(code = -32600, message = "invalid request"),
+                ),
+            )
+            advanceUntilIdle()
+
+            // No retry/fallback sent
+            assertEquals(0, captured.count { it.first == WsMethods.SESSION_BRANCH })
+            assertTrue(
+                viewModel.uiState.value.errorMessage
+                    ?.contains("session.branch_whole") == true,
+            )
         }
 
     @Test
@@ -3517,6 +3652,112 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun completePersistedTurnRetiresOnlyTheReceiptBoundToItsUserRow() =
+        runTest {
+            val sendStore = ChatSendStore()
+            val (viewModel, sessionId) = createViewModelWithSession(sendStore = sendStore)
+            every { HermesWsClient.sendMessage(sessionId, "Durable", any(), any()) } answers {
+                arg<((String) -> Unit)?>(2)?.invoke("durable-submit")
+                "durable-submit"
+            }
+            viewModel.sendMessage("Durable")
+            advanceUntilIdle()
+            mockEventsFlow.emit(
+                WsEvent.RpcResult("durable-submit", mapOf("status" to "streaming", "user_row_id" to 77)),
+            )
+            advanceUntilIdle()
+
+            val receipt = sendStore.all().single()
+            assertEquals(77L, receipt.userRowId)
+            assertEquals(
+                77L,
+                viewModel.uiState.value.messages
+                    .single { it.id == receipt.id }
+                    .serverRowId,
+            )
+
+            // Partial and foreign receipts never retire the local turn.
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            mockEventsFlow.emit(
+                WsEvent.MessageComplete(
+                    "Reply",
+                    sessionId,
+                    rawPayload =
+                        mapOf(
+                            "persisted_turn" to
+                                mapOf(
+                                    "row_ids" to listOf(77),
+                                    "complete" to false,
+                                    "user_row_id" to 77,
+                                ),
+                        ),
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals(listOf(receipt.id), sendStore.all().map { it.id })
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            mockEventsFlow.emit(
+                WsEvent.MessageComplete(
+                    "Reply",
+                    sessionId,
+                    rawPayload =
+                        mapOf(
+                            "persisted_turn" to mapOf("row_ids" to listOf(78), "complete" to true, "user_row_id" to 78),
+                        ),
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals(listOf(receipt.id), sendStore.all().map { it.id })
+
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            mockEventsFlow.emit(
+                WsEvent.MessageComplete(
+                    "Reply",
+                    sessionId,
+                    rawPayload =
+                        mapOf(
+                            "persisted_turn" to
+                                mapOf(
+                                    "row_ids" to listOf(77, 79),
+                                    "complete" to true,
+                                    "user_row_id" to 77,
+                                    "final_assistant_row_id" to 79,
+                                ),
+                        ),
+                ),
+            )
+            advanceUntilIdle()
+            assertTrue(sendStore.all().isEmpty())
+            assertTrue(
+                viewModel.uiState.value.messages
+                    .any { it.id == receipt.id },
+            )
+        }
+
+    @Test
+    fun submitAckWithoutUserRowIdLeavesReceiptUnproven() =
+        runTest {
+            val sendStore = ChatSendStore()
+            val (viewModel, sessionId) = createViewModelWithSession(sendStore = sendStore)
+            every { HermesWsClient.sendMessage(sessionId, "Legacy", any(), any()) } answers {
+                arg<((String) -> Unit)?>(2)?.invoke("legacy-submit")
+                "legacy-submit"
+            }
+            viewModel.sendMessage("Legacy")
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.RpcResult("legacy-submit", mapOf("status" to "streaming")))
+            advanceUntilIdle()
+
+            val receipt = sendStore.all().single()
+            assertNull(receipt.userRowId)
+            assertEquals(PendingSendState.ACCEPTED, receipt.state)
+            assertTrue(
+                viewModel.uiState.value.messages
+                    .any { it.id == receipt.id && it.serverRowId == null },
+            )
+        }
+
+    @Test
     fun busyGuideUsesSteerAndUnsupportedFallsBackToQueueWithoutInterrupt() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()
@@ -5128,7 +5369,7 @@ class ChatViewModelTest {
 
             viewModel.sendMessage("/fork")
             runCurrent()
-            val branchRequest = captured.last { it.first == WsMethods.SESSION_BRANCH }.second
+            val branchRequest = captured.last { it.first == WsMethods.SESSION_BRANCH_WHOLE }.second
             mockEventsFlow.emit(
                 WsEvent.RpcResult(
                     branchRequest,
@@ -5962,11 +6203,11 @@ class ChatViewModelTest {
                         .SessionMessagesResponse(messages = emptyList()),
                 )
 
-            // /fork sends session.branch keyed on the runtime id.
+            // /fork sends session.branch_whole keyed on the runtime id.
             viewModel.sendMessage("/fork")
             advanceUntilIdle()
 
-            val branchId = captured.last { it.first == WsMethods.SESSION_BRANCH }.second
+            val branchId = captured.last { it.first == WsMethods.SESSION_BRANCH_WHOLE }.second
             val branchStorage = "branch-storage-1"
             mockEventsFlow.emit(
                 WsEvent.RpcResult(

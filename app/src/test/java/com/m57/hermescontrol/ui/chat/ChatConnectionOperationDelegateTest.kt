@@ -13,6 +13,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -109,7 +111,8 @@ class ChatConnectionOperationDelegateTest {
             assertEquals(1, requester.calls.size)
             val call = requester.calls.single()
             assertEquals(WsMethods.CONNECTION_RESPOND, call.first)
-            assertEquals("session-a", call.second["session_id"])
+            assertEquals(setOf("owner", "op_id", "result"), call.second.keys)
+            assertEquals(mapOf("type" to "session", "session_id" to "session-a"), call.second["owner"])
             assertEquals("op-a", call.second["op_id"])
             @Suppress("UNCHECKED_CAST")
             val result = call.second["result"] as Map<String, Any>
@@ -177,9 +180,61 @@ class ChatConnectionOperationDelegateTest {
             continueDelegate.continueOperation()
 
             assertEquals(
-                mapOf("settled_by" to "continue"),
-                continueRequester.calls.single().second["result"],
+                mapOf(
+                    "owner" to mapOf("type" to "session", "session_id" to "session-a"),
+                    "op_id" to "op-a",
+                    "result" to mapOf("settled_by" to "continue"),
+                ),
+                continueRequester.calls.single().second,
             )
+        }
+
+    @Test
+    fun wakePayload_sendsSessionOwnerNotTopLevelSessionId() =
+        runTest {
+            val requester = RecordingRequester()
+            val delegate = delegate(requester)
+            delegate.reset("session-a")
+            delegate.acceptRequest(snapshot())
+
+            delegate.wake("op-a")
+
+            val call = requester.calls.single()
+            assertEquals(WsMethods.CONNECTORS_OPERATION_WAKE, call.first)
+            assertEquals(
+                mapOf(
+                    "owner" to mapOf("type" to "session", "session_id" to "session-a"),
+                    "op_id" to "op-a",
+                ),
+                call.second,
+            )
+        }
+
+    @Test
+    fun ownershipAndRuntimeFailures_mapToTypedNonRetryableErrors() =
+        runTest {
+            val cases =
+                listOf(
+                    HermesWsClient.HermesRpcException("x", code = 4001) to
+                        ChatConnectionOperationDelegate.NOT_OWNER,
+                    HermesWsClient.HermesRpcException(
+                        "x",
+                        code = 5033,
+                        data = JsonObject(mapOf("reason" to JsonPrimitive("UNSUPPORTED_RUNTIME"))),
+                    ) to ChatConnectionOperationDelegate.UNSUPPORTED_RUNTIME,
+                )
+            for ((failure, expected) in cases) {
+                val delegate = delegate(RecordingRequester(failure = failure))
+                delegate.reset("session-a")
+                delegate.acceptRequest(snapshot())
+
+                delegate.continueOperation()
+
+                val error = delegate.state.value.error
+                assertEquals(expected, error?.message)
+                assertFalse(error?.retryable ?: true)
+                assertNull(delegate.state.value.pendingAction)
+            }
         }
 
     @Test

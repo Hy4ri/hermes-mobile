@@ -84,10 +84,11 @@ import com.m57.hermescontrol.HistoryScreen
 import com.m57.hermescontrol.LogsScreen
 import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.AttachmentSource
-import com.m57.hermescontrol.data.model.BusySendMode
 import com.m57.hermescontrol.data.model.reasoningSupport
+import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.notification.NotificationHelper
@@ -111,10 +112,13 @@ import com.m57.hermescontrol.ui.chat.components.ReplyErrorCard
 import com.m57.hermescontrol.ui.chat.components.SearchBarRow
 import com.m57.hermescontrol.ui.chat.components.SessionIntegrationsSheet
 import com.m57.hermescontrol.ui.chat.components.SideQuestionSheet
+import com.m57.hermescontrol.ui.chat.components.SpeechRequest
+import com.m57.hermescontrol.ui.chat.components.SpeechText
 import com.m57.hermescontrol.ui.chat.components.SubagentInspectionSheet
 import com.m57.hermescontrol.ui.chat.components.TaskProgressChip
 import com.m57.hermescontrol.ui.chat.components.rememberChatMediaLaunchers
 import com.m57.hermescontrol.ui.chat.components.rememberChatScrollController
+import com.m57.hermescontrol.ui.chat.components.rememberChatSpeech
 import com.m57.hermescontrol.ui.chat.components.shouldShowProgressChip
 import com.m57.hermescontrol.ui.chat.components.tailContentKey
 import com.m57.hermescontrol.ui.chat.fullbleed.FullBleedChatList
@@ -173,11 +177,7 @@ fun ChatScreen(
     // Snapshot-backed search state — read directly so only the scopes that
     // read its fields recompose on search changes (bar, matched bubbles).
     val searchState = viewModel.searchState
-    val sourceMessages = timelineState.historyMessages ?: state.messages
-    val displayedMessages =
-        remember(sourceMessages, state.pendingSends) {
-            messagesWithoutUnsentQueue(sourceMessages, state.pendingSends)
-        }
+    val displayedMessages = timelineState.historyMessages ?: state.messages
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
     var browserAuthInFlight by rememberSaveable { mutableStateOf(false) }
@@ -249,6 +249,10 @@ fun ChatScreen(
     }
 
     val browserEvent = connectorsState.browserLaunchEvent
+    val speechController = rememberChatSpeech()
+    val speakingMessageId by speechController.speakingId.collectAsStateWithLifecycle()
+    val dataScope by AuthManager.dataScopeFlow.collectAsStateWithLifecycle()
+    val activeSessionId by ActiveSessionHolder.activeSessionId.collectAsStateWithLifecycle()
     val listState = rememberLazyListState(prefetchStrategy = ChatTimelineNoPrefetchStrategy)
     val scrollScope = rememberCoroutineScope()
     val scrollController = rememberChatScrollController(listState, scrollScope)
@@ -798,7 +802,20 @@ fun ChatScreen(
                     onSaveAttachment = onSaveAttachment,
                     savingAttachmentPath = pendingSavePath ?: state.savingAttachmentPath,
                     openingAttachmentPath = state.openingAttachmentPath,
+                    isCompressing = state.isCompressing && !timelineState.isHistorical,
+                    compressionStatus = state.compressionStatus.takeUnless { timelineState.isHistorical },
                     onImageClick = { viewingImage = it },
+                    speakingMessageId = speakingMessageId,
+                    onToggleSpeak = { message ->
+                        val scopeKey = "${dataScope?.inMemoryKey(localKey = activeSessionId ?: "none")}"
+                        speechController.toggle(
+                            SpeechRequest(
+                                scopeKey = scopeKey,
+                                messageId = message.id,
+                                text = SpeechText.stripMarkdownForSpeech(message.content),
+                            ),
+                        )
+                    },
                     replyErrorContent =
                         state.replyFailure?.takeUnless { timelineState.isHistorical }?.let { failure ->
                             {
@@ -882,12 +899,6 @@ fun ChatScreen(
                     },
             )
 
-            com.m57.hermescontrol.ui.chat.components.PendingSendPanel(
-                sends = state.pendingSends,
-                mainTurnBusy = state.isMainTurnBusy,
-                onSendNow = viewModel::sendQueuedNow,
-            )
-
             ChatInputBar(
                 inputFieldValue = inputFieldValue,
                 onInputChange = { inputFieldValue = it },
@@ -898,22 +909,16 @@ fun ChatScreen(
                         scrollController.jumpToBottom(animated = true)
                     }
                 },
-                onBusySend = { mode ->
-                    if (viewModel.sendMessage(inputFieldValue.text, mode)) {
-                        inputFieldValue = TextFieldValue("")
-                        scrollController.jumpToBottom(animated = true)
-                    }
-                },
                 onMicTap = mediaLaunchers.onMicTap,
                 onMicHoldStart = mediaLaunchers.onMicHoldStart,
                 onMicHoldEnd = mediaLaunchers.onMicHoldEnd,
                 onMicHoldCancel = mediaLaunchers.onMicHoldCancel,
+                onMicLock = mediaLaunchers.onMicLock,
                 isListening = mediaLaunchers.isListening || state.isTranscribingVoiceNote,
                 isRecordingVoice = mediaLaunchers.isRecordingVoice,
-                voiceNoteAmplitude = mediaLaunchers.voiceNoteAmplitude,
+                isVoiceNoteLocked = mediaLaunchers.isVoiceNoteLocked,
                 onStopGeneration = { viewModel.interruptSession() },
                 isAgentTyping = state.isAgentTyping,
-                isMainTurnBusy = state.isMainTurnBusy,
                 canInterrupt = state.canInterrupt,
                 isConnected = state.isConnected,
                 isSessionReady = state.isSessionReady && !timelineState.isHistorical,

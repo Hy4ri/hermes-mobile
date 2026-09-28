@@ -58,6 +58,18 @@ internal object FileEditSupport {
             }
         }
 
+        // Support persisted edit previews from display_metadata.tool_result_metadata.inline_diff or display_metadata.inline_diff
+        val displayMetadata =
+            record["display_metadata"] as? JsonObject
+                ?: ToolJson.parseMaybeObject(record["display_metadata"])
+        val toolResultMeta =
+            displayMetadata?.get("tool_result_metadata") as? JsonObject
+                ?: ToolJson.parseMaybeObject(displayMetadata?.get("tool_result_metadata"))
+        val metaDiff = toolResultMeta?.get("inline_diff") ?: displayMetadata?.get("inline_diff")
+        if (metaDiff is JsonPrimitive && metaDiff.isString && metaDiff.content.trim().isNotEmpty()) {
+            return stripInlineDiffChrome(metaDiff.content)
+        }
+
         return ""
     }
 

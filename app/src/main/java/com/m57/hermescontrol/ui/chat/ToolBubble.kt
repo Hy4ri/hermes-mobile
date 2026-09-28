@@ -179,7 +179,7 @@ internal fun ToolBubble(
                         .padding(horizontal = 10.dp, vertical = 6.dp),
             ) {
                 // ── Header row: icon + tool name ──
-                HeaderRow(message, config, contentColor, statusColors)
+                HeaderRow(message, config, contentColor, statusColors, view?.serverDisplayName)
 
                 // ── Tool progress preview (tool.progress) ──
                 if (message.isToolRunning && !message.progressPreview.isNullOrEmpty()) {
@@ -528,6 +528,7 @@ private fun HeaderRow(
     config: ToolDisplayConfig,
     contentColor: Color,
     statusColors: HermesStatusColors,
+    displayName: String? = null,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -562,7 +563,7 @@ private fun HeaderRow(
         }
 
         Text(
-            text = message.toolName ?: stringResource(R.string.chat_tool_fallback),
+            text = displayName ?: message.toolName ?: stringResource(R.string.chat_tool_fallback),
             style =
                 MaterialTheme.typography.labelMedium.copy(
                     color = contentColor,

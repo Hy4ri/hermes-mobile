@@ -15,6 +15,8 @@ object WsMethods {
     const val SESSION_DELETE = "session.delete"
     const val SESSION_TITLE = "session.title"
     const val SESSION_BRANCH = "session.branch"
+    const val SESSION_BRANCH_WHOLE = "session.branch_whole"
+    const val SESSION_COMPRESS = "session.compress"
 
     /** Replay recorded events newer than client's last-seen seq for a session. */
     const val SESSION_EVENTS_SINCE = "session.events.since"
@@ -104,12 +106,19 @@ object WsMethods {
 
     const val CONNECTION_RESPOND = "connection.respond"
     const val CONNECTORS_OPERATION_WAKE = "connectors.operation.wake"
+    const val CONNECTORS_OPERATION_STATUS = "connectors.operation.status"
 
     /** List available third-party connectors and authorization state for a session. */
     const val CONNECTORS_LIST = "connectors.list"
 
     /** Initiate or restart authorization flow for one or more connectors. */
     const val CONNECTORS_CONNECT = "connectors.connect"
+    const val CONNECTORS_CATALOG = "connectors.catalog"
+    const val CONNECTORS_ACCOUNTS = "connectors.accounts"
+    const val CONNECTORS_ACCOUNTS_REMOVE = "connectors.accounts.remove"
+    const val CONNECTORS_TOOLS = "connectors.tools"
+    const val CONNECTORS_POLICY_GET = "connectors.policy.get"
+    const val CONNECTORS_POLICY_SET = "connectors.policy.set"
 
     // ── Plugins ───────────────────────────────────────────────────────────
     const val PLUGINS_MANAGE = "plugins.manage"
@@ -165,6 +174,12 @@ object WsMethods {
             SESSION_CREATE, // session.create
             SESSION_LIST, // session.list
             MODEL_OPTIONS, // model.options: @_profile_scoped
+            CONNECTORS_CATALOG,
+            CONNECTORS_ACCOUNTS,
+            CONNECTORS_ACCOUNTS_REMOVE,
+            CONNECTORS_TOOLS,
+            CONNECTORS_POLICY_GET,
+            CONNECTORS_POLICY_SET,
             SESSION_RESUME, // session.resume
             SESSION_DELETE, // session.delete
             SESSION_STATUS, // session.status

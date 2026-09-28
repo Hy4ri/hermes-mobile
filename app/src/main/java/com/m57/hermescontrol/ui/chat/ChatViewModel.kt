@@ -14,6 +14,7 @@ import com.m57.hermescontrol.data.model.BusySendMode
 import com.m57.hermescontrol.data.model.ModelCapabilities
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
+import com.m57.hermescontrol.data.model.SessionCompressResponse
 import com.m57.hermescontrol.data.model.SessionTimelineEntry
 import com.m57.hermescontrol.data.model.UsageSnapshotResponse
 import com.m57.hermescontrol.data.model.parseContextBreakdown
@@ -234,6 +235,8 @@ data class ChatUiState(
     // until the first successful session.usage fetch) — drives the
     // "compressed ×N" badge on the context chip.
     val compressionCount: Int? = null,
+    val isCompressing: Boolean = false,
+    val compressionStatus: String? = null,
     /** Rolling output tokens/sec over the last ~10 calls. */
     val latestTps: Double? = null,
     /** Latest cumulative backend usage snapshot for the current session. */
@@ -483,7 +486,13 @@ class ChatViewModel(
         val originalPending: PendingSend? = null,
     )
 
+    private data class PendingBranchRequest(
+        val generation: Long,
+        val params: Map<String, Any>,
+    )
+
     private val sessionRequestById = ConcurrentHashMap<String, SessionRequest>()
+    private val branchWholeRequests = ConcurrentHashMap<String, PendingBranchRequest>()
     private val outgoingRequestById = ConcurrentHashMap<String, String>()
     private val hardInterruptRequestById = ConcurrentHashMap<String, HardInterruptRequest>()
     private val queuedStagingIds = ConcurrentHashMap.newKeySet<String>()
@@ -1063,6 +1072,7 @@ class ChatViewModel(
                 if (isCurrentSession(event.sessionId)) {
                     mainTurnBusy = false
                     lastMainCompletionAt = System.currentTimeMillis()
+                    retireReceiptForPersistedTurn(parsePersistedTurn(event.rawPayload))
                     refreshSendReceipts()
                 }
                 // Buffers cleared before reduce; ViewModel resets them after
@@ -1602,7 +1612,8 @@ class ChatViewModel(
         result: Any?,
     ) {
         val messageId = outgoingRequestById.remove(requestId) ?: return
-        val status = rpcResultMap(result)?.get("status") as? String
+        val resultMap = rpcResultMap(result)
+        val status = resultMap?.get("status") as? String
         val accepted =
             when (method) {
                 WsMethods.SESSION_REDIRECT -> status == "redirected" || status == "queued"
@@ -1611,6 +1622,24 @@ class ChatViewModel(
             }
         when {
             accepted -> {
+                // #1285: the submit ack names the row written for THIS input. Absent = unproven.
+                positiveRowId(resultMap?.get("user_row_id"))?.let { rowId ->
+                    sendStore.update(messageId) { it.copy(userRowId = rowId) }
+                    _uiState.update { state ->
+                        state.copy(
+                            messages =
+                                state.messages.map {
+                                    if (it.id == messageId &&
+                                        it.serverRowId == null
+                                    ) {
+                                        it.copy(serverRowId = rowId)
+                                    } else {
+                                        it
+                                    }
+                                },
+                        )
+                    }
+                }
                 markPendingSend(messageId, PendingSendState.ACCEPTED)
                 if (sendStore.all().any { it.id == messageId && lastMainCompletionAt >= it.createdAt }) {
                     refreshSendReceipts()
@@ -1643,6 +1672,7 @@ class ChatViewModel(
     ) {
         val method = idToMethod.remove(id) ?: return
         val request = sessionRequestById.remove(id)
+        branchWholeRequests.remove(id)
         if (request != null && isStaleSessionRequest(request)) {
             outgoingRequestById.remove(id)?.let { markPendingSend(it, PendingSendState.UNKNOWN) }
             hardInterruptRequestById.remove(id)?.let { markPendingSend(it.messageId, PendingSendState.UNKNOWN) }
@@ -1729,7 +1759,9 @@ class ChatViewModel(
                 }
             }
 
-            WsMethods.SESSION_BRANCH -> {
+            WsMethods.SESSION_BRANCH,
+            WsMethods.SESSION_BRANCH_WHOLE,
+            -> {
                 val resultMap = result as? Map<String, Any?> ?: return
                 // The result carries BOTH ids: `session_id` is the runtime
                 // registry id, `stored_session_id` is the DB key. currentSessionId
@@ -2066,6 +2098,7 @@ class ChatViewModel(
     ) {
         val method = idToMethod.remove(id) ?: return
         val request = sessionRequestById.remove(id)
+        val pendingBranch = branchWholeRequests.remove(id)
         if (request != null && isStaleSessionRequest(request)) {
             outgoingRequestById.remove(id)?.let { markPendingSend(it, PendingSendState.UNKNOWN) }
             hardInterruptRequestById.remove(id)?.let { markPendingSend(it.messageId, PendingSendState.UNKNOWN) }
@@ -2142,6 +2175,26 @@ class ChatViewModel(
                         errorMessage = "Failed to create session: $errorMsg",
                     )
                 }
+            }
+        }
+
+        if (method == WsMethods.SESSION_BRANCH_WHOLE) {
+            val code =
+                (error as? JsonRpcError)?.code
+                    ?: (error as? Map<*, *>)?.get("code") as? Int
+            if (code == -32601 && pendingBranch != null && pendingBranch.generation == sessionGeneration) {
+                val params = pendingBranch.params
+                val generation = pendingBranch.generation
+                viewModelScope.launch(ioDispatcher) {
+                    wsClient.send(
+                        WsMethods.SESSION_BRANCH,
+                        params,
+                        onSent = { branchId ->
+                            trackSessionRequest(branchId, WsMethods.SESSION_BRANCH, generation)
+                        },
+                    )
+                }
+                return
             }
         }
 
@@ -2487,6 +2540,23 @@ class ChatViewModel(
         sendStore.remove(messageId)
         viewModelScope.launch(ioDispatcher) { deleteQueuedAttachmentSnapshot(messageId) }
         publishPendingSends()
+    }
+
+    /**
+     * #1285: only a complete receipt proves the whole turn is durable, and only the receipt
+     * already bound to that exact `user_row_id` is retired. Partial or id-less receipts leave
+     * every local row to REST reconciliation; no row is ever inferred from text or position.
+     */
+    private fun retireReceiptForPersistedTurn(turn: PersistedTurn?) {
+        val userRowId = turn?.userRowId?.takeIf { turn.complete } ?: return
+        val sessionId = _uiState.value.currentSessionId ?: return
+        val scope = sendScope()
+        sendStore
+            .all()
+            .filter {
+                it.scope == scope && it.sessionId == sessionId && it.userRowId == userRowId &&
+                    it.state in setOf(PendingSendState.SENDING, PendingSendState.ACCEPTED, PendingSendState.UNKNOWN)
+            }.forEach { removePendingSend(it.id) }
     }
 
     private fun removeUnconfirmedBubble(messageId: String) {
@@ -3634,6 +3704,10 @@ class ChatViewModel(
                 handleUndoCommand(result.count)
             }
 
+            is SlashResult.Compress -> {
+                compressSession(result.focusTopic)
+            }
+
             is SlashResult.RpcDispatch -> {
                 dispatchViaRpc(command)
             }
@@ -3903,9 +3977,8 @@ class ChatViewModel(
     }
 
     /**
-     * Fork the active conversation via the session.branch WS RPC (issue #533).
-     * The backend already supports session.branch; the mobile previously had
-     * no client surface, so `/fork` fell through to command.dispatch and 4018'd.
+     * Fork the active conversation via the lightweight session.branch_whole WS RPC (issue #1289).
+     * Falls back to session.branch if the gateway answers -32601 (unknown method).
      * The optional arg becomes the new branch's title.
      */
     private fun branchSession(command: String) {
@@ -3920,9 +3993,12 @@ class ChatViewModel(
         val generation = sessionGeneration
         viewModelScope.launch(ioDispatcher) {
             wsClient.send(
-                WsMethods.SESSION_BRANCH,
+                WsMethods.SESSION_BRANCH_WHOLE,
                 params,
-                onSent = { id -> trackSessionRequest(id, WsMethods.SESSION_BRANCH, generation) },
+                onSent = { id ->
+                    branchWholeRequests[id] = PendingBranchRequest(generation, params)
+                    trackSessionRequest(id, WsMethods.SESSION_BRANCH_WHOLE, generation)
+                },
             )
         }
     }
@@ -4054,6 +4130,113 @@ class ChatViewModel(
                 addAssistantMessage(e.message ?: "Failed to undo.")
             }
         }
+    }
+
+    private fun compressSession(focusTopic: String) {
+        val sessionId = runtimeSessionId ?: _uiState.value.currentSessionId
+        if (sessionId == null) {
+            addAssistantMessage("No active session to compress.")
+            return
+        }
+        if (_uiState.value.isCompressing) {
+            return
+        }
+
+        _uiState.update {
+            it.copy(
+                isCompressing = true,
+                compressionStatus = "⏳ Compressing context...",
+            )
+        }
+
+        viewModelScope.launch(ioDispatcher) {
+            try {
+                val params =
+                    buildMap<String, Any> {
+                        put("session_id", sessionId)
+                        if (focusTopic.isNotBlank()) {
+                            put("focus_topic", focusTopic)
+                        }
+                    }
+                // Use extended timeout (e.g. 300_000L / 5 minutes) so LLM summarization doesn't timeout
+                val result =
+                    wsClient
+                        .request(
+                            WsMethods.SESSION_COMPRESS,
+                            params,
+                            timeoutMs = 300_000L,
+                        ).await()
+
+                handleCompressionResult(result)
+            } catch (e: HermesWsClient.HermesRpcException) {
+                addAssistantMessage("/compress: ${e.message ?: "compression failed"}")
+            } catch (e: Exception) {
+                addAssistantMessage("/compress: ${e.message ?: "compression failed"}")
+            } finally {
+                _uiState.update {
+                    it.copy(
+                        isCompressing = false,
+                        compressionStatus = null,
+                    )
+                }
+            }
+        }
+    }
+
+    private suspend fun handleCompressionResult(result: Any?) {
+        val response =
+            try {
+                val jsonElement = result.toJsonElement()
+                OkHttpProvider.json.decodeFromJsonElement<SessionCompressResponse>(jsonElement)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to decode session.compress response", e)
+                null
+            }
+
+        val sessionId = runtimeSessionId ?: _uiState.value.currentSessionId
+
+        // 1. Authoritative transcript replacement
+        if (response?.messages != null && sessionId != null) {
+            val replacementMessages =
+                withContext(historyDispatcher) {
+                    mapServerMessages(
+                        sessionId = sessionId,
+                        messages = response.messages,
+                        offset = 0,
+                        latestPaging = latestPaging,
+                        liveMessages = emptyList(),
+                        context = getApplication(),
+                    )
+                }
+            _uiState.update { it.copy(messages = replacementMessages) }
+            persistHistoryPage(replacementMessages, sessionId)
+        }
+
+        // 2. Display result summary via addAssistantMessage
+        val summary = response?.summary
+        val lines = mutableListOf<String>()
+        summary?.headline?.takeIf { it.isNotBlank() }?.let { lines.add(it) }
+        summary?.token_line?.takeIf { it.isNotBlank() }?.let { lines.add(it) }
+        summary?.note?.takeIf { it.isNotBlank() }?.let { lines.add(it) }
+
+        val feedback =
+            if (lines.isNotEmpty()) {
+                lines.joinToString("\n")
+            } else {
+                response?.message ?: "Context compressed."
+            }
+        addAssistantMessage(feedback)
+
+        // 3. Refresh usage & sessions
+        fetchContextUsage()
+        loadSessions()
+
+        // 4. Handle lineage/session info if provided
+        response?.info?.let { infoElement ->
+            val infoMap = (infoElement.toAny() as? Map<*, *>)?.filterKeys { it is String } as? Map<String, Any?>
+            handleSessionInfo(infoMap)
+        }
+        sessionHasServerPresence = true
     }
 
     private fun handlePrefillResult(
@@ -4648,6 +4831,7 @@ class ChatViewModel(
                                 content = it.text,
                                 attachments = it.attachments,
                                 timestamp = it.createdAt,
+                                serverRowId = it.userRowId,
                             )
                         }
                 }
@@ -5968,6 +6152,7 @@ class ChatViewModel(
     private fun forgetRequest(id: String) {
         idToMethod.remove(id)
         sessionRequestById.remove(id)
+        branchWholeRequests.remove(id)
     }
 
     // ── Search ────────────────────────────────────────────────────────────

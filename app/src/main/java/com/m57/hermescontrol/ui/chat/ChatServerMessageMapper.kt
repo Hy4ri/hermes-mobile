@@ -6,6 +6,8 @@ import com.m57.hermescontrol.data.model.AttachmentSource
 import com.m57.hermescontrol.data.model.SessionMessage
 import com.m57.hermescontrol.data.remote.GatewayFileClient
 import com.m57.hermescontrol.notification.ReplyNotificationTracker
+import com.m57.hermescontrol.ui.chat.tool.ToolJson
+import kotlinx.serialization.json.JsonObject
 
 /**
  * Maps REST transcript rows ([SessionMessage]) into UI [ChatMessage]s.
@@ -179,13 +181,30 @@ internal fun mapServerMessages(
                 ?: existingById[restId]?.timestamp
                 ?: System.currentTimeMillis()
 
-        val rawContent = msg.displayContentText ?: msg.contentText
-        val rowReasoning =
-            msg.reasoningText.ifBlank {
-                if (role == MessageRole.ASSISTANT) {
-                    reasoningSources[index]?.reasoningText.orEmpty()
+        val rawContent =
+            if (role == MessageRole.TOOL && msg.display_metadata != null) {
+                // Enrich tool content with display_metadata so persisted edit previews
+                // (inline_diff) survive reload into the diff renderer
+                val parsedContent = ToolJson.parseMaybeObject(msg.content)
+                if (parsedContent != null && !parsedContent.containsKey("display_metadata")) {
+                    JsonObject(parsedContent + ("display_metadata" to msg.display_metadata)).toString()
                 } else {
-                    existingById[restId]?.reasoningText.orEmpty()
+                    msg.visibleText
+                }
+            } else {
+                msg.visibleText
+            }
+        // #1284: projected reasoning already excludes public commentary; it is authoritative.
+        val rowReasoning =
+            if (msg.hasDisplayReasoning) {
+                msg.displayReasoningText
+            } else {
+                msg.reasoningText.ifBlank {
+                    if (role == MessageRole.ASSISTANT) {
+                        reasoningSources[index]?.reasoningText.orEmpty()
+                    } else {
+                        existingById[restId]?.reasoningText.orEmpty()
+                    }
                 }
             }
 
@@ -254,6 +273,7 @@ internal fun mapServerMessages(
                 displayKind = msg.display_kind,
                 tokenCount = tokenCount,
                 completionId = completionId,
+                serverRowId = msg.id?.toLong()?.takeIf { it > 0L },
             ),
         )
     }
@@ -269,12 +289,13 @@ internal fun mapServerMessages(
             // A canonical tool-result row settles a cached tool.start, not the reverse.
             local.copy(
                 restId = message.canonicalRestId,
+                serverRowId = message.serverRowId,
                 content = message.content,
                 toolStatus = ToolStatus.COMPLETED,
                 isHistoricalCache = false,
             )
         } else {
-            local?.copy(restId = message.canonicalRestId) ?: message
+            local?.copy(restId = message.canonicalRestId, serverRowId = message.serverRowId) ?: message
         }
     }
 }

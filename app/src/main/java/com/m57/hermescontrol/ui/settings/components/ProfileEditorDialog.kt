@@ -20,6 +20,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.ui.common.CustomHeadersButton
 
 @Composable
 internal fun ProfileEditorDialog(
@@ -33,6 +34,7 @@ internal fun ProfileEditorDialog(
     onTokenChange: (String) -> Unit,
     onSave: () -> Unit,
     onDismiss: () -> Unit,
+    onHeadersSaved: () -> Unit,
 ) {
     val title =
         if (isEditing) {
@@ -63,6 +65,7 @@ internal fun ProfileEditorDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                     modifier = Modifier.fillMaxWidth(),
                 )
+                CustomHeadersButton(baseUrl = baseUrl, onSaved = onHeadersSaved)
                 if (error != null) {
                     Text(
                         text = error,

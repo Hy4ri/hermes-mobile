@@ -21,6 +21,8 @@ data class PendingSend(
     val attempts: Int = 0,
     /** Legacy source URIs are retained for an explicit user retry, never auto-dispatched. */
     val requiresAttachmentRecovery: Boolean = false,
+    /** `prompt.submit` `user_row_id` receipt (#1285); null means unproven, not rejected. */
+    val userRowId: Long? = null,
 )
 
 @Serializable

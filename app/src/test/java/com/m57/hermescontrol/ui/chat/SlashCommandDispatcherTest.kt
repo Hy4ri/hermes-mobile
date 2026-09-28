@@ -99,6 +99,15 @@ class SlashCommandDispatcherTest {
     }
 
     @Test
+    fun `compress and compact route to Compress`() {
+        assertEquals(SlashResult.Compress(""), dispatcher.dispatch("/compress"))
+        assertEquals(SlashResult.Compress(""), dispatcher.dispatch("/compact"))
+        assertEquals(SlashResult.Compress("auth decisions"), dispatcher.dispatch("/compress auth decisions"))
+        assertEquals(SlashResult.Compress("auth decisions"), dispatcher.dispatch("/compact auth decisions"))
+        assertEquals(SlashResult.Compress(""), dispatcher.dispatch("/compress   "))
+    }
+
+    @Test
     fun `NEW uppercase still routes to NewSession`() {
         // Dispatcher lower-cases before matching, so case must not matter.
         assertEquals(SlashResult.NewSession, dispatcher.dispatch("/NEW"))

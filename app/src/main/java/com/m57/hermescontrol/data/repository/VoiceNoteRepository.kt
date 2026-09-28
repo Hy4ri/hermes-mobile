@@ -1,13 +1,17 @@
 package com.m57.hermescontrol.data.repository
 
 import com.m57.hermescontrol.data.model.AudioTranscriptionRequest
+import com.m57.hermescontrol.data.model.AudioTranscriptionResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.HermesApiService
 import com.m57.hermescontrol.data.remote.NetworkError
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import kotlinx.coroutines.delay
 import java.io.File
 import java.io.IOException
+import java.net.ConnectException
+import java.net.UnknownHostException
 import java.util.Base64
 
 /**
@@ -33,6 +37,10 @@ const val VOICE_NOTE_MIME_TYPE = "audio/mp4"
  *  - The STT POST runs on a dedicated long-timeout client with `retries = 0`:
  *    re-submitting after a timeout or 5xx would repeat expensive provider
  *    work although the request may already have reached the server.
+ *  - Connect-never-established failures (unreachable route, DNS blip — the
+ *    usual suspects across Wi-Fi/cellular switches) get ONE delayed
+ *    re-attempt: that request never reached the server, so no provider work
+ *    is duplicated (device follow-up, #1247).
  *
  * Open for test substitution (mirrors [ChatPersistenceRepository]'s pattern).
  */
@@ -54,16 +62,23 @@ open class VoiceNoteRepository(
                 )
             }
         val dataUrl = "data:$VOICE_NOTE_MIME_TYPE;base64," + Base64.getEncoder().encodeToString(encoded)
-        val result =
-            safeApiCall(retries = 0) {
-                serviceProvider(transcriptionTimeoutMs(dataUrl)).transcribeAudio(
-                    AudioTranscriptionRequest(dataUrl = dataUrl, mimeType = VOICE_NOTE_MIME_TYPE),
-                )
+        val service = serviceProvider(transcriptionTimeoutMs(dataUrl))
+        val result = requestTranscription(service, dataUrl)
+        // One bounded re-attempt, and only for connection-never-established
+        // failures — the one class where the request provably never reached
+        // the server, so no provider work is duplicated (device follow-up,
+        // #1247).
+        val finalResult =
+            if (result is NetworkResult.Failure && isConnectNeverEstablished(result.error)) {
+                delay(CONNECT_RETRY_DELAY_MS)
+                requestTranscription(service, dataUrl)
+            } else {
+                result
             }
-        return when (result) {
+        return when (finalResult) {
             is NetworkResult.Success -> {
                 NetworkResult.Success(
-                    result.data
+                    finalResult.data
                         ?.transcript
                         .orEmpty()
                         .trim(),
@@ -71,9 +86,24 @@ open class VoiceNoteRepository(
             }
 
             is NetworkResult.Failure -> {
-                result
+                finalResult
             }
         }
+    }
+
+    private suspend fun requestTranscription(
+        service: HermesApiService,
+        dataUrl: String,
+    ): NetworkResult<AudioTranscriptionResponse> =
+        safeApiCall(retries = 0) {
+            service.transcribeAudio(
+                AudioTranscriptionRequest(dataUrl = dataUrl, mimeType = VOICE_NOTE_MIME_TYPE),
+            )
+        }
+
+    private fun isConnectNeverEstablished(error: NetworkError): Boolean {
+        val cause = (error as? NetworkError.Connection)?.cause ?: return false
+        return cause is ConnectException || cause is UnknownHostException
     }
 
     companion object {
@@ -84,6 +114,9 @@ open class VoiceNoteRepository(
         const val MAX_REQUEST_TIMEOUT_MS = 600_000L
 
         private const val BASE64_CHARS_PER_TIMEOUT_MS = 10L
+
+        /** One re-attempt window for connection-never-established failures. */
+        private const val CONNECT_RETRY_DELAY_MS = 750L
 
         /**
          * Timeout for the blocking STT endpoint, mirroring the desktop's

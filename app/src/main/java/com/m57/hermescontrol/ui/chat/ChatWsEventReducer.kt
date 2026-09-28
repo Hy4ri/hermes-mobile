@@ -208,7 +208,7 @@ object ChatWsEventReducer {
 
             is WsEvent.SessionUpdated -> onSessionUpdated(state, streamingState)
 
-            is WsEvent.StatusUpdate -> onStatusUpdate(state, streamingState)
+            is WsEvent.StatusUpdate -> onStatusUpdate(state, streamingState, event)
 
             is WsEvent.ConnectionRequest,
             is WsEvent.ConnectionUpdate,
@@ -515,6 +515,9 @@ object ChatWsEventReducer {
                 effects = effects,
             )
         }
+        // #1285: bind the committed final row only when this bubble carries the whole reply body;
+        // a stripped commentary prefix means the local bubble is not that row's exact content.
+        val finalRowId = parsePersistedTurn(event.rawPayload)?.finalAssistantRowId?.takeIf { text == event.text }
         val tps = turnUsage?.avgTps.validTpsOrNull() ?: usageState.latestTps.validTpsOrNull()
         val tokenCount =
             if (turnUsage?.outputTokens != null) {
@@ -531,6 +534,7 @@ object ChatWsEventReducer {
                 tokenCount = tokenCount,
                 tps = tps,
                 completionId = event.completionId,
+                serverRowId = finalRowId ?: streaming.serverRowId,
             ) ?: ChatMessage(
                 role = MessageRole.ASSISTANT,
                 content = text,
@@ -539,6 +543,7 @@ object ChatWsEventReducer {
                 tokenCount = tokenCount,
                 tps = tps,
                 completionId = event.completionId,
+                serverRowId = finalRowId,
             )
         val effects = mutableListOf<ReducerEffect>()
         val sid = state.currentSessionId
@@ -1041,7 +1046,38 @@ object ChatWsEventReducer {
     private fun onStatusUpdate(
         state: ChatUiState,
         streamingState: StreamingState,
-    ): ReducerResult = ReducerResult(state = state, streamingState = streamingState)
+        event: WsEvent.StatusUpdate,
+    ): ReducerResult {
+        val kind = event.data?.get("kind") as? String
+        val text = event.data?.get("text") as? String
+        return when (kind) {
+            "compressing", "compacting" -> {
+                ReducerResult(
+                    state =
+                        state.copy(
+                            isCompressing = true,
+                            compressionStatus = text ?: "⏳ Compressing context...",
+                        ),
+                    streamingState = streamingState,
+                )
+            }
+
+            "compacted" -> {
+                ReducerResult(
+                    state =
+                        state.copy(
+                            isCompressing = false,
+                            compressionStatus = text,
+                        ),
+                    streamingState = streamingState,
+                )
+            }
+
+            else -> {
+                ReducerResult(state = state, streamingState = streamingState)
+            }
+        }
+    }
 
     private fun onUnknown(
         state: ChatUiState,

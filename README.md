@@ -151,7 +151,29 @@ Tap **Sign in** on the landing screen and enter the dashboard host and port. The
 | **Token only** | Dashboard on same machine (loopback) | **Token** — grab from `~/.hermes/dashboard-token.txt` or `~/.hermes/.env` (`HERMES_DASHBOARD_SESSION_TOKEN`). The app can also auto-extract it from the dashboard page |
 | **Basic auth** | Dashboard on LAN with password gate  | **Username** + **Password** (default `admin` / `hermes`). The app logs in, gets a session cookie, and mints a WebSocket ticket automatically                           |
 
-> The app communicates over plain HTTP — it's designed for **trusted local networks only**. Do not expose your Hermes gateway to untrusted networks.
+Use HTTPS for remote connections. Use HTTP only on a trusted local network.
+
+### Cloudflare Access and custom headers
+
+1. Enter your dashboard's HTTPS URL on the login screen.
+2. Tap **Custom headers**, then **Add Cloudflare headers**.
+3. Enter your service token's `CF-Access-Client-Id` and `CF-Access-Client-Secret` values.
+4. Tap **Save**. The app probes the dashboard again, then shows the Hermes login fields.
+
+Your [Cloudflare Access policy](https://developers.cloudflare.com/cloudflare-one/access-controls/service-credentials/service-tokens/)
+must accept the service token. These headers authenticate with Cloudflare; you still
+need to complete Hermes authentication.
+
+You can add other custom header names and values in the same editor. To edit or
+remove saved headers, open **Custom headers** from login or the saved connection's
+edit dialog in Settings. Values are masked and stored in encrypted preferences.
+Saving an empty list removes the headers for that URL.
+
+Headers are shared by profiles with the same server URL. They apply to probes,
+login, API and media requests, and WebSocket handshakes. Each URL's scheme, host,
+port, and path prefix limit where its headers are sent. Redirects outside that
+scope do not receive the credentials; WebSocket redirects are not followed.
+The app manages `Authorization`, `Cookie`, and transport headers itself.
 
 ### Connection profiles
 

@@ -95,9 +95,12 @@ object ApiClient {
      * the shared 30s client, and a re-submitted POST would repeat expensive
      * provider work after the request may already have reached the server
      * (the repository also passes `retries = 0`). The returned service reuses
-     * the shared connection pool and the auth/profile interceptor stack, and
-     * applies [readTimeoutMs] to reads and writes with transport retries
-     * disabled (review, PR #1250).
+     * the shared connection pool and the auth/profile interceptor stack. It
+     * applies [readTimeoutMs] to reads and writes and keeps transport-level
+     * retries on: they re-dial and can resend depending on when a failure
+     * struck, so they do not guarantee the absence of duplicate provider
+     * work — the risk is small, not zero. Application-level retry stays off
+     * (review, PR #1250 / #1280).
      */
     fun transcriptionService(readTimeoutMs: Long): HermesApiService {
         val client =
@@ -109,7 +112,16 @@ object ApiClient {
                 .authenticator(TokenRefreshAuthenticator)
                 .readTimeout(readTimeoutMs, TimeUnit.MILLISECONDS)
                 .writeTimeout(readTimeoutMs, TimeUnit.MILLISECONDS)
-                .retryOnConnectionFailure(false)
+                // Transport-level stale-socket rescue stays ON: the shared pool
+                // keeps connections far longer than the dashboard's keep-alive,
+                // so the first STT call after an idle spell can ride a socket
+                // the server just closed ("unexpected end of stream"). OkHttp
+                // re-dials and can resend depending on when the failure struck,
+                // and it may retry across routes — duplicate provider work is
+                // possible, though rare. Timeouts and 5xx are never replayed
+                // (safeApiCall still runs with retries = 0). Risk small, not
+                // zero (review, PR #1280).
+                .retryOnConnectionFailure(true)
                 .build()
         return Retrofit
             .Builder()

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertCountEquals
@@ -29,8 +30,7 @@ import com.m57.hermescontrol.ui.chat.SearchTarget
 import com.m57.hermescontrol.ui.chat.StreamingState
 import com.m57.hermescontrol.ui.chat.ToolStatus
 import com.m57.hermescontrol.ui.chat.components.ChatScrollController
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import com.m57.hermescontrol.ui.chat.components.rememberChatScrollController
 import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
@@ -84,13 +84,8 @@ class FullBleedChatListTest {
     ) {
         composeTestRule.setContent {
             val listState = remember { LazyListState() }
-            val scrollController =
-                remember(listState) {
-                    ChatScrollController(
-                        listState = listState,
-                        scope = CoroutineScope(Dispatchers.Main.immediate),
-                    )
-                }
+            // Frame-clocked scope, matching ChatScreen: animated scrolls need a MonotonicFrameClock.
+            val scrollController = rememberChatScrollController(listState, rememberCoroutineScope())
             SideEffect { onController(scrollController) }
             FullBleedChatList(
                 transcript =

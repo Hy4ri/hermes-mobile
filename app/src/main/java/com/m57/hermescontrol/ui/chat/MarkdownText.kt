@@ -111,6 +111,8 @@ fun MarkdownText(
                         code = block.code,
                         language = block.language,
                         onCopy = { /* clipboard handled internally */ },
+                        searchQuery = searchQuery,
+                        isCurrentMatch = isCurrentMatch,
                     )
                 }
 

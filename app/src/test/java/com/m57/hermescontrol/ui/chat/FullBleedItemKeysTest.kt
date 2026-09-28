@@ -41,6 +41,22 @@ class FullBleedItemKeysTest {
     }
 
     @Test
+    fun secondaryReasoningResolvesToItsProseRow() {
+        val messages =
+            listOf(
+                ChatMessage("a1", MessageRole.ASSISTANT, "one", reasoningText = "first"),
+                ChatMessage("a2", MessageRole.ASSISTANT, "two", reasoningText = "second"),
+            )
+        val turns = groupIntoTurns(messages)
+        val keys = fullBleedItemKeys(turns)
+
+        assertEquals(
+            keys.indexOf("prose-a2"),
+            searchMatchToLazyIndex(turns, messages, SearchMatch(1, 0, SearchTarget.REASONING)),
+        )
+    }
+
+    @Test
     fun toolAnchorSurvivesPrependThatExtendsItsAgentTurn() {
         val tool = ChatMessage("live-tool", MessageRole.TOOL, "output")
         val older =

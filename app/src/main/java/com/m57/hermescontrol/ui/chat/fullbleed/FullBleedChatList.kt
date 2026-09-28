@@ -426,6 +426,24 @@ fun FullBleedChatList(
                                                                             searchState.currentIndex,
                                                                         ) ==
                                                                         SearchTarget.CONTENT,
+                                                                reasoningSearchQuery =
+                                                                    if (searchState.isActive &&
+                                                                        proseMessage.id in searchState.matchedIds
+                                                                    ) {
+                                                                        searchState.query
+                                                                    } else {
+                                                                        ""
+                                                                    },
+                                                                isCurrentReasoningMatch =
+                                                                    searchState.currentMatchId == proseMessage.id &&
+                                                                        searchState.matchTargets.getOrNull(
+                                                                            searchState.currentIndex,
+                                                                        ) ==
+                                                                        SearchTarget.REASONING,
+                                                                reasoningSearchOffset =
+                                                                    searchState.matchOffsets.getOrElse(
+                                                                        searchState.currentIndex,
+                                                                    ) { 0 },
                                                                 showReasoning = !hoistedReasoning,
                                                                 onOpenAttachment = actions.onOpenAttachment,
                                                                 onSaveAttachment = actions.onSaveAttachment,

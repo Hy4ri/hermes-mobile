@@ -60,6 +60,9 @@ internal fun FullBleedAgentMessage(
     message: ChatMessage,
     searchQuery: String = "",
     isCurrentMatch: Boolean = false,
+    reasoningSearchQuery: String = "",
+    isCurrentReasoningMatch: Boolean = false,
+    reasoningSearchOffset: Int = 0,
     showReasoning: Boolean = true,
     onOpenAttachment: (Attachment) -> Unit = {},
     onSaveAttachment: (Attachment) -> Unit = {},
@@ -91,6 +94,9 @@ internal fun FullBleedAgentMessage(
             ReasoningCard(
                 reasoningText = message.reasoningText,
                 isStreaming = message.isStreaming,
+                searchQuery = reasoningSearchQuery,
+                isCurrentMatch = isCurrentReasoningMatch,
+                searchOffset = reasoningSearchOffset,
             )
             Spacer(modifier = Modifier.height(6.dp))
         }

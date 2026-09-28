@@ -23,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -36,11 +37,13 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.ui.chat.ChatMessage
 import com.m57.hermescontrol.ui.chat.ImageViewerModel
-import com.m57.hermescontrol.ui.chat.InlineAttachmentList
+import com.m57.hermescontrol.ui.chat.InlineAttachment
 import com.m57.hermescontrol.ui.chat.MarkdownText
+import com.m57.hermescontrol.ui.chat.MessageSegment
 import com.m57.hermescontrol.ui.chat.TokenEstimator
 import com.m57.hermescontrol.ui.chat.components.ReasoningCard
 import com.m57.hermescontrol.ui.chat.components.rememberCopyFeedback
+import com.m57.hermescontrol.ui.chat.splitByMedia
 import kotlinx.coroutines.launch
 
 /**
@@ -96,31 +99,43 @@ internal fun FullBleedAgentMessage(
         // lone Copy button). Blank rows are tool-call placeholders that slipped
         // through upstream mapping; the parent list renders the live status
         // indicator until the first visible delta lands.
-        if (message.content.isNotBlank()) {
-            SelectionContainer {
-                MarkdownText(
-                    text = message.content,
-                    textColor = textColor,
-                    isStreaming = message.isStreaming,
-                    searchQuery = searchQuery,
-                    isCurrentMatch = isCurrentMatch,
-                    onImageClick = onImageClick,
-                )
+        // Issue #1367: agent media renders where its `MEDIA:` directive sat in the
+        // prose; attachments without a recorded position trail the text.
+        val segments =
+            remember(message.content, message.attachments) {
+                splitByMedia(message.content, message.attachments)
+            }
+        segments.forEach { segment ->
+            when (segment) {
+                is MessageSegment.Text -> {
+                    SelectionContainer {
+                        MarkdownText(
+                            text = segment.text,
+                            textColor = textColor,
+                            isStreaming = message.isStreaming,
+                            searchQuery = searchQuery,
+                            isCurrentMatch = isCurrentMatch,
+                            onImageClick = onImageClick,
+                        )
+                    }
+                }
+
+                is MessageSegment.Media -> {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    InlineAttachment(
+                        attachment = segment.attachment,
+                        textColor = textColor,
+                        onOpen = onOpenAttachment,
+                        onSave = onSaveAttachment,
+                        savingPath = savingAttachmentPath,
+                        openingPath = openingAttachmentPath,
+                        canSave = canSaveAttachment,
+                        onImageClick = onImageClick,
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                }
             }
         }
-
-        // Inline attachments (shared with UserBubble so agent-delivered
-        // media — images, files — shows in full-bleed mode too).
-        InlineAttachmentList(
-            attachments = message.attachments,
-            textColor = textColor,
-            onOpen = onOpenAttachment,
-            onSave = onSaveAttachment,
-            savingPath = savingAttachmentPath,
-            openingPath = openingAttachmentPath,
-            canSave = canSaveAttachment,
-            onImageClick = onImageClick,
-        )
 
         if (!message.isStreaming && message.content.isNotBlank()) {
             val showTokenStat =

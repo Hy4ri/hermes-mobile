@@ -18,18 +18,21 @@ sealed interface MdBlock {
     data class Bullet(
         val text: String,
         val level: Int = 0,
+        val nestedSource: String = "",
     ) : MdBlock
 
     data class Task(
         val checked: Boolean,
         val text: String,
         val level: Int = 0,
+        val nestedSource: String = "",
     ) : MdBlock
 
     data class Ordered(
         val index: Int,
         val text: String,
         val level: Int = 0,
+        val nestedSource: String = "",
     ) : MdBlock
 
     data class Image(

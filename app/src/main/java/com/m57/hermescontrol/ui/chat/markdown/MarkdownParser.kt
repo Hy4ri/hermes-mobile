@@ -164,7 +164,7 @@ fun parseBlocks(src: String): List<MdBlock> {
             line.startsWith(">") -> {
                 val quote = mutableListOf<String>()
                 while (i < lines.size && lines[i].startsWith(">")) {
-                    quote.add(lines[i].removePrefix(">").trim())
+                    quote.add(lines[i].removePrefix(">").removePrefix(" "))
                     i++
                 }
                 blocks.add(MdBlock.Quote(quote.joinToString("\n")))
@@ -287,6 +287,11 @@ private fun parseList(
             }
             if (lookahead < lines.size && LIST_ITEM_LINE_RE.matches(lines[lookahead])) {
                 j = lookahead
+            } else if (items.isNotEmpty() && lookahead < lines.size &&
+                computeIndent(lines[lookahead].takeWhile { it == ' ' || it == '\t' }) >= 2
+            ) {
+                items.last().continuationLines.add("")
+                j = lookahead
             } else {
                 break
             }
@@ -334,32 +339,34 @@ private fun parseList(
             level = indentStack.size - 1
         }
 
-        val fullText =
-            if (item.continuationLines.isEmpty()) {
-                when (item) {
-                    is ParsedItem.Bullet -> item.text
-                    is ParsedItem.Task -> item.text
-                    is ParsedItem.Ordered -> item.text
-                }
+        val base =
+            when (item) {
+                is ParsedItem.Bullet -> item.text
+                is ParsedItem.Task -> item.text
+                is ParsedItem.Ordered -> item.text
+            }
+        val nestedSource =
+            if (item.continuationLines.any(::startsNestedBlock)) {
+                item.continuationLines.joinToString("\n")
             } else {
-                val base =
-                    when (item) {
-                        is ParsedItem.Bullet -> item.text
-                        is ParsedItem.Task -> item.text
-                        is ParsedItem.Ordered -> item.text
-                    }
-                base + " " + item.continuationLines.joinToString(" ")
+                ""
+            }
+        val fullText =
+            if (nestedSource.isNotEmpty()) {
+                base
+            } else {
+                (listOf(base) + item.continuationLines).joinToString(" ").trim()
             }
 
         when (item) {
             is ParsedItem.Bullet -> {
-                blocks.add(MdBlock.Bullet(fullText, level = level))
+                blocks.add(MdBlock.Bullet(fullText, level = level, nestedSource = nestedSource))
                 lastItemWasOrdered = false
                 lastLevel = level
             }
 
             is ParsedItem.Task -> {
-                blocks.add(MdBlock.Task(item.checked, fullText, level = level))
+                blocks.add(MdBlock.Task(item.checked, fullText, level = level, nestedSource = nestedSource))
                 lastItemWasOrdered = false
                 lastLevel = level
             }
@@ -377,7 +384,7 @@ private fun parseList(
                         currentSequenceNumber = item.rawNumber
                         currentSequenceNumber
                     }
-                blocks.add(MdBlock.Ordered(indexToUse, fullText, level = level))
+                blocks.add(MdBlock.Ordered(indexToUse, fullText, level = level, nestedSource = nestedSource))
                 lastItemWasOrdered = true
                 lastLevel = level
             }
@@ -386,6 +393,15 @@ private fun parseList(
 
     return blocks to j
 }
+
+/** Preserve block syntax in indented list continuations instead of flattening it into prose. */
+private fun startsNestedBlock(line: String): Boolean =
+    parseCodeFenceStart(line) != null ||
+        isValidHeading(line) ||
+        line.startsWith(">") ||
+        isHorizontalRule(line) ||
+        line.startsWith("$$") ||
+        line.startsWith("\\[")
 
 private fun isHorizontalRule(line: String): Boolean {
     val trimmed = line.trim()

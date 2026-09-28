@@ -16,16 +16,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.hrm.latex.renderer.measure.LatexMeasurerState
 import com.m57.hermescontrol.theme.SearchHighlightColors
 import com.m57.hermescontrol.util.BidiUtils
-
-private val TABLE_COL_WIDTH = 140.dp
 
 @Composable
 fun MarkdownTable(
@@ -46,6 +47,25 @@ fun MarkdownTable(
     val tableDirection = if (isRtl) LayoutDirection.Rtl else LocalLayoutDirection.current
     val headerBg = textColor.copy(alpha = 0.08f)
     val alignments = block.alignments
+    val cellStyle = MaterialTheme.typography.bodySmall
+    val textMeasurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val columnWidths =
+        remember(block, cellStyle, density, textMeasurer) {
+            val padding = with(density) { 12.dp.roundToPx() }
+            val minimum = with(density) { 48.dp.roundToPx() }
+            val maximum = with(density) { 280.dp.roundToPx() }
+            val columnCount = maxOf(block.header.size, block.rows.maxOfOrNull { it.size } ?: 0)
+            List(columnCount) { column ->
+                val cells =
+                    listOfNotNull(block.header.getOrNull(column)) + block.rows.mapNotNull { it.getOrNull(column) }
+                val contentWidth =
+                    cells.maxOfOrNull { cell ->
+                        textMeasurer.measure(text = cell.take(128), style = cellStyle, maxLines = 1).size.width
+                    } ?: 0
+                with(density) { (contentWidth + padding).coerceIn(minimum, maximum).toDp() }
+            }
+        }
     CompositionLocalProvider(LocalLayoutDirection provides tableDirection) {
         Column(
             modifier =
@@ -72,14 +92,15 @@ fun MarkdownTable(
                         highlights = highlights,
                         modifier =
                             Modifier
-                                .width(TABLE_COL_WIDTH)
+                                .width(columnWidths[idx])
+                                .testTag("markdown_table_header_$idx")
                                 .padding(6.dp),
                     )
                 }
             }
             HorizontalDivider(color = textColor.copy(alpha = 0.25f))
             // Body rows
-            block.rows.forEach { row ->
+            block.rows.forEachIndexed { rowIndex, row ->
                 Row(verticalAlignment = Alignment.Top) {
                     row.forEachIndexed { idx, cell ->
                         MarkdownInlineText(
@@ -96,7 +117,8 @@ fun MarkdownTable(
                             highlights = highlights,
                             modifier =
                                 Modifier
-                                    .width(TABLE_COL_WIDTH)
+                                    .width(columnWidths[idx])
+                                    .testTag("markdown_table_cell_${rowIndex}_$idx")
                                     .padding(6.dp),
                         )
                     }

@@ -13,6 +13,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
 import com.m57.hermescontrol.MainActivity
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.HermesWsClient
@@ -106,6 +107,10 @@ class ChatNotificationService : Service() {
         internal const val NOTIFICATION_ID = 1
         internal const val PENDING_NOTIFICATION_ID = 2
 
+        /** Session-complete notifications live above the fixed slots, hashed per session. */
+        private const val SESSION_COMPLETE_NOTIFICATION_BASE = 10_000
+        private const val SESSION_COMPLETE_NOTIFICATION_RANGE = 10_000
+
         private val isAppInForeground = AtomicBoolean(false)
         internal val lifecycle = ForegroundServiceLifecycle()
 
@@ -155,40 +160,60 @@ class ChatNotificationService : Service() {
                                         val targetSessionId =
                                             event.storedSessionId
                                                 ?: ActiveSessionHolder.resolveStoredSessionId(event.sessionId)
-                                        val plan =
-                                            messageCompleteNotificationPlan(
-                                                event = event,
-                                                targetSessionId = targetSessionId,
-                                                newMessageText = getString(R.string.notif_new_message),
-                                                failureText = getString(R.string.chat_reply_failed_title),
-                                            )
-                                        showReplyNotification(
-                                            text = plan.text,
-                                            sessionId = plan.sessionId,
-                                            isReplyMessage = plan.isReplyMessage,
-                                            completionId = plan.completionId,
-                                            allowInlineReply = plan.allowInlineReply,
-                                            // The durable REST row for this turn, when the
-                                            // boundary armed before the prompt was submitted
-                                            // still lets us name it unambiguously. Null is a
-                                            // normal, safe outcome: the notification is then
-                                            // never auto-dismissed from REST hydration, which
-                                            // is strictly better than dismissing the wrong
-                                            // duplicate reply.
-                                            serverMessageId =
-                                                plan.correlationText?.let {
-                                                    coalesceTurnRow(plan.sessionId, it)
-                                                },
-                                        )
-                                        // The wait is over — retire the foreground
-                                        // service. The reply notification above
-                                        // replaces the persistent "waiting" one,
-                                        // and the pendingReply flag is cleared by
-                                        // HermesWsClient's own collector, so the
-                                        // service is not restarted on the next
-                                        // ON_STOP (issue #794).
-                                        // A delayed completion must not retire a newer turn/start.
-                                        BackgroundConnectionController.default.onReplyCompleted(generation)
+                                        // The completion belongs to the open conversation (or
+                                        // a turn this app submitted) only when the runtime id
+                                        // matches the active session; anything else is a cron
+                                        // / other-client session finishing.
+                                        val isActiveSession =
+                                            !event.sessionId.isNullOrBlank() &&
+                                                event.sessionId == ActiveSessionHolder.activeSessionId.value
+                                        if (isActiveSession || AuthManager.isNotifySessionCompletions()) {
+                                            val plan =
+                                                messageCompleteNotificationPlan(
+                                                    event = event,
+                                                    targetSessionId = targetSessionId,
+                                                    newMessageText = getString(R.string.notif_new_message),
+                                                    failureText = getString(R.string.chat_reply_failed_title),
+                                                )
+                                            if (isActiveSession) {
+                                                showReplyNotification(
+                                                    text = plan.text,
+                                                    sessionId = plan.sessionId,
+                                                    isReplyMessage = plan.isReplyMessage,
+                                                    completionId = plan.completionId,
+                                                    allowInlineReply = plan.allowInlineReply,
+                                                    // The durable REST row for this turn, when the
+                                                    // boundary armed before the prompt was submitted
+                                                    // still lets us name it unambiguously. Null is a
+                                                    // normal, safe outcome: the notification is then
+                                                    // never auto-dismissed from REST hydration, which
+                                                    // is strictly better than dismissing the wrong
+                                                    // duplicate reply.
+                                                    serverMessageId =
+                                                        plan.correlationText?.let {
+                                                            coalesceTurnRow(plan.sessionId, it)
+                                                        },
+                                                )
+                                                // The wait is over — retire the foreground
+                                                // service. The reply notification above
+                                                // replaces the persistent "waiting" one,
+                                                // and the pendingReply flag is cleared by
+                                                // HermesWsClient's own collector, so the
+                                                // service is not restarted on the next
+                                                // ON_STOP (issue #794).
+                                                // A delayed completion must not retire a newer turn/start.
+                                                BackgroundConnectionController.default.onReplyCompleted(generation)
+                                            } else {
+                                                // Another session finished. Plain notification —
+                                                // no inline reply, no reply-tracker registration —
+                                                // and the service must keep listening for the next
+                                                // completion (the opt-in demand holds it).
+                                                showSessionCompleteNotification(
+                                                    sessionId = targetSessionId,
+                                                    text = event.text,
+                                                )
+                                            }
+                                        }
                                     }
 
                                     is WsEvent.ClarifyRequest -> {
@@ -363,6 +388,44 @@ class ChatNotificationService : Service() {
             )
         }
     }
+
+    /**
+     * A completion from a session the phone did not submit (cron, another
+     * client). Fires only when "notify on session completion" is on. Plain
+     * alert: tap opens that session, auto-cancel. Uses a per-session id —
+     * never the reply slot — so it cannot clobber a live reply notification
+     * or tombstone the reply-tracker target.
+     */
+    private fun showSessionCompleteNotification(
+        sessionId: String?,
+        text: String,
+    ) {
+        if (sessionId.isNullOrBlank()) return
+        val snippet =
+            text
+                .take(100)
+                .replace("\n", " ")
+                .ifBlank { getString(R.string.notif_new_message) }
+        val body = getString(R.string.notif_session_complete, snippet)
+        val notification =
+            NotificationCompat
+                .Builder(this, CHAT_CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setContentTitle(getString(R.string.notif_title))
+                .setContentText(body)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+                .setAutoCancel(true)
+                .setContentIntent(buildContentIntent(sessionId))
+                .build()
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+        manager.notify(sessionCompleteNotificationId(sessionId), notification)
+    }
+
+    /** Distinct stable id per session, clear of the service/reply slots. */
+    internal fun sessionCompleteNotificationId(sessionId: String): Int =
+        SESSION_COMPLETE_NOTIFICATION_BASE + sessionId.hashCode().mod(SESSION_COMPLETE_NOTIFICATION_RANGE)
 
     private fun buildContentIntent(sessionId: String?): PendingIntent {
         val intent =

@@ -287,6 +287,7 @@ class BackgroundConnectionControllerTest {
             every { AuthManager.isGatedMode() } returns true
             every { AuthManager.getToken() } returns null
             every { AuthManager.isKeepConnectedInBackground() } returns true
+            every { AuthManager.isNotifySessionCompletions() } returns false
             every { AuthManager.isAutoReconnect() } returns true
             every { ChatNotificationService.isAppInForeground() } returns false
             every { HermesWsClient.pendingReply } returns false
@@ -320,6 +321,7 @@ class BackgroundConnectionControllerTest {
             every { AuthManager.isGatedMode() } returns false
             every { AuthManager.getToken() } returns null
             every { AuthManager.isKeepConnectedInBackground() } returns true
+            every { AuthManager.isNotifySessionCompletions() } returns false
             every { AuthManager.isAutoReconnect() } returns true
             every { ChatNotificationService.isAppInForeground() } returns false
             every { HermesWsClient.pendingReply } returns false
@@ -352,6 +354,7 @@ class BackgroundConnectionControllerTest {
             every { AuthManager.isGatedMode() } returns false
             every { AuthManager.getToken() } returns "some-token"
             every { AuthManager.isKeepConnectedInBackground() } returns true
+            every { AuthManager.isNotifySessionCompletions() } returns false
             every { AuthManager.isAutoReconnect() } returns true
             every { ChatNotificationService.isAppInForeground() } returns false
             every { HermesWsClient.pendingReply } returns false
@@ -385,6 +388,7 @@ class BackgroundConnectionControllerTest {
             every { AuthManager.isGatedMode() } returns false
             every { AuthManager.getToken() } returns "some-token"
             every { AuthManager.isKeepConnectedInBackground() } returns true
+            every { AuthManager.isNotifySessionCompletions() } returns false
             every { AuthManager.isAutoReconnect() } returns false
             every { ChatNotificationService.isAppInForeground() } returns false
             every { HermesWsClient.pendingReply } returns false

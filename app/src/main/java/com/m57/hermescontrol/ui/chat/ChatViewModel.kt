@@ -4136,7 +4136,7 @@ class ChatViewModel(
             ChatMessage(
                 role = MessageRole.ASSISTANT,
                 content = text,
-                displayKind = "local_feedback",
+                displayKind = DisplayKind.LOCAL_FEEDBACK,
             )
         _uiState.update { it.copy(messages = it.messages + msg) }
 
@@ -4748,7 +4748,7 @@ class ChatViewModel(
                                     )
                                 }
                             if (!valid()) return@launch
-                            val targetId = "rest-$sessionId-$rowId"
+                            val targetId = RestMessageId.of(sessionId, rowId)
                             if (page.none { it.id == targetId || it.canonicalRestId == targetId }) {
                                 _timelineState.update {
                                     it.copy(windowErrorMessage = "The selected prompt is no longer available.")
@@ -5106,7 +5106,7 @@ class ChatViewModel(
         // A mapped page can reuse a live WS message. Never overwrite its newer persisted
         // version with the snapshot used for mapping; WS owns persistence of those IDs.
         val pageIds = page.mapNotNull { it.canonicalRestId }.toSet()
-        val aliases = _uiState.value.messages.filter { it.restId in pageIds && !it.id.startsWith("rest-") }
+        val aliases = _uiState.value.messages.filter { it.restId in pageIds && !RestMessageId.isRest(it.id) }
         withContext(historyDispatcher) {
             repo.persistMessages(
                 page.mapNotNull { message -> message.canonicalRestId?.let { message.copy(id = it, restId = null) } },

@@ -66,7 +66,9 @@ internal fun canonicalMessageOrder(
     id: String,
     sessionId: String,
 ): Long? {
-    val prefix = "rest-$sessionId-"
+    val prefix =
+        com.m57.hermescontrol.ui.chat.RestMessageId
+            .sessionPrefix(sessionId)
     if (!id.startsWith(prefix)) return null
     val suffix = id.removePrefix(prefix)
     return suffix.takeIf { it.isNotEmpty() && it.all { char -> char in '0'..'9' } }?.toLongOrNull()

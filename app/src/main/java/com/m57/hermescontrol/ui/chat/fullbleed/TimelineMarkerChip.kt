@@ -15,6 +15,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.ui.chat.ChatMessage
+import com.m57.hermescontrol.ui.chat.DisplayKind
 
 /**
  * Friendly label resource for a `display_kind` timeline marker (issue #904).
@@ -24,13 +25,13 @@ import com.m57.hermescontrol.ui.chat.ChatMessage
  */
 internal fun timelineMarkerLabelRes(kind: String?): Int? =
     when (kind) {
-        "model_switch" -> R.string.timeline_marker_model_switch
-        "personality_switch" -> R.string.timeline_marker_personality_switch
-        "auto_continue" -> R.string.timeline_marker_auto_continue
-        "async_delegation_complete" -> R.string.timeline_marker_delegation_complete
-        "skill_invocation" -> R.string.timeline_marker_skill_invocation
-        "internal_notification" -> R.string.timeline_marker_internal_notification
-        "max_iterations_reached" -> R.string.timeline_marker_max_iterations
+        DisplayKind.MODEL_SWITCH -> R.string.timeline_marker_model_switch
+        DisplayKind.PERSONALITY_SWITCH -> R.string.timeline_marker_personality_switch
+        DisplayKind.AUTO_CONTINUE -> R.string.timeline_marker_auto_continue
+        DisplayKind.ASYNC_DELEGATION_COMPLETE -> R.string.timeline_marker_delegation_complete
+        DisplayKind.SKILL_INVOCATION -> R.string.timeline_marker_skill_invocation
+        DisplayKind.INTERNAL_NOTIFICATION -> R.string.timeline_marker_internal_notification
+        DisplayKind.MAX_ITERATIONS_REACHED -> R.string.timeline_marker_max_iterations
         else -> null
     }
 
@@ -63,7 +64,7 @@ internal fun TimelineMarkerChip(
 ) {
     val labelRes = timelineMarkerLabelRes(message.displayKind) ?: return
     val text =
-        if (message.displayKind == "model_switch") {
+        if (message.displayKind == DisplayKind.MODEL_SWITCH) {
             val model = markerModelFromContent(message.content)
             if (model != null) {
                 stringResource(R.string.timeline_marker_model_switch_to, model)

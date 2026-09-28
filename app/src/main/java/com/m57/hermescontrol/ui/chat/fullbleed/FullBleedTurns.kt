@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.ui.chat.fullbleed
 
 import com.m57.hermescontrol.ui.chat.ChatMessage
+import com.m57.hermescontrol.ui.chat.DisplayKind
 import com.m57.hermescontrol.ui.chat.MessageRole
 import com.m57.hermescontrol.ui.chat.SearchMatch
 import com.m57.hermescontrol.ui.chat.SearchTarget
@@ -59,11 +60,7 @@ internal fun ChatMessage.isSyntheticSystemRow(): Boolean =
         displayKind == null &&
         content.startsWith(MAX_ITERATIONS_SYSTEM_MARKER)
 
-internal fun ChatMessage.isTimelineMarker(): Boolean =
-    displayKind != null &&
-        displayKind != "steer" &&
-        displayKind != "clarify_response" &&
-        displayKind != "local_feedback"
+internal fun ChatMessage.isTimelineMarker(): Boolean = displayKind != null && displayKind !in DisplayKind.nonMarkerKinds
 
 /**
  * Split a flat message list into turns for the full-bleed renderer.
@@ -99,7 +96,7 @@ fun groupIntoTurns(messages: List<ChatMessage>): List<ChatTurn> {
 
             message.isSyntheticSystemRow() -> {
                 agentEntries +=
-                    AgentEntry.SystemEvent(message.copy(displayKind = "max_iterations_reached"))
+                    AgentEntry.SystemEvent(message.copy(displayKind = DisplayKind.MAX_ITERATIONS_REACHED))
             }
 
             message.role == MessageRole.USER -> {

@@ -32,6 +32,8 @@ internal fun ToolBubbleHeader(
     contentColor: Color,
     statusColors: HermesStatusColors,
     displayName: String? = null,
+    searchQuery: String = "",
+    isCurrentMatch: Boolean = false,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -66,7 +68,13 @@ internal fun ToolBubbleHeader(
         }
 
         Text(
-            text = displayName ?: message.toolName ?: stringResource(R.string.chat_tool_fallback),
+            text =
+                buildHighlightedString(
+                    displayName ?: message.toolName ?: stringResource(R.string.chat_tool_fallback),
+                    searchQuery,
+                    isCurrentMatch,
+                    statusColors,
+                ),
             style =
                 MaterialTheme.typography.labelMedium.copy(
                     color = contentColor,

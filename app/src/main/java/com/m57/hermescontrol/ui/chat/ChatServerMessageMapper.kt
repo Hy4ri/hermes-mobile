@@ -1,20 +1,24 @@
 package com.m57.hermescontrol.ui.chat
 
-import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.AttachmentSource
 import com.m57.hermescontrol.data.model.SessionMessage
-import com.m57.hermescontrol.data.remote.GatewayFileClient
-import com.m57.hermescontrol.notification.ReplyNotificationTracker
+import com.m57.hermescontrol.notification.ReplyNotificationTarget
 import com.m57.hermescontrol.ui.chat.tool.ToolJson
 import kotlinx.serialization.json.JsonObject
 
 /**
  * Maps REST transcript rows ([SessionMessage]) into UI [ChatMessage]s.
  *
- * Reads the supplied transcript snapshot and recovers notification identity through
- * ReplyNotificationTracker's synchronized lookup. Safe on the history dispatcher;
- * it never mutates ViewModel state or dismisses a notification.
+ * Pure: every input is plain data. Callers resolve the active reply-notification
+ * target and the gateway media URL builder, so this never touches Android,
+ * AuthManager, or the notification tracker (#1337).
+ *
+ * @param activeReplyTarget the reply notification currently posted, if any; its
+ *   durable server row id reserves that row's completion identity.
+ * @param mediaUrl builds an authenticated gateway URL for a `MEDIA:` path, or null
+ *   when no gateway is configured.
+ * @param nowMs fallback timestamp for rows without one.
  */
 internal fun mapServerMessages(
     sessionId: String,
@@ -24,7 +28,9 @@ internal fun mapServerMessages(
     liveMessages: List<ChatMessage>,
     isPagingOlder: Boolean = false,
     stableRowIds: Boolean = latestPaging,
-    context: android.content.Context? = null,
+    activeReplyTarget: ReplyNotificationTarget? = null,
+    mediaUrl: (path: String) -> String? = { null },
+    nowMs: Long = System.currentTimeMillis(),
 ): List<ChatMessage> {
     val existingById = liveMessages.associateBy { it.canonicalRestId ?: it.id }
     val liveByExactId =
@@ -45,9 +51,9 @@ internal fun mapServerMessages(
 
     fun restIdAt(index: Int): String =
         if (stableRowIds) {
-            "rest-$sessionId-${requireNotNull(messages[index].id) { "Latest transcript row has no stable id" }}"
+            RestMessageId.of(sessionId, requireNotNull(messages[index].id) { "Latest transcript row has no stable id" })
         } else {
-            "rest-$sessionId-${offset + index}"
+            RestMessageId.of(sessionId, offset + index)
         }
 
     val wsCompletionIdByRestIndex = mutableMapOf<Int, String>()
@@ -55,7 +61,7 @@ internal fun mapServerMessages(
     if (!isPagingOlder) {
         // #129: reserve durable identity before matching any repeated live prose.
         // REST-only recovery remains fail-closed when the target row is absent.
-        val activeTarget = ReplyNotificationTracker.getActiveTarget(context)?.takeIf { it.sessionId == sessionId }
+        val activeTarget = activeReplyTarget?.takeIf { it.sessionId == sessionId }
         val durableTarget = activeTarget?.takeIf { it.serverMessageId != null }
         if (durableTarget != null) {
             val exactIndex =
@@ -179,7 +185,7 @@ internal fun mapServerMessages(
                 ?.times(1000)
                 ?.toLong()
                 ?: existingById[restId]?.timestamp
-                ?: System.currentTimeMillis()
+                ?: nowMs
 
         val rawContent =
             if (role == MessageRole.TOOL && msg.display_metadata != null) {
@@ -229,18 +235,11 @@ internal fun mapServerMessages(
         if (role == MessageRole.ASSISTANT && rawContent.contains("MEDIA:")) {
             val items = HostMediaExtractor.extract(rawContent)
             if (items.isNotEmpty()) {
-                val baseUrl = AuthManager.getBaseUrl()
-                val token = AuthManager.getToken().orEmpty()
                 finalContent = HostMediaExtractor.strip(rawContent)
                 attachments =
                     items
                         .mapNotNull { item ->
-                            val url =
-                                GatewayFileClient.buildMediaUrl(
-                                    baseUrl,
-                                    token,
-                                    item.path,
-                                ) ?: return@mapNotNull null
+                            val url = mediaUrl(item.path) ?: return@mapNotNull null
                             Attachment(
                                 uri = url,
                                 name = mediaNameFromPath(item.path),
@@ -279,7 +278,7 @@ internal fun mapServerMessages(
     }
 
     // REST echoes must not reserve a match before the richer WS copy of that tool.
-    val liveTools = liveMessages.filter { it.role == MessageRole.TOOL && !it.id.startsWith("rest-") }
+    val liveTools = liveMessages.filter { it.role == MessageRole.TOOL && !RestMessageId.isRest(it.id) }
     val mappedTools = mapped.filter { it.role == MessageRole.TOOL }
     val matches = matchTranscriptMessages(mappedTools, liveTools)
     val toolsById = mappedTools.indices.associate { index -> mappedTools[index].id to matches[index] }

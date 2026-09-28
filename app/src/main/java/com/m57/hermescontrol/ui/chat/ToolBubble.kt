@@ -73,6 +73,7 @@ import com.m57.hermescontrol.ui.chat.components.DiffViewCard
 import com.m57.hermescontrol.ui.chat.components.FileViewCard
 import com.m57.hermescontrol.ui.chat.tool.ToolView
 import com.m57.hermescontrol.ui.chat.tool.ToolViewBuilder
+import com.m57.hermescontrol.ui.chat.tool.ToolViewCache
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -124,6 +125,8 @@ internal fun composeToolSummaryLines(
 internal fun ToolBubble(
     message: ChatMessage,
     modifier: Modifier = Modifier,
+    searchQuery: String = "",
+    isCurrentMatch: Boolean = false,
 ) {
     var expanded by remember { mutableStateOf(false) }
     var showRawJson by remember { mutableStateOf(false) }
@@ -133,7 +136,7 @@ internal fun ToolBubble(
 
     val view =
         remember(message.content, message.toolName, message.isToolRunning) {
-            parseToolOutput(message.content, message.toolName, message.isToolRunning)
+            ToolViewCache.getOrParse(message.content, message.toolName, message.isToolRunning)
         }
     val config = ToolSchemaRegistry.getDisplayConfig(message.toolName)
 
@@ -168,12 +171,26 @@ internal fun ToolBubble(
                         .padding(horizontal = 10.dp, vertical = 6.dp),
             ) {
                 // ── Header row: icon + tool name ──
-                ToolBubbleHeader(message, config, contentColor, statusColors, view?.serverDisplayName)
+                ToolBubbleHeader(
+                    message = message,
+                    config = config,
+                    contentColor = contentColor,
+                    statusColors = statusColors,
+                    displayName = view?.serverDisplayName,
+                    searchQuery = searchQuery,
+                    isCurrentMatch = isCurrentMatch,
+                )
 
                 // ── Tool progress preview (tool.progress) ──
                 if (message.isToolRunning && !message.progressPreview.isNullOrEmpty()) {
                     Text(
-                        text = message.progressPreview,
+                        text =
+                            buildHighlightedString(
+                                message.progressPreview,
+                                searchQuery,
+                                isCurrentMatch,
+                                statusColors,
+                            ),
                         style =
                             MaterialTheme.typography.bodySmall.copy(
                                 color = contentColor.copy(alpha = 0.7f),
@@ -207,7 +224,7 @@ internal fun ToolBubble(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = firstLine,
+                                text = buildHighlightedString(firstLine, searchQuery, isCurrentMatch, statusColors),
                                 style =
                                     MaterialTheme.typography.bodySmall.copy(
                                         color = contentColor.copy(alpha = 0.7f),
@@ -220,7 +237,7 @@ internal fun ToolBubble(
                         }
                         if (secondLine != null) {
                             Text(
-                                text = secondLine,
+                                text = buildHighlightedString(secondLine, searchQuery, isCurrentMatch, statusColors),
                                 style =
                                     MaterialTheme.typography.bodySmall.copy(
                                         color = contentColor.copy(alpha = 0.5f),

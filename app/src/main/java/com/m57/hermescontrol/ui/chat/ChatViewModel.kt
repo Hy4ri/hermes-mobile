@@ -21,6 +21,7 @@ import com.m57.hermescontrol.data.model.parseContextBreakdown
 import com.m57.hermescontrol.data.model.parseUsageSnapshot
 import com.m57.hermescontrol.data.model.reasoningSupport
 import com.m57.hermescontrol.data.remote.ApiClient
+import com.m57.hermescontrol.data.remote.GatewayFileClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.safeApiCall
@@ -38,8 +39,11 @@ import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.data.ws.toAny
 import com.m57.hermescontrol.data.ws.toJsonElement
+import com.m57.hermescontrol.notification.ReplyNotificationTracker
 import com.m57.hermescontrol.notification.captureTurnBoundary
 import com.m57.hermescontrol.notification.correlationScopeId
+import com.m57.hermescontrol.ui.chat.fullbleed.TranscriptUiState
+import com.m57.hermescontrol.ui.chat.tool.ToolViewCache
 import com.m57.hermescontrol.ui.common.ActionProgressController
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -51,6 +55,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -448,6 +455,17 @@ class ChatViewModel(
     // ── Internal state ───────────────────────────────────────────────────
     private val _uiState = MutableStateFlow(ChatUiState())
     val connectionOperationState: StateFlow<ConnectionOperationUiState> = connectionOperationDelegate.state
+    private val connectionBrowserReturnTracker = BrowserReturnTracker()
+
+    fun connectionBrowserLaunched(operationId: String) = connectionBrowserReturnTracker.start(operationId)
+
+    fun connectionBrowserLaunchFailed() = connectionBrowserReturnTracker.cancel()
+
+    fun connectionBrowserPaused() = connectionBrowserReturnTracker.onPause()
+
+    fun connectionBrowserReturned(): String? = connectionBrowserReturnTracker.onResume()?.operationId
+
+    fun abandonConnectionBrowser(): Boolean = connectionBrowserReturnTracker.abandon()
 
     private val _streamingState = MutableStateFlow(StreamingState())
 
@@ -734,6 +752,33 @@ class ChatViewModel(
             _uiState.value,
         )
 
+    val transcriptState: StateFlow<TranscriptUiState> =
+        combine(uiState, timelineState, streamingState) { chat, timeline, streaming ->
+            TranscriptUiState.resolve(chat, timeline, streaming, savingAttachmentPath = null, speakingMessageId = null)
+        }.stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            TranscriptUiState.resolve(_uiState.value, _timelineState.value, _streamingState.value, null, null),
+        )
+
+    init {
+        // Parse tool payloads off the main thread before the transcript
+        // composes them (issue #1327); ToolBubble then reads a cache hit.
+        viewModelScope.launch(searchDispatcher) {
+            _uiState
+                .map { it.messages }
+                .distinctUntilChanged()
+                .conflate()
+                .collect { messages ->
+                    for (message in messages) {
+                        if (message.role == MessageRole.TOOL) {
+                            ToolViewCache.prewarm(message.content, message.toolName, message.isToolRunning)
+                        }
+                    }
+                }
+        }
+    }
+
     /**
      * Session ID to resume when the WebSocket connects. Set synchronously by
      * [ChatScreen] via `SideEffect` during composition — before any WS event
@@ -999,13 +1044,7 @@ class ChatViewModel(
             is WsEvent.MessageDone,
             is WsEvent.ToolStart,
             -> {
-                streamingController.flushPendingReasoning()
-                // Issue #842: the token buffer can hold deltas that landed
-                // <33ms before the transition. The reducer seals the
-                // streaming message into the orphan at tool.start — flush
-                // first so the seal carries the COMPLETE narration (a
-                // truncated seal fails the later REST dedupe and ghosts).
-                streamingController.flushPendingTokens()
+                streamingController.flushPendingTransition()
             }
 
             else -> {}
@@ -2211,6 +2250,10 @@ class ChatViewModel(
     }
 
     // ── Send message ─────────────────────────────────────────────────────
+
+    /** Authenticated gateway URL for a host `MEDIA:` path; kept out of the pure mapper (#1337). */
+    private fun gatewayMediaUrl(path: String): String? =
+        GatewayFileClient.buildMediaUrl(AuthManager.getBaseUrl(), AuthManager.getToken().orEmpty(), path)
 
     private fun sendScope(): String =
         listOf(
@@ -4093,7 +4136,7 @@ class ChatViewModel(
             ChatMessage(
                 role = MessageRole.ASSISTANT,
                 content = text,
-                displayKind = "local_feedback",
+                displayKind = DisplayKind.LOCAL_FEEDBACK,
             )
         _uiState.update { it.copy(messages = it.messages + msg) }
 
@@ -4205,7 +4248,8 @@ class ChatViewModel(
                         offset = 0,
                         latestPaging = latestPaging,
                         liveMessages = emptyList(),
-                        context = getApplication(),
+                        activeReplyTarget = ReplyNotificationTracker.getActiveTarget(getApplication()),
+                        mediaUrl = ::gatewayMediaUrl,
                     )
                 }
             _uiState.update { it.copy(messages = replacementMessages) }
@@ -4699,11 +4743,12 @@ class ChatViewModel(
                                         liveMessages = _uiState.value.messages,
                                         isPagingOlder = true,
                                         stableRowIds = true,
-                                        context = getApplication(),
+                                        activeReplyTarget = ReplyNotificationTracker.getActiveTarget(getApplication()),
+                                        mediaUrl = ::gatewayMediaUrl,
                                     )
                                 }
                             if (!valid()) return@launch
-                            val targetId = "rest-$sessionId-$rowId"
+                            val targetId = RestMessageId.of(sessionId, rowId)
                             if (page.none { it.id == targetId || it.canonicalRestId == targetId }) {
                                 _timelineState.update {
                                     it.copy(windowErrorMessage = "The selected prompt is no longer available.")
@@ -5009,7 +5054,8 @@ class ChatViewModel(
                                         serverOffset,
                                         useLatest,
                                         current,
-                                        context = getApplication(),
+                                        activeReplyTarget = ReplyNotificationTracker.getActiveTarget(getApplication()),
+                                        mediaUrl = ::gatewayMediaUrl,
                                     )
                                 } ?: return@launch
                             persistHistoryPage(page, sessionId)
@@ -5060,7 +5106,7 @@ class ChatViewModel(
         // A mapped page can reuse a live WS message. Never overwrite its newer persisted
         // version with the snapshot used for mapping; WS owns persistence of those IDs.
         val pageIds = page.mapNotNull { it.canonicalRestId }.toSet()
-        val aliases = _uiState.value.messages.filter { it.restId in pageIds && !it.id.startsWith("rest-") }
+        val aliases = _uiState.value.messages.filter { it.restId in pageIds && !RestMessageId.isRest(it.id) }
         withContext(historyDispatcher) {
             repo.persistMessages(
                 page.mapNotNull { message -> message.canonicalRestId?.let { message.copy(id = it, restId = null) } },
@@ -5466,7 +5512,8 @@ class ChatViewModel(
                                         useLatest,
                                         current,
                                         isPagingOlder = true,
-                                        context = getApplication(),
+                                        activeReplyTarget = ReplyNotificationTracker.getActiveTarget(getApplication()),
+                                        mediaUrl = ::gatewayMediaUrl,
                                     )
                                 } ?: return@launch
                             persistHistoryPage(page, sessionId)
@@ -5547,7 +5594,8 @@ class ChatViewModel(
                                     current,
                                     // Sync fetches recent replies, so confirm live completion identities.
                                     isPagingOlder = false,
-                                    context = getApplication(),
+                                    activeReplyTarget = ReplyNotificationTracker.getActiveTarget(getApplication()),
+                                    mediaUrl = ::gatewayMediaUrl,
                                 )
                             } ?: return@launch
                         persistHistoryPage(page, sessionId)

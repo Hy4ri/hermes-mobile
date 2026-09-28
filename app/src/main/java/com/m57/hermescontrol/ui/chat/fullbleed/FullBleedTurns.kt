@@ -1,7 +1,10 @@
 package com.m57.hermescontrol.ui.chat.fullbleed
 
 import com.m57.hermescontrol.ui.chat.ChatMessage
+import com.m57.hermescontrol.ui.chat.DisplayKind
 import com.m57.hermescontrol.ui.chat.MessageRole
+import com.m57.hermescontrol.ui.chat.SearchMatch
+import com.m57.hermescontrol.ui.chat.SearchTarget
 
 /**
  * Turn model for the full-bleed chat renderer (issue #866).
@@ -52,16 +55,12 @@ internal fun ChatMessage.hasVisibleAgentContent(): Boolean = content.isNotBlank(
 private const val MAX_ITERATIONS_SYSTEM_MARKER =
     "You've reached the maximum number of tool-calling iterations allowed."
 
-private fun ChatMessage.isSyntheticSystemRow(): Boolean =
+internal fun ChatMessage.isSyntheticSystemRow(): Boolean =
     role == MessageRole.USER &&
         displayKind == null &&
         content.startsWith(MAX_ITERATIONS_SYSTEM_MARKER)
 
-internal fun ChatMessage.isTimelineMarker(): Boolean =
-    displayKind != null &&
-        displayKind != "steer" &&
-        displayKind != "clarify_response" &&
-        displayKind != "local_feedback"
+internal fun ChatMessage.isTimelineMarker(): Boolean = displayKind != null && displayKind !in DisplayKind.nonMarkerKinds
 
 /**
  * Split a flat message list into turns for the full-bleed renderer.
@@ -97,7 +96,7 @@ fun groupIntoTurns(messages: List<ChatMessage>): List<ChatTurn> {
 
             message.isSyntheticSystemRow() -> {
                 agentEntries +=
-                    AgentEntry.SystemEvent(message.copy(displayKind = "max_iterations_reached"))
+                    AgentEntry.SystemEvent(message.copy(displayKind = DisplayKind.MAX_ITERATIONS_REACHED))
             }
 
             message.role == MessageRole.USER -> {
@@ -185,6 +184,21 @@ fun messageIdToLazyIndex(
                 null
             }
         }.toMap()
+
+fun searchMatchToLazyIndex(
+    turns: List<ChatTurn>,
+    messages: List<ChatMessage>,
+    match: SearchMatch,
+): Int? {
+    val message = messages.getOrNull(match.messageIndex) ?: return null
+    val prefix =
+        when (match.target) {
+            SearchTarget.CONTENT -> if (message.role == MessageRole.USER) "user" else "prose"
+            SearchTarget.REASONING -> "reasoning"
+            SearchTarget.TOOL -> "tool"
+        }
+    return fullBleedItemKeys(turns).indexOf("$prefix-${message.id}").takeIf { it >= 0 }
+}
 
 /** Lazy row identities, including hoisted reasoning and grouped tool/system entries. */
 internal fun fullBleedItemKeys(turns: List<ChatTurn>): List<String> =

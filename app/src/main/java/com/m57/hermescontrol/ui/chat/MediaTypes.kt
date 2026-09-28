@@ -140,67 +140,41 @@ fun normalizeFrameworkMime(mime: String?): String =
         ?.takeIf { it.isNotBlank() }
         ?: "application/octet-stream"
 
+/**
+ * MIME aliases and preferred extensions that [MEDIA_BY_EXT] can't express
+ * (it's keyed by extension, so `image/jpeg` would otherwise resolve to its
+ * first entry, `jpeg`). HEIC is save-only here: it isn't classified as inline media.
+ */
+private val EXT_BY_MIME_ALIAS: Map<String, String> =
+    mapOf(
+        "image/jpeg" to "jpg",
+        "image/jpg" to "jpg",
+        "image/heic" to "heic",
+        "image/heif" to "heic",
+        "audio/mp3" to "mp3",
+        "audio/x-m4a" to "m4a",
+        "audio/x-wav" to "wav",
+        "audio/wave" to "wav",
+        "application/x-flac" to "flac",
+        "application/ogg" to "ogg",
+    )
+
 /** Returns the canonical file extension for a given MIME type. */
 fun extensionForMime(mime: String): String {
     val clean = mime.substringBefore(';').trim().lowercase()
-    for ((ext, pair) in MEDIA_BY_EXT) {
-        if (pair.second
+    EXT_BY_MIME_ALIAS[clean]?.let { return it }
+    MEDIA_BY_EXT.entries
+        .firstOrNull { (_, pair) ->
+            pair.second
                 .substringBefore(';')
                 .trim()
                 .lowercase() == clean
-        ) {
-            return ext
-        }
-    }
-    return when (clean) {
-        "image/jpeg", "image/jpg" -> {
-            "jpg"
-        }
-
-        "video/mp4" -> {
-            "mp4"
-        }
-
-        "video/x-matroska" -> {
-            "mkv"
-        }
-
-        "video/quicktime" -> {
-            "mov"
-        }
-
-        "audio/mpeg", "audio/mp3" -> {
-            "mp3"
-        }
-
-        "audio/mp4", "audio/x-m4a" -> {
-            "m4a"
-        }
-
-        "audio/wav", "audio/x-wav", "audio/wave" -> {
-            "wav"
-        }
-
-        "audio/flac", "application/x-flac" -> {
-            "flac"
-        }
-
-        "audio/ogg", "application/ogg" -> {
-            "ogg"
-        }
-
-        "audio/aac" -> {
-            "aac"
-        }
-
-        else -> {
-            when {
-                clean.startsWith("video/") -> "mp4"
-                clean.startsWith("audio/") -> "mp3"
-                clean.startsWith("image/") -> "img"
-                else -> "bin"
-            }
-        }
+        }?.let { return it.key }
+    return when {
+        clean.startsWith("video/") -> "mp4"
+        clean.startsWith("audio/") -> "mp3"
+        clean.startsWith("image/") -> "img"
+        else -> "bin"
     }
 }
 

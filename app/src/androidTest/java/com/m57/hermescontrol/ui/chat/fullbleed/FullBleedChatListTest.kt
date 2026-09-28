@@ -3,6 +3,9 @@ package com.m57.hermescontrol.ui.chat.fullbleed
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertCountEquals
@@ -12,19 +15,23 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
 import com.m57.hermescontrol.ui.chat.ChatMessage
 import com.m57.hermescontrol.ui.chat.ChatSearchState
-import com.m57.hermescontrol.ui.chat.ChatViewModel
+import com.m57.hermescontrol.ui.chat.ChatTimelineState
+import com.m57.hermescontrol.ui.chat.ChatUiState
 import com.m57.hermescontrol.ui.chat.MessageRole
+import com.m57.hermescontrol.ui.chat.SearchTarget
 import com.m57.hermescontrol.ui.chat.StreamingState
 import com.m57.hermescontrol.ui.chat.ToolStatus
 import com.m57.hermescontrol.ui.chat.components.ChatScrollController
-import io.mockk.mockk
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import com.m57.hermescontrol.ui.chat.components.rememberChatScrollController
+import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -72,40 +79,85 @@ class FullBleedChatListTest {
         showUserMessageTokens: Boolean = true,
         showAssistantMessageTokens: Boolean = true,
         showTokensPerSecond: Boolean = true,
+        searchState: ChatSearchState = ChatSearchState(),
+        onController: (ChatScrollController) -> Unit = {},
     ) {
         composeTestRule.setContent {
-            val listState = LazyListState()
+            val listState = remember { LazyListState() }
+            // Frame-clocked scope, matching ChatScreen: animated scrolls need a MonotonicFrameClock.
+            val scrollController = rememberChatScrollController(listState, rememberCoroutineScope())
+            SideEffect { onController(scrollController) }
             FullBleedChatList(
-                messages = messages,
-                streamingState = streamingState,
-                isAgentTyping = isAgentTyping,
-                searchState = ChatSearchState(),
-                typingEffectEnabled = false,
-                typingEffectDelayMs = 30,
-                messageStatsEnabled = messageStatsEnabled,
-                showUserMessageTokens = showUserMessageTokens,
-                showAssistantMessageTokens = showAssistantMessageTokens,
-                showTokensPerSecond = showTokensPerSecond,
-                isLoading = false,
-                isLoadingOlder = false,
-                listState = listState,
-                scrollController =
-                    ChatScrollController(
-                        listState = listState,
-                        scope = CoroutineScope(Dispatchers.Main.immediate),
+                transcript =
+                    TranscriptUiState.resolve(
+                        chat =
+                            ChatUiState(
+                                messages = messages,
+                                isAgentTyping = isAgentTyping,
+                                typingEffectEnabled = false,
+                                typingEffectDelayMs = 30,
+                                messageStatsEnabled = messageStatsEnabled,
+                                showUserMessageTokens = showUserMessageTokens,
+                                showAssistantMessageTokens = showAssistantMessageTokens,
+                                showTokensPerSecond = showTokensPerSecond,
+                                clarifyRequest =
+                                    if (clarify) {
+                                        com.m57.hermescontrol.ui.chat.ClarifyUi(
+                                            text = "pick",
+                                            options = listOf("a"),
+                                        )
+                                    } else {
+                                        null
+                                    },
+                            ),
+                        timeline = ChatTimelineState(),
+                        streaming = streamingState,
+                        savingAttachmentPath = null,
+                        speakingMessageId = null,
                     ),
-                viewModel = mockk<ChatViewModel>(relaxed = true),
-                clarifyRequest =
-                    if (clarify) {
-                        com.m57.hermescontrol.ui.chat.ClarifyUi(
-                            text = "pick",
-                            options = listOf("a"),
-                        )
-                    } else {
-                        null
-                    },
+                actions = testTranscriptActions(),
+                searchState = searchState,
+                listState = listState,
+                scrollController = scrollController,
             )
         }
+    }
+
+    @Test
+    fun upwardUserGesture_pausesBottomFollow() {
+        lateinit var scrollController: ChatScrollController
+        render(
+            messages = List(40) { index -> msg("u$index", MessageRole.USER) },
+            onController = { scrollController = it },
+        )
+        composeTestRule.runOnIdle { scrollController.jumpToBottom() }
+        composeTestRule.waitForIdle()
+        composeTestRule.onRoot().performTouchInput { swipeDown() }
+        composeTestRule.runOnIdle { assertFalse(scrollController.isFollowingBottom) }
+    }
+
+    @Test
+    fun searchNavigatesToToolRowBeyondInitialViewport() {
+        val search =
+            ChatSearchState().apply {
+                isActive = true
+                query = "terminal"
+                matchIndices = listOf(30)
+                matchOffsets = listOf(0)
+                matchTargets = listOf(SearchTarget.TOOL)
+                currentIndex = 0
+                matchedIds = setOf("tool")
+                currentMatchId = "tool"
+            }
+        render(
+            messages =
+                List(30) { index -> msg("user-$index", MessageRole.USER) } +
+                    ChatMessage("tool", MessageRole.TOOL, "opaque", toolName = "terminal"),
+            searchState = search,
+        )
+
+        composeTestRule.onNodeWithTag("fullbleed_tool_row").assertIsDisplayed()
+        composeTestRule.onNodeWithText("terminal").assertIsDisplayed()
     }
 
     @Test

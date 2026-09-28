@@ -74,6 +74,7 @@ class ChatSearchDelegate(
 
         searchState.matchIndices = result.matches.map { m -> m.messageIndex }
         searchState.matchOffsets = result.matches.map { m -> m.contentOffset }
+        searchState.matchTargets = result.matches.map { m -> m.target }
         searchState.matchTotal = result.totalMatches
         searchState.matchCapped = result.capped
         searchState.currentIndex = if (result.matches.isNotEmpty()) 0 else -1
@@ -106,6 +107,7 @@ class ChatSearchDelegate(
     private fun resetMatches() {
         searchState.matchIndices = emptyList()
         searchState.matchOffsets = emptyList()
+        searchState.matchTargets = emptyList()
         searchState.matchTotal = 0
         searchState.matchCapped = false
         searchState.currentIndex = -1

@@ -3,16 +3,22 @@ package com.m57.hermescontrol.ui.chat.components
 import androidx.compose.foundation.lazy.LazyListItemInfo
 import androidx.compose.foundation.lazy.LazyListLayoutInfo
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -149,6 +155,79 @@ class ChatScrollControllerTest {
             advanceUntilIdle()
             coVerify(exactly = 0) { listState.scrollToItem(any(), any()) }
             coVerify(exactly = 0) { listState.animateScrollToItem(any(), any()) }
+        }
+
+    @Test
+    fun `layout growth does not pause follow but returning to bottom after user gesture resumes`() =
+        runTest(testDispatcher) {
+            var atBottom by mutableStateOf(true)
+            val listState = mockLazyListStateAtBottom()
+            val layoutInfo = listState.layoutInfo
+            val itemInfo = layoutInfo.visibleItemsInfo.single()
+            every { itemInfo.index } answers { if (atBottom) 4 else 3 }
+            val controller = ChatScrollController(listState, backgroundScope)
+
+            controller.observeUserScrollPosition()
+            runCurrent()
+            atBottom = false // A new row laid out below the viewport, not a user scroll.
+            Snapshot.sendApplyNotifications()
+            runCurrent()
+            assertTrue(controller.isFollowingBottom)
+
+            controller.onUserScrollUp()
+            assertFalse(controller.isFollowingBottom)
+            atBottom = true
+            Snapshot.sendApplyNotifications()
+            runCurrent()
+            assertTrue(controller.isFollowingBottom)
+        }
+
+    @Test
+    fun `user upward gesture cancels in-flight follow and counts new messages`() =
+        runTest(testDispatcher) {
+            val listState = mockLazyListStateAtBottom()
+            coEvery { listState.scrollToItem(4, any()) } coAnswers { delay(1_000) }
+            val controller = ChatScrollController(listState, this)
+
+            controller.onTailChanged(tailKey = "first", messageCount = 1)
+            runCurrent()
+            controller.onUserScrollUp()
+            controller.onTailChanged(tailKey = "second", messageCount = 2)
+            advanceUntilIdle()
+
+            assertFalse(controller.isFollowingBottom)
+            assertEquals(1, controller.pendingCount)
+            coVerify(exactly = 1) { listState.scrollToItem(4, any()) }
+        }
+
+    @Test
+    fun `historical jump replaces an in-flight follow and leaves follow paused`() =
+        runTest(testDispatcher) {
+            val listState = mockLazyListStateAtBottom()
+            coEvery { listState.scrollToItem(4, any()) } coAnswers { delay(1_000) }
+            val controller = ChatScrollController(listState, this)
+
+            controller.onTailChanged(tailKey = "tail", messageCount = 1)
+            runCurrent()
+            controller.jumpToHistoryStart()
+            advanceUntilIdle()
+
+            assertFalse(controller.isFollowingBottom)
+            coVerify(exactly = 1) { listState.scrollToItem(0, any()) }
+        }
+
+    @Test
+    fun `rapid tails replace older jobs rather than queueing scrolls`() =
+        runTest(testDispatcher) {
+            val listState = mockLazyListStateAtBottom()
+            val controller = ChatScrollController(listState, this)
+
+            controller.onTailChanged(tailKey = "one", messageCount = 1)
+            controller.onTailChanged(tailKey = "two", messageCount = 2)
+            advanceUntilIdle()
+
+            assertTrue(controller.isFollowingBottom)
+            coVerify(exactly = 1) { listState.scrollToItem(4, any()) }
         }
 
     @Test

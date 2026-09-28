@@ -164,3 +164,42 @@ class ChatNotificationServiceTest {
         assertEquals("Answer\ncontinued", plan.correlationText)
     }
 }
+
+class ChatNotificationServiceActiveListTest {
+    @Test
+    fun `parseActiveSessionLookup maps runtime id to stored id and title`() {
+        val raw =
+            mapOf(
+                "sessions" to
+                    listOf(
+                        mapOf("id" to "rt1", "session_key" to "stored-1", "title" to "Nightly report"),
+                        mapOf("id" to "rt2", "session_key" to "stored-2"),
+                    ),
+            )
+
+        val found = parseActiveSessionLookup(raw, "rt1")
+        assertEquals("stored-1", found?.storedId)
+        assertEquals("Nightly report", found?.title)
+
+        // Row without a title: notification falls back to the app name.
+        val untitled = parseActiveSessionLookup(raw, "rt2")
+        assertEquals("stored-2", untitled?.storedId)
+        assertNull(untitled?.title)
+    }
+
+    @Test
+    fun `parseActiveSessionLookup rejects unknown runtime ids and empty keys`() {
+        val raw =
+            mapOf(
+                "sessions" to
+                    listOf(
+                        mapOf("id" to "rt1", "session_key" to ""),
+                    ),
+            )
+
+        assertNull(parseActiveSessionLookup(raw, "rt1"))
+        assertNull(parseActiveSessionLookup(raw, "missing"))
+        assertNull(parseActiveSessionLookup(null, "rt1"))
+        assertNull(parseActiveSessionLookup(raw, ""))
+    }
+}

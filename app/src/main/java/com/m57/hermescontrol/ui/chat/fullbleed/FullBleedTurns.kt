@@ -197,7 +197,14 @@ fun searchMatchToLazyIndex(
             SearchTarget.REASONING -> "reasoning"
             SearchTarget.TOOL -> "tool"
         }
-    return fullBleedItemKeys(turns).indexOf("$prefix-${message.id}").takeIf { it >= 0 }
+    val keys = fullBleedItemKeys(turns)
+    keys.indexOf("$prefix-${message.id}").takeIf { it >= 0 }?.let { return it }
+    // Non-hoisted reasoning renders inside its message's prose row, not as its own row.
+    return if (match.target == SearchTarget.REASONING) {
+        keys.indexOf("prose-${message.id}").takeIf { it >= 0 }
+    } else {
+        null
+    }
 }
 
 /** Lazy row identities, including hoisted reasoning and grouped tool/system entries. */

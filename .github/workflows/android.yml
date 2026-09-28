@@ -330,6 +330,26 @@ jobs:
             ~/.android/adb*
           key: avd-api34-atd-x86_64
 
+      # The emulator runner always runs `sdkmanager --install emulator` without retry; a
+      # corrupt download ("Error on ZipFile unknown archive") kills the job before any test.
+      # Install it here with retries so the runner's own install is an up-to-date no-op.
+      - name: Install Android emulator (with retry)
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager"
+          for attempt in 1 2 3; do
+            echo "Installing Android Emulator (attempt ${attempt}/3)"
+            if yes | "${SDKMANAGER}" --install emulator --channel=0 > /dev/null \
+              && [ -x "${ANDROID_HOME}/emulator/emulator" ]; then
+              exit 0
+            fi
+            rm -rf "${ANDROID_HOME}/emulator"
+            sleep $((attempt * 10))
+          done
+          echo "::error::Unable to install the Android Emulator after 3 attempts"
+          exit 1
+
       - name: Run connectedDebugAndroidTest
         uses: reactivecircus/android-emulator-runner@v2
         with:

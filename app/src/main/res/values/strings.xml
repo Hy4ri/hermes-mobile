@@ -1469,7 +1469,6 @@
     <string name="image_viewer_close">Close</string>
     <string name="image_viewer_save">Save to device</string>
     <string name="image_viewer_share">Share</string>
-    <string name="image_viewer_share_title">Share image</string>
     <string name="plugins_memory_manage">Manage provider…</string>
     <string name="memory_provider_empty_title">No provider config</string>
     <string name="memory_provider_empty_desc">This provider has no configurable surface.</string>
@@ -1485,10 +1484,6 @@
     <string name="memory_provider_secret_label">API key (leave blank to keep)</string>
     <string name="memory_provider_bool_on">On</string>
     <string name="memory_provider_bool_off">Off</string>
-    <string name="image_viewer_saved">Image saved to Downloads</string>
-    <string name="image_viewer_save_failed">Could not save image</string>
-    <string name="image_viewer_load_failed">Could not load image: %1$s</string>
-    <string name="image_viewer_share_failed">Could not share image</string>
     <!-- hardcoded-UI string migration (en) -->
     <string name="analytics_most_used_components">Most Used Components</string>
     <string name="analytics_no_model_data">No model data available</string>

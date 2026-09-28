@@ -1261,7 +1261,6 @@
 <string name="image_viewer_close">إغلاق</string>
 <string name="image_viewer_save">حفظ على الجهاز</string>
 <string name="image_viewer_share">مشاركة</string>
-<string name="image_viewer_share_title">مشاركة الصورة</string>
 <string name="plugins_memory_manage">إدارة المزود…</string>
 <string name="memory_provider_empty_title">لا توجد إعدادات للمزود</string>
 <string name="memory_provider_empty_desc">لا يحتوي هذا المزود على خيارات قابلة للتهيئة.</string>
@@ -1277,10 +1276,6 @@
 <string name="memory_provider_secret_label">مفتاح API (اتركه فارغاً للإبقاء عليه)</string>
 <string name="memory_provider_bool_on">مفعل</string>
 <string name="memory_provider_bool_off">معطل</string>
-<string name="image_viewer_saved">تم حفظ الصورة في التنزيلات</string>
-<string name="image_viewer_save_failed">تعذر حفظ الصورة</string>
-<string name="image_viewer_load_failed">تعذر تحميل الصورة: %1$s</string>
-<string name="image_viewer_share_failed">تعذر مشاركة الصورة</string>
 <string name="analytics_most_used_components">المكونات الأكثر استخداماً</string>
 <string name="analytics_no_model_data">لا تتوفر بيانات للنماذج</string>
 <string name="analytics_no_skill_data">لا تتوفر بيانات للمهارات</string>

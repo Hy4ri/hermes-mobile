@@ -211,6 +211,59 @@ class MediaViewerDeviceTest {
         }
 
     @Test
+    fun imageUsesImageSurfaceAndStreamsSaveToDownloads() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val name = "viewer-image-${System.nanoTime()}.png"
+        val file = File(context.cacheDir, name)
+        val bitmap = android.graphics.Bitmap.createBitmap(8, 8, android.graphics.Bitmap.Config.ARGB_8888)
+        file.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+        bitmap.recycle()
+        compose.setContent {
+            var visible by remember { mutableStateOf(true) }
+            HermesControlTheme {
+                if (visible) {
+                    MediaViewerDialog(file.toURI().toString(), { visible = false }, name, "image/png")
+                }
+            }
+        }
+        awaitTag("media_image")
+        // Images never get the player surface.
+        assertTrue(compose.onAllNodesWithTag("media_play_pause_button").fetchSemanticsNodes().isEmpty())
+        compose.onNodeWithTag("media_save_button").assertIsDisplayed().performClick()
+
+        val resolver = context.contentResolver
+        var savedUri: Uri? = null
+        compose.waitUntil(15_000) {
+            resolver
+                .query(
+                    MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                    arrayOf(MediaStore.MediaColumns._ID),
+                    "${MediaStore.MediaColumns.DISPLAY_NAME} = ?",
+                    arrayOf(name),
+                    null,
+                )?.use { c ->
+                    if (c.moveToFirst()) {
+                        val id = c.getLong(c.getColumnIndexOrThrow(MediaStore.MediaColumns._ID))
+                        savedUri = ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id)
+                        true
+                    } else {
+                        false
+                    }
+                } ?: false
+        }
+        try {
+            assertArrayEquals(file.readBytes(), resolver.openInputStream(savedUri!!)?.use { it.readBytes() })
+        } finally {
+            savedUri?.let { resolver.delete(it, null, null) }
+        }
+        compose.onNodeWithTag("media_close_button").performClick()
+        compose.waitUntil(15_000) {
+            compose.onAllNodesWithTag("media_viewer_dialog").fetchSemanticsNodes().isEmpty()
+        }
+    }
+
+    @Test
     fun invalidSourceShowsRetryAndCanClose() {
         compose.setContent {
             HermesControlTheme {

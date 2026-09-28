@@ -1223,7 +1223,6 @@
     <string name="image_viewer_close">关闭</string>
     <string name="image_viewer_save">保存到设备</string>
     <string name="image_viewer_share">分享</string>
-    <string name="image_viewer_share_title">分享图片</string>
     <string name="plugins_memory_manage">管理提供商…</string>
     <string name="memory_provider_empty_title">没有提供商配置</string>
     <string name="memory_provider_empty_desc">此提供商没有可配置的界面。</string>
@@ -1239,10 +1238,6 @@
     <string name="memory_provider_secret_label">API 密钥（留空保持不变）</string>
     <string name="memory_provider_bool_on">开</string>
     <string name="memory_provider_bool_off">关</string>
-    <string name="image_viewer_saved">图片已保存到下载目录</string>
-    <string name="image_viewer_save_failed">无法保存图片</string>
-    <string name="image_viewer_load_failed">无法加载图片：%1$s</string>
-    <string name="image_viewer_share_failed">无法分享图片</string>
     <plurals name="skills_hub_scan_findings_count">
         <item quantity="one">%1$d 处发现</item>
         <item quantity="other">%1$d 处发现</item>

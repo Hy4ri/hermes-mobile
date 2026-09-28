@@ -35,6 +35,11 @@ class ImageBytesResolverTest {
         assertEquals("heic", ImageBytesResolver.extensionForMime("image/heic"))
         assertEquals("svg", ImageBytesResolver.extensionForMime("image/svg+xml"))
         assertEquals("img", ImageBytesResolver.extensionForMime("image/unknown"))
+        assertEquals("heic", ImageBytesResolver.extensionForMime("image/heif"))
+        assertEquals("bmp", ImageBytesResolver.extensionForMime("image/bmp"))
+        // Non-image content types stay `.img`, not `.bin`/`.pdf`.
+        assertEquals("img", ImageBytesResolver.extensionForMime("application/pdf"))
+        assertEquals("img", ImageBytesResolver.extensionForMime("text/html"))
     }
 
     @Test

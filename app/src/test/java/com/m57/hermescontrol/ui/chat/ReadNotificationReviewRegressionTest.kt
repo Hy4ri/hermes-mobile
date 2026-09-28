@@ -169,11 +169,29 @@ class ReadNotificationReviewRegressionTest {
                 SessionMessage(id = 200, role = "assistant", content = JsonPrimitive("Done")),
             )
         for (latest in listOf(true, false)) {
-            val mapped = mapServerMessages("session", rows, 10, latest, listOf(live), context = context)
+            val mapped =
+                mapServerMessages(
+                    "session",
+                    rows,
+                    10,
+                    latest,
+                    listOf(live),
+                    activeReplyTarget = ReplyNotificationTracker.getActiveTarget(context),
+                )
             assertEquals(listOf("comp", null), mapped.map { it.completionId })
             val merged = mergeTranscriptWithLive(mapped, listOf(live), preserveLiveIds = true)
             assertEquals(if (latest) "rest-session-100" else "rest-session-10", merged.single { it.id == "ws" }.restId)
-            assertNull(mapServerMessages("session", rows.takeLast(1), 11, latest, listOf(live)).single().completionId)
+            // Target row absent from this page: the reserved completion must fail closed, not rebind by text.
+            val targetRowAbsent =
+                mapServerMessages(
+                    "session",
+                    rows.takeLast(1),
+                    11,
+                    latest,
+                    listOf(live),
+                    activeReplyTarget = ReplyNotificationTracker.getActiveTarget(context),
+                )
+            assertNull(targetRowAbsent.single().completionId)
         }
     }
 
@@ -214,6 +232,7 @@ class ReadNotificationReviewRegressionTest {
                 0,
                 true,
                 current,
+                activeReplyTarget = ReplyNotificationTracker.getActiveTarget(),
             )
         val merged = mergeTranscriptWithLive(mapped, current, preserveLiveIds = true).single()
         assertEquals("ws", merged.id)
@@ -256,7 +275,7 @@ class ReadNotificationReviewRegressionTest {
                 latestPaging = true,
                 liveMessages = current,
                 isPagingOlder = false,
-                context = context,
+                activeReplyTarget = ReplyNotificationTracker.getActiveTarget(context),
             )
         val merged = mergeTranscriptWithLive(mapped, current, preserveLiveIds = true)
 
@@ -685,7 +704,15 @@ class ReadNotificationReviewRegressionTest {
             )
 
         val mapped =
-            mapServerMessages("session", history, 0, true, emptyList(), isPagingOlder = false, context = context)
+            mapServerMessages(
+                "session",
+                history,
+                0,
+                true,
+                emptyList(),
+                isPagingOlder = false,
+                activeReplyTarget = ReplyNotificationTracker.getActiveTarget(context),
+            )
         assertEquals("Older message must have null completionId", null, mapped[0].completionId)
         assertEquals("Newest message must receive target completionId", "comp-newest-done", mapped[1].completionId)
 
@@ -747,7 +774,15 @@ class ReadNotificationReviewRegressionTest {
             )
 
         val mapped =
-            mapServerMessages("session", history, 0, true, emptyList(), isPagingOlder = false, context = context)
+            mapServerMessages(
+                "session",
+                history,
+                0,
+                true,
+                emptyList(),
+                isPagingOlder = false,
+                activeReplyTarget = ReplyNotificationTracker.getActiveTarget(context),
+            )
         assertEquals("comp-long-2", mapped[0].completionId)
         assertEquals(null, mapped[1].completionId)
 
@@ -796,7 +831,15 @@ class ReadNotificationReviewRegressionTest {
             )
 
         val mapped =
-            mapServerMessages("session", history, 0, true, emptyList(), isPagingOlder = false, context = context)
+            mapServerMessages(
+                "session",
+                history,
+                0,
+                true,
+                emptyList(),
+                isPagingOlder = false,
+                activeReplyTarget = ReplyNotificationTracker.getActiveTarget(context),
+            )
         val row = mapped.single()
         assertEquals("comp-media-cold", row.completionId)
         assertEquals("Here is the image", row.content)
@@ -839,7 +882,15 @@ class ReadNotificationReviewRegressionTest {
             )
 
         val mapped =
-            mapServerMessages("session", history, 0, true, emptyList(), isPagingOlder = false, context = context)
+            mapServerMessages(
+                "session",
+                history,
+                0,
+                true,
+                emptyList(),
+                isPagingOlder = false,
+                activeReplyTarget = ReplyNotificationTracker.getActiveTarget(context),
+            )
         val row = mapped.single()
         assertEquals("comp-media-only-cold", row.completionId)
         assertEquals("", row.content)
@@ -887,7 +938,15 @@ class ReadNotificationReviewRegressionTest {
             )
 
         val mapped =
-            mapServerMessages("session", history, 0, true, emptyList(), isPagingOlder = false, context = context)
+            mapServerMessages(
+                "session",
+                history,
+                0,
+                true,
+                emptyList(),
+                isPagingOlder = false,
+                activeReplyTarget = ReplyNotificationTracker.getActiveTarget(context),
+            )
         assertEquals("comp-media-dup-2", mapped[0].completionId)
         assertEquals(null, mapped[1].completionId)
 
@@ -955,7 +1014,15 @@ class ReadNotificationReviewRegressionTest {
         }
 
         val mapped =
-            mapServerMessages("session", history, 0, true, emptyList(), isPagingOlder = false, context = context)
+            mapServerMessages(
+                "session",
+                history,
+                0,
+                true,
+                emptyList(),
+                isPagingOlder = false,
+                activeReplyTarget = ReplyNotificationTracker.getActiveTarget(context),
+            )
         assertEquals(listOf(null, null, "comp-turn"), mapped.map { it.completionId })
 
         assertFalse(

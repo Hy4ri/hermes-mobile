@@ -222,7 +222,10 @@ open class AppUpdateChecker(
         val url = NEXT_LINK.find(link)?.groupValues?.get(1) ?: return null
         val next = url.toHttpUrlOrNull() ?: throw IOException("GitHub returned an invalid pagination URL")
         val base = apiBaseUrl.toHttpUrlOrNull() ?: throw IOException("Invalid GitHub API base URL")
-        if (next.host != base.host || next.encodedPath != base.encodedPath.trimEnd('/') + "/releases") {
+        val expectedReposPath = base.encodedPath.trimEnd('/') + "/releases"
+        val isReposPath = next.encodedPath == expectedReposPath
+        val isRepositoriesPath = REPOSITORIES_RELEASES_PATH.matches(next.encodedPath)
+        if (next.host != base.host || (!isReposPath && !isRepositoriesPath)) {
             throw IOException("GitHub returned an untrusted pagination URL")
         }
         return next.toString()
@@ -340,6 +343,7 @@ open class AppUpdateChecker(
 
         const val RELEASE_LIST_PAGE_SIZE = 100
         val NEXT_LINK = Regex("<([^>]+)>;\\s*rel=\"next\"")
+        val REPOSITORIES_RELEASES_PATH = Regex("^/repositories/[0-9]+/releases$")
     }
 }
 

@@ -237,6 +237,9 @@ fun FullBleedChatList(
                         available: Offset,
                         source: NestedScrollSource,
                     ): Offset {
+                        if (source == NestedScrollSource.UserInput && available.y > 0f) {
+                            scrollController.onUserScrollUp()
+                        }
                         if (prefetch.onScroll(
                                 firstVisibleIndex = listState.firstVisibleItemIndex,
                                 deltaY = available.y,

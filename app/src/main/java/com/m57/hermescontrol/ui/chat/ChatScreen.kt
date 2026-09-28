@@ -329,8 +329,7 @@ fun ChatScreen(
     }
     LaunchedEffect(timelineState.historyAnchorRowId) {
         if (timelineState.isHistorical && displayedMessages.isNotEmpty()) {
-            scrollController.pauseFollowing()
-            listState.scrollToItem(0)
+            scrollController.jumpToHistoryStart()
         }
     }
     val showScrollToBottom by remember(timelineState.isHistorical, displayedMessages) {

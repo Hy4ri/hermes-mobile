@@ -102,7 +102,7 @@ object MarkdownInlineStyler {
                                     background = textColor.copy(alpha = 0.08f),
                                 ),
                             ) {
-                                append(content)
+                                appendSearchable(content, searchQuery, searchHighlightColor)
                             }
                             i = matchingEnd + runLength
                         } else {
@@ -118,7 +118,7 @@ object MarkdownInlineStyler {
                             val raw = src.substring(i + 3, end)
                             val content = if (isRtl) BidiUtils.wrapLtrIsolate(raw) else raw
                             withStyle(SpanStyle(fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic)) {
-                                append(content)
+                                appendSearchable(content, searchQuery, searchHighlightColor)
                             }
                             i = end + 3
                         } else {
@@ -161,7 +161,7 @@ object MarkdownInlineStyler {
                             val raw = src.substring(i + 2, end)
                             val toAppend = if (isRtl) BidiUtils.wrapLtrIsolate(raw) else raw
                             withStyle(SpanStyle(textDecoration = TextDecoration.LineThrough)) {
-                                append(toAppend)
+                                appendSearchable(toAppend, searchQuery, searchHighlightColor)
                             }
                             i = end + 2
                         } else {
@@ -201,7 +201,7 @@ object MarkdownInlineStyler {
                             val raw = src.substring(i + 2, end)
                             val toAppend = if (isRtl) BidiUtils.wrapLtrIsolate(raw) else raw
                             withStyle(SpanStyle(background = highlights.markupBackground)) {
-                                append(toAppend)
+                                appendSearchable(toAppend, searchQuery, searchHighlightColor)
                             }
                             i = end + 2
                         } else {
@@ -215,7 +215,7 @@ object MarkdownInlineStyler {
                         val end = src.indexOf('^', i + 1)
                         if (end != -1 && end > i + 1) {
                             withStyle(SpanStyle(baselineShift = BaselineShift.Superscript)) {
-                                append(src.substring(i + 1, end))
+                                appendSearchable(src.substring(i + 1, end), searchQuery, searchHighlightColor)
                             }
                             i = end + 1
                         } else {
@@ -229,7 +229,7 @@ object MarkdownInlineStyler {
                         val end = src.indexOf('~', i + 1)
                         if (end != -1 && end > i + 1) {
                             withStyle(SpanStyle(baselineShift = BaselineShift.Subscript)) {
-                                append(src.substring(i + 1, end))
+                                appendSearchable(src.substring(i + 1, end), searchQuery, searchHighlightColor)
                             }
                             i = end + 1
                         } else {
@@ -250,7 +250,7 @@ object MarkdownInlineStyler {
                                     background = textColor.copy(alpha = 0.12f),
                                 ),
                             ) {
-                                append(toAppend)
+                                appendSearchable(toAppend, searchQuery, searchHighlightColor)
                             }
                             i = end + 6
                         } else {
@@ -382,4 +382,27 @@ object MarkdownInlineStyler {
     }
 
     private fun isRtr(isRtl: Boolean): Boolean = isRtl
+
+    /** Append [text], highlighting every [query] hit so styled spans (inline code, sub/sup, ...) stay searchable. */
+    private fun AnnotatedString.Builder.appendSearchable(
+        text: String,
+        query: String,
+        highlight: Pair<Color, Color>,
+    ) {
+        if (query.isEmpty()) {
+            append(text)
+            return
+        }
+        var from = 0
+        while (from < text.length) {
+            val hit = text.indexOf(query, from, ignoreCase = true)
+            if (hit < 0) break
+            append(text.substring(from, hit))
+            withStyle(SpanStyle(background = highlight.first, color = highlight.second)) {
+                append(text.substring(hit, hit + query.length))
+            }
+            from = hit + query.length
+        }
+        append(text.substring(from))
+    }
 }

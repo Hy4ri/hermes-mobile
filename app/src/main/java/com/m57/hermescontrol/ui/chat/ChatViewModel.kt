@@ -40,6 +40,7 @@ import com.m57.hermescontrol.data.ws.toAny
 import com.m57.hermescontrol.data.ws.toJsonElement
 import com.m57.hermescontrol.notification.captureTurnBoundary
 import com.m57.hermescontrol.notification.correlationScopeId
+import com.m57.hermescontrol.ui.chat.fullbleed.TranscriptUiState
 import com.m57.hermescontrol.ui.chat.tool.ToolViewCache
 import com.m57.hermescontrol.ui.common.ActionProgressController
 import kotlinx.coroutines.CancellationException
@@ -452,6 +453,17 @@ class ChatViewModel(
     // ── Internal state ───────────────────────────────────────────────────
     private val _uiState = MutableStateFlow(ChatUiState())
     val connectionOperationState: StateFlow<ConnectionOperationUiState> = connectionOperationDelegate.state
+    private val connectionBrowserReturnTracker = BrowserReturnTracker()
+
+    fun connectionBrowserLaunched(operationId: String) = connectionBrowserReturnTracker.start(operationId)
+
+    fun connectionBrowserLaunchFailed() = connectionBrowserReturnTracker.cancel()
+
+    fun connectionBrowserPaused() = connectionBrowserReturnTracker.onPause()
+
+    fun connectionBrowserReturned(): String? = connectionBrowserReturnTracker.onResume()?.operationId
+
+    fun abandonConnectionBrowser(): Boolean = connectionBrowserReturnTracker.abandon()
 
     private val _streamingState = MutableStateFlow(StreamingState())
 
@@ -736,6 +748,15 @@ class ChatViewModel(
             viewModelScope,
             SharingStarted.Eagerly,
             _uiState.value,
+        )
+
+    val transcriptState: StateFlow<TranscriptUiState> =
+        combine(uiState, timelineState, streamingState) { chat, timeline, streaming ->
+            TranscriptUiState.resolve(chat, timeline, streaming, savingAttachmentPath = null, speakingMessageId = null)
+        }.stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            TranscriptUiState.resolve(_uiState.value, _timelineState.value, _streamingState.value, null, null),
         )
 
     init {

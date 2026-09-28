@@ -17,12 +17,12 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
 import com.m57.hermescontrol.ui.chat.ChatMessage
 import com.m57.hermescontrol.ui.chat.ChatSearchState
-import com.m57.hermescontrol.ui.chat.ChatViewModel
+import com.m57.hermescontrol.ui.chat.ChatTimelineState
+import com.m57.hermescontrol.ui.chat.ChatUiState
 import com.m57.hermescontrol.ui.chat.MessageRole
 import com.m57.hermescontrol.ui.chat.StreamingState
 import com.m57.hermescontrol.ui.chat.ToolStatus
 import com.m57.hermescontrol.ui.chat.components.ChatScrollController
-import io.mockk.mockk
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import org.junit.Rule
@@ -76,34 +76,41 @@ class FullBleedChatListTest {
         composeTestRule.setContent {
             val listState = LazyListState()
             FullBleedChatList(
-                messages = messages,
-                streamingState = streamingState,
-                isAgentTyping = isAgentTyping,
+                transcript =
+                    TranscriptUiState.resolve(
+                        chat =
+                            ChatUiState(
+                                messages = messages,
+                                isAgentTyping = isAgentTyping,
+                                typingEffectEnabled = false,
+                                typingEffectDelayMs = 30,
+                                messageStatsEnabled = messageStatsEnabled,
+                                showUserMessageTokens = showUserMessageTokens,
+                                showAssistantMessageTokens = showAssistantMessageTokens,
+                                showTokensPerSecond = showTokensPerSecond,
+                                clarifyRequest =
+                                    if (clarify) {
+                                        com.m57.hermescontrol.ui.chat.ClarifyUi(
+                                            text = "pick",
+                                            options = listOf("a"),
+                                        )
+                                    } else {
+                                        null
+                                    },
+                            ),
+                        timeline = ChatTimelineState(),
+                        streaming = streamingState,
+                        savingAttachmentPath = null,
+                        speakingMessageId = null,
+                    ),
+                actions = testTranscriptActions(),
                 searchState = ChatSearchState(),
-                typingEffectEnabled = false,
-                typingEffectDelayMs = 30,
-                messageStatsEnabled = messageStatsEnabled,
-                showUserMessageTokens = showUserMessageTokens,
-                showAssistantMessageTokens = showAssistantMessageTokens,
-                showTokensPerSecond = showTokensPerSecond,
-                isLoading = false,
-                isLoadingOlder = false,
                 listState = listState,
                 scrollController =
                     ChatScrollController(
                         listState = listState,
                         scope = CoroutineScope(Dispatchers.Main.immediate),
                     ),
-                viewModel = mockk<ChatViewModel>(relaxed = true),
-                clarifyRequest =
-                    if (clarify) {
-                        com.m57.hermescontrol.ui.chat.ClarifyUi(
-                            text = "pick",
-                            options = listOf("a"),
-                        )
-                    } else {
-                        null
-                    },
             )
         }
     }

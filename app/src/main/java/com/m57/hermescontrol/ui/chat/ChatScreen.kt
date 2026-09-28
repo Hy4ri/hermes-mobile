@@ -123,6 +123,7 @@ import com.m57.hermescontrol.ui.chat.components.rememberChatSpeech
 import com.m57.hermescontrol.ui.chat.components.shouldShowProgressChip
 import com.m57.hermescontrol.ui.chat.components.tailContentKey
 import com.m57.hermescontrol.ui.chat.fullbleed.FullBleedChatList
+import com.m57.hermescontrol.ui.chat.fullbleed.TranscriptActions
 import com.m57.hermescontrol.ui.common.ActionProgressDialog
 import com.m57.hermescontrol.ui.common.AutoScrollingTitleText
 import com.m57.hermescontrol.ui.common.CredentialWarningBanner
@@ -168,6 +169,7 @@ fun ChatScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val streamingState by viewModel.streamingState.collectAsStateWithLifecycle()
     val timelineState by viewModel.timelineState.collectAsStateWithLifecycle()
+    val transcriptState by viewModel.transcriptState.collectAsStateWithLifecycle()
     val credentialWarning by HermesWsClient.credentialWarning.collectAsStateWithLifecycle()
     val connectorsViewModel: ChatConnectorsViewModel = viewModel()
     val connectorsState by connectorsViewModel.uiState.collectAsStateWithLifecycle()
@@ -181,42 +183,26 @@ fun ChatScreen(
     val displayedMessages = timelineState.historyMessages ?: state.messages
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
-    var browserAuthInFlight by rememberSaveable { mutableStateOf(false) }
-    var browserAuthDeparted by rememberSaveable { mutableStateOf(false) }
-    var connectionBrowserOperationId by remember { mutableStateOf<String?>(null) }
-    var connectionBrowserDeparted by remember { mutableStateOf(false) }
 
     DisposableEffect(lifecycleOwner) {
         val observer =
             LifecycleEventObserver { _, event ->
                 when (event) {
                     Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> {
-                        if (browserAuthInFlight) {
-                            browserAuthDeparted = true
-                        }
-                        if (connectionBrowserOperationId != null) {
-                            connectionBrowserDeparted = true
-                        }
+                        connectorsViewModel.browserPaused()
+                        viewModel.connectionBrowserPaused()
                         connectorsViewModel.onPause()
                     }
 
                     Lifecycle.Event.ON_RESUME -> {
                         viewModel.refreshSettings()
                         connectorsViewModel.onResume()
-                        val legacyBrowserReturned = browserAuthInFlight && browserAuthDeparted
-                        val operationId = connectionBrowserOperationId.takeIf { connectionBrowserDeparted }
+                        val legacyBrowserReturned = connectorsViewModel.browserReturned()
+                        val operationId = viewModel.connectionBrowserReturned()
                         if (legacyBrowserReturned || operationId != null) {
                             ExternalActivityLifecycleGuard.externalActivityReturned()
                         }
-                        if (legacyBrowserReturned) {
-                            browserAuthInFlight = false
-                            browserAuthDeparted = false
-                        }
-                        if (operationId != null) {
-                            connectionBrowserOperationId = null
-                            connectionBrowserDeparted = false
-                            viewModel.wakeConnectionOperation(operationId)
-                        }
+                        operationId?.let(viewModel::wakeConnectionOperation)
                     }
 
                     else -> {}
@@ -231,18 +217,11 @@ fun ChatScreen(
                     .firstOrNull()
             val isChangingConfigs = activity?.isChangingConfigurations == true
             if (!isChangingConfigs) {
-                val externalActivityOutstanding =
-                    (browserAuthInFlight && browserAuthDeparted) ||
-                        (connectionBrowserOperationId != null && connectionBrowserDeparted)
-                if (externalActivityOutstanding) {
+                val legacyOutstanding = connectorsViewModel.abandonBrowser()
+                val connectionOutstanding = viewModel.abandonConnectionBrowser()
+                if (legacyOutstanding || connectionOutstanding) {
                     ExternalActivityLifecycleGuard.externalActivityReturned()
                 }
-                if (browserAuthInFlight && browserAuthDeparted) {
-                    browserAuthInFlight = false
-                    browserAuthDeparted = false
-                }
-                connectionBrowserOperationId = null
-                connectionBrowserDeparted = false
                 connectorsViewModel.onPause()
                 connectorsViewModel.hide()
             }
@@ -413,21 +392,17 @@ fun ChatScreen(
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         }
                     launchExternalActivity {
-                        browserAuthDeparted = false
-                        browserAuthInFlight = true
+                        connectorsViewModel.browserLaunched()
                         context.startActivity(intent)
                     }
                 } catch (_: ActivityNotFoundException) {
-                    browserAuthInFlight = false
-                    browserAuthDeparted = false
+                    connectorsViewModel.browserLaunchFailed()
                     connectorsViewModel.launchError(browserLaunchError)
                 } catch (_: SecurityException) {
-                    browserAuthInFlight = false
-                    browserAuthDeparted = false
+                    connectorsViewModel.browserLaunchFailed()
                     connectorsViewModel.launchError(browserLaunchError)
                 } catch (_: Exception) {
-                    browserAuthInFlight = false
-                    browserAuthDeparted = false
+                    connectorsViewModel.browserLaunchFailed()
                     connectorsViewModel.launchError(browserLaunchError)
                 }
             }
@@ -759,61 +734,41 @@ fun ChatScreen(
                 // Full-bleed chat renderer (issue #866) — the single chat
                 // surface since the bubble renderer was removed.
                 FullBleedChatList(
-                    messages = displayedMessages,
-                    streamingState = if (timelineState.isHistorical) StreamingState() else streamingState,
-                    isAgentTyping = state.isAgentTyping && !timelineState.isHistorical,
+                    transcript =
+                        transcriptState.copy(
+                            savingAttachmentPath = pendingSavePath ?: transcriptState.savingAttachmentPath,
+                            speakingMessageId = speakingMessageId,
+                        ),
+                    actions =
+                        TranscriptActions(
+                            onLoadOlder = viewModel::loadOlderMessages,
+                            onOpenAttachment = viewModel::openAttachment,
+                            onSaveAttachment = onSaveAttachment,
+                            onImageClick = { viewingImage = it },
+                            onRespondApproval = viewModel::respondToApproval,
+                            onRespondClarify = viewModel::respondToClarify,
+                            onRespondClarifyBatch = viewModel::respondToClarifyBatch,
+                            onDismissClarify = viewModel::dismissClarify,
+                            onRespondVaultUnlock = viewModel::respondToVaultUnlock,
+                            onDismissVaultUnlock = viewModel::dismissVaultUnlock,
+                            onRespondVaultSaveLogin = viewModel::respondToVaultSaveLogin,
+                            onDismissVaultSaveLogin = viewModel::dismissVaultSaveLogin,
+                            onRespondVaultCode = viewModel::respondToVaultCode,
+                            onDismissVaultCode = viewModel::dismissVaultCode,
+                            onToggleSpeak = { message ->
+                                val scopeKey = "${dataScope?.inMemoryKey(localKey = activeSessionId ?: "none")}"
+                                speechController.toggle(
+                                    SpeechRequest(
+                                        scopeKey = scopeKey,
+                                        messageId = message.id,
+                                        text = SpeechText.stripMarkdownForSpeech(message.content),
+                                    ),
+                                )
+                            },
+                        ),
                     searchState = searchState,
-                    typingEffectEnabled = state.typingEffectEnabled && !timelineState.isHistorical,
-                    typingEffectDelayMs = state.typingEffectDelayMs,
-                    messageStatsEnabled = state.messageStatsEnabled,
-                    showUserMessageTokens = state.showUserMessageTokens,
-                    showAssistantMessageTokens = state.showAssistantMessageTokens,
-                    showTokensPerSecond = state.showTokensPerSecond,
-                    maxToolCallsPerTurn = state.maxToolCallsPerTurn,
-                    isLoading = state.isLoading && !timelineState.isHistorical,
-                    isLoadingOlder = state.isLoadingOlder && !timelineState.isHistorical,
-                    hasOlderMessages = state.hasOlderMessages && !timelineState.isHistorical,
-                    pagingSessionId =
-                        state.currentSessionId?.let { currentSessionId ->
-                            if (timelineState.isHistorical) {
-                                currentSessionId + ":history:" + timelineState.historyAnchorRowId
-                            } else {
-                                currentSessionId
-                            }
-                        },
                     listState = listState,
                     scrollController = scrollController,
-                    viewModel = viewModel,
-                    clarifyRequest = state.clarifyRequest.takeUnless { timelineState.isHistorical },
-                    onRespondClarify = viewModel::respondToClarify,
-                    onRespondClarifyBatch = viewModel::respondToClarifyBatch,
-                    onDismissClarify = viewModel::dismissClarify,
-                    vaultUnlockPrompt = state.vaultUnlockPrompt.takeUnless { timelineState.isHistorical },
-                    onRespondVaultUnlock = viewModel::respondToVaultUnlock,
-                    onDismissVaultUnlock = viewModel::dismissVaultUnlock,
-                    vaultSaveLoginPrompt = state.vaultSaveLoginPrompt.takeUnless { timelineState.isHistorical },
-                    onRespondVaultSaveLogin = viewModel::respondToVaultSaveLogin,
-                    onDismissVaultSaveLogin = viewModel::dismissVaultSaveLogin,
-                    vaultCodePrompt = state.vaultCodePrompt.takeUnless { timelineState.isHistorical },
-                    onRespondVaultCode = viewModel::respondToVaultCode,
-                    onDismissVaultCode = viewModel::dismissVaultCode,
-                    onSaveAttachment = onSaveAttachment,
-                    savingAttachmentPath = pendingSavePath ?: state.savingAttachmentPath,
-                    openingAttachmentPath = state.openingAttachmentPath,
-                    isCompressing = state.isCompressing && !timelineState.isHistorical,
-                    compressionStatus = state.compressionStatus.takeUnless { timelineState.isHistorical },
-                    onImageClick = { viewingImage = it },
-                    speakingMessageId = speakingMessageId,
-                    onToggleSpeak = { message ->
-                        val scopeKey = "${dataScope?.inMemoryKey(localKey = activeSessionId ?: "none")}"
-                        speechController.toggle(
-                            SpeechRequest(
-                                scopeKey = scopeKey,
-                                messageId = message.id,
-                                text = SpeechText.stripMarkdownForSpeech(message.content),
-                            ),
-                        )
-                    },
                     replyErrorContent =
                         state.replyFailure?.takeUnless { timelineState.isHistorical }?.let { failure ->
                             {
@@ -1084,8 +1039,7 @@ fun ChatScreen(
                     if (ConnectorUrlValidator.isValidHttpsUrl(url)) {
                         try {
                             launchExternalActivity {
-                                connectionBrowserOperationId = operationId
-                                connectionBrowserDeparted = false
+                                viewModel.connectionBrowserLaunched(operationId)
                                 val intent =
                                     Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
                                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -1093,8 +1047,7 @@ fun ChatScreen(
                                 context.startActivity(intent)
                             }
                         } catch (_: Exception) {
-                            connectionBrowserOperationId = null
-                            connectionBrowserDeparted = false
+                            viewModel.connectionBrowserLaunchFailed()
                             scrollScope.launch { snackbarHostState.showSnackbar(browserLaunchError) }
                         }
                     }

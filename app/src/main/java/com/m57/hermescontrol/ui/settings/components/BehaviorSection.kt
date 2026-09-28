@@ -24,6 +24,8 @@ internal fun BehaviorSection(
     onAutoReconnectChange: (Boolean) -> Unit,
     keepConnectedInBackground: Boolean,
     onKeepConnectedInBackgroundChange: (Boolean) -> Unit,
+    notifySessionCompletions: Boolean,
+    onNotifySessionCompletionsChange: (Boolean) -> Unit,
     restoreLastSession: Boolean,
     onRestoreLastSessionChange: (Boolean) -> Unit,
 ) {
@@ -77,6 +79,39 @@ internal fun BehaviorSection(
             Switch(
                 checked = keepConnectedInBackground,
                 onCheckedChange = onKeepConnectedInBackgroundChange,
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.settings_notify_session_completions_title),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    text = stringResource(R.string.settings_notify_session_completions_desc),
+                    style =
+                        MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        ),
+                )
+            }
+            Switch(
+                checked = notifySessionCompletions,
+                onCheckedChange = onNotifySessionCompletionsChange,
+                colors =
+                    SwitchDefaults.colors(
+                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
+                    ),
             )
         }
 

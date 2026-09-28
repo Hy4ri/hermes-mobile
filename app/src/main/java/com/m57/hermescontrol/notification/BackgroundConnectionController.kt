@@ -51,6 +51,7 @@ class BackgroundConnectionController(
                 status = status,
                 isAutoReconnect = AuthManager.isAutoReconnect(),
                 hasActiveNetwork = NetworkMonitor.isConnected.value,
+                notifyCompletionsOptIn = AuthManager.isNotifySessionCompletions(),
             )
         }
     }

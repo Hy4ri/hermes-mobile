@@ -14,6 +14,11 @@ data class BackgroundConnectionSnapshot(
     val status: ConnectionStatus,
     val isAutoReconnect: Boolean = true,
     val hasActiveNetwork: Boolean = true,
+    /**
+     * User opted into "notify when a session completes" — completions arrive
+     * only over a live connection, so this implies the keep-connected lease.
+     */
+    val notifyCompletionsOptIn: Boolean = false,
 ) {
     companion object {
         fun ineligible(
@@ -77,8 +82,12 @@ object BackgroundConnectionPolicy {
             )
         }
 
-        // Demand check: need either a pending reply or persistent opt-in
-        val hasDemand = snapshot.pendingReply || snapshot.keepConnectedOptIn
+        // Demand check: need a pending reply or a persistent opt-in. The
+        // completions notify opt-in implies the keep-connected lease — a
+        // session can only be observed finishing over a live connection.
+        val notifyCompletionsDemand = snapshot.notifyCompletionsOptIn
+        val keepConnectedLease = snapshot.keepConnectedOptIn || notifyCompletionsDemand
+        val hasDemand = snapshot.pendingReply || keepConnectedLease
         if (!hasDemand) {
             return BackgroundConnectionDecision(
                 shouldHoldService = false,
@@ -134,7 +143,7 @@ object BackgroundConnectionPolicy {
 
         return BackgroundConnectionDecision(
             shouldHoldService = true,
-            shouldHoldPersistentLease = snapshot.keepConnectedOptIn,
+            shouldHoldPersistentLease = keepConnectedLease,
             notificationState = notificationState,
         )
     }

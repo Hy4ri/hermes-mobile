@@ -31,6 +31,30 @@ class MediaTypesTest {
     }
 
     @Test
+    fun `extension for mime uses one table plus aliases`() {
+        // Table entries, including params and case.
+        assertEquals("png", extensionForMime("image/png"))
+        assertEquals("png", extensionForMime(" IMAGE/PNG; charset=binary"))
+        assertEquals("ogg", extensionForMime("audio/ogg; codecs=opus"))
+        assertEquals("mkv", extensionForMime("video/x-matroska"))
+        assertEquals("pdf", extensionForMime("application/pdf"))
+        // Aliases win over first-table-match.
+        assertEquals("jpg", extensionForMime("image/jpeg"))
+        assertEquals("jpg", extensionForMime("image/jpg"))
+        assertEquals("heic", extensionForMime("image/heif"))
+        assertEquals("mp3", extensionForMime("audio/mp3"))
+        assertEquals("m4a", extensionForMime("audio/x-m4a"))
+        assertEquals("wav", extensionForMime("audio/wave"))
+        assertEquals("flac", extensionForMime("application/x-flac"))
+        assertEquals("ogg", extensionForMime("application/ogg"))
+        // Family fallbacks.
+        assertEquals("mp4", extensionForMime("video/unknown"))
+        assertEquals("mp3", extensionForMime("audio/unknown"))
+        assertEquals("img", extensionForMime("image/unknown"))
+        assertEquals("bin", extensionForMime("application/unknown"))
+    }
+
+    @Test
     fun `name extraction handles urls and paths`() {
         assertEquals("report.pdf", mediaNameFromPath("https://gw/api/files/download?path=%2Ftmp%2Freport.pdf"))
         assertEquals("a.png", mediaNameFromPath("/home/u/a.png"))

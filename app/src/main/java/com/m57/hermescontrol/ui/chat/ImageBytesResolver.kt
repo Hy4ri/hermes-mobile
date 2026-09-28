@@ -114,15 +114,12 @@ object ImageBytesResolver {
         }.getOrElse { e -> Result.Error(e.message ?: "Could not download image") }
     }
 
+    /** Image-only view of the shared MIME table: anything that isn't `image/` saves as `.img`. */
     fun extensionForMime(mime: String): String =
-        when (mime.substringBefore(';').trim().lowercase()) {
-            "image/jpeg", "image/jpg" -> "jpg"
-            "image/png" -> "png"
-            "image/gif" -> "gif"
-            "image/webp" -> "webp"
-            "image/bmp" -> "bmp"
-            "image/heic", "image/heif" -> "heic"
-            "image/svg+xml" -> "svg"
-            else -> "img"
+        if (mime.trim().startsWith("image/", ignoreCase = true)) {
+            com.m57.hermescontrol.ui.chat
+                .extensionForMime(mime)
+        } else {
+            "img"
         }
 }

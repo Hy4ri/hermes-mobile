@@ -13,8 +13,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -65,6 +67,8 @@ internal fun FullBleedAgentMessage(
     openingAttachmentPath: String? = null,
     canSaveAttachment: Boolean = true,
     onImageClick: (ImageViewerModel) -> Unit = {},
+    isSpeaking: Boolean = false,
+    onToggleSpeak: (() -> Unit)? = null,
     messageStatsEnabled: Boolean = false,
     showAssistantMessageTokens: Boolean = true,
     showTokensPerSecond: Boolean = true,
@@ -161,6 +165,31 @@ internal fun FullBleedAgentMessage(
                         modifier = Modifier.size(14.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+                if (onToggleSpeak != null) {
+                    IconButton(
+                        onClick = onToggleSpeak,
+                        modifier = Modifier.size(28.dp).testTag("fullbleed_speak"),
+                    ) {
+                        Icon(
+                            imageVector =
+                                if (isSpeaking) {
+                                    Icons.Filled.Stop
+                                } else {
+                                    Icons.AutoMirrored.Filled.VolumeUp
+                                },
+                            contentDescription =
+                                stringResource(
+                                    if (isSpeaking) {
+                                        R.string.content_desc_stop_speaking
+                                    } else {
+                                        R.string.content_desc_speak
+                                    },
+                                ),
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
                 if (showTokenStat) {
                     AssistantStatItem(

@@ -4,8 +4,12 @@
     <!-- Chat -->
     <string name="chat_send_desc">Send</string>
     <string name="chat_mic_listening">Listening…</string>
+    <string name="chat_voice_cancel">Cancel</string>
+    <string name="chat_voice_lock_hint">Slide up to lock recording</string>
     <string name="chat_voice_record_failed">Could not start voice recording</string>
-    <string name="chat_voice_slide_to_cancel">Slide to cancel</string>
+    <string name="chat_voice_send_desc">Send voice note</string>
+    <string name="chat_voice_slide_to_cancel_action">cancel</string>
+    <string name="chat_voice_slide_to_cancel_prefix">Slide to</string>
     <string name="chat_voice_stop_generating">Stop generating</string>
     <string name="stt_permission_denied">Microphone permission is required for voice input</string>
     <string name="stt_not_available">Speech recognition is not available on this device</string>
@@ -83,6 +87,7 @@
     <string name="screen_cron">Cron</string>
     <string name="screen_system">System</string>
     <string name="screen_settings">Settings</string>
+    <string name="screen_account_connectors">Connectors</string>
     <string name="screen_profiles">Profiles</string>
     <string name="screen_bots">Bots</string>
     <string name="bots_active_now">Active Now</string>
@@ -232,6 +237,11 @@
     <string name="content_desc_scroll_to_bottom">Scroll to bottom</string>
     <string name="content_desc_copy">Copy</string>
     <string name="content_desc_copied">Copied</string>
+    <string name="content_desc_speak">Read aloud</string>
+    <string name="content_desc_stop_speaking">Stop speaking</string>
+    <string name="tts_error_network">Could not reach the Hermes server for speech</string>
+    <string name="tts_error_synthesis">Could not synthesize the message audio</string>
+    <string name="tts_error_playback">Could not play the message audio</string>
     <string name="content_desc_edit">Edit</string>
     <string name="chat_msg_tokens">%1$s tok</string>
     <string name="chat_msg_tps">%1$s t/s</string>
@@ -244,6 +254,17 @@
 
     <!-- Settings Screen -->
     <string name="settings_sec_connection">Connection</string>
+    <string name="account_connectors_title">Account connectors</string>
+    <string name="account_connectors_summary">Manage account authorizations and tool access without a chat session.</string>
+    <string name="account_connectors_accounts">Authorized accounts</string>
+    <string name="account_connectors_connect">Connect</string>
+    <string name="account_connectors_tools">Tools</string>
+    <string name="account_connectors_enabled">Enabled</string>
+    <string name="account_connectors_not_connected">Not connected</string>
+    <string name="account_connectors_no_accounts">No authorized connector accounts.</string>
+    <string name="account_connectors_remove">Remove</string>
+    <string name="account_connectors_remove_confirm_title">Remove connector account?</string>
+    <string name="account_connectors_remove_confirm_message">Remove %1$s? You may need to authorize it again.</string>
     <string name="settings_field_token">Auth Token</string>
     <string name="settings_keep_connected_in_background_title">Stay connected in background</string>
     <string name="settings_keep_connected_in_background_desc">Keep Hermes connected while using other apps. Shows an ongoing notification and may use more battery.</string>
@@ -1047,6 +1068,7 @@
     <string name="plugins_no_desc">No description provided.</string>
     <string name="plugins_action_update">Update</string>
     <string name="plugins_action_uninstall">Uninstall</string>
+    <string name="plugins_action_settings">Settings</string>
     <string name="plugins_action_enable">Enable</string>
     <string name="plugins_action_install">Install</string>
     <string name="plugins_action_remove">Remove</string>
@@ -1062,6 +1084,25 @@
     <string name="plugins_remove_confirm_title">Remove Plugin</string>
     <string name="plugins_remove_confirm_text">This will remove the "%1$s" plugin from your agent.</string>
     <string name="plugins_auth_required">Auth Required</string>
+    <string name="plugins_settings_loading">Loading plugin settings…</string>
+    <string name="plugins_settings_title">Plugin Settings</string>
+    <string name="plugins_settings_save">Save Settings</string>
+    <string name="plugins_settings_saved">Plugin settings saved</string>
+    <string name="plugins_settings_save_failed">Failed to save settings: %1$s</string>
+    <string name="plugins_diagnostics_heading">Diagnostics</string>
+    <string name="plugins_diagnostics_empty">No diagnostics reported</string>
+    <string name="plugins_settings_heading">Settings</string>
+    <string name="plugins_settings_secret_set">set</string>
+    <string name="plugins_settings_secret_not_set">not set</string>
+    <string name="plugins_settings_secret_hint">Stored in .env as %1$s (leave blank to keep)</string>
+    <string name="plugins_settings_empty">No configurable settings</string>
+    <string name="plugins_server_state_connected">Connected</string>
+    <string name="plugins_server_state_app_not_running">App not running</string>
+    <string name="plugins_server_state_endpoint_unavailable">Endpoint unavailable</string>
+    <string name="plugins_server_state_no_interactive_session">No interactive session</string>
+    <string name="plugins_server_state_version_too_old">Version too old</string>
+    <string name="plugins_server_state_missing_app">App missing</string>
+    <string name="plugins_server_state_unknown">Status unknown</string>
     <string name="plugins_auth_command_hint">Auth command: %1$s</string>
     <string name="plugins_dashboard_slots">Dashboard slots: %1$s</string>
     <string name="plugins_orphan_heading">Orphaned Dashboard Plugins</string>
@@ -1115,6 +1156,8 @@
 
     <!-- McpServers Screen -->
     <string name="mcp_servers_label_transport">Transport: %1$s</string>
+    <string name="mcp_servers_from_plugin">From plugin %1$s · Read-only</string>
+    <string name="mcp_servers_plugin_managed">Plugin-managed · Read-only</string>
     <string name="mcp_servers_label_command">Command:</string>
     <string name="mcp_servers_action_test">Test</string>
     <string name="mcp_servers_action_test_all">Test All</string>
@@ -1736,6 +1779,24 @@
     <string name="connection_setup_required">%1$s is required</string>
     <string name="connection_setup_request_failed">Couldn’t send the setup response. Try again.</string>
     <string name="connection_setup_pending">Waiting for Hermes…</string>
+    <string name="connection_catalog_title">Install %1$s</string>
+    <string name="connection_catalog_kind_plugin">Plugin</string>
+    <string name="connection_catalog_kind_skill">Skill</string>
+    <string name="connection_catalog_tier_official">Official</string>
+    <string name="connection_catalog_tier_community">Community</string>
+    <string name="connection_catalog_source">Source: %1$s</string>
+    <string name="connection_catalog_pin">Pinned commit: %1$s</string>
+    <string name="connection_catalog_platforms">Platforms: %1$s</string>
+    <string name="connection_catalog_requirements">Requires: %1$s</string>
+    <string name="connection_catalog_target_profile">Installs into profile: %1$s</string>
+    <string name="connection_catalog_scan_passed">Security scan passed</string>
+    <string name="connection_catalog_scan_warnings">Security scan found warnings</string>
+    <string name="connection_catalog_scan_failed">Security scan failed</string>
+    <string name="connection_catalog_scan_unreported">No security scan reported</string>
+    <string name="connection_catalog_install">Install</string>
+    <string name="connection_catalog_retry">Try again</string>
+    <string name="connection_catalog_installing">Installing…</string>
+    <string name="connection_catalog_skill_ready">Skill available: %1$s</string>
 
     <!-- Kanban task detail -->
     <string name="kanban_specify_task">Specify task</string>
@@ -1763,4 +1824,24 @@
     <string name="kanban_attachment_error">Attachment error: %1$s</string>
     <string name="kanban_active_workers">Active workers</string>
     <string name="kanban_no_active_workers">No active workers</string>
+    <string name="custom_headers_title">Custom headers</string>
+    <string name="custom_headers_description">Saved securely for this server URL. Use Cloudflare Access service-token headers here. Hermes login is still required.</string>
+    <string name="custom_headers_name">Header name</string>
+    <string name="custom_headers_value">Header value</string>
+    <string name="custom_headers_add">Add header</string>
+    <string name="custom_headers_cloudflare">Add Cloudflare headers</string>
+    <string name="custom_headers_remove">Remove header</string>
+    <string name="custom_headers_remove_confirm">Remove this header? Save your changes to apply the removal.</string>
+    <string name="custom_headers_show">Show header values</string>
+    <string name="custom_headers_hide">Hide header values</string>
+    <string name="custom_headers_invalid">Use unique HTTP header names and single-line ASCII values. Authorization, Cookie, Host, and connection headers are managed by the app.</string>
+    <string name="custom_headers_save_failed">Could not save custom headers. Try again.</string>
+    <string name="plugins_update_consent_title">Review new capabilities</string>
+    <string name="plugins_update_consent_text">Updating %1$s requires the additional capabilities below. Nothing has been installed yet. Accept these capabilities and update?</string>
+    <string name="plugins_update_consent_missing">The server did not provide capability details.</string>
+    <string name="plugins_update_accept">Accept and update</string>
+    <string name="sessions_storage_corrupt">Session storage is damaged for %1$s. History may be incomplete; previously loaded sessions are kept. Restore or recover the database on the server, then refresh.</string>
+    <string name="account_connectors_reconnect">Reconnect</string>
+    <string name="account_connectors_no_tools">No tools available</string>
+    <string name="account_connectors_policy_locked">Read-only policy restrictions</string>
 </resources>

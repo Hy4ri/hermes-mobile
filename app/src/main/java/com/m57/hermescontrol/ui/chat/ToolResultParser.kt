@@ -3,6 +3,7 @@ package com.m57.hermescontrol.ui.chat
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.ui.chat.tool.ToolView
 import com.m57.hermescontrol.ui.chat.tool.ToolViewBuilder
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
@@ -42,8 +43,31 @@ fun parseToolOutput(
         // Extract args sub-object if present (new tool.complete format) and
         // the result sub-object, falling back to the top-level payload (old
         // format where result fields sat at the root).
-        val args = element["args"] as? JsonObject
-        val result = element["result"] as? JsonObject ?: element
+        val rawArgs = element["args"] as? JsonObject
+        // Gateway labels are envelope metadata; never interpret a real args.labels value as display text.
+        val labels = element["labels"] as? JsonArray
+        val args =
+            if (labels != null) {
+                JsonObject(rawArgs.orEmpty() + ("hermes_tool_labels" to labels))
+            } else {
+                rawArgs
+            }
+        val rawResultObj = element["result"] as? JsonObject
+        val displayMetadata = element["display_metadata"]
+        val result =
+            when {
+                rawResultObj != null && displayMetadata != null && !rawResultObj.containsKey("display_metadata") -> {
+                    JsonObject(rawResultObj + ("display_metadata" to displayMetadata))
+                }
+
+                rawResultObj != null -> {
+                    rawResultObj
+                }
+
+                else -> {
+                    element
+                }
+            }
 
         ToolViewBuilder.build(
             toolName = resolvedToolName ?: "tool",

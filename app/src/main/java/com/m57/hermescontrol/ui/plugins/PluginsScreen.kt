@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.InstallDesktop
@@ -67,6 +69,7 @@ import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
 import com.m57.hermescontrol.ui.common.toDetailRows
 import com.m57.hermescontrol.ui.plugins.components.CatalogPluginsView
+import com.m57.hermescontrol.ui.plugins.components.PluginDetailDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -119,6 +122,37 @@ fun PluginsScreen(
         }
 
     ToastEffect(toastMessage = state.toastMessage, onClearToast = viewModel::clearToast)
+
+    state.updateConsent?.let { consent ->
+        AlertDialog(
+            onDismissRequest = viewModel::cancelPluginUpdate,
+            title = { Text(stringResource(R.string.plugins_update_consent_title)) },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text(stringResource(R.string.plugins_update_consent_text, consent.name))
+                    val lines = consent.result.capabilityDelta
+                    if (lines.isEmpty()) {
+                        Text(consent.result.error ?: stringResource(R.string.plugins_update_consent_missing))
+                    } else {
+                        lines.forEach { Text(it) }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = viewModel::confirmPluginUpdate, enabled = state.rowBusy == null) {
+                    Text(stringResource(R.string.plugins_update_accept))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::cancelPluginUpdate) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            },
+        )
+    }
 
     // Remove confirmation dialog
     if (state.removeConfirmPlugin != null) {
@@ -240,7 +274,7 @@ fun PluginsScreen(
                                         plugin = plugin,
                                         state = state,
                                         viewModel = viewModel,
-                                        onClick = { showDetail = plugin },
+                                        onClick = { viewModel.openPluginDetail(plugin) },
                                     )
                                 }
 
@@ -256,7 +290,10 @@ fun PluginsScreen(
                                         )
                                     }
                                     items(state.orphanPlugins, key = { "orphan-${it.name}" }) { plugin ->
-                                        OrphanPluginCard(plugin = plugin, onClick = { showDetail = plugin })
+                                        OrphanPluginCard(
+                                            plugin = plugin,
+                                            onClick = { viewModel.openPluginDetail(plugin) },
+                                        )
                                     }
                                 }
                             }
@@ -280,11 +317,19 @@ fun PluginsScreen(
         }
     }
 
-    showDetail?.let { plugin ->
-        DetailDialog(
-            title = plugin.name,
-            rows = plugin.toDetailRows(),
-            onDismiss = { showDetail = null },
+    state.activeDetailPlugin?.let { plugin ->
+        PluginDetailDialog(
+            plugin = plugin,
+            agentPluginRow = state.pluginDetailRow,
+            isLoading = state.isPluginDetailLoading,
+            isSaving = state.isPluginDetailSaving,
+            edits = state.pluginDetailEdits,
+            onFieldChange = { key, value -> viewModel.setPluginDetailEdit(key, value) },
+            onSaveSettings = { viewModel.savePluginSettings() },
+            onDismiss = {
+                showDetail = null
+                viewModel.closePluginDetail()
+            },
         )
     }
 

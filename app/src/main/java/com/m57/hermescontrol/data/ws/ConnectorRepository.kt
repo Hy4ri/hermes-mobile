@@ -32,6 +32,9 @@ interface ConnectorRepository {
             if (slug.isNullOrBlank()) return false
             return SLUG_REGEX.matches(slug)
         }
+
+        /** `owner` discriminated union required by connector RPCs since hermes-agent v0.21.5 (#1281). */
+        fun sessionOwner(sessionId: String): Map<String, String> = mapOf("type" to "session", "session_id" to sessionId)
     }
 }
 
@@ -61,7 +64,7 @@ class HermesConnectorRepository(
         }
 
         return try {
-            val params = mapOf("session_id" to sessionId)
+            val params = mapOf("owner" to ConnectorRepository.sessionOwner(sessionId))
             val result = rpcRequest(WsMethods.CONNECTORS_LIST, params)
             ConnectorParser.parseListResult(result)
         } catch (e: CancellationException) {
@@ -105,7 +108,7 @@ class HermesConnectorRepository(
         return try {
             val params =
                 mapOf(
-                    "session_id" to sessionId,
+                    "owner" to ConnectorRepository.sessionOwner(sessionId),
                     "connectors" to connectors,
                     "reconnect" to reconnect,
                 )

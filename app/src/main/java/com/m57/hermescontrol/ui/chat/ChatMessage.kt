@@ -107,6 +107,12 @@ data class ChatMessage(
      * Transient; UNKNOWN provenance and the persisted row remain unchanged.
      */
     val isRestoredUnconfirmed: Boolean = false,
+    /**
+     * Gateway SQLite row id (#1285): from REST `id`, the `prompt.submit` `user_row_id`
+     * receipt, or `persisted_turn.final_assistant_row_id`. Null means unproven, never rejected.
+     * Scoped to the owning profile store; transient.
+     */
+    val serverRowId: Long? = null,
 )
 
 /** Cached REST rows already carry their canonical identity in the persisted primary key. */

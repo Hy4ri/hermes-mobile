@@ -134,6 +134,8 @@ import com.m57.hermescontrol.data.model.ToolsetPostSetupResponse
 import com.m57.hermescontrol.data.model.ToolsetProviderSelectRequest
 import com.m57.hermescontrol.data.model.ToolsetProviderSelectResponse
 import com.m57.hermescontrol.data.model.ToolsetToggleRequest
+import com.m57.hermescontrol.data.model.TtsSpeakRequest
+import com.m57.hermescontrol.data.model.TtsSpeakResponse
 import com.m57.hermescontrol.data.model.UpdateCheckResponse
 import com.m57.hermescontrol.data.model.UpdateCronJobRequest
 import com.m57.hermescontrol.data.model.UpdateProfileDescriptionRequest
@@ -670,7 +672,8 @@ interface HermesApiService : KanbanApiService {
     @POST("api/dashboard/agent-plugins/{name}/update")
     suspend fun updatePlugin(
         @Path("name", encoded = true) name: String,
-    ): Response<Unit>
+        @Body body: com.m57.hermescontrol.data.model.PluginUpdateRequest,
+    ): Response<com.m57.hermescontrol.data.model.PluginUpdateResult>
 
     @POST("api/dashboard/agent-plugins/{name}/enable")
     suspend fun enablePlugin(
@@ -1042,4 +1045,10 @@ interface HermesApiService : KanbanApiService {
     suspend fun transcribeAudio(
         @Body body: AudioTranscriptionRequest,
     ): Response<AudioTranscriptionResponse>
+
+    @POST("api/audio/speak")
+    suspend fun speakText(
+        @Body request: TtsSpeakRequest,
+        @Query("profile") profile: String? = null,
+    ): Response<TtsSpeakResponse>
 }

@@ -1557,6 +1557,24 @@
     <string name="connection_setup_required">%1$s مطلوب</string>
     <string name="connection_setup_request_failed">تعذر إرسال رد الإعداد. حاول مرة أخرى.</string>
     <string name="connection_setup_pending">بانتظار Hermes…</string>
+    <string name="connection_catalog_title">تثبيت %1$s</string>
+    <string name="connection_catalog_kind_plugin">إضافة</string>
+    <string name="connection_catalog_kind_skill">مهارة</string>
+    <string name="connection_catalog_tier_official">رسمي</string>
+    <string name="connection_catalog_tier_community">مجتمعي</string>
+    <string name="connection_catalog_source">المصدر: %1$s</string>
+    <string name="connection_catalog_pin">الإيداع المثبّت: %1$s</string>
+    <string name="connection_catalog_platforms">المنصات: %1$s</string>
+    <string name="connection_catalog_requirements">المتطلبات: %1$s</string>
+    <string name="connection_catalog_target_profile">يُثبَّت في الملف الشخصي: %1$s</string>
+    <string name="connection_catalog_scan_passed">اجتاز الفحص الأمني</string>
+    <string name="connection_catalog_scan_warnings">وجد الفحص الأمني تحذيرات</string>
+    <string name="connection_catalog_scan_failed">فشل الفحص الأمني</string>
+    <string name="connection_catalog_scan_unreported">لم يُبلَّغ عن فحص أمني</string>
+    <string name="connection_catalog_install">تثبيت</string>
+    <string name="connection_catalog_retry">حاول مجددًا</string>
+    <string name="connection_catalog_installing">جارٍ التثبيت…</string>
+    <string name="connection_catalog_skill_ready">المهارة متاحة: %1$s</string>
 
 <string name="chat_busy_mode_title">أثناء عمل الوكيل</string>
 <string name="chat_busy_mode_desc">اختر كيفية وصول الرسالة الجديدة إلى المحادثة الحالية. تُرسل الرسائل بشكل عادي عند الخمول.</string>

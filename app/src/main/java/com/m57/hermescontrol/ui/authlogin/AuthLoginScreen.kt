@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.ui.common.CustomHeadersButton
 
 @Composable
 fun AuthLoginScreen(
@@ -162,7 +163,13 @@ fun AuthLoginScreen(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                enabled = state.authMode == null,
+                enabled = state.authMode == null && !state.probing && !state.isLoading,
+            )
+
+            CustomHeadersButton(
+                baseUrl = state.baseUrl,
+                enabled = !state.probing && !state.isLoading,
+                onSaved = viewModel::probe,
             )
 
             // Cleartext transport warning

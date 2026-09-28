@@ -65,6 +65,28 @@ class ChatPromptProtocolTest {
     }
 
     @Test
+    fun legacyClarifyBatchReplay_skipsLockedAnswers_withoutEmptyOverwrite() {
+        val responses =
+            buildLegacyClarifyBatchResponses(
+                questions =
+                    listOf(
+                        ClarifyQuestionUi(qid = "q0", question = "Already answered?"),
+                        ClarifyQuestionUi(qid = "q1", question = "Still waiting?"),
+                        ClarifyQuestionUi(qid = "q2", question = "Optional skip?"),
+                    ),
+                answers =
+                    mapOf(
+                        "q0" to "",
+                        "q1" to "  new answer  ",
+                        "q2" to "",
+                    ),
+                lockedAnswers = mapOf("q0" to "yes"),
+            )
+
+        assertEquals(listOf("q1" to "new answer", "q2" to ""), responses)
+    }
+
+    @Test
     fun credentialPrompt_serverRequestId_controls_response_and_cancellation() {
         val scope = TestScope(dispatcher)
         val uiState = MutableStateFlow(ChatUiState(currentSessionId = "session-1"))

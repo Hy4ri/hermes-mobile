@@ -3,15 +3,18 @@ package com.m57.hermescontrol.ui.chat.components
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
-import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.text.AnnotatedString
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.m57.hermescontrol.R
@@ -135,7 +138,7 @@ class ClarifyBubbleTest {
 
         val textInputNode = compose.onNode(hasSetTextAction()).assertIsDisplayed()
         textInputNode.performTextInput("--dry-run")
-        textInputNode.assertTextEquals("--dry-run")
+        textInputNode.assert(hasEditableText("--dry-run"))
 
         // Replace request identity while retaining identical qid, question, and options
         compose.runOnIdle {
@@ -149,6 +152,11 @@ class ClarifyBubbleTest {
 
         // Selected choice and typed text must reset under new clarifyId
         compose.onNodeWithText("APK").assertIsDisplayed().assertIsNotSelected()
-        compose.onNode(hasSetTextAction()).assertIsDisplayed().assertTextEquals("")
+        compose.onNode(hasSetTextAction()).assertIsDisplayed().assert(hasEditableText(""))
     }
+
+    // The field merges its placeholder label into Text, so assertTextEquals can
+    // never match; compare only the typed value.
+    private fun hasEditableText(value: String) =
+        SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString(value))
 }

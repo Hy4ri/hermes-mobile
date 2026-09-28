@@ -73,6 +73,7 @@ import com.m57.hermescontrol.ui.chat.components.DiffViewCard
 import com.m57.hermescontrol.ui.chat.components.FileViewCard
 import com.m57.hermescontrol.ui.chat.tool.ToolView
 import com.m57.hermescontrol.ui.chat.tool.ToolViewBuilder
+import com.m57.hermescontrol.ui.chat.tool.ToolViewCache
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -133,7 +134,7 @@ internal fun ToolBubble(
 
     val view =
         remember(message.content, message.toolName, message.isToolRunning) {
-            parseToolOutput(message.content, message.toolName, message.isToolRunning)
+            ToolViewCache.getOrParse(message.content, message.toolName, message.isToolRunning)
         }
     val config = ToolSchemaRegistry.getDisplayConfig(message.toolName)
 

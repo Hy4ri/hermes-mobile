@@ -40,6 +40,7 @@ import com.m57.hermescontrol.data.ws.toAny
 import com.m57.hermescontrol.data.ws.toJsonElement
 import com.m57.hermescontrol.notification.captureTurnBoundary
 import com.m57.hermescontrol.notification.correlationScopeId
+import com.m57.hermescontrol.ui.chat.tool.ToolViewCache
 import com.m57.hermescontrol.ui.common.ActionProgressController
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -51,6 +52,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -733,6 +737,24 @@ class ChatViewModel(
             SharingStarted.Eagerly,
             _uiState.value,
         )
+
+    init {
+        // Parse tool payloads off the main thread before the transcript
+        // composes them (issue #1327); ToolBubble then reads a cache hit.
+        viewModelScope.launch(searchDispatcher) {
+            _uiState
+                .map { it.messages }
+                .distinctUntilChanged()
+                .conflate()
+                .collect { messages ->
+                    for (message in messages) {
+                        if (message.role == MessageRole.TOOL) {
+                            ToolViewCache.prewarm(message.content, message.toolName, message.isToolRunning)
+                        }
+                    }
+                }
+        }
+    }
 
     /**
      * Session ID to resume when the WebSocket connects. Set synchronously by

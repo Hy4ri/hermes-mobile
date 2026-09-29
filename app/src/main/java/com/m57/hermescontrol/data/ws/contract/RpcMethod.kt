@@ -427,6 +427,46 @@ object RpcMethods {
             JsonElement.serializer(),
         )
 
+    // Passthrough JsonElement results: callers keep their existing legacy decoders.
+    val COMMANDS_CATALOG: RpcMethod<CommandsCatalogParams, JsonElement> =
+        RpcMethod(
+            WsMethods.COMMANDS_CATALOG,
+            CommandsCatalogParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    // Passthrough JsonElement results: callers keep their existing legacy decoders.
+    val COMMAND_DISPATCH: RpcMethod<CommandDispatchParams, JsonElement> =
+        RpcMethod(
+            WsMethods.COMMAND_DISPATCH,
+            CommandDispatchParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    // Passthrough JsonElement results: callers keep their existing legacy decoders.
+    val SLASH_EXEC: RpcMethod<SlashExecParams, JsonElement> =
+        RpcMethod(
+            WsMethods.SLASH_EXEC,
+            SlashExecParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    // Passthrough JsonElement results: callers keep their existing legacy decoders.
+    val FILE_ATTACH: RpcMethod<FileAttachParams, JsonElement> =
+        RpcMethod(
+            WsMethods.FILE_ATTACH,
+            FileAttachParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    // Passthrough JsonElement results: callers keep their existing legacy decoders.
+    val IMAGE_ATTACH_BYTES: RpcMethod<ImageAttachBytesParams, JsonElement> =
+        RpcMethod(
+            WsMethods.IMAGE_ATTACH_BYTES,
+            ImageAttachBytesParams.serializer(),
+            JsonElement.serializer(),
+        )
+
     /** Every typed method. GatewayContractTest iterates this; future migrations append here. */
     val all: List<RpcMethod<*, *>> =
         listOf(
@@ -482,5 +522,10 @@ object RpcMethods {
             CONFIG_GET,
             MODEL_OPTIONS,
             CLIENT_CAPABILITIES,
+            COMMANDS_CATALOG,
+            COMMAND_DISPATCH,
+            SLASH_EXEC,
+            FILE_ATTACH,
+            IMAGE_ATTACH_BYTES,
         )
 }

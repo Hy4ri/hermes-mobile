@@ -36,6 +36,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.serialization.json.JsonPrimitive
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -218,9 +219,9 @@ class SlashCommandDispatchRpcTest {
             val dispatchIndex = methodCalls.indexOf(WsMethods.COMMAND_DISPATCH)
             assertTrue("expected COMMAND_DISPATCH, got $methodCalls", dispatchIndex >= 0)
             val params = paramsCalls[dispatchIndex]
-            assertEquals("help", params["name"])
-            assertEquals("", params["arg"])
-            assertEquals(sessionId, params["session_id"])
+            assertEquals(JsonPrimitive("help"), params["name"])
+            assertEquals(JsonPrimitive(""), params["arg"])
+            assertEquals(JsonPrimitive(sessionId), params["session_id"])
         }
 
     @Test
@@ -482,8 +483,8 @@ class SlashCommandDispatchRpcTest {
             assertTrue("expected SLASH_EXEC fallback, got $methodCalls", execIndex >= 0)
             assertTrue("dispatch must precede fallback", dispatchIndex < execIndex)
             val params = paramsCalls[execIndex]
-            assertEquals("/status", params["command"])
-            assertEquals(sessionId, params["session_id"])
+            assertEquals(JsonPrimitive("/status"), params["command"])
+            assertEquals(JsonPrimitive(sessionId), params["session_id"])
 
             // And the slash.exec output must be surfaced to the user.
             val last =
@@ -629,9 +630,9 @@ class SlashCommandDispatchRpcTest {
             val dispatchIndex = methodCalls.indexOf(WsMethods.COMMAND_DISPATCH)
             assertTrue("expected COMMAND_DISPATCH, got $methodCalls", dispatchIndex >= 0)
             val params = paramsCalls[dispatchIndex]
-            assertEquals("init", params["name"])
-            assertEquals("", params["arg"])
-            assertEquals(sessionId, params["session_id"])
+            assertEquals(JsonPrimitive("init"), params["name"])
+            assertEquals(JsonPrimitive(""), params["arg"])
+            assertEquals(JsonPrimitive(sessionId), params["session_id"])
         }
 
     @Test
@@ -654,9 +655,9 @@ class SlashCommandDispatchRpcTest {
             val dispatchIndex = methodCalls.indexOf(WsMethods.COMMAND_DISPATCH)
             assertTrue("expected COMMAND_DISPATCH, got $methodCalls", dispatchIndex >= 0)
             val params = paramsCalls[dispatchIndex]
-            assertEquals("init", params["name"])
-            assertEquals("extra context here", params["arg"])
-            assertEquals(sessionId, params["session_id"])
+            assertEquals(JsonPrimitive("init"), params["name"])
+            assertEquals(JsonPrimitive("extra context here"), params["arg"])
+            assertEquals(JsonPrimitive(sessionId), params["session_id"])
         }
 
     @Test
@@ -682,9 +683,9 @@ class SlashCommandDispatchRpcTest {
             val dispatchIndex = methodCalls.indexOf(WsMethods.COMMAND_DISPATCH)
             assertTrue("expected COMMAND_DISPATCH, got $methodCalls", dispatchIndex >= 0)
             val params = paramsCalls[dispatchIndex]
-            assertEquals("focus", params["name"])
-            assertEquals("", params["arg"])
-            assertEquals(sessionId, params["session_id"])
+            assertEquals(JsonPrimitive("focus"), params["name"])
+            assertEquals(JsonPrimitive(""), params["arg"])
+            assertEquals(JsonPrimitive(sessionId), params["session_id"])
         }
 
     @Test
@@ -707,9 +708,9 @@ class SlashCommandDispatchRpcTest {
             val dispatchIndex = methodCalls.indexOf(WsMethods.COMMAND_DISPATCH)
             assertTrue("expected COMMAND_DISPATCH, got $methodCalls", dispatchIndex >= 0)
             val params = paramsCalls[dispatchIndex]
-            assertEquals("focus", params["name"])
-            assertEquals("on", params["arg"])
-            assertEquals(sessionId, params["session_id"])
+            assertEquals(JsonPrimitive("focus"), params["name"])
+            assertEquals(JsonPrimitive("on"), params["arg"])
+            assertEquals(JsonPrimitive(sessionId), params["session_id"])
         }
 
     @Test

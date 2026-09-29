@@ -331,6 +331,22 @@ object RpcMethods {
             JsonElement.serializer(),
         )
 
+    // Passthrough JsonElement results: callers keep their existing legacy decoders.
+    val SUBAGENT_LIST: RpcMethod<SessionIdParams, JsonElement> =
+        RpcMethod(
+            WsMethods.SUBAGENT_LIST,
+            SessionIdParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    // Passthrough JsonElement results: callers keep their existing legacy decoders.
+    val SUBAGENT_TAIL: RpcMethod<SubagentTailParams, JsonElement> =
+        RpcMethod(
+            WsMethods.SUBAGENT_TAIL,
+            SubagentTailParams.serializer(),
+            JsonElement.serializer(),
+        )
+
     /** Every typed method. GatewayContractTest iterates this; future migrations append here. */
     val all: List<RpcMethod<*, *>> =
         listOf(
@@ -374,5 +390,7 @@ object RpcMethods {
             CONNECTORS_TOOLS,
             CONNECTION_RESPOND,
             CONNECTORS_OPERATION_WAKE,
+            SUBAGENT_LIST,
+            SUBAGENT_TAIL,
         )
 }

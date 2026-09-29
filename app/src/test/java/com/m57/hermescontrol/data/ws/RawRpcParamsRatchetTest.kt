@@ -322,8 +322,6 @@ class RawRpcParamsRatchetTest {
                 "data/ws/PluginManageRepository.kt::PLUGINS_MANAGE",
                 "data/ws/PluginRemovalRepository.kt::PLUGINS_MANAGE",
                 "data/ws/ProjectsSource.kt::PROJECTS_LIST",
-                "data/ws/SubagentRepository.kt::SUBAGENT_LIST",
-                "data/ws/SubagentRepository.kt::SUBAGENT_TAIL",
                 "ui/bots/BotsViewModel.kt::PROFILES_CONFIGURE",
                 "ui/bots/BotsViewModel.kt::PROFILES_CONFIGURE",
                 "ui/bots/BotsViewModel.kt::PROFILES_CONFIGURE",

@@ -3,13 +3,17 @@ package com.m57.hermescontrol.data.ws
 import com.m57.hermescontrol.data.model.SubagentListItem
 import com.m57.hermescontrol.data.model.SubagentListResponse
 import com.m57.hermescontrol.data.model.SubagentTailResponse
-import io.mockk.every
+import com.m57.hermescontrol.data.ws.contract.RpcMethods
+import com.m57.hermescontrol.data.ws.contract.SessionIdParams
+import com.m57.hermescontrol.data.ws.contract.SubagentTailParams
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockkObject
 import io.mockk.slot
 import io.mockk.unmockkAll
-import io.mockk.verify
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -25,16 +29,30 @@ class SubagentRepositoryTest {
     }
 
     @Test
+    fun listSubagentsPreservesSuppressedErrorsAndDecodesResult() {
+        val captured = slot<SessionIdParams>()
+        mockkObject(HermesWsClient)
+        coEvery { HermesWsClient.call(RpcMethods.SUBAGENT_LIST, capture(captured), any(), true) } returns
+            buildJsonObject { put("subagents", kotlinx.serialization.json.buildJsonArray { }) }
+
+        val response = runBlocking { SubagentRepository.listSubagents("s1") }
+
+        assertEquals(SessionIdParams("s1"), captured.captured)
+        assertNotNull(response)
+        assertTrue(response?.subagents?.isEmpty() == true)
+    }
+
+    @Test
     fun tailSubagentSendsExactlySessionIdAndSubagentId() {
         // #1379: the contract forbids extra keys (max_bytes) and requires session_id.
-        val captured = slot<Map<String, Any>>()
+        val captured = slot<SubagentTailParams>()
         mockkObject(HermesWsClient)
-        every { HermesWsClient.request(WsMethods.SUBAGENT_TAIL, capture(captured), any(), any()) } returns
-            CompletableDeferred<Any?>(mapOf("subagent_id" to "sub-1"))
+        coEvery { HermesWsClient.call(RpcMethods.SUBAGENT_TAIL, capture(captured), any(), true) } returns
+            buildJsonObject { put("subagent_id", "sub-1") }
 
         runBlocking { SubagentRepository.tailSubagent("s1", "sub-1") }
 
-        assertEquals(mapOf<String, Any>("session_id" to "s1", "subagent_id" to "sub-1"), captured.captured)
+        assertEquals(SubagentTailParams("s1", "sub-1"), captured.captured)
     }
 
     @Test
@@ -44,7 +62,7 @@ class SubagentRepositoryTest {
             assertNull(SubagentRepository.tailSubagent("", "sub-1"))
             assertNull(SubagentRepository.tailSubagent("s1", " "))
         }
-        verify(exactly = 0) { HermesWsClient.request(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { HermesWsClient.call(RpcMethods.SUBAGENT_TAIL, any(), any(), any()) }
     }
 
     @Test

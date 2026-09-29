@@ -35,6 +35,8 @@ import com.m57.hermescontrol.data.ws.JsonRpcError
 import com.m57.hermescontrol.data.ws.ModelCatalogStore
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
+import com.m57.hermescontrol.data.ws.contract.ConfigSetParams
+import com.m57.hermescontrol.data.ws.contract.RpcMethods
 import com.m57.hermescontrol.notification.TurnCorrelationTracker
 import com.m57.hermescontrol.ui.chat.fakes.FakeChatPersistenceRepository
 import com.m57.hermescontrol.ui.chat.fakes.FakeSlashUsageStore
@@ -1295,15 +1297,9 @@ class ChatViewModelTest {
             // commands). NOT command.dispatch (4018s on /model), NOT prompt.submit
             // (LLM would treat it as text). Capture the config.set params.
             val modelCalls = mutableListOf<Triple<String, String, String>>()
-            every { HermesWsClient.send(WsMethods.CONFIG_SET, any(), any()) } answers {
-                val params = arg<Map<String, Any>>(1)
-                modelCalls.add(
-                    Triple(
-                        params["key"] as String,
-                        params["value"] as String,
-                        params["session_id"] as String,
-                    ),
-                )
+            every { HermesWsClient.send(RpcMethods.CONFIG_SET, any<ConfigSetParams>(), any()) } answers {
+                val params = arg<ConfigSetParams>(1)
+                modelCalls.add(Triple(params.key, params.value, params.sessionId.orEmpty()))
                 "req-cfg-${modelCalls.size}"
             }
 
@@ -1315,7 +1311,7 @@ class ChatViewModelTest {
                 "openai/gpt-4o",
                 viewModel.uiState.value.currentSessionModel,
             )
-            verify { HermesWsClient.send(WsMethods.CONFIG_SET, any(), any()) }
+            verify { HermesWsClient.send(RpcMethods.CONFIG_SET, any<ConfigSetParams>(), any()) }
             val call = modelCalls.firstOrNull { it.first == "model" }
             assertNotNull("selection must route through config.set key=model", call)
             assertEquals("gpt-4o --provider openai --session", call!!.second)
@@ -1340,7 +1336,7 @@ class ChatViewModelTest {
             // (key="model"), which the gateway routes to _apply_model_switch. NOT
             // command.dispatch (4018s on /model) and NOT prompt.submit (LLM would
             // treat it as text).
-            verify { HermesWsClient.send(WsMethods.CONFIG_SET, any(), any()) }
+            verify { HermesWsClient.send(RpcMethods.CONFIG_SET, any<ConfigSetParams>(), any()) }
         }
 
     @Test
@@ -1353,15 +1349,9 @@ class ChatViewModelTest {
             // slash prefix must be stripped, or parse_model_flags on the
             // backend won't recognize it and the hot-swap silently fails.
             val modelCalls = mutableListOf<Triple<String, String, String>>()
-            every { HermesWsClient.send(WsMethods.CONFIG_SET, any(), any()) } answers {
-                val params = arg<Map<String, Any>>(1)
-                modelCalls.add(
-                    Triple(
-                        params["key"] as String,
-                        params["value"] as String,
-                        params["session_id"] as String,
-                    ),
-                )
+            every { HermesWsClient.send(RpcMethods.CONFIG_SET, any<ConfigSetParams>(), any()) } answers {
+                val params = arg<ConfigSetParams>(1)
+                modelCalls.add(Triple(params.key, params.value, params.sessionId.orEmpty()))
                 "req-cfg-ci-${modelCalls.size}"
             }
 
@@ -1388,9 +1378,9 @@ class ChatViewModelTest {
             val (viewModel, sessionId) = createViewModelWithSession()
 
             var lastReqId = ""
-            val capturedParams = mutableListOf<Map<String, Any>>()
-            every { HermesWsClient.send(WsMethods.CONFIG_SET, any(), any()) } answers {
-                val params = arg<Map<String, Any>>(1)
+            val capturedParams = mutableListOf<ConfigSetParams>()
+            every { HermesWsClient.send(RpcMethods.CONFIG_SET, any<ConfigSetParams>(), any()) } answers {
+                val params = arg<ConfigSetParams>(1)
                 capturedParams.add(params)
                 val id = "req-confirm-${capturedParams.size}"
                 lastReqId = id
@@ -1403,7 +1393,7 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             assertEquals(1, capturedParams.size)
-            assertNull(capturedParams[0]["confirm_expensive_model"])
+            assertNull(capturedParams[0].confirmExpensiveModel)
 
             // Backend returns confirm_required = true
             mockEventsFlow.emit(
@@ -1429,12 +1419,12 @@ class ChatViewModelTest {
 
             assertNull(viewModel.uiState.value.modelSwitchConfirmMessage)
             assertEquals(2, capturedParams.size)
-            assertEquals(true, capturedParams[1]["confirm_expensive_model"])
+            assertEquals(true, capturedParams[1].confirmExpensiveModel)
             assertEquals(
                 "muse-spark-1.3-contributor-free --provider opencode-free --session",
-                capturedParams[1]["value"],
+                capturedParams[1].value,
             )
-            assertEquals(sessionId, capturedParams[1]["session_id"])
+            assertEquals(sessionId, capturedParams[1].sessionId)
         }
 
     @Test
@@ -1443,7 +1433,7 @@ class ChatViewModelTest {
             val (viewModel, _) = createViewModelWithSession()
 
             var lastReqId = ""
-            every { HermesWsClient.send(WsMethods.CONFIG_SET, any(), any()) } answers {
+            every { HermesWsClient.send(RpcMethods.CONFIG_SET, any<ConfigSetParams>(), any()) } answers {
                 val id = "req-cfg-dismiss"
                 lastReqId = id
                 arg<((String) -> Unit)?>(2)?.invoke(id)

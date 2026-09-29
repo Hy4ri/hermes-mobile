@@ -12,6 +12,9 @@ import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
+import com.m57.hermescontrol.data.ws.contract.ConfigGetParams
+import com.m57.hermescontrol.data.ws.contract.ConfigSetParams
+import com.m57.hermescontrol.data.ws.contract.RpcMethods
 import com.m57.hermescontrol.ui.chat.fakes.FakeChatPersistenceRepository
 import com.m57.hermescontrol.ui.chat.fakes.FakeSlashUsageStore
 import io.mockk.coEvery
@@ -21,6 +24,7 @@ import io.mockk.mockkObject
 import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.unmockkAll
+import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -34,6 +38,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -271,35 +276,27 @@ class SlashCommandDispatchRpcTest {
         runTest {
             val (vm, sessionId) = createViewModelWithSession()
 
-            val methodCalls = mutableListOf<String>()
-            val paramsCalls = mutableListOf<Map<String, Any>>()
-            every {
-                HermesWsClient.request(capture(methodCalls), capture(paramsCalls), any())
+            val setCalls = mutableListOf<ConfigSetParams>()
+            coEvery {
+                HermesWsClient.call(RpcMethods.CONFIG_SET, capture(setCalls), any(), any())
             } answers {
-                val result =
-                    if (arg<String>(0) == WsMethods.CONFIG_SET) {
-                        kotlinx.serialization.json.buildJsonObject {
-                            put("key", kotlinx.serialization.json.JsonPrimitive("reasoning"))
-                            put("value", kotlinx.serialization.json.JsonPrimitive("high"))
-                        }
-                    } else {
-                        kotlinx.serialization.json.JsonNull
-                    }
-                CompletableDeferred<Any?>(result)
+                kotlinx.serialization.json.buildJsonObject {
+                    put("key", kotlinx.serialization.json.JsonPrimitive("reasoning"))
+                    put("value", kotlinx.serialization.json.JsonPrimitive("high"))
+                }
             }
 
             vm.sendMessage("/reasoning high --global")
             advanceUntilIdle()
 
-            val configIndex = methodCalls.indexOf(WsMethods.CONFIG_SET)
-            assertTrue("expected CONFIG_SET, got $methodCalls", configIndex >= 0)
-            val params = paramsCalls[configIndex]
-            assertEquals("reasoning", params["key"])
-            assertEquals("high", params["value"])
-            assertEquals(sessionId, params["session_id"])
-            assertEquals("global", params["scope"])
+            assertEquals("expected exactly one config.set, got $setCalls", 1, setCalls.size)
+            val params = setCalls.single()
+            assertEquals("reasoning", params.key)
+            assertEquals("high", params.value)
+            assertEquals(sessionId, params.sessionId)
+            assertEquals("global", params.scope)
             assertEquals("high", vm.uiState.value.reasoningLevel)
-            assertTrue(WsMethods.COMMAND_DISPATCH !in methodCalls)
+            verify(exactly = 0) { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) }
         }
 
     @Test
@@ -307,33 +304,26 @@ class SlashCommandDispatchRpcTest {
         runTest {
             val (vm, sessionId) = createViewModelWithSession()
 
-            val methodCalls = mutableListOf<String>()
-            val paramsCalls = mutableListOf<Map<String, Any>>()
-            every {
-                HermesWsClient.request(capture(methodCalls), capture(paramsCalls), any())
+            val setCalls = mutableListOf<ConfigSetParams>()
+            coEvery {
+                HermesWsClient.call(RpcMethods.CONFIG_SET, capture(setCalls), any(), any())
             } answers {
-                val result =
-                    if (arg<String>(0) == WsMethods.CONFIG_SET) {
-                        kotlinx.serialization.json.buildJsonObject {
-                            put("key", kotlinx.serialization.json.JsonPrimitive("reasoning"))
-                            put("value", kotlinx.serialization.json.JsonPrimitive("show"))
-                        }
-                    } else {
-                        kotlinx.serialization.json.JsonNull
-                    }
-                CompletableDeferred<Any?>(result)
+                kotlinx.serialization.json.buildJsonObject {
+                    put("key", kotlinx.serialization.json.JsonPrimitive("reasoning"))
+                    put("value", kotlinx.serialization.json.JsonPrimitive("show"))
+                }
             }
 
             vm.sendMessage("/reasoning show")
             advanceUntilIdle()
 
-            val configIndex = methodCalls.indexOf(WsMethods.CONFIG_SET)
-            assertTrue("expected CONFIG_SET, got $methodCalls", configIndex >= 0)
-            val params = paramsCalls[configIndex]
-            assertEquals("reasoning", params["key"])
-            assertEquals("show", params["value"])
-            assertEquals(sessionId, params["session_id"])
-            assertTrue(WsMethods.COMMAND_DISPATCH !in methodCalls)
+            assertEquals("expected exactly one config.set, got $setCalls", 1, setCalls.size)
+            val params = setCalls.single()
+            assertEquals("reasoning", params.key)
+            assertEquals("show", params.value)
+            assertEquals(sessionId, params.sessionId)
+            assertNull(params.scope)
+            verify(exactly = 0) { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) }
             assertEquals(
                 "reasoning: show",
                 vm.uiState.value.messages
@@ -347,32 +337,24 @@ class SlashCommandDispatchRpcTest {
         runTest {
             val (vm, sessionId) = createViewModelWithSession()
 
-            val methodCalls = mutableListOf<String>()
-            val paramsCalls = mutableListOf<Map<String, Any>>()
-            every {
-                HermesWsClient.request(capture(methodCalls), capture(paramsCalls), any())
+            val getCalls = mutableListOf<ConfigGetParams>()
+            coEvery {
+                HermesWsClient.call(RpcMethods.CONFIG_GET, capture(getCalls), any(), any())
             } answers {
-                val result =
-                    if (arg<String>(0) == WsMethods.CONFIG_GET) {
-                        kotlinx.serialization.json.buildJsonObject {
-                            put("value", kotlinx.serialization.json.JsonPrimitive("ultra"))
-                            put("display", kotlinx.serialization.json.JsonPrimitive("hide"))
-                        }
-                    } else {
-                        kotlinx.serialization.json.JsonNull
-                    }
-                CompletableDeferred<Any?>(result)
+                kotlinx.serialization.json.buildJsonObject {
+                    put("value", kotlinx.serialization.json.JsonPrimitive("ultra"))
+                    put("display", kotlinx.serialization.json.JsonPrimitive("hide"))
+                }
             }
 
             vm.sendMessage("/reasoning")
             advanceUntilIdle()
 
-            val configIndex = methodCalls.indexOf(WsMethods.CONFIG_GET)
-            assertTrue("expected CONFIG_GET, got $methodCalls", configIndex >= 0)
-            val params = paramsCalls[configIndex]
-            assertEquals("reasoning", params["key"])
-            assertEquals(sessionId, params["session_id"])
-            assertTrue(WsMethods.COMMAND_DISPATCH !in methodCalls)
+            assertEquals("expected exactly one config.get, got $getCalls", 1, getCalls.size)
+            val params = getCalls.single()
+            assertEquals("reasoning", params.key)
+            assertEquals(sessionId, params.sessionId)
+            verify(exactly = 0) { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) }
             assertEquals(
                 "reasoning: ultra · display hide",
                 vm.uiState.value.messages

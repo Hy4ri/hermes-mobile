@@ -2,6 +2,11 @@ package com.m57.hermescontrol.ui.chat
 
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
+import com.m57.hermescontrol.data.ws.contract.ApprovalPendingParams
+import com.m57.hermescontrol.data.ws.contract.ApprovalReceivedParams
+import com.m57.hermescontrol.data.ws.contract.ApprovalRespondParams
+import com.m57.hermescontrol.data.ws.contract.RpcMethods
+import com.m57.hermescontrol.data.ws.contract.TypedRpcSender
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,7 +27,7 @@ class ChatApprovalsDelegate(
     private val ioDispatcher: CoroutineDispatcher,
     private val uiState: MutableStateFlow<ChatUiState>,
     private val runtimeSessionId: () -> String?,
-    private val wsSend: (method: String, params: Map<String, Any>, onSent: ((String) -> Unit)?) -> Unit,
+    private val rpc: TypedRpcSender,
     private val trackRequest: (id: String, method: String) -> Unit,
     private val addSystemMessage: (text: String) -> Unit,
     private val respondToServerRequest: ((String, JsonElement) -> Unit)? = null,
@@ -99,13 +104,12 @@ class ChatApprovalsDelegate(
         if (event.serverRequestId == null && requestId != null && sessionId != null) {
             scope.launch(ioDispatcher) {
                 runCatching {
-                    wsSend(
-                        WsMethods.APPROVAL_RECEIVED,
-                        mapOf(
-                            "session_id" to sessionId,
-                            "request_id" to requestId,
+                    rpc.send(
+                        RpcMethods.APPROVAL_RECEIVED,
+                        ApprovalReceivedParams(
+                            sessionId = sessionId,
+                            requestId = requestId,
                         ),
-                        null,
                     )
                 }
             }
@@ -115,9 +119,9 @@ class ChatApprovalsDelegate(
     fun replayPendingApproval(sessionId: String) {
         val targetSessionId = runtimeSessionId() ?: sessionId
         scope.launch(ioDispatcher) {
-            wsSend(
-                WsMethods.APPROVAL_PENDING,
-                mapOf("session_id" to targetSessionId),
+            rpc.send(
+                RpcMethods.APPROVAL_PENDING,
+                ApprovalPendingParams(sessionId = targetSessionId),
             ) { id -> trackRequest(id, WsMethods.APPROVAL_PENDING) }
         }
     }
@@ -190,16 +194,14 @@ class ChatApprovalsDelegate(
                 )
                 return@launch
             }
-            val params =
-                mutableMapOf<String, Any>(
-                    "session_id" to sessionId,
-                    "choice" to choice,
-                    "all" to false,
-                )
-            if (requestId != null) params["request_id"] = requestId
-            wsSend(
-                WsMethods.APPROVAL_RESPOND,
-                params,
+            rpc.send(
+                RpcMethods.APPROVAL_RESPOND,
+                ApprovalRespondParams(
+                    sessionId = sessionId,
+                    choice = choice,
+                    all = false,
+                    requestId = requestId,
+                ),
             ) { id -> trackRequest(id, WsMethods.APPROVAL_RESPOND) }
             // The queue can hold more pendings — surface the next one.
             replayPendingApproval(sessionId)

@@ -38,6 +38,7 @@ import com.m57.hermescontrol.data.ws.JsonRpcError
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.data.ws.contract.PromptBtwParams
+import com.m57.hermescontrol.data.ws.contract.RpcMethod
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
 import com.m57.hermescontrol.data.ws.contract.SessionBranchParams
 import com.m57.hermescontrol.data.ws.contract.SessionBranchWholeParams
@@ -48,6 +49,7 @@ import com.m57.hermescontrol.data.ws.contract.SessionIdParams
 import com.m57.hermescontrol.data.ws.contract.SessionInterruptParams
 import com.m57.hermescontrol.data.ws.contract.SessionListParams
 import com.m57.hermescontrol.data.ws.contract.SessionResumeParams
+import com.m57.hermescontrol.data.ws.contract.TypedRpcSender
 import com.m57.hermescontrol.data.ws.toAny
 import com.m57.hermescontrol.data.ws.toJsonElement
 import com.m57.hermescontrol.notification.ReplyNotificationTracker
@@ -711,7 +713,14 @@ class ChatViewModel(
             ioDispatcher = ioDispatcher,
             uiState = _uiState,
             runtimeSessionId = { runtimeSessionId },
-            wsSend = { method, params, onSent -> wsClient.send(method, params, onSent) },
+            rpc =
+                object : TypedRpcSender {
+                    override fun <P> send(
+                        method: RpcMethod<P, *>,
+                        params: P,
+                        onSent: ((String) -> Unit)?,
+                    ): String = wsClient.send(method, params, onSent)
+                },
             trackRequest = { id, method -> trackRequest(id, method) },
             addSystemMessage = { text -> addSystemMessage(text) },
             respondToServerRequest = { id, result -> wsClient.respondToServerRequest(id, result) },

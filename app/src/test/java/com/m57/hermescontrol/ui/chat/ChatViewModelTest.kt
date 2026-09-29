@@ -6619,9 +6619,9 @@ class ChatViewModelTest {
                 HermesWsClient.send(
                     WsMethods.APPROVAL_RESPOND,
                     withArg { params ->
-                        assertEquals(sessionId, params["session_id"])
-                        assertEquals("once", params["choice"])
-                        assertEquals("req-42", params["request_id"])
+                        assertEquals(JsonPrimitive(sessionId), params["session_id"])
+                        assertEquals(JsonPrimitive("once"), params["choice"])
+                        assertEquals(JsonPrimitive("req-42"), params["request_id"])
                     },
                     any(),
                 )
@@ -6653,8 +6653,8 @@ class ChatViewModelTest {
                 HermesWsClient.send(
                     WsMethods.APPROVAL_RESPOND,
                     withArg { params ->
-                        assertEquals("session", params["choice"])
-                        assertEquals("req-7", params["request_id"])
+                        assertEquals(JsonPrimitive("session"), params["choice"])
+                        assertEquals(JsonPrimitive("req-7"), params["request_id"])
                     },
                     any(),
                 )
@@ -6684,7 +6684,7 @@ class ChatViewModelTest {
                 HermesWsClient.send(
                     WsMethods.APPROVAL_RESPOND,
                     withArg { params ->
-                        assertEquals("deny", params["choice"])
+                        assertEquals(JsonPrimitive("deny"), params["choice"])
                         assertFalse(params.containsKey("request_id"))
                     },
                     any(),
@@ -6717,7 +6717,7 @@ class ChatViewModelTest {
                 HermesWsClient.send(
                     WsMethods.APPROVAL_PENDING,
                     withArg { params ->
-                        assertEquals(sessionId, params["session_id"])
+                        assertEquals(JsonPrimitive(sessionId), params["session_id"])
                     },
                     any(),
                 )
@@ -6763,8 +6763,8 @@ class ChatViewModelTest {
                 HermesWsClient.send(
                     WsMethods.APPROVAL_RECEIVED,
                     withArg { params ->
-                        assertEquals("runtime-sid-999", params["session_id"])
-                        assertEquals("req-runtime-test", params["request_id"])
+                        assertEquals(JsonPrimitive("runtime-sid-999"), params["session_id"])
+                        assertEquals(JsonPrimitive("req-runtime-test"), params["request_id"])
                     },
                     any(),
                 )
@@ -6777,16 +6777,16 @@ class ChatViewModelTest {
                 HermesWsClient.send(
                     WsMethods.APPROVAL_RESPOND,
                     withArg { params ->
-                        assertEquals("runtime-sid-999", params["session_id"])
-                        assertEquals("once", params["choice"])
-                        assertEquals("req-runtime-test", params["request_id"])
+                        assertEquals(JsonPrimitive("runtime-sid-999"), params["session_id"])
+                        assertEquals(JsonPrimitive("once"), params["choice"])
+                        assertEquals(JsonPrimitive("req-runtime-test"), params["request_id"])
                     },
                     any(),
                 )
                 HermesWsClient.send(
                     WsMethods.APPROVAL_PENDING,
                     withArg { params ->
-                        assertEquals("runtime-sid-999", params["session_id"])
+                        assertEquals(JsonPrimitive("runtime-sid-999"), params["session_id"])
                     },
                     any(),
                 )

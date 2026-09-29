@@ -1,8 +1,10 @@
 package com.m57.hermescontrol.data.ws
 
+import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -69,6 +71,82 @@ object GatewayContract {
         }
         required.filter { it !in keys }.forEach { problems += "$method: missing required param '$it'" }
         return problems
+    }
+
+    /**
+     * Verifies that a Kotlinx [descriptor] for [method]'s params matches the published contract.
+     * Empty list means OK.
+     */
+    fun paramsDescriptorProblems(
+        method: String,
+        descriptor: SerialDescriptor,
+    ): List<String> {
+        if (method !in methods) return listOf("$method is not a contract method")
+        val schema = paramsSchema(method)
+        val propertiesObj = schema["properties"]?.jsonObject ?: JsonObject(emptyMap())
+        val properties = propertiesObj.keys
+        val required =
+            schema["required"]
+                ?.jsonArray
+                ?.map { it.jsonPrimitive.content }
+                ?.toSet()
+                .orEmpty()
+        val problems = mutableListOf<String>()
+
+        val elementNames = (0 until descriptor.elementsCount).map { descriptor.getElementName(it) }.toSet()
+
+        for (i in 0 until descriptor.elementsCount) {
+            val name = descriptor.getElementName(i)
+            if (name !in properties) {
+                problems +=
+                    "$method: unknown param '$name' (backend forbids extra keys; allowed: ${properties.sorted()})"
+            }
+        }
+
+        val missingRequired =
+            required.filter { reqName ->
+                reqName !in elementNames && reqName != "profile"
+            }
+        for (missing in missingRequired) {
+            problems += "$method: missing required param '$missing'"
+        }
+
+        for (i in 0 until descriptor.elementsCount) {
+            val name = descriptor.getElementName(i)
+            if (name in required) {
+                if (descriptor.isElementOptional(i)) {
+                    problems += "$method: required param '$name' must not be optional"
+                }
+                val propSchema = propertiesObj[name]?.jsonObject
+                val allowsNull = propSchema?.let { propertyAllowsNull(it) } ?: false
+                if (descriptor.getElementDescriptor(i).isNullable && !allowsNull) {
+                    problems += "$method: required param '$name' must not be nullable unless schema allows null"
+                }
+            }
+        }
+
+        return problems
+    }
+
+    private fun propertyAllowsNull(propertySchema: JsonObject): Boolean {
+        val typeElement = propertySchema["type"]
+        if (typeElement != null) {
+            if (typeElement is JsonArray && typeElement.any { it.jsonPrimitive.content == "null" }) {
+                return true
+            }
+            if (typeElement is JsonPrimitive && typeElement.content == "null") {
+                return true
+            }
+        }
+        val anyOf = propertySchema["anyOf"]?.jsonArray
+        if (anyOf != null && anyOf.any { it.jsonObject["type"]?.jsonPrimitive?.content == "null" }) {
+            return true
+        }
+        val oneOf = propertySchema["oneOf"]?.jsonArray
+        if (oneOf != null && oneOf.any { it.jsonObject["type"]?.jsonPrimitive?.content == "null" }) {
+            return true
+        }
+        return false
     }
 }
 

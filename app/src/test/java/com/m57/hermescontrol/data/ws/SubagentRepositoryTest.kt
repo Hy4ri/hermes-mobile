@@ -3,6 +3,14 @@ package com.m57.hermescontrol.data.ws
 import com.m57.hermescontrol.data.model.SubagentListItem
 import com.m57.hermescontrol.data.model.SubagentListResponse
 import com.m57.hermescontrol.data.model.SubagentTailResponse
+import io.mockk.every
+import io.mockk.mockkObject
+import io.mockk.slot
+import io.mockk.unmockkAll
+import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -11,6 +19,34 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SubagentRepositoryTest {
+    @After
+    fun tearDown() {
+        unmockkAll()
+    }
+
+    @Test
+    fun tailSubagentSendsExactlySessionIdAndSubagentId() {
+        // #1379: the contract forbids extra keys (max_bytes) and requires session_id.
+        val captured = slot<Map<String, Any>>()
+        mockkObject(HermesWsClient)
+        every { HermesWsClient.request(WsMethods.SUBAGENT_TAIL, capture(captured), any(), any()) } returns
+            CompletableDeferred<Any?>(mapOf("subagent_id" to "sub-1"))
+
+        runBlocking { SubagentRepository.tailSubagent("s1", "sub-1") }
+
+        assertEquals(mapOf<String, Any>("session_id" to "s1", "subagent_id" to "sub-1"), captured.captured)
+    }
+
+    @Test
+    fun tailSubagentSkipsTheCallWhenAnIdIsBlank() {
+        mockkObject(HermesWsClient)
+        runBlocking {
+            assertNull(SubagentRepository.tailSubagent("", "sub-1"))
+            assertNull(SubagentRepository.tailSubagent("s1", " "))
+        }
+        verify(exactly = 0) { HermesWsClient.request(any(), any(), any(), any()) }
+    }
+
     @Test
     fun testWsMethodsConstants() {
         assertEquals("subagent.list", WsMethods.SUBAGENT_LIST)

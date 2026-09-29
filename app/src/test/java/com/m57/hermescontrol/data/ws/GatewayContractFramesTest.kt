@@ -28,6 +28,7 @@ import org.junit.Before
 import org.junit.Test
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Sends the client-owned RPCs through the real [HermesWsClient] and checks the
@@ -86,7 +87,7 @@ class GatewayContractFramesTest {
     ): JsonObject {
         val opened = CountDownLatch(1)
         val captured = CountDownLatch(1)
-        var frame: JsonObject? = null
+        val frame = AtomicReference<JsonObject?>(null)
         mockWebServer.enqueue(
             MockResponse().withWebSocketUpgrade(
                 object : WebSocketListener() {
@@ -101,8 +102,8 @@ class GatewayContractFramesTest {
                     ) {
                         val json = OkHttpProvider.json.parseToJsonElement(text) as? JsonObject ?: return
                         val name = (json["method"] as? JsonPrimitive)?.content
-                        if (frame == null && name == method) {
-                            frame = json
+                        if (frame.get() == null && name == method) {
+                            frame.set(json)
                             captured.countDown()
                         }
                     }
@@ -117,7 +118,7 @@ class GatewayContractFramesTest {
         assertTrue(opened.await(5, TimeUnit.SECONDS))
         trigger()
         assertTrue("No '$method' frame reached the server", captured.await(5, TimeUnit.SECONDS))
-        return requireNotNull(frame)
+        return requireNotNull(frame.get())
     }
 
     private fun assertMatchesContract(frame: JsonObject) {

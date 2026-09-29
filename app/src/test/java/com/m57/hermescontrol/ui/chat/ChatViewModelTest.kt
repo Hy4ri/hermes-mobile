@@ -63,6 +63,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
@@ -767,8 +768,8 @@ class ChatViewModelTest {
 
             val branchSent = captured.firstOrNull { it.first == WsMethods.SESSION_BRANCH_WHOLE }
             assertNotNull("session.branch_whole should be dispatched for /fork", branchSent)
-            assertEquals(sessionId, branchSent!!.second["session_id"])
-            assertEquals("my-fork", branchSent.second["name"])
+            assertEquals(JsonPrimitive(sessionId), branchSent!!.second["session_id"])
+            assertEquals(JsonPrimitive("my-fork"), branchSent.second["name"])
         }
 
     @Test
@@ -813,7 +814,7 @@ class ChatViewModelTest {
 
             val branchSent = captured.firstOrNull { it.first == WsMethods.SESSION_BRANCH_WHOLE }
             assertNotNull("session.branch_whole should be dispatched for /fork", branchSent)
-            assertEquals(sessionId, branchSent!!.second["session_id"])
+            assertEquals(JsonPrimitive(sessionId), branchSent!!.second["session_id"])
             assertFalse("name param should be omitted when no title given", branchSent.second.containsKey("name"))
         }
 
@@ -876,8 +877,8 @@ class ChatViewModelTest {
 
             val branchWholeSent = captured.firstOrNull { it.first == WsMethods.SESSION_BRANCH_WHOLE }
             assertNotNull("session.branch_whole should be sent", branchWholeSent)
-            assertEquals("my-retry-branch", branchWholeSent!!.second["name"])
-            assertEquals(sessionId, branchWholeSent.second["session_id"])
+            assertEquals(JsonPrimitive("my-retry-branch"), branchWholeSent!!.second["name"])
+            assertEquals(JsonPrimitive(sessionId), branchWholeSent.second["session_id"])
 
             // Backend answers -32601 unknown method
             mockEventsFlow.emit(
@@ -891,8 +892,8 @@ class ChatViewModelTest {
             // Retries ONCE with session.branch using same params
             val branchSent = captured.firstOrNull { it.first == WsMethods.SESSION_BRANCH }
             assertNotNull("session.branch fallback should be sent", branchSent)
-            assertEquals("my-retry-branch", branchSent!!.second["name"])
-            assertEquals(sessionId, branchSent.second["session_id"])
+            assertEquals(JsonPrimitive("my-retry-branch"), branchSent!!.second["name"])
+            assertEquals(JsonPrimitive(sessionId), branchSent.second["session_id"])
             assertEquals(1, captured.count { it.first == WsMethods.SESSION_BRANCH })
 
             // session.branch result is then handled
@@ -1077,7 +1078,12 @@ class ChatViewModelTest {
             verify {
                 HermesWsClient.request(
                     WsMethods.PROMPT_BTW,
-                    mapOf("session_id" to sessionId, "text" to "which file was that in?"),
+                    JsonObject(
+                        mapOf(
+                            "session_id" to JsonPrimitive(sessionId),
+                            "text" to JsonPrimitive("which file was that in?"),
+                        ),
+                    ),
                     any(),
                 )
             }
@@ -1573,7 +1579,12 @@ class ChatViewModelTest {
             verify {
                 HermesWsClient.send(
                     WsMethods.SESSION_RESUME,
-                    mapOf("session_id" to "session-from-notification", "omit_messages" to true),
+                    JsonObject(
+                        mapOf(
+                            "session_id" to JsonPrimitive("session-from-notification"),
+                            "omit_messages" to JsonPrimitive(true),
+                        ),
+                    ),
                     any(),
                 )
             }
@@ -4983,7 +4994,12 @@ class ChatViewModelTest {
             verify {
                 HermesWsClient.send(
                     WsMethods.SESSION_RESUME,
-                    mapOf("session_id" to "session-456", "omit_messages" to true),
+                    JsonObject(
+                        mapOf(
+                            "session_id" to JsonPrimitive("session-456"),
+                            "omit_messages" to JsonPrimitive(true),
+                        ),
+                    ),
                     any(),
                 )
             }
@@ -4996,7 +5012,7 @@ class ChatViewModelTest {
             val (viewModel, _) = createViewModelWithSession()
             val resumeRequests = mutableMapOf<String, String>()
             every { HermesWsClient.send(WsMethods.SESSION_RESUME, any(), any()) } answers {
-                val sessionId = arg<Map<String, String>>(1).getValue("session_id")
+                val sessionId = (arg<Map<String, Any?>>(1).getValue("session_id") as JsonPrimitive).content
                 val requestId = "resume-$sessionId"
                 resumeRequests[sessionId] = requestId
                 arg<((String) -> Unit)?>(2)?.invoke(requestId)
@@ -5090,7 +5106,7 @@ class ChatViewModelTest {
             val (viewModel, _) = createViewModelWithSession()
             val resumeRequests = mutableMapOf<String, String>()
             every { HermesWsClient.send(WsMethods.SESSION_RESUME, any(), any()) } answers {
-                val sessionId = arg<Map<String, String>>(1).getValue("session_id")
+                val sessionId = (arg<Map<String, Any?>>(1).getValue("session_id") as JsonPrimitive).content
                 val requestId = "resume-$sessionId"
                 resumeRequests[sessionId] = requestId
                 arg<((String) -> Unit)?>(2)?.invoke(requestId)
@@ -5689,14 +5705,14 @@ class ChatViewModelTest {
             verify(exactly = 0) {
                 HermesWsClient.request(
                     WsMethods.SESSION_CONTEXT_BREAKDOWN,
-                    match { it["session_id"] == "session-456" },
+                    match { it["session_id"] == JsonPrimitive("session-456") },
                     any(),
                 )
             }
             verify(exactly = 0) {
                 HermesWsClient.request(
                     WsMethods.SESSION_USAGE,
-                    match { it["session_id"] == "session-456" },
+                    match { it["session_id"] == JsonPrimitive("session-456") },
                     any(),
                 )
             }
@@ -5718,18 +5734,18 @@ class ChatViewModelTest {
             verify {
                 HermesWsClient.request(
                     WsMethods.SESSION_CONTEXT_BREAKDOWN,
-                    match { it["session_id"] == "runtime-456" },
+                    match { it["session_id"] == JsonPrimitive("runtime-456") },
                     any(),
                 )
             }
             verify {
                 HermesWsClient.request(
                     WsMethods.SESSION_USAGE,
-                    match { it["session_id"] == "runtime-456" },
+                    match { it["session_id"] == JsonPrimitive("runtime-456") },
                     any(),
                 )
             }
-            assertEquals("runtime-456", paramsSlot.captured["session_id"])
+            assertEquals(JsonPrimitive("runtime-456"), paramsSlot.captured["session_id"])
         }
 
     @Test
@@ -5833,7 +5849,12 @@ class ChatViewModelTest {
             verify {
                 HermesWsClient.send(
                     WsMethods.SESSION_RESUME,
-                    mapOf("session_id" to "session-456", "omit_messages" to true),
+                    JsonObject(
+                        mapOf(
+                            "session_id" to JsonPrimitive("session-456"),
+                            "omit_messages" to JsonPrimitive(true),
+                        ),
+                    ),
                     any(),
                 )
             }
@@ -9476,7 +9497,7 @@ class ChatViewModelTest {
                     any(),
                 )
             }
-            assertEquals("session-stored-999", resumeParamsSlot.captured["session_id"])
+            assertEquals(JsonPrimitive("session-stored-999"), resumeParamsSlot.captured["session_id"])
         }
 
     @Test

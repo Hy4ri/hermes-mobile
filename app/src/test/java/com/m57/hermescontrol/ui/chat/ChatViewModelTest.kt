@@ -318,6 +318,10 @@ class ChatViewModelTest {
         mockkObject(ProfileSwitchCoordinator)
         every { ProfileSwitchCoordinator.switched } returns mockSwitchFlow
         every { ProfileSwitchCoordinator.connectionSwitched } returns MutableSharedFlow<String>()
+        every { ProfileSwitchCoordinator.setCanonicalIntent(any(), any()) } returns 0L
+        every { ProfileSwitchCoordinator.consumeCanonicalIntent(any(), any()) } returns null
+        every { ProfileSwitchCoordinator.clearCanonicalIntent() } returns Unit
+        every { ProfileSwitchCoordinator.canonicalIntentGeneration } returns 0L
         every { AuthManager.isTypingEffectEnabled() } returns true
         every { AuthManager.getBusySendMode() } returns BusySendMode.CORRECT
         every { AuthManager.getTypingEffectDelayMs() } returns 30
@@ -746,6 +750,105 @@ class ChatViewModelTest {
             // The fresh session create goes through send() → WsProfileParams
             // injects the active profile (the WS profile-scoping seam).
             verify(atLeast = 1) { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) }
+        }
+
+    // ── Canonical-session intent consumption tests ─────────────────
+
+    @Test
+    fun `canonical intent consumed on gateway ready produces exactly one session resume and zero create`() =
+        runTest {
+            stubActiveProfile()
+            // Canonical intent returns a session id
+            every { ProfileSwitchCoordinator.consumeCanonicalIntent(any(), any()) } returns "sess-canon"
+            every { ProfileSwitchCoordinator.canonicalIntentGeneration } returns 1L
+
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            // Should produce exactly one SESSION_RESUME and zero SESSION_CREATE
+            val resumeCalls = sentRequestMethods.count { it.first == WsMethods.SESSION_RESUME }
+            val createCalls = sentRequestMethods.count { it.first == WsMethods.SESSION_CREATE }
+            assertEquals("Expected exactly one SESSION_RESUME from canonical intent", 1, resumeCalls)
+            assertEquals("Expected zero SESSION_CREATE from canonical path", 0, createCalls)
+            // The canonical session is set optimistically by switchSession
+            assertEquals("sess-canon", viewModel.uiState.value.currentSessionId)
+        }
+
+    @Test
+    fun `canonical intent not consumed when profile mismatches on gateway ready`() =
+        runTest {
+            stubActiveProfile()
+            // Canonical intent returns null (profile mismatch: intent is for "alpha", active is "default")
+            every { ProfileSwitchCoordinator.consumeCanonicalIntent(any(), any()) } returns null
+            every { ProfileSwitchCoordinator.canonicalIntentGeneration } returns 2L
+
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            // No canonical match → falls through to createNewSession
+            val createCalls = sentRequestMethods.count { it.first == WsMethods.SESSION_CREATE }
+            assertEquals("Expected SESSION_CREATE when canonical intent does not match profile", 1, createCalls)
+            // SESSION_RESUME should NOT be sent when canonical is null
+            val resumeCalls = sentRequestMethods.count { it.first == WsMethods.SESSION_RESUME }
+            assertEquals("Expected zero SESSION_RESUME when canonical intent not consumed", 0, resumeCalls)
+        }
+
+    @Test
+    fun `canonical intent not consumed when generation mismatches on gateway ready`() =
+        runTest {
+            stubActiveProfile()
+            // Canonical intent returns null (stale generation)
+            every { ProfileSwitchCoordinator.consumeCanonicalIntent(any(), any()) } returns null
+            every { ProfileSwitchCoordinator.canonicalIntentGeneration } returns 1L
+
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            val createCalls = sentRequestMethods.count { it.first == WsMethods.SESSION_CREATE }
+            assertEquals("Expected SESSION_CREATE when canonical intent generation is stale", 1, createCalls)
+            val resumeCalls = sentRequestMethods.count { it.first == WsMethods.SESSION_RESUME }
+            assertEquals("Expected zero SESSION_RESUME when canonical intent is stale", 0, resumeCalls)
+        }
+
+    @Test
+    fun `canonical intent preserves pending intent when not consumed on gateway ready`() =
+        runTest {
+            stubActiveProfile()
+            // consumeCanonicalIntent returns null — not consumed
+            every { ProfileSwitchCoordinator.consumeCanonicalIntent(any(), any()) } returns null
+            every { ProfileSwitchCoordinator.canonicalIntentGeneration } returns 1L
+            // Track whether clearCanonicalIntent was called
+            var clearCalled = false
+            every { ProfileSwitchCoordinator.clearCanonicalIntent() } answers {
+                clearCalled = true
+            }
+
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            // When canonical intent is not consumed (null), the pending intent
+            // must NOT be cleared — it belongs to a real switch's work and
+            // needs to survive for the next gateway.ready.
+            assertFalse(
+                "clearCanonicalIntent should NOT be called when canonical intent is not consumed",
+                clearCalled,
+            )
         }
 
     @Test

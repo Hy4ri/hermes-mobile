@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * The single flow that performs a profile switch — the mobile equivalent of
@@ -70,6 +71,13 @@ object ProfileSwitchCoordinator {
     @Volatile
     private var pendingCanonicalIntent: CanonicalSessionIntent? = null
     private var nextSwitchGeneration = 0L
+
+    /**
+     * Monotonically increasing generation counter for transactional disconnect/connect.
+     * Incremented just before disconnect so that overlapping switches can detect
+     * which one is the latest and skip their connect when superseded.
+     */
+    private val latestSwitchGeneration = AtomicLong(0L)
 
     /**
      * Set a canonical-session intent scoped to [profileName]. Returns the
@@ -146,15 +154,28 @@ object ProfileSwitchCoordinator {
         return AuthManager.activeProfileId.value
     }
 
-    suspend fun switchProfile(name: String): NetworkResult<Unit> {
+    /**
+     * Switch the active Hermes profile on the current server.
+     *
+     * @param name Target profile name.
+     * @param ownerToken The generation returned by [setCanonicalIntent], or
+     *   -1L if no canonical intent was set. When the REST call fails, the
+     *   canonical intent is only cleared if it still matches this owner
+     *   token — prevents overlapping switches from wiping each other's intents.
+     */
+    suspend fun switchProfile(name: String, ownerToken: Long = -1L): NetworkResult<Unit> {
         val result =
             withContext(ioDispatcher) {
                 safeApiCall { ApiClient.hermesApi.setActiveProfile(SetActiveProfileRequest(name)) }
             }
         if (result !is NetworkResult.Success) {
-            // Clear pending canonical intent on REST failure so a stale
-            // gateway.ready cannot consume a session for the wrong profile.
-            clearCanonicalIntent()
+            // Clear pending canonical intent only when the owner token still
+            // matches — overlapping switch B supersedes A's intent, and A's
+            // failure must not wipe B's intent.
+            val pending = pendingCanonicalIntent
+            if (pending != null && ownerToken >= 0L && pending.generation == ownerToken) {
+                pendingCanonicalIntent = null
+            }
             return result
         }
 
@@ -165,8 +186,15 @@ object ProfileSwitchCoordinator {
         // NetworkOnMainThreadException and falls back to the 1s reconnect
         // retry (visible in the 2026-08-06 live logcat).
         withContext(ioDispatcher) {
+            val myGeneration = latestSwitchGeneration.incrementAndGet()
             HermesWsClient.disconnect()
-            HermesWsClient.connect()
+            // Only connect when we're still the latest switch. If a newer
+            // switch started after us, its disconnect+connect will open the
+            // socket for the latest profile — skip ours to prevent the newer
+            // connect from being blocked by HermesWsClient's CONNECTING guard.
+            if (latestSwitchGeneration.get() == myGeneration) {
+                HermesWsClient.connect()
+            }
         }
         return result
     }

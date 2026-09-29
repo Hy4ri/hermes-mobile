@@ -15,6 +15,7 @@ import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
@@ -28,6 +29,7 @@ import kotlinx.coroutines.test.setMain
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -317,6 +319,90 @@ class ProfileSwitchCoordinatorTest {
             val result = ProfileSwitchCoordinator.consumeCanonicalIntent("karellen", 0L)
 
             assertEquals(null, result)
+        }
+
+    @Test
+    fun `overlapping switch A fails after B succeeds, B's canonical intent survives`() =
+        runTest {
+            // A's REST call is blocked until the deferred completes
+            val aRestBlocked = CompletableDeferred<Response<Unit>>()
+            coEvery { mockApi.setActiveProfile(SetActiveProfileRequest("alpha")) } coAnswers {
+                aRestBlocked.await()
+            }
+            coEvery { mockApi.setActiveProfile(SetActiveProfileRequest("beta")) } returns
+                Response.success(Unit)
+
+            // Subscribe to switched to prevent buffer overflow
+            val received = Channel<String>(Channel.UNLIMITED)
+            backgroundScope.launch {
+                ProfileSwitchCoordinator.switched.collect { received.send(it) }
+            }
+            runCurrent()
+
+            // A sets canonical intent and starts switch (REST blocks)
+            val genA = ProfileSwitchCoordinator.setCanonicalIntent("sess-a", "alpha")
+            backgroundScope.launch {
+                ProfileSwitchCoordinator.switchProfile("alpha", genA)
+            }
+            runCurrent()
+
+            // B sets canonical intent and completes switch
+            val genB = ProfileSwitchCoordinator.setCanonicalIntent("sess-b", "beta")
+            ProfileSwitchCoordinator.switchProfile("beta", genB)
+            runCurrent()
+
+            // Fail A's REST — this unblocks A's switchProfile
+            aRestBlocked.complete(Response.error(500, "{}".toResponseBody(null)))
+            runCurrent()
+
+            // A's owner-scoped failure must NOT have cleared B's canonical
+            // intent. If the old global clearCanonicalIntent() was still in
+            // use, this would return null — proving the fix works.
+            assertEquals(
+                "sess-b",
+                ProfileSwitchCoordinator.consumeCanonicalIntent("beta", genB),
+            )
+        }
+
+    @Test
+    fun `overlapping switch skips stale connect when superseded`() =
+        runTest {
+            // Block A's REST call so B can override before A completes
+            val aRestBlocked = CompletableDeferred<Response<Unit>>()
+            coEvery { mockApi.setActiveProfile(SetActiveProfileRequest("alpha")) } coAnswers {
+                aRestBlocked.await()
+            }
+            coEvery { mockApi.setActiveProfile(SetActiveProfileRequest("beta")) } returns
+                Response.success(Unit)
+
+            val received = Channel<String>(Channel.UNLIMITED)
+            backgroundScope.launch {
+                ProfileSwitchCoordinator.switched.collect { received.send(it) }
+            }
+            runCurrent()
+
+            // A starts switch (REST blocked)
+            backgroundScope.launch {
+                ProfileSwitchCoordinator.switchProfile("alpha")
+            }
+            runCurrent()
+
+            // B completes fully — its disconnect+connect is the ONLY one
+            // that should take effect.
+            ProfileSwitchCoordinator.switchProfile("beta")
+            runCurrent()
+
+            // Unblock A — A's switchProfile proceeds to disconnect then
+            // checks latestSwitchGeneration and should skip connect.
+            aRestBlocked.complete(Response.success(Unit))
+            runCurrent()
+
+            // connect() was called by B (1 call). The old code without the
+            // transactional guard would have let A call connect() as well,
+            // for 2 calls total.
+            verify(exactly = 1) { HermesWsClient.connect() }
+            // disconnect() was called by A then B = 2 calls total.
+            verify(exactly = 2) { HermesWsClient.disconnect() }
         }
 
     private fun <T> errorResponse(code: Int): Response<T> = Response.error(code, "{}".toResponseBody(null))

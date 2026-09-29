@@ -400,14 +400,15 @@ fun BotsScreen(
                                                             val canonicalId =
                                                                 bot.canonical_session?.resolved_id
                                                                     ?: bot.canonical_session?.id
-                                                            if (!canonicalId.isNullOrBlank()) {
-                                                                ProfileSwitchCoordinator
-                                                                    .setCanonicalIntent(
-                                                                        canonicalId,
-                                                                        bot.name,
-                                                                    )
-                                                            }
-                                                            val success = viewModel.selectBot(bot)
+                                                            val ownerToken =
+                                                                if (!canonicalId.isNullOrBlank()) {
+                                                                    ProfileSwitchCoordinator
+                                                                        .setCanonicalIntent(
+                                                                            canonicalId,
+                                                                            bot.name,
+                                                                        )
+                                                                } else -1L
+                                                            val success = viewModel.selectBot(bot, ownerToken)
                                                             if (!success) {
                                                                 // Switch failed — clear intent so
                                                                 // stale gateway.ready cannot resume it.
@@ -450,17 +451,16 @@ fun BotsScreen(
                                                         val canonicalId =
                                                             profile.canonical_session?.resolved_id
                                                                 ?: profile.canonical_session?.id
-                                                        if (!canonicalId.isNullOrBlank()) {
-                                                            ProfileSwitchCoordinator
-                                                                .setCanonicalIntent(
-                                                                    canonicalId,
-                                                                    profile.name,
-                                                                )
-                                                        }
-                                                        val success = viewModel.selectBot(profile)
+                                                        val ownerToken =
+                                                            if (!canonicalId.isNullOrBlank()) {
+                                                                ProfileSwitchCoordinator
+                                                                    .setCanonicalIntent(
+                                                                        canonicalId,
+                                                                        profile.name,
+                                                                    )
+                                                            } else -1L
+                                                        val success = viewModel.selectBot(profile, ownerToken)
                                                         if (!success) {
-                                                            // Switch failed — clear intent so
-                                                            // stale gateway.ready cannot resume it.
                                                             ProfileSwitchCoordinator
                                                                 .clearCanonicalIntent()
                                                             return@launch

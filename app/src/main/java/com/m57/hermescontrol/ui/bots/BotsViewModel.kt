@@ -341,8 +341,8 @@ class BotsViewModel(
         _uiState.update { it.copy(showHidden = !it.showHidden) }
     }
 
-    suspend fun selectBot(bot: ProfileInfo): Boolean {
-        val result = ProfileSwitchCoordinator.switchProfile(bot.name)
+    suspend fun selectBot(bot: ProfileInfo, ownerToken: Long = -1L): Boolean {
+        val result = ProfileSwitchCoordinator.switchProfile(bot.name, ownerToken)
         return result is NetworkResult.Success
     }
 

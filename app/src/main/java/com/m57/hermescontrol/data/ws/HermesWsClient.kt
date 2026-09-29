@@ -10,6 +10,7 @@ import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.await
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
+import com.m57.hermescontrol.data.ws.contract.ClientCapabilitiesParams
 import com.m57.hermescontrol.data.ws.contract.PromptSubmitParams
 import com.m57.hermescontrol.data.ws.contract.RpcMethod
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
@@ -364,8 +365,11 @@ object HermesWsClient {
                     // Older gateways may reject this method; that is harmless.
                     runCatching {
                         send(
-                            WsMethods.CLIENT_CAPABILITIES,
-                            mapOf("server_requests" to true),
+                            RpcMethods.CLIENT_CAPABILITIES.name,
+                            encodeParams(
+                                RpcMethods.CLIENT_CAPABILITIES,
+                                ClientCapabilitiesParams(serverRequests = true),
+                            ),
                             onSent = { id -> capabilityRequestIds.add(id) },
                             queueIfDisconnected = false,
                         )

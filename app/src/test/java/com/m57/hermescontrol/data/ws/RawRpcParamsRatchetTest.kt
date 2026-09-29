@@ -316,17 +316,9 @@ class RawRpcParamsRatchetTest {
          */
         val BASELINE: List<String> =
             listOf(
-                "data/ws/HermesWsClient.kt::CLIENT_CAPABILITIES",
-                "data/ws/ModelOptionsRepository.kt::MODEL_OPTIONS",
-                "ui/chat/ChatModelSwitchDelegate.kt::CONFIG_SET",
-                "ui/chat/ChatModelSwitchDelegate.kt::CONFIG_SET",
-                "ui/chat/ChatModelSwitchDelegate.kt::CONFIG_SET",
-                "ui/chat/ChatModelSwitchDelegate.kt::CONFIG_SET",
                 "ui/chat/ChatViewModel.kt::COMMANDS_CATALOG",
                 "ui/chat/ChatViewModel.kt::COMMAND_DISPATCH",
                 "ui/chat/ChatViewModel.kt::COMMAND_DISPATCH",
-                "ui/chat/ChatViewModel.kt::CONFIG_GET",
-                "ui/chat/ChatViewModel.kt::CONFIG_SET",
                 "ui/chat/ChatViewModel.kt::FILE_ATTACH",
                 "ui/chat/ChatViewModel.kt::IMAGE_ATTACH_BYTES",
                 "ui/chat/ChatViewModel.kt::SLASH_EXEC",

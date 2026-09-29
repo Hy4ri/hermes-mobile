@@ -37,6 +37,8 @@ import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.JsonRpcError
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
+import com.m57.hermescontrol.data.ws.contract.ConfigGetParams
+import com.m57.hermescontrol.data.ws.contract.ConfigSetParams
 import com.m57.hermescontrol.data.ws.contract.PromptBtwParams
 import com.m57.hermescontrol.data.ws.contract.RpcMethod
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
@@ -694,13 +696,13 @@ class ChatViewModel(
             ioDispatcher = ioDispatcher,
             uiState = _uiState,
             runtimeSessionId = { runtimeSessionId },
-            wsSend = { method, params, onSent -> wsClient.send(method, params, onSent) },
+            wsSend = { params, onSent -> wsClient.send(RpcMethods.CONFIG_SET, params, onSent) },
             trackRequest = { id, method -> trackRequest(id, method) },
             addAssistantMessage = { text -> addAssistantMessage(text) },
             handleSlashCommand = { cmd -> handleSlashCommand(cmd) },
             fetchContextUsage = { fetchContextUsage() },
             onModelSwitchInitiated = { onModelSwitchInitiated() },
-            wsRequest = { method, params -> wsClient.request(method, params).await() },
+            wsRequest = { params -> wsClient.call(RpcMethods.CONFIG_SET, params) },
         ).apply {
             attachScopeObserver(viewModelScope)
         }
@@ -3846,14 +3848,10 @@ class ChatViewModel(
             viewModelScope.launch(ioDispatcher) {
                 try {
                     val result =
-                        wsClient
-                            .request(
-                                WsMethods.CONFIG_GET,
-                                mapOf(
-                                    "key" to "reasoning",
-                                    "session_id" to sessionId,
-                                ),
-                            ).await()
+                        wsClient.call(
+                            RpcMethods.CONFIG_GET,
+                            ConfigGetParams(key = "reasoning", sessionId = sessionId),
+                        )
                     val map = rpcResultMap(result) ?: error("Invalid reasoning config.get response")
                     val value = (map["value"] as? String)?.takeIf { it.isNotBlank() } ?: "unknown"
                     val display = (map["display"] as? String)?.takeIf { it.isNotBlank() } ?: "unknown"
@@ -3901,13 +3899,13 @@ class ChatViewModel(
         viewModelScope.launch(ioDispatcher) {
             try {
                 val params =
-                    buildMap<String, Any> {
-                        put("key", "reasoning")
-                        put("value", parsed.value)
-                        put("session_id", sessionId)
-                        parsed.scopeName?.let { put("scope", it) }
-                    }
-                val result = wsClient.request(WsMethods.CONFIG_SET, params).await()
+                    ConfigSetParams(
+                        key = "reasoning",
+                        value = parsed.value,
+                        sessionId = sessionId,
+                        scope = parsed.scopeName,
+                    )
+                val result = wsClient.call(RpcMethods.CONFIG_SET, params)
                 val map = rpcResultMap(result) ?: error("Invalid reasoning config.set response")
                 val responseKey = map["key"] as? String
                 val responseValue = map["value"] as? String

@@ -2,6 +2,7 @@ package com.m57.hermescontrol.data.ws
 
 import com.m57.hermescontrol.data.model.ModelOptionsResponse
 import com.m57.hermescontrol.data.remote.NetworkResult
+import com.m57.hermescontrol.data.ws.contract.ModelOptionsParams
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
@@ -21,7 +22,7 @@ class ModelOptionsRepositoryTest {
                 ModelOptionsRepository(
                     connected = { true },
                     request = { params ->
-                        assertEquals(mapOf("refresh" to true, "include_unconfigured" to false), params)
+                        assertEquals(ModelOptionsParams(refresh = true, includeUnconfigured = false), params)
                         Json.parseToJsonElement("""{"providers":[{"slug":"test","name":"Test","models":["a"]}]}""")
                     },
                     rest = { error("REST must not run") },

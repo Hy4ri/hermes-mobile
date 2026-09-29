@@ -150,6 +150,84 @@ object RpcMethods {
             JsonElement.serializer(),
         )
 
+    // Passthrough JsonElement results: callers keep their existing legacy parsers.
+    val SUBSCRIPTION_STATE: RpcMethod<EmptyParams, JsonElement> =
+        RpcMethod(
+            WsMethods.SUBSCRIPTION_STATE,
+            EmptyParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    val SUBSCRIPTION_PREVIEW: RpcMethod<SubscriptionPreviewParams, JsonElement> =
+        RpcMethod(
+            WsMethods.SUBSCRIPTION_PREVIEW,
+            SubscriptionPreviewParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    val SUBSCRIPTION_CHANGE: RpcMethod<SubscriptionChangeParams, JsonElement> =
+        RpcMethod(
+            WsMethods.SUBSCRIPTION_CHANGE,
+            SubscriptionChangeParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    val SUBSCRIPTION_UPGRADE: RpcMethod<SubscriptionUpgradeParams, JsonElement> =
+        RpcMethod(
+            WsMethods.SUBSCRIPTION_UPGRADE,
+            SubscriptionUpgradeParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    val SUBSCRIPTION_RESUME: RpcMethod<EmptyParams, JsonElement> =
+        RpcMethod(
+            WsMethods.SUBSCRIPTION_RESUME,
+            EmptyParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    val USAGE_BARS: RpcMethod<EmptyParams, JsonElement> =
+        RpcMethod(
+            WsMethods.USAGE_BARS,
+            EmptyParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    val VAULT_LIST: RpcMethod<EmptyParams, JsonElement> =
+        RpcMethod(
+            WsMethods.VAULT_LIST,
+            EmptyParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    val VAULT_SOURCES: RpcMethod<EmptyParams, JsonElement> =
+        RpcMethod(
+            WsMethods.VAULT_SOURCES,
+            EmptyParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    val VAULT_SOURCE_SET: RpcMethod<VaultSourceSetParams, JsonElement> =
+        RpcMethod(
+            WsMethods.VAULT_SOURCE_SET,
+            VaultSourceSetParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    val VAULT_UNLOCK: RpcMethod<VaultUnlockParams, JsonElement> =
+        RpcMethod(
+            WsMethods.VAULT_UNLOCK,
+            VaultUnlockParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    val VAULT_LOCK: RpcMethod<VaultLockParams, JsonElement> =
+        RpcMethod(
+            WsMethods.VAULT_LOCK,
+            VaultLockParams.serializer(),
+            JsonElement.serializer(),
+        )
+
     /** Every typed method. GatewayContractTest iterates this; future migrations append here. */
     val all: List<RpcMethod<*, *>> =
         listOf(
@@ -171,5 +249,16 @@ object RpcMethods {
             APPROVAL_RECEIVED,
             APPROVAL_RESPOND,
             SESSION_ACTIVE_LIST,
+            SUBSCRIPTION_STATE,
+            SUBSCRIPTION_PREVIEW,
+            SUBSCRIPTION_CHANGE,
+            SUBSCRIPTION_UPGRADE,
+            SUBSCRIPTION_RESUME,
+            USAGE_BARS,
+            VAULT_LIST,
+            VAULT_SOURCES,
+            VAULT_SOURCE_SET,
+            VAULT_UNLOCK,
+            VAULT_LOCK,
         )
 }

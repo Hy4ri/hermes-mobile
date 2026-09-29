@@ -8,6 +8,11 @@ import com.m57.hermescontrol.data.model.SubscriptionStateResponse
 import com.m57.hermescontrol.data.model.SubscriptionUpgradeResponse
 import com.m57.hermescontrol.data.model.UsageBarsResponse
 import com.m57.hermescontrol.data.remote.OkHttpProvider
+import com.m57.hermescontrol.data.ws.contract.EmptyParams
+import com.m57.hermescontrol.data.ws.contract.RpcMethods
+import com.m57.hermescontrol.data.ws.contract.SubscriptionChangeParams
+import com.m57.hermescontrol.data.ws.contract.SubscriptionPreviewParams
+import com.m57.hermescontrol.data.ws.contract.SubscriptionUpgradeParams
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -90,50 +95,47 @@ object BillingRepository {
         }
 
     suspend fun getSubscriptionState(): SubscriptionStateResponse? {
-        val result = HermesWsClient.request(WsMethods.SUBSCRIPTION_STATE).await()
+        val result = HermesWsClient.call(RpcMethods.SUBSCRIPTION_STATE, EmptyParams)
         return decode(result)
     }
 
     suspend fun getUsageBars(): UsageBarsResponse? {
-        val result = HermesWsClient.request(WsMethods.USAGE_BARS).await()
+        val result = HermesWsClient.call(RpcMethods.USAGE_BARS, EmptyParams)
         return decode(result)
     }
 
     suspend fun previewSubscription(subscriptionTypeId: String): SubscriptionPreviewResponse? {
         val result =
-            HermesWsClient
-                .request(
-                    WsMethods.SUBSCRIPTION_PREVIEW,
-                    mapOf("subscription_type_id" to subscriptionTypeId),
-                ).await()
+            HermesWsClient.call(
+                RpcMethods.SUBSCRIPTION_PREVIEW,
+                SubscriptionPreviewParams(subscriptionTypeId = subscriptionTypeId),
+            )
         return decode(result)
     }
 
     suspend fun changeSubscription(request: SubscriptionChangeRequest): SubscriptionChangeResponse? {
         val result =
-            HermesWsClient
-                .request(
-                    WsMethods.SUBSCRIPTION_CHANGE,
-                    buildMap {
-                        request.subscription_type_id?.let { put("subscription_type_id", it) }
-                        request.cancel?.let { put("cancel", it) }
-                    },
-                ).await()
+            HermesWsClient.call(
+                RpcMethods.SUBSCRIPTION_CHANGE,
+                SubscriptionChangeParams(
+                    subscriptionTypeId = request.subscription_type_id,
+                    cancel = request.cancel,
+                ),
+            )
         return decode(result)
     }
 
     suspend fun resumeSubscription(): SubscriptionResumeResponse? {
-        val result = HermesWsClient.request(WsMethods.SUBSCRIPTION_RESUME).await()
+        val result = HermesWsClient.call(RpcMethods.SUBSCRIPTION_RESUME, EmptyParams)
         return decode(result)
     }
 
     suspend fun upgradeSubscription(subscriptionTypeId: String): SubscriptionUpgradeResponse? {
         val result =
-            HermesWsClient
-                .request(
-                    WsMethods.SUBSCRIPTION_UPGRADE,
-                    mapOf("subscription_type_id" to subscriptionTypeId),
-                ).await()
+            HermesWsClient.call(
+                RpcMethods.SUBSCRIPTION_UPGRADE,
+                SubscriptionUpgradeParams(subscriptionTypeId = subscriptionTypeId),
+            )
         return decode(result)
     }
 }

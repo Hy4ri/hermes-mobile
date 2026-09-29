@@ -314,14 +314,6 @@ class RawRpcParamsRatchetTest {
          * Notice HermesWsClient.kt retains its other raw uses: `CLIENT_CAPABILITIES`, `PROMPT_SUBMIT`,
          * and `SESSION_REDIRECT`.
          */
-        val BASELINE: List<String> =
-            listOf(
-                "ui/chat/ChatViewModel.kt::COMMANDS_CATALOG",
-                "ui/chat/ChatViewModel.kt::COMMAND_DISPATCH",
-                "ui/chat/ChatViewModel.kt::COMMAND_DISPATCH",
-                "ui/chat/ChatViewModel.kt::FILE_ATTACH",
-                "ui/chat/ChatViewModel.kt::IMAGE_ATTACH_BYTES",
-                "ui/chat/ChatViewModel.kt::SLASH_EXEC",
-            )
+        val BASELINE: List<String> = emptyList()
     }
 }

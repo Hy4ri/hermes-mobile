@@ -37,8 +37,12 @@ import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.JsonRpcError
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
+import com.m57.hermescontrol.data.ws.contract.CommandDispatchParams
+import com.m57.hermescontrol.data.ws.contract.CommandsCatalogParams
 import com.m57.hermescontrol.data.ws.contract.ConfigGetParams
 import com.m57.hermescontrol.data.ws.contract.ConfigSetParams
+import com.m57.hermescontrol.data.ws.contract.FileAttachParams
+import com.m57.hermescontrol.data.ws.contract.ImageAttachBytesParams
 import com.m57.hermescontrol.data.ws.contract.PromptBtwParams
 import com.m57.hermescontrol.data.ws.contract.RpcMethod
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
@@ -51,6 +55,7 @@ import com.m57.hermescontrol.data.ws.contract.SessionIdParams
 import com.m57.hermescontrol.data.ws.contract.SessionInterruptParams
 import com.m57.hermescontrol.data.ws.contract.SessionListParams
 import com.m57.hermescontrol.data.ws.contract.SessionResumeParams
+import com.m57.hermescontrol.data.ws.contract.SlashExecParams
 import com.m57.hermescontrol.data.ws.contract.TypedRpcSender
 import com.m57.hermescontrol.data.ws.toAny
 import com.m57.hermescontrol.data.ws.toJsonElement
@@ -3400,13 +3405,13 @@ class ChatViewModel(
                         if (attachment.isImage) {
                             val deferred =
                                 enqueueOwned {
-                                    wsClient.request(
-                                        WsMethods.IMAGE_ATTACH_BYTES,
-                                        mapOf(
-                                            "session_id" to owner.agentSessionId,
-                                            "content_base64" to "data:${attachment.mimeType};base64,$b64",
-                                            "filename" to attachment.name,
-                                            "ext" to attachment.fileExtension,
+                                    wsClient.requestTyped(
+                                        RpcMethods.IMAGE_ATTACH_BYTES,
+                                        ImageAttachBytesParams(
+                                            sessionId = owner.agentSessionId,
+                                            contentBase64 = "data:${attachment.mimeType};base64,$b64",
+                                            filename = attachment.name,
+                                            ext = attachment.fileExtension,
                                         ),
                                     )
                                 } ?: return@launch
@@ -3419,12 +3424,12 @@ class ChatViewModel(
                         } else {
                             val deferred =
                                 enqueueOwned {
-                                    wsClient.request(
-                                        WsMethods.FILE_ATTACH,
-                                        mapOf(
-                                            "session_id" to owner.agentSessionId,
-                                            "data_url" to "data:${attachment.mimeType};base64,$b64",
-                                            "name" to attachment.name,
+                                    wsClient.requestTyped(
+                                        RpcMethods.FILE_ATTACH,
+                                        FileAttachParams(
+                                            sessionId = owner.agentSessionId,
+                                            dataUrl = "data:${attachment.mimeType};base64,$b64",
+                                            name = attachment.name,
                                         ),
                                     )
                                 } ?: return@launch
@@ -4076,12 +4081,11 @@ class ChatViewModel(
                 // #576). For those we fall back to slash.exec, which runs the
                 // full COMMAND_REGISTRY through the worker.
                 val result =
-                    wsClient
-                        .request(
-                            WsMethods.COMMAND_DISPATCH,
-                            mapOf("name" to name, "arg" to arg, "session_id" to sessionId),
-                        ).await()
-                handleDispatchResult(result)
+                    wsClient.call(
+                        RpcMethods.COMMAND_DISPATCH,
+                        CommandDispatchParams(name = name, arg = arg, sessionId = sessionId),
+                    )
+                handleDispatchResult(result.toAny())
             } catch (e: HermesWsClient.HermesRpcException) {
                 val msg = e.message.orEmpty()
                 // Registry miss on command.dispatch: the backend emits exactly
@@ -4093,15 +4097,14 @@ class ChatViewModel(
                     // which routes the full CLI command set through the worker.
                     try {
                         val result =
-                            wsClient
-                                .request(
-                                    WsMethods.SLASH_EXEC,
-                                    mapOf(
-                                        "command" to "/$name${if (arg.isNotEmpty()) " $arg" else ""}",
-                                        "session_id" to sessionId,
-                                    ),
-                                ).await()
-                        val output = (result as? Map<*, *>)?.get("output") as? String
+                            wsClient.call(
+                                RpcMethods.SLASH_EXEC,
+                                SlashExecParams(
+                                    sessionId = sessionId,
+                                    command = "/$name${if (arg.isNotEmpty()) " $arg" else ""}",
+                                ),
+                            )
+                        val output = (result.toAny() as? Map<*, *>)?.get("output") as? String
                         if (!output.isNullOrBlank()) addAssistantMessage(output)
                     } catch (e2: HermesWsClient.HermesRpcException) {
                         addAssistantMessage("/$name: ${e2.message}")
@@ -4173,12 +4176,11 @@ class ChatViewModel(
         viewModelScope.launch(ioDispatcher) {
             try {
                 val result =
-                    wsClient
-                        .request(
-                            WsMethods.COMMAND_DISPATCH,
-                            mapOf("name" to "undo", "arg" to count, "session_id" to sessionId),
-                        ).await()
-                handleDispatchResult(result)
+                    wsClient.call(
+                        RpcMethods.COMMAND_DISPATCH,
+                        CommandDispatchParams(name = "undo", arg = count, sessionId = sessionId),
+                    )
+                handleDispatchResult(result.toAny())
             } catch (e: HermesWsClient.HermesRpcException) {
                 addAssistantMessage(e.message ?: "Failed to undo.")
             } catch (e: Exception) {
@@ -4474,7 +4476,8 @@ class ChatViewModel(
     private fun fetchCommandCatalog() {
         viewModelScope.launch(ioDispatcher) {
             wsClient.send(
-                WsMethods.COMMANDS_CATALOG,
+                RpcMethods.COMMANDS_CATALOG,
+                CommandsCatalogParams,
                 onSent = { id -> trackRequest(id, WsMethods.COMMANDS_CATALOG) },
             )
         }

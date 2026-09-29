@@ -1483,7 +1483,11 @@ class ChatViewModelTest {
             every {
                 HermesWsClient.request(
                     WsMethods.COMMAND_DISPATCH,
-                    mapOf("name" to "undo", "arg" to "2", "session_id" to sessionId),
+                    buildJsonObject {
+                        put("name", "undo")
+                        put("arg", "2")
+                        put("session_id", sessionId)
+                    },
                     any(),
                 )
             } returns
@@ -7238,7 +7242,7 @@ class ChatViewModelTest {
             verify { HermesWsClient.request(WsMethods.IMAGE_ATTACH_BYTES, any()) }
             assertEquals(
                 "session_id must be forwarded to image.attach_bytes",
-                sessionId,
+                JsonPrimitive(sessionId),
                 paramsSlot.captured["session_id"],
             )
             assertTrue("encoded attachment cache must be cleaned", attachmentCacheDir.listFiles().isNullOrEmpty())

@@ -831,6 +831,17 @@ object HermesWsClient {
     }
 
     /**
+     * Non-suspending typed twin of [request] for callers that must enqueue inside a
+     * non-suspending owner check and await the raw result themselves.
+     */
+    fun <P, R> requestTyped(
+        method: RpcMethod<P, R>,
+        params: P,
+        timeoutMs: Long = REQUEST_TIMEOUT_MS,
+        suppressErrorEvent: Boolean = false,
+    ): CompletableDeferred<Any?> = request(method.name, encodeParams(method, params), timeoutMs, suppressErrorEvent)
+
+    /**
      * Send a typed JSON-RPC request and await its deserialized result.
      *
      * Params classes are strict writers; `profile` is a field ONLY on methods
@@ -844,8 +855,7 @@ object HermesWsClient {
         timeoutMs: Long = REQUEST_TIMEOUT_MS,
         suppressErrorEvent: Boolean = false,
     ): R {
-        val encoded = encodeParams(method, params)
-        val deferred = request(method.name, encoded, timeoutMs, suppressErrorEvent)
+        val deferred = requestTyped(method, params, timeoutMs, suppressErrorEvent)
         val result =
             try {
                 deferred.await()

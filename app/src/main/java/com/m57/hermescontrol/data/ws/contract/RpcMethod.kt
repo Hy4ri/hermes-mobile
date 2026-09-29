@@ -17,6 +17,33 @@ object RpcMethods {
             SessionEventsSinceResult.serializer(),
         )
 
+    val SESSION_CREATE: RpcMethod<SessionCreateParams, SessionCreateResult> =
+        RpcMethod(
+            WsMethods.SESSION_CREATE,
+            SessionCreateParams.serializer(),
+            SessionCreateResult.serializer(),
+        )
+
+    val SESSION_RESUME: RpcMethod<SessionResumeParams, SessionResumeResult> =
+        RpcMethod(
+            WsMethods.SESSION_RESUME,
+            SessionResumeParams.serializer(),
+            SessionResumeResult.serializer(),
+        )
+
+    val PROMPT_SUBMIT: RpcMethod<PromptSubmitParams, PromptSubmitResult> =
+        RpcMethod(
+            WsMethods.PROMPT_SUBMIT,
+            PromptSubmitParams.serializer(),
+            PromptSubmitResult.serializer(),
+        )
+
     /** Every typed method. GatewayContractTest iterates this; future migrations append here. */
-    val all: List<RpcMethod<*, *>> = listOf(SESSION_EVENTS_SINCE)
+    val all: List<RpcMethod<*, *>> =
+        listOf(
+            SESSION_EVENTS_SINCE,
+            SESSION_CREATE,
+            SESSION_RESUME,
+            PROMPT_SUBMIT,
+        )
 }

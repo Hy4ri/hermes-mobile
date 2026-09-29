@@ -10,6 +10,7 @@ import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.await
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
+import com.m57.hermescontrol.data.ws.contract.PromptSubmitParams
 import com.m57.hermescontrol.data.ws.contract.RpcMethod
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
 import com.m57.hermescontrol.data.ws.contract.SessionEventsSinceParams
@@ -827,8 +828,10 @@ object HermesWsClient {
     /**
      * Send a typed JSON-RPC request and await its deserialized result.
      *
-     * Params classes are strict writers, result classes are tolerant readers, and
-     * profile is never a field in params (it is injected by WsProfileParams).
+     * Params classes are strict writers; `profile` is a field ONLY on methods
+     * where callers pass an explicit override (e.g. session.create, session.resume);
+     * otherwise it is injected by WsProfileParams (an explicit value wins).
+     * Result classes are tolerant readers.
      */
     suspend fun <P, R> call(
         method: RpcMethod<P, R>,
@@ -836,10 +839,7 @@ object HermesWsClient {
         timeoutMs: Long = REQUEST_TIMEOUT_MS,
         suppressErrorEvent: Boolean = false,
     ): R {
-        val encoded = OkHttpProvider.json.encodeToJsonElement(method.params, params)
-        require(encoded is JsonObject) {
-            "RPC params for ${method.name} must serialize to a JsonObject, got ${encoded::class.simpleName}"
-        }
+        val encoded = encodeParams(method, params)
         val deferred = request(method.name, encoded, timeoutMs, suppressErrorEvent)
         val result =
             try {
@@ -850,6 +850,17 @@ object HermesWsClient {
             }
         val element = result.toJsonElement()
         return OkHttpProvider.json.decodeFromJsonElement(method.result, element)
+    }
+
+    private fun <P, R> encodeParams(
+        method: RpcMethod<P, R>,
+        params: P,
+    ): JsonObject {
+        val encoded = OkHttpProvider.json.encodeToJsonElement(method.params, params)
+        require(encoded is JsonObject) {
+            "RPC params for ${method.name} must serialize to a JsonObject, got ${encoded::class.simpleName}"
+        }
+        return encoded
     }
 
     /** Complete (or fail) a single pending call and cancel its timer. */
@@ -956,6 +967,21 @@ object HermesWsClient {
         params: Map<String, Any> = emptyMap(),
         onSent: ((String) -> Unit)? = null,
     ): String = send(method, params, onSent, true)
+
+    /**
+     * Send a typed fire-and-forget JSON-RPC request.
+     *
+     * Params classes are strict writers; `profile` is a field ONLY on methods
+     * where callers pass an explicit override (session.create, session.resume);
+     * otherwise it is injected by WsProfileParams (an explicit value wins).
+     *
+     * @return the request id used (can be matched against [WsEvent.RpcResult]).
+     */
+    fun <P, R> send(
+        method: RpcMethod<P, R>,
+        params: P,
+        onSent: ((String) -> Unit)? = null,
+    ): String = send(method.name, encodeParams(method, params), onSent)
 
     private fun send(
         method: String,
@@ -1065,23 +1091,17 @@ object HermesWsClient {
         text: String,
         onSent: ((String) -> Unit)? = null,
         queued: Boolean = false,
-    ): String {
-        val params =
-            buildMap {
-                put("session_id", sessionId)
-                put("text", text)
-                // Explicit queue semantics: the gateway's busy-input policy
-                // forces "run after, never interrupt" when prompt.submit
-                // carries queued=true (hermes-agent methods_prompt.py
-                // _handle_busy_submit) — used by /queue.
-                if (queued) put("queued", true)
-            }
-        return send(
-            method = WsMethods.PROMPT_SUBMIT,
-            params = params,
+    ): String =
+        send(
+            method = RpcMethods.PROMPT_SUBMIT,
+            params =
+                PromptSubmitParams(
+                    sessionId = sessionId,
+                    text = text,
+                    queued = queued.takeIf { it },
+                ),
             onSent = onSent,
         )
-    }
 
     /**
      * Convenience: redirect the active model turn while it is still generating

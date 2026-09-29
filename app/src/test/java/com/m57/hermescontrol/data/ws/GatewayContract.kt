@@ -103,10 +103,9 @@ object GatewayContract {
             }
         }
 
-        val missingRequired =
-            required.filter { reqName ->
-                reqName !in elementNames && reqName != "profile"
-            }
+        // No exemptions: decorate() skips injection when no profile is active, so a required `profile`
+        // must be declared like any other required param.
+        val missingRequired = required.filter { it !in elementNames }
         for (missing in missingRequired) {
             problems += "$method: missing required param '$missing'"
         }

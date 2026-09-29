@@ -28,7 +28,7 @@ class AccountConnectorRepositoryTest {
         runTest {
             val calls = mutableListOf<Pair<String, Map<String, Any>>>()
             val repo =
-                HermesAccountConnectorRepository { method, params ->
+                accountRepo { method, params ->
                     calls += method to params
                     operationFixture()
                 }
@@ -57,7 +57,7 @@ class AccountConnectorRepositoryTest {
         runTest {
             val calls = mutableListOf<Pair<String, Map<String, Any>>>()
             val repo =
-                HermesAccountConnectorRepository { method, params ->
+                accountRepo { method, params ->
                     calls += method to params
                     operationFixture()
                 }
@@ -92,7 +92,7 @@ class AccountConnectorRepositoryTest {
         runTest {
             val calls = mutableListOf<Pair<String, Map<String, Any>>>()
             val repo =
-                HermesAccountConnectorRepository { method, params ->
+                accountRepo { method, params ->
                     calls += method to params
                     when (method) {
                         WsMethods.CONNECTORS_CATALOG -> {
@@ -165,7 +165,7 @@ class AccountConnectorRepositoryTest {
 
     @Test fun `policy keeps member revision separate from effective and respects inherited rules`() =
         runTest {
-            val repo = HermesAccountConnectorRepository { _, _ -> policyFixture() }
+            val repo = accountRepo { _, _ -> policyFixture() }
             val policy = (repo.policy() as AccountConnectorResult.Success).value
             assertEquals("effective-revision", policy.revision)
             assertEquals("01ARZ3NDEKTSV4RRFFQ69G5FAV", policy.member?.revision)
@@ -180,7 +180,7 @@ class AccountConnectorRepositoryTest {
         runTest {
             val calls = mutableListOf<Pair<String, Map<String, Any>>>()
             val repo =
-                HermesAccountConnectorRepository { method, params ->
+                accountRepo { method, params ->
                     calls += method to params
                     if (method == WsMethods.CONNECTORS_POLICY_GET) {
                         policyFixture()
@@ -208,9 +208,12 @@ class AccountConnectorRepositoryTest {
 
     @Test fun `malformed authorization does not look like a successful connect`() =
         runTest {
-            val repo = HermesAccountConnectorRepository { _, _ -> mapOf("status" to "initiated") }
+            val repo = accountRepo { _, _ -> mapOf("status" to "initiated") }
             assertTrue(repo.connect(listOf("drive")) is AccountConnectorResult.Failure)
         }
+
+    private fun accountRepo(handler: suspend (String, Map<String, Any>) -> Any?) =
+        HermesAccountConnectorRepository(rpc = handler, caller = fakeCaller(handler))
 
     private fun operationFixture() =
         mapOf(

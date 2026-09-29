@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.data.ws.contract
 
+import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsMethods
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.JsonElement
@@ -16,6 +17,20 @@ interface TypedRpcSender {
         params: P,
         onSent: ((String) -> Unit)? = null,
     ): String
+}
+
+interface TypedRpcCaller {
+    suspend fun <P, R> call(
+        method: RpcMethod<P, R>,
+        params: P,
+    ): R
+}
+
+object HermesRpcCaller : TypedRpcCaller {
+    override suspend fun <P, R> call(
+        method: RpcMethod<P, R>,
+        params: P,
+    ): R = HermesWsClient.call(method, params)
 }
 
 object RpcMethods {
@@ -228,6 +243,78 @@ object RpcMethods {
             JsonElement.serializer(),
         )
 
+    // Passthrough JsonElement results: callers keep their existing legacy parsers.
+    val CONNECTORS_LIST: RpcMethod<ConnectorsListParams, JsonElement> =
+        RpcMethod(
+            WsMethods.CONNECTORS_LIST,
+            ConnectorsListParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    // Passthrough JsonElement results: callers keep their existing legacy parsers.
+    val CONNECTORS_CONNECT: RpcMethod<ConnectorsConnectParams, JsonElement> =
+        RpcMethod(
+            WsMethods.CONNECTORS_CONNECT,
+            ConnectorsConnectParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    // Passthrough JsonElement results: callers keep their existing legacy parsers.
+    val CONNECTORS_OPERATION_STATUS: RpcMethod<ConnectorsOperationStatusParams, JsonElement> =
+        RpcMethod(
+            WsMethods.CONNECTORS_OPERATION_STATUS,
+            ConnectorsOperationStatusParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    // Passthrough JsonElement results: callers keep their existing legacy parsers.
+    val CONNECTORS_CATALOG: RpcMethod<ConnectorsCatalogParams, JsonElement> =
+        RpcMethod(
+            WsMethods.CONNECTORS_CATALOG,
+            ConnectorsCatalogParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    // Passthrough JsonElement results: callers keep their existing legacy parsers.
+    val CONNECTORS_ACCOUNTS: RpcMethod<ConnectorsAccountsParams, JsonElement> =
+        RpcMethod(
+            WsMethods.CONNECTORS_ACCOUNTS,
+            ConnectorsAccountsParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    // Passthrough JsonElement results: callers keep their existing legacy parsers.
+    val CONNECTORS_ACCOUNTS_REMOVE: RpcMethod<ConnectorsAccountsRemoveParams, JsonElement> =
+        RpcMethod(
+            WsMethods.CONNECTORS_ACCOUNTS_REMOVE,
+            ConnectorsAccountsRemoveParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    // Passthrough JsonElement results: callers keep their existing legacy parsers.
+    val CONNECTORS_POLICY_GET: RpcMethod<ConnectorsPolicyGetParams, JsonElement> =
+        RpcMethod(
+            WsMethods.CONNECTORS_POLICY_GET,
+            ConnectorsPolicyGetParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    // Passthrough JsonElement results: callers keep their existing legacy parsers.
+    val CONNECTORS_POLICY_SET: RpcMethod<ConnectorsPolicySetParams, JsonElement> =
+        RpcMethod(
+            WsMethods.CONNECTORS_POLICY_SET,
+            ConnectorsPolicySetParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    // Passthrough JsonElement results: callers keep their existing legacy parsers.
+    val CONNECTORS_TOOLS: RpcMethod<ConnectorsToolsParams, JsonElement> =
+        RpcMethod(
+            WsMethods.CONNECTORS_TOOLS,
+            ConnectorsToolsParams.serializer(),
+            JsonElement.serializer(),
+        )
+
     /** Every typed method. GatewayContractTest iterates this; future migrations append here. */
     val all: List<RpcMethod<*, *>> =
         listOf(
@@ -260,5 +347,14 @@ object RpcMethods {
             VAULT_SOURCE_SET,
             VAULT_UNLOCK,
             VAULT_LOCK,
+            CONNECTORS_LIST,
+            CONNECTORS_CONNECT,
+            CONNECTORS_OPERATION_STATUS,
+            CONNECTORS_CATALOG,
+            CONNECTORS_ACCOUNTS,
+            CONNECTORS_ACCOUNTS_REMOVE,
+            CONNECTORS_POLICY_GET,
+            CONNECTORS_POLICY_SET,
+            CONNECTORS_TOOLS,
         )
 }

@@ -34,11 +34,12 @@ class ConnectorRepositoryTest {
 
             val repo =
                 HermesConnectorRepository(
-                    rpcRequest = { method, params ->
-                        recordedMethod = method
-                        recordedParams = params
-                        mapOf("available" to true, "connectors" to emptyList<Map<String, Any>>())
-                    },
+                    caller =
+                        fakeCaller { method, params ->
+                            recordedMethod = method
+                            recordedParams = params
+                            mapOf("available" to true, "connectors" to emptyList<Map<String, Any>>())
+                        },
                 )
 
             val result = repo.listConnectors("sess-abc-123")
@@ -61,17 +62,18 @@ class ConnectorRepositoryTest {
 
             val repo =
                 HermesConnectorRepository(
-                    rpcRequest = { method, params ->
-                        recordedMethod = method
-                        recordedParams = params
-                        mapOf(
-                            "results" to
-                                listOf(
-                                    mapOf("connector" to "linear", "status" to "initiated"),
-                                ),
-                            "summary" to mapOf("total" to 1, "initiated" to 1),
-                        )
-                    },
+                    caller =
+                        fakeCaller { method, params ->
+                            recordedMethod = method
+                            recordedParams = params
+                            mapOf(
+                                "results" to
+                                    listOf(
+                                        mapOf("connector" to "linear", "status" to "initiated"),
+                                    ),
+                                "summary" to mapOf("total" to 1, "initiated" to 1),
+                            )
+                        },
                 )
 
             val result =
@@ -103,16 +105,17 @@ class ConnectorRepositoryTest {
 
             val repo =
                 HermesConnectorRepository(
-                    rpcRequest = { _, params ->
-                        recordedParams = params
-                        mapOf(
-                            "results" to
-                                listOf(
-                                    mapOf("connector" to "slack", "status" to "active"),
-                                ),
-                            "summary" to mapOf("total" to 1, "active" to 1),
-                        )
-                    },
+                    caller =
+                        fakeCaller { _, params ->
+                            recordedParams = params
+                            mapOf(
+                                "results" to
+                                    listOf(
+                                        mapOf("connector" to "slack", "status" to "active"),
+                                    ),
+                                "summary" to mapOf("total" to 1, "active" to 1),
+                            )
+                        },
                 )
 
             repo.connect(sessionId = "sess-789", connectors = listOf("slack"))
@@ -125,10 +128,11 @@ class ConnectorRepositoryTest {
             var rpcCalled = false
             val repo =
                 HermesConnectorRepository(
-                    rpcRequest = { _, _ ->
-                        rpcCalled = true
-                        null
-                    },
+                    caller =
+                        fakeCaller { _, _ ->
+                            rpcCalled = true
+                            null
+                        },
                 )
 
             val r1 = repo.listConnectors("")
@@ -147,10 +151,11 @@ class ConnectorRepositoryTest {
             var rpcCalled = false
             val repo =
                 HermesConnectorRepository(
-                    rpcRequest = { _, _ ->
-                        rpcCalled = true
-                        null
-                    },
+                    caller =
+                        fakeCaller { _, _ ->
+                            rpcCalled = true
+                            null
+                        },
                 )
 
             // Blank session_id
@@ -172,10 +177,11 @@ class ConnectorRepositoryTest {
             var rpcCalled = false
             val repo =
                 HermesConnectorRepository(
-                    rpcRequest = { _, _ ->
-                        rpcCalled = true
-                        null
-                    },
+                    caller =
+                        fakeCaller { _, _ ->
+                            rpcCalled = true
+                            null
+                        },
                 )
 
             // Invalid slugs: uppercase, starting with hyphen/underscore, containing spaces/symbols
@@ -210,9 +216,10 @@ class ConnectorRepositoryTest {
         runBlocking {
             val repo =
                 HermesConnectorRepository(
-                    rpcRequest = { _, _ ->
-                        throw CancellationException("coroutine cancelled")
-                    },
+                    caller =
+                        fakeCaller { _, _ ->
+                            throw CancellationException("coroutine cancelled")
+                        },
                 )
 
             try {
@@ -236,13 +243,14 @@ class ConnectorRepositoryTest {
             // 4031 CONNECTORS_UNAVAILABLE
             val repo4031 =
                 HermesConnectorRepository(
-                    rpcRequest = { _, _ ->
-                        throw HermesWsClient.HermesRpcException(
-                            message = "Connectors unavailable",
-                            code = 4031,
-                            data = JsonObject(mapOf("reason" to JsonPrimitive("CONNECTORS_UNAVAILABLE"))),
-                        )
-                    },
+                    caller =
+                        fakeCaller { _, _ ->
+                            throw HermesWsClient.HermesRpcException(
+                                message = "Connectors unavailable",
+                                code = 4031,
+                                data = JsonObject(mapOf("reason" to JsonPrimitive("CONNECTORS_UNAVAILABLE"))),
+                            )
+                        },
                 )
             val r4031 = repo4031.listConnectors("sess-1")
             assertTrue(r4031 is ConnectorListResult.Error)
@@ -251,13 +259,14 @@ class ConnectorRepositoryTest {
             // 4001 NOT_OWNER
             val repo4001 =
                 HermesConnectorRepository(
-                    rpcRequest = { _, _ ->
-                        throw HermesWsClient.HermesRpcException(
-                            message = "Session not owned",
-                            code = 4001,
-                            data = JsonObject(mapOf("reason" to JsonPrimitive("NOT_OWNER"))),
-                        )
-                    },
+                    caller =
+                        fakeCaller { _, _ ->
+                            throw HermesWsClient.HermesRpcException(
+                                message = "Session not owned",
+                                code = 4001,
+                                data = JsonObject(mapOf("reason" to JsonPrimitive("NOT_OWNER"))),
+                            )
+                        },
                 )
             val r4001 = repo4001.connect("sess-1", listOf("linear"))
             assertTrue(r4001 is ConnectorConnectResult.Error)
@@ -266,13 +275,14 @@ class ConnectorRepositoryTest {
             // 5033 UNSUPPORTED_RUNTIME
             val repo5033 =
                 HermesConnectorRepository(
-                    rpcRequest = { _, _ ->
-                        throw HermesWsClient.HermesRpcException(
-                            message = "Compute host required",
-                            code = 5033,
-                            data = JsonObject(mapOf("reason" to JsonPrimitive("UNSUPPORTED_RUNTIME"))),
-                        )
-                    },
+                    caller =
+                        fakeCaller { _, _ ->
+                            throw HermesWsClient.HermesRpcException(
+                                message = "Compute host required",
+                                code = 5033,
+                                data = JsonObject(mapOf("reason" to JsonPrimitive("UNSUPPORTED_RUNTIME"))),
+                            )
+                        },
                 )
             val r5033 = repo5033.connect("sess-1", listOf("linear"))
             assertTrue(r5033 is ConnectorConnectResult.Error)
@@ -281,13 +291,14 @@ class ConnectorRepositoryTest {
             // 5034 INVALID_CONNECTOR_RESPONSE
             val repo5034 =
                 HermesConnectorRepository(
-                    rpcRequest = { _, _ ->
-                        throw HermesWsClient.HermesRpcException(
-                            message = "Invalid connector response",
-                            code = 5034,
-                            data = JsonObject(mapOf("reason" to JsonPrimitive("INVALID_CONNECTOR_RESPONSE"))),
-                        )
-                    },
+                    caller =
+                        fakeCaller { _, _ ->
+                            throw HermesWsClient.HermesRpcException(
+                                message = "Invalid connector response",
+                                code = 5034,
+                                data = JsonObject(mapOf("reason" to JsonPrimitive("INVALID_CONNECTOR_RESPONSE"))),
+                            )
+                        },
                 )
             val r5034 = repo5034.connect("sess-1", listOf("linear"))
             assertTrue(r5034 is ConnectorConnectResult.Error)
@@ -296,13 +307,14 @@ class ConnectorRepositoryTest {
             // -32601 Unsupported backend
             val repo32601 =
                 HermesConnectorRepository(
-                    rpcRequest = { _, _ ->
-                        throw HermesWsClient.HermesRpcException(
-                            message = "Method not found",
-                            code = -32601,
-                            data = null,
-                        )
-                    },
+                    caller =
+                        fakeCaller { _, _ ->
+                            throw HermesWsClient.HermesRpcException(
+                                message = "Method not found",
+                                code = -32601,
+                                data = null,
+                            )
+                        },
                 )
             val r32601 = repo32601.listConnectors("sess-1")
             assertTrue(r32601 is ConnectorListResult.Error)
@@ -314,9 +326,10 @@ class ConnectorRepositoryTest {
         runBlocking {
             val repo =
                 HermesConnectorRepository(
-                    rpcRequest = { _, _ ->
-                        throw java.io.IOException("Connection reset by peer")
-                    },
+                    caller =
+                        fakeCaller { _, _ ->
+                            throw java.io.IOException("Connection reset by peer")
+                        },
                 )
 
             val rList = repo.listConnectors("sess-1")

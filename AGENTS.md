@@ -311,6 +311,7 @@ com.m57.hermescontrol/
 - [README.md](README.md) — human-facing overview, features, screenshots, tech stack
 - [DESIGN.md](DESIGN.md) — visual and interaction requirements, accessibility, and token source map
 - [THEMES.md](app/src/main/java/com/m57/hermescontrol/theme/THEMES.md) — theme template, dispatcher, and mode fallback implementation
+- [Gateway contract test](CONTRIBUTING.md#gateway-contract-snapshot) — backend drift check; refresh with `scripts/sync-gateway-contract.sh`
 - [CONTRIBUTING.md](CONTRIBUTING.md) — contributor workflow, PR checklist, code style
 - [.github/workflows/android.yml](.github/workflows/android.yml) — CI pipeline source of truth
 - [.github/workflows/merge-conflict-detector.yml](.github/workflows/merge-conflict-detector.yml) — auto-labels conflicting PRs

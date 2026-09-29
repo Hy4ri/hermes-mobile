@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.data.ws
 
+import com.m57.hermescontrol.data.ws.contract.RpcMethods
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -73,6 +74,20 @@ class GatewayContractTest {
             val problems = GatewayContract.paramKeyProblems(method, keys)
             assertTrue(problems.joinToString("\n"), problems.isEmpty())
         }
+    }
+
+    @Test
+    fun typedParamsMatchTheContract() {
+        val methods = RpcMethods.all
+        assertTrue("RpcMethods.all must not be empty", methods.isNotEmpty())
+        val names = methods.map { it.name }
+        assertEquals("RpcMethods.all names must be unique", names.distinct(), names)
+
+        val problems =
+            methods.flatMap { method ->
+                GatewayContract.paramsDescriptorProblems(method.name, method.params.descriptor)
+            }
+        assertTrue(problems.joinToString("\n"), problems.isEmpty())
     }
 
     private companion object {

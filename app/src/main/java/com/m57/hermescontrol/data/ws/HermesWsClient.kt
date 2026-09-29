@@ -10,6 +10,9 @@ import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.await
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
+import com.m57.hermescontrol.data.ws.contract.RpcMethod
+import com.m57.hermescontrol.data.ws.contract.RpcMethods
+import com.m57.hermescontrol.data.ws.contract.SessionEventsSinceParams
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -821,6 +824,34 @@ object HermesWsClient {
         return deferred
     }
 
+    /**
+     * Send a typed JSON-RPC request and await its deserialized result.
+     *
+     * Params classes are strict writers, result classes are tolerant readers, and
+     * profile is never a field in params (it is injected by WsProfileParams).
+     */
+    suspend fun <P, R> call(
+        method: RpcMethod<P, R>,
+        params: P,
+        timeoutMs: Long = REQUEST_TIMEOUT_MS,
+        suppressErrorEvent: Boolean = false,
+    ): R {
+        val encoded = OkHttpProvider.json.encodeToJsonElement(method.params, params)
+        require(encoded is JsonObject) {
+            "RPC params for ${method.name} must serialize to a JsonObject, got ${encoded::class.simpleName}"
+        }
+        val deferred = request(method.name, encoded, timeoutMs, suppressErrorEvent)
+        val result =
+            try {
+                deferred.await()
+            } catch (e: CancellationException) {
+                deferred.cancel(e)
+                throw e
+            }
+        val element = result.toJsonElement()
+        return OkHttpProvider.json.decodeFromJsonElement(method.result, element)
+    }
+
     /** Complete (or fail) a single pending call and cancel its timer. */
     private fun resolvePending(
         id: String,
@@ -1093,63 +1124,55 @@ object HermesWsClient {
             for (sid in sessionsToReplay) {
                 val lastSeen = lastSeenSeq[sid] ?: continue
                 try {
-                    val deferred =
-                        request(
-                            method = WsMethods.SESSION_EVENTS_SINCE,
-                            params = mapOf("session_id" to sid, "last_seen" to lastSeen),
+                    val res =
+                        call(
+                            RpcMethods.SESSION_EVENTS_SINCE,
+                            SessionEventsSinceParams(sessionId = sid, lastSeen = lastSeen),
                             timeoutMs = 10_000L,
                         )
-                    val result = deferred.await()
 
-                    @Suppress("UNCHECKED_CAST")
-                    val resultMap =
-                        when (result) {
-                            is JsonElement -> result.toAny() as? Map<String, Any?>
-                            is Map<*, *> -> result as? Map<String, Any?>
-                            else -> null
-                        }
-                    if (resultMap != null) {
-                        val epoch = resultMap["epoch"] as? String
-                        val epochChanged =
-                            !epoch.isNullOrEmpty() && replayEpoch != null && replayEpoch != epoch
-                        val truncated = resultMap["truncated"] == true
-                        val latestSeq = (resultMap["latest_seq"] as? Number)?.toInt()
+                    val epoch = res.epoch
+                    val epochChanged =
+                        !epoch.isNullOrEmpty() && replayEpoch != null && replayEpoch != epoch
+                    val truncated = res.truncated == true
+                    val latestSeq = res.latestSeq
 
-                        if (epochChanged) replayEpoch = epoch
+                    if (epochChanged) replayEpoch = epoch
 
-                        if (epochChanged || truncated) {
-                            // Ring buffer (512 events) could not cover the gap or epoch changed (gateway restarted).
-                            // Partial replay would silently hole the transcript — fast-forward watermark
-                            // and request full transcript resync.
-                            if (epochChanged) lastSeenSeq.clear()
-                            if (latestSeq != null && !epochChanged) lastSeenSeq[sid] = latestSeq
-                            parsedEvents.tryEmit(WsEvent.TranscriptResyncRequired(sid))
-                            continue
-                        }
-                        val eventsList = (resultMap["events"] as? List<*>)?.filterIsInstance<Map<String, Any?>>()
-                        if (eventsList != null) {
-                            for (eventMap in eventsList) {
-                                val eventSeq = (eventMap["seq"] as? Number)?.toInt()
-                                val eventSid = (eventMap["session_id"] as? String) ?: sid
-                                if (eventSeq != null && eventSid.isNotEmpty()) {
-                                    val prev = lastSeenSeq[eventSid] ?: 0
-                                    if (eventSeq <= prev) continue
-                                    lastSeenSeq[eventSid] = eventSeq
-                                }
-                                val parsedEvent = EventParser.parseParams(eventMap)
-                                val finalEvent =
-                                    if (parsedEvent is WsEvent.MessageComplete) {
-                                        parsedEvent.copy(
-                                            storedSessionId =
-                                                ActiveSessionHolder.resolveStoredSessionId(
-                                                    parsedEvent.sessionId,
-                                                ),
-                                        )
-                                    } else {
-                                        parsedEvent
-                                    }
-                                parsedEvents.tryEmit(finalEvent)
+                    if (epochChanged || truncated) {
+                        // Ring buffer (512 events) could not cover the gap or epoch changed (gateway restarted).
+                        // Partial replay would silently hole the transcript — fast-forward watermark
+                        // and request full transcript resync.
+                        if (epochChanged) lastSeenSeq.clear()
+                        if (latestSeq != null && !epochChanged) lastSeenSeq[sid] = latestSeq
+                        parsedEvents.tryEmit(WsEvent.TranscriptResyncRequired(sid))
+                        continue
+                    }
+                    val eventsList = res.events
+                    if (eventsList != null) {
+                        for (element in eventsList) {
+                            @Suppress("UNCHECKED_CAST")
+                            val eventMap = (element as? JsonObject)?.toAny() as? Map<String, Any?> ?: continue
+                            val eventSeq = (eventMap["seq"] as? Number)?.toInt()
+                            val eventSid = (eventMap["session_id"] as? String) ?: sid
+                            if (eventSeq != null && eventSid.isNotEmpty()) {
+                                val prev = lastSeenSeq[eventSid] ?: 0
+                                if (eventSeq <= prev) continue
+                                lastSeenSeq[eventSid] = eventSeq
                             }
+                            val parsedEvent = EventParser.parseParams(eventMap)
+                            val finalEvent =
+                                if (parsedEvent is WsEvent.MessageComplete) {
+                                    parsedEvent.copy(
+                                        storedSessionId =
+                                            ActiveSessionHolder.resolveStoredSessionId(
+                                                parsedEvent.sessionId,
+                                            ),
+                                    )
+                                } else {
+                                    parsedEvent
+                                }
+                            parsedEvents.tryEmit(finalEvent)
                         }
                     }
                 } catch (e: Exception) {

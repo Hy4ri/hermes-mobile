@@ -11,7 +11,9 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.HermesWsClient
-import com.m57.hermescontrol.data.ws.WsMethods
+import com.m57.hermescontrol.data.ws.contract.PromptSubmitParams
+import com.m57.hermescontrol.data.ws.contract.RpcMethods
+import com.m57.hermescontrol.data.ws.contract.SessionResumeParams
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -109,12 +111,11 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
                             val runtimeSessionId =
                                 ActiveSessionHolder.resolveRuntimeSessionId(sessionId)
                                     ?: resumeSession(sessionId)
-                            HermesWsClient
-                                .request(
-                                    WsMethods.PROMPT_SUBMIT,
-                                    mapOf("session_id" to runtimeSessionId, "text" to replyText),
-                                    timeoutMs = REPLY_TIMEOUT_MS,
-                                ).await()
+                            HermesWsClient.call(
+                                method = RpcMethods.PROMPT_SUBMIT,
+                                params = PromptSubmitParams(sessionId = runtimeSessionId, text = replyText),
+                                timeoutMs = REPLY_TIMEOUT_MS,
+                            )
 
                             val entity =
                                 com.m57.hermescontrol.data.local.ChatMessageEntity(
@@ -152,24 +153,21 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
     }
 
     private suspend fun resumeSession(storedSessionId: String): String {
-        val profile = AuthManager.activeProfileId.value
+        val profile = AuthManager.activeProfileId.value?.takeIf { it.isNotBlank() }
         val params =
-            mutableMapOf<String, Any>(
-                "session_id" to storedSessionId,
-                "omit_messages" to true,
+            SessionResumeParams(
+                sessionId = storedSessionId,
+                omitMessages = true,
+                profile = profile,
             )
-        if (!profile.isNullOrBlank()) {
-            params["profile"] = profile
-        }
         val result =
-            HermesWsClient
-                .request(
-                    WsMethods.SESSION_RESUME,
-                    params,
-                    timeoutMs = REPLY_TIMEOUT_MS,
-                ).await() as? Map<*, *>
+            HermesWsClient.call(
+                method = RpcMethods.SESSION_RESUME,
+                params = params,
+                timeoutMs = REPLY_TIMEOUT_MS,
+            )
         val runtimeSessionId =
-            (result?.get("session_id") as? String)?.takeIf { it.isNotBlank() }
+            result.sessionId?.takeIf { it.isNotBlank() }
                 ?: error("Resume returned no runtime session id")
         ActiveSessionHolder.set(runtimeSessionId, storedSessionId)
         return runtimeSessionId

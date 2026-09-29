@@ -17,6 +17,9 @@ import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
+import com.m57.hermescontrol.data.ws.contract.PromptSubmitParams
+import com.m57.hermescontrol.data.ws.contract.RpcMethods
+import com.m57.hermescontrol.data.ws.contract.SessionCreateParams
 import com.m57.hermescontrol.data.ws.toJsonElement
 import com.m57.hermescontrol.ui.chat.tool.ToolResultSummary
 import kotlinx.coroutines.CompletableDeferred
@@ -559,17 +562,24 @@ class GroupChatViewModel(
 
         val title = "Group: $groupName"
         try {
-            val createParams =
-                buildMap<String, Any> {
-                    put("profile", bot.name)
-                    put("title", title)
-                    put("source", "desktop")
-                    put("hidden", true)
-                }
-            val deferred = HermesWsClient.request(WsMethods.SESSION_CREATE, createParams)
-            val res = deferred.await()
-            val sessionInfo = extractSessionInfo(res)
-            if (sessionInfo != null) {
+            val res =
+                HermesWsClient.call(
+                    method = RpcMethods.SESSION_CREATE,
+                    params =
+                        SessionCreateParams(
+                            source = "desktop",
+                            profile = bot.name,
+                            title = title,
+                            hidden = true,
+                        ),
+                )
+            val runtimeId = res.sessionId?.takeIf { it.isNotBlank() }
+            if (runtimeId != null) {
+                val sessionInfo =
+                    MemberSession(
+                        runtimeSessionId = runtimeId,
+                        storedSessionId = res.storedSessionId,
+                    )
                 memberSessions[bot.name] = sessionInfo
                 return sessionInfo
             }
@@ -701,11 +711,10 @@ class GroupChatViewModel(
                 // turn boundary can be proven for them. They stay uncorrelated
                 // (reply notifications from group turns are never auto-dismissed
                 // from REST hydration) instead of borrowing another turn's bound.
-                HermesWsClient
-                    .request(
-                        WsMethods.PROMPT_SUBMIT,
-                        mapOf("session_id" to runtimeId, "text" to prompt),
-                    ).await()
+                HermesWsClient.call(
+                    method = RpcMethods.PROMPT_SUBMIT,
+                    params = PromptSubmitParams(sessionId = runtimeId, text = prompt),
+                )
             } catch (submitErr: Exception) {
                 Log.w(
                     "GroupChatViewModel",
@@ -735,11 +744,10 @@ class GroupChatViewModel(
                 storedId?.let { inFlightTurns[it] = turnDeferred }
 
                 try {
-                    HermesWsClient
-                        .request(
-                            WsMethods.PROMPT_SUBMIT,
-                            mapOf("session_id" to runtimeId, "text" to prompt),
-                        ).await()
+                    HermesWsClient.call(
+                        method = RpcMethods.PROMPT_SUBMIT,
+                        params = PromptSubmitParams(sessionId = runtimeId, text = prompt),
+                    )
                 } catch (retryErr: Exception) {
                     Log.e("GroupChatViewModel", "Retry prompt.submit failed for ${bot.name}: ${retryErr.message}")
                     return null
@@ -1201,20 +1209,5 @@ class GroupChatViewModel(
     private fun isPass(text: String): Boolean {
         val clean = text.trim().lowercase()
         return clean == "(pass)" || clean == "pass" || clean == "(pass)." || clean == "pass."
-    }
-
-    private fun extractSessionInfo(response: Any?): MemberSession? {
-        if (response is Map<*, *>) {
-            val runtimeId =
-                response["session_id"]?.toString()?.trim('\"', ' ')
-                    ?: (response["result"] as? Map<*, *>)?.get("session_id")?.toString()?.trim('\"', ' ')
-            val storedId =
-                response["stored_session_id"]?.toString()?.trim('\"', ' ')
-                    ?: (response["result"] as? Map<*, *>)?.get("stored_session_id")?.toString()?.trim('\"', ' ')
-            if (!runtimeId.isNullOrBlank()) {
-                return MemberSession(runtimeSessionId = runtimeId, storedSessionId = storedId)
-            }
-        }
-        return null
     }
 }

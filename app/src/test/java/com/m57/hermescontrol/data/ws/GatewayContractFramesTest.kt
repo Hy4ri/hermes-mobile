@@ -74,7 +74,9 @@ class GatewayContractFramesTest {
         HermesWsClient.releaseExternalActivityConnectionLease()
         HermesWsClient.releaseBackgroundConnectionLease()
         HermesWsClient.disconnect(clearPendingMessages = true)
-        Thread.sleep(500)
+        runBlocking {
+            withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.DISCONNECTED } }
+        }
         runCatching { mockWebServer.shutdown() }
         unmockkAll()
     }

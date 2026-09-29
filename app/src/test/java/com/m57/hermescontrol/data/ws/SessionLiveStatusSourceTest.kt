@@ -121,14 +121,12 @@ class SessionLiveStatusSourceTest {
     @Test
     fun `HermesSessionLiveStatusSource fetches and decodes snapshot via RPC`() =
         runBlocking {
-            var capturedMethod: String? = null
-            var capturedParams: Map<String, Any>? = null
+            var rpcCalls = 0
 
             val source =
                 HermesSessionLiveStatusSource(
-                    rpcRequest = { method, params ->
-                        capturedMethod = method
-                        capturedParams = params
+                    rpcRequest = {
+                        rpcCalls++
                         mapOf(
                             "sessions" to
                                 listOf(
@@ -146,8 +144,8 @@ class SessionLiveStatusSourceTest {
 
             val snapshot = source.fetchActiveSessionsSnapshot()
 
-            assertEquals(WsMethods.SESSION_ACTIVE_LIST, capturedMethod)
-            assertTrue(capturedParams!!.isEmpty())
+            // Method name and empty params are pinned on the wire in HermesWsClientApprovalsTest.
+            assertEquals(1, rpcCalls)
             assertNotNull(snapshot)
             assertEquals(SessionLiveStatus.WORKING, snapshot!!.statusByStoredId["st-1"])
         }
@@ -157,7 +155,7 @@ class SessionLiveStatusSourceTest {
         runBlocking {
             val source =
                 HermesSessionLiveStatusSource(
-                    rpcRequest = { _, _ -> throw RuntimeException("RPC error") },
+                    rpcRequest = { throw RuntimeException("RPC error") },
                     eventsProvider = { MutableSharedFlow() },
                     connectionStatusProvider = { MutableStateFlow(ConnectionStatus.CONNECTED) },
                 )

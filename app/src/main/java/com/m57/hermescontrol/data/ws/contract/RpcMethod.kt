@@ -395,6 +395,38 @@ object RpcMethods {
             JsonElement.serializer(),
         )
 
+    // Passthrough JsonElement results: callers keep their existing legacy decoders.
+    val CONFIG_SET: RpcMethod<ConfigSetParams, JsonElement> =
+        RpcMethod(
+            WsMethods.CONFIG_SET,
+            ConfigSetParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    // Passthrough JsonElement results: callers keep their existing legacy decoders.
+    val CONFIG_GET: RpcMethod<ConfigGetParams, JsonElement> =
+        RpcMethod(
+            WsMethods.CONFIG_GET,
+            ConfigGetParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    // Passthrough JsonElement results: callers keep their existing legacy decoders.
+    val MODEL_OPTIONS: RpcMethod<ModelOptionsParams, JsonElement> =
+        RpcMethod(
+            WsMethods.MODEL_OPTIONS,
+            ModelOptionsParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    // Passthrough JsonElement results: callers keep their existing legacy decoders.
+    val CLIENT_CAPABILITIES: RpcMethod<ClientCapabilitiesParams, JsonElement> =
+        RpcMethod(
+            WsMethods.CLIENT_CAPABILITIES,
+            ClientCapabilitiesParams.serializer(),
+            JsonElement.serializer(),
+        )
+
     /** Every typed method. GatewayContractTest iterates this; future migrations append here. */
     val all: List<RpcMethod<*, *>> =
         listOf(
@@ -446,5 +478,9 @@ object RpcMethods {
             PROJECTS_LIST,
             PROFILES_LIST,
             PROFILES_CONFIGURE,
+            CONFIG_SET,
+            CONFIG_GET,
+            MODEL_OPTIONS,
+            CLIENT_CAPABILITIES,
         )
 }

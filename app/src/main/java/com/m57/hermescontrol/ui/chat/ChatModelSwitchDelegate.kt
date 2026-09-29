@@ -12,7 +12,8 @@ import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.ws.ModelCatalogStore
-import com.m57.hermescontrol.data.ws.WsMethods
+import com.m57.hermescontrol.data.ws.contract.ConfigSetParams
+import com.m57.hermescontrol.data.ws.contract.RpcMethods
 import com.m57.hermescontrol.data.ws.toAny
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -51,7 +52,7 @@ class ChatModelSwitchDelegate(
     private val ioDispatcher: CoroutineDispatcher,
     private val uiState: MutableStateFlow<ChatUiState>,
     private val runtimeSessionId: () -> String?,
-    private val wsSend: (method: String, params: Map<String, Any>, onSent: ((String) -> Unit)?) -> Unit,
+    private val wsSend: (params: ConfigSetParams, onSent: ((String) -> Unit)?) -> Unit,
     private val trackRequest: (id: String, method: String) -> Unit,
     private val addAssistantMessage: (text: String) -> Unit,
     private val handleSlashCommand: (command: String) -> Unit,
@@ -64,7 +65,7 @@ class ChatModelSwitchDelegate(
         { refresh -> ModelCatalogStore.shared.ensureLoaded(forceRefresh = refresh) },
     private val getPinnedModels: () -> List<PinnedModel> = { AuthManager.getPinnedModels() },
     private val savePinnedModels: (List<PinnedModel>) -> Unit = { AuthManager.savePinnedModels(it) },
-    private val wsRequest: (suspend (method: String, params: Map<String, Any>) -> Any?)? = null,
+    private val wsRequest: (suspend (params: ConfigSetParams) -> JsonElement)? = null,
 ) {
     private val pendingModelSwitchRequests = ConcurrentHashMap<String, ActiveModelSwitch>()
     private val pendingFastSwitchRequests = ConcurrentHashMap<String, ActiveFastSwitch>()
@@ -300,20 +301,15 @@ class ChatModelSwitchDelegate(
         unconfirmedTargetModel = spec
         val switchSeq = ++modelSwitchSequence
         val params =
-            mutableMapOf<String, Any>(
-                "key" to "model",
-                "value" to spec,
-                "session_id" to sessionId,
+            ConfigSetParams(
+                key = "model",
+                value = spec,
+                sessionId = sessionId,
+                confirmExpensiveModel = true.takeIf { confirmExpensive },
             )
-        if (confirmExpensive) {
-            params["confirm_expensive_model"] = true
-        }
         scope.launch(ioDispatcher) {
-            wsSend(
-                WsMethods.CONFIG_SET,
-                params,
-            ) { id ->
-                trackRequest(id, WsMethods.CONFIG_SET)
+            wsSend(params) { id ->
+                trackRequest(id, RpcMethods.CONFIG_SET.name)
                 pendingModelSwitchRequests[id] = ActiveModelSwitch(spec, previousModel, switchSeq)
             }
         }
@@ -408,14 +404,13 @@ class ChatModelSwitchDelegate(
         uiState.update { it.copy(isFastModeChanging = true) }
         scope.launch(ioDispatcher) {
             wsSend(
-                WsMethods.CONFIG_SET,
-                mapOf(
-                    "key" to "fast",
-                    "value" to if (target) "fast" else "normal",
-                    "session_id" to sessionId,
+                ConfigSetParams(
+                    key = "fast",
+                    value = if (target) "fast" else "normal",
+                    sessionId = sessionId,
                 ),
             ) { id ->
-                trackRequest(id, WsMethods.CONFIG_SET)
+                trackRequest(id, RpcMethods.CONFIG_SET.name)
                 pendingFastSwitchRequests[id] = ActiveFastSwitch(target)
             }
         }
@@ -539,18 +534,18 @@ class ChatModelSwitchDelegate(
             scope.launch(ioDispatcher) {
                 try {
                     val params =
-                        mapOf(
-                            "key" to "reasoning",
-                            "value" to level,
-                            "session_id" to sessionId,
-                            "scope" to scopeName,
+                        ConfigSetParams(
+                            key = "reasoning",
+                            value = level,
+                            sessionId = sessionId,
+                            scope = scopeName,
                         )
                     val result =
                         if (wsRequest != null) {
-                            wsRequest.invoke(WsMethods.CONFIG_SET, params)
+                            wsRequest.invoke(params)
                         } else {
-                            wsSend(WsMethods.CONFIG_SET, params) { reqId ->
-                                trackRequest(reqId, WsMethods.CONFIG_SET)
+                            wsSend(params) { reqId ->
+                                trackRequest(reqId, RpcMethods.CONFIG_SET.name)
                             }
                             null
                         }
@@ -558,14 +553,7 @@ class ChatModelSwitchDelegate(
                     if (opSeq == reasoningOpSequence && capturedScope == dataScopeFlow.value) {
                         val ackLevel =
                             if (wsRequest != null) {
-                                // HermesWsClient.request() completes with the RAW JsonElement.
-                                // Tests and a few injected callers may provide an already-decoded map.
-                                val map =
-                                    when (result) {
-                                        is JsonElement -> result.toAny() as? Map<*, *>
-                                        is Map<*, *> -> result
-                                        else -> null
-                                    }
+                                val map = result?.toAny() as? Map<*, *>
                                 val resKey = map?.get("key") as? String
                                 val resVal = map?.get("value") as? String
                                 if (resKey != "reasoning" || resVal.isNullOrEmpty()) {

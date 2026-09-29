@@ -8,7 +8,7 @@ import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.data.remote.NetworkError
 import com.m57.hermescontrol.data.remote.NetworkResult
-import com.m57.hermescontrol.data.ws.WsMethods
+import com.m57.hermescontrol.data.ws.contract.ConfigSetParams
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,6 +18,8 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -31,8 +33,7 @@ class ChatModelSwitchDelegateTest {
     private val uiState =
         MutableStateFlow(ChatUiState(currentSessionId = "sess-1", currentSessionModel = "anthropic/claude-3"))
     private var runtimeId: String? = "runtime-1"
-    private val sentMethods = mutableListOf<String>()
-    private val sentParams = mutableListOf<Map<String, Any>>()
+    private val sentParams = mutableListOf<ConfigSetParams>()
     private val slashCommands = mutableListOf<String>()
     private val assistantMessages = mutableListOf<String>()
     private var contextRefetched = 0
@@ -71,10 +72,9 @@ class ChatModelSwitchDelegateTest {
             ioDispatcher = testDispatcher,
             uiState = uiState,
             runtimeSessionId = { runtimeId },
-            wsSend = { method, params, onSent ->
-                sentMethods.add(method)
+            wsSend = { params, onSent ->
                 sentParams.add(params)
-                onSent?.invoke("req-${sentMethods.size}")
+                onSent?.invoke("req-${sentParams.size}")
             },
             trackRequest = { _, _ -> },
             addAssistantMessage = { assistantMessages.add(it) },
@@ -304,8 +304,9 @@ class ChatModelSwitchDelegateTest {
             delegate.handleModelSwitch("/MODEL gpt-4o --provider openai --session")
             advanceUntilIdle()
 
-            assertEquals(listOf(WsMethods.CONFIG_SET), sentMethods)
-            assertEquals("gpt-4o --provider openai --session", sentParams.first()["value"])
+            assertEquals(1, sentParams.size)
+            assertEquals("model", sentParams.first().key)
+            assertEquals("gpt-4o --provider openai --session", sentParams.first().value)
 
             delegate.handleConfigSetResult(
                 id = "req-1",
@@ -320,8 +321,8 @@ class ChatModelSwitchDelegateTest {
 
             delegate.confirmModelSwitchExpensive()
             advanceUntilIdle()
-            assertEquals(2, sentMethods.size)
-            assertEquals(true, sentParams[1]["confirm_expensive_model"])
+            assertEquals(2, sentParams.size)
+            assertEquals(true, sentParams[1].confirmExpensiveModel)
         }
 
     @Test
@@ -366,7 +367,6 @@ class ChatModelSwitchDelegateTest {
             // Switch to model with fast capability
             delegate.sendSlashModel("openai", "gpt-4o")
             advanceUntilIdle()
-            sentMethods.clear()
             sentParams.clear()
 
             assertTrue(uiState.value.currentModelCapabilities?.fast == true)
@@ -377,10 +377,10 @@ class ChatModelSwitchDelegateTest {
             advanceUntilIdle()
             assertTrue(uiState.value.isFastModeChanging)
             assertFalse(uiState.value.fastMode) // Still unconfirmed!
-            assertEquals(listOf(WsMethods.CONFIG_SET), sentMethods)
-            assertEquals("fast", sentParams.first()["key"])
-            assertEquals("fast", sentParams.first()["value"])
-            assertEquals("runtime-1", sentParams.first()["session_id"])
+            assertEquals(1, sentParams.size)
+            assertEquals("fast", sentParams.first().key)
+            assertEquals("fast", sentParams.first().value)
+            assertEquals("runtime-1", sentParams.first().sessionId)
 
             // Backend acknowledges
             delegate.handleConfigSetResult("req-1", mapOf("key" to "fast", "value" to "fast"))
@@ -391,7 +391,7 @@ class ChatModelSwitchDelegateTest {
             delegate.toggleFastMode()
             advanceUntilIdle()
             assertTrue(uiState.value.isFastModeChanging)
-            assertEquals("normal", sentParams.last()["value"])
+            assertEquals("normal", sentParams.last().value)
 
             delegate.handleConfigSetResult("req-2", mapOf("key" to "fast", "value" to "normal"))
             assertFalse(uiState.value.fastMode)
@@ -405,7 +405,6 @@ class ChatModelSwitchDelegateTest {
             advanceUntilIdle()
             delegate.sendSlashModel("openai", "gpt-4o")
             advanceUntilIdle()
-            sentMethods.clear()
             sentParams.clear()
             assertTrue(uiState.value.currentModelCapabilities?.fast == true)
 
@@ -420,10 +419,10 @@ class ChatModelSwitchDelegateTest {
             assertEquals(false, uiState.value.currentModelCapabilities?.fast)
 
             // Further toggle attempts are no-ops
-            val sentCount = sentMethods.size
+            val sentCount = sentParams.size
             delegate.toggleFastMode()
             advanceUntilIdle()
-            assertEquals(sentCount, sentMethods.size)
+            assertEquals(sentCount, sentParams.size)
         }
 
     @Test
@@ -470,9 +469,8 @@ class ChatModelSwitchDelegateTest {
     @Test
     fun setReasoningLevel_awaitsRequest_updatesOnAck_andPreventsConcurrentPick() =
         testScope.runTest {
-            val gate = CompletableDeferred<Any?>()
-            val reqMethods = mutableListOf<String>()
-            val reqParams = mutableListOf<Map<String, Any>>()
+            val gate = CompletableDeferred<JsonElement>()
+            val reqParams = mutableListOf<ConfigSetParams>()
 
             val customDelegate =
                 ChatModelSwitchDelegate(
@@ -480,14 +478,13 @@ class ChatModelSwitchDelegateTest {
                     ioDispatcher = testDispatcher,
                     uiState = uiState,
                     runtimeSessionId = { runtimeId },
-                    wsSend = { _, _, _ -> },
+                    wsSend = { _, _ -> },
                     trackRequest = { _, _ -> },
                     addAssistantMessage = {},
                     handleSlashCommand = {},
                     fetchContextUsage = {},
                     dataScopeFlow = dataScope,
-                    wsRequest = { method, params ->
-                        reqMethods.add(method)
+                    wsRequest = { params ->
                         reqParams.add(params)
                         gate.await()
                     },
@@ -503,14 +500,15 @@ class ChatModelSwitchDelegateTest {
             assertEquals("ultra", uiState.value.reasoningLevel)
             assertEquals("high", uiState.value.pendingReasoningLevel)
             assertNull(uiState.value.reasoningWireLevel)
-            assertEquals(listOf(WsMethods.CONFIG_SET), reqMethods)
-            assertEquals("session", reqParams.first()["scope"])
-            assertEquals("high", reqParams.first()["value"])
+            assertEquals(1, reqParams.size)
+            assertEquals("reasoning", reqParams.first().key)
+            assertEquals("session", reqParams.first().scope)
+            assertEquals("high", reqParams.first().value)
 
             // Second pick while in-flight is rejected (serialized)
             customDelegate.setReasoningLevel("low")
             runCurrent()
-            assertEquals(1, reqMethods.size)
+            assertEquals(1, reqParams.size)
 
             // Simulate session.info winning the race and publishing the fresh
             // authoritative wire before the RPC ACK resumes the delegate.
@@ -540,13 +538,13 @@ class ChatModelSwitchDelegateTest {
                     ioDispatcher = testDispatcher,
                     uiState = uiState,
                     runtimeSessionId = { runtimeId },
-                    wsSend = { _, _, _ -> },
+                    wsSend = { _, _ -> },
                     trackRequest = { _, _ -> },
                     addAssistantMessage = {},
                     handleSlashCommand = {},
                     fetchContextUsage = {},
                     dataScopeFlow = dataScope,
-                    wsRequest = { _, _ -> throw RuntimeException("4002 unknown reasoning value") },
+                    wsRequest = { throw RuntimeException("4002 unknown reasoning value") },
                 )
 
             customDelegate.setReasoningLevel("ultra")
@@ -560,7 +558,7 @@ class ChatModelSwitchDelegateTest {
     @Test
     fun setReasoningLevel_whenRuntimeSessionNullOrBlank_doesNotSend() =
         testScope.runTest {
-            val reqMethods = mutableListOf<String>()
+            val reqParams = mutableListOf<ConfigSetParams>()
             runtimeId = null
 
             val customDelegate =
@@ -569,22 +567,22 @@ class ChatModelSwitchDelegateTest {
                     ioDispatcher = testDispatcher,
                     uiState = uiState,
                     runtimeSessionId = { runtimeId },
-                    wsSend = { _, _, _ -> },
+                    wsSend = { _, _ -> },
                     trackRequest = { _, _ -> },
                     addAssistantMessage = {},
                     handleSlashCommand = {},
                     fetchContextUsage = {},
                     dataScopeFlow = dataScope,
-                    wsRequest = { method, _ ->
-                        reqMethods.add(method)
-                        null
+                    wsRequest = { params ->
+                        reqParams.add(params)
+                        JsonNull
                     },
                 )
 
             customDelegate.setReasoningLevel("high")
             advanceUntilIdle()
 
-            assertTrue(reqMethods.isEmpty())
+            assertTrue(reqParams.isEmpty())
             assertNull(uiState.value.pendingReasoningLevel)
             assertNull(uiState.value.reasoningLevel)
         }
@@ -592,20 +590,20 @@ class ChatModelSwitchDelegateTest {
     @Test
     fun setReasoningLevel_staleScopeOrReset_dropsLateAck() =
         testScope.runTest {
-            val gate = CompletableDeferred<Any?>()
+            val gate = CompletableDeferred<JsonElement>()
             val customDelegate =
                 ChatModelSwitchDelegate(
                     scope = testScope,
                     ioDispatcher = testDispatcher,
                     uiState = uiState,
                     runtimeSessionId = { runtimeId },
-                    wsSend = { _, _, _ -> },
+                    wsSend = { _, _ -> },
                     trackRequest = { _, _ -> },
                     addAssistantMessage = {},
                     handleSlashCommand = {},
                     fetchContextUsage = {},
                     dataScopeFlow = dataScope,
-                    wsRequest = { _, _ -> gate.await() },
+                    wsRequest = { gate.await() },
                 )
 
             customDelegate.setReasoningLevel("high")
@@ -617,7 +615,12 @@ class ChatModelSwitchDelegateTest {
             assertNull(uiState.value.pendingReasoningLevel)
 
             // Late RPC response arrives
-            gate.complete(mapOf("key" to "reasoning", "value" to "high"))
+            gate.complete(
+                kotlinx.serialization.json.buildJsonObject {
+                    put("key", kotlinx.serialization.json.JsonPrimitive("reasoning"))
+                    put("value", kotlinx.serialization.json.JsonPrimitive("high"))
+                },
+            )
             advanceUntilIdle()
 
             assertNull(uiState.value.reasoningLevel)

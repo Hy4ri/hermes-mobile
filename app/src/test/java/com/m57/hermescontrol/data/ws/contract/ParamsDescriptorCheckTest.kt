@@ -94,13 +94,14 @@ class ParamsDescriptorCheckTest {
     }
 
     @Test
-    fun omittingProfilePassesEvenWhenRequiredBySchema() {
-        // bot_relay.deliver has required: ["profile", "message"]
+    fun omittingRequiredProfileIsRejectedWhenMethodIsNotProfileScoped() {
+        // bot_relay.deliver has required: ["profile", "message"] and is not in PROFILE_SCOPED_METHODS,
+        // so nothing injects profile and the params class must declare it.
         val problems =
             GatewayContract.paramsDescriptorProblems(
                 "bot_relay.deliver",
                 DeliverMissingProfileParams.serializer().descriptor,
             )
-        assertTrue(problems.joinToString("\n"), problems.isEmpty())
+        assertEquals(1, problems.count { "missing required param 'profile'" in it })
     }
 }

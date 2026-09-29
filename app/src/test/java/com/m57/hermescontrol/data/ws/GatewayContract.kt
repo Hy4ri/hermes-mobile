@@ -103,10 +103,9 @@ object GatewayContract {
             }
         }
 
-        val missingRequired =
-            required.filter { reqName ->
-                reqName !in elementNames && reqName != "profile"
-            }
+        // `profile` may be omitted only where WsProfileParams.decorate guarantees transport injection.
+        val transportInjected = if (method in WsMethods.PROFILE_SCOPED_METHODS) setOf("profile") else emptySet()
+        val missingRequired = required.filter { it !in elementNames && it !in transportInjected }
         for (missing in missingRequired) {
             problems += "$method: missing required param '$missing'"
         }

@@ -2,6 +2,7 @@ package com.m57.hermescontrol.data.ws.contract
 
 import com.m57.hermescontrol.data.ws.WsMethods
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.json.JsonElement
 
 class RpcMethod<P, R>(
     val name: String,
@@ -59,6 +60,56 @@ object RpcMethods {
             SessionCorrectionResult.serializer(),
         )
 
+    // Passthrough JsonElement results: callers keep their existing legacy parsers.
+    val SESSION_LIST: RpcMethod<SessionListParams, JsonElement> =
+        RpcMethod(
+            WsMethods.SESSION_LIST,
+            SessionListParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    val SESSION_BRANCH: RpcMethod<SessionBranchParams, JsonElement> =
+        RpcMethod(
+            WsMethods.SESSION_BRANCH,
+            SessionBranchParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    val SESSION_BRANCH_WHOLE: RpcMethod<SessionBranchWholeParams, JsonElement> =
+        RpcMethod(
+            WsMethods.SESSION_BRANCH_WHOLE,
+            SessionBranchWholeParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    val SESSION_COMPRESS: RpcMethod<SessionCompressParams, JsonElement> =
+        RpcMethod(
+            WsMethods.SESSION_COMPRESS,
+            SessionCompressParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    val SESSION_CONTEXT_BREAKDOWN: RpcMethod<SessionIdParams, JsonElement> =
+        RpcMethod(
+            WsMethods.SESSION_CONTEXT_BREAKDOWN,
+            SessionIdParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    val SESSION_USAGE: RpcMethod<SessionIdParams, JsonElement> =
+        RpcMethod(
+            WsMethods.SESSION_USAGE,
+            SessionIdParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    val PROMPT_BTW: RpcMethod<PromptBtwParams, PromptBtwResult> =
+        RpcMethod(
+            WsMethods.PROMPT_BTW,
+            PromptBtwParams.serializer(),
+            PromptBtwResult.serializer(),
+        )
+
     /** Every typed method. GatewayContractTest iterates this; future migrations append here. */
     val all: List<RpcMethod<*, *>> =
         listOf(
@@ -69,5 +120,12 @@ object RpcMethods {
             SESSION_INTERRUPT,
             SESSION_STEER,
             SESSION_REDIRECT,
+            SESSION_LIST,
+            SESSION_BRANCH,
+            SESSION_BRANCH_WHOLE,
+            SESSION_COMPRESS,
+            SESSION_CONTEXT_BREAKDOWN,
+            SESSION_USAGE,
+            PROMPT_BTW,
         )
 }

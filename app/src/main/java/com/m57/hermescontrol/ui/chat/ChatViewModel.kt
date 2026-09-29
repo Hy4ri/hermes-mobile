@@ -37,9 +37,17 @@ import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.JsonRpcError
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
+import com.m57.hermescontrol.data.ws.contract.PromptBtwParams
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
+import com.m57.hermescontrol.data.ws.contract.SessionBranchParams
+import com.m57.hermescontrol.data.ws.contract.SessionBranchWholeParams
+import com.m57.hermescontrol.data.ws.contract.SessionCompressParams
 import com.m57.hermescontrol.data.ws.contract.SessionCorrectionParams
+import com.m57.hermescontrol.data.ws.contract.SessionCreateParams
+import com.m57.hermescontrol.data.ws.contract.SessionIdParams
 import com.m57.hermescontrol.data.ws.contract.SessionInterruptParams
+import com.m57.hermescontrol.data.ws.contract.SessionListParams
+import com.m57.hermescontrol.data.ws.contract.SessionResumeParams
 import com.m57.hermescontrol.data.ws.toAny
 import com.m57.hermescontrol.data.ws.toJsonElement
 import com.m57.hermescontrol.notification.ReplyNotificationTracker
@@ -509,7 +517,7 @@ class ChatViewModel(
 
     private data class PendingBranchRequest(
         val generation: Long,
-        val params: Map<String, Any>,
+        val params: SessionBranchWholeParams,
     )
 
     private val sessionRequestById = ConcurrentHashMap<String, SessionRequest>()
@@ -2225,12 +2233,12 @@ class ChatViewModel(
                 (error as? JsonRpcError)?.code
                     ?: (error as? Map<*, *>)?.get("code") as? Int
             if (code == -32601 && pendingBranch != null && pendingBranch.generation == sessionGeneration) {
-                val params = pendingBranch.params
+                val p = pendingBranch.params
                 val generation = pendingBranch.generation
                 viewModelScope.launch(ioDispatcher) {
                     wsClient.send(
-                        WsMethods.SESSION_BRANCH,
-                        params,
+                        RpcMethods.SESSION_BRANCH,
+                        SessionBranchParams(sessionId = p.sessionId, name = p.name),
                         onSent = { branchId ->
                             trackSessionRequest(branchId, WsMethods.SESSION_BRANCH, generation)
                         },
@@ -3578,18 +3586,6 @@ class ChatViewModel(
     private fun attachmentTooLargeMessage(attachment: Attachment): String =
         "Attachment too large: ${attachment.name} (maximum 10 MB)"
 
-    /**
-     * Send a JSON-RPC call and suspend until the response arrives, delegating
-     * the deferred + 120s timeout to [HermesWsClient.request] (issue #526).
-     * Throws [HermesWsClient.HermesRpcException] on RPC error, or
-     * [kotlinx.coroutines.TimeoutCancellationException] if the server never
-     * answers within the timeout.
-     */
-    private suspend fun sendRpcAndAwait(
-        method: String,
-        params: Map<String, Any>,
-    ): Any? = HermesWsClient.request(method, params).await()
-
     // ── Attachment management ─────────────────────────────────────────────
 
     /**
@@ -3942,13 +3938,12 @@ class ChatViewModel(
 
         viewModelScope.launch(ioDispatcher) {
             try {
-                val rpcResult =
+                val taskId =
                     wsClient
-                        .request(
-                            WsMethods.PROMPT_BTW,
-                            mapOf("session_id" to sessionId, "text" to trimmed),
-                        ).await()
-                val taskId = (rpcResult as? Map<*, *>)?.get("task_id") as? String
+                        .call(
+                            RpcMethods.PROMPT_BTW,
+                            PromptBtwParams(sessionId = sessionId, text = trimmed),
+                        ).taskId
                 if (!taskId.isNullOrBlank()) {
                     _uiState.update { state ->
                         state.btwState?.let { current ->
@@ -4034,12 +4029,11 @@ class ChatViewModel(
             return
         }
         val arg = command.split(" ", limit = 2).getOrElse(1) { "" }.trim()
-        val params = mutableMapOf<String, Any>("session_id" to sessionId)
-        if (arg.isNotBlank()) params["name"] = arg
+        val params = SessionBranchWholeParams(sessionId = sessionId, name = arg.takeIf { it.isNotBlank() })
         val generation = sessionGeneration
         viewModelScope.launch(ioDispatcher) {
             wsClient.send(
-                WsMethods.SESSION_BRANCH_WHOLE,
+                RpcMethods.SESSION_BRANCH_WHOLE,
                 params,
                 onSent = { id ->
                     branchWholeRequests[id] = PendingBranchRequest(generation, params)
@@ -4197,21 +4191,16 @@ class ChatViewModel(
 
         viewModelScope.launch(ioDispatcher) {
             try {
-                val params =
-                    buildMap<String, Any> {
-                        put("session_id", sessionId)
-                        if (focusTopic.isNotBlank()) {
-                            put("focus_topic", focusTopic)
-                        }
-                    }
                 // Use extended timeout (e.g. 300_000L / 5 minutes) so LLM summarization doesn't timeout
                 val result =
-                    wsClient
-                        .request(
-                            WsMethods.SESSION_COMPRESS,
-                            params,
-                            timeoutMs = 300_000L,
-                        ).await()
+                    wsClient.call(
+                        RpcMethods.SESSION_COMPRESS,
+                        SessionCompressParams(
+                            sessionId = sessionId,
+                            focusTopic = focusTopic.takeIf { it.isNotBlank() },
+                        ),
+                        timeoutMs = 300_000L,
+                    )
 
                 handleCompressionResult(result)
             } catch (e: HermesWsClient.HermesRpcException) {
@@ -4439,8 +4428,8 @@ class ChatViewModel(
         val generation = resetSessionState(sessionId = null, title = "Hermes", isLoading = setLoading)
         viewModelScope.launch(ioDispatcher) {
             wsClient.send(
-                WsMethods.SESSION_CREATE,
-                params = mapOf("source" to "desktop"),
+                RpcMethods.SESSION_CREATE,
+                SessionCreateParams(source = "desktop"),
                 onSent = { id -> trackSessionRequest(id, WsMethods.SESSION_CREATE, generation) },
             )
         }
@@ -4460,7 +4449,8 @@ class ChatViewModel(
     fun loadSessions() {
         viewModelScope.launch(ioDispatcher) {
             wsClient.send(
-                WsMethods.SESSION_LIST,
+                RpcMethods.SESSION_LIST,
+                SessionListParams,
                 onSent = { id -> trackRequest(id, WsMethods.SESSION_LIST) },
             )
         }
@@ -5254,16 +5244,14 @@ class ChatViewModel(
         val connectionCheckpoint = connectionOperationDelegate.resumeCheckpoint()
         val profile = AuthManager.activeProfileId.value
         val params =
-            mutableMapOf<String, Any>(
-                "session_id" to sessionId,
-                "omit_messages" to true,
+            SessionResumeParams(
+                sessionId = sessionId,
+                omitMessages = true,
+                profile = profile?.takeIf { it.isNotBlank() },
             )
-        if (!profile.isNullOrBlank()) {
-            params["profile"] = profile
-        }
         viewModelScope.launch(ioDispatcher) {
             wsClient.send(
-                WsMethods.SESSION_RESUME,
+                RpcMethods.SESSION_RESUME,
                 params,
                 onSent = { id ->
                     trackSessionRequest(
@@ -5755,9 +5743,9 @@ class ChatViewModel(
                 if (rpcSessionId != null) {
                     try {
                         val result =
-                            sendRpcAndAwait(
-                                WsMethods.SESSION_CONTEXT_BREAKDOWN,
-                                mapOf("session_id" to rpcSessionId),
+                            wsClient.call(
+                                RpcMethods.SESSION_CONTEXT_BREAKDOWN,
+                                SessionIdParams(rpcSessionId),
                             )
                         coroutineContext.ensureActive()
                         val ctx = parseContextBreakdown(result)
@@ -5794,9 +5782,9 @@ class ChatViewModel(
                     if (!isSwitchPending) {
                         try {
                             val usage =
-                                sendRpcAndAwait(
-                                    WsMethods.SESSION_USAGE,
-                                    mapOf("session_id" to rpcSessionId),
+                                wsClient.call(
+                                    RpcMethods.SESSION_USAGE,
+                                    SessionIdParams(rpcSessionId),
                                 )
                             coroutineContext.ensureActive()
                             val snapshot = parseUsageSnapshot(usage)

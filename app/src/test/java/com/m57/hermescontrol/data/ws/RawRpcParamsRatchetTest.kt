@@ -318,10 +318,6 @@ class RawRpcParamsRatchetTest {
             listOf(
                 "data/ws/HermesWsClient.kt::CLIENT_CAPABILITIES",
                 "data/ws/ModelOptionsRepository.kt::MODEL_OPTIONS",
-                "data/ws/PluginManageRepository.kt::PLUGINS_MANAGE",
-                "data/ws/PluginManageRepository.kt::PLUGINS_MANAGE",
-                "data/ws/PluginRemovalRepository.kt::PLUGINS_MANAGE",
-                "data/ws/ProjectsSource.kt::PROJECTS_LIST",
                 "ui/bots/BotsViewModel.kt::PROFILES_CONFIGURE",
                 "ui/bots/BotsViewModel.kt::PROFILES_CONFIGURE",
                 "ui/bots/BotsViewModel.kt::PROFILES_CONFIGURE",

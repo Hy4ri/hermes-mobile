@@ -16,6 +16,9 @@ import org.junit.Assert.fail
 import org.junit.Test
 
 class PluginManageRepositoryTest {
+    private fun pluginRepo(handler: suspend (String, Map<String, Any>) -> Any?) =
+        PluginManageRepository(fakeCaller(handler))
+
     // CONTRACT: `listPlugins(profile)` calls WsMethods.PLUGINS_MANAGE with {"action": "list"} (and profile if set) and decodes plugins list.
     @Test
     fun `listPlugins without profile calls PLUGINS_MANAGE action list and decodes plugins list`() =
@@ -44,7 +47,7 @@ class PluginManageRepositoryTest {
                 )
 
             val repository =
-                PluginManageRepository { method, params ->
+                pluginRepo { method, params ->
                     capturedMethod = method
                     capturedParams = params
                     mockPayload
@@ -80,7 +83,7 @@ class PluginManageRepositoryTest {
                 )
 
             val repository =
-                PluginManageRepository { method, params ->
+                pluginRepo { method, params ->
                     capturedMethod = method
                     capturedParams = params
                     mockPayload
@@ -98,19 +101,19 @@ class PluginManageRepositoryTest {
     fun `listPlugins returns empty list when plugins key is missing or response is not a JsonObject`() =
         runTest {
             val emptyObjRepo =
-                PluginManageRepository { _, _ ->
+                pluginRepo { _, _ ->
                     OkHttpProvider.json.parseToJsonElement("{}")
                 }
             assertTrue(emptyObjRepo.listPlugins().isEmpty())
 
             val nonObjRepo =
-                PluginManageRepository { _, _ ->
+                pluginRepo { _, _ ->
                     OkHttpProvider.json.parseToJsonElement("[]")
                 }
             assertTrue(nonObjRepo.listPlugins().isEmpty())
 
             val nullRepo =
-                PluginManageRepository { _, _ ->
+                pluginRepo { _, _ ->
                     null
                 }
             assertTrue(nullRepo.listPlugins().isEmpty())
@@ -139,7 +142,7 @@ class PluginManageRepositoryTest {
                 )
 
             val repository =
-                PluginManageRepository { method, params ->
+                pluginRepo { method, params ->
                     capturedMethod = method
                     capturedParams = params
                     mockResponse
@@ -156,7 +159,7 @@ class PluginManageRepositoryTest {
             assertEquals(WsMethods.PLUGINS_MANAGE, capturedMethod)
             assertEquals("settings", capturedParams["action"])
             assertEquals("camofox", capturedParams["key"])
-            assertEquals(JsonObject(valuesToSave), capturedParams["values"])
+            assertEquals(mapOf("port" to 9222, "headless" to true), capturedParams["values"])
             assertFalse(capturedParams.containsKey("profile"))
 
             assertTrue(result.ok)
@@ -186,7 +189,7 @@ class PluginManageRepositoryTest {
                 )
 
             val repository =
-                PluginManageRepository { method, params ->
+                pluginRepo { method, params ->
                     capturedMethod = method
                     capturedParams = params
                     mockResponse
@@ -204,7 +207,7 @@ class PluginManageRepositoryTest {
                 mapOf(
                     "action" to "settings",
                     "key" to "camofox",
-                    "values" to JsonObject(valuesToSave),
+                    "values" to mapOf("port" to 8080),
                     "profile" to "staging",
                 ),
                 capturedParams,
@@ -222,7 +225,7 @@ class PluginManageRepositoryTest {
     fun `saveSettings throws SerializationException when response is malformed`() =
         runTest {
             val repository =
-                PluginManageRepository { _, _ ->
+                pluginRepo { _, _ ->
                     OkHttpProvider.json.parseToJsonElement("{\"ok\": \"not-a-boolean\"}")
                 }
 

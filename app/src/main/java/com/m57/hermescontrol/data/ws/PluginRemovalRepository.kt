@@ -1,6 +1,9 @@
 package com.m57.hermescontrol.data.ws
 
-import kotlinx.coroutines.CancellationException
+import com.m57.hermescontrol.data.ws.contract.HermesRpcCaller
+import com.m57.hermescontrol.data.ws.contract.PluginsManageParams
+import com.m57.hermescontrol.data.ws.contract.RpcMethods
+import com.m57.hermescontrol.data.ws.contract.TypedRpcCaller
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromJsonElement
@@ -14,18 +17,10 @@ data class PluginRemovalResult(
 
 /** Removes a user-installed plugin through the gateway's canonical plugin manager. */
 class PluginRemovalRepository(
-    private val rpcRequest: suspend (String, Map<String, Any>) -> Any? = { method, params ->
-        val deferred = HermesWsClient.request(method, params)
-        try {
-            deferred.await()
-        } catch (e: CancellationException) {
-            deferred.cancel(e)
-            throw e
-        }
-    },
+    private val caller: TypedRpcCaller = HermesRpcCaller,
 ) {
     suspend fun remove(name: String): PluginRemovalResult {
-        val result = rpcRequest(WsMethods.PLUGINS_MANAGE, mapOf("action" to "remove", "name" to name))
-        return Json.decodeFromJsonElement<PluginRemovalResult>(result.toJsonElement())
+        val result = caller.call(RpcMethods.PLUGINS_MANAGE, PluginsManageParams(action = "remove", name = name))
+        return Json.decodeFromJsonElement<PluginRemovalResult>(result)
     }
 }

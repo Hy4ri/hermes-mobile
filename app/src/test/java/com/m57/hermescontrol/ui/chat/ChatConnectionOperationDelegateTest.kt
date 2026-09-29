@@ -6,8 +6,13 @@ import com.m57.hermescontrol.data.model.ConnectionOperationTarget
 import com.m57.hermescontrol.data.model.ConnectionTargetAction
 import com.m57.hermescontrol.data.model.ConnectionTargetKind
 import com.m57.hermescontrol.data.model.ConnectionTargetState
+import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.ws.HermesWsClient
-import com.m57.hermescontrol.data.ws.WsMethods
+import com.m57.hermescontrol.data.ws.contract.ConnectionAnswer
+import com.m57.hermescontrol.data.ws.contract.ConnectionAnswerTarget
+import com.m57.hermescontrol.data.ws.contract.ConnectionRespondParams
+import com.m57.hermescontrol.data.ws.contract.ConnectorOwner
+import com.m57.hermescontrol.data.ws.contract.ConnectorsOperationStatusParams
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -15,6 +20,9 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -109,19 +117,65 @@ class ChatConnectionOperationDelegateTest {
             )
 
             assertEquals(1, requester.calls.size)
-            val call = requester.calls.single()
-            assertEquals(WsMethods.CONNECTION_RESPOND, call.first)
-            assertEquals(setOf("owner", "op_id", "result"), call.second.keys)
-            assertEquals(mapOf("type" to "session", "session_id" to "session-a"), call.second["owner"])
-            assertEquals("op-a", call.second["op_id"])
-            @Suppress("UNCHECKED_CAST")
-            val result = call.second["result"] as Map<String, Any>
+            val action = requester.calls.single()
+            assertTrue(action is ConnectionOperationRequest.Respond)
+            val respond = action as ConnectionOperationRequest.Respond
 
-            @Suppress("UNCHECKED_CAST")
-            val answer = (result["targets"] as List<Map<String, Any>>).single()
-            assertEquals("github", answer["name"])
-            assertEquals("approved", answer["status"])
-            assertEquals(mapOf("TOKEN" to canary), answer["env"])
+            assertEquals(
+                ConnectionRespondParams(
+                    owner = ConnectorOwner.session("session-a"),
+                    opId = "op-a",
+                    result =
+                        ConnectionAnswer(
+                            targets =
+                                listOf(
+                                    ConnectionAnswerTarget(
+                                        name = "github",
+                                        status = "approved",
+                                        env = mapOf("TOKEN" to canary),
+                                    ),
+                                ),
+                        ),
+                ),
+                respond.params,
+            )
+
+            val encoded = OkHttpProvider.json.encodeToJsonElement(ConnectionRespondParams.serializer(), respond.params)
+            val expectedWire =
+                buildJsonObject {
+                    put(
+                        "owner",
+                        buildJsonObject {
+                            put("type", "session")
+                            put("session_id", "session-a")
+                        },
+                    )
+                    put("op_id", "op-a")
+                    put(
+                        "result",
+                        buildJsonObject {
+                            put(
+                                "targets",
+                                buildJsonArray {
+                                    add(
+                                        buildJsonObject {
+                                            put("name", "github")
+                                            put("status", "approved")
+                                            put(
+                                                "env",
+                                                buildJsonObject {
+                                                    put("TOKEN", canary)
+                                                },
+                                            )
+                                        },
+                                    )
+                                },
+                            )
+                        },
+                    )
+                }
+            assertEquals(expectedWire, encoded)
+
             assertFalse(
                 delegate.state.value
                     .toString()
@@ -166,12 +220,57 @@ class ChatConnectionOperationDelegateTest {
             skipDelegate.acceptRequest(snapshot())
             skipDelegate.respond("github", mapOf("TOKEN" to "must-drop"), approved = false)
 
-            @Suppress("UNCHECKED_CAST")
-            val skipResult = skipRequester.calls.single().second["result"] as Map<String, Any>
+            val skipAction = skipRequester.calls.single()
+            assertTrue(skipAction is ConnectionOperationRequest.Respond)
+            val skipRespond = skipAction as ConnectionOperationRequest.Respond
+            assertEquals(
+                ConnectionRespondParams(
+                    owner = ConnectorOwner.session("session-a"),
+                    opId = "op-a",
+                    result =
+                        ConnectionAnswer(
+                            targets =
+                                listOf(
+                                    ConnectionAnswerTarget(
+                                        name = "github",
+                                        status = "skipped",
+                                    ),
+                                ),
+                        ),
+                ),
+                skipRespond.params,
+            )
 
-            @Suppress("UNCHECKED_CAST")
-            val skipAnswer = (skipResult["targets"] as List<Map<String, Any>>).single()
-            assertEquals(mapOf("name" to "github", "status" to "skipped"), skipAnswer)
+            val encodedSkip =
+                OkHttpProvider.json.encodeToJsonElement(ConnectionRespondParams.serializer(), skipRespond.params)
+            val expectedSkipWire =
+                buildJsonObject {
+                    put(
+                        "owner",
+                        buildJsonObject {
+                            put("type", "session")
+                            put("session_id", "session-a")
+                        },
+                    )
+                    put("op_id", "op-a")
+                    put(
+                        "result",
+                        buildJsonObject {
+                            put(
+                                "targets",
+                                buildJsonArray {
+                                    add(
+                                        buildJsonObject {
+                                            put("name", "github")
+                                            put("status", "skipped")
+                                        },
+                                    )
+                                },
+                            )
+                        },
+                    )
+                }
+            assertEquals(expectedSkipWire, encodedSkip)
 
             val continueRequester = RecordingRequester()
             val continueDelegate = delegate(continueRequester)
@@ -179,14 +278,38 @@ class ChatConnectionOperationDelegateTest {
             continueDelegate.acceptRequest(snapshot())
             continueDelegate.continueOperation()
 
+            val continueAction = continueRequester.calls.single()
+            assertTrue(continueAction is ConnectionOperationRequest.Respond)
+            val continueRespond = continueAction as ConnectionOperationRequest.Respond
             assertEquals(
-                mapOf(
-                    "owner" to mapOf("type" to "session", "session_id" to "session-a"),
-                    "op_id" to "op-a",
-                    "result" to mapOf("settled_by" to "continue"),
+                ConnectionRespondParams(
+                    owner = ConnectorOwner.session("session-a"),
+                    opId = "op-a",
+                    result = ConnectionAnswer(settledBy = "continue"),
                 ),
-                continueRequester.calls.single().second,
+                continueRespond.params,
             )
+
+            val encodedContinue =
+                OkHttpProvider.json.encodeToJsonElement(ConnectionRespondParams.serializer(), continueRespond.params)
+            val expectedContinueWire =
+                buildJsonObject {
+                    put(
+                        "owner",
+                        buildJsonObject {
+                            put("type", "session")
+                            put("session_id", "session-a")
+                        },
+                    )
+                    put("op_id", "op-a")
+                    put(
+                        "result",
+                        buildJsonObject {
+                            put("settled_by", "continue")
+                        },
+                    )
+                }
+            assertEquals(expectedContinueWire, encodedContinue)
         }
 
     @Test
@@ -199,15 +322,31 @@ class ChatConnectionOperationDelegateTest {
 
             delegate.wake("op-a")
 
-            val call = requester.calls.single()
-            assertEquals(WsMethods.CONNECTORS_OPERATION_WAKE, call.first)
+            val action = requester.calls.single()
+            assertTrue(action is ConnectionOperationRequest.Wake)
+            val wake = action as ConnectionOperationRequest.Wake
             assertEquals(
-                mapOf(
-                    "owner" to mapOf("type" to "session", "session_id" to "session-a"),
-                    "op_id" to "op-a",
+                ConnectorsOperationStatusParams(
+                    owner = ConnectorOwner.session("session-a"),
+                    opId = "op-a",
                 ),
-                call.second,
+                wake.params,
             )
+
+            val encoded =
+                OkHttpProvider.json.encodeToJsonElement(ConnectorsOperationStatusParams.serializer(), wake.params)
+            val expectedWire =
+                buildJsonObject {
+                    put(
+                        "owner",
+                        buildJsonObject {
+                            put("type", "session")
+                            put("session_id", "session-a")
+                        },
+                    )
+                    put("op_id", "op-a")
+                }
+            assertEquals(expectedWire, encoded)
         }
 
     @Test
@@ -265,7 +404,7 @@ class ChatConnectionOperationDelegateTest {
         runTest {
             val gate = CompletableDeferred<Unit>()
             val requester =
-                ConnectionOperationRequester { _, _ ->
+                ConnectionOperationRequester {
                     gate.await()
                     throw IllegalStateException("old failure")
                 }
@@ -355,13 +494,10 @@ class ChatConnectionOperationDelegateTest {
     private class RecordingRequester(
         private val failure: Throwable? = null,
     ) : ConnectionOperationRequester {
-        val calls = mutableListOf<Pair<String, Map<String, Any>>>()
+        val calls = mutableListOf<ConnectionOperationRequest>()
 
-        override suspend fun request(
-            method: String,
-            params: Map<String, Any>,
-        ): Any? {
-            calls += method to params
+        override suspend fun request(action: ConnectionOperationRequest): Any? {
+            calls += action
             failure?.let { throw it }
             return Unit
         }

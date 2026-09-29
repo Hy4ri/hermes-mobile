@@ -7,6 +7,7 @@ import com.m57.hermescontrol.data.model.ConnectorCatalogEntry
 import com.m57.hermescontrol.data.model.ConnectorError
 import com.m57.hermescontrol.data.model.ConnectorPolicy
 import com.m57.hermescontrol.data.model.ConnectorTool
+import com.m57.hermescontrol.data.ws.contract.ConnectionRespondParams
 import com.m57.hermescontrol.data.ws.contract.ConnectorOwner
 import com.m57.hermescontrol.data.ws.contract.ConnectorsAccountsParams
 import com.m57.hermescontrol.data.ws.contract.ConnectorsAccountsRemoveParams
@@ -61,10 +62,9 @@ interface AccountConnectorRepository {
         expectedRevision: String,
     ): AccountConnectorResult<ConnectorPolicy>
 
-    suspend fun operationRequest(
-        method: String,
-        params: Map<String, Any>,
-    ): Any?
+    suspend fun operationRespond(params: ConnectionRespondParams): Any?
+
+    suspend fun operationWake(params: ConnectorsOperationStatusParams): Any?
 
     suspend fun operationStatus(
         opId: String,
@@ -74,26 +74,8 @@ interface AccountConnectorRepository {
 }
 
 class HermesAccountConnectorRepository(
-    private val rpc: suspend (String, Map<String, Any>) -> Any? = { method, params ->
-        val deferred = HermesWsClient.request(method, params)
-        try {
-            deferred.await()
-        } catch (
-            e: CancellationException,
-        ) {
-            deferred.cancel(e)
-            throw e
-        } finally {
-            if (!deferred.isCompleted) deferred.cancel()
-        }
-    },
     private val caller: TypedRpcCaller = HermesRpcCaller,
 ) : AccountConnectorRepository {
-    private suspend fun request(
-        method: String,
-        params: Map<String, Any> = emptyMap(),
-    ) = rpc(method, params)
-
     private suspend fun <T> guarded(block: suspend () -> T): AccountConnectorResult<T> =
         try {
             AccountConnectorResult.Success(block())
@@ -109,12 +91,6 @@ class HermesAccountConnectorRepository(
             _: Exception,
         ) {
             AccountConnectorResult.Failure(ConnectorError.NetworkError("Failed to communicate with gateway."))
-        }
-
-    private fun accountParams(params: Map<String, Any> = emptyMap()): Map<String, Any> =
-        buildMap {
-            putAll(params)
-            AuthManager.activeProfileId.value?.let { put("profile", it) }
         }
 
     private fun obj(value: Any?): JsonObject = ConnectorParser.toJsonElement(value).jsonObject
@@ -173,10 +149,23 @@ class HermesAccountConnectorRepository(
         )
     }
 
-    override suspend fun operationRequest(
-        method: String,
-        params: Map<String, Any>,
-    ): Any? = request(method, accountParams(params + ("owner" to mapOf("type" to "account"))))
+    override suspend fun operationRespond(params: ConnectionRespondParams): Any? =
+        caller.call(
+            RpcMethods.CONNECTION_RESPOND,
+            params.copy(
+                owner = ConnectorOwner.account(),
+                profile = AuthManager.activeProfileId.value,
+            ),
+        )
+
+    override suspend fun operationWake(params: ConnectorsOperationStatusParams): Any? =
+        caller.call(
+            RpcMethods.CONNECTORS_OPERATION_WAKE,
+            params.copy(
+                owner = ConnectorOwner.account(),
+                profile = AuthManager.activeProfileId.value,
+            ),
+        )
 
     override suspend fun operationStatus(opId: String) =
         guarded {

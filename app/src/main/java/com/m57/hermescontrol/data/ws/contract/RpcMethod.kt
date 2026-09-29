@@ -315,6 +315,22 @@ object RpcMethods {
             JsonElement.serializer(),
         )
 
+    // Passthrough JsonElement results: callers keep their existing legacy parsers.
+    val CONNECTION_RESPOND: RpcMethod<ConnectionRespondParams, JsonElement> =
+        RpcMethod(
+            WsMethods.CONNECTION_RESPOND,
+            ConnectionRespondParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    // Passthrough JsonElement results: callers keep their existing legacy parsers.
+    val CONNECTORS_OPERATION_WAKE: RpcMethod<ConnectorsOperationStatusParams, JsonElement> =
+        RpcMethod(
+            WsMethods.CONNECTORS_OPERATION_WAKE,
+            ConnectorsOperationStatusParams.serializer(),
+            JsonElement.serializer(),
+        )
+
     /** Every typed method. GatewayContractTest iterates this; future migrations append here. */
     val all: List<RpcMethod<*, *>> =
         listOf(
@@ -356,5 +372,7 @@ object RpcMethods {
             CONNECTORS_POLICY_GET,
             CONNECTORS_POLICY_SET,
             CONNECTORS_TOOLS,
+            CONNECTION_RESPOND,
+            CONNECTORS_OPERATION_WAKE,
         )
 }

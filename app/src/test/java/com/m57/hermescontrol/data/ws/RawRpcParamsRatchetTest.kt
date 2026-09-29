@@ -309,10 +309,9 @@ class RawRpcParamsRatchetTest {
         }
 
         /**
-         * Multiset of remaining unmigrated raw RPC call sites in `app/src/main/java/com/m57/hermescontrol/`.
-         * Excludes `data/ws/HermesWsClient.kt::SESSION_EVENTS_SINCE` which is migrated to typed `RpcMethods`.
-         * Notice HermesWsClient.kt retains its other raw uses: `CLIENT_CAPABILITIES`, `PROMPT_SUBMIT`,
-         * and `SESSION_REDIRECT`.
+         * Multiset of remaining raw RPC call sites for contract methods in `app/src/main/java/com/m57/hermescontrol/`.
+         * Empty: every contract method goes through `RpcMethods`. Keep it empty; new contract methods must be typed.
+         * The untyped `request`/`send` stay module-internal for `gateway.ping` and the legacy `*.respond` fallbacks.
          */
         val BASELINE: List<String> = emptyList()
     }

@@ -800,8 +800,11 @@ object HermesWsClient {
      * The deferred is completed on the matching [WsEvent.RpcResult] /
      * [WsEvent.RpcError], rejected after [timeoutMs] (no response), or
      * rejected by [rejectAllPending] when the socket closes.
+     *
+     * Untyped escape hatch, module-internal on purpose: gateway methods in the contract go through
+     * [call] / [requestTyped] with an `RpcMethods` descriptor. Only `gateway.ping` and tests use this.
      */
-    fun request(
+    internal fun request(
         method: String,
         params: Map<String, Any> = emptyMap(),
         timeoutMs: Long = REQUEST_TIMEOUT_MS,
@@ -975,9 +978,12 @@ object HermesWsClient {
 
     /**
      * Send a JSON-RPC request with the given [method] and optional [params].
+     *
+     * Untyped escape hatch, module-internal on purpose: contract methods use the typed [send] overload.
+     * Kept for the legacy `*.respond` fallbacks (clarify, sudo, secret, vault) that have no contract entry.
      * @return the request id used (can be matched against [WsEvent.RpcResult]).
      */
-    fun send(
+    internal fun send(
         method: String,
         params: Map<String, Any> = emptyMap(),
         onSent: ((String) -> Unit)? = null,

@@ -137,6 +137,21 @@ explicitly disconnected on logout and reconnected after login:
 The singleton's `connect()` has a guard (`if connected → skip`) so it's safe to
 call unconditionally.
 
+### Typed Gateway RPC
+
+Every gateway method in the contract (`app/src/test/resources/gateway-contract/openrpc.json`) is called through a
+typed descriptor: `HermesWsClient.call(RpcMethods.X, params)` (suspending), `requestTyped(...)`, or the typed
+`send(RpcMethods.X, params, onSent)`. Params are `@Serializable` classes under `data/ws/contract/`; results are
+`JsonElement` passthrough or typed. To add a method: add the params class, register it in `RpcMethods` (and
+`RpcMethods.all`), and `GatewayContractTest` checks it against the contract.
+
+- The untyped `request(String, Map)` / `send(String, Map)` are `internal`. Use them only for `gateway.ping` and the
+  legacy `*.respond` fallbacks (`clarify`, `sudo`, `secret`, `vault.*`) that have no contract entry.
+- Optional params are `T? = null`: the client Json has `encodeDefaults = false`, so unset fields are omitted and an
+  explicit `false`/`""` is still sent. Do not add a `profile` field unless callers pass an explicit override;
+  `WsProfileParams.decorate` injects it for profile-scoped methods.
+- `RawRpcParamsRatchetTest.BASELINE` must stay empty.
+
 ### Shared Components
 
 - **`HermesScaffold`** — drawer-aware Scaffold + TopAppBar with refresh slot,

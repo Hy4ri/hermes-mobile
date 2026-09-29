@@ -16,7 +16,9 @@ import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.data.ws.HermesWsClient
-import com.m57.hermescontrol.data.ws.WsMethods
+import com.m57.hermescontrol.data.ws.contract.ProfilesConfigureParams
+import com.m57.hermescontrol.data.ws.contract.ProfilesListParams
+import com.m57.hermescontrol.data.ws.contract.RpcMethods
 import com.m57.hermescontrol.data.ws.toJsonElement
 import com.m57.hermescontrol.ui.common.ToastHost
 import kotlinx.coroutines.CoroutineDispatcher
@@ -29,6 +31,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.decodeFromJsonElement
 
@@ -243,14 +247,8 @@ class BotsViewModel(
                 // First try fetching profiles via WebSocket RPC (profiles.list) which includes ui_meta (groups, custom avatars).
                 var profilesWithMeta: List<ProfileInfo>? = null
                 try {
-                    val rpcResult = HermesWsClient.request(WsMethods.PROFILES_LIST).await()
-                    val jsonElement =
-                        when (rpcResult) {
-                            is JsonElement -> rpcResult
-                            null -> null
-                            else -> rpcResult.toJsonElement()
-                        }
-                    if (jsonElement != null) {
+                    val jsonElement = HermesWsClient.call(RpcMethods.PROFILES_LIST, ProfilesListParams)
+                    if (jsonElement !is JsonNull) {
                         val resp = OkHttpProvider.json.decodeFromJsonElement<ProfilesResponse>(jsonElement)
                         if (!resp.profiles.isNullOrEmpty()) {
                             profilesWithMeta = resp.profiles
@@ -362,7 +360,13 @@ class BotsViewModel(
                             ),
                     )
                 val botSoul = composeBotSoul(name, title, description)
-                wsClientConfigureBot(name, botMeta, soul = botSoul)
+                // Fire-and-forget as before: the metadata write never gated the reload or onSuccess.
+                launch {
+                    try {
+                        wsClientConfigureBot(name, botMeta, soul = botSoul)
+                    } catch (_: Exception) {
+                    }
+                }
                 loadBots()
                 onSuccess()
             } else {
@@ -396,7 +400,7 @@ class BotsViewModel(
                         ),
                 )
             try {
-                wsClientConfigureBot(name, updatedMeta).await()
+                wsClientConfigureBot(name, updatedMeta)
             } catch (_: Exception) {
             }
             loadBots()
@@ -440,7 +444,7 @@ class BotsViewModel(
                             group = existingGroups.firstOrNull() ?: groupName,
                         )
                     try {
-                        wsClientConfigureBot(name, updatedMeta).await()
+                        wsClientConfigureBot(name, updatedMeta)
                     } catch (_: Exception) {
                     }
                 }
@@ -475,14 +479,13 @@ class BotsViewModel(
                             rooms = updatedRooms,
                             deleted = updatedDeleted,
                         )
-                    HermesWsClient
-                        .request(
-                            WsMethods.PROFILES_CONFIGURE,
-                            mapOf(
-                                "name" to defaultProfile.name,
-                                "ui_meta" to mapOf("hermes-bots-groups" to newSnapshot.toMap()),
-                            ),
-                        ).await()
+                    HermesWsClient.call(
+                        RpcMethods.PROFILES_CONFIGURE,
+                        ProfilesConfigureParams(
+                            name = defaultProfile.name,
+                            uiMeta = mapOf("hermes-bots-groups" to newSnapshot.toMap()).toJsonObject(),
+                        ),
+                    )
                 }
             } catch (_: Exception) {
             }
@@ -509,7 +512,7 @@ class BotsViewModel(
                             group = filtered.firstOrNull(),
                         )
                     try {
-                        wsClientConfigureBot(bot.name, updatedMeta).await()
+                        wsClientConfigureBot(bot.name, updatedMeta)
                     } catch (_: Exception) {
                     }
                 }
@@ -540,14 +543,13 @@ class BotsViewModel(
                                 rooms = updatedRooms,
                                 deleted = deletedMap,
                             )
-                        HermesWsClient
-                            .request(
-                                WsMethods.PROFILES_CONFIGURE,
-                                mapOf(
-                                    "name" to defaultProfile.name,
-                                    "ui_meta" to mapOf("hermes-bots-groups" to newSnapshot.toMap()),
-                                ),
-                            ).await()
+                        HermesWsClient.call(
+                            RpcMethods.PROFILES_CONFIGURE,
+                            ProfilesConfigureParams(
+                                name = defaultProfile.name,
+                                uiMeta = mapOf("hermes-bots-groups" to newSnapshot.toMap()).toJsonObject(),
+                            ),
+                        )
                     }
                 }
             } catch (_: Exception) {
@@ -575,11 +577,11 @@ class BotsViewModel(
         return lines.joinToString("\n")
     }
 
-    private fun wsClientConfigureBot(
+    private suspend fun wsClientConfigureBot(
         name: String,
         meta: BotRosterMeta,
         soul: String? = null,
-    ): kotlinx.coroutines.CompletableDeferred<Any?> {
+    ) {
         val metaMap =
             buildMap<String, Any> {
                 meta.title?.let { put("title", it) }
@@ -599,16 +601,15 @@ class BotsViewModel(
                 }
             }
 
-        val params =
-            buildMap<String, Any> {
-                put("name", name)
-                put("ui_meta", mapOf("hermes-bots" to metaMap))
-                soul?.let { put("soul", it) }
-            }
-
-        return HermesWsClient.request(
-            WsMethods.PROFILES_CONFIGURE,
-            params,
+        HermesWsClient.call(
+            RpcMethods.PROFILES_CONFIGURE,
+            ProfilesConfigureParams(
+                name = name,
+                uiMeta = mapOf("hermes-bots" to metaMap).toJsonObject(),
+                soul = soul,
+            ),
         )
     }
+
+    private fun Map<String, Any?>.toJsonObject(): JsonObject = toJsonElement() as JsonObject
 }

@@ -3,6 +3,12 @@ package com.m57.hermescontrol.data.ws
 import com.m57.hermescontrol.data.model.ConnectorConnectResult
 import com.m57.hermescontrol.data.model.ConnectorError
 import com.m57.hermescontrol.data.model.ConnectorListResult
+import com.m57.hermescontrol.data.ws.contract.ConnectorOwner
+import com.m57.hermescontrol.data.ws.contract.ConnectorsConnectParams
+import com.m57.hermescontrol.data.ws.contract.ConnectorsListParams
+import com.m57.hermescontrol.data.ws.contract.HermesRpcCaller
+import com.m57.hermescontrol.data.ws.contract.RpcMethods
+import com.m57.hermescontrol.data.ws.contract.TypedRpcCaller
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -42,19 +48,7 @@ interface ConnectorRepository {
  * Default implementation of [ConnectorRepository] backed by [HermesWsClient].
  */
 class HermesConnectorRepository(
-    private val rpcRequest: suspend (method: String, params: Map<String, Any>) -> Any? = { method, params ->
-        val deferred = HermesWsClient.request(method, params)
-        try {
-            deferred.await()
-        } catch (e: CancellationException) {
-            deferred.cancel(e)
-            throw e
-        } finally {
-            if (!deferred.isCompleted) {
-                deferred.cancel()
-            }
-        }
-    },
+    private val caller: TypedRpcCaller = HermesRpcCaller,
 ) : ConnectorRepository {
     override suspend fun listConnectors(sessionId: String): ConnectorListResult {
         if (sessionId.isBlank()) {
@@ -64,8 +58,8 @@ class HermesConnectorRepository(
         }
 
         return try {
-            val params = mapOf("owner" to ConnectorRepository.sessionOwner(sessionId))
-            val result = rpcRequest(WsMethods.CONNECTORS_LIST, params)
+            val params = ConnectorsListParams(owner = ConnectorOwner.session(sessionId))
+            val result = caller.call(RpcMethods.CONNECTORS_LIST, params)
             ConnectorParser.parseListResult(result)
         } catch (e: CancellationException) {
             throw e
@@ -107,12 +101,12 @@ class HermesConnectorRepository(
 
         return try {
             val params =
-                mapOf(
-                    "owner" to ConnectorRepository.sessionOwner(sessionId),
-                    "connectors" to connectors,
-                    "reconnect" to reconnect,
+                ConnectorsConnectParams(
+                    owner = ConnectorOwner.session(sessionId),
+                    connectors = connectors,
+                    reconnect = reconnect,
                 )
-            val result = rpcRequest(WsMethods.CONNECTORS_CONNECT, params)
+            val result = caller.call(RpcMethods.CONNECTORS_CONNECT, params)
             ConnectorParser.parseConnectResult(result)
         } catch (e: CancellationException) {
             throw e

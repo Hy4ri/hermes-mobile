@@ -316,17 +316,6 @@ class RawRpcParamsRatchetTest {
          */
         val BASELINE: List<String> =
             listOf(
-                "data/ws/AccountConnectorRepository.kt::CONNECTORS_ACCOUNTS",
-                "data/ws/AccountConnectorRepository.kt::CONNECTORS_ACCOUNTS_REMOVE",
-                "data/ws/AccountConnectorRepository.kt::CONNECTORS_CATALOG",
-                "data/ws/AccountConnectorRepository.kt::CONNECTORS_CONNECT",
-                "data/ws/AccountConnectorRepository.kt::CONNECTORS_LIST",
-                "data/ws/AccountConnectorRepository.kt::CONNECTORS_OPERATION_STATUS",
-                "data/ws/AccountConnectorRepository.kt::CONNECTORS_POLICY_GET",
-                "data/ws/AccountConnectorRepository.kt::CONNECTORS_POLICY_SET",
-                "data/ws/AccountConnectorRepository.kt::CONNECTORS_TOOLS",
-                "data/ws/ConnectorRepository.kt::CONNECTORS_CONNECT",
-                "data/ws/ConnectorRepository.kt::CONNECTORS_LIST",
                 "data/ws/HermesWsClient.kt::CLIENT_CAPABILITIES",
                 "data/ws/ModelOptionsRepository.kt::MODEL_OPTIONS",
                 "data/ws/PluginManageRepository.kt::PLUGINS_MANAGE",

@@ -379,6 +379,22 @@ object RpcMethods {
             JsonElement.serializer(),
         )
 
+    // Passthrough JsonElement results: callers keep their existing legacy decoders.
+    val PROFILES_LIST: RpcMethod<ProfilesListParams, JsonElement> =
+        RpcMethod(
+            WsMethods.PROFILES_LIST,
+            ProfilesListParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    // Passthrough JsonElement results: callers keep their existing legacy decoders.
+    val PROFILES_CONFIGURE: RpcMethod<ProfilesConfigureParams, JsonElement> =
+        RpcMethod(
+            WsMethods.PROFILES_CONFIGURE,
+            ProfilesConfigureParams.serializer(),
+            JsonElement.serializer(),
+        )
+
     /** Every typed method. GatewayContractTest iterates this; future migrations append here. */
     val all: List<RpcMethod<*, *>> =
         listOf(
@@ -428,5 +444,7 @@ object RpcMethods {
             PROCESS_KILL,
             PLUGINS_MANAGE,
             PROJECTS_LIST,
+            PROFILES_LIST,
+            PROFILES_CONFIGURE,
         )
 }

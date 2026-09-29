@@ -342,8 +342,6 @@ class RawRpcParamsRatchetTest {
                 "ui/chat/ChatViewModel.kt::FILE_ATTACH",
                 "ui/chat/ChatViewModel.kt::IMAGE_ATTACH_BYTES",
                 "ui/chat/ChatViewModel.kt::SLASH_EXEC",
-                "ui/process/ProcessesViewModel.kt::PROCESS_KILL",
-                "ui/process/ProcessesViewModel.kt::PROCESS_LIST",
             )
     }
 }

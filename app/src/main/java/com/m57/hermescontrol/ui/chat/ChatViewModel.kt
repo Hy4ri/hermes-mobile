@@ -461,8 +461,16 @@ class ChatViewModel(
     constructor(application: Application) : this(application, startCleanup = true)
 
     private val connectionOperationDelegate =
-        ChatConnectionOperationDelegate { method, params ->
-            HermesWsClient.request(method, params).await()
+        ChatConnectionOperationDelegate { action ->
+            when (action) {
+                is ConnectionOperationRequest.Respond -> {
+                    HermesWsClient.call(RpcMethods.CONNECTION_RESPOND, action.params)
+                }
+
+                is ConnectionOperationRequest.Wake -> {
+                    HermesWsClient.call(RpcMethods.CONNECTORS_OPERATION_WAKE, action.params)
+                }
+            }
         }
 
     // ── Internal state ───────────────────────────────────────────────────

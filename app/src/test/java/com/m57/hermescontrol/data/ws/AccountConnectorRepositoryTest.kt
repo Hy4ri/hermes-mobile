@@ -3,6 +3,10 @@ package com.m57.hermescontrol.data.ws
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.AccountConnectorResult
 import com.m57.hermescontrol.data.model.ConnectorTool
+import com.m57.hermescontrol.data.ws.contract.ConnectionAnswer
+import com.m57.hermescontrol.data.ws.contract.ConnectionRespondParams
+import com.m57.hermescontrol.data.ws.contract.ConnectorOwner
+import com.m57.hermescontrol.data.ws.contract.ConnectorsOperationStatusParams
 import io.mockk.every
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
@@ -62,14 +66,19 @@ class AccountConnectorRepositoryTest {
                     operationFixture()
                 }
             repo.operationStatus("op-a")
-            repo.operationRequest(
-                WsMethods.CONNECTION_RESPOND,
-                mapOf(
-                    "op_id" to "op-a",
-                    "result" to mapOf("settled_by" to "continue"),
+            repo.operationRespond(
+                ConnectionRespondParams(
+                    owner = ConnectorOwner.account(),
+                    opId = "op-a",
+                    result = ConnectionAnswer(settledBy = "continue"),
                 ),
             )
-            repo.operationRequest(WsMethods.CONNECTORS_OPERATION_WAKE, mapOf("op_id" to "op-a"))
+            repo.operationWake(
+                ConnectorsOperationStatusParams(
+                    owner = ConnectorOwner.account(),
+                    opId = "op-a",
+                ),
+            )
             assertEquals(
                 listOf(
                     WsMethods.CONNECTORS_OPERATION_STATUS,
@@ -86,6 +95,23 @@ class AccountConnectorRepositoryTest {
                 assertEquals("op-a", params["op_id"])
                 assertFalse("session_id" in params)
             }
+            assertEquals(
+                mapOf(
+                    "owner" to mapOf("type" to "account"),
+                    "op_id" to "op-a",
+                    "result" to mapOf("settled_by" to "continue"),
+                    "profile" to "work",
+                ),
+                calls[1].second,
+            )
+            assertEquals(
+                mapOf(
+                    "owner" to mapOf("type" to "account"),
+                    "op_id" to "op-a",
+                    "profile" to "work",
+                ),
+                calls[2].second,
+            )
         }
 
     @Test fun `catalog accounts tools and removal use native account endpoints`() =
@@ -213,7 +239,7 @@ class AccountConnectorRepositoryTest {
         }
 
     private fun accountRepo(handler: suspend (String, Map<String, Any>) -> Any?) =
-        HermesAccountConnectorRepository(rpc = handler, caller = fakeCaller(handler))
+        HermesAccountConnectorRepository(caller = fakeCaller(handler))
 
     private fun operationFixture() =
         mapOf(

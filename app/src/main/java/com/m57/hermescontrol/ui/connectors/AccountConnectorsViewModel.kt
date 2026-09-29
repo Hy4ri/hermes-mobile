@@ -14,6 +14,7 @@ import com.m57.hermescontrol.data.ws.AccountConnectorRepository
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.ui.chat.ChatConnectionOperationDelegate
+import com.m57.hermescontrol.ui.chat.ConnectionOperationRequest
 import com.m57.hermescontrol.ui.chat.ConnectionOperationRequester
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -51,7 +52,13 @@ class AccountConnectorsViewModel(
     private val scopedJobs = mutableListOf<Job>()
     private val operation =
         ChatConnectionOperationDelegate(
-            requester = ConnectionOperationRequester(repository::operationRequest),
+            requester =
+                ConnectionOperationRequester { action ->
+                    when (action) {
+                        is ConnectionOperationRequest.Respond -> repository.operationRespond(action.params)
+                        is ConnectionOperationRequest.Wake -> repository.operationWake(action.params)
+                    }
+                },
             accountOwned = true,
         )
     val connectionState = operation.state

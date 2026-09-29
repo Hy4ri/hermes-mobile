@@ -448,7 +448,7 @@ class ChatSubagentsDelegateTest {
                         ),
                 )
 
-            coEvery { mockRepository.tailSubagent("session-123", "sub-1", 16384) } returnsMany
+            coEvery { mockRepository.tailSubagent("session-123", "sub-1") } returnsMany
                 listOf(
                     SubagentTailResponse(subagentId = "sub-1", text = "Line 1\n", truncated = false),
                     SubagentTailResponse(subagentId = "sub-1", text = "Line 1\nLine 2\n", truncated = false),
@@ -485,7 +485,7 @@ class ChatSubagentsDelegateTest {
                         ),
                 )
 
-            coEvery { mockRepository.tailSubagent("session-123", "sub-1", 16384) } returns
+            coEvery { mockRepository.tailSubagent("session-123", "sub-1") } returns
                 SubagentTailResponse(subagentId = "sub-1", text = "Finished output", truncated = false)
 
             delegate.inspectSubagentTranscript("sub-1")
@@ -507,7 +507,7 @@ class ChatSubagentsDelegateTest {
 
             advanceTimeBy(3000)
             // Verify tailSubagent was called at most once or twice, not indefinitely
-            coVerify(atMost = 2) { mockRepository.tailSubagent("session-123", "sub-1", 16384) }
+            coVerify(atMost = 2) { mockRepository.tailSubagent("session-123", "sub-1") }
             delegate.closeSubagentTranscript()
         }
 
@@ -526,7 +526,7 @@ class ChatSubagentsDelegateTest {
                         ),
                 )
 
-            coEvery { mockRepository.tailSubagent("session-123", "sub-1", 16384) } returns
+            coEvery { mockRepository.tailSubagent("session-123", "sub-1") } returns
                 SubagentTailResponse(subagentId = "sub-1", text = "Output")
 
             delegate.inspectSubagentTranscript("sub-1")
@@ -553,7 +553,7 @@ class ChatSubagentsDelegateTest {
                         ),
                 )
 
-            coEvery { mockRepository.tailSubagent("session-123", "sub-1", 16384) } throws
+            coEvery { mockRepository.tailSubagent("session-123", "sub-1") } throws
                 RuntimeException("Gateway connection error")
 
             delegate.inspectSubagentTranscript("sub-1")
@@ -565,7 +565,7 @@ class ChatSubagentsDelegateTest {
             assertFalse(transcript?.isLoading == true)
 
             // Now recover on retry
-            coEvery { mockRepository.tailSubagent("session-123", "sub-1", 16384) } returns
+            coEvery { mockRepository.tailSubagent("session-123", "sub-1") } returns
                 SubagentTailResponse(subagentId = "sub-1", text = "Recovered logs")
 
             delegate.retryTranscript()

@@ -55,17 +55,14 @@ object SubagentRepository {
     suspend fun tailSubagent(
         sessionId: String,
         subagentId: String,
-        maxBytes: Int = 16384,
     ): SubagentTailResponse? {
-        if (subagentId.isBlank()) return null
+        // Contract (SubagentIdParams): session_id and subagent_id are required, extra keys forbidden (#1379).
+        if (subagentId.isBlank() || sessionId.isBlank()) return null
         val params =
-            mutableMapOf<String, Any>(
+            mapOf<String, Any>(
+                "session_id" to sessionId,
                 "subagent_id" to subagentId,
-                "max_bytes" to maxBytes,
             )
-        if (sessionId.isNotBlank()) {
-            params["session_id"] = sessionId
-        }
         val result =
             HermesWsClient
                 .request(

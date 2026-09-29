@@ -112,6 +112,15 @@ We enforce Kotlin coding conventions and Jetpack Compose best practices.
 - Mock time/dispatchers explicitly (`StandardTestDispatcher` + `Dispatchers.setMain`), restore `Dispatchers.Main` in teardown, and cancel test-owned scopes. Follow neighboring tests for the affected component.
 - For UI changes, exercise the changed flow on a device or emulator and record the behavior observed. A built or downloaded CI APK alone is not behavioral verification. If device verification is unavailable, state that gate explicitly rather than marking it passed.
 
+
+### Gateway contract snapshot
+
+`GatewayContractTest` checks `WsMethods`, handled server requests and literal param keys against a vendored copy of
+hermes-agent's `gateway-contract.openrpc.json` (`app/src/test/resources/gateway-contract/`, provenance in `SOURCE`).
+It is test-only. Refresh it with `scripts/sync-gateway-contract.sh [ref]`, then run
+`./gradlew testDebugUnitTest --tests '*GatewayContract*'` and review the diff. Allowlist exceptions need a reason in
+`GatewayContractAllowlist`.
+
 ---
 
 ## Dependency & Build Hygiene

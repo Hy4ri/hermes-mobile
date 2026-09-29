@@ -13,6 +13,7 @@ import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.contract.PromptSubmitParams
 import com.m57.hermescontrol.data.ws.contract.RpcMethod
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
+import com.m57.hermescontrol.data.ws.contract.SessionCorrectionParams
 import com.m57.hermescontrol.data.ws.contract.SessionEventsSinceParams
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -1115,8 +1116,12 @@ object HermesWsClient {
         onSent: ((String) -> Unit)? = null,
     ): String =
         send(
-            method = WsMethods.SESSION_REDIRECT,
-            params = mapOf("session_id" to sessionId, "text" to text),
+            method = RpcMethods.SESSION_REDIRECT,
+            params =
+                SessionCorrectionParams(
+                    sessionId = sessionId,
+                    text = text,
+                ),
             onSent = onSent,
         )
 

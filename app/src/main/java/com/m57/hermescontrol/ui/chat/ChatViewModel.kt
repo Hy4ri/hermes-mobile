@@ -37,6 +37,9 @@ import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.JsonRpcError
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
+import com.m57.hermescontrol.data.ws.contract.RpcMethods
+import com.m57.hermescontrol.data.ws.contract.SessionCorrectionParams
+import com.m57.hermescontrol.data.ws.contract.SessionInterruptParams
 import com.m57.hermescontrol.data.ws.toAny
 import com.m57.hermescontrol.data.ws.toJsonElement
 import com.m57.hermescontrol.notification.ReplyNotificationTracker
@@ -2454,8 +2457,8 @@ class ChatViewModel(
                         deleteSnapshotOnRollback = true,
                     ) {
                         wsClient.send(
-                            WsMethods.SESSION_INTERRUPT,
-                            mapOf("session_id" to owner.agentSessionId),
+                            RpcMethods.SESSION_INTERRUPT,
+                            SessionInterruptParams(owner.agentSessionId),
                             onSent = { id -> trackHardInterrupt(id, staged.id, owner, reservation.mainTurnEpoch) },
                         )
                     }
@@ -2821,8 +2824,8 @@ class ChatViewModel(
                     deleteSnapshotOnRollback = false,
                 ) {
                     wsClient.send(
-                        WsMethods.SESSION_INTERRUPT,
-                        mapOf("session_id" to owner.agentSessionId),
+                        RpcMethods.SESSION_INTERRUPT,
+                        SessionInterruptParams(owner.agentSessionId),
                         onSent = { requestId -> trackHardInterrupt(requestId, id, owner, interruptedTurnEpoch) },
                     )
                 }
@@ -3043,8 +3046,8 @@ class ChatViewModel(
             viewModelScope.launch {
                 commitReceiptAndEnqueue(owner, receipt, null, deleteSnapshotOnRollback = false) {
                     wsClient.send(
-                        WsMethods.SESSION_INTERRUPT,
-                        mapOf("session_id" to owner.agentSessionId),
+                        RpcMethods.SESSION_INTERRUPT,
+                        SessionInterruptParams(owner.agentSessionId),
                         onSent = { id -> trackHardInterrupt(id, userMessage.id, owner, interruptedTurnEpoch) },
                     )
                 }
@@ -3437,8 +3440,8 @@ class ChatViewModel(
                         if (mode == BusySendMode.GUIDE) {
                             enqueueOwned {
                                 wsClient.send(
-                                    WsMethods.SESSION_STEER,
-                                    mapOf("session_id" to owner.agentSessionId, "text" to fullText),
+                                    RpcMethods.SESSION_STEER,
+                                    SessionCorrectionParams(owner.agentSessionId, fullText),
                                     onSent = { id ->
                                         trackOutgoingRequest(
                                             id,
@@ -4328,8 +4331,8 @@ class ChatViewModel(
         }
         viewModelScope.launch(ioDispatcher) {
             wsClient.send(
-                WsMethods.SESSION_INTERRUPT,
-                mapOf("session_id" to sessionId),
+                RpcMethods.SESSION_INTERRUPT,
+                SessionInterruptParams(sessionId),
                 onSent = { id -> trackRequest(id, WsMethods.SESSION_INTERRUPT) },
             )
         }

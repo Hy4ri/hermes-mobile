@@ -6343,7 +6343,13 @@ class ChatViewModelTest {
             viewModel.interruptSession()
             advanceUntilIdle()
 
-            verify { HermesWsClient.send(WsMethods.SESSION_INTERRUPT, mapOf("session_id" to sessionId), any()) }
+            verify {
+                HermesWsClient.send(
+                    WsMethods.SESSION_INTERRUPT,
+                    match { it["session_id"] == JsonPrimitive(sessionId) && it.size == 1 },
+                    any(),
+                )
+            }
         }
 
     @Test

@@ -103,9 +103,9 @@ object GatewayContract {
             }
         }
 
-        // `profile` may be omitted only where WsProfileParams.decorate guarantees transport injection.
-        val transportInjected = if (method in WsMethods.PROFILE_SCOPED_METHODS) setOf("profile") else emptySet()
-        val missingRequired = required.filter { it !in elementNames && it !in transportInjected }
+        // No exemptions: decorate() skips injection when no profile is active, so a required `profile`
+        // must be declared like any other required param.
+        val missingRequired = required.filter { it !in elementNames }
         for (missing in missingRequired) {
             problems += "$method: missing required param '$missing'"
         }

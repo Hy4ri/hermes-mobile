@@ -981,9 +981,7 @@ object HermesWsClient {
         method: RpcMethod<P, R>,
         params: P,
         onSent: ((String) -> Unit)? = null,
-    ): String {
-        return send(method.name, encodeParams(method, params), onSent)
-    }
+    ): String = send(method.name, encodeParams(method, params), onSent)
 
     private fun send(
         method: String,

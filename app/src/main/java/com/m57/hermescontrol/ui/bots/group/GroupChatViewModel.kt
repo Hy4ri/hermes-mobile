@@ -20,6 +20,7 @@ import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.data.ws.contract.PromptSubmitParams
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
 import com.m57.hermescontrol.data.ws.contract.SessionCreateParams
+import com.m57.hermescontrol.data.ws.contract.SessionInterruptParams
 import com.m57.hermescontrol.data.ws.toJsonElement
 import com.m57.hermescontrol.ui.chat.tool.ToolResultSummary
 import kotlinx.coroutines.CompletableDeferred
@@ -909,8 +910,8 @@ class GroupChatViewModel(
         for (sid in activeSessions.distinct()) {
             try {
                 HermesWsClient.send(
-                    WsMethods.SESSION_INTERRUPT,
-                    mapOf("session_id" to sid),
+                    RpcMethods.SESSION_INTERRUPT,
+                    SessionInterruptParams(sid),
                 )
             } catch (e: Exception) {
                 Log.w("GroupChatViewModel", "Failed to send interrupt for session $sid: ${e.message}")

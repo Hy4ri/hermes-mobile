@@ -38,6 +38,27 @@ object RpcMethods {
             PromptSubmitResult.serializer(),
         )
 
+    val SESSION_INTERRUPT: RpcMethod<SessionInterruptParams, SessionInterruptResult> =
+        RpcMethod(
+            WsMethods.SESSION_INTERRUPT,
+            SessionInterruptParams.serializer(),
+            SessionInterruptResult.serializer(),
+        )
+
+    val SESSION_STEER: RpcMethod<SessionCorrectionParams, SessionCorrectionResult> =
+        RpcMethod(
+            WsMethods.SESSION_STEER,
+            SessionCorrectionParams.serializer(),
+            SessionCorrectionResult.serializer(),
+        )
+
+    val SESSION_REDIRECT: RpcMethod<SessionCorrectionParams, SessionCorrectionResult> =
+        RpcMethod(
+            WsMethods.SESSION_REDIRECT,
+            SessionCorrectionParams.serializer(),
+            SessionCorrectionResult.serializer(),
+        )
+
     /** Every typed method. GatewayContractTest iterates this; future migrations append here. */
     val all: List<RpcMethod<*, *>> =
         listOf(
@@ -45,5 +66,8 @@ object RpcMethods {
             SESSION_CREATE,
             SESSION_RESUME,
             PROMPT_SUBMIT,
+            SESSION_INTERRUPT,
+            SESSION_STEER,
+            SESSION_REDIRECT,
         )
 }

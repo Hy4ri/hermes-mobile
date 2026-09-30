@@ -125,6 +125,7 @@ fun ChatInputBar(
     onMicLock: () -> Unit = {},
     isVoiceNoteLocked: Boolean = false,
     isRecordingVoice: Boolean = false,
+    amplitudeProvider: () -> Float = { 0f },
     onStopGeneration: () -> Unit = {},
 ) {
     // Allow sending while the agent is mid-turn or awaiting approval: the
@@ -440,6 +441,7 @@ fun ChatInputBar(
                                     slideProgress = voiceSlideProgress,
                                     locked = isVoiceNoteLocked,
                                     onCancel = onMicHoldCancel,
+                                    amplitude = amplitudeProvider,
                                     modifier = Modifier.matchParentSize(),
                                 )
                             }

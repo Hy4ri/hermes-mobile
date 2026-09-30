@@ -10,15 +10,19 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
@@ -26,9 +30,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -62,7 +69,9 @@ import kotlin.math.roundToInt
  * and forth, and slides left and fades as the gesture drags toward cancel
  * ([slideProgress] runs 1 → 0 across that drag). Once the gesture slides up to
  * lock, the hint is replaced by a bold tappable "CANCEL" and the action button
- * submits the note.
+ * submits the note. Behind the hint, a live mic-level meter (bars from the
+ * original #1250 build, restored) shows the recording level — louder speech
+ * makes the bars visibly climb; flat bars mean the mic hears silence.
  */
 @Composable
 internal fun VoiceNoteRecordingPanel(
@@ -70,6 +79,7 @@ internal fun VoiceNoteRecordingPanel(
     modifier: Modifier = Modifier,
     locked: Boolean = false,
     onCancel: () -> Unit = {},
+    amplitude: () -> Float = { 0f },
 ) {
     val palette = composerPalette()
     val density = LocalDensity.current
@@ -80,6 +90,19 @@ internal fun VoiceNoteRecordingPanel(
         while (true) {
             elapsedSeconds = (SystemClock.elapsedRealtime() - startedAt) / 1000
             delay(200)
+        }
+    }
+    // Level meter: rolling window of the last [VOICE_NOTE_BARS] samples. The
+    // provider emits at the 60 ms poll cadence with Telegram's smoothing
+    // already applied; equal values do not re-emit, so silence writes nothing
+    // (Compose stays idle for instrumented tests).
+    val levels = remember { mutableStateListOf<Float>() }
+    LaunchedEffect(Unit) {
+        snapshotFlow { amplitude() }.collect { level ->
+            levels.add(level)
+            while (levels.size > VOICE_NOTE_BARS) {
+                levels.removeAt(0)
+            }
         }
     }
     // Telegram blinks the record dot on a 1200 ms cycle.
@@ -126,6 +149,9 @@ internal fun VoiceNoteRecordingPanel(
             fontWeight = FontWeight.Bold,
             color = palette.placeholder,
         )
+        Spacer(modifier = Modifier.width(10.dp))
+        LevelMeter(levels = levels, tint = palette.placeholder)
+        Spacer(modifier = Modifier.weight(1f))
         BoxWithConstraints(
             modifier =
                 Modifier
@@ -171,6 +197,39 @@ internal fun VoiceNoteRecordingPanel(
         }
     }
 }
+
+/**
+ * The live mic-level meter from the original #1250 build: a row of small
+ * vertical bars, oldest left, newest right; each bar's height tracks its
+ * sample (4–22 dp). Silences stay flat, loud speech climbs — the immediate
+ * level feedback the blob could not give.
+ */
+@Composable
+private fun LevelMeter(
+    levels: SnapshotStateList<Float>,
+    tint: Color,
+) {
+    Row(
+        modifier = Modifier.height(22.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        val filler = VOICE_NOTE_BARS - levels.size
+        repeat(VOICE_NOTE_BARS) { index ->
+            val level = if (index < filler) 0f else levels[index - filler]
+            Box(
+                modifier =
+                    Modifier
+                        .width(3.dp)
+                        .height((4f + 18f * level).dp)
+                        .background(tint, RoundedCornerShape(2.dp)),
+            )
+        }
+    }
+}
+
+/** Number of level-meter bars in the recording panel. */
+private const val VOICE_NOTE_BARS = 14
 
 /** "Slide to cancel" with the cancel word carrying the visual emphasis. */
 @Composable

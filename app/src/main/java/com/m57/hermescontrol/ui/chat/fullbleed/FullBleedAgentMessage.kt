@@ -41,6 +41,7 @@ import com.m57.hermescontrol.ui.chat.InlineAttachment
 import com.m57.hermescontrol.ui.chat.MarkdownText
 import com.m57.hermescontrol.ui.chat.MessageSegment
 import com.m57.hermescontrol.ui.chat.TokenEstimator
+import com.m57.hermescontrol.ui.chat.components.MessageReactionChips
 import com.m57.hermescontrol.ui.chat.components.ReasoningCard
 import com.m57.hermescontrol.ui.chat.components.rememberCopyFeedback
 import com.m57.hermescontrol.ui.chat.splitByMedia
@@ -141,6 +142,10 @@ internal fun FullBleedAgentMessage(
                     Spacer(modifier = Modifier.height(6.dp))
                 }
             }
+        }
+
+        if (!message.isStreaming) {
+            MessageReactionChips(message.reactions, Modifier.padding(top = 2.dp))
         }
 
         if (!message.isStreaming && message.content.isNotBlank()) {

@@ -41,6 +41,7 @@ import com.m57.hermescontrol.ui.chat.UserBubble
 import com.m57.hermescontrol.ui.chat.components.ChatHistoryPrefetch
 import com.m57.hermescontrol.ui.chat.components.ChatScrollController
 import com.m57.hermescontrol.ui.chat.components.ClarifyBubble
+import com.m57.hermescontrol.ui.chat.components.MessageReactionChips
 import com.m57.hermescontrol.ui.chat.components.ReasoningCard
 import com.m57.hermescontrol.ui.chat.components.VaultCodeCard
 import com.m57.hermescontrol.ui.chat.components.VaultSaveLoginCard
@@ -311,6 +312,15 @@ fun FullBleedChatList(
                                             messageStatsEnabled = messageStatsEnabled,
                                             showUserMessageTokens = showUserMessageTokens,
                                         )
+                                        if (userMessage.reactions.isNotEmpty()) {
+                                            MessageReactionChips(
+                                                reactions = userMessage.reactions,
+                                                modifier =
+                                                    Modifier
+                                                        .align(Alignment.End)
+                                                        .padding(horizontal = 12.dp),
+                                            )
+                                        }
                                     }
                                 }
                             }

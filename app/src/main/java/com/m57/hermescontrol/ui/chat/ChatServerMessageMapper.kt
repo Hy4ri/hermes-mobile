@@ -274,6 +274,7 @@ internal fun mapServerMessages(
                 tokenCount = tokenCount,
                 completionId = completionId,
                 serverRowId = msg.id?.toLong()?.takeIf { it > 0L },
+                reactions = msg.reactions,
             ),
         )
     }

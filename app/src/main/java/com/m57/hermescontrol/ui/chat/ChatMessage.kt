@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.ui.chat
 
 import com.m57.hermescontrol.data.model.Attachment
+import com.m57.hermescontrol.data.model.MessageReaction
 import java.util.UUID
 
 /**
@@ -113,6 +114,8 @@ data class ChatMessage(
      * Scoped to the owning profile store; transient.
      */
     val serverRowId: Long? = null,
+    /** Emoji tapbacks on this message (REST `display_metadata` or live `message.reaction`); transient. */
+    val reactions: List<MessageReaction> = emptyList(),
 )
 
 /** Cached REST rows already carry their canonical identity in the persisted primary key. */

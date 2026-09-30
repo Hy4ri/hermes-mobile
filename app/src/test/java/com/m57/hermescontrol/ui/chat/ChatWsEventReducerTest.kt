@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.chat
 
+import com.m57.hermescontrol.data.model.MessageReaction
 import com.m57.hermescontrol.data.model.UsageSnapshotResponse
 import com.m57.hermescontrol.data.ws.WsEvent
 import org.junit.Assert.assertEquals
@@ -1641,5 +1642,61 @@ class ChatWsEventReducerTest {
         assertFalse(result.state.isCompressing)
         assertEquals("idle", result.state.compressionStatus)
         assertEquals(initialMessages, result.state.messages)
+    }
+
+    @Test
+    fun messageReactionPaintsOnlyTheRowWithTheMatchingServerId() {
+        val target = ChatMessage(id = "a", role = MessageRole.USER, content = "hi", serverRowId = 7L)
+        val other = ChatMessage(id = "b", role = MessageRole.ASSISTANT, content = "yo", serverRowId = 8L)
+        val state = ChatUiState(currentSessionId = "s", messages = listOf(target, other))
+        val reactions = listOf(MessageReaction("\u2764\uFE0F", "agent"))
+        val result =
+            ChatWsEventReducer.reduce(
+                state,
+                StreamingState(),
+                WsEvent.MessageReactionUpdated(7L, reactions, "user", "s"),
+                "s",
+            )
+        assertEquals(reactions, result.state.messages[0].reactions)
+        assertTrue(
+            result.state.messages[1]
+                .reactions
+                .isEmpty(),
+        )
+        val retracted =
+            ChatWsEventReducer.reduce(
+                result.state,
+                result.streamingState,
+                WsEvent.MessageReactionUpdated(7L, emptyList(), "user", "s"),
+                "s",
+            )
+        assertTrue(
+            retracted.state.messages[0]
+                .reactions
+                .isEmpty(),
+        )
+    }
+
+    @Test
+    fun messageReactionForUnknownRowOrOtherSessionIsIgnored() {
+        val msg = ChatMessage(id = "a", role = MessageRole.USER, content = "hi", serverRowId = 7L)
+        val state = ChatUiState(currentSessionId = "s", messages = listOf(msg))
+        val reactions = listOf(MessageReaction("\uD83D\uDC4D", "agent"))
+        val unknownRow =
+            ChatWsEventReducer.reduce(
+                state,
+                StreamingState(),
+                WsEvent.MessageReactionUpdated(99L, reactions, "user", "s"),
+                "s",
+            )
+        assertEquals(state, unknownRow.state)
+        val otherSession =
+            ChatWsEventReducer.reduce(
+                state,
+                StreamingState(),
+                WsEvent.MessageReactionUpdated(7L, reactions, "user", "zzz"),
+                "s",
+            )
+        assertEquals(state, otherSession.state)
     }
 }

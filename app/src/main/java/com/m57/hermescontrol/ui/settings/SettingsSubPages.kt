@@ -241,6 +241,8 @@ internal fun SettingsBehaviorPage(
                 onAutoReconnectChange = viewModel::onAutoReconnectChange,
                 keepConnectedInBackground = state.keepConnectedInBackground,
                 onKeepConnectedInBackgroundChange = viewModel::onKeepConnectedInBackgroundChange,
+                notifySessionCompletions = state.notifySessionCompletions,
+                onNotifySessionCompletionsChange = viewModel::onNotifySessionCompletionsChange,
                 restoreLastSession = state.restoreLastSession,
                 onRestoreLastSessionChange = viewModel::onRestoreLastSessionChange,
             )

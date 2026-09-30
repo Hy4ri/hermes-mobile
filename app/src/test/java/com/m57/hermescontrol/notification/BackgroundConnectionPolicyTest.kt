@@ -250,4 +250,46 @@ class BackgroundConnectionPolicyTest {
         assertTrue(decision.shouldHoldPersistentLease)
         assertEquals(BackgroundNotificationState.Connecting, decision.notificationState)
     }
+
+    // ── Session-completion notify opt-in (implies the keep-connected lease) ──
+
+    @Test
+    fun testBackground_notifyCompletionsOn_alone_holdsServiceAndLease() {
+        val state =
+            BackgroundConnectionSnapshot(
+                appInForeground = false,
+                isDeparting = false,
+                keepConnectedOptIn = false,
+                pendingReply = false,
+                isEligibleForConnection = true,
+                status = ConnectionStatus.CONNECTED,
+                isAutoReconnect = true,
+                hasActiveNetwork = true,
+                notifyCompletionsOptIn = true,
+            )
+        val decision = BackgroundConnectionPolicy.evaluate(state)
+        assertTrue(decision.shouldHoldService)
+        assertTrue(decision.shouldHoldPersistentLease)
+        assertEquals(BackgroundNotificationState.ConnectedInBackground, decision.notificationState)
+    }
+
+    @Test
+    fun testBackground_notifyCompletionsOff_pendingReplyOnly_holdsServiceWithoutLease() {
+        val state =
+            BackgroundConnectionSnapshot(
+                appInForeground = false,
+                isDeparting = false,
+                keepConnectedOptIn = false,
+                pendingReply = true,
+                isEligibleForConnection = true,
+                status = ConnectionStatus.CONNECTED,
+                isAutoReconnect = true,
+                hasActiveNetwork = true,
+                notifyCompletionsOptIn = false,
+            )
+        val decision = BackgroundConnectionPolicy.evaluate(state)
+        assertTrue(decision.shouldHoldService)
+        assertFalse(decision.shouldHoldPersistentLease)
+        assertEquals(BackgroundNotificationState.WaitingForReplies, decision.notificationState)
+    }
 }

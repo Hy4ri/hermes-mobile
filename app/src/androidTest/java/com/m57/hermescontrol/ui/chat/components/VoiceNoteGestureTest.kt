@@ -219,6 +219,10 @@ class VoiceNoteGestureTest {
 
         composeTestRule.onNodeWithTag("mic_button").performTouchInput { down(center) }
         composeTestRule.mainClock.advanceTimeBy(600)
+        // The strip takes the field's decoration box mid-hold; the field must
+        // keep its focus so the keyboard never collapses when recording starts
+        // (device follow-up, #1247).
+        composeTestRule.onNodeWithTag("chat_input").assertIsFocused()
         composeTestRule.onNodeWithTag("mic_button").performTouchInput { up() }
         composeTestRule.waitForIdle()
 

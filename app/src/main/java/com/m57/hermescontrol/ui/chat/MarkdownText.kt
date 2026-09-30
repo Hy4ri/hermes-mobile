@@ -151,6 +151,7 @@ fun MarkdownText(
                     CompositionLocalProvider(LocalLayoutDirection provides blockDirection) {
                         MarkdownInlineText(
                             text = block.text,
+                            isRtlOverride = isRtl,
                             textColor = textColor,
                             latexMeasurer = latexMeasurer,
                             style =
@@ -195,6 +196,7 @@ fun MarkdownText(
                             Column(modifier = Modifier.weight(1f)) {
                                 MarkdownInlineText(
                                     text = block.text,
+                                    isRtlOverride = isRtl,
                                     textColor = textColor,
                                     latexMeasurer = latexMeasurer,
                                     style =
@@ -254,6 +256,7 @@ fun MarkdownText(
                             Column(modifier = Modifier.weight(1f)) {
                                 MarkdownInlineText(
                                     text = block.text,
+                                    isRtlOverride = isRtl,
                                     textColor = textColor,
                                     latexMeasurer = latexMeasurer,
                                     style =
@@ -301,6 +304,7 @@ fun MarkdownText(
                             Column(modifier = Modifier.weight(1f)) {
                                 MarkdownInlineText(
                                     text = block.text,
+                                    isRtlOverride = isRtl,
                                     textColor = textColor,
                                     latexMeasurer = latexMeasurer,
                                     style =
@@ -347,6 +351,7 @@ fun MarkdownText(
                             if (nestedBlocks.size == 1 && nestedBlocks.single() is MdBlock.Paragraph) {
                                 MarkdownInlineText(
                                     text = block.text,
+                                    isRtlOverride = isRtl,
                                     textColor = textColor,
                                     latexMeasurer = latexMeasurer,
                                     style =
@@ -502,6 +507,7 @@ fun MarkdownText(
                                     )
                                     MarkdownInlineText(
                                         text = note.text,
+                                        isRtlOverride = isRtl,
                                         textColor = textColor,
                                         latexMeasurer = latexMeasurer,
                                         style =
@@ -526,6 +532,7 @@ fun MarkdownText(
                     CompositionLocalProvider(LocalLayoutDirection provides blockDirection) {
                         MarkdownInlineText(
                             text = block.text,
+                            isRtlOverride = isRtl,
                             textColor = textColor,
                             latexMeasurer = latexMeasurer,
                             style =

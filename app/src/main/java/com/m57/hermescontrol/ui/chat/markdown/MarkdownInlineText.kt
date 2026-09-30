@@ -30,8 +30,9 @@ fun MarkdownInlineText(
     linkColor: Color,
     highlights: SearchHighlightColors,
     modifier: Modifier = Modifier,
+    isRtlOverride: Boolean? = null,
 ) {
-    val isRtl = remember(text) { BidiUtils.isRtlText(text) }
+    val isRtl = isRtlOverride ?: remember(text) { BidiUtils.isRtlText(text) }
     val direction = if (isRtl) LayoutDirection.Rtl else LocalLayoutDirection.current
     val resolvedStyle =
         style.copy(

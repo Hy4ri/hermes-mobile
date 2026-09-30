@@ -7,6 +7,7 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.luminance
+import com.m57.hermescontrol.theme.GlyphWhite
 
 /**
  * Resolved colors for the chat composer card and its controls.
@@ -49,7 +50,13 @@ internal fun composerPalette(scheme: ColorScheme): ComposerPalette {
     // Pastel primaries (Nord light) vanish on the card; keep the neutral fill there.
     val tinted = contrastRatio(scheme.primary, card) >= ACTION_MIN_CONTRAST
     val action = if (tinted) scheme.primary else scheme.onSurface
-    val onAction = if (tinted) scheme.onPrimary else scheme.surface
+    // White glyph wherever it clears 3:1 on the primary; pastel primaries keep their own dark onPrimary.
+    val onAction =
+        when {
+            !tinted -> scheme.surface
+            contrastRatio(GlyphWhite, scheme.primary) >= ACTION_MIN_CONTRAST -> GlyphWhite
+            else -> scheme.onPrimary
+        }
     return ComposerPalette(
         card = card,
         cardBorder = tint.compositeOver(scheme.background),

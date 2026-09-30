@@ -138,11 +138,6 @@ internal fun BehaviorSection(
                         }
                     }
                 },
-                colors =
-                    SwitchDefaults.colors(
-                        checkedThumbColor = MaterialTheme.colorScheme.primary,
-                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
-                    ),
             )
         }
 

@@ -1840,4 +1840,7 @@
     <string name="account_connectors_reconnect">Reconnect</string>
     <string name="account_connectors_no_tools">No tools available</string>
     <string name="account_connectors_policy_locked">Read-only policy restrictions</string>
+    <string name="mcp_tab_installed">Installed</string>
+    <string name="mcp_tab_catalog">Catalog</string>
+    <string name="mcp_servers_catalog_empty_title">No catalog entries</string>
 </resources>

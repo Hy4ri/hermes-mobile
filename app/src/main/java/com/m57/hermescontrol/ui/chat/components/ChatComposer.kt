@@ -492,20 +492,21 @@ fun ChatInputBar(
                 }
             }
         }
-        // Zero-height anchor so the tooltip and lock icon float above the
-        // card, over the message list, like Telegram's lock control. It sits
-        // outside the animated card because AnimatedVisibility clips its
-        // children to the animation bounds.
+        // Anchor at the BOTTOM-end — directly above the mic button the thumb
+        // is holding. The earlier top-of-card anchor sat ~130 dp away from the
+        // thumb and read as unrelated decoration, so the lock affordance went
+        // unnoticed. The content grows upward (wrapContentHeight(Bottom,
+        // unbounded)) and the offset lifts it clear of the button top.
         Box(modifier = Modifier.fillMaxWidth().height(0.dp)) {
             VoiceNoteLockHintOverlay(
                 visible = isRecordingVoice && !isVoiceNoteLocked,
                 showTextHint = !voiceLockHintDone && voiceSlideProgress.value >= 0.8f,
                 modifier =
                     Modifier
-                        .wrapContentHeight(align = Alignment.Top, unbounded = true)
-                        .align(Alignment.TopEnd)
-                        .offset(y = (-42).dp)
-                        .padding(end = 12.dp),
+                        .wrapContentHeight(align = Alignment.Bottom, unbounded = true)
+                        .align(Alignment.BottomEnd)
+                        .offset(y = (-54).dp)
+                        .padding(end = 6.dp),
             )
         }
     }
@@ -545,18 +546,30 @@ private fun VoiceNoteLockHintOverlay(
             )
             Spacer(modifier = Modifier.width(6.dp))
         }
-        Box(
-            modifier =
-                Modifier
-                    .size(36.dp)
-                    .background(palette.control, RoundedCornerShape(8.dp)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Lock,
-                contentDescription = null,
-                tint = palette.placeholder,
-                modifier = Modifier.size(18.dp),
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(
+                modifier =
+                    Modifier
+                        .size(36.dp)
+                        .background(palette.control, RoundedCornerShape(8.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Lock,
+                    contentDescription = null,
+                    tint = palette.placeholder,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            // The track: a short line from the lock circle down toward the mic
+            // button — the affordance reads as "the thing above your thumb",
+            // and the direction of the gesture is implied by where it sits.
+            Box(
+                modifier =
+                    Modifier
+                        .width(1.5.dp)
+                        .height(12.dp)
+                        .background(palette.placeholder.copy(alpha = 0.6f)),
             )
         }
     }

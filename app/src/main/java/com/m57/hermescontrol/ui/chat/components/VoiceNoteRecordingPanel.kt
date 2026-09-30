@@ -13,12 +13,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -39,7 +41,6 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -155,8 +156,7 @@ internal fun VoiceNoteRecordingPanel(
         BoxWithConstraints(
             modifier =
                 Modifier
-                    .weight(1f)
-                    .clipToBounds(),
+                    .weight(1f),
             contentAlignment = Alignment.Center,
         ) {
             val containerWidthPx = with(density) { maxWidth.toPx() }
@@ -175,15 +175,21 @@ internal fun VoiceNoteRecordingPanel(
                             }.testTag("voice_note_cancel_button"),
                 )
             } else {
+                // requiredWidth(intrinsic): the hint lays out at its natural
+                // width even when the meter leaves it tight, and the removed
+                // border clip lets the nudge and the cancel drag overflow the
+                // box instead of being cut at its edges — the fade carries it.
                 Row(
                     modifier =
                         Modifier
+                            .requiredWidth(IntrinsicSize.Max)
                             .offset {
                                 val shift = -containerWidthPx * 0.25f * (1f - progress)
                                 val nudge = nudgeDp * density.density * progress
                                 IntOffset((shift + nudge).roundToInt(), 0)
                             }.alpha(progress),
                     verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
                 ) {
                     CancelChevron(tint = palette.placeholder)
                     Spacer(modifier = Modifier.width(6.dp))

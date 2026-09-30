@@ -5,6 +5,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import com.m57.hermescontrol.theme.presets.AmoledTheme
 import com.m57.hermescontrol.theme.presets.DefaultTheme
+import com.m57.hermescontrol.ui.common.StatusBadgeType
+import com.m57.hermescontrol.ui.common.statusBadgeColors
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
@@ -74,22 +76,27 @@ class ThemePaletteTest {
     }
 
     @Test
-    fun statusTextPairsMeetContrastInEveryResolvedMode() {
+    fun renderedStatusBadgePairsMeetContrastInEveryResolvedMode() {
         ThemeRegistry.forEach { (preset, _) ->
             listOf(true, false).forEach { dark ->
-                val c = resolveStatusColors(preset, dark)
-                listOf(
-                    "success" to (c.onSuccess to c.success),
-                    "warning" to (c.onWarning to c.warning),
-                    "error" to (c.onError to c.error),
-                    "errorContainer" to (c.onErrorContainer to c.errorContainer),
-                    "info" to (c.onInfo to c.info),
-                ).forEach { (name, colors) ->
-                    val ratio = contrast(colors.first, colors.second)
-                    assertTrue("$preset dark=$dark $name status text contrast $ratio must be >= 4.5:1", ratio >= 4.5f)
+                val colors = resolveStatusColors(preset, dark)
+                StatusBadgeType.entries.filter { it != StatusBadgeType.NEUTRAL }.forEach { type ->
+                    // PR #1417: test the mapping consumed by both reusable badge renderers.
+                    val (background, foreground) = requireNotNull(statusBadgeColors(type, colors))
+                    val ratio = contrast(foreground, background)
+                    assertTrue("$preset dark=$dark $type badge contrast $ratio must be >= 4.5:1", ratio >= 4.5f)
                 }
             }
         }
+    }
+
+    @Test
+    fun statusBadgesUseMatchingStatusFillsAndOnColors() {
+        val c = dummyColors().status
+        assertEquals(c.success to c.onSuccess, statusBadgeColors(StatusBadgeType.SUCCESS, c))
+        assertEquals(c.warning to c.onWarning, statusBadgeColors(StatusBadgeType.WARNING, c))
+        assertEquals(c.error to c.onError, statusBadgeColors(StatusBadgeType.ERROR, c))
+        assertEquals(c.info to c.onInfo, statusBadgeColors(StatusBadgeType.INFO, c))
     }
 
     @Test

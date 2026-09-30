@@ -81,6 +81,12 @@ with the official pairing’s measured contrast and why a derived role is needed
   accents, semantic status fills, errors, and the surface ladder, are enforced at **>= 4.5:1 contrast**
   by `ThemePaletteTest`. The separate full-bleed header guard remains >= 3:1.
 
+Reusable `StatusBadge` and `SessionLiveStatusIndicator` use a shared
+`statusBadgeColors` mapping: status fills (`success`, `warning`, `error`, `info`)
+with their matching `on*` text/icons. `onSuccess` is not a foreground token for
+`successContainer`. Palette tests exercise this exact renderer mapping in every
+resolved mode, including fallback modes; neutral badges use Material tokens.
+
 ## Theme modes
 
 A theme declares which modes it ships via the factory you build it with:

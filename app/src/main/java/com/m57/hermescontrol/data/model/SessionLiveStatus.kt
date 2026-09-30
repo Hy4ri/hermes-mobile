@@ -30,6 +30,7 @@ data class ActiveSessionItem(
     val status: String? = null,
     @SerialName("last_active")
     val lastActive: Double? = null,
+    val title: String? = null,
 )
 
 /**

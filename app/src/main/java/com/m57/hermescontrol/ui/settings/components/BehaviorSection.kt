@@ -1,5 +1,10 @@
 package com.m57.hermescontrol.ui.settings.components
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,8 +18,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.ui.settings.SectionCard
 
@@ -29,6 +36,15 @@ internal fun BehaviorSection(
     restoreLastSession: Boolean,
     onRestoreLastSessionChange: (Boolean) -> Unit,
 ) {
+    val context = LocalContext.current
+    // Turning session-complete alerts on needs POST_NOTIFICATIONS (Android
+    // 13+). The chat screen requests it on open, but the toggle lives in
+    // Settings — gate here so enabling never lands in a state where the OS
+    // silently blocks what the user just asked for. Denial reverts the toggle.
+    val permissionLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) onNotifySessionCompletionsChange(true)
+        }
     SectionCard {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -106,7 +122,22 @@ internal fun BehaviorSection(
             }
             Switch(
                 checked = notifySessionCompletions,
-                onCheckedChange = onNotifySessionCompletionsChange,
+                onCheckedChange = { enabled ->
+                    if (!enabled) {
+                        onNotifySessionCompletionsChange(false)
+                    } else {
+                        val permission = Manifest.permission.POST_NOTIFICATIONS
+                        val granted =
+                            Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                                ContextCompat.checkSelfPermission(context, permission) ==
+                                PackageManager.PERMISSION_GRANTED
+                        if (granted) {
+                            onNotifySessionCompletionsChange(true)
+                        } else {
+                            permissionLauncher.launch(permission)
+                        }
+                    }
+                },
                 colors =
                     SwitchDefaults.colors(
                         checkedThumbColor = MaterialTheme.colorScheme.primary,

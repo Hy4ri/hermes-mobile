@@ -167,15 +167,14 @@ class ChatNotificationServiceTest {
 
 class ChatNotificationServiceActiveListTest {
     @Test
-    fun `parseActiveSessionLookup maps runtime id to stored id and title`() {
+    fun `parseActiveSessionLookup decodes the typed JSON result and maps ids plus title`() {
         val raw =
-            mapOf(
-                "sessions" to
-                    listOf(
-                        mapOf("id" to "rt1", "session_key" to "stored-1", "title" to "Nightly report"),
-                        mapOf("id" to "rt2", "session_key" to "stored-2"),
-                    ),
-            )
+            """
+            {"sessions":[
+                {"id":"rt1","session_key":"stored-1","title":"Nightly report","status":"idle","last_active":1780000000.0},
+                {"id":"rt2","session_key":"stored-2","status":"idle"}
+            ]}
+            """.trimIndent()
 
         val found = parseActiveSessionLookup(raw, "rt1")
         assertEquals("stored-1", found?.storedId)
@@ -188,18 +187,67 @@ class ChatNotificationServiceActiveListTest {
     }
 
     @Test
+    fun `parseActiveSessionLookup accepts the JsonElement a typed RPC call returns`() {
+        val raw = """{"sessions":[{"id":"rt9","session_key":"stored-9","title":"T"}]}"""
+        val element =
+            kotlinx.serialization.json.Json
+                .parseToJsonElement(raw)
+
+        val found = parseActiveSessionLookup(element, "rt9")
+        assertEquals("stored-9", found?.storedId)
+        assertEquals("T", found?.title)
+    }
+
+    @Test
     fun `parseActiveSessionLookup rejects unknown runtime ids and empty keys`() {
-        val raw =
-            mapOf(
-                "sessions" to
-                    listOf(
-                        mapOf("id" to "rt1", "session_key" to ""),
-                    ),
-            )
+        val raw = """{"sessions":[{"id":"rt1","session_key":"","status":"idle"}]}"""
 
         assertNull(parseActiveSessionLookup(raw, "rt1"))
         assertNull(parseActiveSessionLookup(raw, "missing"))
         assertNull(parseActiveSessionLookup(null, "rt1"))
         assertNull(parseActiveSessionLookup(raw, ""))
+        assertNull(parseActiveSessionLookup("not json", "rt1"))
+    }
+}
+
+class MessageCompleteRouteTest {
+    @Test
+    fun `active session routes to the reply path`() {
+        val route = messageCompleteRoute(holderSessionId = "rt1", toggleOn = true, eventSessionId = "rt1")
+        assertTrue(route is MessageCompleteRoute.Reply)
+        assertTrue((route as MessageCompleteRoute.Reply).isActiveSession)
+    }
+
+    @Test
+    fun `toggle off keeps legacy behavior for foreign sessions`() {
+        val route = messageCompleteRoute(holderSessionId = "rt1", toggleOn = false, eventSessionId = "other")
+        assertTrue(route is MessageCompleteRoute.Reply)
+        assertFalse((route as MessageCompleteRoute.Reply).isActiveSession)
+    }
+
+    @Test
+    fun `toggle on routes foreign sessions to the plain alert`() {
+        assertTrue(
+            messageCompleteRoute(holderSessionId = "rt1", toggleOn = true, eventSessionId = "other") is
+                MessageCompleteRoute.ForeignSession,
+        )
+    }
+
+    @Test
+    fun `toggle on with a cleared holder routes the pinned alert`() {
+        // After a background reconnect the holder is cleared: the user's own
+        // reply lands in the plain alert (resolved stored id keeps the tap
+        // working) instead of being dropped.
+        assertTrue(
+            messageCompleteRoute(holderSessionId = null, toggleOn = true, eventSessionId = "rt1") is
+                MessageCompleteRoute.ForeignSession,
+        )
+    }
+
+    @Test
+    fun `toggle off with a cleared holder still uses the reply path`() {
+        val route = messageCompleteRoute(holderSessionId = null, toggleOn = false, eventSessionId = "rt1")
+        assertTrue(route is MessageCompleteRoute.Reply)
+        assertFalse((route as MessageCompleteRoute.Reply).isActiveSession)
     }
 }

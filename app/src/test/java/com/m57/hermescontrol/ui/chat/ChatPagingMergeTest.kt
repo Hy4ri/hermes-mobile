@@ -1209,4 +1209,59 @@ class ChatPagingMergeTest {
             chronological = !older,
             preserveLiveIds = true,
         )
+
+    @Test
+    fun restoredLocalCommandsKeepTheirChronologicalPlaceInCachedPage() {
+        fun row(
+            id: String,
+            role: MessageRole,
+            content: String,
+            ts: Long,
+            local: Long? = null,
+        ) = ChatMessage(id = id, role = role, content = content, timestamp = ts, localOrder = local)
+        // Room order: confirmed rows first, then every local row (sort_group 1).
+        val cachedPage =
+            listOf(
+                row("rest-s-1", MessageRole.USER, "hi", 10L),
+                row("rest-s-2", MessageRole.ASSISTANT, "hello", 11L),
+                row("rest-s-3", MessageRole.USER, "more", 30L),
+                row("rest-s-4", MessageRole.ASSISTANT, "ok", 31L),
+                row("rest-s-5", MessageRole.USER, "again", 50L),
+                row("rest-s-6", MessageRole.ASSISTANT, "sure", 51L),
+                row("cmd-a", MessageRole.USER, "/help", 12L, local = 1L),
+                row("cmd-b", MessageRole.USER, "/usage", 32L, local = 2L),
+                row("cmd-c", MessageRole.USER, "/model", 52L, local = 3L),
+            )
+
+        val merged = mergeCachedTranscriptPage(cachedPage, emptyList())
+
+        assertEquals(
+            listOf("rest-s-1", "rest-s-2", "cmd-a", "rest-s-3", "rest-s-4", "cmd-b", "rest-s-5", "rest-s-6", "cmd-c"),
+            merged.map { it.id },
+        )
+    }
+
+    @Test
+    fun restoredCommandOlderThanLoadedWindowStaysAboveItNotAtTheTail() {
+        val server =
+            listOf(
+                ChatMessage(id = "rest-s-50", role = MessageRole.USER, content = "a", timestamp = 500L),
+                ChatMessage(id = "rest-s-51", role = MessageRole.ASSISTANT, content = "b", timestamp = 501L),
+            )
+        val old =
+            ChatMessage(
+                id = "cmd",
+                role = MessageRole.USER,
+                content = "/model x",
+                timestamp = 100L,
+                localOrder = 9L,
+            )
+        val merged = mergeCachedTranscriptPage(server + old, emptyList())
+        assertEquals(listOf("cmd", "rest-s-50", "rest-s-51"), merged.map { it.id })
+        // Stable when an older page arrives afterwards.
+        val older = ChatMessage(id = "rest-s-10", role = MessageRole.USER, content = "o", timestamp = 50L)
+        val olderMid = ChatMessage(id = "rest-s-11", role = MessageRole.ASSISTANT, content = "p", timestamp = 150L)
+        val more = mergeCachedTranscriptPage(listOf(older, olderMid), merged)
+        assertEquals(listOf("rest-s-10", "cmd", "rest-s-11", "rest-s-50", "rest-s-51"), more.map { it.id })
+    }
 }

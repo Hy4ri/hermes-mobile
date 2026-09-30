@@ -539,6 +539,7 @@ private fun List<ChatMessage>.inTranscriptOrder(
     val latestCanonical = mapNotNull { it.canonicalOrder }.maxOrNull() ?: -1L
     // Session-start markers use -1 and must remain before unresolved cached history.
     val beforeCanonical = (mapNotNull { it.canonicalOrder }.filter { it >= 0L }.minOrNull() ?: 0L) - 1L
+    val timedCanonical = mapNotNull { m -> m.canonicalOrder?.takeIf { it >= 0L }?.let { m.timestamp to it } }
     var precedingCanonical: Long? = null
     var hasPendingPredecessor = false
     var pendingLocalOrder: Long? = null
@@ -550,6 +551,11 @@ private fun List<ChatMessage>.inTranscriptOrder(
             precedingCanonical = order
             hasPendingPredecessor = false
             pendingLocalOrder = null
+        } else if (message.localOrder != null && message.isPermanentlyLocal()) {
+            // Restored from Room, where local rows sort after every server row. Seat it by time after the
+            // last confirmed row that is not newer, or before the loaded window when it predates it.
+            localAnchors[message.id] =
+                timedCanonical.filter { it.first <= message.timestamp }.maxOfOrNull { it.second } ?: beforeCanonical
         } else if (message.isPermanentlyLocal()) {
             localAnchors[message.id] =
                 if (hasPendingPredecessor) {

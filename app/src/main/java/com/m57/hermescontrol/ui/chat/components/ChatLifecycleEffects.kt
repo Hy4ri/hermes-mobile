@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
@@ -34,6 +35,7 @@ import com.m57.hermescontrol.ui.chat.ClarifyUi
 import com.m57.hermescontrol.ui.chat.SecretPromptUi
 import com.m57.hermescontrol.ui.chat.SudoPromptUi
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 
 @Composable
 fun ChatLifecycleEffects(
@@ -145,18 +147,22 @@ fun ChatLifecycleEffects(
     // Show error as snackbar
     val clipboard = LocalClipboard.current
     val copyLabel = context.getString(R.string.action_copy_error)
+    // Own scope + immediate clear: a later `errorMessage = null` elsewhere must not cancel a visible popup.
+    val snackbarScope = rememberCoroutineScope()
     LaunchedEffect(errorMessage) {
         errorMessage?.let { error ->
-            val result =
-                snackbarHostState.showSnackbar(
-                    error,
-                    actionLabel = copyLabel,
-                    duration = SnackbarDuration.Long,
-                )
-            if (result == SnackbarResult.ActionPerformed) {
-                clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, error)))
-            }
             viewModel.clearError()
+            snackbarScope.launch {
+                val result =
+                    snackbarHostState.showSnackbar(
+                        error,
+                        actionLabel = copyLabel,
+                        duration = SnackbarDuration.Long,
+                    )
+                if (result == SnackbarResult.ActionPerformed) {
+                    clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, error)))
+                }
+            }
         }
     }
 

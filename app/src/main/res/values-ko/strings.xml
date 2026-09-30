@@ -22,6 +22,7 @@
 
     <!-- Actions -->
     <string name="action_retry">재시도</string>
+    <string name="action_copy_error">오류 복사</string>
     <string name="action_cancel">취소</string>
     <string name="action_clear">지우기</string>
     <string name="action_ok">확인</string>

@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.common
 
+import android.content.ClipData
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
@@ -30,8 +32,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,6 +43,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -48,6 +54,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.LocalSpacing
+import kotlinx.coroutines.launch
 
 // Unified loading / error / empty / skeleton placeholders so every screen
 // shares the same visual language.
@@ -96,6 +103,8 @@ fun ErrorState(
     modifier: Modifier = Modifier,
 ) {
     val spacing = LocalSpacing.current
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
     Column(
         modifier =
             modifier
@@ -117,6 +126,20 @@ fun ErrorState(
             textAlign = TextAlign.Center,
             style = MaterialTheme.typography.bodyMedium,
         )
+        TextButton(
+            onClick = {
+                scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, message))) }
+            },
+            modifier = Modifier.testTag("error_copy_button"),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.ContentCopy,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+            )
+            Spacer(modifier = Modifier.size(spacing.xs))
+            Text(stringResource(R.string.action_copy_error))
+        }
         if (onRetry != null) {
             Spacer(modifier = Modifier.height(spacing.md))
             Button(

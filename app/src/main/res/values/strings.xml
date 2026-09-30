@@ -29,6 +29,7 @@
 
     <!-- Actions -->
     <string name="action_retry">Retry</string>
+    <string name="action_copy_error">Copy error</string>
     <string name="action_cancel">Cancel</string>
     <string name="action_confirm">Confirm</string>
     <string name="action_clear">Clear</string>

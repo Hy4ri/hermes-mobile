@@ -457,7 +457,7 @@ object ChatWsEventReducer {
         val finalSnapshot = event.rawPayload?.let(::parseUsageSnapshot)
         val usageState = finalSnapshot?.let { applyUsageSnapshot(state, it) } ?: state
         val turnUsage = finalSnapshot?.deltaFrom(streamingState.turnUsageBaseline)
-        val streaming = streamingState.streamingMessage
+        val streaming = streamingState.interruptedMessage ?: streamingState.streamingMessage
         // Prefer the authoritative reasoning carried in the message.complete
         // payload (the gateway's assembled full trace), then fall back to
         // whatever reasoning.delta deltas accumulated during streaming.
@@ -663,7 +663,7 @@ object ChatWsEventReducer {
             streamingState.streamingMessage
                 ?: return ReducerResult(
                     state = state.copy(isAgentTyping = false),
-                    streamingState = StreamingState(),
+                    streamingState = streamingState.takeIf { it.interruptedMessage != null } ?: StreamingState(),
                 )
         val reasoning =
             if (streamingState.reasoningText.isNotBlank()) {

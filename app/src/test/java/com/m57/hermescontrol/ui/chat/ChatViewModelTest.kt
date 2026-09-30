@@ -3923,6 +3923,41 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun lateCompletionAfterInterruptUpdatesSealedReplyInPlace() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            mockEventsFlow.emit(WsEvent.MessageToken("partial reply", sessionId))
+            advanceUntilIdle()
+            val originalId =
+                viewModel.streamingState.value.streamingMessage!!
+                    .id
+
+            viewModel.interruptSession()
+            advanceUntilIdle()
+            val id = sentRequestMethods.last { it.first == WsMethods.SESSION_INTERRUPT }.second
+            mockEventsFlow.emit(WsEvent.RpcResult(id, mapOf("status" to "interrupted")))
+            advanceUntilIdle()
+            assertNull(viewModel.streamingState.value.streamingMessage)
+
+            mockEventsFlow.emit(WsEvent.MessageToken("late tail", sessionId))
+            advanceUntilIdle()
+            assertNull(viewModel.streamingState.value.streamingMessage)
+            mockEventsFlow.emit(WsEvent.MessageComplete("partial reply with final tail", sessionId))
+            advanceUntilIdle()
+
+            val messages = viewModel.uiState.value.messages
+            val replies = messages.filter { it.role == MessageRole.ASSISTANT }
+            assertEquals(1, replies.size)
+            assertEquals(originalId, replies.single().id)
+            assertEquals("partial reply with final tail", replies.single().content)
+            assertTrue(
+                messages.indexOf(replies.single()) < messages.indexOfFirst { it.content == "Session interrupted" },
+            )
+            assertNull(viewModel.streamingState.value.interruptedMessage)
+        }
+
+    @Test
     fun hardInterruptWaitsForAckBeforeSubmitting() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()

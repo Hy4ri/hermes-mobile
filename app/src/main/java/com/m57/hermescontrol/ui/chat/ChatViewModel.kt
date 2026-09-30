@@ -1117,6 +1117,9 @@ class ChatViewModel(
             }
 
             is WsEvent.MessageToken -> {
+                // The interrupted partial is already sealed. Wait for its authoritative
+                // completion instead of letting trailing deltas create a second stream.
+                if (_streamingState.value.interruptedMessage != null && isCurrentSession(event.sessionId)) return
                 if (isCurrentSession(event.sessionId)) mainTurnBusy = true
                 streamingController.handleMessageToken(event)
             }
@@ -2019,9 +2022,23 @@ class ChatViewModel(
                 if (targetsCurrentTurn && status in setOf("interrupted", "not_interrupted")) {
                     // Never let a late result for an older same-session turn
                     // erase a newer stream or make its replacement race it.
+                    streamingController.flushPendingTransition()
+                    val interruptedStream = _streamingState.value
                     sealStreamingMessageIfAny()
+                    val interruptedMessage =
+                        interruptedStream.streamingMessage?.let { stream ->
+                            _uiState.value.messages.firstOrNull { it.id == stream.id }
+                        }
                     _uiState.update { it.copy(isAgentTyping = false) }
-                    _streamingState.update { StreamingState() }
+                    _streamingState.update {
+                        interruptedStream.copy(
+                            streamingMessage = null,
+                            interruptedMessage = interruptedMessage,
+                            isThinking = false,
+                            thinkingText = "",
+                            isReasoning = false,
+                        )
+                    }
                     streamingController.resetStreaming()
                     if (status == "interrupted") addSystemMessage("Session interrupted")
                     mainTurnBusy = false

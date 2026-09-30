@@ -19,6 +19,7 @@
 <string name="chat_next_match_desc">النتيجة التالية</string>
 <string name="chat_close_search_desc">إغلاق البحث</string>
 <string name="action_retry">إعادة المحاولة</string>
+<string name="action_copy_error">نسخ الخطأ</string>
 <string name="action_cancel">إلغاء</string>
 <string name="action_confirm">تأكيد</string>
 <string name="action_clear">مسح</string>

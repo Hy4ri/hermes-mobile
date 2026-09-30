@@ -19,6 +19,7 @@
     <string name="chat_next_match_desc">下一个匹配</string>
     <string name="chat_close_search_desc">关闭搜索</string>
     <string name="action_retry">重试</string>
+    <string name="action_copy_error">复制错误</string>
     <string name="action_cancel">取消</string>
     <string name="action_confirm">确认</string>
     <string name="action_clear">清除</string>

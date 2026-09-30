@@ -187,7 +187,7 @@ Have multiple gateways? Switch between them in **Settings → Connection profile
 app/src/main/java/com/m57/hermescontrol/
 ├── data/          # Local (Room, AuthManager), Remote (Retrofit, OkHttp), WS (WebSocket), Models
 ├── notification/  # Foreground service + inline reply for chat notifications
-├── theme/         # Preset-based design system (6 themes), status colors, spacing, typography
+├── theme/         # Preset-based design system (7 themes), status colors, spacing, typography
 ├── ui/            # Compose feature screens + common components (HermesScaffold, StateViews)
 ├── util/          # CronExpressionFormatter, LocaleContextWrapper
 └── Navigation*.kt # Navigation3 wiring, keys, screen registry, controller

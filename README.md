@@ -67,7 +67,7 @@ If Hermes Mobile is useful to you, consider supporting its development on [Ko-fi
 - **Gateway Status:** Monitor WebSocket connection, MCP servers, messaging channels, and OAuth providers.
 - **Productivity:** View and manage tasks via integrated Kanban boards, track agent milestones, and browse session history.
 - **Analytics & Billing:** Usage analytics dashboard and billing/subscription management.
-- **Theming:** 6 built-in color presets (Default, Monochrome, Gruvbox, Catppuccin, AMOLED, Nord) plus Material You dynamic colors on supported devices.
+- **Theming:** 7 built-in color presets (Default, Monochrome, Gruvbox, Catppuccin, AMOLED, Nord, Garnet) plus Material You dynamic colors on supported devices.
 - **Modern UX:** Native Material 3 design with pull-to-refresh, scroll-aware TopBar, and customizable bottom navigation.
 
 ---

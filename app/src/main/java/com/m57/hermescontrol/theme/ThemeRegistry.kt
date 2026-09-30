@@ -3,6 +3,7 @@ package com.m57.hermescontrol.theme
 import com.m57.hermescontrol.theme.presets.AmoledTheme
 import com.m57.hermescontrol.theme.presets.CatppuccinTheme
 import com.m57.hermescontrol.theme.presets.DefaultTheme
+import com.m57.hermescontrol.theme.presets.GarnetTheme
 import com.m57.hermescontrol.theme.presets.GruvboxTheme
 import com.m57.hermescontrol.theme.presets.MonochromeTheme
 import com.m57.hermescontrol.theme.presets.NordTheme
@@ -21,6 +22,7 @@ internal val ThemeRegistry =
         ThemeDefinition(ThemePreset.CATPPUCCIN, CatppuccinTheme),
         ThemeDefinition(ThemePreset.AMOLED, AmoledTheme),
         ThemeDefinition(ThemePreset.NORD, NordTheme),
+        ThemeDefinition(ThemePreset.GARNET, GarnetTheme),
     )
 
 internal fun ThemePreset.palette(): ThemePalette = ThemeRegistry.single { it.preset == this }.palette

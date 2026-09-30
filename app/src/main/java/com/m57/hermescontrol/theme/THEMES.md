@@ -25,7 +25,8 @@ app/src/main/java/com/m57/hermescontrol/theme/
     ├── GruvboxScheme.kt
     ├── CatppuccinScheme.kt
     ├── AmoledScheme.kt            # dark-only (ThemeMode.DARK_ONLY)
-    └── NordScheme.kt
+    ├── NordScheme.kt
+    └── GarnetScheme.kt
 ```
 
 ## The template — one shape for every theme
@@ -95,7 +96,7 @@ Enabled Material components also have a component-state contract:
 
 `ThemeComponentContrastTest` checks the pinned Material role combinations in every
 resolved preset/mode. `ThemeComponentGalleryTest` reads the installed Compose
-public color defaults and verifies rendered pixels for all twelve preset/mode
+public color defaults and verifies rendered pixels for all fourteen preset/mode
 combinations, including focused/error fields. Disabled controls are deliberately
 excluded from the enabled contrast contract; Material uses opacity to mute them.
 Settings switches use Material defaults (`primary` track / `onPrimary` thumb),
@@ -104,6 +105,14 @@ not the reversed `primaryContainer` track / `primary` thumb combination.
 Outlines must contrast against both surface and the unchecked switch track
 (`surfaceContainerHighest`). Named palettes may need documented derived primary
 or error tones for direct text; fixed roles still preserve their upstream accents.
+
+## Garnet
+
+Garnet preserves Default's slate surface ladder, typography, and semantic status
+colors. Its seed is `#990000`, used as the light primary and dark primary
+container. Dark primary/text/icons use a lighter `#FFB4AB` for contrast; rose
+secondary and copper tertiary roles, their containers, fixed accents, inverse
+primary, and surface tint follow the new accent family. Both modes are shipped.
 
 ## Theme modes
 

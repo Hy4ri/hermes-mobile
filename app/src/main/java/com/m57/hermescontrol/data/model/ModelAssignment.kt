@@ -25,14 +25,20 @@ data class MainModelAssignment(
 data class MoaModelSlot(
     val provider: String,
     val model: String,
+    val reasoning_effort: String? = null,
+    val enabled: Boolean = true,
 )
 
 @Serializable
 data class MoaConfigPreset(
     val reference_models: List<MoaModelSlot>,
     val aggregator: MoaModelSlot,
-    val reference_temperature: Double = 0.7,
-    val aggregator_temperature: Double = 0.3,
+    // null = omitted from API calls (provider default); the backend sends null when unset.
+    val reference_temperature: Double? = null,
+    val aggregator_temperature: Double? = null,
+    val reference_timeout: Double? = null,
+    val degraded_reference_policy: String = "loud",
+    val fanout: String? = null,
     val max_tokens: Int = 4096,
     val enabled: Boolean = true,
 )
@@ -44,8 +50,12 @@ data class MoaConfigResponse(
     val presets: Map<String, MoaConfigPreset> = emptyMap(),
     val reference_models: List<MoaModelSlot> = emptyList(),
     val aggregator: MoaModelSlot = MoaModelSlot("", ""),
-    val reference_temperature: Double = 0.7,
-    val aggregator_temperature: Double = 0.3,
+    // null = omitted from API calls (provider default); the backend sends null when unset.
+    val reference_temperature: Double? = null,
+    val aggregator_temperature: Double? = null,
+    val reference_timeout: Double? = null,
+    val degraded_reference_policy: String = "loud",
+    val fanout: String? = null,
     val max_tokens: Int = 4096,
     val enabled: Boolean = true,
 )

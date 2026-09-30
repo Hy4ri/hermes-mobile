@@ -19,6 +19,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -146,7 +147,7 @@ fun ChatLifecycleEffects(
 
     // Show error as snackbar
     val clipboard = LocalClipboard.current
-    val copyLabel = context.getString(R.string.action_copy_error)
+    val copyLabel = stringResource(R.string.action_copy_error)
     // Own scope + immediate clear: a later `errorMessage = null` elsewhere must not cancel a visible popup.
     val snackbarScope = rememberCoroutineScope()
     LaunchedEffect(errorMessage) {

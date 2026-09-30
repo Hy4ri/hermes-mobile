@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.notification
 
 import android.content.Context
+import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.WsEvent
 import io.mockk.mockk
 import io.mockk.verify
@@ -214,15 +215,13 @@ class MessageCompleteRouteTest {
     @Test
     fun `active session routes to the reply path`() {
         val route = messageCompleteRoute(holderSessionId = "rt1", toggleOn = true, eventSessionId = "rt1")
-        assertTrue(route is MessageCompleteRoute.Reply)
-        assertTrue((route as MessageCompleteRoute.Reply).isActiveSession)
+        assertEquals(MessageCompleteRoute.Reply, route)
     }
 
     @Test
     fun `toggle off keeps legacy behavior for foreign sessions`() {
         val route = messageCompleteRoute(holderSessionId = "rt1", toggleOn = false, eventSessionId = "other")
-        assertTrue(route is MessageCompleteRoute.Reply)
-        assertFalse((route as MessageCompleteRoute.Reply).isActiveSession)
+        assertEquals(MessageCompleteRoute.Reply, route)
     }
 
     @Test
@@ -247,7 +246,35 @@ class MessageCompleteRouteTest {
     @Test
     fun `toggle off with a cleared holder still uses the reply path`() {
         val route = messageCompleteRoute(holderSessionId = null, toggleOn = false, eventSessionId = "rt1")
-        assertTrue(route is MessageCompleteRoute.Reply)
-        assertFalse((route as MessageCompleteRoute.Reply).isActiveSession)
+        assertEquals(MessageCompleteRoute.Reply, route)
+    }
+
+    @Test
+    fun `legacy reply route retires the service when the wait is over`() {
+        // Toggle off + holder cleared by a reconnect: the route is Reply, and the
+        // Reply branch always ends in onReplyCompleted(generation).
+        assertEquals(
+            MessageCompleteRoute.Reply,
+            messageCompleteRoute(holderSessionId = null, toggleOn = false, eventSessionId = "rt1"),
+        )
+        var completedGeneration: Long? = null
+        val controller =
+            BackgroundConnectionController(
+                snapshotProvider = {
+                    BackgroundConnectionSnapshot(
+                        appInForeground = false,
+                        isDeparting = false,
+                        keepConnectedOptIn = false,
+                        pendingReply = true,
+                        isEligibleForConnection = true,
+                        status = ConnectionStatus.CONNECTED,
+                        isAutoReconnect = true,
+                        hasActiveNetwork = true,
+                    )
+                },
+                requestServiceComplete = { gen -> completedGeneration = gen },
+            )
+        controller.onReplyCompleted(7L)
+        assertEquals(7L, completedGeneration)
     }
 }

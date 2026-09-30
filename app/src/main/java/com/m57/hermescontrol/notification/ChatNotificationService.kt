@@ -53,16 +53,13 @@ internal data class CompletedSessionRef(
 
 private const val TAG = "ChatNotificationService"
 
+/** Short cap so a slow `session.active_list` cannot hold a completion alert hostage. */
+private const val ACTIVE_LIST_TIMEOUT_MS = 5_000L
+
 /** Where a background `message.complete` goes. */
 internal sealed interface MessageCompleteRoute {
-    /**
-     * The reply flow. [isActiveSession] is true when the completing session is
-     * the one the app has open (or submitted) — only that case retires the
-     * foreground service and registers the reply tracker.
-     */
-    data class Reply(
-        val isActiveSession: Boolean,
-    ) : MessageCompleteRoute
+    /** The reply flow: reply notification, then the foreground service is retired. */
+    data object Reply : MessageCompleteRoute
 
     /** A session the phone did not submit finished; the opt-in alert fires. */
     data object ForeignSession : MessageCompleteRoute
@@ -80,10 +77,8 @@ internal fun messageCompleteRoute(
     toggleOn: Boolean,
     eventSessionId: String?,
 ): MessageCompleteRoute =
-    if (!eventSessionId.isNullOrBlank() && eventSessionId == holderSessionId) {
-        MessageCompleteRoute.Reply(isActiveSession = true)
-    } else if (!toggleOn) {
-        MessageCompleteRoute.Reply(isActiveSession = false)
+    if (!toggleOn || (!eventSessionId.isNullOrBlank() && eventSessionId == holderSessionId)) {
+        MessageCompleteRoute.Reply
     } else {
         MessageCompleteRoute.ForeignSession
     }
@@ -258,7 +253,7 @@ class ChatNotificationService : Service() {
                                                     eventSessionId = event.sessionId,
                                                 )
                                         ) {
-                                            is MessageCompleteRoute.Reply -> {
+                                            MessageCompleteRoute.Reply -> {
                                                 val targetSessionId =
                                                     event.storedSessionId
                                                         ?: ActiveSessionHolder.resolveStoredSessionId(event.sessionId)
@@ -269,52 +264,26 @@ class ChatNotificationService : Service() {
                                                         newMessageText = getString(R.string.notif_new_message),
                                                         failureText = getString(R.string.chat_reply_failed_title),
                                                     )
-                                                if (route.isActiveSession) {
-                                                    showReplyNotification(
-                                                        text = plan.text,
-                                                        sessionId = plan.sessionId,
-                                                        isReplyMessage = plan.isReplyMessage,
-                                                        completionId = plan.completionId,
-                                                        allowInlineReply = plan.allowInlineReply,
-                                                        // The durable REST row for this turn, when the
-                                                        // boundary armed before the prompt was submitted
-                                                        // still lets us name it unambiguously. Null is a
-                                                        // normal, safe outcome: the notification is then
-                                                        // never auto-dismissed from REST hydration, which
-                                                        // is strictly better than dismissing the wrong
-                                                        // duplicate reply.
-                                                        serverMessageId =
-                                                            plan.correlationText?.let {
-                                                                coalesceTurnRow(plan.sessionId, it)
-                                                            },
-                                                    )
-                                                    // The wait is over — retire the foreground
-                                                    // service. The reply notification above
-                                                    // replaces the persistent "waiting" one,
-                                                    // and the pendingReply flag is cleared by
-                                                    // HermesWsClient's own collector, so the
-                                                    // service is not restarted on the next
-                                                    // ON_STOP (issue #794).
-                                                    // A delayed completion must not retire a newer turn/start.
-                                                    BackgroundConnectionController.default.onReplyCompleted(generation)
-                                                } else {
-                                                    // Toggle-off legacy: a non-active session's
-                                                    // completion still goes through the reply
-                                                    // flow exactly as before the opt-in existed
-                                                    // (no service retirement, no tracker change
-                                                    // beyond what showReplyNotification does).
-                                                    showReplyNotification(
-                                                        text = plan.text,
-                                                        sessionId = plan.sessionId,
-                                                        isReplyMessage = plan.isReplyMessage,
-                                                        completionId = plan.completionId,
-                                                        allowInlineReply = plan.allowInlineReply,
-                                                        serverMessageId =
-                                                            plan.correlationText?.let {
-                                                                coalesceTurnRow(plan.sessionId, it)
-                                                            },
-                                                    )
-                                                }
+                                                showReplyNotification(
+                                                    text = plan.text,
+                                                    sessionId = plan.sessionId,
+                                                    isReplyMessage = plan.isReplyMessage,
+                                                    completionId = plan.completionId,
+                                                    allowInlineReply = plan.allowInlineReply,
+                                                    // The durable REST row for this turn, when the
+                                                    // boundary armed before the prompt was submitted
+                                                    // still lets us name it unambiguously. Null is a
+                                                    // normal, safe outcome: the notification is then
+                                                    // never auto-dismissed from REST hydration.
+                                                    serverMessageId =
+                                                        plan.correlationText?.let {
+                                                            coalesceTurnRow(plan.sessionId, it)
+                                                        },
+                                                )
+                                                // The wait is over: retire the foreground service
+                                                // (issue #794). A delayed completion must not
+                                                // retire a newer turn/start.
+                                                BackgroundConnectionController.default.onReplyCompleted(generation)
                                             }
 
                                             MessageCompleteRoute.ForeignSession -> {
@@ -333,6 +302,7 @@ class ChatNotificationService : Service() {
                                                             HermesWsClient.call(
                                                                 RpcMethods.SESSION_ACTIVE_LIST,
                                                                 SessionActiveListParams(),
+                                                                timeoutMs = ACTIVE_LIST_TIMEOUT_MS,
                                                             ),
                                                             event.sessionId.orEmpty(),
                                                         )

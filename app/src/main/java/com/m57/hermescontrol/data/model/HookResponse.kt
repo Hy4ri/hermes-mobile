@@ -17,3 +17,19 @@ data class HookEntry(
     val approved_at: String? = null,
     val executable: Boolean? = null,
 )
+
+/** Body for POST api/ops/hooks. The backend field is `approve` (writes the consent allowlist entry). */
+@Serializable
+data class HookCreateRequest(
+    val event: String,
+    val command: String,
+    val matcher: String? = null,
+    val timeout: Int? = null,
+    val approve: Boolean? = null,
+)
+
+@Serializable
+data class HookDeleteRequest(
+    val event: String,
+    val command: String,
+)

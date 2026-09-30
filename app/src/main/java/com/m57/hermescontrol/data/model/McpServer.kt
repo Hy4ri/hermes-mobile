@@ -96,3 +96,9 @@ data class McpOAuthFlowResponse(
     val authorizationUrl: String? = null,
     val error: String? = null,
 )
+
+/** Body for PUT api/mcp/servers/{name}; only the fields being changed are sent. */
+@Serializable
+data class McpServerUpdateRequest(
+    val env: Map<String, String>? = null,
+)

@@ -9,3 +9,8 @@ data class DebugShareResponse(
     val redacted: Boolean? = null,
     val auto_delete_seconds: Long? = null,
 )
+
+@Serializable
+data class DebugShareRequest(
+    val redact: Boolean? = null,
+)

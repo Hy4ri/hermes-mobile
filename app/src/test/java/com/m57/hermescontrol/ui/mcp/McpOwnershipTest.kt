@@ -3,6 +3,7 @@ package com.m57.hermescontrol.ui.mcp
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.McpServer
 import com.m57.hermescontrol.data.model.McpServerTestResponse
+import com.m57.hermescontrol.data.model.McpServerUpdateRequest
 import com.m57.hermescontrol.data.model.McpServersResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.HermesApiService
@@ -122,10 +123,10 @@ class McpOwnershipTest {
         vm.updateEnvValue("value")
         vm.addEnvVar(config.name)
         dispatcher.scheduler.advanceUntilIdle()
-        coVerify { api.updateMcpServer(config.name, mapOf("env" to mapOf("KEY" to "value"))) }
+        coVerify { api.updateMcpServer(config.name, McpServerUpdateRequest(env = mapOf("KEY" to "value"))) }
         vm.removeEnvVar(config.name, "KEY")
         dispatcher.scheduler.advanceUntilIdle()
-        coVerify { api.updateMcpServer(config.name, mapOf("env" to emptyMap<String, String>())) }
+        coVerify { api.updateMcpServer(config.name, McpServerUpdateRequest(env = emptyMap())) }
         coEvery { api.deleteMcpServer(config.name) } returns Response.success(Unit)
         vm.deleteServer(config.name)
         dispatcher.scheduler.advanceUntilIdle()

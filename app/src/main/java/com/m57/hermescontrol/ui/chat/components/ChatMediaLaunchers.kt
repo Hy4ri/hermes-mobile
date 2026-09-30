@@ -35,6 +35,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.sqrt
 
 class ChatMediaLaunchers(
     val isListening: Boolean,
@@ -48,6 +49,8 @@ class ChatMediaLaunchers(
     val onMicHoldEnd: () -> Unit = {},
     val onMicHoldCancel: () -> Unit = {},
     val onMicLock: () -> Unit = {},
+    /** Normalized 0–1 mic level while recording; read fresh at draw time. */
+    val amplitudeProvider: () -> Float = { 0f },
 )
 
 @Composable
@@ -334,6 +337,23 @@ fun rememberChatMediaLaunchers(
         }
     }
 
+    // Mic-level feed for the recording blob (VoiceMicBlob). MediaRecorder's
+    // maxAmplitude is the PEAK since the last read, so this poller must stay
+    // the ONLY caller while recording. sqrt compression spreads speech
+    // dynamics the way Telegram's RMS/1800 normalization does.
+    val recordingAmplitude = remember { mutableStateOf(0f) }
+    LaunchedEffect(isRecordingVoice) {
+        if (isRecordingVoice) {
+            while (isRecordingVoice) {
+                recordingAmplitude.value =
+                    sqrt(voiceNoteRecorder.currentAmplitude().coerceAtLeast(0) / 32767f)
+                delay(AMPLITUDE_POLL_MS)
+            }
+        } else {
+            recordingAmplitude.value = 0f
+        }
+    }
+
     val onCameraTap: () -> Unit = {
         try {
             val timeStamp =
@@ -380,6 +400,10 @@ fun rememberChatMediaLaunchers(
             onMicHoldEnd = onMicHoldEnd,
             onMicHoldCancel = onMicHoldCancel,
             onMicLock = onMicLock,
+            amplitudeProvider = { recordingAmplitude.value },
         )
     }
 }
+
+/** Telegram samples their amplitude pipeline roughly this fast. */
+private const val AMPLITUDE_POLL_MS = 60L

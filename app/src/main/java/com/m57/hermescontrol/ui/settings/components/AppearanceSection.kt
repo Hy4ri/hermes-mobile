@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.settings.components
 
+import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,6 +42,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.BusySendMode
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
+import com.m57.hermescontrol.theme.ThemeRegistry
 import com.m57.hermescontrol.ui.chat.label
 import com.m57.hermescontrol.ui.settings.SectionCard
 import kotlin.math.abs
@@ -55,6 +57,7 @@ internal fun AppearanceSection(
     themePreset: ThemePreset,
     onThemePresetChange: (ThemePreset) -> Unit,
 ) {
+    val dynamicAvailable = useDynamicColors && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     SectionCard {
         Text(
             text = stringResource(R.string.settings_item_theme),
@@ -122,72 +125,30 @@ internal fun AppearanceSection(
         )
         Spacer(modifier = Modifier.height(8.dp))
 
+        if (dynamicAvailable) {
+            Text(
+                text = stringResource(R.string.settings_desc_theme_preset_dynamic),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
         var presetsExpanded by remember { mutableStateOf(false) }
         Box(modifier = Modifier.fillMaxWidth()) {
             OutlinedButton(
                 onClick = { presetsExpanded = true },
-                enabled = !useDynamicColors,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(
-                    when (themePreset) {
-                        ThemePreset.DEFAULT -> stringResource(R.string.theme_preset_default)
-                        ThemePreset.MONOCHROME -> stringResource(R.string.theme_preset_monochrome)
-                        ThemePreset.GRUVBOX -> stringResource(R.string.theme_preset_gruvbox)
-                        ThemePreset.CATPPUCCIN -> stringResource(R.string.theme_preset_catppuccin)
-                        ThemePreset.AMOLED -> stringResource(R.string.theme_preset_amoled)
-                        ThemePreset.NORD -> stringResource(R.string.theme_preset_nord)
-                    },
-                )
+                Text(themePreset.label())
             }
             DropdownMenu(
                 expanded = presetsExpanded,
                 onDismissRequest = { presetsExpanded = false },
                 modifier = Modifier.fillMaxWidth(0.85f),
             ) {
-                ThemePreset.entries.forEach { preset ->
+                ThemeRegistry.forEach { (preset, _) ->
                     DropdownMenuItem(
-                        text = {
-                            Text(
-                                when (preset) {
-                                    ThemePreset.DEFAULT -> {
-                                        stringResource(
-                                            R.string.theme_preset_default,
-                                        )
-                                    }
-
-                                    ThemePreset.MONOCHROME -> {
-                                        stringResource(
-                                            R.string.theme_preset_monochrome,
-                                        )
-                                    }
-
-                                    ThemePreset.GRUVBOX -> {
-                                        stringResource(
-                                            R.string.theme_preset_gruvbox,
-                                        )
-                                    }
-
-                                    ThemePreset.CATPPUCCIN -> {
-                                        stringResource(
-                                            R.string.theme_preset_catppuccin,
-                                        )
-                                    }
-
-                                    ThemePreset.AMOLED -> {
-                                        stringResource(
-                                            R.string.theme_preset_amoled,
-                                        )
-                                    }
-
-                                    ThemePreset.NORD -> {
-                                        stringResource(
-                                            R.string.theme_preset_nord,
-                                        )
-                                    }
-                                },
-                            )
-                        },
+                        text = { Text(preset.label()) },
                         onClick = {
                             onThemePresetChange(preset)
                             presetsExpanded = false
@@ -198,6 +159,19 @@ internal fun AppearanceSection(
         }
     }
 }
+
+@Composable
+private fun ThemePreset.label(): String =
+    stringResource(
+        when (this) {
+            ThemePreset.DEFAULT -> R.string.theme_preset_default
+            ThemePreset.MONOCHROME -> R.string.theme_preset_monochrome
+            ThemePreset.GRUVBOX -> R.string.theme_preset_gruvbox
+            ThemePreset.CATPPUCCIN -> R.string.theme_preset_catppuccin
+            ThemePreset.AMOLED -> R.string.theme_preset_amoled
+            ThemePreset.NORD -> R.string.theme_preset_nord
+        },
+    )
 
 @Composable
 internal fun ChatSection(

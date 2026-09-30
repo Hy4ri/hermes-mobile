@@ -23,7 +23,7 @@ Android layout dimensions use `dp`; text sizes, line heights, and tracking use `
 
 | Concern | Authoritative source |
 | --- | --- |
-| Presets and mode selection | [Theme.kt](app/src/main/java/com/m57/hermescontrol/theme/Theme.kt) |
+| Presets and mode selection | [ThemeRegistry.kt](app/src/main/java/com/m57/hermescontrol/theme/ThemeRegistry.kt), [Theme.kt](app/src/main/java/com/m57/hermescontrol/theme/Theme.kt) |
 | Material slot mapping | [PaletteTemplate.kt](app/src/main/java/com/m57/hermescontrol/theme/PaletteTemplate.kt) |
 | Palette values | [presets/](app/src/main/java/com/m57/hermescontrol/theme/presets/) |
 | Semantic status model | [HermesStatusColors.kt](app/src/main/java/com/m57/hermescontrol/theme/HermesStatusColors.kt) |
@@ -144,8 +144,8 @@ passed an accessibility audit.
 - **Narrow layouts**: Check long localized labels, keyboard-open states, and scrolling at small widths; density must not hide essential actions.
 
 [ThemePaletteTest.kt](app/src/test/java/com/m57/hermescontrol/theme/ThemePaletteTest.kt)
-currently guards error slot pairs, full-bleed prose/header contrast, and theme-mode
-invariants. Those tests are useful but do not establish contrast or accessibility
+guards normal-text slot pairs, full-bleed prose/header contrast, complete Material
+role mapping, registry coverage, fixed-role mode invariance, and theme-mode invariants. Those tests are useful but do not establish contrast or accessibility
 compliance for every rendered component, alpha blend, or dynamic palette.
 Record device/emulator steps and observed results for changed UI; explicitly name
 any gate that could not be verified.

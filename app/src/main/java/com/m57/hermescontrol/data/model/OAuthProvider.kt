@@ -1,7 +1,17 @@
 package com.m57.hermescontrol.data.model
 
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * OAuth provider catalog entry returned by `GET /api/providers/oauth`.
@@ -10,7 +20,8 @@ import kotlinx.serialization.Serializable
  *   id, name, flow ("pkce" | "device_code" | "external"), cli_command,
  *   docs_url, disconnect_hint, disconnect_command, disconnectable, status.
  *
- * `expires_at` in the status comes back as an ISO timestamp string.
+ * `expires_at` / `last_refresh` come back as an ISO string or a numeric epoch depending on the
+ * credential source, so they decode through [LenientStringSerializer].
  */
 @Serializable
 data class OAuthProvider(
@@ -31,9 +42,13 @@ data class OAuthProviderStatus(
     val source: String? = null,
     @SerialName("source_label") val sourceLabel: String? = null,
     @SerialName("token_preview") val tokenPreview: String? = null,
-    @SerialName("expires_at") val expiresAt: String? = null,
+    @SerialName("expires_at")
+    @Serializable(with = LenientStringSerializer::class)
+    val expiresAt: String? = null,
     @SerialName("has_refresh_token") val hasRefreshToken: Boolean? = null,
-    @SerialName("last_refresh") val lastRefresh: String? = null,
+    @SerialName("last_refresh")
+    @Serializable(with = LenientStringSerializer::class)
+    val lastRefresh: String? = null,
     val error: String? = null,
 )
 
@@ -98,3 +113,25 @@ data class OAuthCancelResponse(
     @SerialName("session_id") val sessionId: String? = null,
     val message: String? = null,
 )
+
+/** Decodes a JSON string or number (e.g. epoch millis) into its string form; null stays null. */
+@OptIn(ExperimentalSerializationApi::class)
+object LenientStringSerializer : KSerializer<String?> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("LenientString", PrimitiveKind.STRING)
+
+    override fun deserialize(decoder: Decoder): String? {
+        if (decoder is JsonDecoder) {
+            val element = decoder.decodeJsonElement()
+            return if (element is JsonPrimitive && element !is JsonNull) element.content else null
+        }
+        return decoder.decodeString()
+    }
+
+    override fun serialize(
+        encoder: Encoder,
+        value: String?,
+    ) {
+        if (value == null) encoder.encodeNull() else encoder.encodeString(value)
+    }
+}

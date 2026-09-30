@@ -20,8 +20,8 @@ class SlashCommandDispatcherTest {
     private val dispatcher = SlashCommandDispatcher()
 
     @Test
-    fun `stop routes to Interrupt`() {
-        assertEquals(SlashResult.Interrupt, dispatcher.dispatch("/stop"))
+    fun `stop routes to Stop`() {
+        assertEquals(SlashResult.Stop, dispatcher.dispatch("/stop"))
     }
 
     @Test

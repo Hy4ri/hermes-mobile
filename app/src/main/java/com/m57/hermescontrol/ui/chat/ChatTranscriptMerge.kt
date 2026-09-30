@@ -349,6 +349,7 @@ internal fun dedupeCachedMessages(
             message.copy(
                 restId = it.canonicalRestId,
                 serverRowId = message.serverRowId ?: it.serverRowId,
+                reactions = it.reactions.ifEmpty { message.reactions },
                 completionId = message.completionId ?: it.completionId,
                 displayKind = message.displayKind ?: it.displayKind,
                 isRestoredUnconfirmed = false,
@@ -419,6 +420,7 @@ internal fun mergeCachedTranscriptPage(
                         content = preservedContent ?: rich.content,
                         restId = match.canonicalRestId ?: message.canonicalRestId,
                         serverRowId = match.serverRowId ?: message.serverRowId,
+                        reactions = message.reactions.ifEmpty { match.reactions },
                         completionId = match.completionId ?: message.completionId,
                         displayKind = match.displayKind ?: message.displayKind,
                         isRestoredUnconfirmed =
@@ -457,6 +459,7 @@ internal fun mergeTranscriptWithLive(
                     match.copy(
                         restId = (message.canonicalRestId ?: match.canonicalRestId).takeUnless { it == match.id },
                         serverRowId = message.serverRowId ?: match.serverRowId,
+                        reactions = message.reactions.ifEmpty { match.reactions },
                         displayKind = message.displayKind ?: match.displayKind,
                         isHistoricalCache = false,
                         isRestoredUnconfirmed = false,
@@ -476,6 +479,7 @@ internal fun mergeTranscriptWithLive(
                     match.copy(
                         restId = message.canonicalRestId ?: match.canonicalRestId,
                         serverRowId = message.serverRowId ?: match.serverRowId,
+                        reactions = message.reactions.ifEmpty { match.reactions },
                         content = mergedContent,
                         timestamp = message.timestamp,
                         isStreaming = message.isStreaming,

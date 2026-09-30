@@ -75,6 +75,10 @@ data class SessionMessage(
     val timestampText: String?
         get() = (timestamp as? JsonPrimitive)?.content
 
+    /** Emoji reactions persisted on this row (`display_metadata.reactions`). */
+    val reactions: List<MessageReaction>
+        get() = parseMessageReactions(display_metadata)
+
     val tokenCount: Int?
         get() {
             val prim = token_count as? JsonPrimitive ?: return null

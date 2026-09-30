@@ -32,7 +32,10 @@ import kotlinx.coroutines.withContext
 
 enum class AddServerMode { HTTP, Stdio }
 
+enum class McpTab { INSTALLED, CATALOG }
+
 data class McpServersUiState(
+    val selectedTab: McpTab = McpTab.INSTALLED,
     val isLoading: Boolean = false,
     val servers: List<McpServer> = emptyList(),
     val errorMessage: String? = null,
@@ -544,6 +547,14 @@ class McpServersViewModel(
                     }
                 }
             }
+        }
+    }
+
+    fun setTab(tab: McpTab) {
+        _uiState.update { it.copy(selectedTab = tab) }
+        val s = _uiState.value
+        if (tab == McpTab.CATALOG && s.catalogEntries.isEmpty() && !s.catalogLoading) {
+            loadCatalog()
         }
     }
 

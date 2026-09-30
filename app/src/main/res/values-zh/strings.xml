@@ -730,6 +730,7 @@
     <string name="sessions_prune_desc">删除早于指定天数的会话。</string>
     <string name="sessions_prune_days_label">天数阈值</string>
     <string name="sessions_prune_confirm">清理</string>
+    <string name="sessions_pruning">正在清理旧会话…</string>
     <string name="sessions_empty_cleanup_desc">空会话</string>
     <string name="sessions_empty_cleanup_title">删除空会话？</string>
     <string name="sessions_empty_cleanup_message">删除 %1$d 个空会话？活动与归档会话会被保留。</string>

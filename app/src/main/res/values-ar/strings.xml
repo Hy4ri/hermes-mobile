@@ -759,6 +759,7 @@
 <string name="sessions_prune_desc">حذف الجلسات الأقدم من عدد الأيام المحدد.</string>
 <string name="sessions_prune_days_label">حد الأيام</string>
 <string name="sessions_prune_confirm">تنقيح</string>
+<string name="sessions_pruning">جارٍ تنقيح الجلسات القديمة…</string>
 <string name="sessions_empty_cleanup_desc">فارغة</string>
 <string name="sessions_empty_cleanup_title">هل تريد حذف الجلسات الفارغة؟</string>
 <string name="sessions_empty_cleanup_message">حذف %1$d من الجلسات الفارغة. سيتم الاحتفاظ بالجلسات النشطة والمؤرشفة.</string>

@@ -963,7 +963,13 @@ class SessionsViewModel(
             val result =
                 safeApiCall {
                     ApiClient.hermesApi.bulkDeleteSessions(
-                        body = BulkDeleteRequest(ids = ids),
+                        body =
+                            BulkDeleteRequest(
+                                ids = ids,
+                                // Destructive POSTs scope by BODY profile; the
+                                // ?profile= query rewrite never reaches them.
+                                profile = AuthManager.activeProfileId.value,
+                            ),
                     )
                 }
             when (result) {
@@ -1021,7 +1027,16 @@ class SessionsViewModel(
             val result =
                 safeApiCall {
                     ApiClient.hermesApi.pruneSessions(
-                        body = PruneRequest(days = days),
+                        body =
+                            PruneRequest(
+                                // The server model is `older_than_days`; the
+                                // old `days` key was silently ignored and the
+                                // backend pruned its own 90-day default.
+                                olderThanDays = days,
+                                // Destructive POSTs scope by BODY profile; the
+                                // ?profile= query rewrite never reaches them.
+                                profile = AuthManager.activeProfileId.value,
+                            ),
                     )
                 }
             when (result) {

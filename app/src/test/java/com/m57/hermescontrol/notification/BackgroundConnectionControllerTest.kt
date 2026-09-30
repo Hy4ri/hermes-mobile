@@ -407,4 +407,55 @@ class BackgroundConnectionControllerTest {
             unmockkObject(NetworkMonitor)
         }
     }
+
+    @Test
+    fun testOnKeepConnectedDisabled_whenBackgrounded_releasesLeaseAndStopsService() {
+        var leaseReleased = false
+        var serviceStopped = false
+        val snapshot =
+            BackgroundConnectionSnapshot(
+                appInForeground = false,
+                keepConnectedOptIn = false,
+                pendingReply = false,
+                isEligibleForConnection = true,
+                status = ConnectionStatus.CONNECTED,
+            )
+        val controller =
+            BackgroundConnectionController(
+                snapshotProvider = { snapshot },
+                releaseLease = { leaseReleased = true },
+                requestServiceStop = { serviceStopped = true },
+            )
+
+        controller.onKeepConnectedDisabled()
+
+        assertTrue(leaseReleased)
+        assertTrue(serviceStopped)
+    }
+
+    @Test
+    fun testOnKeepConnectedDisabled_whenReplyPending_keepsServiceAndRefreshesNotification() {
+        var serviceStopped = false
+        var refreshed: BackgroundNotificationState? = null
+        val snapshot =
+            BackgroundConnectionSnapshot(
+                appInForeground = false,
+                keepConnectedOptIn = false,
+                pendingReply = true,
+                isEligibleForConnection = true,
+                status = ConnectionStatus.CONNECTED,
+            )
+        val controller =
+            BackgroundConnectionController(
+                snapshotProvider = { snapshot },
+                releaseLease = {},
+                requestServiceStop = { serviceStopped = true },
+                onNotificationStateChanged = { refreshed = it },
+            )
+
+        controller.onKeepConnectedDisabled()
+
+        assertFalse(serviceStopped)
+        assertEquals(BackgroundNotificationState.WaitingForReplies, refreshed)
+    }
 }

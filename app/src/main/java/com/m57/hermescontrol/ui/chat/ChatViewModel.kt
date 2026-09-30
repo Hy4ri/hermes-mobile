@@ -4270,21 +4270,28 @@ class ChatViewModel(
         val sessionId = runtimeSessionId ?: _uiState.value.currentSessionId
 
         // 1. Authoritative transcript replacement
+        // Rows without a server id can't be keyed under newest-anchored paging; the mapper would throw and
+        // abort the whole result (feedback included). Fall back to a REST reload for those.
+        var needsReload = false
         if (response?.messages != null && sessionId != null) {
-            val replacementMessages =
-                withContext(historyDispatcher) {
-                    mapServerMessages(
-                        sessionId = sessionId,
-                        messages = response.messages,
-                        offset = 0,
-                        latestPaging = latestPaging,
-                        liveMessages = emptyList(),
-                        activeReplyTarget = ReplyNotificationTracker.getActiveTarget(getApplication()),
-                        mediaUrl = ::gatewayMediaUrl,
-                    )
-                }
-            _uiState.update { it.copy(messages = replacementMessages) }
-            persistHistoryPage(replacementMessages, sessionId)
+            if (!latestPaging || response.messages.all { it.id != null }) {
+                val replacementMessages =
+                    withContext(historyDispatcher) {
+                        mapServerMessages(
+                            sessionId = sessionId,
+                            messages = response.messages,
+                            offset = 0,
+                            latestPaging = latestPaging,
+                            liveMessages = emptyList(),
+                            activeReplyTarget = ReplyNotificationTracker.getActiveTarget(getApplication()),
+                            mediaUrl = ::gatewayMediaUrl,
+                        )
+                    }
+                _uiState.update { it.copy(messages = replacementMessages) }
+                persistHistoryPage(replacementMessages, sessionId)
+            } else {
+                needsReload = true
+            }
         }
 
         // 2. Display result summary via addAssistantMessage
@@ -4300,6 +4307,12 @@ class ChatViewModel(
             } else {
                 response?.message ?: "Context compressed."
             }
+        if (needsReload && sessionId != null) {
+            // Mirror handlePrefillResult: rehydrate from REST first, then post the feedback so it survives.
+            withContext(ioDispatcher) { repo.clearMessagesForSession(sessionId) }
+            _uiState.update { it.copy(messages = emptyList()) }
+            loadSessionMessages(sessionId, sessionGeneration)
+        }
         addAssistantMessage(feedback)
 
         // 3. Refresh usage & sessions

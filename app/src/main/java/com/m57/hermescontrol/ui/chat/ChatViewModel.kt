@@ -43,6 +43,7 @@ import com.m57.hermescontrol.data.ws.contract.ConfigGetParams
 import com.m57.hermescontrol.data.ws.contract.ConfigSetParams
 import com.m57.hermescontrol.data.ws.contract.FileAttachParams
 import com.m57.hermescontrol.data.ws.contract.ImageAttachBytesParams
+import com.m57.hermescontrol.data.ws.contract.ProcessStopParams
 import com.m57.hermescontrol.data.ws.contract.PromptBtwParams
 import com.m57.hermescontrol.data.ws.contract.RpcMethod
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
@@ -3716,6 +3717,10 @@ class ChatViewModel(
                 interruptSession()
             }
 
+            is SlashResult.Stop -> {
+                stopSessionAndProcesses()
+            }
+
             is SlashResult.NewSession -> {
                 val currentTitle = _uiState.value.chatTitle
                 if (currentTitle.equals("Bot Chat", ignoreCase = true)) {
@@ -4341,6 +4346,28 @@ class ChatViewModel(
                 SessionInterruptParams(sessionId),
                 onSent = { id -> trackRequest(id, WsMethods.SESSION_INTERRUPT) },
             )
+        }
+    }
+
+    /**
+     * `/stop`, matching the desktop app: interrupt the active turn (same path as the composer Stop button), then
+     * kill every background process via `process.stop`. The button stays interrupt-only.
+     */
+    private fun stopSessionAndProcesses() {
+        interruptSession()
+        viewModelScope.launch(ioDispatcher) {
+            val message =
+                try {
+                    val killed = wsClient.call(RpcMethods.PROCESS_STOP, ProcessStopParams).killed ?: 0
+                    when {
+                        killed > 0 -> "Stopped $killed background process${if (killed == 1) "" else "es"}."
+                        else -> "No background processes to stop."
+                    }
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    "Could not stop background processes: ${e.message ?: e.javaClass.simpleName}"
+                }
+            addSystemMessage(message)
         }
     }
 

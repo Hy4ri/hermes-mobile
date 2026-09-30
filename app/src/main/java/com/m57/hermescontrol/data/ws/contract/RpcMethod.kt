@@ -363,6 +363,13 @@ object RpcMethods {
             JsonElement.serializer(),
         )
 
+    val PROCESS_STOP: RpcMethod<ProcessStopParams, ProcessStopResult> =
+        RpcMethod(
+            WsMethods.PROCESS_STOP,
+            ProcessStopParams.serializer(),
+            ProcessStopResult.serializer(),
+        )
+
     // Passthrough JsonElement results: callers keep their existing legacy decoders.
     val PLUGINS_MANAGE: RpcMethod<PluginsManageParams, JsonElement> =
         RpcMethod(
@@ -514,6 +521,7 @@ object RpcMethods {
             SUBAGENT_TAIL,
             PROCESS_LIST,
             PROCESS_KILL,
+            PROCESS_STOP,
             PLUGINS_MANAGE,
             PROJECTS_LIST,
             PROFILES_LIST,

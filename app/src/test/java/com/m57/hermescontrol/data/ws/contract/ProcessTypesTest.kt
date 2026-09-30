@@ -25,7 +25,17 @@ class ProcessTypesTest {
     }
 
     @Test
+    fun stopEncodesAnEmptyObjectAndDecodesKilledCount() {
+        val encoded = OkHttpProvider.json.encodeToJsonElement(ProcessStopParams.serializer(), ProcessStopParams)
+        assertEquals(buildJsonObject {}, encoded)
+        val result = OkHttpProvider.json.decodeFromString(ProcessStopResult.serializer(), """{"killed":3}""")
+        assertEquals(ProcessStopResult(killed = 3), result)
+    }
+
+    @Test
     fun descriptorsAreRegisteredWithContractNames() {
+        assertTrue(RpcMethods.PROCESS_STOP in RpcMethods.all)
+        assertEquals("process.stop", RpcMethods.PROCESS_STOP.name)
         assertTrue(RpcMethods.PROCESS_LIST in RpcMethods.all)
         assertTrue(RpcMethods.PROCESS_KILL in RpcMethods.all)
         assertEquals("process.list", RpcMethods.PROCESS_LIST.name)

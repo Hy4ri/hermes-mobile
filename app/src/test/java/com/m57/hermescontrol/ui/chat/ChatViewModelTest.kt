@@ -36,6 +36,8 @@ import com.m57.hermescontrol.data.ws.ModelCatalogStore
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.data.ws.contract.ConfigSetParams
+import com.m57.hermescontrol.data.ws.contract.ProcessStopParams
+import com.m57.hermescontrol.data.ws.contract.ProcessStopResult
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
 import com.m57.hermescontrol.notification.TurnCorrelationTracker
 import com.m57.hermescontrol.ui.chat.fakes.FakeChatPersistenceRepository
@@ -283,6 +285,9 @@ class ChatViewModelTest {
             HermesWsClient.send(arg(0), arg(1)) {}
             CompletableDeferred<Any?>(Unit)
         }
+        // /stop also fires process.stop; default to "nothing to kill" so unrelated /stop tests never hit the socket.
+        coEvery { HermesWsClient.call(RpcMethods.PROCESS_STOP, any(), any(), any()) } returns
+            ProcessStopResult(killed = 0)
         mockkObject(ApiClient)
         mockkObject(HermesDatabase)
 
@@ -967,6 +972,52 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun testSlashCommand_stop_alsoKillsBackgroundProcesses() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            coEvery { HermesWsClient.call(RpcMethods.PROCESS_STOP, any(), any(), any()) } returns
+                ProcessStopResult(killed = 2)
+
+            viewModel.sendMessage("/stop")
+            advanceUntilIdle()
+
+            verify { HermesWsClient.send(WsMethods.SESSION_INTERRUPT, any(), any()) }
+            coVerify(exactly = 1) { HermesWsClient.call(RpcMethods.PROCESS_STOP, ProcessStopParams, any(), any()) }
+            val contents =
+                viewModel.uiState.value.messages
+                    .map { it.content }
+            assertTrue(contents.contains("Stopped 2 background processes."))
+        }
+
+    @Test
+    fun testSlashCommand_interrupt_doesNotKillBackgroundProcesses() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+
+            viewModel.sendMessage("/interrupt")
+            advanceUntilIdle()
+
+            verify { HermesWsClient.send(WsMethods.SESSION_INTERRUPT, any(), any()) }
+            coVerify(exactly = 0) { HermesWsClient.call(RpcMethods.PROCESS_STOP, any(), any(), any()) }
+        }
+
+    @Test
+    fun testSlashCommand_stop_reportsProcessStopFailure() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            coEvery { HermesWsClient.call(RpcMethods.PROCESS_STOP, any(), any(), any()) } throws
+                IllegalStateException("boom")
+
+            viewModel.sendMessage("/stop")
+            advanceUntilIdle()
+
+            assertTrue(
+                viewModel.uiState.value.messages
+                    .any { it.content == "Could not stop background processes: boom" },
+            )
+        }
+
+    @Test
     fun testSlashCommand_stop_andInterruptedNoticeStayInPlaceAcrossSync() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()
@@ -1041,7 +1092,15 @@ class ChatViewModelTest {
 
             val contents = merged.map { it.content }
             assertEquals(
-                listOf("start task", "running...", "/stop", "Session interrupted", "next prompt", "next reply"),
+                listOf(
+                    "start task",
+                    "running...",
+                    "/stop",
+                    "No background processes to stop.",
+                    "Session interrupted",
+                    "next prompt",
+                    "next reply",
+                ),
                 contents,
             )
         }

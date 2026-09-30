@@ -87,6 +87,24 @@ with their matching `on*` text/icons. `onSuccess` is not a foreground token for
 `successContainer`. Palette tests exercise this exact renderer mapping in every
 resolved mode, including fallback modes; neutral badges use Material tokens.
 
+Enabled Material components also have a component-state contract:
+- Graphics/boundaries target >= 3:1: switch thumbs/tracks and borders, radio and
+  checkbox states, slider active/inactive tracks, text-field borders, and segmented borders.
+- Primary/error text and field labels on surface/background target >= 4.5:1.
+- Segmented content uses the corresponding container foreground at >= 4.5:1.
+
+`ThemeComponentContrastTest` checks the pinned Material role combinations in every
+resolved preset/mode. `ThemeComponentGalleryTest` reads the installed Compose
+public color defaults and verifies rendered pixels for all twelve preset/mode
+combinations, including focused/error fields. Disabled controls are deliberately
+excluded from the enabled contrast contract; Material uses opacity to mute them.
+Settings switches use Material defaults (`primary` track / `onPrimary` thumb),
+not the reversed `primaryContainer` track / `primary` thumb combination.
+
+Outlines must contrast against both surface and the unchecked switch track
+(`surfaceContainerHighest`). Named palettes may need documented derived primary
+or error tones for direct text; fixed roles still preserve their upstream accents.
+
 ## Theme modes
 
 A theme declares which modes it ships via the factory you build it with:

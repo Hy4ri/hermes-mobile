@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -50,11 +49,6 @@ internal fun BehaviorSection(
             Switch(
                 checked = autoReconnect,
                 onCheckedChange = onAutoReconnectChange,
-                colors =
-                    SwitchDefaults.colors(
-                        checkedThumbColor = MaterialTheme.colorScheme.primary,
-                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
-                    ),
             )
         }
 
@@ -83,11 +77,6 @@ internal fun BehaviorSection(
             Switch(
                 checked = keepConnectedInBackground,
                 onCheckedChange = onKeepConnectedInBackgroundChange,
-                colors =
-                    SwitchDefaults.colors(
-                        checkedThumbColor = MaterialTheme.colorScheme.primary,
-                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
-                    ),
             )
         }
 
@@ -116,11 +105,6 @@ internal fun BehaviorSection(
             Switch(
                 checked = restoreLastSession,
                 onCheckedChange = onRestoreLastSessionChange,
-                colors =
-                    SwitchDefaults.colors(
-                        checkedThumbColor = MaterialTheme.colorScheme.primary,
-                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
-                    ),
             )
         }
     }

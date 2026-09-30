@@ -18,10 +18,11 @@ private val GruvboxDarkBg3 = Color(0xFF665C54)
 private val GruvboxDarkFg1 = Color(0xFFEBDBB2)
 private val GruvboxDarkFg2 = Color(0xFFD5C4A1)
 private val GruvboxDarkFg3 = Color(0xFFBDAE93)
-private val GruvboxGray = Color(0xFF928374) // same neutral gray in both modes
 
 // "Bright" accents — the variants gruvbox uses against a dark background.
-private val GruvboxBrightRed = Color(0xFFFB4934)
+// Derived role, not an upstream swatch: bright red/bg0 is only 4.29:1.
+// Lighter red reaches 4.92:1 for error text and field labels on bg0.
+private val GruvboxErrorText = Color(0xFFFF5F4F)
 private val GruvboxBrightGreen = Color(0xFFB8BB26)
 private val GruvboxBrightYellow = Color(0xFFFABD2F)
 private val GruvboxBrightBlue = Color(0xFF83A598)
@@ -104,7 +105,7 @@ val GruvboxTheme =
                 inverseSurface = GruvboxDarkFg1,
                 inverseOnSurface = GruvboxDarkBg0,
                 inversePrimary = GruvboxFadedOrange,
-                outline = GruvboxGray,
+                outline = GruvboxDarkFg2,
                 outlineVariant = GruvboxDarkBg3,
                 scrim = GruvboxDarkBg0,
                 status =
@@ -115,7 +116,7 @@ val GruvboxTheme =
                         warning = GruvboxBrightYellow,
                         warningContainer = GruvboxDarkBg3,
                         onWarning = GruvboxDarkBg0,
-                        error = GruvboxBrightRed,
+                        error = GruvboxErrorText,
                         errorContainer = GruvboxDarkBg3,
                         onError = GruvboxDarkInk,
                         onErrorContainer = GruvboxDarkFg1,
@@ -166,7 +167,7 @@ val GruvboxTheme =
                 inverseSurface = GruvboxLightFg1,
                 inverseOnSurface = GruvboxLightBg0,
                 inversePrimary = GruvboxBrightOrange,
-                outline = GruvboxGray,
+                outline = GruvboxLightFg2,
                 outlineVariant = GruvboxLightBg3,
                 scrim = GruvboxLightBg0,
                 status =

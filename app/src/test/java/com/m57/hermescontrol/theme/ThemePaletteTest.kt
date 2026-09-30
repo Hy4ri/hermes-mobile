@@ -151,9 +151,7 @@ class ThemePaletteTest {
      * so the full-bleed text pairs must hold against [ColorScheme.background]:
      * - body prose (onSurface) >= 4.5:1 — primary content, WCAG AA text
      * - header role label + timestamp (onSurfaceVariant) >= 3:1 — WCAG AA UI
-     * (The header deliberately avoids `primary`: Nord's light mode reuses its
-     * pastel Frost accent as primary, which cannot reach 3:1 on a light
-     * background.)
+     * Header text uses onSurfaceVariant independently of the theme's accent.
      * The registry covers every shipped preset and its fallback mode.
      */
     @Test

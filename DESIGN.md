@@ -145,7 +145,10 @@ passed an accessibility audit.
 
 [ThemePaletteTest.kt](app/src/test/java/com/m57/hermescontrol/theme/ThemePaletteTest.kt)
 guards normal-text slot pairs, full-bleed prose/header contrast, complete Material
-role mapping, registry coverage, fixed-role mode invariance, and theme-mode invariants. Those tests are useful but do not establish contrast or accessibility
+role mapping, registry coverage, fixed-role mode invariance, and theme-mode invariants.
+[ThemeComponentContrastTest.kt](app/src/test/java/com/m57/hermescontrol/theme/ThemeComponentContrastTest.kt)
+and the instrumented component gallery also guard enabled Material control states.
+Those tests are useful but do not establish contrast or accessibility
 compliance for every rendered component, alpha blend, or dynamic palette.
 Record device/emulator steps and observed results for changed UI; explicitly name
 any gate that could not be verified.

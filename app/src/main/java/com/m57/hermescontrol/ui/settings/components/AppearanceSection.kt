@@ -22,7 +22,6 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -109,11 +108,6 @@ internal fun AppearanceSection(
             Switch(
                 checked = useDynamicColors,
                 onCheckedChange = onUseDynamicColorsChange,
-                colors =
-                    SwitchDefaults.colors(
-                        checkedThumbColor = MaterialTheme.colorScheme.primary,
-                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
-                    ),
             )
         }
 
@@ -459,11 +453,6 @@ internal fun ChatSection(
                 checked = showModelProvider,
                 onCheckedChange = onShowModelProviderChange,
                 modifier = Modifier.testTag("settings_show_model_provider"),
-                colors =
-                    SwitchDefaults.colors(
-                        checkedThumbColor = MaterialTheme.colorScheme.primary,
-                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
-                    ),
             )
         }
 
@@ -490,11 +479,6 @@ internal fun ChatSection(
             Switch(
                 checked = typingEffectEnabled,
                 onCheckedChange = onTypingEffectEnabledChange,
-                colors =
-                    SwitchDefaults.colors(
-                        checkedThumbColor = MaterialTheme.colorScheme.primary,
-                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
-                    ),
             )
         }
 

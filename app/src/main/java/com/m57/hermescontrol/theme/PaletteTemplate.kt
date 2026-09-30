@@ -28,6 +28,9 @@ enum class ThemeMode { FULL, DARK_ONLY, LIGHT_ONLY }
  *
  * The Material error slots are derived from [status] — the theme author
  * defines semantic colors once and the scheme inherits them.
+ * [primary] and the status error are also used directly for text on surfaces.
+ * [outline] must contrast with [surface] and [surfaceContainerHighest], which
+ * Material uses as the unchecked switch track.
  */
 data class PaletteColors(
     val primary: Color,

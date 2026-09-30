@@ -11,7 +11,7 @@ import com.m57.hermescontrol.theme.buildTheme
 // supply the surfaces; Frost (7–10) and Aurora (11–15) supply the
 // accents. Unlike Gruvbox, Nord defines one accent set — not a
 // separate bright/faded pair per mode — so the same accent swatches
-// are reused in both palettes below.
+// are reused for fixed roles; primary/error need documented accessible tones.
 // ---------------------------------------------------------------------
 
 // Derived role, not an upstream Nord swatch: nord0/red is 3.05:1 and
@@ -26,7 +26,16 @@ private val Nord5 = Color(0xFFE5E9F0)
 private val Nord6 = Color(0xFFECEFF4) // Snow Storm — lightest
 private val Nord8 = Color(0xFF88C0D0) // Frost — primary accent
 private val Nord9 = Color(0xFF81A1C1) // Frost — secondary / info
-private val Nord11 = Color(0xFFBF616A) // Aurora red — error
+
+// Derived roles, not upstream Nord swatches. Nord10/Snow Storm is only 3.50:1;
+// deeper Frost ink reaches 4.92:1 on nord6 for primary text/focus labels.
+private val NordFrostInk = Color(0xFF486991)
+
+// Official Aurora red/nord0 is 3.05:1; a brighter red reaches 4.67:1.
+private val NordErrorBright = Color(0xFFDE858F)
+
+// Official Aurora red/nord6 is 3.55:1; deeper red reaches 5.69:1.
+private val NordErrorInk = Color(0xFFA53547)
 private val Nord13 = Color(0xFFEBCB8B) // Aurora yellow — warning
 private val Nord14 = Color(0xFFA3BE8C) // Aurora green — success
 private val Nord15 = Color(0xFFB48EAD) // Aurora purple — tertiary
@@ -42,12 +51,11 @@ private val Nord15 = Color(0xFFB48EAD) // Aurora purple — tertiary
  * tiers on each side share a value (surfaceContainerHigh ==
  * surfaceContainerHighest) rather than inventing an off-palette hex.
  *
- * Frost/Aurora accents are pastel by design, so onPrimary/onSecondary/
- * onTertiary/status "on" colors use dark text in *both*
- * modes — reusing Snow Storm for light-mode "on" text (the convention in
+ * Pastel Frost/Aurora fills use dark ink in both modes — reusing
+ * Snow Storm for light-mode "on" text (the convention in
  * the Catppuccin/Gruvbox presets) would fail contrast against colors like
  * Aurora yellow, which stays light even without a separate light-mode
- * variant. Red and purple need the documented deeper Polar Night ink.
+ * variant. Light primary/error use Snow Storm ink on their darker fills.
  */
 val NordTheme =
     buildTheme(
@@ -92,8 +100,8 @@ val NordTheme =
                 surfaceContainerHighest = Nord3,
                 inverseSurface = Nord6,
                 inverseOnSurface = Nord0,
-                inversePrimary = Nord8,
-                outline = Nord3,
+                inversePrimary = NordFrostInk,
+                outline = Nord4,
                 outlineVariant = Nord2,
                 scrim = Nord0,
                 status =
@@ -104,7 +112,7 @@ val NordTheme =
                         warning = Nord13,
                         warningContainer = Nord2,
                         onWarning = Nord0,
-                        error = Nord11,
+                        error = NordErrorBright,
                         errorContainer = Nord2,
                         onError = NordPolarInk,
                         onErrorContainer = Nord6,
@@ -115,8 +123,8 @@ val NordTheme =
             ),
         light =
             PaletteColors(
-                primary = Nord8,
-                onPrimary = Nord0,
+                primary = NordFrostInk,
+                onPrimary = Nord6,
                 primaryContainer = Nord4,
                 onPrimaryContainer = Nord0,
                 secondary = Nord9,
@@ -166,9 +174,9 @@ val NordTheme =
                         warning = Nord13,
                         warningContainer = Nord5,
                         onWarning = Nord0,
-                        error = Nord11,
+                        error = NordErrorInk,
                         errorContainer = Nord5,
-                        onError = NordPolarInk,
+                        onError = Nord6,
                         onErrorContainer = Nord0,
                         info = Nord9,
                         infoContainer = Nord5,

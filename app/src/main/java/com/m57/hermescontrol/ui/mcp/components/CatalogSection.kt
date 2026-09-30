@@ -95,7 +95,7 @@ fun CatalogView(
                             state = state,
                             viewModel = viewModel,
                             spacing = spacing,
-                            isInstalled = entry.name in installedNames,
+                            isInstalled = entry.installed || entry.name in installedNames,
                         )
                     }
                 }

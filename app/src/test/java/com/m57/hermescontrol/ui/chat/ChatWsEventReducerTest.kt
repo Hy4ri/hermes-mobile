@@ -10,6 +10,43 @@ import org.junit.Test
 
 class ChatWsEventReducerTest {
     @Test
+    fun interruptedIdentitySurvivesDoneButNotANewStart() {
+        val partial = ChatMessage(id = "partial", role = MessageRole.ASSISTANT, content = "old reply")
+        val state = ChatUiState(currentSessionId = "session-1", messages = listOf(partial))
+        val interrupted = StreamingState(interruptedMessage = partial)
+        val done =
+            ChatWsEventReducer.reduce(
+                state,
+                interrupted,
+                WsEvent.MessageDone("session-1"),
+                "session-1",
+            )
+        assertEquals(partial, done.streamingState.interruptedMessage)
+        val started =
+            ChatWsEventReducer.reduce(
+                done.state,
+                done.streamingState,
+                WsEvent.MessageStart("session-1"),
+                "session-1",
+            )
+        assertNull(started.streamingState.interruptedMessage)
+        val complete =
+            ChatWsEventReducer.reduce(
+                started.state,
+                started.streamingState,
+                WsEvent.MessageComplete("new reply", "session-1"),
+                "session-1",
+            )
+        assertEquals(
+            "old reply",
+            complete.state.messages
+                .first()
+                .content,
+        )
+        assertEquals(2, complete.state.messages.count { it.role == MessageRole.ASSISTANT })
+    }
+
+    @Test
     fun testMessageComplete_clearsResolvedClarifyRequest() {
         val state =
             ChatUiState(

@@ -952,6 +952,100 @@ class ChatPagingMergeTest {
         )
     }
 
+    private fun laterTurnRows(assistantText: String) =
+        listOf(
+            SessionMessage(
+                id = 0,
+                role = "user",
+                content = JsonPrimitive("long running task"),
+                timestamp = JsonPrimitive(1),
+            ),
+            SessionMessage(
+                id = 1,
+                role = "assistant",
+                content = JsonPrimitive(assistantText),
+                timestamp = JsonPrimitive(2),
+            ),
+            SessionMessage(
+                id = 2,
+                role = "user",
+                content = JsonPrimitive("next question"),
+                timestamp = JsonPrimitive(3),
+            ),
+            SessionMessage(
+                id = 3,
+                role = "assistant",
+                content = JsonPrimitive("next answer"),
+                timestamp = JsonPrimitive(4),
+            ),
+        )
+
+    @Test
+    fun stopNoticesStayInPlaceWhenInterruptedReplyIsStillLiveOnly() {
+        val prompt = ChatMessage(id = "rest-session-0", role = MessageRole.USER, content = "long running task")
+        val liveReply = ChatMessage(id = "live-reply", role = MessageRole.ASSISTANT, content = "Working on it...")
+        val stop = ChatMessage(id = "uuid-stop", role = MessageRole.USER, content = "/stop")
+        val processes =
+            ChatMessage(id = "uuid-procs", role = MessageRole.SYSTEM, content = "Stopped 2 background processes.")
+        val interrupted = ChatMessage(id = "uuid-int", role = MessageRole.SYSTEM, content = "Session interrupted")
+
+        val merged =
+            applyServerPage(listOf(prompt, liveReply, stop, processes, interrupted), laterTurnRows("Working on it..."))
+
+        assertEquals(
+            listOf(
+                "rest-session-0",
+                "rest-session-1",
+                "uuid-stop",
+                "uuid-procs",
+                "uuid-int",
+                "rest-session-2",
+                "rest-session-3",
+            ),
+            merged.map { it.canonicalRestId ?: it.id },
+        )
+    }
+
+    @Test
+    fun stopNoticesStayInPlaceWhenLongInterruptedReplyIsAPrefixOfTheServerCopy() {
+        val long = "Working on the migration plan step by step, first the schema then the data"
+        val prompt = ChatMessage(id = "rest-session-0", role = MessageRole.USER, content = "long running task")
+        val liveReply = ChatMessage(id = "live-reply", role = MessageRole.ASSISTANT, content = long)
+        val stop = ChatMessage(id = "uuid-stop", role = MessageRole.USER, content = "/stop")
+        val interrupted = ChatMessage(id = "uuid-int", role = MessageRole.SYSTEM, content = "Session interrupted")
+
+        val merged = applyServerPage(listOf(prompt, liveReply, stop, interrupted), laterTurnRows("$long, then indexes"))
+
+        val ids = merged.map { it.canonicalRestId ?: it.id }
+        assertTrue("notices before later turns: $ids", ids.indexOf("uuid-int") < ids.indexOf("rest-session-2"))
+    }
+
+    @Test
+    fun processResultArrivingAfterInterruptNoticeStaysBeforeLaterTurns() {
+        val prompt = ChatMessage(id = "rest-session-0", role = MessageRole.USER, content = "long running task")
+        val reply = ChatMessage(id = "rest-session-1", role = MessageRole.ASSISTANT, content = "Working on it...")
+        val stop = ChatMessage(id = "uuid-stop", role = MessageRole.USER, content = "/stop")
+        val interrupted = ChatMessage(id = "uuid-int", role = MessageRole.SYSTEM, content = "Session interrupted")
+        val processes =
+            ChatMessage(id = "uuid-procs", role = MessageRole.SYSTEM, content = "No background processes to stop.")
+
+        val merged =
+            applyServerPage(listOf(prompt, reply, stop, interrupted, processes), laterTurnRows("Working on it..."))
+
+        assertEquals(
+            listOf(
+                "rest-session-0",
+                "rest-session-1",
+                "uuid-stop",
+                "uuid-int",
+                "uuid-procs",
+                "rest-session-2",
+                "rest-session-3",
+            ),
+            merged.map { it.canonicalRestId ?: it.id },
+        )
+    }
+
     @Test
     fun commandEchoAndOutputStayInPlaceAcrossFutureSyncs() {
         val prompt = ChatMessage(id = "rest-session-0", role = MessageRole.USER, content = "what model are you?")

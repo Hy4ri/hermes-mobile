@@ -71,6 +71,10 @@
             android:name=".notification.NotificationReplyReceiver"
             android:exported="false" />
 
+        <receiver
+            android:name=".notification.StopKeepConnectedReceiver"
+            android:exported="false" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

@@ -13,6 +13,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
 import com.m57.hermescontrol.MainActivity
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.HermesWsClient
@@ -383,15 +384,48 @@ class ChatNotificationService : Service() {
         )
     }
 
-    private fun buildForegroundNotification(text: String): Notification =
-        NotificationCompat
-            .Builder(this, SERVICE_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(getString(R.string.notif_title))
-            .setContentText(text)
-            .setPriority(NotificationCompat.PRIORITY_MIN)
-            .setOngoing(true)
-            .build()
+    private fun buildForegroundNotification(text: String): Notification {
+        val openIntent =
+            Intent(this, MainActivity::class.java).apply {
+                setPackage(packageName)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+        val builder =
+            NotificationCompat
+                .Builder(this, SERVICE_CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setContentTitle(getString(R.string.notif_title))
+                .setContentText(text)
+                .setPriority(NotificationCompat.PRIORITY_MIN)
+                .setOngoing(true)
+                .setContentIntent(
+                    PendingIntent.getActivity(
+                        this,
+                        0,
+                        openIntent,
+                        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+                    ),
+                )
+
+        if (AuthManager.isKeepConnectedInBackground()) {
+            val stopIntent =
+                Intent(this, StopKeepConnectedReceiver::class.java).apply {
+                    action = StopKeepConnectedReceiver.ACTION_STOP_KEEP_CONNECTED
+                    setPackage(packageName)
+                }
+            builder.addAction(
+                R.drawable.ic_notification,
+                getString(R.string.notif_action_turn_off),
+                PendingIntent.getBroadcast(
+                    this,
+                    0,
+                    stopIntent,
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+                ),
+            )
+        }
+        return builder.build()
+    }
 
     private fun createNotificationChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

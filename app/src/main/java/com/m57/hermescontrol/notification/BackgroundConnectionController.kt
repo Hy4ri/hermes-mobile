@@ -98,6 +98,17 @@ class BackgroundConnectionController(
         }
     }
 
+    /** The persistent opt-in was turned off while backgrounded (e.g. from the notification action). */
+    fun onKeepConnectedDisabled() {
+        val snapshot = snapshotProvider(false)
+        if (!snapshot.appInForeground) {
+            releaseLease()
+        }
+        // Force a re-post if the service stays up (pending reply) so the action button disappears.
+        currentNotificationState = BackgroundNotificationState.None
+        reconcileState()
+    }
+
     fun reconcileState() {
         val snapshot = snapshotProvider(false)
         val decision = BackgroundConnectionPolicy.evaluate(snapshot)

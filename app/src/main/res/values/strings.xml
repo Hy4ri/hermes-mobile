@@ -152,6 +152,7 @@
     <string name="notif_title">Hermes</string>
     <string name="notif_waiting_replies">Waiting for Hermes replies</string>
     <string name="notif_connected_in_background">Connected in background</string>
+    <string name="notif_action_turn_off">Turn off</string>
     <string name="notif_connecting">Connecting…</string>
     <string name="notif_waiting_network">Waiting for network</string>
     <string name="notif_reconnecting">Reconnecting</string>

@@ -10,6 +10,7 @@ import com.m57.hermescontrol.data.model.McpOAuthFlowResponse
 import com.m57.hermescontrol.data.model.McpServer
 import com.m57.hermescontrol.data.model.McpServerTestResponse
 import com.m57.hermescontrol.data.model.McpServerToggleRequest
+import com.m57.hermescontrol.data.model.McpServerUpdateRequest
 import com.m57.hermescontrol.data.model.McpServersResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkError
@@ -458,7 +459,12 @@ class McpServersViewModel(
             val updatedEnv = existingEnv + (key to value)
             val result =
                 withContext(ioDispatcher) {
-                    safeApiCall { ApiClient.hermesApi.updateMcpServer(serverName, mapOf("env" to updatedEnv)) }
+                    safeApiCall {
+                        ApiClient.hermesApi.updateMcpServer(
+                            serverName,
+                            McpServerUpdateRequest(env = updatedEnv),
+                        )
+                    }
                 }
             when (result) {
                 is NetworkResult.Success -> {
@@ -490,7 +496,12 @@ class McpServersViewModel(
             val updatedEnv = existingEnv - key
             val result =
                 withContext(ioDispatcher) {
-                    safeApiCall { ApiClient.hermesApi.updateMcpServer(serverName, mapOf("env" to updatedEnv)) }
+                    safeApiCall {
+                        ApiClient.hermesApi.updateMcpServer(
+                            serverName,
+                            McpServerUpdateRequest(env = updatedEnv),
+                        )
+                    }
                 }
             when (result) {
                 is NetworkResult.Success -> {

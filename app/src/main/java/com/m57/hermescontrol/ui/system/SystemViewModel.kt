@@ -11,11 +11,15 @@ import com.m57.hermescontrol.data.model.ActionResponse
 import com.m57.hermescontrol.data.model.ActionStatusResponse
 import com.m57.hermescontrol.data.model.BackupTriggerRequest
 import com.m57.hermescontrol.data.model.CheckpointsResponse
+import com.m57.hermescontrol.data.model.CredentialPoolAddRequest
 import com.m57.hermescontrol.data.model.CredentialPoolProvider
 import com.m57.hermescontrol.data.model.CuratorResponse
+import com.m57.hermescontrol.data.model.DebugShareRequest
 import com.m57.hermescontrol.data.model.DebugShareResponse
 import com.m57.hermescontrol.data.model.DoctorResponse
 import com.m57.hermescontrol.data.model.GatewayMigrationPlan
+import com.m57.hermescontrol.data.model.HookCreateRequest
+import com.m57.hermescontrol.data.model.HookDeleteRequest
 import com.m57.hermescontrol.data.model.HookResponse
 import com.m57.hermescontrol.data.model.PortalResponse
 import com.m57.hermescontrol.data.model.StatusResponse
@@ -531,11 +535,11 @@ class SystemViewModel(
         _uiState.update { it.copy(addingCred = true) }
         viewModelScope.launch {
             val body =
-                buildMap {
-                    put("provider", state.credProvider)
-                    put("token", state.credKey)
-                    if (state.credLabel.isNotBlank()) put("label", state.credLabel)
-                }
+                CredentialPoolAddRequest(
+                    provider = state.credProvider,
+                    apiKey = state.credKey,
+                    label = state.credLabel.ifBlank { null },
+                )
             val result =
                 withContext(Dispatchers.IO) {
                     safeApiCall { ApiClient.hermesApi.addCredentialPoolEntry(body) }
@@ -780,7 +784,7 @@ class SystemViewModel(
         viewModelScope.launch {
             val result =
                 withContext(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.runDebugShare(mapOf("redact" to shareRedact)) }
+                    safeApiCall { ApiClient.hermesApi.runDebugShare(DebugShareRequest(redact = shareRedact)) }
                 }
             when (result) {
                 is NetworkResult.Success -> {
@@ -849,13 +853,13 @@ class SystemViewModel(
         _uiState.update { it.copy(creatingHook = true) }
         viewModelScope.launch {
             val body =
-                buildMap<String, Any> {
-                    put("event", state.hookEvent)
-                    put("command", state.hookCommand)
-                    if (state.hookMatcher.isNotBlank()) put("matcher", state.hookMatcher)
-                    if (state.hookTimeout.isNotBlank()) put("timeout", state.hookTimeout.toIntOrNull() ?: 30)
-                    put("allowed", state.hookApprove)
-                }
+                HookCreateRequest(
+                    event = state.hookEvent,
+                    command = state.hookCommand,
+                    matcher = state.hookMatcher.ifBlank { null },
+                    timeout = if (state.hookTimeout.isBlank()) null else state.hookTimeout.toIntOrNull() ?: 30,
+                    approve = state.hookApprove,
+                )
             val result =
                 withContext(Dispatchers.IO) {
                     safeApiCall { ApiClient.hermesApi.createHook(body) }
@@ -894,7 +898,7 @@ class SystemViewModel(
         viewModelScope.launch {
             val result =
                 withContext(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.deleteHook(mapOf("event" to event, "command" to command)) }
+                    safeApiCall { ApiClient.hermesApi.deleteHook(HookDeleteRequest(event, command)) }
                 }
             when (result) {
                 is NetworkResult.Success -> {

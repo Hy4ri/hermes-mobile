@@ -34,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
@@ -43,6 +44,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.BaselineShift
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -61,6 +63,7 @@ import com.m57.hermescontrol.data.remote.GatewayFileClient
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.theme.SearchHighlightColors
 import com.m57.hermescontrol.theme.searchHighlightColors
+import com.m57.hermescontrol.ui.chat.markdown.BulletRun
 import com.m57.hermescontrol.ui.chat.markdown.FnNote
 import com.m57.hermescontrol.ui.chat.markdown.InlineMathSegment
 import com.m57.hermescontrol.ui.chat.markdown.MarkdownInlineStyler
@@ -69,6 +72,8 @@ import com.m57.hermescontrol.ui.chat.markdown.MarkdownMediaResolver
 import com.m57.hermescontrol.ui.chat.markdown.MarkdownTable
 import com.m57.hermescontrol.ui.chat.markdown.MdBlock
 import com.m57.hermescontrol.ui.chat.markdown.TableAlign
+import com.m57.hermescontrol.ui.chat.markdown.buildBulletRunText
+import com.m57.hermescontrol.ui.chat.markdown.coalesceBulletRuns
 import com.m57.hermescontrol.ui.chat.markdown.parseBlocks
 import com.m57.hermescontrol.ui.chat.markdown.splitInlineMath
 import com.m57.hermescontrol.util.BidiUtils
@@ -100,7 +105,7 @@ fun MarkdownText(
     val statusColors = LocalHermesStatusColors.current
     val highlights = searchHighlightColors(statusColors)
     val linkColor = MaterialTheme.colorScheme.primary
-    val blocks = remember(text, isStreaming) { parseBlocks(text) }
+    val blocks = remember(text, isStreaming) { coalesceBulletRuns(parseBlocks(text)) }
     val latexMeasurer = rememberLatexMeasurer()
 
     Column(modifier = modifier.fillMaxWidth()) {
@@ -151,6 +156,7 @@ fun MarkdownText(
                     CompositionLocalProvider(LocalLayoutDirection provides blockDirection) {
                         MarkdownInlineText(
                             text = block.text,
+                            isRtlOverride = isRtl,
                             textColor = textColor,
                             latexMeasurer = latexMeasurer,
                             style =
@@ -165,6 +171,47 @@ fun MarkdownText(
                             modifier = Modifier.padding(vertical = 2.dp),
                         )
                     }
+                }
+
+                is BulletRun -> {
+                    val density = LocalDensity.current
+                    val bodyStyle = MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.Ltr)
+                    val textMeasurer = rememberTextMeasurer()
+                    val runText =
+                        remember(
+                            block,
+                            density,
+                            bodyStyle,
+                            textColor,
+                            searchQuery,
+                            isCurrentMatch,
+                            linkColor,
+                            highlights,
+                        ) {
+                            buildBulletRunText(
+                                run = block,
+                                density = density,
+                                textColor = textColor,
+                                searchQuery = searchQuery,
+                                isCurrentMatch = isCurrentMatch,
+                                linkColor = linkColor,
+                                highlights = highlights,
+                                prefixWidth = { prefix ->
+                                    with(density) {
+                                        textMeasurer
+                                            .measure(prefix, bodyStyle)
+                                            .size.width
+                                            .toSp()
+                                    }
+                                },
+                            )
+                        }
+                    Text(
+                        text = runText,
+                        color = textColor,
+                        style = bodyStyle,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
+                    )
                 }
 
                 is MdBlock.Bullet -> {
@@ -195,6 +242,7 @@ fun MarkdownText(
                             Column(modifier = Modifier.weight(1f)) {
                                 MarkdownInlineText(
                                     text = block.text,
+                                    isRtlOverride = isRtl,
                                     textColor = textColor,
                                     latexMeasurer = latexMeasurer,
                                     style =
@@ -254,6 +302,7 @@ fun MarkdownText(
                             Column(modifier = Modifier.weight(1f)) {
                                 MarkdownInlineText(
                                     text = block.text,
+                                    isRtlOverride = isRtl,
                                     textColor = textColor,
                                     latexMeasurer = latexMeasurer,
                                     style =
@@ -301,6 +350,7 @@ fun MarkdownText(
                             Column(modifier = Modifier.weight(1f)) {
                                 MarkdownInlineText(
                                     text = block.text,
+                                    isRtlOverride = isRtl,
                                     textColor = textColor,
                                     latexMeasurer = latexMeasurer,
                                     style =
@@ -347,6 +397,7 @@ fun MarkdownText(
                             if (nestedBlocks.size == 1 && nestedBlocks.single() is MdBlock.Paragraph) {
                                 MarkdownInlineText(
                                     text = block.text,
+                                    isRtlOverride = isRtl,
                                     textColor = textColor,
                                     latexMeasurer = latexMeasurer,
                                     style =
@@ -502,6 +553,7 @@ fun MarkdownText(
                                     )
                                     MarkdownInlineText(
                                         text = note.text,
+                                        isRtlOverride = isRtl,
                                         textColor = textColor,
                                         latexMeasurer = latexMeasurer,
                                         style =
@@ -526,6 +578,7 @@ fun MarkdownText(
                     CompositionLocalProvider(LocalLayoutDirection provides blockDirection) {
                         MarkdownInlineText(
                             text = block.text,
+                            isRtlOverride = isRtl,
                             textColor = textColor,
                             latexMeasurer = latexMeasurer,
                             style =

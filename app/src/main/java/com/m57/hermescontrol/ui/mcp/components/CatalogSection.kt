@@ -9,11 +9,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -47,6 +53,7 @@ fun CatalogView(
     filteredCatalog: List<McpCatalogEntry>,
     modifier: Modifier = Modifier,
 ) {
+    val installedNames = remember(state.servers) { state.servers.map { it.name }.toSet() }
     Column(modifier = modifier.fillMaxSize()) {
         SearchBar(
             query = state.catalogQuery,
@@ -88,6 +95,7 @@ fun CatalogView(
                             state = state,
                             viewModel = viewModel,
                             spacing = spacing,
+                            isInstalled = entry.installed || entry.name in installedNames,
                         )
                     }
                 }
@@ -103,6 +111,7 @@ fun CatalogEntryCard(
     viewModel: McpServersViewModel,
     spacing: Spacing,
     modifier: Modifier = Modifier,
+    isInstalled: Boolean = false,
 ) {
     var showInstallForm by remember { mutableStateOf(false) }
     val isInstalling = state.installingCatalogEntry == entry.name
@@ -131,23 +140,31 @@ fun CatalogEntryCard(
                         )
                     }
                 }
-                Button(
-                    onClick = {
-                        if (entry.env?.isNotEmpty() == true) {
-                            showInstallForm = !showInstallForm
-                        } else {
-                            viewModel.installCatalogEntry(entry)
-                        }
-                    },
-                    enabled = !isInstalling,
-                ) {
-                    Text(
-                        if (isInstalling) {
-                            stringResource(R.string.mcp_servers_catalog_installing)
-                        } else {
-                            stringResource(R.string.mcp_servers_catalog_install)
+                if (isInstalled) {
+                    FilledTonalButton(onClick = {}, enabled = false) {
+                        Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(spacing.xs))
+                        Text(stringResource(R.string.mcp_servers_catalog_installed))
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            if (entry.env?.isNotEmpty() == true) {
+                                showInstallForm = !showInstallForm
+                            } else {
+                                viewModel.installCatalogEntry(entry)
+                            }
                         },
-                    )
+                        enabled = !isInstalling,
+                    ) {
+                        Text(
+                            if (isInstalling) {
+                                stringResource(R.string.mcp_servers_catalog_installing)
+                            } else {
+                                stringResource(R.string.mcp_servers_catalog_install)
+                            },
+                        )
+                    }
                 }
             }
 
@@ -161,7 +178,7 @@ fun CatalogEntryCard(
             }
 
             // Install form with env vars
-            AnimatedVisibility(visible = showInstallForm) {
+            AnimatedVisibility(visible = showInstallForm && !isInstalled) {
                 Column(modifier = Modifier.padding(top = spacing.sm)) {
                     entry.env?.let { envVars ->
                         if (envVars.isNotEmpty()) {

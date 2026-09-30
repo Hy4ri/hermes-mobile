@@ -585,6 +585,7 @@ class McpServersViewModel(
                         )
                     }
                     loadServers(forceRefresh = true)
+                    loadCatalog()
                 }
 
                 is NetworkResult.Failure -> {

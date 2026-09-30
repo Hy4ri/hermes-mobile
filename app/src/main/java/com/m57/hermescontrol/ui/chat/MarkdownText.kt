@@ -44,6 +44,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.BaselineShift
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -174,22 +175,41 @@ fun MarkdownText(
 
                 is BulletRun -> {
                     val density = LocalDensity.current
+                    val bodyStyle = MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.Ltr)
+                    val textMeasurer = rememberTextMeasurer()
                     val runText =
-                        remember(block, density, textColor, searchQuery, isCurrentMatch, linkColor, highlights) {
+                        remember(
+                            block,
+                            density,
+                            bodyStyle,
+                            textColor,
+                            searchQuery,
+                            isCurrentMatch,
+                            linkColor,
+                            highlights,
+                        ) {
                             buildBulletRunText(
-                                block,
-                                density,
-                                textColor,
-                                searchQuery,
-                                isCurrentMatch,
-                                linkColor,
-                                highlights,
+                                run = block,
+                                density = density,
+                                textColor = textColor,
+                                searchQuery = searchQuery,
+                                isCurrentMatch = isCurrentMatch,
+                                linkColor = linkColor,
+                                highlights = highlights,
+                                prefixWidth = { prefix ->
+                                    with(density) {
+                                        textMeasurer
+                                            .measure(prefix, bodyStyle)
+                                            .size.width
+                                            .toSp()
+                                    }
+                                },
                             )
                         }
                     Text(
                         text = runText,
                         color = textColor,
-                        style = MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.Ltr),
+                        style = bodyStyle,
                         modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
                     )
                 }

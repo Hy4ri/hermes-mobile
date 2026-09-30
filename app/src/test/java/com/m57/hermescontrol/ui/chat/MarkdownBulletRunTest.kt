@@ -3,6 +3,8 @@ package com.m57.hermescontrol.ui.chat
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.sp
 import com.m57.hermescontrol.theme.HermesStatusColors
 import com.m57.hermescontrol.theme.StatusBlue
 import com.m57.hermescontrol.theme.StatusBlueContainer
@@ -20,10 +22,8 @@ import com.m57.hermescontrol.ui.chat.markdown.buildBulletRunText
 import com.m57.hermescontrol.ui.chat.markdown.coalesceBulletRuns
 import com.m57.hermescontrol.ui.chat.markdown.parseBlocks
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import kotlin.system.measureNanoTime
 
 private val HIGHLIGHTS =
     searchHighlightColors(
@@ -50,11 +50,16 @@ private fun bullets(
 
 private fun coalesce(md: String) = coalesceBulletRuns(parseBlocks(md))
 
+/** Stand-in for TextMeasurer: prefix width grows with font size, like the real bullet glyph. */
+private fun fakePrefixWidth(fontSizeSp: Float): (String) -> TextUnit =
+    { prefix -> (prefix.length * fontSizeSp * 0.5f).sp }
+
 private fun render(
     run: BulletRun,
     query: String = "",
     density: Density = Density(1f),
-) = buildBulletRunText(run, density, Color.Black, query, false, Color.Blue, HIGHLIGHTS)
+    fontSizeSp: Float = 14f,
+) = buildBulletRunText(run, density, Color.Black, query, false, Color.Blue, HIGHLIGHTS, fakePrefixWidth(fontSizeSp))
 
 class MarkdownBulletRunTest {
     @Test
@@ -100,12 +105,32 @@ class MarkdownBulletRunTest {
     }
 
     @Test
-    fun nestedBulletKeepsOldRenderer() {
-        val md = bullets(30) + "\n  - child\n" + bullets(30)
+    fun nestedBulletsStayInTheRunWithLevelGlyphAndIndent() {
+        val md = bullets(20) + "\n  - child\n    - grandchild\n" + bullets(20)
+        val run = coalesce(md).single() as BulletRun
+        assertEquals(42, run.items.size)
+        assertEquals(
+            listOf(0, 1, 2, 0),
+            listOf(run.items[19], run.items[20], run.items[21], run.items[22]).map { it.level },
+        )
+        val text = render(run)
+        val lines = text.text.split("\n")
+        assertTrue(lines[20].startsWith("\u25E6"))
+        assertTrue(lines[21].startsWith("\u25AA"))
+        val indents =
+            text.paragraphStyles.map {
+                it.item.textIndent!!
+                    .firstLine.value
+            }
+        assertEquals(listOf(0f, 16f, 32f, 0f), listOf(indents[19], indents[20], indents[21], indents[22]))
+    }
+
+    @Test
+    fun bulletWithNestedSourceFallsBack() {
+        val md = bullets(20) + "\n- parent\n  ```\n  code\n  ```\n" + bullets(20)
         val out = coalesce(md)
-        assertTrue(out.any { it is BulletRun })
-        val plainInRuns = out.filterIsInstance<BulletRun>().flatMap { it.items }
-        assertTrue(plainInRuns.all { it.nestedSource.isEmpty() })
+        assertTrue(out.any { it is MdBlock.Bullet && it.nestedSource.isNotEmpty() })
+        assertTrue(out.filterIsInstance<BulletRun>().flatMap { it.items }.all { it.nestedSource.isEmpty() })
     }
 
     @Test
@@ -169,53 +194,47 @@ class MarkdownBulletRunTest {
     }
 
     @Test
-    fun indentScalesLikeDpNotSp() {
-        val run = coalesce(bullets(20)).single() as BulletRun
+    fun levelOffsetIsPhysicalDpAcrossFontScales() {
+        val run = coalesce(bullets(20) + "\n  - child\n").single() as BulletRun
         val normal = render(run, density = Density(2f, fontScale = 1f))
-        val bigFont = render(run, density = Density(2f, fontScale = 2f))
-        val a =
-            normal.paragraphStyles
-                .first()
+        val big = render(run, density = Density(2f, fontScale = 2f))
+        val n =
+            normal.paragraphStyles[20]
                 .item.textIndent!!
+                .firstLine.value
         val b =
-            bigFont.paragraphStyles
+            big.paragraphStyles[20]
+                .item.textIndent!!
+                .firstLine.value
+        // 16dp at density 2 = 32px; sp value shrinks by fontScale so physical size stays 16dp.
+        assertEquals(n, b * 2f, 0.001f)
+    }
+
+    @Test
+    fun hangingIndentIncludesTheFontRelativePrefix() {
+        val run = coalesce(bullets(20)).single() as BulletRun
+        val small =
+            render(run, fontSizeSp = 14f)
+                .paragraphStyles
                 .first()
                 .item.textIndent!!
-        // Text scales by fontScale at layout; dp->sp conversion must cancel it so physical dp is fixed.
-        assertEquals(a.restLine.value, b.restLine.value * 2f, 0.001f)
-        assertEquals(14f, a.restLine.value, 0.001f)
+        val large =
+            render(run, fontSizeSp = 28f)
+                .paragraphStyles
+                .first()
+                .item.textIndent!!
+        // Wrapped lines must sit right of the first line by the prefix width, which grows with the font.
+        assertTrue(small.restLine.value > small.firstLine.value)
+        assertEquals(
+            (small.restLine.value - small.firstLine.value) * 2f,
+            large.restLine.value - large.firstLine.value,
+            0.001f,
+        )
     }
 
     @Test
     fun oneParagraphStylePerBullet() {
         val run = coalesce(bullets(50)).single() as BulletRun
         assertEquals(50, render(run).paragraphStyles.size)
-    }
-
-    @Test
-    fun streamingGrowthDiagnostic() {
-        val sizes = listOf(100, 250, 500, 750, 1000)
-        val sb = StringBuilder()
-        var done = 0
-        val results = mutableListOf<String>()
-        // warm the JIT
-        repeat(30) { coalesce(bullets(1000)) }
-        for (target in sizes) {
-            while (done < target) {
-                sb.append("- item ${++done}\n")
-            }
-            val md = sb.toString()
-            val n = 50
-            val parse = measureNanoTime { repeat(n) { parseBlocks(md) } } / n / 1e6
-            val full =
-                measureNanoTime {
-                    repeat(n) {
-                        (coalesce(md).firstOrNull { it is BulletRun } as? BulletRun)?.let { render(it) }
-                    }
-                } / n / 1e6
-            results += "$target bullets: parse=${"%.2f".format(parse)}ms parse+coalesce+build=${"%.2f".format(full)}ms"
-        }
-        results.forEach { println("BENCHMARK_RESULT: stream $it") }
-        assertFalse(results.isEmpty())
     }
 }

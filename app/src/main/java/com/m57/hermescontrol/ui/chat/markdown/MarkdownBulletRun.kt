@@ -7,7 +7,9 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.m57.hermescontrol.theme.SearchHighlightColors
 import com.m57.hermescontrol.util.BidiUtils
 
@@ -65,9 +67,11 @@ internal fun coalesceBulletRuns(
 }
 
 private const val BULLET_LEVEL_INDENT_DP = 16
-private const val BULLET_TEXT_GAP_DP = 14
 
-private fun bulletGlyph(level: Int): String =
+/** The two non-breaking spaces that separate the glyph from the body. */
+internal const val BULLET_PREFIX_PAD = "\u00A0\u00A0"
+
+internal fun bulletGlyph(level: Int): String =
     when (level % 3) {
         0 -> "\u2022"
         1 -> "\u25E6"
@@ -75,8 +79,12 @@ private fun bulletGlyph(level: Int): String =
     }
 
 /**
- * Builds the merged text for a [BulletRun]. Indents are specified in dp and converted through
- * [density] so they match the per-row renderer's `Modifier.padding(start = (level * 16).dp)`.
+ * Builds the merged text for a [BulletRun].
+ *
+ * The list-level offset is dp-based (like the per-row renderer's `padding(start = (level * 16).dp)`).
+ * The hanging indent for wrapped lines also includes the rendered bullet prefix, whose width scales with
+ * the font; [prefixWidth] measures a prefix in the body text style so wrapped lines line up with the body
+ * at any font scale.
  */
 internal fun buildBulletRunText(
     run: BulletRun,
@@ -86,13 +94,15 @@ internal fun buildBulletRunText(
     isCurrentMatch: Boolean,
     linkColor: Color,
     highlights: SearchHighlightColors,
+    prefixWidth: (String) -> TextUnit,
 ): AnnotatedString =
     buildAnnotatedString {
         run.items.forEachIndexed { index, item ->
             val start = with(density) { (item.level * BULLET_LEVEL_INDENT_DP).dp.toSp() }
-            val rest = with(density) { (item.level * BULLET_LEVEL_INDENT_DP + BULLET_TEXT_GAP_DP).dp.toSp() }
+            val prefix = bulletGlyph(item.level) + BULLET_PREFIX_PAD
+            val rest = (start.value + prefixWidth(prefix).value).sp
             withStyle(ParagraphStyle(textIndent = TextIndent(firstLine = start, restLine = rest))) {
-                append("${bulletGlyph(item.level)}\u00A0\u00A0")
+                append(prefix)
                 append(
                     MarkdownInlineStyler.parseInlineSource(
                         text = item.text,

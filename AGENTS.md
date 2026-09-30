@@ -212,8 +212,8 @@ for the current inset implementation.
 
 ### Theme
 
-`Theme.kt` uses a preset-based theme system with 6 built-in presets: Default,
-Monochrome, Gruvbox, Catppuccin, AMOLED, and Nord. Each preset provides light
+`Theme.kt` uses a preset-based theme system with 7 built-in presets: Default,
+Monochrome, Gruvbox, Catppuccin, AMOLED, Nord, and Garnet. Each preset provides light
 and dark color schemes plus matching semantic status colors (AMOLED is
 dark-only — light mode falls back to the default theme).
 Every preset is a `ThemePalette` template fill (`PaletteTemplate.kt`): raw
@@ -274,7 +274,7 @@ gh pr create --base dev --title "fix(#N): description" --body "Closes #N"
   (`remember {}`, `buildAnnotatedString`, `LaunchedEffect`). Extract to a local
   `val` at the composable scope first.
 - Don't add new screens without checking if an existing one already covers the
-  functionality (28+ screens exist). Extend rather than duplicate.
+  functionality (30+ screens exist). Extend rather than duplicate.
 - **⚠ Never scope a dependency to `debugImplementation` if its import is used in
   `main/` source code.** The CI `release-compile` job catches this, but save the
   cycle. `okhttp3.logging.HttpLoggingInterceptor` is the classic example — it's
@@ -301,22 +301,25 @@ com.m57.hermescontrol/
 │   ├── local/      AuthManager, Room (ChatMessageEntity/Dao, HermesDatabase), AnalyticsCacheStore
 │   ├── model/      40+ data classes for API responses + requests
 │   ├── remote/     ApiClient, Retrofit service, OkHttp provider, cookie management
+│   ├── repository/ KanbanRepository, KanbanSyncCoordinator, VoiceNoteRepository
 │   ├── session/    ActiveSessionHolder
+│   ├── update/     AppUpdateChecker, AppUpdateCache, AppUpdateState
 │   └── ws/         HermesWsClient, JSON-RPC models, WsEvent, BillingRepository
 ├── notification/   ChatNotificationService, NotificationReplyReceiver
 ├── theme/          Color, Theme, Motion, Spacing, Shapes, Type, HermesStatusColors
-│   └── presets/    Default, Monochrome, Gruvbox, Catppuccin, AMOLED, Nord
+│   └── presets/    Default, Monochrome, Gruvbox, Catppuccin, AMOLED, Nord, Garnet
 ├── ui/
 │   ├── common/     HermesScaffold, StateViews, SharedComponents, DetailDialog, DetailRows
-│   └── 28 feature packages (achievements, analytics, authlogin, billing, channels,
-│       chat, config, connect, cron, gateway, kanban, keys, landing, logs, mcp,
-│       model, pairing, plugins, process, profiles, providers, sessions, settings,
-│       skills, system, toolsets, webhooks)
+│   └── 31 feature packages (achievements, analytics, authlogin, billing, bots,
+│       channels, chat, config, connect, connectors, cron, files, gateway, kanban,
+│       keys, landing, logs, mcp, memory, model, pairing, plugins, process,
+│       profiles, providers, sessions, settings, skills, system, toolsets,
+│       webhooks)
 ├── util/           CronExpressionFormatter, LocaleContextWrapper
 ├── HermesControlApp.kt     Application class
 ├── Navigation.kt           Drawer + NavDisplay + entry wiring
 ├── NavigationController.kt Central navigation guard (dedup)
-├── NavigationKeys.kt       @Serializable NavKey data objects (28 screens + 6 settings sub-pages)
+├── NavigationKeys.kt       @Serializable NavKey data objects (30 screens + 4 detail keys + 7 settings sub-pages)
 ├── ScreenRegistry.kt       entry<T> registrations for all NavKeys
 └── MainActivity.kt
 ```

@@ -30,13 +30,9 @@
 
 ## Overview
 
-**Hermes Mobile** is the native Android client for [Hermes Agent](https://hermes-agent.nousresearch.com). It connects to your Hermes gateway (REST API and WebSocket TUI Gateway), giving you pocket control over your AI assistant. Plain HTTP/WS connections are intended for trusted networks only; authentication does not encrypt the transport.
+**Hermes Mobile** is a native Android app for controlling your [Hermes Agent](https://hermes-agent.nousresearch.com) from your phone. Chat with your agent, manage cron jobs, skills, models and more.
 
----
-
-## Support the project
-
-If Hermes Mobile is useful to you, consider supporting its development on [Ko-fi](https://ko-fi.com/m_5_7).
+It connects to the Hermes dashboard (REST API and WebSocket gateway), so you need a running dashboard that your phone can reach.
 
 ---
 
@@ -61,79 +57,41 @@ If Hermes Mobile is useful to you, consider supporting its development on [Ko-fi
 
 ## Features
 
-- **Real-Time Chat:** Message your agent with Room-backed local database history and inline reply notifications.
-- **System Config:** Manage active profiles, installed skills, plugins, toolsets, and LLM model/provider selections.
+- **Chat:** Talk to your agent. History is stored locally in Room, and notifications support inline replies.
+- **Configuration:** Manage profiles, skills, plugins, toolsets, and model/provider selections.
 - **Operations:** Stream and filter live logs, manage cron jobs, edit environment keys, test webhooks, and monitor processes.
-- **Gateway Status:** Monitor WebSocket connection, MCP servers, messaging channels, and OAuth providers.
-- **Productivity:** View and manage tasks via integrated Kanban boards, track agent milestones, and browse session history.
-- **Analytics & Billing:** Usage analytics dashboard and billing/subscription management.
-- **Theming:** 7 built-in color presets (Default, Monochrome, Gruvbox, Catppuccin, AMOLED, Nord, Garnet) plus Material You dynamic colors on supported devices.
-- **Modern UX:** Native Material 3 design with pull-to-refresh, scroll-aware TopBar, and customizable bottom navigation.
+- **Gateway status:** Check the WebSocket connection, MCP servers, messaging channels, and OAuth providers.
+- **Productivity:** Manage tasks on Kanban boards, track agent milestones, and browse session history.
+- **Analytics and billing:** See usage analytics and manage billing or subscriptions.
+- **Theming:** Seven built-in presets (Default, Monochrome, Gruvbox, Catppuccin, AMOLED, Nord, Garnet), plus Material You dynamic colors on supported devices.
+- **Material 3 design:** Pull-to-refresh, a scroll-aware top bar, and customizable bottom navigation.
 
 ---
 
 ## Quick Start
 
-1. Install Hermes Mobile from [F-Droid](https://f-droid.org/packages/com.m57.hermescontrol/) or download the APK from the [latest GitHub release](https://github.com/Hy4ri/hermes-mobile/releases/latest).
-2. Start your Hermes dashboard on a host reachable from your phone.
-3. Follow [Authentication](#authentication) below to connect. Use a trusted network for plain HTTP/WS connections.
-
-## Build from source
-
-### Prerequisites
-
-- **JDK 21+** (required for Kotlin compilation and the Gradle toolchain)
-- An **Android SDK** matching the compile SDK in [`app/build.gradle.kts`](app/build.gradle.kts), available through Android Studio or the **Nix** development environment. Set `ANDROID_HOME` or configure `sdk.dir` in your local `local.properties`.
-
-### Build & Deploy
-
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/Hy4ri/hermes-mobile.git
-   cd hermes-mobile
-   ```
-2. **Build the debug APK:**
-   ```bash
-   ./gradlew assembleDebug
-   ```
-3. **Install on your emulator/device:**
-   ```bash
-   adb install app/build/outputs/apk/debug/app-debug.apk
-   ```
-
-_Note: For release builds, ensure keystore environment variables (`KEYSTORE_PATH`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`) are configured, or let the GitHub Actions release workflow handle it on tag push (`v*`)._
-
-### Nix emulator
-
-The Nix development shell enables physical keyboard input in an existing
-`hermes_dev` AVD configuration. It respects `ANDROID_AVD_HOME` and
-`ANDROID_USER_HOME`, defaulting to `~/.android/avd`.
-
-Close any running emulator, then cold boot once to apply the setting:
-
-```bash
-nix develop --command emulator -avd hermes_dev -no-snapshot-load
-```
-
-Subsequent launches can omit `-no-snapshot-load`. Create the `hermes_dev` AVD
-first if it does not exist; the shell does not create one.
+1. Install Hermes Mobile from [F-Droid](https://f-droid.org/packages/com.m57.hermescontrol/), or download the APK from the [latest GitHub release](https://github.com/Hy4ri/hermes-mobile/releases/latest).
+2. Start your Hermes dashboard on a host your phone can reach.
+3. Open the app, tap **Sign in**, and follow [Authentication](#authentication).
 
 ---
 
 ## Authentication
 
-Once the app is installed, you need to point it at your Hermes gateway. The app auto-detects which auth mode the dashboard is using — just fill in the fields it shows.
+The app detects which auth mode your dashboard uses and shows only the fields you need.
+
+> **Security:** Use HTTPS for remote connections. Plain HTTP/WS is for trusted local networks only, because authentication does not encrypt the transport.
 
 ### 1. Start the dashboard
 
-On your host machine, start the dashboard:
+On the host machine:
 
 ```bash
 hermes dashboard                          # loopback (127.0.0.1:9119) — no auth needed
 hermes dashboard --host 0.0.0.0           # LAN — requires auth
 ```
 
-For LAN access, configure credentials in `~/.hermes/config.yaml`:
+For LAN access, set credentials in `~/.hermes/config.yaml`:
 
 ```yaml
 dashboard:
@@ -144,14 +102,17 @@ dashboard:
 
 ### 2. Connect the app
 
-Tap **Sign in** on the landing screen and enter the dashboard host and port. The app probes the dashboard and reveals the fields you need:
+Tap **Sign in** on the landing screen and enter the dashboard host and port. The app probes the dashboard and shows the fields it needs.
 
-| Auth mode      | When                                 | What you fill                                                                                                                                                          |
-| -------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Token only** | Dashboard on same machine (loopback) | **Token** — grab from `~/.hermes/dashboard-token.txt` or `~/.hermes/.env` (`HERMES_DASHBOARD_SESSION_TOKEN`). The app can also auto-extract it from the dashboard page |
-| **Basic auth** | Dashboard on LAN with password gate  | **Username** + **Password** (default `admin` / `hermes`). The app logs in, gets a session cookie, and mints a WebSocket ticket automatically                           |
+**Token only** (dashboard on the same machine, bound to loopback)
 
-Use HTTPS for remote connections. Use HTTP only on a trusted local network.
+- Enter the **Token**. You can find it in `~/.hermes/dashboard-token.txt` or in `~/.hermes/.env` as `HERMES_DASHBOARD_SESSION_TOKEN`.
+- The app can also extract the token from the dashboard page for you.
+
+**Basic auth** (dashboard on the LAN behind a password)
+
+- Enter your **Username** and **Password** (default `admin` / `hermes`).
+- The app logs in, stores a session cookie, and requests a WebSocket ticket automatically.
 
 ### Cloudflare Access and custom headers
 
@@ -164,63 +125,99 @@ Your [Cloudflare Access policy](https://developers.cloudflare.com/cloudflare-one
 must accept the service token. These headers authenticate with Cloudflare; you still
 need to complete Hermes authentication.
 
-You can add other custom header names and values in the same editor. To edit or
-remove saved headers, open **Custom headers** from login or the saved connection's
-edit dialog in Settings. Values are masked and stored in encrypted preferences.
-Saving an empty list removes the headers for that URL.
+**Other headers.** You can add any custom header name and value in the same editor.
+To edit or remove saved headers, open **Custom headers** from login, or from the saved
+connection's edit dialog in Settings. Values are masked and stored in encrypted
+preferences. Saving an empty list removes the headers for that URL.
 
-Headers are shared by profiles with the same server URL. They apply to probes,
-login, API and media requests, and WebSocket handshakes. Each URL's scheme, host,
-port, and path prefix limit where its headers are sent. Redirects outside that
-scope do not receive the credentials; WebSocket redirects are not followed.
-The app manages `Authorization`, `Cookie`, and transport headers itself.
+**Where headers are sent.**
+
+- Profiles with the same server URL share headers.
+- They apply to probes, login, API and media requests, and WebSocket handshakes.
+- Each URL's scheme, host, port, and path prefix limit where its headers go.
+- Redirects outside that scope do not receive them, and WebSocket redirects are not followed.
+- The app manages `Authorization`, `Cookie`, and transport headers itself.
 
 ### Connection profiles
 
-Have multiple gateways? Switch between them in **Settings → Connection profiles**. Each profile stores its own host, port, and token — just tap to swap.
-
----
-
-## Project Structure
-
-```
-app/src/main/java/com/m57/hermescontrol/
-├── data/          # Local (Room, AuthManager), Remote (Retrofit, OkHttp), WS (WebSocket), Models
-├── notification/  # Foreground service + inline reply for chat notifications
-├── theme/         # Preset-based design system (6 themes), status colors, spacing, typography
-├── ui/            # Compose feature screens + common components (HermesScaffold, StateViews)
-├── util/          # CronExpressionFormatter, LocaleContextWrapper
-└── Navigation*.kt # Navigation3 wiring, keys, screen registry, controller
-```
-
----
-
-## Tech Stack
-
-- **Language:** Kotlin with KSP
-- **UI & Layout:** Jetpack Compose & Material 3 / Material You
-- **Navigation:** Navigation3 (Compose-first Routing)
-- **Networking:** Retrofit, OkHttp, Kotlinx Serialization
-- **Database:** Room with SQLCipher encryption
-- **Security:** `EncryptedSharedPreferences` (AES256-GCM), DataStore
-- **Theming:** Built-in presets + Material You dynamic colors; see [Themes](app/src/main/java/com/m57/hermescontrol/theme/THEMES.md)
-- **Image Loading:** Coil
-- **Testing:** JUnit, MockK, Turbine, Espresso, Compose UI testing
-- **Formatting:** `ktlint` 1.8.0 style rules (checked automatically in CI)
-
-Dependency versions are maintained in [`gradle/libs.versions.toml`](gradle/libs.versions.toml); build configuration and dependency scopes live in [`app/build.gradle.kts`](app/build.gradle.kts).
+Have multiple gateways? Switch between them in **Settings → Connection profiles**. Each profile stores its own host, port, and token.
 
 ---
 
 ## Contributing
 
-Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for our branch workflow, code style guidelines, and PR checklist.
+Contributions are welcome! Read [CONTRIBUTING.md](CONTRIBUTING.md) for the branch workflow, code style, and PR checklist.
 
-### Translations
+- **Translations:** Help translate the app on [Hosted Weblate](https://hosted.weblate.org/projects/hermes-mobile/hermes-mobile/).
+- **Conventions and architecture:** [AGENTS.md](AGENTS.md).
+- **Visual and interaction requirements:** [DESIGN.md](DESIGN.md).
+- **Theme implementation:** [THEMES.md](app/src/main/java/com/m57/hermescontrol/theme/THEMES.md).
 
-Help translate Hermes Mobile into your language on [Hosted Weblate](https://hosted.weblate.org/projects/hermes-mobile/hermes-mobile/)!
+---
 
-For operational conventions and architecture notes, refer to [AGENTS.md](AGENTS.md). [DESIGN.md](DESIGN.md) defines visual and interaction requirements; [THEMES.md](app/src/main/java/com/m57/hermescontrol/theme/THEMES.md) explains theme implementation.
+## Build from source
+
+### Prerequisites
+
+- **JDK 21+** (used for Kotlin compilation and the Gradle toolchain).
+- An **Android SDK** matching the compile SDK in [`app/build.gradle.kts`](app/build.gradle.kts), from Android Studio or the **Nix** development environment. Set `ANDROID_HOME` or `sdk.dir` in `local.properties`.
+
+### Build and install
+
+```bash
+git clone https://github.com/Hy4ri/hermes-mobile.git
+cd hermes-mobile
+./gradlew assembleDebug
+adb install app/build/outputs/apk/debug/app-debug.apk
+```
+
+For release builds, set the keystore environment variables (`KEYSTORE_PATH`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`). Or let the GitHub Actions release workflow build on a `v*` tag push.
+
+### Nix emulator
+
+The Nix development shell turns on physical keyboard input in an existing `hermes_dev` AVD. It respects `ANDROID_AVD_HOME` and `ANDROID_USER_HOME`, defaulting to `~/.android/avd`. The shell does not create the AVD, so create `hermes_dev` first.
+
+Close any running emulator, then cold boot once to apply the setting:
+
+```bash
+nix develop --command emulator -avd hermes_dev -no-snapshot-load
+```
+
+Later launches can omit `-no-snapshot-load`.
+
+---
+
+## Project structure
+
+```
+app/src/main/java/com/m57/hermescontrol/
+├── data/          # Local (Room, AuthManager), Remote (Retrofit, OkHttp), WS (WebSocket), Models
+├── notification/  # Foreground service + inline reply for chat notifications
+├── theme/         # Preset-based design system (7 themes), status colors, spacing, typography
+├── ui/            # Compose feature screens + common components (HermesScaffold, StateViews)
+├── util/          # CronExpressionFormatter, LocaleContextWrapper
+└── Navigation*.kt # Navigation3 wiring, keys, screen registry, controller
+```
+
+## Tech stack
+
+- **Language:** Kotlin with KSP
+- **UI:** Jetpack Compose, Material 3 / Material You
+- **Navigation:** Navigation3
+- **Networking:** Retrofit, OkHttp, Kotlinx Serialization
+- **Database:** Room with SQLCipher encryption
+- **Security:** `EncryptedSharedPreferences` (AES256-GCM), DataStore
+- **Images:** Coil
+- **Testing:** JUnit, MockK, Turbine, Espresso, Compose UI testing
+- **Formatting:** `ktlint` 1.8.0 (checked in CI)
+
+Dependency versions live in [`gradle/libs.versions.toml`](gradle/libs.versions.toml). Build configuration and dependency scopes live in [`app/build.gradle.kts`](app/build.gradle.kts).
+
+---
+
+## Support the project
+
+If Hermes Mobile is useful to you, consider supporting its development on [Ko-fi](https://ko-fi.com/m_5_7).
 
 ---
 
@@ -228,4 +225,4 @@ For operational conventions and architecture notes, refer to [AGENTS.md](AGENTS.
 
 Copyright © 2026 M57 (Hy4ri).
 
-This project is licensed under the Apache License, Version 2.0. See the [LICENSE](LICENSE) file for details.
+Licensed under the Apache License, Version 2.0. See the [LICENSE](LICENSE) file for details.

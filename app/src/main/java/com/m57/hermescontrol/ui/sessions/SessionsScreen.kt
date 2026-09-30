@@ -66,6 +66,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -507,6 +508,24 @@ fun SessionsScreen(
         // (The scaffold already applies top-bar padding via its inner Box, so we
         //  must NOT re-apply paddingValues here.)
         Column(modifier = Modifier.fillMaxSize()) {
+            // Prune can take a while on large histories — show it's working.
+            if (state.isPruning) {
+                Column(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = spacing.md, vertical = spacing.sm)
+                            .testTag("sessions_pruning_indicator"),
+                    verticalArrangement = Arrangement.spacedBy(spacing.xs),
+                ) {
+                    Text(
+                        text = stringResource(R.string.sessions_pruning),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
+            }
             Row(
                 modifier =
                     Modifier

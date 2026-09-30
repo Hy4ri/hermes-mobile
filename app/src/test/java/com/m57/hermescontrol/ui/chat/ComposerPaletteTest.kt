@@ -67,6 +67,17 @@ class ComposerPaletteTest {
     }
 
     @Test
+    fun actionButtonFollowsThePresetPrimaryWhenItIsLegible() {
+        forEveryPresetMode { mode, p, _ ->
+            val scheme = resolveColorScheme(ThemePreset.valueOf(mode.substringBefore(" ")), mode.endsWith("true"))
+            if (contrast(scheme.primary, p.card) >= 3f) {
+                assertTrue("$mode action must be primary", p.action == scheme.primary)
+                assertTrue("$mode glyph must be onPrimary", p.onAction == scheme.onPrimary)
+            }
+        }
+    }
+
+    @Test
     fun controlsAndCardEdgeStayVisibleInEveryPresetMode() {
         forEveryPresetMode { mode, p, background ->
             assertContrast("$mode control/card", p.control, p.card, 1.15f)

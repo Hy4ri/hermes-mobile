@@ -10,12 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.platform.LocalContext
-import com.m57.hermescontrol.theme.presets.AmoledTheme
-import com.m57.hermescontrol.theme.presets.CatppuccinTheme
 import com.m57.hermescontrol.theme.presets.DefaultTheme
-import com.m57.hermescontrol.theme.presets.GruvboxTheme
-import com.m57.hermescontrol.theme.presets.MonochromeTheme
-import com.m57.hermescontrol.theme.presets.NordTheme
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -29,20 +24,6 @@ val LocalThemePreset = compositionLocalOf { ThemePreset.DEFAULT }
 val LocalChatFontScale = compositionLocalOf { 1.0f }
 
 /**
- * The 6 preset themes — one file each, all built from the same
- * [PaletteTemplate] shape (see `PaletteTemplate.kt`).
- */
-private fun themeFor(preset: ThemePreset): ThemePalette =
-    when (preset) {
-        ThemePreset.DEFAULT -> DefaultTheme
-        ThemePreset.MONOCHROME -> MonochromeTheme
-        ThemePreset.GRUVBOX -> GruvboxTheme
-        ThemePreset.CATPPUCCIN -> CatppuccinTheme
-        ThemePreset.AMOLED -> AmoledTheme
-        ThemePreset.NORD -> NordTheme
-    }
-
-/**
  * Resolve the Material 3 [ColorScheme] for a preset + dark flag.
  *
  * A preset that doesn't ship the requested mode (DARK_ONLY / LIGHT_ONLY —
@@ -53,7 +34,7 @@ internal fun resolveColorScheme(
     preset: ThemePreset,
     darkTheme: Boolean,
 ): ColorScheme {
-    val theme = themeFor(preset)
+    val theme = preset.palette()
     // DefaultTheme is FULL — its scheme is never null for either mode.
     return theme.schemeFor(darkTheme) ?: requireNotNull(DefaultTheme.schemeFor(darkTheme))
 }
@@ -66,7 +47,7 @@ internal fun resolveStatusColors(
     preset: ThemePreset,
     darkTheme: Boolean,
 ): HermesStatusColors {
-    val theme = themeFor(preset)
+    val theme = preset.palette()
     // DefaultTheme is FULL — its status colors are never null for either mode.
     return theme.statusFor(darkTheme) ?: requireNotNull(DefaultTheme.statusFor(darkTheme))
 }

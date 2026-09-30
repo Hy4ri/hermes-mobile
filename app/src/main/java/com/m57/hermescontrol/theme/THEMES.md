@@ -12,7 +12,8 @@ All theme code is under:
 
 ```
 app/src/main/java/com/m57/hermescontrol/theme/
-├── Theme.kt                       # dispatcher — preset lookup + mode fallback
+├── Theme.kt                       # dispatcher — mode fallback + dynamic colors
+├── ThemeRegistry.kt               # single preset/palette registry
 ├── PaletteTemplate.kt             # the template — the ONE shape every theme follows
 ├── Color.kt                       # shared tokens for non-theme code (status fallbacks, code blocks, …)
 ├── HermesStatusColors.kt          # semantic status color model (success/warning/error/info + on*)
@@ -55,7 +56,14 @@ val MyTheme =
 The template maps `PaletteColors` into the Material 3 `ColorScheme` slots. The
 Material `error` slots (`error`, `onError`, `errorContainer`, `onErrorContainer`)
 are **derived** from the theme's status set — the theme author defines semantic
-colors once.
+colors once. `surfaceTint` comes from `primary`. Every other Material color role
+is required explicitly, including bright/dim surfaces and all fixed accent roles.
+No role may inherit Material baseline colors. Fixed accent and foreground roles
+stay identical across a preset’s shipped modes; Fixed/Dim may share an official
+swatch when the source palette has no accessible tonal ladder.
+
+Prefer upstream swatches. Document every derived color beside its declaration
+with the official pairing’s measured contrast and why a derived role is needed.
 
 ## Preset conventions
 
@@ -69,8 +77,33 @@ colors once.
   light text would fail contrast.
 - **Grayscale status colors** (Monochrome, AMOLED) separate success/warning/
   error/info by lightness only — consumers must pair with icons or labels.
-- Every shipped mode's error slot pairs are enforced at **>= 3:1 contrast** by
-  `ThemePaletteTest` — a preset that breaks this fails the unit-test gate.
+- Normal-text foreground/background pairs, including accent containers, fixed
+  accents, semantic status fills, errors, and the surface ladder, are enforced at **>= 4.5:1 contrast**
+  by `ThemePaletteTest`. The separate full-bleed header guard remains >= 3:1.
+
+Reusable `StatusBadge` and `SessionLiveStatusIndicator` use a shared
+`statusBadgeColors` mapping: status fills (`success`, `warning`, `error`, `info`)
+with their matching `on*` text/icons. `onSuccess` is not a foreground token for
+`successContainer`. Palette tests exercise this exact renderer mapping in every
+resolved mode, including fallback modes; neutral badges use Material tokens.
+
+Enabled Material components also have a component-state contract:
+- Graphics/boundaries target >= 3:1: switch thumbs/tracks and borders, radio and
+  checkbox states, slider active/inactive tracks, text-field borders, and segmented borders.
+- Primary/error text and field labels on surface/background target >= 4.5:1.
+- Segmented content uses the corresponding container foreground at >= 4.5:1.
+
+`ThemeComponentContrastTest` checks the pinned Material role combinations in every
+resolved preset/mode. `ThemeComponentGalleryTest` reads the installed Compose
+public color defaults and verifies rendered pixels for all twelve preset/mode
+combinations, including focused/error fields. Disabled controls are deliberately
+excluded from the enabled contrast contract; Material uses opacity to mute them.
+Settings switches use Material defaults (`primary` track / `onPrimary` thumb),
+not the reversed `primaryContainer` track / `primary` thumb combination.
+
+Outlines must contrast against both surface and the unchecked switch track
+(`surfaceContainerHighest`). Named palettes may need documented derived primary
+or error tones for direct text; fixed roles still preserve their upstream accents.
 
 ## Theme modes
 
@@ -87,37 +120,33 @@ doesn't ship — never to a sibling preset.
 
 ## The dispatcher
 
-`Theme.kt` is a **pure lookup** — no special-casing. Given a `ThemePreset` and
-a dark flag, `themeFor()` returns the preset's `ThemePalette`, then the scheme /
-status are read off it (with the mode fallback above):
+`ThemeRegistry.kt` maps every `ThemePreset` to one `ThemePalette`. Resolution,
+UI selection, and palette tests use this registry. An exact enum/registry coverage
+test rejects missing, duplicate, or reordered entries. Android string resources
+stay in the UI’s exhaustive label mapping, outside the palette model.
 
-```kotlin
-private fun themeFor(preset: ThemePreset): ThemePalette = when (preset) {
-    ThemePreset.DEFAULT -> DefaultTheme
-    ThemePreset.MONOCHROME -> MonochromeTheme
-    // …one line per preset…
-}
-```
+`Theme.kt` reads `preset.palette()` and applies the mode fallback above.
 
 Dynamic (Material You) color on API 31+ can optionally override the preset scheme when
 `useDynamicColors = true` (defaults to `false`). Semantic status colors are always resolved from the
-active preset via `LocalHermesStatusColors`.
+active preset via `LocalHermesStatusColors`. The preset selector stays enabled
+and explains that it controls status colors while Material You supplies app colors.
 
 ## Adding a new theme
 
 1. **Create** `presets/<Name>Scheme.kt` as a template fill (see above) —
    `buildTheme` for a full theme, `buildThemeDarkOnly` / `buildThemeLightOnly`
    for single-mode themes. Every status color must be bespoke — no aliasing.
-2. **Add 1 line** to `themeFor()` in `Theme.kt` + import the new val.
+2. **Register** the new palette in `ThemeRegistry.kt`.
 3. **Add the enum entry** `MY_THEME` to `ThemePreset` in `Theme.kt`.
-4. **Wire the UI**: add the label + selection in
+4. **Wire the UI**: add the exhaustive label mapping in
    `ui/settings/components/AppearanceSection.kt` (and any string resource).
 5. **Verify**:
    ```bash
    ./gradlew ktlintCheck testDebugUnitTest
    ```
-   `ThemePaletteTest` asserts >= 3:1 contrast on every shipped mode's error
-   slot pairs and the ThemeMode invariants — it must stay green.
+   `ThemePaletteTest` checks text contrast, complete Material slot mapping,
+   mode-independent fixed roles, registry coverage, and mode/fallback invariants.
 
 ## Conventions
 

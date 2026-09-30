@@ -41,7 +41,7 @@ The visual language follows Material 3 guidelines strictly adapted for developer
 - **Core Principle**: Zero fluff. Fast render cycles, explicit states, flat surfaces, and zero visual ambiguity.
 
 ## Colors
-The app supports 6 built-in presets (`Default/Slate`, `Monochrome`, `Gruvbox`, `Catppuccin`, `AMOLED`, `Nord`), plus optional Android 12+ wallpaper theming. `Theme.kt` selects the preset; `PaletteTemplate.kt` maps its colors to Material slots. AMOLED is dark-only; light mode falls back to Default.
+The app supports 7 built-in presets (`Default/Slate`, `Monochrome`, `Gruvbox`, `Catppuccin`, `AMOLED`, `Nord`, `Garnet`), plus optional Android 12+ wallpaper theming. `Theme.kt` selects the preset; `PaletteTemplate.kt` maps its colors to Material slots. AMOLED is dark-only; light mode falls back to Default.
 
 1. **Surfaces**:
    - `MaterialTheme.colorScheme.background`: Main canvas and full-bleed chat background.

@@ -17,7 +17,7 @@ import kotlinx.serialization.Serializable
 enum class ThemePreference { SYSTEM, LIGHT, DARK }
 
 @Serializable
-enum class ThemePreset { DEFAULT, MONOCHROME, GRUVBOX, CATPPUCCIN, AMOLED, NORD }
+enum class ThemePreset { DEFAULT, MONOCHROME, GRUVBOX, CATPPUCCIN, AMOLED, NORD, GARNET }
 
 val LocalThemePreference = compositionLocalOf { ThemePreference.SYSTEM }
 val LocalThemePreset = compositionLocalOf { ThemePreset.DEFAULT }

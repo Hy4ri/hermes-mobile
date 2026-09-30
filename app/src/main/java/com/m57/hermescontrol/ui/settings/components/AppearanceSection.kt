@@ -164,6 +164,7 @@ private fun ThemePreset.label(): String =
             ThemePreset.CATPPUCCIN -> R.string.theme_preset_catppuccin
             ThemePreset.AMOLED -> R.string.theme_preset_amoled
             ThemePreset.NORD -> R.string.theme_preset_nord
+            ThemePreset.GARNET -> R.string.theme_preset_garnet
         },
     )
 

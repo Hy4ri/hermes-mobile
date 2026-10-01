@@ -6,12 +6,16 @@ import androidx.activity.ComponentActivity
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.m57.hermescontrol.data.model.Attachment
@@ -135,6 +139,7 @@ class PendingSendRecoveryTest {
         val image = imageAttachment()
         val file = Attachment("file:///private/note", "note.txt", "text/plain", 4)
         var openedImage: String? = null
+        var openedFile: String? = null
         compose.setContent {
             MaterialTheme {
                 PendingSendRecovery(
@@ -143,6 +148,7 @@ class PendingSendRecoveryTest {
                     false,
                     {},
                     {},
+                    onOpenAttachment = { openedFile = it.name },
                     onImageClick = { openedImage = it.name },
                 )
             }
@@ -157,7 +163,12 @@ class PendingSendRecoveryTest {
         }
         compose.onNodeWithContentDescription("photo.png").assertIsDisplayed().performClick()
         compose.runOnIdle { assertEquals("photo.png", openedImage) }
-        compose.onNodeWithText("note.txt").performScrollTo().assertIsDisplayed()
+        // The filename shares a lazy item with the image; scrollToIndex cannot reveal its lower children.
+        if (!compose.onNodeWithText("note.txt").isDisplayed()) {
+            compose.onNode(hasScrollAction()).performTouchInput { swipeUp() }
+        }
+        compose.onNodeWithText("note.txt").assertIsDisplayed().performClick()
+        compose.runOnIdle { assertEquals("note.txt", openedFile) }
     }
 
     @Test

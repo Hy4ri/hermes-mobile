@@ -10541,6 +10541,62 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun normalAcceptanceKeepsPromptVisibleBeforeAndDuringItsTurn() =
+        runTest {
+            val store = ChatSendStore()
+            val (vm, session) = createViewModelWithSession(sendStore = store)
+            every { HermesWsClient.sendMessage(session, "live-prompt", any(), any()) } answers {
+                arg<((String) -> Unit)?>(2)?.invoke("live-submit")
+                "live-submit"
+            }
+            assertTrue(vm.sendMessage("live-prompt"))
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.RpcResult("live-submit", mapOf("status" to "streaming", "user_row_id" to 10)))
+            advanceUntilIdle()
+            vm.syncCurrentSession()
+            advanceUntilIdle()
+            assertEquals(PendingSendState.ACCEPTED, store.all().single().state)
+            assertEquals(
+                "live-prompt",
+                vm.transcriptState.value.messages
+                    .single { it.role == MessageRole.USER }
+                    .content,
+            )
+            mockEventsFlow.emit(WsEvent.MessageStart(session))
+            mockEventsFlow.emit(WsEvent.MessageToken("Working", session))
+            advanceUntilIdle()
+            assertEquals(PendingSendState.ACCEPTED, store.all().single().state)
+            assertTrue(
+                vm.transcriptState.value.messages
+                    .any { it.content == "live-prompt" },
+            )
+        }
+
+    @Test
+    fun gatewayQueuedAcceptanceStaysVisibleThroughPreviousTurnCompletion() =
+        runTest {
+            val store = ChatSendStore()
+            val (vm, session) = createViewModelWithSession(sendStore = store)
+            mockEventsFlow.emit(WsEvent.MessageStart(session))
+            advanceUntilIdle()
+            assertTrue(vm.sendMessage("guide-next", BusySendMode.GUIDE))
+            advanceUntilIdle()
+            val requestId = sentRequestMethods.last { it.first == WsMethods.SESSION_STEER }.second
+            mockEventsFlow.emit(WsEvent.RpcResult(requestId, mapOf("status" to "queued", "user_row_id" to 10)))
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.MessageComplete("Previous reply", session))
+            advanceUntilIdle()
+            vm.syncCurrentSession()
+            advanceUntilIdle()
+
+            assertEquals(PendingSendState.ACCEPTED, store.all().single().state)
+            assertTrue(
+                vm.transcriptState.value.messages
+                    .any { it.content == "guide-next" },
+            )
+        }
+
+    @Test
     fun changedReceiptIdentityDoesNotBlockNewPromptsOrFalselyConfirmDelivery() =
         runTest {
             val store = ChatSendStore()
@@ -10580,7 +10636,7 @@ class ChatViewModelTest {
                     .last()
                     .content,
             )
-            assertEquals(PendingSendState.ACCEPTED, store.all().single().state)
+            assertEquals(PendingSendState.UNKNOWN, store.all().single().state)
             assertTrue(vm.uiState.value.isSessionReady)
             assertTrue(vm.sendMessage("probe-second"))
             advanceUntilIdle()
@@ -10592,7 +10648,7 @@ class ChatViewModelTest {
             assertNull(vm.uiState.value.errorMessage)
             verify(exactly = 1) { HermesWsClient.sendMessage(session, "probe-second", any(), any()) }
             verify(exactly = 1) { HermesWsClient.sendMessage(session, "probe-first", any(), any()) }
-            assertEquals(PendingSendState.ACCEPTED, store.all().single { it.text == "probe-first" }.state)
+            assertEquals(PendingSendState.UNKNOWN, store.all().single { it.text == "probe-first" }.state)
             assertEquals(
                 1,
                 vm.transcriptState.value.messages

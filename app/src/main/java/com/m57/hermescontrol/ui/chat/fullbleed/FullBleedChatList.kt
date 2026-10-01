@@ -35,6 +35,7 @@ import com.m57.hermescontrol.theme.LocalChatFontScale
 import com.m57.hermescontrol.ui.chat.ChatMessage
 import com.m57.hermescontrol.ui.chat.ChatSearchState
 import com.m57.hermescontrol.ui.chat.ImageViewerModel
+import com.m57.hermescontrol.ui.chat.PendingSendState
 import com.m57.hermescontrol.ui.chat.SearchTarget
 import com.m57.hermescontrol.ui.chat.ToolCallDivider
 import com.m57.hermescontrol.ui.chat.UserBubble
@@ -311,6 +312,7 @@ fun FullBleedChatList(
                                             onImageClick = actions.onImageClick,
                                             messageStatsEnabled = messageStatsEnabled,
                                             showUserMessageTokens = showUserMessageTokens,
+                                            pendingSendState = transcript.pendingSendStates[userMessage.id],
                                         )
                                         if (userMessage.reactions.isNotEmpty()) {
                                             MessageReactionChips(
@@ -561,6 +563,7 @@ private fun renderUserBubble(
     onImageClick: (ImageViewerModel) -> Unit,
     messageStatsEnabled: Boolean,
     showUserMessageTokens: Boolean,
+    pendingSendState: PendingSendState?,
 ) {
     UserBubble(
         message = message,
@@ -574,5 +577,6 @@ private fun renderUserBubble(
         onImageClick = onImageClick,
         messageStatsEnabled = messageStatsEnabled,
         showUserMessageTokens = showUserMessageTokens,
+        pendingSendState = pendingSendState,
     )
 }

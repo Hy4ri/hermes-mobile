@@ -81,6 +81,7 @@ fun UserBubble(
     messageStatsEnabled: Boolean = false,
     showUserMessageTokens: Boolean = true,
     modifier: Modifier = Modifier,
+    pendingSendState: PendingSendState? = null,
 ) {
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
     val maxBubbleWidth = screenWidth * 0.80f
@@ -182,6 +183,23 @@ fun UserBubble(
                                 canSave = canSaveAttachment,
                                 onImageClick = onImageClick,
                             )
+                            // #1427: keep the live text and media visible with an honest delivery label.
+                            if (pendingSendState == PendingSendState.SENDING ||
+                                pendingSendState == PendingSendState.ACCEPTED
+                            ) {
+                                Text(
+                                    stringResource(
+                                        if (pendingSendState == PendingSendState.SENDING) {
+                                            R.string.chat_pending_sending
+                                        } else {
+                                            R.string.chat_send_accepted
+                                        },
+                                    ),
+                                    color = userBubbleTextColor,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    modifier = Modifier.testTag("user_send_status_${message.id}"),
+                                )
+                            }
                             if (!message.isStreaming) {
                                 FlowRow(
                                     modifier =

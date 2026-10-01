@@ -543,6 +543,7 @@ class ChatViewModel(
     private val sessionRequestById = ConcurrentHashMap<String, SessionRequest>()
     private val branchWholeRequests = ConcurrentHashMap<String, PendingBranchRequest>()
     private val outgoingRequestById = ConcurrentHashMap<String, String>()
+    private val acceptedTurnEpochById = ConcurrentHashMap<String, Long>()
     private val hardInterruptRequestById = ConcurrentHashMap<String, HardInterruptRequest>()
     private val queuedStagingIds = ConcurrentHashMap.newKeySet<String>()
     private val pendingSendReservationLock = Any()
@@ -1702,6 +1703,17 @@ class ChatViewModel(
             }
         when {
             accepted -> {
+                // #1427: a gateway-queued prompt belongs to a future turn, not the
+                // completion currently on screen. Keep it live until that turn is verified.
+                val receipt = sendStore.all().firstOrNull { it.id == messageId }
+                acceptedTurnEpochById[messageId] =
+                    if (status == "queued" ||
+                        (!mainTurnBusy && (receipt == null || lastMainCompletionAt < receipt.createdAt))
+                    ) {
+                        mainTurnEpoch + 1
+                    } else {
+                        mainTurnEpoch
+                    }
                 // #1285: the submit ack names the row written for THIS input. Absent = unproven.
                 positiveRowId(resultMap?.get("user_row_id"))?.let { rowId ->
                     sendStore.update(messageId) { it.copy(userRowId = rowId) }
@@ -2631,12 +2643,14 @@ class ChatViewModel(
         state: PendingSendState,
     ) {
         sendStore.update(messageId) { it.copy(state = state) }
+        if (state != PendingSendState.ACCEPTED) acceptedTurnEpochById.remove(messageId)
         publishPendingSends()
         // #1427: settled/uncertain receipts remain recoverable, but cannot freeze later sends.
         if (state != PendingSendState.SENDING) drainPendingQueue()
     }
 
     private fun removePendingSend(messageId: String) {
+        acceptedTurnEpochById.remove(messageId)
         sendStore.remove(messageId)
         viewModelScope.launch(ioDispatcher) { deleteQueuedAttachmentSnapshot(messageId) }
         publishPendingSends()
@@ -5648,6 +5662,17 @@ class ChatViewModel(
         val requestSequence = activeHydrationRequestSequence
         val valid = { isCurrentHydration(sessionId, generation, requestSequence) }
         val useLatest = latestPaging
+        // #1427: acceptance alone is normal live UX. Only a completed turn followed by
+        // successful history verification can move its still-unmatched receipts into recovery.
+        // Capture the rows before suspending so a later prompt/retry cannot be quarantined.
+        val completionAt = lastMainCompletionAt
+        val completedTurnEpoch = mainTurnEpoch
+        val unverifiedAccepted =
+            sendStore.all().filter {
+                it.scope == sendScope() && it.sessionId == sessionId &&
+                    it.state == PendingSendState.ACCEPTED && it.createdAt <= completionAt &&
+                    acceptedTurnEpochById[it.id]?.let { epoch -> epoch <= completedTurnEpoch } == true
+            }
         val nextOffset =
             if (useLatest) {
                 0
@@ -5682,6 +5707,13 @@ class ChatViewModel(
                                 )
                             } ?: return@launch
                         persistHistoryPage(page, sessionId)
+                        if (valid() && !mainTurnBusy && mainTurnEpoch == completedTurnEpoch) {
+                            unverifiedAccepted.forEach { receipt ->
+                                if (sendStore.all().any { it == receipt }) {
+                                    markPendingSend(receipt.id, PendingSendState.UNKNOWN)
+                                }
+                            }
+                        }
                         // Never derive the older cursor from displayed rows or reset it to this latest page.
                         // Append-only growth shifts from-end offsets toward newer rows: the next older
                         // request may overlap, but stable IDs remove echoes without skipping any history.

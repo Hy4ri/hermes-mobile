@@ -27,8 +27,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.model.Attachment
+import com.m57.hermescontrol.ui.chat.ImageViewerModel
+import com.m57.hermescontrol.ui.chat.InlineAttachment
 import com.m57.hermescontrol.ui.chat.PendingSend
 import com.m57.hermescontrol.ui.chat.PendingSendState
+import com.m57.hermescontrol.ui.chat.needsRecovery
 
 /** #1427: a compact recovery entry keeps uncertain delivery visible without a floating queue panel. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -39,8 +43,11 @@ fun PendingSendRecovery(
     mainTurnBusy: Boolean,
     onSendAgain: (String) -> Unit,
     onDiscard: (String) -> Unit,
+    onOpenAttachment: (Attachment) -> Unit = {},
+    onImageClick: (ImageViewerModel) -> Unit = {},
 ) {
-    if (sends.isEmpty()) return
+    val recoverySends = sends.filter { it.needsRecovery }
+    if (recoverySends.isEmpty()) return
     var open by remember { mutableStateOf(false) }
     var retryId by remember { mutableStateOf<String?>(null) }
     var discardId by remember { mutableStateOf<String?>(null) }
@@ -53,7 +60,7 @@ fun PendingSendRecovery(
         },
         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("pending_send_recovery"),
     ) {
-        Text(pluralStringResource(R.plurals.chat_pending_count, sends.size, sends.size))
+        Text(pluralStringResource(R.plurals.chat_pending_count, recoverySends.size, recoverySends.size))
     }
     if (open) {
         ModalBottomSheet(onDismissRequest = { open = false }) {
@@ -63,7 +70,7 @@ fun PendingSendRecovery(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
             LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 480.dp)) {
-                items(sends, key = { it.id }) { send ->
+                items(recoverySends, key = { it.id }) { send ->
                     Column(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -83,8 +90,20 @@ fun PendingSendRecovery(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        if (send.attachments.isNotEmpty()) {
-                            Text(stringResource(R.string.chat_pending_attachments))
+                        send.attachments.forEach { attachment ->
+                            if (attachment.isImage || attachment.isAudio || attachment.isVideo) {
+                                Text(attachment.name, style = MaterialTheme.typography.bodyMedium)
+                            }
+                            InlineAttachment(
+                                attachment = attachment,
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                onOpen = onOpenAttachment,
+                                onSave = {},
+                                savingPath = null,
+                                openingPath = null,
+                                canSave = false,
+                                onImageClick = onImageClick,
+                            )
                         }
                         Row {
                             TextButton(
@@ -125,7 +144,7 @@ fun PendingSendRecovery(
             }
         }
     }
-    sends.firstOrNull { it.id == retryId }?.let { send ->
+    recoverySends.firstOrNull { it.id == retryId }?.let { send ->
         AlertDialog(
             onDismissRequest = { retryId = null },
             title = { Text(stringResource(R.string.chat_pending_send_again)) },
@@ -151,7 +170,7 @@ fun PendingSendRecovery(
             },
         )
     }
-    sends.firstOrNull { it.id == discardId }?.let { send ->
+    recoverySends.firstOrNull { it.id == discardId }?.let { send ->
         AlertDialog(
             onDismissRequest = { discardId = null },
             title = { Text(stringResource(R.string.chat_pending_discard)) },

@@ -149,3 +149,18 @@ class ChatSendStore(
         rows = next
     }
 }
+
+/** #1427: uncertain receipt bubbles live in recovery UI, not after their server transcript counterpart. */
+internal fun messagesWithoutUnconfirmedReceipts(
+    messages: List<ChatMessage>,
+    pending: List<PendingSend>,
+): List<ChatMessage> {
+    val recoveryIds =
+        pending
+            .filter {
+                it.state == PendingSendState.ACCEPTED || it.state == PendingSendState.UNKNOWN ||
+                    it.state == PendingSendState.REJECTED
+            }.mapTo(mutableSetOf()) { it.id }
+    if (recoveryIds.isEmpty()) return messages
+    return messages.filterNot { it.id in recoveryIds && it.canonicalRestId == null }
+}

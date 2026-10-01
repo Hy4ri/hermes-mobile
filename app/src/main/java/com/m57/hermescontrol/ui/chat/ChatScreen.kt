@@ -107,6 +107,7 @@ import com.m57.hermescontrol.ui.chat.components.ConnectionSetupSheet
 import com.m57.hermescontrol.ui.chat.components.ContextDetailSheet
 import com.m57.hermescontrol.ui.chat.components.ContextUsageChip
 import com.m57.hermescontrol.ui.chat.components.MediaViewerDialog
+import com.m57.hermescontrol.ui.chat.components.PendingSendRecovery
 import com.m57.hermescontrol.ui.chat.components.ReactionHeartsOverlay
 import com.m57.hermescontrol.ui.chat.components.ReloginDialog
 import com.m57.hermescontrol.ui.chat.components.ReplyErrorCard
@@ -180,7 +181,7 @@ fun ChatScreen(
     // Snapshot-backed search state — read directly so only the scopes that
     // read its fields recompose on search changes (bar, matched bubbles).
     val searchState = viewModel.searchState
-    val displayedMessages = timelineState.historyMessages ?: state.messages
+    val displayedMessages = transcriptState.messages
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
 
@@ -850,6 +851,16 @@ fun ChatScreen(
                         null
                     },
             )
+
+            if (!timelineState.isHistorical) {
+                PendingSendRecovery(
+                    sends = state.pendingSends,
+                    canSend = state.isConnected && state.isSessionReady,
+                    mainTurnBusy = state.isMainTurnBusy,
+                    onSendAgain = viewModel::sendQueuedNow,
+                    onDiscard = viewModel::discardPendingSend,
+                )
+            }
 
             ChatInputBar(
                 inputFieldValue = inputFieldValue,

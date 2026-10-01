@@ -33,6 +33,10 @@ object ProfileScopeInterceptor : Interceptor {
             // multi-profile host transcribes under the launch profile
             // (review, PR #1250).
             "/api/audio",
+            // Curator state is per profile (config-scoped reads) and the run
+            // trigger is privileged: `POST /api/curator/run` is refused with
+            // 400 on a multi-profile backend without ?profile=.
+            "/api/curator",
             "/api/config",
             "/api/credentials/pool",
             "/api/cron",

@@ -1,6 +1,9 @@
 package com.m57.hermescontrol.data.model
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 
 @Serializable
 data class McpServersResponse(
@@ -19,12 +22,21 @@ data class McpServer(
     val status: String? = null,
     val error: String? = null,
     val auth: String? = null,
-    val tools: List<String>? = null,
+    val tools: JsonElement? = null,
     val source: String = "config",
     val plugin: String? = null,
 ) {
     // #1283: plugin-provided servers are managed by their owning plugin.
     val isPluginOwned: Boolean get() = source == "plugin"
+
+    // Backend sends `tools` as null, a name list, or a `{include, exclude}` filter object.
+    val toolCount: Int?
+        get() =
+            when (val t = tools) {
+                is JsonArray -> t.size
+                is JsonObject -> (t["include"] as? JsonArray)?.size
+                else -> null
+            }
 }
 
 @Serializable
@@ -71,13 +83,15 @@ data class McpCatalogEntry(
     val url: String? = null,
     val command: String? = null,
     val args: List<String>? = null,
-    val env: List<McpCatalogEnvVar>? = null,
+    @SerialName("required_env") val env: List<McpCatalogEnvVar>? = null,
+    val installed: Boolean = false,
+    val enabled: Boolean = false,
 )
 
 @Serializable
 data class McpCatalogEnvVar(
-    val key: String,
-    val label: String? = null,
+    @SerialName("name") val key: String,
+    @SerialName("prompt") val label: String? = null,
     val description: String? = null,
     val required: Boolean = false,
 )
@@ -95,4 +109,10 @@ data class McpOAuthFlowResponse(
     val status: String,
     val authorizationUrl: String? = null,
     val error: String? = null,
+)
+
+/** Body for PUT api/mcp/servers/{name}; only the fields being changed are sent. */
+@Serializable
+data class McpServerUpdateRequest(
+    val env: Map<String, String>? = null,
 )

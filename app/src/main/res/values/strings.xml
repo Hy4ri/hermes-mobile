@@ -29,6 +29,7 @@
 
     <!-- Actions -->
     <string name="action_retry">Retry</string>
+    <string name="action_copy_error">Copy error</string>
     <string name="action_cancel">Cancel</string>
     <string name="action_confirm">Confirm</string>
     <string name="action_clear">Clear</string>
@@ -152,6 +153,7 @@
     <string name="notif_title">Hermes</string>
     <string name="notif_waiting_replies">Waiting for Hermes replies</string>
     <string name="notif_connected_in_background">Connected in background</string>
+    <string name="notif_action_turn_off">Turn off</string>
     <string name="notif_connecting">Connecting…</string>
     <string name="notif_waiting_network">Waiting for network</string>
     <string name="notif_reconnecting">Reconnecting</string>
@@ -163,6 +165,8 @@
     <string name="notif_channel_service_desc">Keeps connection alive in the background</string>
     <string name="notif_channel_chat_name">Hermes Chat Replies</string>
     <string name="notif_channel_chat_desc">Alerts for new replies from Hermes</string>
+    <string name="notif_session_complete">Session finished: %1$s</string>
+    <string name="notif_session_failed">Session failed: %1$s</string>
     <string name="action_reply">Reply</string>
 
     <!-- Chat Screen & Bubble -->
@@ -268,6 +272,8 @@
     <string name="settings_field_token">Auth Token</string>
     <string name="settings_keep_connected_in_background_title">Stay connected in background</string>
     <string name="settings_keep_connected_in_background_desc">Keep Hermes connected while using other apps. Shows an ongoing notification and may use more battery.</string>
+    <string name="settings_notify_session_completions_title">Notify when a session completes</string>
+    <string name="settings_notify_session_completions_desc">Alert when any Hermes session finishes while the app is in the background. Keeps Hermes connected in the background (ongoing notification, extra battery use) so finished sessions can alert you.</string>
     <string name="settings_sec_behavior">Behavior</string>
     <string name="settings_item_auto_reconnect">Auto-Reconnect</string>
     <string name="settings_desc_auto_reconnect">Automatically reconnect on disconnect</string>
@@ -364,6 +370,7 @@
     <string name="theme_preset_catppuccin">Catppuccin</string>
     <string name="theme_preset_amoled">AMOLED Black (Dark only)</string>
     <string name="theme_preset_nord">Nord</string>
+    <string name="theme_preset_garnet">Garnet</string>
 
     <!-- Language -->
     <string name="settings_item_language">Language</string>
@@ -877,6 +884,7 @@
     <string name="sessions_prune_desc">Delete sessions older than the specified number of days.</string>
     <string name="sessions_prune_days_label">Days threshold</string>
     <string name="sessions_prune_confirm">Prune</string>
+    <string name="sessions_pruning">Pruning old sessions…</string>
     <string name="sessions_empty_cleanup_desc">Empty</string>
     <string name="sessions_empty_cleanup_title">Delete empty sessions?</string>
     <string name="sessions_empty_cleanup_message">Delete %1$d empty session(s). Active and archived sessions are kept.</string>
@@ -1469,7 +1477,6 @@
     <string name="image_viewer_close">Close</string>
     <string name="image_viewer_save">Save to device</string>
     <string name="image_viewer_share">Share</string>
-    <string name="image_viewer_share_title">Share image</string>
     <string name="plugins_memory_manage">Manage provider…</string>
     <string name="memory_provider_empty_title">No provider config</string>
     <string name="memory_provider_empty_desc">This provider has no configurable surface.</string>
@@ -1485,10 +1492,6 @@
     <string name="memory_provider_secret_label">API key (leave blank to keep)</string>
     <string name="memory_provider_bool_on">On</string>
     <string name="memory_provider_bool_off">Off</string>
-    <string name="image_viewer_saved">Image saved to Downloads</string>
-    <string name="image_viewer_save_failed">Could not save image</string>
-    <string name="image_viewer_load_failed">Could not load image: %1$s</string>
-    <string name="image_viewer_share_failed">Could not share image</string>
     <!-- hardcoded-UI string migration (en) -->
     <string name="analytics_most_used_components">Most Used Components</string>
     <string name="analytics_no_model_data">No model data available</string>
@@ -1844,4 +1847,9 @@
     <string name="account_connectors_reconnect">Reconnect</string>
     <string name="account_connectors_no_tools">No tools available</string>
     <string name="account_connectors_policy_locked">Read-only policy restrictions</string>
+    <string name="mcp_tab_installed">Installed</string>
+    <string name="mcp_tab_catalog">Catalog</string>
+    <string name="mcp_servers_catalog_empty_title">No catalog entries</string>
+    <string name="mcp_servers_catalog_installed">Installed</string>
+    <string name="settings_desc_theme_preset_dynamic">Used for status colors while Material You supplies the app colors.</string>
 </resources>

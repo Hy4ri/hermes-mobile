@@ -137,6 +137,21 @@ explicitly disconnected on logout and reconnected after login:
 The singleton's `connect()` has a guard (`if connected → skip`) so it's safe to
 call unconditionally.
 
+### Typed Gateway RPC
+
+Every gateway method in the contract (`app/src/test/resources/gateway-contract/openrpc.json`) is called through a
+typed descriptor: `HermesWsClient.call(RpcMethods.X, params)` (suspending), `requestTyped(...)`, or the typed
+`send(RpcMethods.X, params, onSent)`. Params are `@Serializable` classes under `data/ws/contract/`; results are
+`JsonElement` passthrough or typed. To add a method: add the params class, register it in `RpcMethods` (and
+`RpcMethods.all`), and `GatewayContractTest` checks it against the contract.
+
+- The untyped `request(String, Map)` / `send(String, Map)` are `internal`. Use them only for `gateway.ping` and the
+  legacy `*.respond` fallbacks (`clarify`, `sudo`, `secret`, `vault.*`) that have no contract entry.
+- Optional params are `T? = null`: the client Json has `encodeDefaults = false`, so unset fields are omitted and an
+  explicit `false`/`""` is still sent. Do not add a `profile` field unless callers pass an explicit override;
+  `WsProfileParams.decorate` injects it for profile-scoped methods.
+- `RawRpcParamsRatchetTest.BASELINE` must stay empty.
+
 ### Shared Components
 
 - **`HermesScaffold`** — drawer-aware Scaffold + TopAppBar with refresh slot,
@@ -197,8 +212,8 @@ for the current inset implementation.
 
 ### Theme
 
-`Theme.kt` uses a preset-based theme system with 6 built-in presets: Default,
-Monochrome, Gruvbox, Catppuccin, AMOLED, and Nord. Each preset provides light
+`Theme.kt` uses a preset-based theme system with 7 built-in presets: Default,
+Monochrome, Gruvbox, Catppuccin, AMOLED, Nord, and Garnet. Each preset provides light
 and dark color schemes plus matching semantic status colors (AMOLED is
 dark-only — light mode falls back to the default theme).
 Every preset is a `ThemePalette` template fill (`PaletteTemplate.kt`): raw
@@ -259,7 +274,7 @@ gh pr create --base dev --title "fix(#N): description" --body "Closes #N"
   (`remember {}`, `buildAnnotatedString`, `LaunchedEffect`). Extract to a local
   `val` at the composable scope first.
 - Don't add new screens without checking if an existing one already covers the
-  functionality (28+ screens exist). Extend rather than duplicate.
+  functionality (30+ screens exist). Extend rather than duplicate.
 - **⚠ Never scope a dependency to `debugImplementation` if its import is used in
   `main/` source code.** The CI `release-compile` job catches this, but save the
   cycle. `okhttp3.logging.HttpLoggingInterceptor` is the classic example — it's
@@ -286,22 +301,25 @@ com.m57.hermescontrol/
 │   ├── local/      AuthManager, Room (ChatMessageEntity/Dao, HermesDatabase), AnalyticsCacheStore
 │   ├── model/      40+ data classes for API responses + requests
 │   ├── remote/     ApiClient, Retrofit service, OkHttp provider, cookie management
+│   ├── repository/ KanbanRepository, KanbanSyncCoordinator, VoiceNoteRepository
 │   ├── session/    ActiveSessionHolder
+│   ├── update/     AppUpdateChecker, AppUpdateCache, AppUpdateState
 │   └── ws/         HermesWsClient, JSON-RPC models, WsEvent, BillingRepository
 ├── notification/   ChatNotificationService, NotificationReplyReceiver
 ├── theme/          Color, Theme, Motion, Spacing, Shapes, Type, HermesStatusColors
-│   └── presets/    Default, Monochrome, Gruvbox, Catppuccin, AMOLED, Nord
+│   └── presets/    Default, Monochrome, Gruvbox, Catppuccin, AMOLED, Nord, Garnet
 ├── ui/
 │   ├── common/     HermesScaffold, StateViews, SharedComponents, DetailDialog, DetailRows
-│   └── 28 feature packages (achievements, analytics, authlogin, billing, channels,
-│       chat, config, connect, cron, gateway, kanban, keys, landing, logs, mcp,
-│       model, pairing, plugins, process, profiles, providers, sessions, settings,
-│       skills, system, toolsets, webhooks)
+│   └── 31 feature packages (achievements, analytics, authlogin, billing, bots,
+│       channels, chat, config, connect, connectors, cron, files, gateway, kanban,
+│       keys, landing, logs, mcp, memory, model, pairing, plugins, process,
+│       profiles, providers, sessions, settings, skills, system, toolsets,
+│       webhooks)
 ├── util/           CronExpressionFormatter, LocaleContextWrapper
 ├── HermesControlApp.kt     Application class
 ├── Navigation.kt           Drawer + NavDisplay + entry wiring
 ├── NavigationController.kt Central navigation guard (dedup)
-├── NavigationKeys.kt       @Serializable NavKey data objects (28 screens + 6 settings sub-pages)
+├── NavigationKeys.kt       @Serializable NavKey data objects (30 screens + 4 detail keys + 7 settings sub-pages)
 ├── ScreenRegistry.kt       entry<T> registrations for all NavKeys
 └── MainActivity.kt
 ```
@@ -311,6 +329,7 @@ com.m57.hermescontrol/
 - [README.md](README.md) — human-facing overview, features, screenshots, tech stack
 - [DESIGN.md](DESIGN.md) — visual and interaction requirements, accessibility, and token source map
 - [THEMES.md](app/src/main/java/com/m57/hermescontrol/theme/THEMES.md) — theme template, dispatcher, and mode fallback implementation
+- [Gateway contract test](CONTRIBUTING.md#gateway-contract-snapshot) — backend drift check; refresh with `scripts/sync-gateway-contract.sh`
 - [CONTRIBUTING.md](CONTRIBUTING.md) — contributor workflow, PR checklist, code style
 - [.github/workflows/android.yml](.github/workflows/android.yml) — CI pipeline source of truth
 - [.github/workflows/merge-conflict-detector.yml](.github/workflows/merge-conflict-detector.yml) — auto-labels conflicting PRs

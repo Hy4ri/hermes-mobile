@@ -85,18 +85,26 @@ android {
 
     buildTypes {
         debug {
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+
             buildConfigField("boolean", "ALLOW_CLEARTEXT", "true")
             manifestPlaceholders["usesCleartextTraffic"] = "true"
         }
+
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
             signingConfig = signingConfigs["release"]
             buildConfigField("boolean", "ALLOW_CLEARTEXT", "true")
             manifestPlaceholders["usesCleartextTraffic"] = "true"
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
@@ -309,6 +317,13 @@ tasks.named("check") {
     dependsOn("checkColorLiterals")
 }
 
-tasks.withType<Test> {
+val includeBenchmarks = providers.gradleProperty("includeBenchmarks").isPresent
+
+tasks.withType<Test>().configureEach {
     useJUnitPlatform()
+    maxParallelForks = 2
+    // Assertion-free timing probes are opt-in: ./gradlew testDebugUnitTest -PincludeBenchmarks
+    if (!includeBenchmarks) {
+        filter { excludeTestsMatching("*Benchmark") }
+    }
 }

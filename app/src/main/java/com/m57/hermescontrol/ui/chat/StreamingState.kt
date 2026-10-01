@@ -4,6 +4,8 @@ import com.m57.hermescontrol.data.model.UsageSnapshotResponse
 
 data class StreamingState(
     val streamingMessage: ChatMessage? = null,
+    /** Sealed by an interrupt acknowledgement; late completion must update this row, not append another. */
+    val interruptedMessage: ChatMessage? = null,
     val isThinking: Boolean = false,
     val thinkingText: String = "",
     val isReasoning: Boolean = false,

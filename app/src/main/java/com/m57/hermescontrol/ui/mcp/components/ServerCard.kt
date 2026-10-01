@@ -151,7 +151,7 @@ fun ServerCard(
 
                     // Tool count & schema token overhead badge (issue #1029)
                     val toolInfos = testResult?.tools
-                    val toolCount = toolInfos?.size ?: server.tools?.size
+                    val toolCount = toolInfos?.size ?: server.toolCount
                     if (toolCount != null && toolCount > 0) {
                         val tokenEst = toolInfos?.let { McpTokenEstimator.estimateTokens(it) }
                         val label = McpTokenEstimator.formatTokenOverhead(toolCount, tokenEst)

@@ -27,6 +27,7 @@ Fixes #
 
 ## Checklist
 
+- [ ] PR is focused on one feature or one fix (no unrelated changes)
 - [ ] Branch rebased onto `dev` (`git rebase origin/dev`)
 - [ ] `./gradlew ktlintCheck` passes (ran `ktlintFormat` first)
 - [ ] `./gradlew testDebugUnitTest` green (or CI unit-tests job)

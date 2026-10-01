@@ -12,7 +12,8 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.m57.hermescontrol.ui.chat.ChatMessage
 import com.m57.hermescontrol.ui.chat.ChatSearchState
-import com.m57.hermescontrol.ui.chat.ChatViewModel
+import com.m57.hermescontrol.ui.chat.ChatTimelineState
+import com.m57.hermescontrol.ui.chat.ChatUiState
 import com.m57.hermescontrol.ui.chat.ClarifyUi
 import com.m57.hermescontrol.ui.chat.MessageRole
 import com.m57.hermescontrol.ui.chat.StreamingState
@@ -21,7 +22,6 @@ import com.m57.hermescontrol.ui.chat.VaultCodePromptUi
 import com.m57.hermescontrol.ui.chat.VaultSaveLoginPromptUi
 import com.m57.hermescontrol.ui.chat.VaultUnlockPromptUi
 import com.m57.hermescontrol.ui.chat.components.rememberChatScrollController
-import io.mockk.mockk
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
@@ -116,31 +116,58 @@ class FullBleedChatAnchorTest {
         val tailKeys =
             listOf("agent_status", "clarify_bubble", "vault_unlock_card", "vault_save_login_card", "vault_code_card")
         val listState = LazyListState(index, offset)
-        val viewModel = mockk<ChatViewModel>(relaxed = true)
         lateinit var scope: CoroutineScope
         compose.setContent {
             scope = rememberCoroutineScope()
             val controller = rememberChatScrollController(listState, scope)
             Box(Modifier.size(width = 320.dp, height = if (tailKey == null) 400.dp else 24.dp)) {
                 FullBleedChatList(
-                    messages = messages.value,
-                    streamingState = streaming.value,
-                    isAgentTyping = tailKey != null,
+                    transcript =
+                        TranscriptUiState.resolve(
+                            chat =
+                                ChatUiState(
+                                    messages = messages.value,
+                                    isAgentTyping = tailKey != null,
+                                    typingEffectEnabled = false,
+                                    typingEffectDelayMs = 30,
+                                    isLoadingOlder = loading.value,
+                                    currentSessionId = session.value,
+                                    clarifyRequest =
+                                        if (tailKey !=
+                                            null
+                                        ) {
+                                            ClarifyUi("Choose an option", listOf("Yes"))
+                                        } else {
+                                            null
+                                        },
+                                    vaultUnlockPrompt =
+                                        if (tailKey != null) {
+                                            VaultUnlockPromptUi(
+                                                null,
+                                                null,
+                                            )
+                                        } else {
+                                            null
+                                        },
+                                    vaultSaveLoginPrompt =
+                                        if (tailKey !=
+                                            null
+                                        ) {
+                                            VaultSaveLoginPromptUi(null, null)
+                                        } else {
+                                            null
+                                        },
+                                    vaultCodePrompt = if (tailKey != null) VaultCodePromptUi(null, null) else null,
+                                ),
+                            timeline = ChatTimelineState(),
+                            streaming = streaming.value,
+                            savingAttachmentPath = null,
+                            speakingMessageId = null,
+                        ),
+                    actions = testTranscriptActions(),
                     searchState = ChatSearchState(),
-                    typingEffectEnabled = false,
-                    typingEffectDelayMs = 30,
-                    isLoading = false,
-                    isLoadingOlder = loading.value,
                     listState = listState,
                     scrollController = controller,
-                    lastAnimatedMessageId = null,
-                    onLastAnimatedMessageIdChange = {},
-                    viewModel = viewModel,
-                    pagingSessionId = session.value,
-                    clarifyRequest = if (tailKey != null) ClarifyUi("Choose an option", listOf("Yes")) else null,
-                    vaultUnlockPrompt = if (tailKey != null) VaultUnlockPromptUi(null, null) else null,
-                    vaultSaveLoginPrompt = if (tailKey != null) VaultSaveLoginPromptUi(null, null) else null,
-                    vaultCodePrompt = if (tailKey != null) VaultCodePromptUi(null, null) else null,
                 )
             }
         }

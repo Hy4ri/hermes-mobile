@@ -91,3 +91,6 @@ fun parseProjectColor(raw: String?): Color? {
     if (h !in 0f..360f || s !in 0f..1f || l !in 0f..1f) return null
     return Color.hsl(h % 360f, s, l)
 }
+
+/** Pure white glyph for filled accent controls (composer action button) when it is legible on the preset primary. */
+val GlyphWhite = Color(0xFFFFFFFF)

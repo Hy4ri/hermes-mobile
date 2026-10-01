@@ -60,6 +60,7 @@ class ChatMediaDelegate(
                     size = 0,
                     gatewayUrl = url,
                     source = AttachmentSource.GATEWAY,
+                    contentOffset = item.offset,
                 )
             }
         if (newAttachments.isEmpty()) return
@@ -272,15 +273,3 @@ class ChatMediaDelegate(
         uiState.update { it.copy(openError = null) }
     }
 }
-
-internal fun sameMessages(
-    left: List<ChatMessage>,
-    right: List<ChatMessage>,
-): Boolean =
-    left.size == right.size &&
-        left.zip(right).all { (a, b) ->
-            a.id == b.id &&
-                a.role == b.role &&
-                a.content == b.content &&
-                a.reasoningText == b.reasoningText
-        }

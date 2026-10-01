@@ -9,13 +9,16 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PluginRemovalRepositoryTest {
+    private fun removalRepo(handler: suspend (String, Map<String, Any>) -> Any?) =
+        PluginRemovalRepository(fakeCaller(handler))
+
     @Test
     fun `remove sends scoped gateway action and decodes success`() =
         runTest {
             var method = ""
             var params: Map<String, Any> = emptyMap()
             val repository =
-                PluginRemovalRepository { requestedMethod, requestedParams ->
+                removalRepo { requestedMethod, requestedParams ->
                     method = requestedMethod
                     params = requestedParams
                     Json.parseToJsonElement("""{"ok":true,"name":"demo"}""")
@@ -33,11 +36,11 @@ class PluginRemovalRepositoryTest {
     @Test
     fun `refusal is a typed failure and missing ok cannot masquerade as success`() =
         runTest {
-            val refused = PluginRemovalRepository { _, _ -> mapOf("ok" to false, "error" to "bundled plugin") }
+            val refused = removalRepo { _, _ -> mapOf("ok" to false, "error" to "bundled plugin") }
             assertFalse(refused.remove("builtin").ok)
             assertEquals("bundled plugin", refused.remove("builtin").error)
 
-            val malformed = PluginRemovalRepository { _, _ -> mapOf("name" to "demo") }
+            val malformed = removalRepo { _, _ -> mapOf("name" to "demo") }
             try {
                 malformed.remove("demo")
                 throw AssertionError("Missing ok must fail decoding")

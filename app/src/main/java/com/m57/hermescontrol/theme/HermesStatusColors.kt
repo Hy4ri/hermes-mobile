@@ -10,8 +10,13 @@ import androidx.compose.ui.graphics.luminance
  * Material You changes the *primary* / *surface* palette based on the user's
  * wallpaper, but success / warning / error / info colours must stay
  * semantically correct (green = good, red = bad) regardless of what the
- * wallpaper-derived palette would choose. This struct is provided via
- * [LocalHermesStatusColors] and should be used for all status indicators,
+ * wallpaper-derived palette would choose.
+ *
+ * `onSuccess`/`onWarning`/`onError`/`onInfo` are foregrounds on the matching
+ * status fills, not on their container colors. Reusable status badges use
+ * these fill/on pairs; error-container content uses `onErrorContainer`.
+ *
+ * Use [LocalHermesStatusColors] for all status indicators,
  * badges, and semantic feedback colours.
  */
 data class HermesStatusColors(

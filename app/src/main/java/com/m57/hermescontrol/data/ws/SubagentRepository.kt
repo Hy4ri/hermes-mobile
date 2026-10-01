@@ -3,6 +3,9 @@ package com.m57.hermescontrol.data.ws
 import android.util.Log
 import com.m57.hermescontrol.data.model.SubagentListResponse
 import com.m57.hermescontrol.data.model.SubagentTailResponse
+import com.m57.hermescontrol.data.ws.contract.RpcMethods
+import com.m57.hermescontrol.data.ws.contract.SessionIdParams
+import com.m57.hermescontrol.data.ws.contract.SubagentTailParams
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -33,12 +36,11 @@ object SubagentRepository {
         if (sessionId.isBlank()) return null
         return try {
             val result =
-                HermesWsClient
-                    .request(
-                        WsMethods.SUBAGENT_LIST,
-                        mapOf("session_id" to sessionId),
-                        suppressErrorEvent = true,
-                    ).await()
+                HermesWsClient.call(
+                    RpcMethods.SUBAGENT_LIST,
+                    SessionIdParams(sessionId),
+                    suppressErrorEvent = true,
+                )
             decode<SubagentListResponse>(result)
         } catch (e: Exception) {
             Log.w(TAG, "subagent.list request failed for session $sessionId: ${e.message}")
@@ -55,24 +57,15 @@ object SubagentRepository {
     suspend fun tailSubagent(
         sessionId: String,
         subagentId: String,
-        maxBytes: Int = 16384,
     ): SubagentTailResponse? {
-        if (subagentId.isBlank()) return null
-        val params =
-            mutableMapOf<String, Any>(
-                "subagent_id" to subagentId,
-                "max_bytes" to maxBytes,
-            )
-        if (sessionId.isNotBlank()) {
-            params["session_id"] = sessionId
-        }
+        // Contract (SubagentIdParams): session_id and subagent_id are required, extra keys forbidden (#1379).
+        if (subagentId.isBlank() || sessionId.isBlank()) return null
         val result =
-            HermesWsClient
-                .request(
-                    WsMethods.SUBAGENT_TAIL,
-                    params,
-                    suppressErrorEvent = true,
-                ).await()
+            HermesWsClient.call(
+                RpcMethods.SUBAGENT_TAIL,
+                SubagentTailParams(sessionId, subagentId),
+                suppressErrorEvent = true,
+            )
         return decode<SubagentTailResponse>(result)
     }
 

@@ -34,15 +34,25 @@ class ChatSearchControllerTest {
     }
 
     @Test
-    fun `excludes tool rows even when the payload contains the query`() {
+    fun `finds visible tool name without indexing hidden raw payload`() {
         val messages =
             listOf(
                 message(MessageRole.USER, "check the logs"),
-                message(MessageRole.TOOL, "{\"result\": \"check the logs: all green\"}"),
-                message(MessageRole.ASSISTANT, "all good"),
+                message(MessageRole.TOOL, "unrendered private payload").copy(toolName = "terminal"),
             )
 
-        assertEquals(listOf(SearchMatch(0, 0)), hits(controller.findMatches(messages, "check the logs")))
+        assertEquals(listOf(SearchMatch(1, 0, SearchTarget.TOOL)), hits(controller.findMatches(messages, "terminal")))
+        assertEquals(emptyList<SearchMatch>(), hits(controller.findMatches(messages, "private payload")))
+    }
+
+    @Test
+    fun `system marker carried as user does not yield an invisible hit`() {
+        val marker =
+            message(
+                MessageRole.USER,
+                "You've reached the maximum number of tool-calling iterations allowed.",
+            )
+        assertEquals(emptyList<SearchMatch>(), hits(controller.findMatches(listOf(marker), "maximum")))
     }
 
     @Test
@@ -57,7 +67,7 @@ class ChatSearchControllerTest {
     }
 
     @Test
-    fun `excludes reasoning text that never made it to visible content`() {
+    fun `finds reasoning text independently of assistant prose`() {
         val messages =
             listOf(
                 message(
@@ -67,8 +77,10 @@ class ChatSearchControllerTest {
                 ),
             )
 
-        // Only the visible content is searchable — reasoning is invisible.
-        assertEquals(emptyList<SearchMatch>(), hits(controller.findMatches(messages, "deployment")))
+        assertEquals(
+            listOf(SearchMatch(0, 19, SearchTarget.REASONING)),
+            hits(controller.findMatches(messages, "deployment")),
+        )
         assertEquals(listOf(SearchMatch(0, 12)), hits(controller.findMatches(messages, "answer")))
     }
 

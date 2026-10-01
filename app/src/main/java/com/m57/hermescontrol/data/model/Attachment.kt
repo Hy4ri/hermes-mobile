@@ -17,6 +17,9 @@ import kotlinx.serialization.Serializable
  *   file that lives on the *gateway host* (agent-delivered `MEDIA:` directive).
  *   Null for locally-picked attachments.
  * @param source Where the attachment originated.
+ * @param contentOffset For agent `MEDIA:` attachments, the char offset in the message's
+ *   stripped text where the directive appeared, so the renderer can place it in-flow.
+ *   Null means "append after the text".
  */
 @Serializable
 data class Attachment(
@@ -26,6 +29,7 @@ data class Attachment(
     val size: Long = 0,
     val gatewayUrl: String? = null,
     val source: AttachmentSource = AttachmentSource.LOCAL,
+    val contentOffset: Int? = null,
 ) {
     val mediaKind: MediaKind
         get() = classifyMedia(mimeType = mimeType, name = name, uri = gatewayUrl ?: uri)

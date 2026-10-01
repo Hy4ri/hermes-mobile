@@ -140,6 +140,39 @@ class ChatSearchDelegateTest {
         }
 
     @Test
+    fun `search tracks target kind while navigating reasoning tool and prose`() =
+        runTest {
+            val uiState =
+                MutableStateFlow(
+                    ChatUiState(
+                        messages =
+                            listOf(
+                                ChatMessage("m0", MessageRole.ASSISTANT, "answer", reasoningText = "thinking"),
+                                ChatMessage("m1", MessageRole.TOOL, "opaque", toolName = "thinking_tool"),
+                            ),
+                    ),
+                )
+            val delegate =
+                ChatSearchDelegate(
+                    scope = backgroundScope,
+                    uiState = uiState,
+                    dispatcher = StandardTestDispatcher(testScheduler),
+                    debounceMs = 150,
+                )
+
+            delegate.setSearchQuery("thinking")
+            advanceTimeBy(150)
+            runCurrent()
+            assertEquals(listOf(SearchTarget.REASONING, SearchTarget.TOOL), delegate.searchState.matchTargets)
+            assertEquals("m0", delegate.searchState.currentMatchId)
+            delegate.navigateSearchMatch(1)
+            assertEquals("m1", delegate.searchState.currentMatchId)
+            assertEquals(SearchTarget.TOOL, delegate.searchState.matchTargets[delegate.searchState.currentIndex])
+            delegate.clearSearch()
+            assertEquals(emptyList<SearchTarget>(), delegate.searchState.matchTargets)
+        }
+
+    @Test
     fun `clearSearch resets everything including matched sets`() =
         runTest {
             val uiState = stateWith("alpha one")

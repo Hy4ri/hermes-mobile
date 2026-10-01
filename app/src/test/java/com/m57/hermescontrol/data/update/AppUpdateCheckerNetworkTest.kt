@@ -108,6 +108,24 @@ class AppUpdateCheckerNetworkTest {
         }
 
     @Test
+    fun fetchLatestRelease_rcScanAcceptsRepositoriesPaginationFormat() =
+        runTest {
+            enqueue(STABLE_BODY)
+            val nextPage = server.url("/repositories/1270568813/releases?per_page=100&page=2")
+            enqueue(RELEASES_BODY, headers = mapOf("Link" to "<$nextPage>; rel=\"next\""))
+            enqueue(
+                """[{"tag_name":"v2.0.0-rc.1","prerelease":true,"assets":[{"name":"release.apk","size":5,"browser_download_url":"https://example.com/new.apk"}]}]""",
+            )
+
+            val info = checker().fetchLatestRelease(includeReleaseCandidates = true)
+
+            assertEquals("v2.0.0-rc.1", info?.tagName)
+            assertEquals("/repos/Hy4ri/hermes-mobile/releases/latest", server.takeRequest().path)
+            assertEquals("/repos/Hy4ri/hermes-mobile/releases?per_page=100&page=1", server.takeRequest().path)
+            assertEquals("/repositories/1270568813/releases?per_page=100&page=2", server.takeRequest().path)
+        }
+
+    @Test
     fun fetchLatestRelease_releaseCandidatesStillIgnoreAlphaAndBetaButKeepStable() =
         runTest {
             enqueue(STABLE_BODY)

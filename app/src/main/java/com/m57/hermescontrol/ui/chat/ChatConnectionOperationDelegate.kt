@@ -3,13 +3,26 @@ package com.m57.hermescontrol.ui.chat
 import com.m57.hermescontrol.data.model.ConnectionOperationSnapshot
 import com.m57.hermescontrol.data.model.ConnectorError
 import com.m57.hermescontrol.data.ws.ConnectorParser
-import com.m57.hermescontrol.data.ws.ConnectorRepository
 import com.m57.hermescontrol.data.ws.HermesWsClient
-import com.m57.hermescontrol.data.ws.WsMethods
+import com.m57.hermescontrol.data.ws.contract.ConnectionAnswer
+import com.m57.hermescontrol.data.ws.contract.ConnectionAnswerTarget
+import com.m57.hermescontrol.data.ws.contract.ConnectionRespondParams
+import com.m57.hermescontrol.data.ws.contract.ConnectorOwner
+import com.m57.hermescontrol.data.ws.contract.ConnectorsOperationStatusParams
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+
+sealed interface ConnectionOperationRequest {
+    data class Respond(
+        val params: ConnectionRespondParams,
+    ) : ConnectionOperationRequest
+
+    data class Wake(
+        val params: ConnectorsOperationStatusParams,
+    ) : ConnectionOperationRequest
+}
 
 sealed class ConnectionPendingAction {
     abstract val opId: String
@@ -45,10 +58,7 @@ data class ConnectionOperationUiState(
 )
 
 fun interface ConnectionOperationRequester {
-    suspend fun request(
-        method: String,
-        params: Map<String, Any>,
-    ): Any?
+    suspend fun request(action: ConnectionOperationRequest): Any?
 }
 
 internal class ConnectionResumeCheckpoint(
@@ -163,19 +173,20 @@ class ChatConnectionOperationDelegate(
                     observedSeq = current.seq,
                 ),
             ) ?: return
-        val answer =
-            buildMap<String, Any> {
-                put("name", target)
-                put("status", if (approved) "approved" else "skipped")
-                if (safeEnv.isNotEmpty()) put("env", safeEnv)
-            }
+        val answerTarget =
+            ConnectionAnswerTarget(
+                name = target,
+                status = if (approved) "approved" else "skipped",
+                env = safeEnv.takeIf { it.isNotEmpty() },
+            )
         dispatch(
-            method = WsMethods.CONNECTION_RESPOND,
-            params =
-                mapOf(
-                    "owner" to ownerParams(),
-                    "op_id" to snapshot.opId,
-                    "result" to mapOf("targets" to listOf(answer)),
+            action =
+                ConnectionOperationRequest.Respond(
+                    ConnectionRespondParams(
+                        owner = owner(),
+                        opId = snapshot.opId,
+                        result = ConnectionAnswer(targets = listOf(answerTarget)),
+                    ),
                 ),
         )
     }
@@ -183,12 +194,13 @@ class ChatConnectionOperationDelegate(
     suspend fun continueOperation() {
         val snapshot = begin(ConnectionPendingAction.Continue(currentOp(), currentSeq())) ?: return
         dispatch(
-            method = WsMethods.CONNECTION_RESPOND,
-            params =
-                mapOf(
-                    "owner" to ownerParams(),
-                    "op_id" to snapshot.opId,
-                    "result" to mapOf("settled_by" to "continue"),
+            action =
+                ConnectionOperationRequest.Respond(
+                    ConnectionRespondParams(
+                        owner = owner(),
+                        opId = snapshot.opId,
+                        result = ConnectionAnswer(settledBy = "continue"),
+                    ),
                 ),
         )
     }
@@ -198,36 +210,40 @@ class ChatConnectionOperationDelegate(
         if (current.opId != expectedOpId) return
         val snapshot = begin(ConnectionPendingAction.Wake(current.opId, current.seq)) ?: return
         dispatch(
-            method = WsMethods.CONNECTORS_OPERATION_WAKE,
-            params = mapOf("owner" to ownerParams(), "op_id" to snapshot.opId),
+            action =
+                ConnectionOperationRequest.Wake(
+                    ConnectorsOperationStatusParams(
+                        owner = owner(),
+                        opId = snapshot.opId,
+                    ),
+                ),
             clearOnSuccess = true,
             unknownOperationSettles = true,
         )
     }
 
     private suspend fun dispatch(
-        method: String,
-        params: Map<String, Any>,
+        action: ConnectionOperationRequest,
         clearOnSuccess: Boolean = false,
         unknownOperationSettles: Boolean = false,
     ) {
-        val action = _state.value.pendingAction
+        val pending = _state.value.pendingAction
         val actionGeneration = generation
         try {
-            requester.request(method, params)
+            requester.request(action)
             // Success only acknowledges receipt. Keep the exactly-once lock until
             // a newer authoritative snapshot advances the operation sequence.
-            if (clearOnSuccess && generation == actionGeneration && _state.value.pendingAction == action) {
+            if (clearOnSuccess && generation == actionGeneration && _state.value.pendingAction == pending) {
                 _state.value = _state.value.copy(pendingAction = null)
             }
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
             if (unknownOperationSettles && error is HermesWsClient.HermesRpcException && error.code == 4004) {
-                if (generation == actionGeneration && _state.value.pendingAction == action) {
-                    action?.opId?.let(::markSettled)
+                if (generation == actionGeneration && _state.value.pendingAction == pending) {
+                    pending?.opId?.let(::markSettled)
                 }
-            } else if (generation == actionGeneration && _state.value.pendingAction == action) {
+            } else if (generation == actionGeneration && _state.value.pendingAction == pending) {
                 _state.value =
                     _state.value.copy(
                         pendingAction = null,
@@ -269,8 +285,8 @@ class ChatConnectionOperationDelegate(
                 snapshot.sessionId == sessionId
         }
 
-    private fun ownerParams(): Map<String, String> =
-        if (accountOwned) mapOf("type" to "account") else ConnectorRepository.sessionOwner(checkNotNull(sessionId))
+    private fun owner(): ConnectorOwner =
+        if (accountOwned) ConnectorOwner.account() else ConnectorOwner.session(checkNotNull(sessionId))
 
     private fun currentOp(): String =
         _state.value.operation

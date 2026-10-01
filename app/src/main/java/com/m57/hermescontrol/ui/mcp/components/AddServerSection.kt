@@ -5,29 +5,20 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -50,37 +41,6 @@ fun AddServerSection(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
-        McpSectionHeader(
-            icon = Icons.Filled.Add,
-            title = stringResource(R.string.mcp_servers_add_server),
-            trailing = {
-                Row(horizontalArrangement = Arrangement.spacedBy(spacing.xs)) {
-                    TextButton(
-                        onClick = { viewModel.toggleImportDialog() },
-                        colors =
-                            ButtonDefaults.textButtonColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                contentColor = MaterialTheme.colorScheme.onSurface,
-                            ),
-                    ) {
-                        Icon(Icons.Filled.UploadFile, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(spacing.xs))
-                        Text(stringResource(R.string.mcp_servers_action_import_json))
-                    }
-                    TextButton(
-                        onClick = { viewModel.toggleAddForm() },
-                        colors =
-                            ButtonDefaults.textButtonColors(
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                            ),
-                    ) {
-                        Text(if (state.showAddForm) "Hide" else "New")
-                    }
-                }
-            },
-        )
-
         AnimatedVisibility(visible = state.showAddForm) {
             Card(
                 modifier = Modifier.fillMaxWidth(),

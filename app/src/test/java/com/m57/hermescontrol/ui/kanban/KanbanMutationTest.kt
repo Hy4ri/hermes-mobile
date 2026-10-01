@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.kanban
 
+import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.InMemoryKanbanPreferencesStore
 import com.m57.hermescontrol.data.model.BulkTaskResult
 import com.m57.hermescontrol.data.model.BulkTasksResponse
@@ -25,6 +26,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -43,13 +45,19 @@ class KanbanMutationTest {
     private val mockEventsClient = mockk<KanbanEventsClient>(relaxed = true)
     private val preferences = InMemoryKanbanPreferencesStore()
 
+    private val createdViewModels = mutableListOf<KanbanViewModel>()
+
     private fun createViewModel(): KanbanViewModel =
         KanbanViewModel(
             repository = mockRepository,
             preferences = preferences,
             eventsClientProvider = { mockEventsClient },
             endpointProvider = { "http://127.0.0.1:9119" },
-        )
+        ).also {
+            // Keep all VM work on the test scheduler; real Dispatchers.IO races resetMain().
+            it.ioDispatcher = testDispatcher
+            createdViewModels += it
+        }
 
     @Before
     fun setUp() {
@@ -58,6 +66,9 @@ class KanbanMutationTest {
 
     @After
     fun tearDown() {
+        testDispatcher.scheduler.advanceUntilIdle()
+        createdViewModels.forEach { it.viewModelScope.cancel() }
+        createdViewModels.clear()
         Dispatchers.resetMain()
     }
 

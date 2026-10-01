@@ -9,11 +9,11 @@ import org.junit.Test
 
 class ChatStreamingControllerTest {
     @Test
-    fun flushPendingReasoning_flushesThrottledReasoningOnTransition() =
+    fun flushPendingTransition_flushesThrottledReasoning() =
         runTest {
             // isTestEnvironment = false so the ~33ms throttle is live. The FIRST delta
             // always flushes (lastFlushMs == 0), but a SECOND delta within 33ms is held
-            // in the buffer and only pushed out by flushPendingReasoning() (called at
+            // in the buffer and only pushed out by flushPendingTransition() (called at
             // streaming transitions) — that is the exact drop we guard against.
             val uiState = MutableStateFlow(ChatUiState())
             val streamingState =
@@ -38,13 +38,13 @@ class ChatStreamingControllerTest {
             assertEquals("A", streamingState.value.streamingMessage?.reasoningText)
 
             // A streaming transition forces the buffered reasoning onto the message.
-            controller.flushPendingReasoning()
+            controller.flushPendingTransition()
 
             assertEquals("AB", streamingState.value.streamingMessage?.reasoningText)
         }
 
     @Test
-    fun flushPendingTokens_flushesThrottledTokensBeforeSeal() =
+    fun flushPendingTransition_flushesThrottledTokensBeforeSeal() =
         runTest {
             // Issue #842: a delta landing <33ms before tool.start stays in the
             // throttled buffer; flushing the tokens before the reducer seals the
@@ -73,7 +73,7 @@ class ChatStreamingControllerTest {
 
             // The tool.start transition forces the buffered tokens out so the
             // sealed orphan carries the complete narration.
-            controller.flushPendingTokens()
+            controller.flushPendingTransition()
 
             assertEquals(
                 "tool's loaded! 🔍 now searchin' for the best hummus",
@@ -95,7 +95,7 @@ class ChatStreamingControllerTest {
             // A fresh reasoning delta + flush must carry ONLY the new value, proving the
             // stale buffer was cleared and cannot be resurrected.
             controller.handleReasoningDelta(WsEvent.ReasoningDelta("Fresh reasoning", "session"))
-            controller.flushPendingReasoning()
+            controller.flushPendingTransition()
 
             assertEquals("Fresh reasoning", streamingState.value.reasoningText)
         }
@@ -166,6 +166,24 @@ class ChatStreamingControllerTest {
             // Advance virtual time by 35ms -> trailing flush executes
             testScheduler.advanceTimeBy(35L)
             assertEquals("First Second", streamingState.value.streamingMessage?.content)
+        }
+
+    @Test
+    fun thinkingDelta_trailingFlushAndResetDoNotLeakIntoNextTurn() =
+        runTest {
+            val uiState = MutableStateFlow(ChatUiState())
+            val streamingState = MutableStateFlow(StreamingState())
+            val controller = controller(this, uiState, streamingState, isTestEnvironment = { false })
+
+            controller.handleThinkingDelta(WsEvent.ThinkingDelta("Think", "session"))
+            controller.handleThinkingDelta(WsEvent.ThinkingDelta(" more", "session"))
+            assertEquals("Think", streamingState.value.thinkingText)
+            testScheduler.advanceTimeBy(35L)
+            assertEquals("Think more", streamingState.value.thinkingText)
+
+            controller.resetStreaming()
+            controller.handleThinkingDelta(WsEvent.ThinkingDelta("Fresh", "session"))
+            assertEquals("Fresh", streamingState.value.thinkingText)
         }
 
     private fun controller(

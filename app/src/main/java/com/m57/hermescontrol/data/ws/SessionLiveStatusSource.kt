@@ -3,6 +3,8 @@ package com.m57.hermescontrol.data.ws
 import com.m57.hermescontrol.data.model.ActiveSessionsResponse
 import com.m57.hermescontrol.data.model.LiveSessionSnapshot
 import com.m57.hermescontrol.data.model.SessionLiveStatus
+import com.m57.hermescontrol.data.ws.contract.RpcMethods
+import com.m57.hermescontrol.data.ws.contract.SessionActiveListParams
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
@@ -148,8 +150,8 @@ object SessionLiveStatusDecoder {
  * Production implementation of [SessionLiveStatusSource] backed by [HermesWsClient].
  */
 class HermesSessionLiveStatusSource(
-    private val rpcRequest: suspend (method: String, params: Map<String, Any>) -> Any? = { method, params ->
-        HermesWsClient.request(method, params).await()
+    private val rpcRequest: suspend () -> Any? = {
+        HermesWsClient.call(RpcMethods.SESSION_ACTIVE_LIST, SessionActiveListParams())
     },
     eventsProvider: () -> Flow<WsEvent> = { HermesWsClient.events },
     connectionStatusProvider: () -> StateFlow<ConnectionStatus> = { HermesWsClient.connectionStatus },
@@ -159,7 +161,7 @@ class HermesSessionLiveStatusSource(
 
     override suspend fun fetchActiveSessionsSnapshot(): LiveSessionSnapshot? =
         try {
-            val raw = rpcRequest(WsMethods.SESSION_ACTIVE_LIST, emptyMap())
+            val raw = rpcRequest()
             SessionLiveStatusDecoder.decodeSnapshot(raw)
         } catch (e: CancellationException) {
             throw e

@@ -1,7 +1,10 @@
 package com.m57.hermescontrol.ui.chat
 
+import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
+import com.m57.hermescontrol.data.ws.contract.RpcMethod
+import com.m57.hermescontrol.data.ws.contract.TypedRpcSender
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -9,6 +12,8 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
@@ -25,7 +30,7 @@ class ChatApprovalsDelegateTest {
     private val uiState = MutableStateFlow(ChatUiState(currentSessionId = "storage-session-1"))
     private var runtimeId: String? = null
     private val sentMethods = mutableListOf<String>()
-    private val sentParams = mutableListOf<Map<String, Any>>()
+    private val sentParams = mutableListOf<JsonObject>()
     private val trackedRequests = mutableListOf<Pair<String, String>>()
     private val systemMessages = mutableListOf<String>()
 
@@ -35,11 +40,22 @@ class ChatApprovalsDelegateTest {
             ioDispatcher = testDispatcher,
             uiState = uiState,
             runtimeSessionId = { runtimeId },
-            wsSend = { method, params, onSent ->
-                sentMethods.add(method)
-                sentParams.add(params)
-                onSent?.invoke("req-id-${sentMethods.size}")
-            },
+            rpc =
+                object : TypedRpcSender {
+                    override fun <P> send(
+                        method: RpcMethod<P, *>,
+                        params: P,
+                        onSent: ((String) -> Unit)?,
+                    ): String {
+                        sentMethods.add(method.name)
+                        sentParams.add(
+                            OkHttpProvider.json.encodeToJsonElement(method.params, params) as JsonObject,
+                        )
+                        val id = "req-id-${sentMethods.size}"
+                        onSent?.invoke(id)
+                        return id
+                    }
+                },
             trackRequest = { id, method -> trackedRequests.add(id to method) },
             addSystemMessage = { text -> systemMessages.add(text) },
         )
@@ -98,8 +114,8 @@ class ChatApprovalsDelegateTest {
             assertFalse(uiState.value.isAgentTyping)
 
             assertEquals(listOf(WsMethods.APPROVAL_RECEIVED), sentMethods)
-            assertEquals("runtime-session-xyz", sentParams.first()["session_id"])
-            assertEquals("req-123", sentParams.first()["request_id"])
+            assertEquals(JsonPrimitive("runtime-session-xyz"), sentParams.first()["session_id"])
+            assertEquals(JsonPrimitive("req-123"), sentParams.first()["request_id"])
         }
 
     @Test
@@ -125,11 +141,11 @@ class ChatApprovalsDelegateTest {
 
             advanceUntilIdle()
             assertEquals(listOf(WsMethods.APPROVAL_RESPOND, WsMethods.APPROVAL_PENDING), sentMethods)
-            assertEquals("once", sentParams[0]["choice"])
-            assertEquals("req-999", sentParams[0]["request_id"])
-            assertEquals(false, sentParams[0]["all"])
-            assertEquals("runtime-session-xyz", sentParams[0]["session_id"])
-            assertEquals("runtime-session-xyz", sentParams[1]["session_id"])
+            assertEquals(JsonPrimitive("once"), sentParams[0]["choice"])
+            assertEquals(JsonPrimitive("req-999"), sentParams[0]["request_id"])
+            assertEquals(JsonPrimitive(false), sentParams[0]["all"])
+            assertEquals(JsonPrimitive("runtime-session-xyz"), sentParams[0]["session_id"])
+            assertEquals(JsonPrimitive("runtime-session-xyz"), sentParams[1]["session_id"])
         }
 
     @Test
@@ -270,7 +286,14 @@ class ChatApprovalsDelegateTest {
                 ioDispatcher = testDispatcher,
                 uiState = uiState,
                 runtimeSessionId = { "session-1" },
-                wsSend = { _, _, _ -> error("new approval must not use legacy response") },
+                rpc =
+                    object : TypedRpcSender {
+                        override fun <P> send(
+                            method: RpcMethod<P, *>,
+                            params: P,
+                            onSent: ((String) -> Unit)?,
+                        ): String = error("new approval must not use legacy response")
+                    },
                 trackRequest = { _, _ -> },
                 addSystemMessage = { },
                 respondToServerRequest = { id, result -> responses += id to result },

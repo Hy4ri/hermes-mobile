@@ -871,6 +871,12 @@ object AuthManager {
         serverStore.update { it.copy(keepConnectedInBackground = enabled) }
     }
 
+    fun isNotifySessionCompletions(): Boolean = serverStore.getLatestState().notifySessionCompletions
+
+    fun setNotifySessionCompletions(enabled: Boolean) {
+        serverStore.update { it.copy(notifySessionCompletions = enabled) }
+    }
+
     // ── Chat Font Scale (issue #1004) ───────────────────────────────────
 
     fun getChatFontScale(): Float = serverStore.getLatestState().chatFontScale

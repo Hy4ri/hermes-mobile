@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.chat.components
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import com.m57.hermescontrol.theme.GlyphWhite
 import com.m57.hermescontrol.theme.ThemePreset
 import com.m57.hermescontrol.theme.resolveColorScheme
 import org.junit.Assert.assertTrue
@@ -63,6 +64,20 @@ class ComposerPaletteTest {
         forEveryPresetMode { mode, p, _ ->
             assertContrast("$mode action/card", p.action, p.card, 3f)
             assertContrast("$mode action glyph/action", p.onAction, p.action, 3f)
+        }
+    }
+
+    @Test
+    fun actionButtonFollowsThePresetPrimaryWhenItIsLegible() {
+        forEveryPresetMode { mode, p, _ ->
+            val scheme = resolveColorScheme(ThemePreset.valueOf(mode.substringBefore(" ")), mode.endsWith("true"))
+            if (contrast(scheme.primary, p.card) >= 3f) {
+                assertTrue("$mode action must be primary", p.action == scheme.primary)
+                assertTrue(
+                    "$mode glyph must be white or onPrimary",
+                    p.onAction == scheme.onPrimary || p.onAction == GlyphWhite,
+                )
+            }
         }
     }
 

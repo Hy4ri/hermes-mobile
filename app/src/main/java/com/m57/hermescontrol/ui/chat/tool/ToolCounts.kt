@@ -84,6 +84,23 @@ internal object ToolCounts {
             "sources" to "source",
         )
 
+    private val S_ENDING_NOUN_REGEX = Regex("(xes|zes|ches|shes|sses)$")
+    private val CONSONANT_Y_NOUN_REGEX = Regex("[aeiou]y$", RegexOption.IGNORE_CASE)
+    private val SIBILANT_NOUN_REGEX = Regex("(s|x|z|ch|sh)$", RegexOption.IGNORE_CASE)
+    private val COUNT_OR_TOTAL_KEY_REGEX = Regex("_count$|_total$")
+    private val COUNT_OR_TOTAL_STRIP_REGEX = Regex("_(count|total)$")
+    private val NUM_PREFIX_STRIP_REGEX = Regex("^num_")
+    private val UNIT_COUNT_REGEX =
+        Regex(
+            """\b(\d+)\s+(results?|items?|files?|matches?|documents?|sources?|searches?|steps?|rows?)\b""",
+            RegexOption.IGNORE_CASE,
+        )
+    private val VERB_COUNT_REGEX =
+        Regex(
+            """\b(?:did|found|returned|listed|searched|matched|updated|created|deleted|processed)\s+(\d+)\b""",
+            RegexOption.IGNORE_CASE,
+        )
+
     private fun countFromUnknown(value: JsonElement?): Int? {
         if (value is JsonArray) {
             return if (value.isNotEmpty()) value.size else null
@@ -109,7 +126,7 @@ internal object ToolCounts {
             return "${normalized.dropLast(3)}y"
         }
 
-        if (Regex("(xes|zes|ches|shes|sses)$").containsMatchIn(normalized) && normalized.length > 3) {
+        if (S_ENDING_NOUN_REGEX.containsMatchIn(normalized) && normalized.length > 3) {
             return normalized.dropLast(2)
         }
 
@@ -134,12 +151,12 @@ internal object ToolCounts {
 
         if (noun.endsWith(
                 "y",
-            ) && noun.length > 1 && !Regex("[aeiou]y$", RegexOption.IGNORE_CASE).containsMatchIn(noun)
+            ) && noun.length > 1 && !CONSONANT_Y_NOUN_REGEX.containsMatchIn(noun)
         ) {
             return "${noun.dropLast(1)}ies"
         }
 
-        if (Regex("(s|x|z|ch|sh)$", RegexOption.IGNORE_CASE).containsMatchIn(noun)) {
+        if (SIBILANT_NOUN_REGEX.containsMatchIn(noun)) {
             return "${noun}es"
         }
 
@@ -171,12 +188,12 @@ internal object ToolCounts {
             if (key in COUNT_EXCLUDED_KEYS) {
                 continue
             }
-            if (!Regex("_count$|_total$").containsMatchIn(key)) {
+            if (!COUNT_OR_TOTAL_KEY_REGEX.containsMatchIn(key)) {
                 continue
             }
 
             val count = countFromUnknown(value) ?: continue
-            val stripped = key.lowercase().replace(Regex("_(count|total)$"), "").replace(Regex("^num_"), "")
+            val stripped = key.lowercase().replace(COUNT_OR_TOTAL_STRIP_REGEX, "").replace(NUM_PREFIX_STRIP_REGEX, "")
 
             return countMetric(count, singularizeNoun(stripped).ifEmpty { fallbackNoun })
         }
@@ -194,14 +211,8 @@ internal object ToolCounts {
         }
 
         val unitMatch =
-            Regex(
-                """\b(\d+)\s+(results?|items?|files?|matches?|documents?|sources?|searches?|steps?|rows?)\b""",
-                RegexOption.IGNORE_CASE,
-            ).find(t)
-                ?: Regex(
-                    """\b(?:did|found|returned|listed|searched|matched|updated|created|deleted|processed)\s+(\d+)\b""",
-                    RegexOption.IGNORE_CASE,
-                ).find(t)
+            UNIT_COUNT_REGEX.find(t)
+                ?: VERB_COUNT_REGEX.find(t)
 
         val n = unitMatch?.groupValues?.get(1)?.toIntOrNull() ?: return null
         val noun = unitMatch.groupValues.getOrNull(2)?.takeIf { it.isNotEmpty() } ?: fallbackNoun

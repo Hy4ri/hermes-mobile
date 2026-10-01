@@ -33,6 +33,16 @@ object NavigationController {
         private set
     var pendingNewChatNavigation: PendingNewChatNavigation? by mutableStateOf(null)
         private set
+
+    /**
+     * The list screen a chat was opened from (History, Bots). Back out of that
+     * chat returns here instead of exiting the app (Telegram chat-list parity).
+     * Consumed by MainNavigation's root-chat back handler; cleared by any other
+     * navigation so a stale target can never hijack a later back press.
+     */
+    var chatReturnScreen: NavKey? by mutableStateOf(null)
+        private set
+
     val pendingSessionId: String? get() = pendingChatNavigation?.sessionId
 
     private var nextChatNavigationRequestId = 0L
@@ -45,8 +55,18 @@ object NavigationController {
      */
     fun isPrimaryScreen(key: NavKey): Boolean = key == ChatScreen || ScreenRegistry.ALL_SCREENS.any { it.key == key }
 
+    /** Returns the armed return screen and disarms it. */
+    fun consumeChatReturnScreen(): NavKey? = chatReturnScreen.also { chatReturnScreen = null }
+
     fun navigateTo(key: NavKey) {
         val stack = backStack ?: return
+
+        // Any explicit navigation invalidates the pending chat return — only a
+        // session/chat opened from a list arms it again (see [queueChatNavigation]).
+        // This must precede the dedup guard: re-selecting Chat in the drawer is
+        // still an explicit navigation and must not keep a stale return armed.
+        chatReturnScreen = null
+
         if (stack.lastOrNull() == key) return
 
         if (key == ChatScreen) {
@@ -73,11 +93,16 @@ object NavigationController {
     }
 
     fun openChatSession(sessionId: String) {
-        queueChatNavigation(sessionId, scrollToBottom = false)
+        // Opened from a list (History cards, search results, Bots): arm the
+        // return so back from the chat lands back on that list instead of
+        // exiting the app (Telegram chat-list parity).
+        queueChatNavigation(sessionId, scrollToBottom = false, returnToList = true)
     }
 
     fun openChatSessionFromNotification(sessionId: String) {
-        queueChatNavigation(sessionId, scrollToBottom = true)
+        // A notification open is not a list navigation: back keeps the classic
+        // root-chat exit flow.
+        queueChatNavigation(sessionId, scrollToBottom = true, returnToList = false)
     }
 
     fun openNewChat() {
@@ -91,8 +116,18 @@ object NavigationController {
     private fun queueChatNavigation(
         sessionId: String,
         scrollToBottom: Boolean,
+        returnToList: Boolean,
     ) {
         if (sessionId.isBlank()) return
+        // Snapshot the origin BEFORE navigateTo resets the stack to [ChatScreen].
+        val returnScreen =
+            if (returnToList) {
+                backStack
+                    ?.lastOrNull()
+                    ?.takeIf { it != ChatScreen && isPrimaryScreen(it) }
+            } else {
+                null
+            }
         pendingChatNavigation =
             PendingChatNavigation(
                 sessionId = sessionId,
@@ -100,6 +135,8 @@ object NavigationController {
                 requestId = ++nextChatNavigationRequestId,
             )
         navigateTo(ChatScreen)
+        // Set after navigateTo so the reset itself does not disarm the return.
+        chatReturnScreen = returnScreen
     }
 
     fun consumePendingChatNavigation(): PendingChatNavigation? =
@@ -113,6 +150,7 @@ object NavigationController {
     /** Clear the stack and navigate to the given screen atomically. */
     fun resetTo(screen: NavKey) {
         val stack = backStack ?: return
+        chatReturnScreen = null
         stack.clear()
         stack.add(screen)
     }

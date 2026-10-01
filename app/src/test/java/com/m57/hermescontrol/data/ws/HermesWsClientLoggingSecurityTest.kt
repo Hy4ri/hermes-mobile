@@ -11,7 +11,6 @@ import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.onSubscription
 import kotlinx.coroutines.launch
@@ -30,11 +29,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.util.Collections
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicInteger
 
 class HermesWsClientLoggingSecurityTest {
     private val capturedDebugLogs = Collections.synchronizedList(mutableListOf<String>())
@@ -87,17 +83,9 @@ class HermesWsClientLoggingSecurityTest {
 
         CookieManager.setJarForTest(buildFakePersistentCookieJar())
 
-        val connectedField = HermesWsClient::class.java.getDeclaredField("connected")
-        connectedField.isAccessible = true
-        (connectedField.get(HermesWsClient) as AtomicBoolean).set(false)
-
-        val intentionalCloseField = HermesWsClient::class.java.getDeclaredField("intentionalClose")
-        intentionalCloseField.isAccessible = true
-        (intentionalCloseField.get(HermesWsClient) as AtomicBoolean).set(false)
-
-        val generationField = HermesWsClient::class.java.getDeclaredField("connectionGeneration")
-        generationField.isAccessible = true
-        (generationField.get(HermesWsClient) as AtomicInteger).set(1)
+        HermesWsClient.connectedForTest.set(false)
+        HermesWsClient.intentionalCloseForTest.set(false)
+        HermesWsClient.connectionGenerationForTest.set(1)
 
         HermesWsClient.rejectAllPending()
         HermesWsClient.disconnect(clearPendingMessages = true)
@@ -113,49 +101,18 @@ class HermesWsClientLoggingSecurityTest {
         unmockkAll()
     }
 
-    private fun createWsListener(generation: Int? = null): WebSocketListener {
-        val targetGen =
-            generation ?: run {
-                val generationField = HermesWsClient::class.java.getDeclaredField("connectionGeneration")
-                generationField.isAccessible = true
-                (generationField.get(HermesWsClient) as AtomicInteger).get()
-            }
-        val listenerClass = Class.forName("com.m57.hermescontrol.data.ws.HermesWsClient\$WsListenerImpl")
-        val constructor = listenerClass.declaredConstructors.single()
-        constructor.isAccessible = true
-        return constructor.newInstance(targetGen) as WebSocketListener
-    }
+    private fun createWsListener(generation: Int? = null): WebSocketListener =
+        HermesWsClient.createListenerForTest(generation ?: HermesWsClient.connectionGenerationForTest.get())
 
     private fun attachMockSocket(): WebSocket {
         val socket = mockk<WebSocket>(relaxed = true)
         every { socket.send(any<String>()) } returns true
 
-        val socketField = HermesWsClient::class.java.getDeclaredField("webSocket")
-        socketField.isAccessible = true
-        socketField.set(HermesWsClient, socket)
-
-        val connectedField = HermesWsClient::class.java.getDeclaredField("connected")
-        connectedField.isAccessible = true
-        (connectedField.get(HermesWsClient) as AtomicBoolean).set(true)
-
-        val intentionalCloseField = HermesWsClient::class.java.getDeclaredField("intentionalClose")
-        intentionalCloseField.isAccessible = true
-        (intentionalCloseField.get(HermesWsClient) as AtomicBoolean).set(false)
+        HermesWsClient.webSocketForTest = socket
+        HermesWsClient.connectedForTest.set(true)
+        HermesWsClient.intentionalCloseForTest.set(false)
 
         return socket
-    }
-
-    @Suppress("UNCHECKED_CAST")
-    private fun getPendingCalls(): ConcurrentHashMap<String, Any> {
-        val field = HermesWsClient::class.java.getDeclaredField("pendingCalls")
-        field.isAccessible = true
-        return field.get(HermesWsClient) as ConcurrentHashMap<String, Any>
-    }
-
-    private fun getTimeoutJob(pendingCall: Any): Job? {
-        val field = pendingCall.javaClass.getDeclaredField("timeoutJob")
-        field.isAccessible = true
-        return field.get(pendingCall) as? Job
     }
 
     // ── Formatter unit tests ──────────────────────────────────────────────────
@@ -255,8 +212,7 @@ class HermesWsClientLoggingSecurityTest {
         val listener = createWsListener()
 
         val deferred = HermesWsClient.request("connectors.connect", mapOf("connector" to "synthetic_provider"))
-        val pendingCalls = getPendingCalls()
-        val reqId = pendingCalls.keys.firstOrNull()
+        val reqId = HermesWsClient.pendingCallIdsForTest().firstOrNull()
         assertNotNull("Pending call ID must exist", reqId)
 
         val sensitiveAuthUrl =
@@ -332,8 +288,7 @@ class HermesWsClientLoggingSecurityTest {
         assertTrue("Event collector must subscribe", subscribedLatch.await(3, TimeUnit.SECONDS))
 
         val deferred = HermesWsClient.request("session.steer", mapOf("session_id" to "sess-ownership-4001"))
-        val pendingCalls = getPendingCalls()
-        val reqId = pendingCalls.keys.firstOrNull()
+        val reqId = HermesWsClient.pendingCallIdsForTest().firstOrNull()
         assertNotNull("Pending call ID must exist", reqId)
 
         val errorJson =
@@ -434,15 +389,9 @@ class HermesWsClientLoggingSecurityTest {
     fun `cancelling pending deferred cleans pending requests and cancels timeout job`() {
         attachMockSocket()
         val deferred = HermesWsClient.request("test.cancellation.method", mapOf("synthetic" to "fixture"))
-        val pendingCalls = getPendingCalls()
-        val entry =
-            pendingCalls.entries.firstOrNull {
-                it.value.javaClass.name
-                    .contains("PendingCall")
-            }
-        assertNotNull("Pending call must be registered in pendingCalls map", entry)
-        val reqId = entry!!.key
-        val timeoutJob = getTimeoutJob(entry.value)
+        val reqId = HermesWsClient.pendingCallIdsForTest().firstOrNull()
+        assertNotNull("Pending call must be registered in pendingCalls map", reqId)
+        val timeoutJob = HermesWsClient.pendingCallTimeoutForTest(reqId!!)
         assertNotNull("Timeout job must be initialized", timeoutJob)
         assertTrue("Timeout job must be active while request is pending", timeoutJob!!.isActive)
 
@@ -451,7 +400,7 @@ class HermesWsClientLoggingSecurityTest {
         assertTrue("Deferred must be cancelled", deferred.isCancelled)
         assertFalse(
             "Pending call must be removed from pendingCalls map on cancellation",
-            pendingCalls.containsKey(reqId),
+            HermesWsClient.pendingCallIdsForTest().contains(reqId),
         )
         assertTrue("Timeout job must be cancelled on deferred cancellation", timeoutJob.isCancelled)
     }

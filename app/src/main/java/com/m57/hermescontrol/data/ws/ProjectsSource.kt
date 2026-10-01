@@ -3,6 +3,10 @@ package com.m57.hermescontrol.data.ws
 import com.m57.hermescontrol.data.model.ProjectInfo
 import com.m57.hermescontrol.data.model.ProjectsListResponse
 import com.m57.hermescontrol.data.remote.OkHttpProvider
+import com.m57.hermescontrol.data.ws.contract.HermesRpcCaller
+import com.m57.hermescontrol.data.ws.contract.ProjectsListParams
+import com.m57.hermescontrol.data.ws.contract.RpcMethods
+import com.m57.hermescontrol.data.ws.contract.TypedRpcCaller
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.JsonObject
 
@@ -17,14 +21,12 @@ class HermesProjectsSource(
     // Only ask a live socket: an offline request would be queued and force a reconnect on
     // every refresh. The view model refetches when the connection comes back.
     private val isConnected: () -> Boolean = { HermesWsClient.connectionStatus.value == ConnectionStatus.CONNECTED },
-    private val rpcRequest: suspend (method: String, params: Map<String, Any>) -> Any? = { method, params ->
-        HermesWsClient.request(method, params).await()
-    },
+    private val caller: TypedRpcCaller = HermesRpcCaller,
 ) : ProjectsSource {
     override suspend fun fetchProjects(): List<ProjectInfo>? {
         if (!isConnected()) return null
         return try {
-            val element = SessionLiveStatusDecoder.anyToJsonElement(rpcRequest(WsMethods.PROJECTS_LIST, emptyMap()))
+            val element = caller.call(RpcMethods.PROJECTS_LIST, ProjectsListParams)
             if (element is JsonObject && element.containsKey("projects")) {
                 OkHttpProvider.json.decodeFromJsonElement(ProjectsListResponse.serializer(), element).projects
             } else {

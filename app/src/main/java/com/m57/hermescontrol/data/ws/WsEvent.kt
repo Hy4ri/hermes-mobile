@@ -445,6 +445,18 @@ sealed class WsEvent {
         val kind: String = "",
     ) : WsEvent()
 
+    /**
+     * `message.reaction`: the agent (or another client) set/cleared a tapback on a stored
+     * message. [reactions] is the row's full list after the write; [rowId] is the gateway
+     * SQLite row id, matched against `ChatMessage.serverRowId`.
+     */
+    data class MessageReactionUpdated(
+        val rowId: Long,
+        val reactions: List<com.m57.hermescontrol.data.model.MessageReaction>,
+        val role: String,
+        val sessionId: String?,
+    ) : WsEvent()
+
     // ── Replay resync (internal) ──────────────────────────────────────────
 
     /** Internal: replay could not cover the reconnect gap (truncated or epoch change) — UI must refetch history. */

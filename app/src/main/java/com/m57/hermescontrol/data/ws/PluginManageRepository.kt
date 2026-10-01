@@ -1,8 +1,10 @@
 package com.m57.hermescontrol.data.ws
 
 import com.m57.hermescontrol.data.remote.OkHttpProvider
-import kotlinx.coroutines.CancellationException
-import kotlinx.serialization.json.Json
+import com.m57.hermescontrol.data.ws.contract.HermesRpcCaller
+import com.m57.hermescontrol.data.ws.contract.PluginsManageParams
+import com.m57.hermescontrol.data.ws.contract.RpcMethods
+import com.m57.hermescontrol.data.ws.contract.TypedRpcCaller
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
@@ -11,23 +13,14 @@ import kotlinx.serialization.json.decodeFromJsonElement
  * Manages plugin settings and inspection through the gateway's canonical `plugins.manage` RPC.
  */
 class PluginManageRepository(
-    private val rpcRequest: suspend (String, Map<String, Any?>) -> Any? = { method, params ->
-        val deferred = HermesWsClient.request(method, params.filterValues { it != null }.mapValues { it.value ?: "" })
-        try {
-            deferred.await()
-        } catch (e: CancellationException) {
-            deferred.cancel(e)
-            throw e
-        }
-    },
+    private val caller: TypedRpcCaller = HermesRpcCaller,
 ) {
     suspend fun listPlugins(profile: String? = null): List<AgentPluginRow> {
-        val params = mutableMapOf<String, Any?>("action" to "list")
-        if (!profile.isNullOrBlank()) {
-            params["profile"] = profile
-        }
-        val result = rpcRequest(WsMethods.PLUGINS_MANAGE, params)
-        val element = result.toJsonElement()
+        val element =
+            caller.call(
+                RpcMethods.PLUGINS_MANAGE,
+                PluginsManageParams(action = "list", profile = profile.orNullIfBlank()),
+            )
         val pluginsElement = (element as? JsonObject)?.get("plugins") ?: return emptyList()
         return OkHttpProvider.json.decodeFromJsonElement<List<AgentPluginRow>>(pluginsElement)
     }
@@ -38,15 +31,15 @@ class PluginManageRepository(
         profile: String? = null,
     ): PluginsManageSettingsResult {
         val params =
-            mutableMapOf<String, Any?>(
-                "action" to "settings",
-                "key" to key,
-                "values" to JsonObject(values),
+            PluginsManageParams(
+                action = "settings",
+                key = key,
+                values = JsonObject(values),
+                profile = profile.orNullIfBlank(),
             )
-        if (!profile.isNullOrBlank()) {
-            params["profile"] = profile
-        }
-        val result = rpcRequest(WsMethods.PLUGINS_MANAGE, params)
-        return OkHttpProvider.json.decodeFromJsonElement<PluginsManageSettingsResult>(result.toJsonElement())
+        val result = caller.call(RpcMethods.PLUGINS_MANAGE, params)
+        return OkHttpProvider.json.decodeFromJsonElement<PluginsManageSettingsResult>(result)
     }
+
+    private fun String?.orNullIfBlank(): String? = this?.takeIf { it.isNotBlank() }
 }

@@ -51,6 +51,7 @@ class BackgroundConnectionController(
                 status = status,
                 isAutoReconnect = AuthManager.isAutoReconnect(),
                 hasActiveNetwork = NetworkMonitor.isConnected.value,
+                notifyCompletionsOptIn = AuthManager.isNotifySessionCompletions(),
             )
         }
     }
@@ -96,6 +97,17 @@ class BackgroundConnectionController(
         } else {
             requestServiceComplete(generation)
         }
+    }
+
+    /** The persistent opt-in was turned off while backgrounded (e.g. from the notification action). */
+    fun onKeepConnectedDisabled() {
+        val snapshot = snapshotProvider(false)
+        if (!snapshot.appInForeground) {
+            releaseLease()
+        }
+        // Force a re-post if the service stays up (pending reply) so the action button disappears.
+        currentNotificationState = BackgroundNotificationState.None
+        reconcileState()
     }
 
     fun reconcileState() {

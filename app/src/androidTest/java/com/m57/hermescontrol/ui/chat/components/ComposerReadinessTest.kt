@@ -50,8 +50,8 @@ class ComposerReadinessTest {
         compose.runOnIdle { assertEquals(0, sends) }
         compose.runOnIdle { ready.value = true }
         compose.onNodeWithTag("chat_session_preparing").assertDoesNotExist()
-        // Ready + typing = an interruptible generation: Stop replaces the
-        // action glyph while queue-send stays available in the flat slot.
+        // Ready + typing = an interruptible generation: Send keeps the primary
+        // action slot and Stop moves to the flat slot beside it.
         compose.onNodeWithTag("stop_button").assertExists()
         compose.onNodeWithTag("send_button").assertIsEnabled().performClick()
         compose.runOnIdle { assertEquals(1, sends) }
@@ -59,5 +59,29 @@ class ComposerReadinessTest {
         compose.onNodeWithTag("stop_button").assertDoesNotExist()
         compose.onNodeWithTag("send_button").assertIsNotEnabled()
         compose.onNodeWithTag("chat_input").assertTextEquals("held draft")
+    }
+
+    @Test
+    fun emptyDraftWhileStreamingMakesStopThePrimaryAction() {
+        compose.setContent {
+            var input by remember { mutableStateOf(TextFieldValue("")) }
+            ChatInputBar(
+                inputFieldValue = input,
+                onInputChange = { input = it },
+                onSend = {},
+                onMicTap = {},
+                isListening = false,
+                isAgentTyping = true,
+                canInterrupt = true,
+                isConnected = true,
+                commandCatalog = CommandCatalog(),
+                isSessionReady = true,
+            )
+        }
+        compose.onNodeWithTag("stop_button").assertExists()
+        compose.onNodeWithTag("send_button").assertDoesNotExist()
+        compose.onNodeWithTag("chat_input").performTextInput("next")
+        compose.onNodeWithTag("send_button").assertExists()
+        compose.onNodeWithTag("stop_button").assertExists()
     }
 }

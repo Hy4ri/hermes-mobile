@@ -501,11 +501,12 @@ fun ComposerToolbar(
             }
         }
 
-        // Flat slot — mic while idle; while a generation can be interrupted it
-        // keeps queue-send available (the action button carries Stop). During
-        // session preparation the mic stays here and the action button is a
-        // disabled send: Stop must not appear when there is nothing to
-        // interrupt (review, PR #1250).
+        // Flat slot — mic while idle. While a generation can be interrupted and a
+        // draft exists, Stop moves here so the rightmost action button stays
+        // Send (desktop parity: a payload keeps Send primary mid-turn; an empty
+        // draft makes Stop primary). During session preparation the mic stays
+        // here and the action button is a disabled send: Stop must not appear
+        // when there is nothing to interrupt (review, PR #1250).
         AnimatedVisibility(
             visible = showSend,
             enter = fadeIn() + scaleIn(initialScale = 0.8f),
@@ -513,17 +514,16 @@ fun ComposerToolbar(
         ) {
             if (canInterrupt) {
                 FilledIconButton(
-                    onClick = onSend,
-                    enabled = canSend,
+                    onClick = onStopGeneration,
                     colors = flatIconButtonColors(palette),
                     modifier =
                         Modifier
                             .size(ControlSize)
-                            .testTag("send_button"),
+                            .testTag("stop_button"),
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Send,
-                        contentDescription = stringResource(R.string.chat_send_desc),
+                        imageVector = Icons.Default.Stop,
+                        contentDescription = stringResource(R.string.chat_voice_stop_generating),
                     )
                 }
             } else {
@@ -560,6 +560,9 @@ fun ComposerToolbar(
         // While a recording is locked this button finishes the voice note, so
         // it must stay enabled even when the draft alone would not send
         // (review, PR #1280).
+        // Stop owns the action button only when there is no draft to send;
+        // with a draft it lives in the flat slot above.
+        val actionStops = canInterrupt && !showSend
         val actionEnabled =
             if (isVoiceNoteLocked) {
                 true
@@ -588,7 +591,7 @@ fun ComposerToolbar(
                                 // (review, PR #1280).
                                 isVoiceNoteLocked -> onMicTap()
 
-                                canInterrupt -> onStopGeneration()
+                                actionStops -> onStopGeneration()
 
                                 showSend -> onSend()
 
@@ -598,7 +601,7 @@ fun ComposerToolbar(
                     ).testTag(
                         when {
                             isVoiceNoteLocked -> "voice_note_send_button"
-                            canInterrupt -> "stop_button"
+                            actionStops -> "stop_button"
                             showSend -> "send_button"
                             isListening -> "mic_stop_button"
                             else -> "mic_button"
@@ -610,7 +613,7 @@ fun ComposerToolbar(
                 targetState =
                     when {
                         isVoiceNoteLocked -> ActionGlyph.SEND
-                        canInterrupt -> ActionGlyph.STOP
+                        actionStops -> ActionGlyph.STOP
                         showSend -> ActionGlyph.SEND
                         isListening -> ActionGlyph.STOP
                         else -> ActionGlyph.VOICE

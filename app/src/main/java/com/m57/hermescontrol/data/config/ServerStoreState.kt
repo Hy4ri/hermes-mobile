@@ -32,6 +32,9 @@ data class ServerStoreState(
     val showTokensPerSecond: Boolean = true,
     val showModelProvider: Boolean = false,
     val keepConnectedInBackground: Boolean = false,
+    // Notify when ANY session finishes while the app is backgrounded. Needs a
+    // live background connection, so it implies the keep-connected lease.
+    val notifySessionCompletions: Boolean = false,
     // Opt-in update channel: when true the in-app update check also considers
     // pre-release release-candidate GitHub releases, not just stable ones.
     val checkReleaseCandidateUpdates: Boolean = false,

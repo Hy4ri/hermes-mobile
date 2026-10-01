@@ -79,6 +79,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -125,6 +126,7 @@ import com.m57.hermescontrol.ui.sessions.components.SessionsStatsRow
 import com.m57.hermescontrol.ui.sessions.components.automationGroups
 import com.m57.hermescontrol.ui.sessions.components.sourceLabel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 
 /**
  * Auto-load the next history page when the user scrolls to within this many
@@ -802,6 +804,17 @@ fun SessionsScreen(
 
                             // ── Session list ────────────────────────────────────
                             val listState = rememberLazyListState()
+                            // Opening (or switching section) always starts at the top. Keyed items otherwise
+                            // keep the old anchor row when fresher sessions land above it after the refresh.
+                            var userScrolled by remember(state.section) { mutableStateOf(false) }
+                            LaunchedEffect(state.section) {
+                                snapshotFlow { listState.isScrollInProgress }.first { it }
+                                userScrolled = true
+                            }
+                            val firstSessionId = sessionsToDisplay.firstOrNull()?.session?.id
+                            LaunchedEffect(state.section, firstSessionId, userScrolled) {
+                                if (!userScrolled && firstSessionId != null) listState.scrollToItem(0)
+                            }
                             // Fluid infinite scroll: once the user reaches within
                             // AUTO_LOAD_THRESHOLD items of the end, pull the next
                             // page automatically. Driven by real scroll position

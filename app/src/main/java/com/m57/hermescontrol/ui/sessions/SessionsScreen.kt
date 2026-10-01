@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
@@ -33,22 +34,18 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.CallSplit
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
-import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
@@ -82,10 +79,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -127,7 +124,9 @@ import com.m57.hermescontrol.ui.sessions.components.SessionsBulkActionBar
 import com.m57.hermescontrol.ui.sessions.components.SessionsDialogs
 import com.m57.hermescontrol.ui.sessions.components.SessionsStatsRow
 import com.m57.hermescontrol.ui.sessions.components.automationGroups
+import com.m57.hermescontrol.ui.sessions.components.sourceLabel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 
 /**
  * Auto-load the next history page when the user scrolls to within this many
@@ -135,30 +134,6 @@ import kotlinx.coroutines.delay
  */
 private const val AUTO_LOAD_THRESHOLD = 6
 private const val AGE_TICK_MS = 60_000L
-
-/**
- * Maps a session source string to a Material icon for visual identification.
- */
-private fun sourceIcon(source: String?): ImageVector? =
-    when (source?.lowercase()) {
-        "telegram", "tg" -> Icons.AutoMirrored.Filled.Send
-        "web", "dashboard" -> Icons.Filled.Language
-        "api", "rest" -> Icons.Filled.Code
-        "cli", "terminal" -> Icons.Filled.Terminal
-        else -> null
-    }
-
-/**
- * Maps a source string to a label for tooltip / accessibility.
- */
-private fun sourceLabel(source: String?): String =
-    when (source?.lowercase()) {
-        "telegram", "tg" -> "Telegram"
-        "web", "dashboard" -> "Web"
-        "api", "rest" -> "API"
-        "cli", "terminal" -> "CLI"
-        else -> source ?: "Unknown"
-    }
 
 /**
  * Builds an annotated string with search term highlighting.
@@ -201,19 +176,22 @@ private fun highlightText(
 
 internal fun displayedSessions(state: SessionsUiState): List<SessionTreeItem> =
     if (state.isSearchMode) {
-        state.searchResults.map { result ->
-            val session = result.toSessionInfo()
-            SessionTreeItem(
-                session = session,
-                depth = 0,
-                branchStem = null,
-                displayTitle =
-                    session.title?.takeIf(String::isNotBlank)
-                        ?: session.display_name?.takeIf(String::isNotBlank)
-                        ?: session.preview?.takeIf(String::isNotBlank)?.take(80)
-                        ?: "Untitled",
-            )
-        }
+        state.searchResults
+            .map { result -> result.toSessionInfo() }
+            .filter { session ->
+                state.activeSourceFilter?.let { session.source?.lowercase() == it } ?: true
+            }.map { session ->
+                SessionTreeItem(
+                    session = session,
+                    depth = 0,
+                    branchStem = null,
+                    displayTitle =
+                        session.title?.takeIf(String::isNotBlank)
+                            ?: session.display_name?.takeIf(String::isNotBlank)
+                            ?: session.preview?.takeIf(String::isNotBlank)?.take(80)
+                            ?: "Untitled",
+                )
+            }
     } else {
         flattenSessionsWithBranches(state.displaySessions)
     }
@@ -241,6 +219,7 @@ fun SessionsScreen(
             state.sessions,
             state.showHidden,
             state.searchResults,
+            state.sourceFilter,
         ) {
             displayedSessions(state)
         }
@@ -547,6 +526,25 @@ fun SessionsScreen(
                 )
             }
 
+            // Source chips: hidden until a loaded row actually carries that source.
+            val sources = state.availableSources
+            if (sources.size > 1) {
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth().testTag("history_source_chips"),
+                    contentPadding = PaddingValues(horizontal = spacing.md),
+                    horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+                ) {
+                    items(sources, key = { it }) { source ->
+                        FilterChip(
+                            selected = state.activeSourceFilter == source,
+                            onClick = { viewModel.selectSourceFilter(source) },
+                            label = { Text(sourceLabel(source)) },
+                            modifier = Modifier.testTag("history_source_chip_$source"),
+                        )
+                    }
+                }
+            }
+
             // ── Search + bulk toggle (always visible) ─────────────
             Row(
                 modifier =
@@ -806,6 +804,17 @@ fun SessionsScreen(
 
                             // ── Session list ────────────────────────────────────
                             val listState = rememberLazyListState()
+                            // Opening (or switching section) always starts at the top. Keyed items otherwise
+                            // keep the old anchor row when fresher sessions land above it after the refresh.
+                            var userScrolled by remember(state.section) { mutableStateOf(false) }
+                            LaunchedEffect(state.section) {
+                                snapshotFlow { listState.isScrollInProgress }.first { it }
+                                userScrolled = true
+                            }
+                            val firstSessionId = sessionsToDisplay.firstOrNull()?.session?.id
+                            LaunchedEffect(state.section, firstSessionId, userScrolled) {
+                                if (!userScrolled && firstSessionId != null) listState.scrollToItem(0)
+                            }
                             // Fluid infinite scroll: once the user reaches within
                             // AUTO_LOAD_THRESHOLD items of the end, pull the next
                             // page automatically. Driven by real scroll position

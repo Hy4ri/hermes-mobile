@@ -69,6 +69,7 @@ import com.m57.hermescontrol.ui.common.ActionProgressController
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -81,6 +82,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -2630,6 +2632,8 @@ class ChatViewModel(
     ) {
         sendStore.update(messageId) { it.copy(state = state) }
         publishPendingSends()
+        // #1427: settled/uncertain receipts remain recoverable, but cannot freeze later sends.
+        if (state != PendingSendState.SENDING) drainPendingQueue()
     }
 
     private fun removePendingSend(messageId: String) {
@@ -2672,7 +2676,7 @@ class ChatViewModel(
         _uiState.update { it.copy(errorMessage = reason, isAgentTyping = mainTurnBusy) }
     }
 
-    /** Send one locally queued turn only after the previous receipt has reached REST history. */
+    /** #1427: serialize submissions, not durable-history reconciliation; never replay uncertain rows. */
     @Synchronized
     private fun drainPendingQueue() {
         val sessionId = _uiState.value.currentSessionId ?: return
@@ -2686,11 +2690,7 @@ class ChatViewModel(
         if (queueDrainJob?.isActive == true) return
         if (hasPendingSendReservation(scope, sessionId)) return
         val rows = sendStore.all().filter { it.scope == scope && it.sessionId == sessionId }
-        if (rows.any {
-                it.state == PendingSendState.SENDING || it.state == PendingSendState.UNKNOWN ||
-                    it.state == PendingSendState.ACCEPTED
-            }
-        ) {
+        if (rows.any { it.state == PendingSendState.SENDING }) {
             return
         }
         val next = rows.firstOrNull { it.state == PendingSendState.QUEUED } ?: return
@@ -2736,6 +2736,13 @@ class ChatViewModel(
                             "Could not retain queued attachment"
                         },
                     )
+                } finally {
+                    if (queueDrainJob === currentCoroutineContext()[Job]) {
+                        queueDrainJob = null
+                        // Preparation can restore the same known-unsent row. Leave it for explicit recovery.
+                        val restored = sendStore.all().any { it.id == next.id && it.state == PendingSendState.QUEUED }
+                        if (currentCoroutineContext().isActive && !restored) drainPendingQueue()
+                    }
                 }
             }
     }
@@ -2794,12 +2801,28 @@ class ChatViewModel(
         }
     }
 
+    /** #1427: explicit recovery can dismiss an uncertain receipt without guessing delivery or resending it. */
+    @Synchronized
+    fun discardPendingSend(id: String) {
+        val row = sendStore.all().firstOrNull { it.id == id } ?: return
+        if (row.scope != sendScope() || row.sessionId != _uiState.value.currentSessionId ||
+            row.state == PendingSendState.SENDING ||
+            synchronized(pendingSendReservationLock) { pendingSendReservations.any { it.pending.id == id } }
+        ) {
+            return
+        }
+        removeUnconfirmedBubble(id)
+        removePendingSend(id)
+        drainPendingQueue()
+    }
+
     /** A manual promotion is the only path that may retry an uncertain send. */
     @Synchronized
     fun sendQueuedNow(id: String) {
         val row = sendStore.all().firstOrNull { it.id == id } ?: return
         if (row.scope != sendScope() || row.sessionId != _uiState.value.currentSessionId ||
-            runtimeSessionId == null
+            runtimeSessionId == null || !_uiState.value.isSessionReady ||
+            wsClient.connectionStatus.value != ConnectionStatus.CONNECTED
         ) {
             return
         }
@@ -2822,7 +2845,7 @@ class ChatViewModel(
         val others =
             sendStore.all().any {
                 it.id != id && it.scope == row.scope && it.sessionId == row.sessionId &&
-                    it.state in setOf(PendingSendState.SENDING, PendingSendState.ACCEPTED, PendingSendState.UNKNOWN)
+                    it.state == PendingSendState.SENDING
             }
         if (others) {
             _uiState.update { it.copy(errorMessage = "Wait for the current send to settle") }
@@ -2942,12 +2965,7 @@ class ChatViewModel(
         val hasOutstandingDelivery =
             sendStore.all().any {
                 it.scope == sendScope() && it.sessionId == _uiState.value.currentSessionId &&
-                    it.state in
-                    setOf(
-                        PendingSendState.SENDING,
-                        PendingSendState.ACCEPTED,
-                        PendingSendState.UNKNOWN,
-                    )
+                    it.state == PendingSendState.SENDING
             } || hasPendingSendReservation(sendScope(), _uiState.value.currentSessionId)
         val busy = wasStreaming || hasOutstandingDelivery
         val selectedMode = modeOverride ?: _uiState.value.busySendMode
@@ -3825,8 +3843,7 @@ class ChatViewModel(
         val busy =
             mainTurnBusy ||
                 sendStore.all().any {
-                    it.scope == sendScope() && it.sessionId == storageId &&
-                        it.state in setOf(PendingSendState.SENDING, PendingSendState.ACCEPTED, PendingSendState.UNKNOWN)
+                    it.scope == sendScope() && it.sessionId == storageId && it.state == PendingSendState.SENDING
                 }
         try {
             sendStore.put(

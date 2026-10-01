@@ -43,7 +43,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -120,13 +119,6 @@ class HermesWsClientTypedCallTest {
         runBlocking {
             withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED } }
         }
-    }
-
-    @Suppress("UNCHECKED_CAST")
-    private fun getPendingCalls(): ConcurrentHashMap<String, Any> {
-        val field = HermesWsClient::class.java.getDeclaredField("pendingCalls")
-        field.isAccessible = true
-        return field.get(HermesWsClient) as ConcurrentHashMap<String, Any>
     }
 
     @Test
@@ -516,19 +508,25 @@ class HermesWsClientTypedCallTest {
 
             assertTrue("Server should receive request", requestReceived.await(5, TimeUnit.SECONDS))
 
-            val pending = getPendingCalls()
-            assertEquals("Should have exactly 1 pending call while awaiting", 1, pending.size)
+            assertEquals(
+                "Should have exactly 1 pending call while awaiting",
+                1,
+                HermesWsClient.pendingCallIdsForTest().size,
+            )
 
             callJob.cancel()
 
             // Wait briefly for cancellation cleanup to execute
             withTimeout(2000) {
-                while (pending.isNotEmpty()) {
+                while (HermesWsClient.pendingCallIdsForTest().isNotEmpty()) {
                     kotlinx.coroutines.delay(20)
                 }
             }
 
-            assertTrue("Pending calls should be empty after caller coroutine is cancelled", pending.isEmpty())
+            assertTrue(
+                "Pending calls should be empty after caller coroutine is cancelled",
+                HermesWsClient.pendingCallIdsForTest().isEmpty(),
+            )
         }
     }
 }

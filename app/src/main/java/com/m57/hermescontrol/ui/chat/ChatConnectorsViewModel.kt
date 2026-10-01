@@ -28,6 +28,17 @@ class ChatConnectorsViewModel(
         )
 
     val uiState: StateFlow<ChatConnectorsUiState> = delegateInstance.uiState
+    private val browserReturnTracker = BrowserReturnTracker()
+
+    fun browserLaunched() = browserReturnTracker.start()
+
+    fun browserLaunchFailed() = browserReturnTracker.cancel()
+
+    fun browserPaused() = browserReturnTracker.onPause()
+
+    fun browserReturned(): Boolean = browserReturnTracker.onResume() != null
+
+    fun abandonBrowser(): Boolean = browserReturnTracker.abandon()
 
     init {
         var lastContext: Triple<String?, String?, String?>? = null

@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.chat
 
 import com.m57.hermescontrol.ui.chat.markdown.parseBlocks
 import org.junit.Test
+import kotlin.system.measureNanoTime
 import kotlin.system.measureTimeMillis
 
 class MarkdownTextBenchmark {
@@ -46,5 +47,20 @@ class MarkdownTextBenchmark {
             }
 
         println("BENCHMARK_RESULT: parseBlocks 10000 iterations took ${time}ms")
+    }
+
+    @Test
+    fun benchmarkParseBlocksThousandBullets() {
+        val md = (1..1000).joinToString("\n") { "- $it" }
+
+        // Cold: first parse in this JVM, before any warmup.
+        val cold = measureNanoTime { parseBlocks(md) }
+
+        repeat(50) { parseBlocks(md) }
+        val iterations = 200
+        val warmNanos = measureNanoTime { repeat(iterations) { parseBlocks(md) } }
+
+        println("BENCHMARK_RESULT: parseBlocks 1000 bullets cold=${cold / 1_000_000.0}ms")
+        println("BENCHMARK_RESULT: parseBlocks 1000 bullets warm avg=${warmNanos / iterations / 1_000_000.0}ms")
     }
 }

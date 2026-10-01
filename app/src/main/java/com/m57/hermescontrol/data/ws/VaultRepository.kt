@@ -8,6 +8,11 @@ import com.m57.hermescontrol.data.model.VaultSourceSetResponse
 import com.m57.hermescontrol.data.model.VaultSourcesResponse
 import com.m57.hermescontrol.data.model.VaultUnlockResponse
 import com.m57.hermescontrol.data.remote.OkHttpProvider
+import com.m57.hermescontrol.data.ws.contract.EmptyParams
+import com.m57.hermescontrol.data.ws.contract.RpcMethods
+import com.m57.hermescontrol.data.ws.contract.VaultLockParams
+import com.m57.hermescontrol.data.ws.contract.VaultSourceSetParams
+import com.m57.hermescontrol.data.ws.contract.VaultUnlockParams
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -48,7 +53,7 @@ object VaultRepository {
         }
 
     suspend fun getSources(): List<VaultSource> {
-        val result = HermesWsClient.request(WsMethods.VAULT_SOURCES).await()
+        val result = HermesWsClient.call(RpcMethods.VAULT_SOURCES, EmptyParams)
         return decode<VaultSourcesResponse>(result)?.sources ?: emptyList()
     }
 
@@ -57,11 +62,10 @@ object VaultRepository {
         enabled: Boolean,
     ): Boolean {
         val result =
-            HermesWsClient
-                .request(
-                    WsMethods.VAULT_SOURCE_SET,
-                    mapOf("name" to name, "enabled" to enabled),
-                ).await()
+            HermesWsClient.call(
+                RpcMethods.VAULT_SOURCE_SET,
+                VaultSourceSetParams(name = name, enabled = enabled),
+            )
         return decode<VaultSourceSetResponse>(result)?.enabled == enabled
     }
 
@@ -70,22 +74,21 @@ object VaultRepository {
         password: String,
     ): Boolean {
         val result =
-            HermesWsClient
-                .request(
-                    WsMethods.VAULT_UNLOCK,
-                    mapOf("name" to name, "password" to password),
-                ).await()
+            HermesWsClient.call(
+                RpcMethods.VAULT_UNLOCK,
+                VaultUnlockParams(name = name, password = password),
+            )
         return decode<VaultUnlockResponse>(result)?.unlocked == true
     }
 
     suspend fun lockSource(name: String? = null): Boolean {
-        val params = if (name != null) mapOf("name" to name) else emptyMap<String, Any>()
-        val result = HermesWsClient.request(WsMethods.VAULT_LOCK, params).await()
+        val params = VaultLockParams(name = name)
+        val result = HermesWsClient.call(RpcMethods.VAULT_LOCK, params)
         return decode<VaultLockResponse>(result)?.locked == true
     }
 
     suspend fun listItems(): List<VaultItem> {
-        val result = HermesWsClient.request(WsMethods.VAULT_LIST).await()
+        val result = HermesWsClient.call(RpcMethods.VAULT_LIST, EmptyParams)
         return decode<VaultListResponse>(result)?.items ?: emptyList()
     }
 }

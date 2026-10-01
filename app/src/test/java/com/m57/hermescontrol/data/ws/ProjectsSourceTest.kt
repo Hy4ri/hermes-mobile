@@ -8,12 +8,17 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ProjectsSourceTest {
+    private fun projectsSource(
+        connected: Boolean = true,
+        handler: suspend (String, Map<String, Any>) -> Any?,
+    ) = HermesProjectsSource(isConnected = { connected }, caller = fakeCaller(handler))
+
     @Test
     fun `decodes the untyped rpc map`() =
         runTest {
             var calledMethod: String? = null
             val source =
-                HermesProjectsSource(isConnected = { true }) { method, _ ->
+                projectsSource { method, _ ->
                     calledMethod = method
                     mapOf(
                         "projects" to
@@ -49,13 +54,10 @@ class ProjectsSourceTest {
         runTest {
             var calls = 0
             val source =
-                HermesProjectsSource(
-                    rpcRequest = { _, _ ->
-                        calls++
-                        mapOf("projects" to emptyList<Any>())
-                    },
-                    isConnected = { false },
-                )
+                projectsSource(connected = false) { _, _ ->
+                    calls++
+                    mapOf("projects" to emptyList<Any>())
+                }
 
             assertNull(source.fetchProjects())
             assertEquals("a disconnected fetch must not queue an RPC", 0, calls)
@@ -65,10 +67,10 @@ class ProjectsSourceTest {
     fun `rpc failure or unexpected payload yields null`() =
         runTest {
             assertNull(
-                HermesProjectsSource(isConnected = { true }) { _, _ -> error("method not found") }.fetchProjects(),
+                projectsSource { _, _ -> error("method not found") }.fetchProjects(),
             )
-            assertNull(HermesProjectsSource(isConnected = { true }) { _, _ -> "nope" }.fetchProjects())
-            assertNull(HermesProjectsSource(isConnected = { true }) { _, _ -> null }.fetchProjects())
+            assertNull(projectsSource { _, _ -> "nope" }.fetchProjects())
+            assertNull(projectsSource { _, _ -> null }.fetchProjects())
         }
 
     @Test
@@ -76,9 +78,7 @@ class ProjectsSourceTest {
         runTest {
             val thrown =
                 runCatching {
-                    HermesProjectsSource(
-                        isConnected = { true },
-                    ) { _, _ -> throw CancellationException("gone") }.fetchProjects()
+                    projectsSource { _, _ -> throw CancellationException("gone") }.fetchProjects()
                 }.exceptionOrNull()
             assertTrue(thrown is CancellationException)
         }

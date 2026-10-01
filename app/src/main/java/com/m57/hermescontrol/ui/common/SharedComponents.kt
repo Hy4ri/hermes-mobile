@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.theme.HermesStatusColors
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.theme.LocalSpacing
 
@@ -81,28 +82,8 @@ fun StatusBadge(
     val spacing = LocalSpacing.current
     val statusColors = LocalHermesStatusColors.current
     val (bgColor, fgColor) =
-        when (status) {
-            StatusBadgeType.SUCCESS -> {
-                statusColors.successContainer to statusColors.success
-            }
-
-            StatusBadgeType.WARNING -> {
-                statusColors.warningContainer to statusColors.warning
-            }
-
-            StatusBadgeType.ERROR -> {
-                statusColors.errorContainer to statusColors.error
-            }
-
-            StatusBadgeType.INFO -> {
-                statusColors.infoContainer to statusColors.info
-            }
-
-            StatusBadgeType.NEUTRAL -> {
-                MaterialTheme.colorScheme.surfaceContainerHigh to
-                    MaterialTheme.colorScheme.onSurfaceVariant
-            }
-        }
+        statusBadgeColors(status, statusColors)
+            ?: (MaterialTheme.colorScheme.surfaceContainerHigh to MaterialTheme.colorScheme.onSurfaceVariant)
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(8.dp),
@@ -134,6 +115,20 @@ fun StatusBadge(
 }
 
 enum class StatusBadgeType { SUCCESS, WARNING, ERROR, INFO, NEUTRAL }
+
+/** Exact fill/text pair shared by status badges and live-session indicators. */
+internal fun statusBadgeColors(
+    status: StatusBadgeType,
+    colors: HermesStatusColors,
+): Pair<Color, Color>? =
+    // PR #1417: on-status tokens belong on the status fill, not its container.
+    when (status) {
+        StatusBadgeType.SUCCESS -> colors.success to colors.onSuccess
+        StatusBadgeType.WARNING -> colors.warning to colors.onWarning
+        StatusBadgeType.ERROR -> colors.error to colors.onError
+        StatusBadgeType.INFO -> colors.info to colors.onInfo
+        StatusBadgeType.NEUTRAL -> null // Neutral badges use the active Material scheme.
+    }
 
 // ── ToggleRow — switch row with label + description ────────────────────
 

@@ -1,24 +1,32 @@
 package com.m57.hermescontrol.ui.chat.components
 
 import android.Manifest
+import android.content.ClipData
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import com.m57.hermescontrol.NavigationController
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.notification.ReplyNotificationTracker
 import com.m57.hermescontrol.notification.correlationScopeId
@@ -28,6 +36,7 @@ import com.m57.hermescontrol.ui.chat.ClarifyUi
 import com.m57.hermescontrol.ui.chat.SecretPromptUi
 import com.m57.hermescontrol.ui.chat.SudoPromptUi
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 
 @Composable
 fun ChatLifecycleEffects(
@@ -137,10 +146,24 @@ fun ChatLifecycleEffects(
     }
 
     // Show error as snackbar
+    val clipboard = LocalClipboard.current
+    val copyLabel = stringResource(R.string.action_copy_error)
+    // Own scope + immediate clear: a later `errorMessage = null` elsewhere must not cancel a visible popup.
+    val snackbarScope = rememberCoroutineScope()
     LaunchedEffect(errorMessage) {
         errorMessage?.let { error ->
-            snackbarHostState.showSnackbar(error)
             viewModel.clearError()
+            snackbarScope.launch {
+                val result =
+                    snackbarHostState.showSnackbar(
+                        error,
+                        actionLabel = copyLabel,
+                        duration = SnackbarDuration.Long,
+                    )
+                if (result == SnackbarResult.ActionPerformed) {
+                    clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, error)))
+                }
+            }
         }
     }
 

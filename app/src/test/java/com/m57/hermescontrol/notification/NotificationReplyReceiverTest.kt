@@ -21,6 +21,7 @@ import io.mockk.slot
 import io.mockk.unmockkAll
 import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.serialization.json.JsonPrimitive
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -108,7 +109,7 @@ class NotificationReplyReceiverTest {
             val params = arg<Map<String, Any>>(1)
             val result =
                 if (method == WsMethods.SESSION_RESUME) {
-                    mapOf("session_id" to "runtime-${params["session_id"]}")
+                    mapOf("session_id" to "runtime-${params.str("session_id")}")
                 } else {
                     mapOf("accepted" to true)
                 }
@@ -147,7 +148,7 @@ class NotificationReplyReceiverTest {
         verify {
             HermesWsClient.request(
                 WsMethods.PROMPT_SUBMIT,
-                match { it["session_id"] == "runtime-session-abc" && it["text"] == "Hello" },
+                match { it.str("session_id") == "runtime-session-abc" && it.str("text") == "Hello" },
                 any(),
             )
         }
@@ -329,19 +330,19 @@ class NotificationReplyReceiverTest {
         verify {
             HermesWsClient.request(
                 WsMethods.SESSION_RESUME,
-                match { it["session_id"] == "session-abc" && it["omit_messages"] == true },
+                match { it.str("session_id") == "session-abc" && it["omit_messages"] == JsonPrimitive(true) },
                 any(),
             )
             HermesWsClient.request(
                 WsMethods.PROMPT_SUBMIT,
-                match { it["session_id"] == "runtime-session-abc" },
+                match { it.str("session_id") == "runtime-session-abc" },
                 any(),
             )
         }
         verify(inverse = true) {
             HermesWsClient.request(
                 WsMethods.PROMPT_SUBMIT,
-                match { it["session_id"] == "stale-runtime" },
+                match { it.str("session_id") == "stale-runtime" },
                 any(),
             )
         }
@@ -412,16 +413,23 @@ class NotificationReplyReceiverTest {
             kotlinx.coroutines.delay(10000)
         }
 
-        receiver.onReceive(mockContext, mockIntent)
+        // Same timeout path as production, with a short deadline instead of 5s.
+        val shortTimeoutReceiver =
+            object : NotificationReplyReceiver() {
+                override fun goAsyncCompat(): BroadcastReceiver.PendingResult = mockPendingResult
 
-        // Wait longer than the 5-second timeout, but less than the 10-second delay
-        Thread.sleep(6000)
+                override fun buildReplyNotification(context: Context): Notification = mockNotification
+
+                override val persistenceTimeoutMs: Long = 50L
+            }
+
+        shortTimeoutReceiver.onReceive(mockContext, mockIntent)
 
         // Timeout should be caught in catch block and logged
-        verify { android.util.Log.e("NotificationReply", any<String>(), any()) }
+        verify(timeout = 3_000) { android.util.Log.e("NotificationReply", any<String>(), any()) }
 
         // Pending result must still finish after timeout
-        verify { mockPendingResult.finish() }
+        verify(timeout = 3_000) { mockPendingResult.finish() }
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
@@ -447,3 +455,5 @@ class NotificationReplyReceiverTest {
         every { mockIntent.getStringExtra(NotificationReplyReceiver.EXTRA_SESSION_ID) } returns sessionId
     }
 }
+
+private fun Map<String, Any>.str(key: String): String? = (this[key] as? JsonPrimitive)?.content ?: this[key] as? String

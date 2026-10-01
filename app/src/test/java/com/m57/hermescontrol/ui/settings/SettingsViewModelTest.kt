@@ -93,6 +93,8 @@ class SettingsViewModelTest {
         every { AuthManager.isTokensPerSecondEnabled() } returns true
         every { AuthManager.isModelProviderShown() } returns false
         every { AuthManager.isKeepConnectedInBackground() } returns false
+        every { AuthManager.isNotifySessionCompletions() } returns false
+        every { AuthManager.setNotifySessionCompletions(any()) } returns Unit
         every { AuthManager.getConnectionProfiles() } returns emptyList()
         every { AuthManager.getSelectedProfileId() } answers { storedSelectedProfileId }
         every { AuthManager.baseUrl() } returns "http://127.0.0.1:9119/"

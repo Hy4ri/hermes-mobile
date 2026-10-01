@@ -22,6 +22,7 @@
 
     <!-- Actions -->
     <string name="action_retry">재시도</string>
+    <string name="action_copy_error">오류 복사</string>
     <string name="action_cancel">취소</string>
     <string name="action_clear">지우기</string>
     <string name="action_ok">확인</string>
@@ -126,6 +127,7 @@
     <string name="notif_title">헤르메스</string>
     <string name="notif_waiting_replies">헤르메스 응답 대기 중</string>
     <string name="notif_connected_in_background">백그라운드에서 연결됨</string>
+    <string name="notif_action_turn_off">끄기</string>
     <string name="notif_connecting">연결 중…</string>
     <string name="notif_waiting_network">네트워크 대기 중</string>
     <string name="notif_reconnecting">재연결 중</string>
@@ -646,6 +648,7 @@
     <string name="sessions_prune_desc">지정된 일수보다 오래된 세션을 삭제합니다.</string>
     <string name="sessions_prune_days_label">일수 기준</string>
     <string name="sessions_prune_confirm">정리</string>
+    <string name="sessions_pruning">오래된 세션 정리 중…</string>
     <string name="sessions_fork_indicator">분기된 세션</string>
     <string name="sessions_delete_title">세션 삭제?</string>
     <string name="sessions_delete_message">정말 \"%1$s\"을(를) 삭제하시겠습니까? 되돌릴 수 없습니다.</string>
@@ -1082,11 +1085,6 @@
     <string name="image_viewer_close">닫기</string>
     <string name="image_viewer_save">기기에 저장</string>
     <string name="image_viewer_share">공유</string>
-    <string name="image_viewer_share_title">이미지 공유</string>
-    <string name="image_viewer_saved">다운로드에 이미지 저장됨</string>
-    <string name="image_viewer_save_failed">이미지를 저장할 수 없음</string>
-    <string name="image_viewer_load_failed">이미지를 불러올 수 없음: %1$s</string>
-    <string name="image_viewer_share_failed">이미지를 공유할 수 없음</string>
     <string name="timeline_marker_skill_invocation">스킬 호출됨</string>
     <string name="timeline_marker_internal_notification">시스템 알림</string>
     <string name="timeline_marker_max_iterations">도구 호출 한도 도달</string>

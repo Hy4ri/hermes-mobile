@@ -19,6 +19,7 @@
 <string name="chat_next_match_desc">النتيجة التالية</string>
 <string name="chat_close_search_desc">إغلاق البحث</string>
 <string name="action_retry">إعادة المحاولة</string>
+<string name="action_copy_error">نسخ الخطأ</string>
 <string name="action_cancel">إلغاء</string>
 <string name="action_confirm">تأكيد</string>
 <string name="action_clear">مسح</string>
@@ -129,6 +130,7 @@
 <string name="notif_title">Hermes</string>
 <string name="notif_waiting_replies">بانتظار ردود Hermes</string>
 <string name="notif_connected_in_background">متصل في الخلفية</string>
+<string name="notif_action_turn_off">إيقاف</string>
 <string name="notif_connecting">جارٍ الاتصال…</string>
 <string name="notif_waiting_network">في انتظار الشبكة</string>
 <string name="notif_reconnecting">جارٍ إعادة الاتصال</string>
@@ -759,6 +761,7 @@
 <string name="sessions_prune_desc">حذف الجلسات الأقدم من عدد الأيام المحدد.</string>
 <string name="sessions_prune_days_label">حد الأيام</string>
 <string name="sessions_prune_confirm">تنقيح</string>
+<string name="sessions_pruning">جارٍ تنقيح الجلسات القديمة…</string>
 <string name="sessions_empty_cleanup_desc">فارغة</string>
 <string name="sessions_empty_cleanup_title">هل تريد حذف الجلسات الفارغة؟</string>
 <string name="sessions_empty_cleanup_message">حذف %1$d من الجلسات الفارغة. سيتم الاحتفاظ بالجلسات النشطة والمؤرشفة.</string>
@@ -1261,7 +1264,6 @@
 <string name="image_viewer_close">إغلاق</string>
 <string name="image_viewer_save">حفظ على الجهاز</string>
 <string name="image_viewer_share">مشاركة</string>
-<string name="image_viewer_share_title">مشاركة الصورة</string>
 <string name="plugins_memory_manage">إدارة المزود…</string>
 <string name="memory_provider_empty_title">لا توجد إعدادات للمزود</string>
 <string name="memory_provider_empty_desc">لا يحتوي هذا المزود على خيارات قابلة للتهيئة.</string>
@@ -1277,10 +1279,6 @@
 <string name="memory_provider_secret_label">مفتاح API (اتركه فارغاً للإبقاء عليه)</string>
 <string name="memory_provider_bool_on">مفعل</string>
 <string name="memory_provider_bool_off">معطل</string>
-<string name="image_viewer_saved">تم حفظ الصورة في التنزيلات</string>
-<string name="image_viewer_save_failed">تعذر حفظ الصورة</string>
-<string name="image_viewer_load_failed">تعذر تحميل الصورة: %1$s</string>
-<string name="image_viewer_share_failed">تعذر مشاركة الصورة</string>
 <string name="analytics_most_used_components">المكونات الأكثر استخداماً</string>
 <string name="analytics_no_model_data">لا تتوفر بيانات للنماذج</string>
 <string name="analytics_no_skill_data">لا تتوفر بيانات للمهارات</string>

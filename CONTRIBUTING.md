@@ -22,6 +22,8 @@ If an open PR already covers it, review or improve that one instead of opening a
 
 Every change must go through a pull request (PR) targeting the `dev` staging branch. Do not push directly to `main` or `dev`.
 
+**Keep PRs focused: one feature or one fix per PR.** Unrelated changes belong in separate PRs so each one stays easy to review, test, and revert.
+
 1. **Pick or open an issue** to discuss the changes you want to make.
 2. **Create a branch** off `dev` using the following naming convention:
    - Features: `feat/short-description` (optionally `feat/issue-N-description`)
@@ -110,6 +112,15 @@ We enforce Kotlin coding conventions and Jetpack Compose best practices.
 - Mock time/dispatchers explicitly (`StandardTestDispatcher` + `Dispatchers.setMain`), restore `Dispatchers.Main` in teardown, and cancel test-owned scopes. Follow neighboring tests for the affected component.
 - For UI changes, exercise the changed flow on a device or emulator and record the behavior observed. A built or downloaded CI APK alone is not behavioral verification. If device verification is unavailable, state that gate explicitly rather than marking it passed.
 
+
+### Gateway contract snapshot
+
+`GatewayContractTest` checks `WsMethods`, handled server requests and literal param keys against a vendored copy of
+hermes-agent's `gateway-contract.openrpc.json` (`app/src/test/resources/gateway-contract/`, provenance in `SOURCE`).
+It is test-only. Refresh it with `scripts/sync-gateway-contract.sh [ref]`, then run
+`./gradlew testDebugUnitTest --tests '*GatewayContract*'` and review the diff. Allowlist exceptions need a reason in
+`GatewayContractAllowlist`.
+
 ---
 
 ## Dependency & Build Hygiene
@@ -124,6 +135,7 @@ We enforce Kotlin coding conventions and Jetpack Compose best practices.
 Before submitting your PR, please verify:
 
 - [ ] I searched open/closed PRs + issues for duplicates (see *Before You Start*).
+- [ ] PR is focused on one feature or one fix (no unrelated changes).
 - [ ] Branch is rebased onto current `dev` (`git rebase origin/dev`).
 - [ ] `./gradlew ktlintCheck` passes (ran `ktlintFormat` first — no hand edits).
 - [ ] `checkColorLiterals` passes (no hardcoded Color literals outside theme/).

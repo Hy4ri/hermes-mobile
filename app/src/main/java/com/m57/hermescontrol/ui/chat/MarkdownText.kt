@@ -34,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
@@ -43,6 +44,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.BaselineShift
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -61,6 +63,7 @@ import com.m57.hermescontrol.data.remote.GatewayFileClient
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.theme.SearchHighlightColors
 import com.m57.hermescontrol.theme.searchHighlightColors
+import com.m57.hermescontrol.ui.chat.markdown.BulletRun
 import com.m57.hermescontrol.ui.chat.markdown.FnNote
 import com.m57.hermescontrol.ui.chat.markdown.InlineMathSegment
 import com.m57.hermescontrol.ui.chat.markdown.MarkdownInlineStyler
@@ -69,19 +72,20 @@ import com.m57.hermescontrol.ui.chat.markdown.MarkdownMediaResolver
 import com.m57.hermescontrol.ui.chat.markdown.MarkdownTable
 import com.m57.hermescontrol.ui.chat.markdown.MdBlock
 import com.m57.hermescontrol.ui.chat.markdown.TableAlign
+import com.m57.hermescontrol.ui.chat.markdown.buildBulletRunText
+import com.m57.hermescontrol.ui.chat.markdown.coalesceBulletRuns
 import com.m57.hermescontrol.ui.chat.markdown.parseBlocks
 import com.m57.hermescontrol.ui.chat.markdown.splitInlineMath
 import com.m57.hermescontrol.util.BidiUtils
 
 private val URL_PATTERN = Regex("""https?://[^\s)>\[\]"'‘’]+""")
-private val TABLE_COL_WIDTH = 160.dp
 
 private fun bidiTextDirection(isRtl: Boolean): TextDirection = if (isRtl) TextDirection.Rtl else TextDirection.Ltr
 
 /**
- * Renders chat assistant text as Markdown — but ONLY once the message has finished streaming.
- * While [isStreaming] is true we show the raw text to avoid flicker / re-parse churn, then swap
- * to the formatted view on completion (and for all historical/restored messages).
+ * Renders chat assistant text as Markdown, including while it streams. The
+ * upstream token buffer coalesces deltas; parsing is memoized for identical text
+ * so completion does not swap a plain-text row for a differently sized block tree.
  *
  * Supports: fenced ```code``` blocks (horizontal scroll + copy), inline `code`, **bold**, *italic*,
  * ***bold italic***, ~~strike~~, ==highlight==, ^sup^ / ~sub~, <kbd>keys</kbd>, headings,
@@ -100,25 +104,8 @@ fun MarkdownText(
 ) {
     val statusColors = LocalHermesStatusColors.current
     val highlights = searchHighlightColors(statusColors)
-    if (isStreaming) {
-        val isRtl = remember(text) { BidiUtils.isRtlText(text) }
-        val streamingDirection = if (isRtl) LayoutDirection.Rtl else LocalLayoutDirection.current
-        CompositionLocalProvider(LocalLayoutDirection provides streamingDirection) {
-            Text(
-                text = if (isRtl) BidiUtils.anchorTrailingRtl(text) else text,
-                color = textColor,
-                style =
-                    MaterialTheme.typography.bodyMedium.copy(
-                        textDirection = bidiTextDirection(isRtl),
-                    ),
-                modifier = modifier,
-            )
-        }
-        return
-    }
-
     val linkColor = MaterialTheme.colorScheme.primary
-    val blocks = remember(text) { parseBlocks(text) }
+    val blocks = remember(text, isStreaming) { coalesceBulletRuns(parseBlocks(text)) }
     val latexMeasurer = rememberLatexMeasurer()
 
     Column(modifier = modifier.fillMaxWidth()) {
@@ -129,6 +116,8 @@ fun MarkdownText(
                         code = block.code,
                         language = block.language,
                         onCopy = { /* clipboard handled internally */ },
+                        searchQuery = searchQuery,
+                        isCurrentMatch = isCurrentMatch,
                     )
                 }
 
@@ -153,29 +142,28 @@ fun MarkdownText(
                 }
 
                 is MdBlock.Heading -> {
-                    val fontSize =
+                    val headingStyle =
                         when (block.level) {
-                            1 -> 22.sp
-                            2 -> 20.sp
-                            3 -> 18.sp
-                            4 -> 16.sp
-                            5 -> 15.sp
-                            else -> 14.sp
+                            1 -> MaterialTheme.typography.headlineMedium
+                            2 -> MaterialTheme.typography.headlineSmall
+                            3 -> MaterialTheme.typography.titleMedium
+                            4 -> MaterialTheme.typography.titleSmall
+                            5 -> MaterialTheme.typography.labelLarge
+                            else -> MaterialTheme.typography.labelMedium
                         }
                     val isRtl = remember(block.text) { BidiUtils.isRtlText(block.text) }
                     val blockDirection = if (isRtl) LayoutDirection.Rtl else LocalLayoutDirection.current
                     CompositionLocalProvider(LocalLayoutDirection provides blockDirection) {
                         MarkdownInlineText(
                             text = block.text,
+                            isRtlOverride = isRtl,
                             textColor = textColor,
                             latexMeasurer = latexMeasurer,
                             style =
-                                MaterialTheme.typography.bodyMedium
-                                    .copy(
-                                        fontSize = fontSize,
-                                        fontWeight = FontWeight.Bold,
-                                        textDirection = bidiTextDirection(isRtl),
-                                    ),
+                                headingStyle.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    textDirection = bidiTextDirection(isRtl),
+                                ),
                             searchQuery = searchQuery,
                             isCurrentMatch = isCurrentMatch,
                             linkColor = linkColor,
@@ -183,6 +171,47 @@ fun MarkdownText(
                             modifier = Modifier.padding(vertical = 2.dp),
                         )
                     }
+                }
+
+                is BulletRun -> {
+                    val density = LocalDensity.current
+                    val bodyStyle = MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.Ltr)
+                    val textMeasurer = rememberTextMeasurer()
+                    val runText =
+                        remember(
+                            block,
+                            density,
+                            bodyStyle,
+                            textColor,
+                            searchQuery,
+                            isCurrentMatch,
+                            linkColor,
+                            highlights,
+                        ) {
+                            buildBulletRunText(
+                                run = block,
+                                density = density,
+                                textColor = textColor,
+                                searchQuery = searchQuery,
+                                isCurrentMatch = isCurrentMatch,
+                                linkColor = linkColor,
+                                highlights = highlights,
+                                prefixWidth = { prefix ->
+                                    with(density) {
+                                        textMeasurer
+                                            .measure(prefix, bodyStyle)
+                                            .size.width
+                                            .toSp()
+                                    }
+                                },
+                            )
+                        }
+                    Text(
+                        text = runText,
+                        color = textColor,
+                        style = bodyStyle,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
+                    )
                 }
 
                 is MdBlock.Bullet -> {
@@ -210,20 +239,31 @@ fun MarkdownText(
                                 style = MaterialTheme.typography.bodyMedium,
                                 modifier = Modifier.padding(end = 6.dp),
                             )
-                            MarkdownInlineText(
-                                text = block.text,
-                                textColor = textColor,
-                                latexMeasurer = latexMeasurer,
-                                style =
-                                    MaterialTheme.typography.bodyMedium.copy(
-                                        textDirection = bidiTextDirection(isRtl),
-                                    ),
-                                searchQuery = searchQuery,
-                                isCurrentMatch = isCurrentMatch,
-                                linkColor = linkColor,
-                                highlights = highlights,
-                                modifier = Modifier.weight(1f),
-                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                MarkdownInlineText(
+                                    text = block.text,
+                                    isRtlOverride = isRtl,
+                                    textColor = textColor,
+                                    latexMeasurer = latexMeasurer,
+                                    style =
+                                        MaterialTheme.typography.bodyMedium.copy(
+                                            textDirection = bidiTextDirection(isRtl),
+                                        ),
+                                    searchQuery = searchQuery,
+                                    isCurrentMatch = isCurrentMatch,
+                                    linkColor = linkColor,
+                                    highlights = highlights,
+                                )
+                                if (block.nestedSource.isNotEmpty()) {
+                                    MarkdownText(
+                                        text = block.nestedSource,
+                                        textColor = textColor,
+                                        searchQuery = searchQuery,
+                                        isCurrentMatch = isCurrentMatch,
+                                        onImageClick = onImageClick,
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -259,20 +299,31 @@ fun MarkdownText(
                                     },
                                 modifier = Modifier.size(18.dp).padding(top = 1.dp, end = 6.dp),
                             )
-                            MarkdownInlineText(
-                                text = block.text,
-                                textColor = textColor,
-                                latexMeasurer = latexMeasurer,
-                                style =
-                                    MaterialTheme.typography.bodyMedium.copy(
-                                        textDirection = bidiTextDirection(isRtl),
-                                    ),
-                                searchQuery = searchQuery,
-                                isCurrentMatch = isCurrentMatch,
-                                linkColor = linkColor,
-                                highlights = highlights,
-                                modifier = Modifier.weight(1f),
-                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                MarkdownInlineText(
+                                    text = block.text,
+                                    isRtlOverride = isRtl,
+                                    textColor = textColor,
+                                    latexMeasurer = latexMeasurer,
+                                    style =
+                                        MaterialTheme.typography.bodyMedium.copy(
+                                            textDirection = bidiTextDirection(isRtl),
+                                        ),
+                                    searchQuery = searchQuery,
+                                    isCurrentMatch = isCurrentMatch,
+                                    linkColor = linkColor,
+                                    highlights = highlights,
+                                )
+                                if (block.nestedSource.isNotEmpty()) {
+                                    MarkdownText(
+                                        text = block.nestedSource,
+                                        textColor = textColor,
+                                        searchQuery = searchQuery,
+                                        isCurrentMatch = isCurrentMatch,
+                                        onImageClick = onImageClick,
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -296,20 +347,31 @@ fun MarkdownText(
                                 style = MaterialTheme.typography.bodyMedium,
                                 modifier = Modifier.padding(end = 6.dp),
                             )
-                            MarkdownInlineText(
-                                text = block.text,
-                                textColor = textColor,
-                                latexMeasurer = latexMeasurer,
-                                style =
-                                    MaterialTheme.typography.bodyMedium.copy(
-                                        textDirection = bidiTextDirection(isRtl),
-                                    ),
-                                searchQuery = searchQuery,
-                                isCurrentMatch = isCurrentMatch,
-                                linkColor = linkColor,
-                                highlights = highlights,
-                                modifier = Modifier.weight(1f),
-                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                MarkdownInlineText(
+                                    text = block.text,
+                                    isRtlOverride = isRtl,
+                                    textColor = textColor,
+                                    latexMeasurer = latexMeasurer,
+                                    style =
+                                        MaterialTheme.typography.bodyMedium.copy(
+                                            textDirection = bidiTextDirection(isRtl),
+                                        ),
+                                    searchQuery = searchQuery,
+                                    isCurrentMatch = isCurrentMatch,
+                                    linkColor = linkColor,
+                                    highlights = highlights,
+                                )
+                                if (block.nestedSource.isNotEmpty()) {
+                                    MarkdownText(
+                                        text = block.nestedSource,
+                                        textColor = textColor,
+                                        searchQuery = searchQuery,
+                                        isCurrentMatch = isCurrentMatch,
+                                        onImageClick = onImageClick,
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -331,41 +393,54 @@ fun MarkdownText(
                                         .background(textColor.copy(alpha = 0.35f)),
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            MarkdownInlineText(
-                                text = block.text,
-                                textColor = textColor,
-                                latexMeasurer = latexMeasurer,
-                                style =
-                                    MaterialTheme.typography.bodyMedium.copy(
-                                        fontStyle = FontStyle.Italic,
-                                        textDirection = bidiTextDirection(isRtl),
-                                    ),
-                                searchQuery = searchQuery,
-                                isCurrentMatch = isCurrentMatch,
-                                linkColor = linkColor,
-                                highlights = highlights,
-                                modifier = Modifier.weight(1f),
-                            )
+                            val nestedBlocks = remember(block.text) { parseBlocks(block.text) }
+                            if (nestedBlocks.size == 1 && nestedBlocks.single() is MdBlock.Paragraph) {
+                                MarkdownInlineText(
+                                    text = block.text,
+                                    isRtlOverride = isRtl,
+                                    textColor = textColor,
+                                    latexMeasurer = latexMeasurer,
+                                    style =
+                                        MaterialTheme.typography.bodyMedium.copy(
+                                            fontStyle = FontStyle.Italic,
+                                            textDirection = bidiTextDirection(isRtl),
+                                        ),
+                                    searchQuery = searchQuery,
+                                    isCurrentMatch = isCurrentMatch,
+                                    linkColor = linkColor,
+                                    highlights = highlights,
+                                    modifier = Modifier.weight(1f),
+                                )
+                            } else {
+                                MarkdownText(
+                                    text = block.text,
+                                    textColor = textColor,
+                                    searchQuery = searchQuery,
+                                    isCurrentMatch = isCurrentMatch,
+                                    modifier = Modifier.weight(1f),
+                                    onImageClick = onImageClick,
+                                )
+                            }
                         }
                     }
                 }
 
                 is MdBlock.Video -> {
                     val resolvedUri = remember(block.uri) { MarkdownMediaResolver.resolveImageUrl(block.uri) }
-                    var showVideoDialog by remember { mutableStateOf(false) }
+                    var showVideoDialog by remember(block.uri) { mutableStateOf(false) }
                     androidx.compose.foundation.layout.Box(
                         modifier =
                             Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp),
                     ) {
-                        com.m57.hermescontrol.ui.chat.components.InlineVideoPlayer(
-                            videoUri = resolvedUri,
+                        com.m57.hermescontrol.ui.chat.components.InlineMediaPlayer(
+                            uri = resolvedUri,
                             onFullScreenClick = { showVideoDialog = true },
                         )
                         if (showVideoDialog) {
-                            com.m57.hermescontrol.ui.chat.components.VideoViewerDialog(
-                                videoUri = resolvedUri,
+                            com.m57.hermescontrol.ui.chat.components.MediaViewerDialog(
+                                mediaUri = resolvedUri,
                                 onDismissRequest = { showVideoDialog = false },
                             )
                         }
@@ -478,6 +553,7 @@ fun MarkdownText(
                                     )
                                     MarkdownInlineText(
                                         text = note.text,
+                                        isRtlOverride = isRtl,
                                         textColor = textColor,
                                         latexMeasurer = latexMeasurer,
                                         style =
@@ -502,6 +578,7 @@ fun MarkdownText(
                     CompositionLocalProvider(LocalLayoutDirection provides blockDirection) {
                         MarkdownInlineText(
                             text = block.text,
+                            isRtlOverride = isRtl,
                             textColor = textColor,
                             latexMeasurer = latexMeasurer,
                             style =

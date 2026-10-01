@@ -27,7 +27,6 @@ class ChatSubagentsDelegate(
 ) {
     companion object {
         private const val TAG = "ChatSubagentsDelegate"
-        const val SUBAGENT_TAIL_MAX_BYTES = 16384
     }
 
     private var pollingJob: Job? = null
@@ -130,7 +129,6 @@ class ChatSubagentsDelegate(
                     subagentRepository.tailSubagent(
                         sessionId = sessionId,
                         subagentId = subagentId,
-                        maxBytes = SUBAGENT_TAIL_MAX_BYTES,
                     )
 
                 if (tailResponse != null) {

@@ -3,6 +3,10 @@ package com.m57.hermescontrol.data.ws
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.AccountConnectorResult
 import com.m57.hermescontrol.data.model.ConnectorTool
+import com.m57.hermescontrol.data.ws.contract.ConnectionAnswer
+import com.m57.hermescontrol.data.ws.contract.ConnectionRespondParams
+import com.m57.hermescontrol.data.ws.contract.ConnectorOwner
+import com.m57.hermescontrol.data.ws.contract.ConnectorsOperationStatusParams
 import io.mockk.every
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
@@ -28,7 +32,7 @@ class AccountConnectorRepositoryTest {
         runTest {
             val calls = mutableListOf<Pair<String, Map<String, Any>>>()
             val repo =
-                HermesAccountConnectorRepository { method, params ->
+                accountRepo { method, params ->
                     calls += method to params
                     operationFixture()
                 }
@@ -57,19 +61,24 @@ class AccountConnectorRepositoryTest {
         runTest {
             val calls = mutableListOf<Pair<String, Map<String, Any>>>()
             val repo =
-                HermesAccountConnectorRepository { method, params ->
+                accountRepo { method, params ->
                     calls += method to params
                     operationFixture()
                 }
             repo.operationStatus("op-a")
-            repo.operationRequest(
-                WsMethods.CONNECTION_RESPOND,
-                mapOf(
-                    "op_id" to "op-a",
-                    "result" to mapOf("settled_by" to "continue"),
+            repo.operationRespond(
+                ConnectionRespondParams(
+                    owner = ConnectorOwner.account(),
+                    opId = "op-a",
+                    result = ConnectionAnswer(settledBy = "continue"),
                 ),
             )
-            repo.operationRequest(WsMethods.CONNECTORS_OPERATION_WAKE, mapOf("op_id" to "op-a"))
+            repo.operationWake(
+                ConnectorsOperationStatusParams(
+                    owner = ConnectorOwner.account(),
+                    opId = "op-a",
+                ),
+            )
             assertEquals(
                 listOf(
                     WsMethods.CONNECTORS_OPERATION_STATUS,
@@ -86,13 +95,30 @@ class AccountConnectorRepositoryTest {
                 assertEquals("op-a", params["op_id"])
                 assertFalse("session_id" in params)
             }
+            assertEquals(
+                mapOf(
+                    "owner" to mapOf("type" to "account"),
+                    "op_id" to "op-a",
+                    "result" to mapOf("settled_by" to "continue"),
+                    "profile" to "work",
+                ),
+                calls[1].second,
+            )
+            assertEquals(
+                mapOf(
+                    "owner" to mapOf("type" to "account"),
+                    "op_id" to "op-a",
+                    "profile" to "work",
+                ),
+                calls[2].second,
+            )
         }
 
     @Test fun `catalog accounts tools and removal use native account endpoints`() =
         runTest {
             val calls = mutableListOf<Pair<String, Map<String, Any>>>()
             val repo =
-                HermesAccountConnectorRepository { method, params ->
+                accountRepo { method, params ->
                     calls += method to params
                     when (method) {
                         WsMethods.CONNECTORS_CATALOG -> {
@@ -165,7 +191,7 @@ class AccountConnectorRepositoryTest {
 
     @Test fun `policy keeps member revision separate from effective and respects inherited rules`() =
         runTest {
-            val repo = HermesAccountConnectorRepository { _, _ -> policyFixture() }
+            val repo = accountRepo { _, _ -> policyFixture() }
             val policy = (repo.policy() as AccountConnectorResult.Success).value
             assertEquals("effective-revision", policy.revision)
             assertEquals("01ARZ3NDEKTSV4RRFFQ69G5FAV", policy.member?.revision)
@@ -180,7 +206,7 @@ class AccountConnectorRepositoryTest {
         runTest {
             val calls = mutableListOf<Pair<String, Map<String, Any>>>()
             val repo =
-                HermesAccountConnectorRepository { method, params ->
+                accountRepo { method, params ->
                     calls += method to params
                     if (method == WsMethods.CONNECTORS_POLICY_GET) {
                         policyFixture()
@@ -208,9 +234,12 @@ class AccountConnectorRepositoryTest {
 
     @Test fun `malformed authorization does not look like a successful connect`() =
         runTest {
-            val repo = HermesAccountConnectorRepository { _, _ -> mapOf("status" to "initiated") }
+            val repo = accountRepo { _, _ -> mapOf("status" to "initiated") }
             assertTrue(repo.connect(listOf("drive")) is AccountConnectorResult.Failure)
         }
+
+    private fun accountRepo(handler: suspend (String, Map<String, Any>) -> Any?) =
+        HermesAccountConnectorRepository(caller = fakeCaller(handler))
 
     private fun operationFixture() =
         mapOf(

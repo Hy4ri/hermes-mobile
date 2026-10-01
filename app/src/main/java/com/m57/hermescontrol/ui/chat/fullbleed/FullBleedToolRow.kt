@@ -24,6 +24,8 @@ import com.m57.hermescontrol.ui.chat.ToolBubble
 internal fun FullBleedToolRow(
     message: ChatMessage,
     modifier: Modifier = Modifier,
+    searchQuery: String = "",
+    isCurrentMatch: Boolean = false,
 ) {
     Box(
         modifier =
@@ -32,7 +34,7 @@ internal fun FullBleedToolRow(
                 .padding(start = 16.dp, end = 16.dp)
                 .testTag("fullbleed_tool_row"),
     ) {
-        ToolBubble(message)
+        ToolBubble(message, searchQuery = searchQuery, isCurrentMatch = isCurrentMatch)
     }
 }
 

@@ -599,6 +599,27 @@ class HermesApiServiceMockWebServerTest {
         }
 
     @Test
+    fun getOAuthProviders_toleratesNumericExpiresAt() =
+        runBlocking {
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody(
+                        """
+                        {"providers":[{"id":"codex","name":"Codex","flow":"external",
+                        "status":{"logged_in":true,"expires_at":1790766533634,"last_refresh":1790766000000}}]}
+                        """.trimIndent(),
+                    ),
+            )
+
+            val response = api.getOAuthProviders()
+            assertTrue(response.isSuccessful)
+            val status = response.body()!!.providers[0].status
+            assertEquals("1790766533634", status.expiresAt)
+            assertEquals("1790766000000", status.lastRefresh)
+        }
+
+    @Test
     fun getOAuthProviders_parsesList() =
         runBlocking {
             mockServer.enqueue(

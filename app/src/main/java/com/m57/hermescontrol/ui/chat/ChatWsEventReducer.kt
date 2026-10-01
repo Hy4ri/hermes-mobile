@@ -129,6 +129,7 @@ object ChatWsEventReducer {
                 is WsEvent.BtwComplete -> event.sessionId
                 is WsEvent.SessionUsage -> event.sessionId
                 is WsEvent.TranscriptResyncRequired -> event.sessionId
+                is WsEvent.MessageReactionUpdated -> event.sessionId
                 is WsEvent.VaultUnlockRequest -> event.sessionId
                 is WsEvent.VaultUnlockExpire -> event.sessionId
                 is WsEvent.VaultSaveLoginRequest -> event.sessionId
@@ -251,6 +252,8 @@ object ChatWsEventReducer {
 
             // ReactionEvent is handled by the ViewModel — purely cosmetic animation
             is WsEvent.ReactionEvent -> ReducerResult(state = state, streamingState = streamingState)
+
+            is WsEvent.MessageReactionUpdated -> onMessageReaction(state, streamingState, event)
 
             // Change events (issue #784) are consumed by their screens' ViewModels
             is WsEvent.ChangeEvent -> ReducerResult(state = state, streamingState = streamingState)
@@ -457,7 +460,7 @@ object ChatWsEventReducer {
         val finalSnapshot = event.rawPayload?.let(::parseUsageSnapshot)
         val usageState = finalSnapshot?.let { applyUsageSnapshot(state, it) } ?: state
         val turnUsage = finalSnapshot?.deltaFrom(streamingState.turnUsageBaseline)
-        val streaming = streamingState.streamingMessage
+        val streaming = streamingState.interruptedMessage ?: streamingState.streamingMessage
         // Prefer the authoritative reasoning carried in the message.complete
         // payload (the gateway's assembled full trace), then fall back to
         // whatever reasoning.delta deltas accumulated during streaming.
@@ -663,7 +666,7 @@ object ChatWsEventReducer {
             streamingState.streamingMessage
                 ?: return ReducerResult(
                     state = state.copy(isAgentTyping = false),
-                    streamingState = StreamingState(),
+                    streamingState = streamingState.takeIf { it.interruptedMessage != null } ?: StreamingState(),
                 )
         val reasoning =
             if (streamingState.reasoningText.isNotBlank()) {
@@ -1077,6 +1080,22 @@ object ChatWsEventReducer {
                 ReducerResult(state = state, streamingState = streamingState)
             }
         }
+    }
+
+    /** Paints a live tapback on the row whose gateway id matches; unmatched rows arrive with the next REST load. */
+    private fun onMessageReaction(
+        state: ChatUiState,
+        streamingState: StreamingState,
+        event: WsEvent.MessageReactionUpdated,
+    ): ReducerResult {
+        if (state.messages.none { it.serverRowId == event.rowId }) {
+            return ReducerResult(state = state, streamingState = streamingState)
+        }
+        val messages =
+            state.messages.map {
+                if (it.serverRowId == event.rowId) it.copy(reactions = event.reactions) else it
+            }
+        return ReducerResult(state = state.copy(messages = messages), streamingState = streamingState)
     }
 
     private fun onUnknown(

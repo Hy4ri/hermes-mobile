@@ -19,7 +19,6 @@ private val MochaRed = Color(0xFFF38BA8)
 private val MochaText = Color(0xFFCDD6F4)
 private val MochaSubtext1 = Color(0xFFBAC2DE)
 private val MochaSubtext0 = Color(0xFFA6ADC8)
-private val MochaOverlay0 = Color(0xFF6C7086)
 private val MochaSurface1 = Color(0xFF45475A)
 private val MochaSurface0 = Color(0xFF313244)
 private val MochaBase = Color(0xFF1E1E2E)
@@ -31,24 +30,33 @@ private val MochaCrust = Color(0xFF11111B)
 // ---------------------------------------------------------------------
 
 private val LatteMauve = Color(0xFF8839EF)
+
+// Derived role, not an upstream Catppuccin swatch: Latte Text/Pink is 3.02:1
+// and Text/Green is 2.39:1. Deeper ink reaches 5.88:1 and 4.65:1 respectively.
+private val LatteDeepInk = Color(0xFF202334)
+
+// Derived role, not an upstream Catppuccin swatch: Latte Base/Blue is only 4.34:1.
+// White/Blue reaches 4.94:1 for normal text.
+private val LatteOnBlue = Color(0xFFFFFFFF)
 private val LatteBlue = Color(0xFF1E66F5)
 private val LattePink = Color(0xFFEA76CB)
 private val LatteGreen = Color(0xFF40A02B)
 private val LatteYellow = Color(0xFFDF8E1D)
 private val LatteRed = Color(0xFFD20F39)
-private val LatteText = Color(0xFF4C4F69)
+
+// Official Latte Subtext0 keeps borders visible against Surface0 (3.20:1).
 private val LatteSubtext0 = Color(0xFF6C6F85)
-private val LatteOverlay0 = Color(0xFF9CA0B0)
+private val LatteText = Color(0xFF4C4F69)
 private val LatteSurface1 = Color(0xFFBCC0CC)
 private val LatteSurface0 = Color(0xFFCCD0DA)
 private val LatteBase = Color(0xFFEFF1F5)
 private val LatteMantle = Color(0xFFE6E9EF)
 private val LatteCrust = Color(0xFFDCE0E8)
 
-// Bespoke tint used only for the light primary container — not part of
-// the official Catppuccin swatch set, kept local to this file.
-private val LattePrimaryContainer = Color(0xFFE6CAFA)
-private val LatteOnPrimaryContainer = Color(0xFF380075)
+// Regression theme-contract: fixed accents use Mocha in both modes. Fixed/Dim
+// share official accents rather than inventing tonal steps; on-roles use Crust.
+// Latte surface containers stop at Surface0 so normal text stays >= 4.5:1.
+// Upstream: https://github.com/catppuccin/palette/blob/main/palette.json
 
 /** Catppuccin theme — Mocha (dark) / Latte (light). */
 val CatppuccinTheme =
@@ -73,6 +81,20 @@ val CatppuccinTheme =
                 onSurface = MochaText,
                 surfaceVariant = MochaSurface0,
                 onSurfaceVariant = MochaSubtext0,
+                surfaceDim = MochaBase,
+                surfaceBright = MochaSurface1,
+                primaryFixed = MochaMauve,
+                primaryFixedDim = MochaMauve,
+                onPrimaryFixed = MochaCrust,
+                onPrimaryFixedVariant = MochaCrust,
+                secondaryFixed = MochaBlue,
+                secondaryFixedDim = MochaBlue,
+                onSecondaryFixed = MochaCrust,
+                onSecondaryFixedVariant = MochaCrust,
+                tertiaryFixed = MochaPink,
+                tertiaryFixedDim = MochaPink,
+                onTertiaryFixed = MochaCrust,
+                onTertiaryFixedVariant = MochaCrust,
                 surfaceContainerLowest = MochaCrust,
                 surfaceContainerLow = MochaMantle,
                 surfaceContainer = MochaBase,
@@ -81,7 +103,7 @@ val CatppuccinTheme =
                 inverseSurface = MochaText,
                 inverseOnSurface = MochaBase,
                 inversePrimary = LatteMauve,
-                outline = MochaOverlay0,
+                outline = MochaSubtext0,
                 outlineVariant = MochaSurface1,
                 scrim = MochaCrust,
                 status =
@@ -105,48 +127,62 @@ val CatppuccinTheme =
             PaletteColors(
                 primary = LatteMauve,
                 onPrimary = LatteBase,
-                primaryContainer = LattePrimaryContainer,
-                onPrimaryContainer = LatteOnPrimaryContainer,
+                primaryContainer = LatteBase,
+                onPrimaryContainer = LatteMauve,
                 secondary = LatteBlue,
-                onSecondary = LatteBase,
+                onSecondary = LatteOnBlue,
                 secondaryContainer = LatteMantle,
                 onSecondaryContainer = LatteText,
                 tertiary = LattePink,
-                onTertiary = LatteBase,
-                tertiaryContainer = LatteSurface1,
+                onTertiary = LatteDeepInk,
+                tertiaryContainer = LatteSurface0,
                 onTertiaryContainer = LatteText,
                 background = LatteBase,
                 onBackground = LatteText,
                 surface = LatteBase,
                 onSurface = LatteText,
                 surfaceVariant = LatteSurface0,
-                onSurfaceVariant = LatteSubtext0,
+                onSurfaceVariant = LatteText,
+                surfaceDim = LatteSurface0,
+                surfaceBright = LatteBase,
+                primaryFixed = MochaMauve,
+                primaryFixedDim = MochaMauve,
+                onPrimaryFixed = MochaCrust,
+                onPrimaryFixedVariant = MochaCrust,
+                secondaryFixed = MochaBlue,
+                secondaryFixedDim = MochaBlue,
+                onSecondaryFixed = MochaCrust,
+                onSecondaryFixedVariant = MochaCrust,
+                tertiaryFixed = MochaPink,
+                tertiaryFixedDim = MochaPink,
+                onTertiaryFixed = MochaCrust,
+                onTertiaryFixedVariant = MochaCrust,
                 surfaceContainerLowest = LatteCrust,
                 surfaceContainerLow = LatteMantle,
                 surfaceContainer = LatteBase,
                 surfaceContainerHigh = LatteSurface0,
-                surfaceContainerHighest = LatteSurface1,
+                surfaceContainerHighest = LatteSurface0,
                 inverseSurface = LatteText,
                 inverseOnSurface = LatteBase,
                 inversePrimary = MochaMauve,
-                outline = LatteOverlay0,
+                outline = LatteSubtext0,
                 outlineVariant = LatteSurface1,
                 scrim = LatteCrust,
                 status =
                     HermesStatusColors(
                         success = LatteGreen,
                         successContainer = LatteSurface0,
-                        onSuccess = LatteBase,
+                        onSuccess = LatteDeepInk,
                         warning = LatteYellow,
                         warningContainer = LatteSurface0,
-                        onWarning = LatteBase,
+                        onWarning = LatteDeepInk,
                         error = LatteRed,
                         errorContainer = LatteSurface0,
                         onError = LatteBase,
-                        onErrorContainer = LatteRed,
+                        onErrorContainer = LatteText,
                         info = LatteBlue,
                         infoContainer = LatteSurface0,
-                        onInfo = LatteBase,
+                        onInfo = LatteOnBlue,
                     ),
             ),
     )

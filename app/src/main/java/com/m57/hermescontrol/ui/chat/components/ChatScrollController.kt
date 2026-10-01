@@ -10,10 +10,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.yield
 
 /**
@@ -60,14 +59,8 @@ class ChatScrollController(
     private var lastTailKey: Any? = null
     private var lastMessageCount: Int = 0
 
-    /**
-     * Guard flag: true while a programmatic scroll-to-bottom is in flight.
-     * Prevents [observeUserScrollPosition] from flipping [isFollowingBottom]
-     * to false during the layout race — the scroll targets the old last item,
-     * Compose lays out the new item below, and [isAtBottom] momentarily
-     * returns false before the second scroll pass catches it.
-     */
-    private var isProgrammaticScroll by mutableStateOf(false)
+    /** The sole active scroll command. Replaced by newer tail, search or explicit jumps. */
+    private var scrollJob: Job? = null
 
     /**
      * Pixel tolerance for "at bottom" detection. Covers the LazyColumn's
@@ -77,34 +70,30 @@ class ChatScrollController(
      */
     var bottomPixelTolerance by mutableStateOf(48)
 
-    /** Serialized scroll scope — all scroll jobs funnel through here. */
-    fun launchScroll(block: suspend CoroutineScope.() -> Unit) {
-        scope.launch(block = block)
+    /** Replace the previous scroll command; user gestures can cancel the same job. */
+    private fun launchScroll(block: suspend CoroutineScope.() -> Unit) {
+        scrollJob?.cancel()
+        scrollJob = scope.launch(block = block)
     }
 
-    /**
-     * Read the live bottom-follow state from [LazyListState] and react to
-     * user-driven scroll position changes. Should be called inside a
-     * `LaunchedEffect(Unit)` so it observes the list for the screen's lifetime.
-     */
+    /** Observe only arrival at the bottom; departures are owned by actual user input. */
     fun observeUserScrollPosition() {
         scope.launch {
+            var previouslyAtBottom = listState.isAtBottom(bottomPixelTolerance)
             snapshotFlow { listState.isAtBottom(bottomPixelTolerance) }
                 .distinctUntilChanged()
                 .collect { atBottom ->
-                    if (atBottom) {
+                    if (atBottom && !previouslyAtBottom) {
                         isFollowingBottom = true
-                        // Reaching the bottom means the reader caught up.
                         pendingCount = 0
-                    } else if (!isProgrammaticScroll) {
-                        // Only break follow on USER-initiated scrolls.
-                        // During programmatic scrolls the viewport is
-                        // transiently not-at-bottom while new items lay out.
-                        isFollowingBottom = false
                     }
+                    previouslyAtBottom = atBottom
                 }
         }
     }
+
+    /** An upward user gesture takes ownership from auto-follow immediately. */
+    fun onUserScrollUp() = pauseFollowing()
 
     /**
      * Call on every tail-content change (new message, streaming token, thinking
@@ -132,14 +121,7 @@ class ChatScrollController(
             // Pin instantly so rapid streamed tokens don't queue competing
             // animations; the reader stays glued to the growing tail.
             // Use layout-aware scrolling to survive the Compose layout race.
-            scope.launch {
-                isProgrammaticScroll = true
-                try {
-                    scrollToBottomAwaitingLayout()
-                } finally {
-                    isProgrammaticScroll = false
-                }
-            }
+            launchScroll { scrollToBottomAwaitingLayout() }
         } else {
             pendingCount += newMessages
         }
@@ -163,14 +145,10 @@ class ChatScrollController(
         yield()
         yield()
         listState.scrollToBottom(animated = animated)
-        // If we're still not at the bottom after the first scroll (e.g. a
-        // new item was laid out between the scroll and now), do one more pass.
+        // Yield once more if layout changed during the first pass, then align
+        // the current last row; newer tails replace this job instead of racing it.
         if (!listState.isAtBottom(bottomPixelTolerance)) {
-            // Wait up to 150ms for the layout to settle with the new items.
-            withTimeoutOrNull(150L) {
-                snapshotFlow { listState.layoutInfo.totalItemsCount }
-                    .first { it > 0 }
-            }
+            yield()
             listState.scrollToBottom(animated = animated)
         }
     }
@@ -179,19 +157,19 @@ class ChatScrollController(
     fun jumpToBottom(animated: Boolean = false) {
         pendingCount = 0
         isFollowingBottom = true
-        scope.launch {
-            isProgrammaticScroll = true
-            try {
-                scrollToBottomAwaitingLayout(animated = animated)
-            } finally {
-                isProgrammaticScroll = false
-            }
-        }
+        launchScroll { scrollToBottomAwaitingLayout(animated = animated) }
     }
 
     /** An explicit history gesture must not be undone by a short list's bottom-follow. */
     fun pauseFollowing() {
         isFollowingBottom = false
+        scrollJob?.cancel()
+    }
+
+    /** Historical timeline navigation shares the scroll command with follow and search. */
+    fun jumpToHistoryStart() {
+        pauseFollowing()
+        launchScroll { listState.scrollToItem(0) }
     }
 
     /** FAB tap: resume following + clear unread. */
@@ -218,10 +196,11 @@ class ChatScrollController(
         contentOffset: Int,
         contentLength: Int,
     ) {
-        scope.launch {
+        pauseFollowing()
+        launchScroll {
             listState.animateScrollToItem(index)
             val info = listState.layoutInfo
-            val item = info.visibleItemsInfo.firstOrNull { it.index == index } ?: return@launch
+            val item = info.visibleItemsInfo.firstOrNull { it.index == index } ?: return@launchScroll
             val viewportHeight = info.viewportEndOffset - info.viewportStartOffset
             val fraction = if (contentLength > 0) contentOffset.toFloat() / contentLength else 0f
             val targetTop = (viewportHeight / 3) - (item.size * fraction).toInt()

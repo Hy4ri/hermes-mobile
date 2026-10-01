@@ -45,7 +45,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -60,7 +59,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -69,23 +67,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.m57.hermescontrol.R
-import com.m57.hermescontrol.theme.CodeTerminalBg
-import com.m57.hermescontrol.theme.CodeTerminalBorder
-import com.m57.hermescontrol.theme.CodeTerminalMuted
-import com.m57.hermescontrol.theme.CodeTerminalText
 import com.m57.hermescontrol.theme.HermesStatusColors
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
-import com.m57.hermescontrol.ui.chat.components.CodeTerminalCard
 import com.m57.hermescontrol.ui.chat.components.DiffViewCard
 import com.m57.hermescontrol.ui.chat.components.FileViewCard
-import com.m57.hermescontrol.ui.chat.components.highlightSyntax
-import com.m57.hermescontrol.ui.chat.tool.ToolJson
 import com.m57.hermescontrol.ui.chat.tool.ToolView
 import com.m57.hermescontrol.ui.chat.tool.ToolViewBuilder
-import kotlinx.coroutines.Dispatchers
+import com.m57.hermescontrol.ui.chat.tool.ToolViewCache
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * Composes the collapsed summary lines for a tool card.
@@ -135,6 +125,8 @@ internal fun composeToolSummaryLines(
 internal fun ToolBubble(
     message: ChatMessage,
     modifier: Modifier = Modifier,
+    searchQuery: String = "",
+    isCurrentMatch: Boolean = false,
 ) {
     var expanded by remember { mutableStateOf(false) }
     var showRawJson by remember { mutableStateOf(false) }
@@ -144,7 +136,7 @@ internal fun ToolBubble(
 
     val view =
         remember(message.content, message.toolName, message.isToolRunning) {
-            parseToolOutput(message.content, message.toolName, message.isToolRunning)
+            ToolViewCache.getOrParse(message.content, message.toolName, message.isToolRunning)
         }
     val config = ToolSchemaRegistry.getDisplayConfig(message.toolName)
 
@@ -179,12 +171,26 @@ internal fun ToolBubble(
                         .padding(horizontal = 10.dp, vertical = 6.dp),
             ) {
                 // ── Header row: icon + tool name ──
-                HeaderRow(message, config, contentColor, statusColors, view?.serverDisplayName)
+                ToolBubbleHeader(
+                    message = message,
+                    config = config,
+                    contentColor = contentColor,
+                    statusColors = statusColors,
+                    displayName = view?.serverDisplayName,
+                    searchQuery = searchQuery,
+                    isCurrentMatch = isCurrentMatch,
+                )
 
                 // ── Tool progress preview (tool.progress) ──
                 if (message.isToolRunning && !message.progressPreview.isNullOrEmpty()) {
                     Text(
-                        text = message.progressPreview,
+                        text =
+                            buildHighlightedString(
+                                message.progressPreview,
+                                searchQuery,
+                                isCurrentMatch,
+                                statusColors,
+                            ),
                         style =
                             MaterialTheme.typography.bodySmall.copy(
                                 color = contentColor.copy(alpha = 0.7f),
@@ -218,7 +224,7 @@ internal fun ToolBubble(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = firstLine,
+                                text = buildHighlightedString(firstLine, searchQuery, isCurrentMatch, statusColors),
                                 style =
                                     MaterialTheme.typography.bodySmall.copy(
                                         color = contentColor.copy(alpha = 0.7f),
@@ -231,7 +237,7 @@ internal fun ToolBubble(
                         }
                         if (secondLine != null) {
                             Text(
-                                text = secondLine,
+                                text = buildHighlightedString(secondLine, searchQuery, isCurrentMatch, statusColors),
                                 style =
                                     MaterialTheme.typography.bodySmall.copy(
                                         color = contentColor.copy(alpha = 0.5f),
@@ -310,383 +316,6 @@ internal fun ToolBubble(
                     modifier = Modifier.align(Alignment.End).padding(top = 4.dp),
                 )
             }
-        }
-    }
-}
-
-/**
- * Renders the engine's [ToolView] — the expanded body of a tool card.
- *
- * Order: error line → terminal streams ($ command / stdout / stderr / exit
- * code) → file diff → search hits → plain detail → duration footer.
- */
-@Composable
-private fun ExpandedToolContent(
-    view: ToolView,
-    contentColor: Color,
-    statusColors: HermesStatusColors,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        val isTerminal =
-            view.stdout != null ||
-                view.stderr != null ||
-                view.exitCode != null ||
-                view.terminalCommand != null
-
-        // ── Error line ──
-        view.error?.let {
-            Text(
-                text = stringResource(R.string.chat_tool_execution_error, it),
-                style =
-                    MaterialTheme.typography.bodySmall.copy(
-                        color = statusColors.error,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp,
-                    ),
-            )
-        }
-
-        // ── Terminal: $ command + streams + exit code ──
-        if (isTerminal) {
-            view.terminalCommand?.takeIf { it.isNotEmpty() }?.let { command ->
-                Text(
-                    text = "$ $command",
-                    style =
-                        MaterialTheme.typography.bodySmall.copy(
-                            color = contentColor.copy(alpha = 0.7f),
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp,
-                        ),
-                )
-            }
-            view.stdout?.let {
-                Text(
-                    text = it,
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 240.dp)
-                            .verticalScroll(rememberScrollState()),
-                    style =
-                        MaterialTheme.typography.bodySmall.copy(
-                            color = contentColor.copy(alpha = 0.9f),
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp,
-                        ),
-                )
-            }
-            view.stderr?.let {
-                Text(
-                    text = it,
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 240.dp)
-                            .verticalScroll(rememberScrollState()),
-                    style =
-                        MaterialTheme.typography.bodySmall.copy(
-                            color = contentColor.copy(alpha = 0.6f),
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp,
-                        ),
-                )
-            }
-            view.exitCode?.let { code ->
-                if (code != 0) {
-                    Text(
-                        text = stringResource(R.string.chat_tool_exit_code, code),
-                        style =
-                            MaterialTheme.typography.labelSmall.copy(
-                                color = statusColors.warning,
-                                fontWeight = FontWeight.Medium,
-                            ),
-                    )
-                }
-            }
-        } else {
-            // ── Generated/resolved image preview ──
-            view.imageUrl?.let { url ->
-                AsyncImage(
-                    model = url,
-                    contentDescription = view.title,
-                    contentScale = ContentScale.Crop,
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 200.dp)
-                            .clip(RoundedCornerShape(8.dp)),
-                )
-            }
-
-            // ── File diff ──
-            if (view.inlineDiff != null) {
-                DiffViewCard(
-                    diffText = view.inlineDiff,
-                    filePath = view.diffPath,
-                )
-            } else if (view.fileContent != null) {
-                FileViewCard(
-                    content = view.fileContent,
-                    filePath = view.filePath,
-                )
-            }
-
-            // ── Search hits ──
-            if (!view.searchHits.isNullOrEmpty()) {
-                view.detailLabel?.let { label ->
-                    Text(
-                        text = label,
-                        style =
-                            MaterialTheme.typography.labelSmall.copy(
-                                color = contentColor.copy(alpha = 0.6f),
-                                fontWeight = FontWeight.Bold,
-                            ),
-                    )
-                }
-                view.searchHits.forEach { hit ->
-                    Column(modifier = Modifier.padding(top = 2.dp)) {
-                        if (hit.title.isNotEmpty()) {
-                            Text(
-                                text = hit.title,
-                                style =
-                                    MaterialTheme.typography.bodySmall.copy(
-                                        color = contentColor.copy(alpha = 0.9f),
-                                        fontWeight = FontWeight.Medium,
-                                    ),
-                            )
-                        }
-                        if (hit.snippet.isNotEmpty()) {
-                            Text(
-                                text = hit.snippet,
-                                style =
-                                    MaterialTheme.typography.bodySmall.copy(
-                                        color = contentColor.copy(alpha = 0.6f),
-                                        fontSize = 11.sp,
-                                    ),
-                                maxLines = 3,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                        if (hit.url.isNotEmpty()) {
-                            Text(
-                                text = hit.url,
-                                style =
-                                    MaterialTheme.typography.bodySmall.copy(
-                                        color = contentColor.copy(alpha = 0.7f),
-                                        fontSize = 11.sp,
-                                    ),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
-                }
-            }
-
-            // ── Plain detail body ──
-            if (view.detail.isNotBlank() && view.inlineDiff == null && view.fileContent == null) {
-                Text(
-                    text = view.detail,
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 240.dp)
-                            .verticalScroll(rememberScrollState()),
-                    style =
-                        MaterialTheme.typography.bodySmall.copy(
-                            color = contentColor.copy(alpha = 0.9f),
-                            fontSize = 12.sp,
-                        ),
-                )
-            }
-        }
-
-        view.outputCut?.let { omitted ->
-            Text(
-                text = stringResource(R.string.chat_tool_output_omitted, omitted),
-                style = MaterialTheme.typography.labelSmall.copy(color = statusColors.warning),
-            )
-        }
-
-        // ── Duration footer ──
-        view.durationLabel?.let {
-            Text(
-                text = stringResource(R.string.tool_duration, it),
-                style =
-                    MaterialTheme.typography.labelSmall.copy(
-                        color = contentColor.copy(alpha = 0.5f),
-                    ),
-            )
-        }
-    }
-}
-
-@Composable
-private fun HeaderRow(
-    message: ChatMessage,
-    config: ToolDisplayConfig,
-    contentColor: Color,
-    statusColors: HermesStatusColors,
-    displayName: String? = null,
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        // Status icon or spinner
-        if (message.isToolRunning) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(14.dp),
-                strokeWidth = 2.dp,
-                color = MaterialTheme.colorScheme.secondary,
-            )
-        } else {
-            val icon =
-                when (message.toolStatus) {
-                    ToolStatus.COMPLETED -> Icons.Filled.CheckCircle
-                    ToolStatus.FAILED -> Icons.Filled.Error
-                    else -> Icons.Filled.Build
-                }
-            val tint =
-                when (message.toolStatus) {
-                    ToolStatus.COMPLETED -> statusColors.success
-                    ToolStatus.FAILED -> statusColors.error
-                    else -> contentColor.copy(alpha = 0.6f)
-                }
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(14.dp),
-                tint = tint,
-            )
-        }
-
-        Text(
-            text = displayName ?: message.toolName ?: stringResource(R.string.chat_tool_fallback),
-            style =
-                MaterialTheme.typography.labelMedium.copy(
-                    color = contentColor,
-                    fontFamily = FontFamily.Monospace,
-                ),
-        )
-    }
-}
-
-/**
- * Security risk chip for [tool.output_risk] events.
- *
- * Shows a compact ⚠ badge when the backend flagged tool output as risky.
- * Renders in the tool card between the header row and the summary line.
- */
-@Composable
-internal fun SecurityRiskChip(
-    riskData: ToolOutputRiskData,
-    contentColor: Color,
-    modifier: Modifier = Modifier,
-) {
-    val statusColors = LocalHermesStatusColors.current
-    val (chipColor, label) =
-        when {
-            riskData.risk == "high" -> statusColors.error to "Risky output"
-            riskData.risk == "medium" -> statusColors.warning to "Caution"
-            else -> statusColors.warning to "Redacted"
-        }
-
-    Row(
-        modifier =
-            modifier
-                .padding(top = 4.dp, start = 22.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Icon(
-            imageVector = Icons.Filled.Warning,
-            contentDescription = null,
-            tint = chipColor,
-            modifier = Modifier.size(14.dp),
-        )
-        Text(
-            text = label,
-            style =
-                MaterialTheme.typography.labelSmall.copy(
-                    fontWeight = FontWeight.Medium,
-                ),
-            color = chipColor,
-        )
-        if (riskData.redacted && (riskData.risk == "high" || riskData.risk == "medium")) {
-            Text(
-                text = stringResource(R.string.tool_redacted),
-                style = MaterialTheme.typography.labelSmall,
-                color = chipColor.copy(alpha = 0.7f),
-            )
-        }
-    }
-}
-
-@Composable
-private fun ToolRawJsonView(
-    rawContent: String,
-    modifier: Modifier = Modifier,
-) {
-    var formatJson by remember { mutableStateOf(true) }
-    val formattedContent = remember(rawContent) { ToolJson.prettyPrintJson(rawContent) }
-    val isFormatDifferent = formattedContent != rawContent
-    val displayText = if (formatJson && isFormatDifferent) formattedContent else rawContent
-
-    val highlighted by produceState(
-        initialValue = remember(displayText) { AnnotatedString(displayText) },
-        key1 = displayText,
-    ) {
-        value =
-            withContext(Dispatchers.Default) {
-                highlightSyntax(displayText)
-            }
-    }
-
-    CodeTerminalCard(
-        textToCopy = displayText,
-        modifier = modifier,
-        testTag = "tool_raw_json",
-        title = "JSON",
-        copyContentDescription = stringResource(R.string.content_desc_copy),
-        headerActions = {
-            if (isFormatDifferent) {
-                Text(
-                    text =
-                        if (formatJson) {
-                            stringResource(R.string.chat_tool_compact_json)
-                        } else {
-                            stringResource(R.string.chat_tool_format_json)
-                        },
-                    style =
-                        MaterialTheme.typography.labelSmall.copy(
-                            color = MaterialTheme.colorScheme.primary,
-                            textDecoration = TextDecoration.Underline,
-                        ),
-                    modifier =
-                        Modifier
-                            .testTag("tool_json_format_toggle")
-                            .clickable(role = Role.Button) { formatJson = !formatJson }
-                            .padding(horizontal = 6.dp, vertical = 2.dp),
-                )
-            }
-        },
-    ) {
-        SelectionContainer {
-            Text(
-                text = highlighted,
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 280.dp)
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                fontFamily = FontFamily.Monospace,
-                fontSize = 12.sp,
-                color = CodeTerminalText,
-                softWrap = true,
-            )
         }
     }
 }

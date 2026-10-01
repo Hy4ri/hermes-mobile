@@ -5,7 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.model.ProcessInfo
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.HermesWsClient
-import com.m57.hermescontrol.data.ws.WsMethods
+import com.m57.hermescontrol.data.ws.contract.ProcessKillParams
+import com.m57.hermescontrol.data.ws.contract.RpcMethods
+import com.m57.hermescontrol.data.ws.contract.SessionIdParams
+import com.m57.hermescontrol.data.ws.toAny
 import com.m57.hermescontrol.ui.common.ToastHost
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -67,13 +70,8 @@ class ProcessesViewModel :
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         viewModelScope.launch {
             try {
-                val result =
-                    HermesWsClient
-                        .request(
-                            WsMethods.PROCESS_LIST,
-                            mapOf("session_id" to sessionId),
-                        ).await()
-                val processes = parseProcessList(result)
+                val result = HermesWsClient.call(RpcMethods.PROCESS_LIST, SessionIdParams(sessionId))
+                val processes = parseProcessList(result.toAny())
                 _uiState.update {
                     it.copy(
                         isLoading = false,
@@ -105,14 +103,7 @@ class ProcessesViewModel :
         _uiState.update { it.copy(killingId = processId) }
         viewModelScope.launch {
             try {
-                HermesWsClient
-                    .request(
-                        WsMethods.PROCESS_KILL,
-                        mapOf(
-                            "process_id" to processId,
-                            "session_id" to sessionId,
-                        ),
-                    ).await()
+                HermesWsClient.call(RpcMethods.PROCESS_KILL, ProcessKillParams(sessionId, processId))
                 _uiState.update { it.copy(killingId = null, toastMessage = "Process killed") }
                 load()
             } catch (e: Exception) {

@@ -30,8 +30,9 @@ fun MarkdownInlineText(
     linkColor: Color,
     highlights: SearchHighlightColors,
     modifier: Modifier = Modifier,
+    isRtlOverride: Boolean? = null,
 ) {
-    val isRtl = remember(text) { BidiUtils.isRtlText(text) }
+    val isRtl = isRtlOverride ?: remember(text) { BidiUtils.isRtlText(text) }
     val direction = if (isRtl) LayoutDirection.Rtl else LocalLayoutDirection.current
     val resolvedStyle =
         style.copy(
@@ -66,38 +67,56 @@ fun MarkdownInlineText(
         }
 
         val config =
-            LatexConfig(
-                fontSize = style.fontSize,
-                theme = LatexTheme.light(color = textColor, backgroundColor = Color.Transparent),
-                accessibilityEnabled = true,
-            )
-        val inlineContent = mutableMapOf<String, InlineTextContent>()
-        segments.forEachIndexed { index, segment ->
-            if (segment is InlineMathSegment.Math) {
-                latexMeasurer.inlineContent(segment.latex, config)?.let { inlineContent["latex-$index"] = it }
+            remember(style.fontSize, textColor) {
+                LatexConfig(
+                    fontSize = style.fontSize,
+                    theme = LatexTheme.light(color = textColor, backgroundColor = Color.Transparent),
+                    accessibilityEnabled = true,
+                )
             }
-        }
-        val annotated =
-            buildAnnotatedString {
+        val inlineContent =
+            remember(segments, latexMeasurer, config) {
+                val map = mutableMapOf<String, InlineTextContent>()
                 segments.forEachIndexed { index, segment ->
-                    when (segment) {
-                        is InlineMathSegment.Math -> {
-                            val id = "latex-$index"
-                            if (id in inlineContent) appendInlineContent(id, segment.latex) else append(segment.latex)
-                        }
+                    if (segment is InlineMathSegment.Math) {
+                        latexMeasurer.inlineContent(segment.latex, config)?.let { map["latex-$index"] = it }
+                    }
+                }
+                map
+            }
+        val annotated =
+            remember(
+                segments,
+                inlineContent,
+                textColor,
+                searchQuery,
+                isCurrentMatch,
+                linkColor,
+                highlights,
+                isRtl,
+            ) {
+                buildAnnotatedString {
+                    segments.forEachIndexed { index, segment ->
+                        when (segment) {
+                            is InlineMathSegment.Math -> {
+                                val id = "latex-$index"
+                                val measured = id in inlineContent
+                                if (measured) appendInlineContent(id, segment.latex) else append(segment.latex)
+                            }
 
-                        is InlineMathSegment.Text -> {
-                            append(
-                                MarkdownInlineStyler.parseInlineSource(
-                                    text = segment.value,
-                                    textColor = textColor,
-                                    searchQuery = searchQuery,
-                                    isCurrentMatch = isCurrentMatch,
-                                    linkColor = linkColor,
-                                    highlights = highlights,
-                                    isRtl = isRtl,
-                                ),
-                            )
+                            is InlineMathSegment.Text -> {
+                                append(
+                                    MarkdownInlineStyler.parseInlineSource(
+                                        text = segment.value,
+                                        textColor = textColor,
+                                        searchQuery = searchQuery,
+                                        isCurrentMatch = isCurrentMatch,
+                                        linkColor = linkColor,
+                                        highlights = highlights,
+                                        isRtl = isRtl,
+                                    ),
+                                )
+                            }
                         }
                     }
                 }

@@ -21,6 +21,7 @@ import com.m57.hermescontrol.data.model.parseContextBreakdown
 import com.m57.hermescontrol.data.model.parseUsageSnapshot
 import com.m57.hermescontrol.data.model.reasoningSupport
 import com.m57.hermescontrol.data.remote.ApiClient
+import com.m57.hermescontrol.data.remote.GatewayFileClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.safeApiCall
@@ -36,10 +37,34 @@ import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.JsonRpcError
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
+import com.m57.hermescontrol.data.ws.contract.CommandDispatchParams
+import com.m57.hermescontrol.data.ws.contract.CommandsCatalogParams
+import com.m57.hermescontrol.data.ws.contract.ConfigGetParams
+import com.m57.hermescontrol.data.ws.contract.ConfigSetParams
+import com.m57.hermescontrol.data.ws.contract.FileAttachParams
+import com.m57.hermescontrol.data.ws.contract.ImageAttachBytesParams
+import com.m57.hermescontrol.data.ws.contract.ProcessStopParams
+import com.m57.hermescontrol.data.ws.contract.PromptBtwParams
+import com.m57.hermescontrol.data.ws.contract.RpcMethod
+import com.m57.hermescontrol.data.ws.contract.RpcMethods
+import com.m57.hermescontrol.data.ws.contract.SessionBranchParams
+import com.m57.hermescontrol.data.ws.contract.SessionBranchWholeParams
+import com.m57.hermescontrol.data.ws.contract.SessionCompressParams
+import com.m57.hermescontrol.data.ws.contract.SessionCorrectionParams
+import com.m57.hermescontrol.data.ws.contract.SessionCreateParams
+import com.m57.hermescontrol.data.ws.contract.SessionIdParams
+import com.m57.hermescontrol.data.ws.contract.SessionInterruptParams
+import com.m57.hermescontrol.data.ws.contract.SessionListParams
+import com.m57.hermescontrol.data.ws.contract.SessionResumeParams
+import com.m57.hermescontrol.data.ws.contract.SlashExecParams
+import com.m57.hermescontrol.data.ws.contract.TypedRpcSender
 import com.m57.hermescontrol.data.ws.toAny
 import com.m57.hermescontrol.data.ws.toJsonElement
+import com.m57.hermescontrol.notification.ReplyNotificationTracker
 import com.m57.hermescontrol.notification.captureTurnBoundary
 import com.m57.hermescontrol.notification.correlationScopeId
+import com.m57.hermescontrol.ui.chat.fullbleed.TranscriptUiState
+import com.m57.hermescontrol.ui.chat.tool.ToolViewCache
 import com.m57.hermescontrol.ui.common.ActionProgressController
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -51,6 +76,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -441,13 +469,32 @@ class ChatViewModel(
     constructor(application: Application) : this(application, startCleanup = true)
 
     private val connectionOperationDelegate =
-        ChatConnectionOperationDelegate { method, params ->
-            HermesWsClient.request(method, params).await()
+        ChatConnectionOperationDelegate { action ->
+            when (action) {
+                is ConnectionOperationRequest.Respond -> {
+                    HermesWsClient.call(RpcMethods.CONNECTION_RESPOND, action.params)
+                }
+
+                is ConnectionOperationRequest.Wake -> {
+                    HermesWsClient.call(RpcMethods.CONNECTORS_OPERATION_WAKE, action.params)
+                }
+            }
         }
 
     // ── Internal state ───────────────────────────────────────────────────
     private val _uiState = MutableStateFlow(ChatUiState())
     val connectionOperationState: StateFlow<ConnectionOperationUiState> = connectionOperationDelegate.state
+    private val connectionBrowserReturnTracker = BrowserReturnTracker()
+
+    fun connectionBrowserLaunched(operationId: String) = connectionBrowserReturnTracker.start(operationId)
+
+    fun connectionBrowserLaunchFailed() = connectionBrowserReturnTracker.cancel()
+
+    fun connectionBrowserPaused() = connectionBrowserReturnTracker.onPause()
+
+    fun connectionBrowserReturned(): String? = connectionBrowserReturnTracker.onResume()?.operationId
+
+    fun abandonConnectionBrowser(): Boolean = connectionBrowserReturnTracker.abandon()
 
     private val _streamingState = MutableStateFlow(StreamingState())
 
@@ -488,7 +535,7 @@ class ChatViewModel(
 
     private data class PendingBranchRequest(
         val generation: Long,
-        val params: Map<String, Any>,
+        val params: SessionBranchWholeParams,
     )
 
     private val sessionRequestById = ConcurrentHashMap<String, SessionRequest>()
@@ -655,13 +702,13 @@ class ChatViewModel(
             ioDispatcher = ioDispatcher,
             uiState = _uiState,
             runtimeSessionId = { runtimeSessionId },
-            wsSend = { method, params, onSent -> wsClient.send(method, params, onSent) },
+            wsSend = { params, onSent -> wsClient.send(RpcMethods.CONFIG_SET, params, onSent) },
             trackRequest = { id, method -> trackRequest(id, method) },
             addAssistantMessage = { text -> addAssistantMessage(text) },
             handleSlashCommand = { cmd -> handleSlashCommand(cmd) },
             fetchContextUsage = { fetchContextUsage() },
             onModelSwitchInitiated = { onModelSwitchInitiated() },
-            wsRequest = { method, params -> wsClient.request(method, params).await() },
+            wsRequest = { params -> wsClient.call(RpcMethods.CONFIG_SET, params) },
         ).apply {
             attachScopeObserver(viewModelScope)
         }
@@ -682,7 +729,14 @@ class ChatViewModel(
             ioDispatcher = ioDispatcher,
             uiState = _uiState,
             runtimeSessionId = { runtimeSessionId },
-            wsSend = { method, params, onSent -> wsClient.send(method, params, onSent) },
+            rpc =
+                object : TypedRpcSender {
+                    override fun <P> send(
+                        method: RpcMethod<P, *>,
+                        params: P,
+                        onSent: ((String) -> Unit)?,
+                    ): String = wsClient.send(method, params, onSent)
+                },
             trackRequest = { id, method -> trackRequest(id, method) },
             addSystemMessage = { text -> addSystemMessage(text) },
             respondToServerRequest = { id, result -> wsClient.respondToServerRequest(id, result) },
@@ -733,6 +787,33 @@ class ChatViewModel(
             SharingStarted.Eagerly,
             _uiState.value,
         )
+
+    val transcriptState: StateFlow<TranscriptUiState> =
+        combine(uiState, timelineState, streamingState) { chat, timeline, streaming ->
+            TranscriptUiState.resolve(chat, timeline, streaming, savingAttachmentPath = null, speakingMessageId = null)
+        }.stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            TranscriptUiState.resolve(_uiState.value, _timelineState.value, _streamingState.value, null, null),
+        )
+
+    init {
+        // Parse tool payloads off the main thread before the transcript
+        // composes them (issue #1327); ToolBubble then reads a cache hit.
+        viewModelScope.launch(searchDispatcher) {
+            _uiState
+                .map { it.messages }
+                .distinctUntilChanged()
+                .conflate()
+                .collect { messages ->
+                    for (message in messages) {
+                        if (message.role == MessageRole.TOOL) {
+                            ToolViewCache.prewarm(message.content, message.toolName, message.isToolRunning)
+                        }
+                    }
+                }
+        }
+    }
 
     /**
      * Session ID to resume when the WebSocket connects. Set synchronously by
@@ -999,13 +1080,7 @@ class ChatViewModel(
             is WsEvent.MessageDone,
             is WsEvent.ToolStart,
             -> {
-                streamingController.flushPendingReasoning()
-                // Issue #842: the token buffer can hold deltas that landed
-                // <33ms before the transition. The reducer seals the
-                // streaming message into the orphan at tool.start — flush
-                // first so the seal carries the COMPLETE narration (a
-                // truncated seal fails the later REST dedupe and ghosts).
-                streamingController.flushPendingTokens()
+                streamingController.flushPendingTransition()
             }
 
             else -> {}
@@ -1042,6 +1117,9 @@ class ChatViewModel(
             }
 
             is WsEvent.MessageToken -> {
+                // The interrupted partial is already sealed. Wait for its authoritative
+                // completion instead of letting trailing deltas create a second stream.
+                if (_streamingState.value.interruptedMessage != null && isCurrentSession(event.sessionId)) return
                 if (isCurrentSession(event.sessionId)) mainTurnBusy = true
                 streamingController.handleMessageToken(event)
             }
@@ -1944,9 +2022,23 @@ class ChatViewModel(
                 if (targetsCurrentTurn && status in setOf("interrupted", "not_interrupted")) {
                     // Never let a late result for an older same-session turn
                     // erase a newer stream or make its replacement race it.
+                    streamingController.flushPendingTransition()
+                    val interruptedStream = _streamingState.value
                     sealStreamingMessageIfAny()
+                    val interruptedMessage =
+                        interruptedStream.streamingMessage?.let { stream ->
+                            _uiState.value.messages.firstOrNull { it.id == stream.id }
+                        }
                     _uiState.update { it.copy(isAgentTyping = false) }
-                    _streamingState.update { StreamingState() }
+                    _streamingState.update {
+                        interruptedStream.copy(
+                            streamingMessage = null,
+                            interruptedMessage = interruptedMessage,
+                            isThinking = false,
+                            thinkingText = "",
+                            isReasoning = false,
+                        )
+                    }
                     streamingController.resetStreaming()
                     if (status == "interrupted") addSystemMessage("Session interrupted")
                     mainTurnBusy = false
@@ -2183,12 +2275,12 @@ class ChatViewModel(
                 (error as? JsonRpcError)?.code
                     ?: (error as? Map<*, *>)?.get("code") as? Int
             if (code == -32601 && pendingBranch != null && pendingBranch.generation == sessionGeneration) {
-                val params = pendingBranch.params
+                val p = pendingBranch.params
                 val generation = pendingBranch.generation
                 viewModelScope.launch(ioDispatcher) {
                     wsClient.send(
-                        WsMethods.SESSION_BRANCH,
-                        params,
+                        RpcMethods.SESSION_BRANCH,
+                        SessionBranchParams(sessionId = p.sessionId, name = p.name),
                         onSent = { branchId ->
                             trackSessionRequest(branchId, WsMethods.SESSION_BRANCH, generation)
                         },
@@ -2211,6 +2303,10 @@ class ChatViewModel(
     }
 
     // ── Send message ─────────────────────────────────────────────────────
+
+    /** Authenticated gateway URL for a host `MEDIA:` path; kept out of the pure mapper (#1337). */
+    private fun gatewayMediaUrl(path: String): String? =
+        GatewayFileClient.buildMediaUrl(AuthManager.getBaseUrl(), AuthManager.getToken().orEmpty(), path)
 
     private fun sendScope(): String =
         listOf(
@@ -2411,8 +2507,8 @@ class ChatViewModel(
                         deleteSnapshotOnRollback = true,
                     ) {
                         wsClient.send(
-                            WsMethods.SESSION_INTERRUPT,
-                            mapOf("session_id" to owner.agentSessionId),
+                            RpcMethods.SESSION_INTERRUPT,
+                            SessionInterruptParams(owner.agentSessionId),
                             onSent = { id -> trackHardInterrupt(id, staged.id, owner, reservation.mainTurnEpoch) },
                         )
                     }
@@ -2778,8 +2874,8 @@ class ChatViewModel(
                     deleteSnapshotOnRollback = false,
                 ) {
                     wsClient.send(
-                        WsMethods.SESSION_INTERRUPT,
-                        mapOf("session_id" to owner.agentSessionId),
+                        RpcMethods.SESSION_INTERRUPT,
+                        SessionInterruptParams(owner.agentSessionId),
                         onSent = { requestId -> trackHardInterrupt(requestId, id, owner, interruptedTurnEpoch) },
                     )
                 }
@@ -3000,8 +3096,8 @@ class ChatViewModel(
             viewModelScope.launch {
                 commitReceiptAndEnqueue(owner, receipt, null, deleteSnapshotOnRollback = false) {
                     wsClient.send(
-                        WsMethods.SESSION_INTERRUPT,
-                        mapOf("session_id" to owner.agentSessionId),
+                        RpcMethods.SESSION_INTERRUPT,
+                        SessionInterruptParams(owner.agentSessionId),
                         onSent = { id -> trackHardInterrupt(id, userMessage.id, owner, interruptedTurnEpoch) },
                     )
                 }
@@ -3327,13 +3423,13 @@ class ChatViewModel(
                         if (attachment.isImage) {
                             val deferred =
                                 enqueueOwned {
-                                    wsClient.request(
-                                        WsMethods.IMAGE_ATTACH_BYTES,
-                                        mapOf(
-                                            "session_id" to owner.agentSessionId,
-                                            "content_base64" to "data:${attachment.mimeType};base64,$b64",
-                                            "filename" to attachment.name,
-                                            "ext" to attachment.fileExtension,
+                                    wsClient.requestTyped(
+                                        RpcMethods.IMAGE_ATTACH_BYTES,
+                                        ImageAttachBytesParams(
+                                            sessionId = owner.agentSessionId,
+                                            contentBase64 = "data:${attachment.mimeType};base64,$b64",
+                                            filename = attachment.name,
+                                            ext = attachment.fileExtension,
                                         ),
                                     )
                                 } ?: return@launch
@@ -3346,12 +3442,12 @@ class ChatViewModel(
                         } else {
                             val deferred =
                                 enqueueOwned {
-                                    wsClient.request(
-                                        WsMethods.FILE_ATTACH,
-                                        mapOf(
-                                            "session_id" to owner.agentSessionId,
-                                            "data_url" to "data:${attachment.mimeType};base64,$b64",
-                                            "name" to attachment.name,
+                                    wsClient.requestTyped(
+                                        RpcMethods.FILE_ATTACH,
+                                        FileAttachParams(
+                                            sessionId = owner.agentSessionId,
+                                            dataUrl = "data:${attachment.mimeType};base64,$b64",
+                                            name = attachment.name,
                                         ),
                                     )
                                 } ?: return@launch
@@ -3394,8 +3490,8 @@ class ChatViewModel(
                         if (mode == BusySendMode.GUIDE) {
                             enqueueOwned {
                                 wsClient.send(
-                                    WsMethods.SESSION_STEER,
-                                    mapOf("session_id" to owner.agentSessionId, "text" to fullText),
+                                    RpcMethods.SESSION_STEER,
+                                    SessionCorrectionParams(owner.agentSessionId, fullText),
                                     onSent = { id ->
                                         trackOutgoingRequest(
                                             id,
@@ -3532,18 +3628,6 @@ class ChatViewModel(
     private fun attachmentTooLargeMessage(attachment: Attachment): String =
         "Attachment too large: ${attachment.name} (maximum 10 MB)"
 
-    /**
-     * Send a JSON-RPC call and suspend until the response arrives, delegating
-     * the deferred + 120s timeout to [HermesWsClient.request] (issue #526).
-     * Throws [HermesWsClient.HermesRpcException] on RPC error, or
-     * [kotlinx.coroutines.TimeoutCancellationException] if the server never
-     * answers within the timeout.
-     */
-    private suspend fun sendRpcAndAwait(
-        method: String,
-        params: Map<String, Any>,
-    ): Any? = HermesWsClient.request(method, params).await()
-
     // ── Attachment management ─────────────────────────────────────────────
 
     /**
@@ -3648,6 +3732,10 @@ class ChatViewModel(
         when (result) {
             is SlashResult.Interrupt -> {
                 interruptSession()
+            }
+
+            is SlashResult.Stop -> {
+                stopSessionAndProcesses()
             }
 
             is SlashResult.NewSession -> {
@@ -3787,14 +3875,10 @@ class ChatViewModel(
             viewModelScope.launch(ioDispatcher) {
                 try {
                     val result =
-                        wsClient
-                            .request(
-                                WsMethods.CONFIG_GET,
-                                mapOf(
-                                    "key" to "reasoning",
-                                    "session_id" to sessionId,
-                                ),
-                            ).await()
+                        wsClient.call(
+                            RpcMethods.CONFIG_GET,
+                            ConfigGetParams(key = "reasoning", sessionId = sessionId),
+                        )
                     val map = rpcResultMap(result) ?: error("Invalid reasoning config.get response")
                     val value = (map["value"] as? String)?.takeIf { it.isNotBlank() } ?: "unknown"
                     val display = (map["display"] as? String)?.takeIf { it.isNotBlank() } ?: "unknown"
@@ -3842,13 +3926,13 @@ class ChatViewModel(
         viewModelScope.launch(ioDispatcher) {
             try {
                 val params =
-                    buildMap<String, Any> {
-                        put("key", "reasoning")
-                        put("value", parsed.value)
-                        put("session_id", sessionId)
-                        parsed.scopeName?.let { put("scope", it) }
-                    }
-                val result = wsClient.request(WsMethods.CONFIG_SET, params).await()
+                    ConfigSetParams(
+                        key = "reasoning",
+                        value = parsed.value,
+                        sessionId = sessionId,
+                        scope = parsed.scopeName,
+                    )
+                val result = wsClient.call(RpcMethods.CONFIG_SET, params)
                 val map = rpcResultMap(result) ?: error("Invalid reasoning config.set response")
                 val responseKey = map["key"] as? String
                 val responseValue = map["value"] as? String
@@ -3896,13 +3980,12 @@ class ChatViewModel(
 
         viewModelScope.launch(ioDispatcher) {
             try {
-                val rpcResult =
+                val taskId =
                     wsClient
-                        .request(
-                            WsMethods.PROMPT_BTW,
-                            mapOf("session_id" to sessionId, "text" to trimmed),
-                        ).await()
-                val taskId = (rpcResult as? Map<*, *>)?.get("task_id") as? String
+                        .call(
+                            RpcMethods.PROMPT_BTW,
+                            PromptBtwParams(sessionId = sessionId, text = trimmed),
+                        ).taskId
                 if (!taskId.isNullOrBlank()) {
                     _uiState.update { state ->
                         state.btwState?.let { current ->
@@ -3988,12 +4071,11 @@ class ChatViewModel(
             return
         }
         val arg = command.split(" ", limit = 2).getOrElse(1) { "" }.trim()
-        val params = mutableMapOf<String, Any>("session_id" to sessionId)
-        if (arg.isNotBlank()) params["name"] = arg
+        val params = SessionBranchWholeParams(sessionId = sessionId, name = arg.takeIf { it.isNotBlank() })
         val generation = sessionGeneration
         viewModelScope.launch(ioDispatcher) {
             wsClient.send(
-                WsMethods.SESSION_BRANCH_WHOLE,
+                RpcMethods.SESSION_BRANCH_WHOLE,
                 params,
                 onSent = { id ->
                     branchWholeRequests[id] = PendingBranchRequest(generation, params)
@@ -4021,12 +4103,11 @@ class ChatViewModel(
                 // #576). For those we fall back to slash.exec, which runs the
                 // full COMMAND_REGISTRY through the worker.
                 val result =
-                    wsClient
-                        .request(
-                            WsMethods.COMMAND_DISPATCH,
-                            mapOf("name" to name, "arg" to arg, "session_id" to sessionId),
-                        ).await()
-                handleDispatchResult(result)
+                    wsClient.call(
+                        RpcMethods.COMMAND_DISPATCH,
+                        CommandDispatchParams(name = name, arg = arg, sessionId = sessionId),
+                    )
+                handleDispatchResult(result.toAny())
             } catch (e: HermesWsClient.HermesRpcException) {
                 val msg = e.message.orEmpty()
                 // Registry miss on command.dispatch: the backend emits exactly
@@ -4038,15 +4119,14 @@ class ChatViewModel(
                     // which routes the full CLI command set through the worker.
                     try {
                         val result =
-                            wsClient
-                                .request(
-                                    WsMethods.SLASH_EXEC,
-                                    mapOf(
-                                        "command" to "/$name${if (arg.isNotEmpty()) " $arg" else ""}",
-                                        "session_id" to sessionId,
-                                    ),
-                                ).await()
-                        val output = (result as? Map<*, *>)?.get("output") as? String
+                            wsClient.call(
+                                RpcMethods.SLASH_EXEC,
+                                SlashExecParams(
+                                    sessionId = sessionId,
+                                    command = "/$name${if (arg.isNotEmpty()) " $arg" else ""}",
+                                ),
+                            )
+                        val output = (result.toAny() as? Map<*, *>)?.get("output") as? String
                         if (!output.isNullOrBlank()) addAssistantMessage(output)
                     } catch (e2: HermesWsClient.HermesRpcException) {
                         addAssistantMessage("/$name: ${e2.message}")
@@ -4093,7 +4173,7 @@ class ChatViewModel(
             ChatMessage(
                 role = MessageRole.ASSISTANT,
                 content = text,
-                displayKind = "local_feedback",
+                displayKind = DisplayKind.LOCAL_FEEDBACK,
             )
         _uiState.update { it.copy(messages = it.messages + msg) }
 
@@ -4118,12 +4198,11 @@ class ChatViewModel(
         viewModelScope.launch(ioDispatcher) {
             try {
                 val result =
-                    wsClient
-                        .request(
-                            WsMethods.COMMAND_DISPATCH,
-                            mapOf("name" to "undo", "arg" to count, "session_id" to sessionId),
-                        ).await()
-                handleDispatchResult(result)
+                    wsClient.call(
+                        RpcMethods.COMMAND_DISPATCH,
+                        CommandDispatchParams(name = "undo", arg = count, sessionId = sessionId),
+                    )
+                handleDispatchResult(result.toAny())
             } catch (e: HermesWsClient.HermesRpcException) {
                 addAssistantMessage(e.message ?: "Failed to undo.")
             } catch (e: Exception) {
@@ -4151,21 +4230,16 @@ class ChatViewModel(
 
         viewModelScope.launch(ioDispatcher) {
             try {
-                val params =
-                    buildMap<String, Any> {
-                        put("session_id", sessionId)
-                        if (focusTopic.isNotBlank()) {
-                            put("focus_topic", focusTopic)
-                        }
-                    }
                 // Use extended timeout (e.g. 300_000L / 5 minutes) so LLM summarization doesn't timeout
                 val result =
-                    wsClient
-                        .request(
-                            WsMethods.SESSION_COMPRESS,
-                            params,
-                            timeoutMs = 300_000L,
-                        ).await()
+                    wsClient.call(
+                        RpcMethods.SESSION_COMPRESS,
+                        SessionCompressParams(
+                            sessionId = sessionId,
+                            focusTopic = focusTopic.takeIf { it.isNotBlank() },
+                        ),
+                        timeoutMs = 300_000L,
+                    )
 
                 handleCompressionResult(result)
             } catch (e: HermesWsClient.HermesRpcException) {
@@ -4196,20 +4270,28 @@ class ChatViewModel(
         val sessionId = runtimeSessionId ?: _uiState.value.currentSessionId
 
         // 1. Authoritative transcript replacement
+        // Rows without a server id can't be keyed under newest-anchored paging; the mapper would throw and
+        // abort the whole result (feedback included). Fall back to a REST reload for those.
+        var needsReload = false
         if (response?.messages != null && sessionId != null) {
-            val replacementMessages =
-                withContext(historyDispatcher) {
-                    mapServerMessages(
-                        sessionId = sessionId,
-                        messages = response.messages,
-                        offset = 0,
-                        latestPaging = latestPaging,
-                        liveMessages = emptyList(),
-                        context = getApplication(),
-                    )
-                }
-            _uiState.update { it.copy(messages = replacementMessages) }
-            persistHistoryPage(replacementMessages, sessionId)
+            if (!latestPaging || response.messages.all { it.id != null }) {
+                val replacementMessages =
+                    withContext(historyDispatcher) {
+                        mapServerMessages(
+                            sessionId = sessionId,
+                            messages = response.messages,
+                            offset = 0,
+                            latestPaging = latestPaging,
+                            liveMessages = emptyList(),
+                            activeReplyTarget = ReplyNotificationTracker.getActiveTarget(getApplication()),
+                            mediaUrl = ::gatewayMediaUrl,
+                        )
+                    }
+                _uiState.update { it.copy(messages = replacementMessages) }
+                persistHistoryPage(replacementMessages, sessionId)
+            } else {
+                needsReload = true
+            }
         }
 
         // 2. Display result summary via addAssistantMessage
@@ -4225,6 +4307,12 @@ class ChatViewModel(
             } else {
                 response?.message ?: "Context compressed."
             }
+        if (needsReload && sessionId != null) {
+            // Mirror handlePrefillResult: rehydrate from REST first, then post the feedback so it survives.
+            withContext(ioDispatcher) { repo.clearMessagesForSession(sessionId) }
+            _uiState.update { it.copy(messages = emptyList()) }
+            loadSessionMessages(sessionId, sessionGeneration)
+        }
         addAssistantMessage(feedback)
 
         // 3. Refresh usage & sessions
@@ -4284,10 +4372,32 @@ class ChatViewModel(
         }
         viewModelScope.launch(ioDispatcher) {
             wsClient.send(
-                WsMethods.SESSION_INTERRUPT,
-                mapOf("session_id" to sessionId),
+                RpcMethods.SESSION_INTERRUPT,
+                SessionInterruptParams(sessionId),
                 onSent = { id -> trackRequest(id, WsMethods.SESSION_INTERRUPT) },
             )
+        }
+    }
+
+    /**
+     * `/stop`, matching the desktop app: interrupt the active turn (same path as the composer Stop button), then
+     * kill every background process via `process.stop`. The button stays interrupt-only.
+     */
+    private fun stopSessionAndProcesses() {
+        interruptSession()
+        viewModelScope.launch(ioDispatcher) {
+            val message =
+                try {
+                    val killed = wsClient.call(RpcMethods.PROCESS_STOP, ProcessStopParams).killed ?: 0
+                    when {
+                        killed > 0 -> "Stopped $killed background process${if (killed == 1) "" else "es"}."
+                        else -> "No background processes to stop."
+                    }
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    "Could not stop background processes: ${e.message ?: e.javaClass.simpleName}"
+                }
+            addSystemMessage(message)
         }
     }
 
@@ -4392,8 +4502,8 @@ class ChatViewModel(
         val generation = resetSessionState(sessionId = null, title = "Hermes", isLoading = setLoading)
         viewModelScope.launch(ioDispatcher) {
             wsClient.send(
-                WsMethods.SESSION_CREATE,
-                params = mapOf("source" to "desktop"),
+                RpcMethods.SESSION_CREATE,
+                SessionCreateParams(source = "desktop"),
                 onSent = { id -> trackSessionRequest(id, WsMethods.SESSION_CREATE, generation) },
             )
         }
@@ -4413,7 +4523,8 @@ class ChatViewModel(
     fun loadSessions() {
         viewModelScope.launch(ioDispatcher) {
             wsClient.send(
-                WsMethods.SESSION_LIST,
+                RpcMethods.SESSION_LIST,
+                SessionListParams,
                 onSent = { id -> trackRequest(id, WsMethods.SESSION_LIST) },
             )
         }
@@ -4422,7 +4533,8 @@ class ChatViewModel(
     private fun fetchCommandCatalog() {
         viewModelScope.launch(ioDispatcher) {
             wsClient.send(
-                WsMethods.COMMANDS_CATALOG,
+                RpcMethods.COMMANDS_CATALOG,
+                CommandsCatalogParams,
                 onSent = { id -> trackRequest(id, WsMethods.COMMANDS_CATALOG) },
             )
         }
@@ -4699,11 +4811,12 @@ class ChatViewModel(
                                         liveMessages = _uiState.value.messages,
                                         isPagingOlder = true,
                                         stableRowIds = true,
-                                        context = getApplication(),
+                                        activeReplyTarget = ReplyNotificationTracker.getActiveTarget(getApplication()),
+                                        mediaUrl = ::gatewayMediaUrl,
                                     )
                                 }
                             if (!valid()) return@launch
-                            val targetId = "rest-$sessionId-$rowId"
+                            val targetId = RestMessageId.of(sessionId, rowId)
                             if (page.none { it.id == targetId || it.canonicalRestId == targetId }) {
                                 _timelineState.update {
                                     it.copy(windowErrorMessage = "The selected prompt is no longer available.")
@@ -5009,7 +5122,8 @@ class ChatViewModel(
                                         serverOffset,
                                         useLatest,
                                         current,
-                                        context = getApplication(),
+                                        activeReplyTarget = ReplyNotificationTracker.getActiveTarget(getApplication()),
+                                        mediaUrl = ::gatewayMediaUrl,
                                     )
                                 } ?: return@launch
                             persistHistoryPage(page, sessionId)
@@ -5060,7 +5174,7 @@ class ChatViewModel(
         // A mapped page can reuse a live WS message. Never overwrite its newer persisted
         // version with the snapshot used for mapping; WS owns persistence of those IDs.
         val pageIds = page.mapNotNull { it.canonicalRestId }.toSet()
-        val aliases = _uiState.value.messages.filter { it.restId in pageIds && !it.id.startsWith("rest-") }
+        val aliases = _uiState.value.messages.filter { it.restId in pageIds && !RestMessageId.isRest(it.id) }
         withContext(historyDispatcher) {
             repo.persistMessages(
                 page.mapNotNull { message -> message.canonicalRestId?.let { message.copy(id = it, restId = null) } },
@@ -5205,16 +5319,14 @@ class ChatViewModel(
         val connectionCheckpoint = connectionOperationDelegate.resumeCheckpoint()
         val profile = AuthManager.activeProfileId.value
         val params =
-            mutableMapOf<String, Any>(
-                "session_id" to sessionId,
-                "omit_messages" to true,
+            SessionResumeParams(
+                sessionId = sessionId,
+                omitMessages = true,
+                profile = profile?.takeIf { it.isNotBlank() },
             )
-        if (!profile.isNullOrBlank()) {
-            params["profile"] = profile
-        }
         viewModelScope.launch(ioDispatcher) {
             wsClient.send(
-                WsMethods.SESSION_RESUME,
+                RpcMethods.SESSION_RESUME,
                 params,
                 onSent = { id ->
                     trackSessionRequest(
@@ -5466,7 +5578,8 @@ class ChatViewModel(
                                         useLatest,
                                         current,
                                         isPagingOlder = true,
-                                        context = getApplication(),
+                                        activeReplyTarget = ReplyNotificationTracker.getActiveTarget(getApplication()),
+                                        mediaUrl = ::gatewayMediaUrl,
                                     )
                                 } ?: return@launch
                             persistHistoryPage(page, sessionId)
@@ -5547,7 +5660,8 @@ class ChatViewModel(
                                     current,
                                     // Sync fetches recent replies, so confirm live completion identities.
                                     isPagingOlder = false,
-                                    context = getApplication(),
+                                    activeReplyTarget = ReplyNotificationTracker.getActiveTarget(getApplication()),
+                                    mediaUrl = ::gatewayMediaUrl,
                                 )
                             } ?: return@launch
                         persistHistoryPage(page, sessionId)
@@ -5704,9 +5818,9 @@ class ChatViewModel(
                 if (rpcSessionId != null) {
                     try {
                         val result =
-                            sendRpcAndAwait(
-                                WsMethods.SESSION_CONTEXT_BREAKDOWN,
-                                mapOf("session_id" to rpcSessionId),
+                            wsClient.call(
+                                RpcMethods.SESSION_CONTEXT_BREAKDOWN,
+                                SessionIdParams(rpcSessionId),
                             )
                         coroutineContext.ensureActive()
                         val ctx = parseContextBreakdown(result)
@@ -5743,9 +5857,9 @@ class ChatViewModel(
                     if (!isSwitchPending) {
                         try {
                             val usage =
-                                sendRpcAndAwait(
-                                    WsMethods.SESSION_USAGE,
-                                    mapOf("session_id" to rpcSessionId),
+                                wsClient.call(
+                                    RpcMethods.SESSION_USAGE,
+                                    SessionIdParams(rpcSessionId),
                                 )
                             coroutineContext.ensureActive()
                             val snapshot = parseUsageSnapshot(usage)

@@ -21,6 +21,8 @@ internal object HostMediaExtractor {
     data class Item(
         val match: String, // the full matched directive (for stripping)
         val path: String, // normalized absolute path
+        // Issue #1367: char offset into strip(text) where the directive sat.
+        val offset: Int = 0,
     )
 
     /** Matches `MEDIA:<path>` (any extension), supporting quotes/backticks around the path. */
@@ -33,12 +35,18 @@ internal object HostMediaExtractor {
     /** Extract every `MEDIA:<path>` directive from [text] as a normalized item. */
     fun extract(text: String): List<Item> {
         if (!text.contains("MEDIA:")) return emptyList()
+        val total = strip(text).length
+        // Text kept so far, with every directive (valid or not) removed exactly as strip() does.
+        val kept = StringBuilder()
+        var cursor = 0
         return MEDIA_TAG_RE
             .findAll(text)
             .mapNotNull { m ->
+                kept.append(text, cursor, m.range.first)
+                cursor = m.range.last + 1
                 val raw = m.groupValues.drop(1).firstOrNull { it.isNotBlank() } ?: return@mapNotNull null
                 val path = normalizePath(raw) ?: return@mapNotNull null
-                Item(match = m.value, path = path)
+                Item(match = m.value, path = path, offset = strip(kept.toString()).length.coerceAtMost(total))
             }.toList()
     }
 

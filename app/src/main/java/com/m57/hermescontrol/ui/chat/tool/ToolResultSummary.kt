@@ -49,6 +49,14 @@ object ToolResultSummary {
     private val ERROR_MSG_KEYS = listOf("message", "reason", "detail")
     private val NON_ERROR_TEXT = setOf("", "0", "false", "none", "null", "nil", "ok", "success", "n/a", "na")
 
+    private val KEY_SPLIT_REGEX = Regex("[_\\-.]+")
+    private val WHITESPACE_REGEX = Regex("\\s+")
+    private val ERROR_SIGNAL_STATUS_REGEX =
+        Regex(
+            "\\b(error|failed|failure|fatal|exception)\\b",
+            RegexOption.IGNORE_CASE,
+        )
+
     // ── helpers ──────────────────────────────────────────────────────────
 
     private fun normalize(value: String): String = value.lowercase().trim()
@@ -58,7 +66,7 @@ object ToolResultSummary {
 
     private fun titleCase(key: String): String =
         key
-            .split(Regex("[_\\-.]+"))
+            .split(KEY_SPLIT_REGEX)
             .filter { it.isNotEmpty() }
             .joinToString(" ") { capitalize(it) }
 
@@ -72,7 +80,7 @@ object ToolResultSummary {
         value: String,
         max: Int = 180,
     ): String {
-        val c = value.replace(Regex("\\s+"), " ").trim()
+        val c = value.replace(WHITESPACE_REGEX, " ").trim()
 
         return if (c.length > max) "${c.take(max - 1)}…" else c
     }
@@ -456,10 +464,7 @@ object ToolResultSummary {
         return (
             (record["success"] as? JsonPrimitive)?.let { !it.isString && it.content == "false" } == true ||
                 (record["ok"] as? JsonPrimitive)?.let { !it.isString && it.content == "false" } == true ||
-                Regex(
-                    "\\b(error|failed|failure|fatal|exception)\\b",
-                    RegexOption.IGNORE_CASE,
-                ).containsMatchIn(status) ||
+                ERROR_SIGNAL_STATUS_REGEX.containsMatchIn(status) ||
                 ERROR_KEYS.any { k -> hasMeaningfulErrorValue(record[k]) }
         )
     }

@@ -3,6 +3,18 @@ package com.m57.hermescontrol.data.ws
 import com.m57.hermescontrol.data.model.SubagentListItem
 import com.m57.hermescontrol.data.model.SubagentListResponse
 import com.m57.hermescontrol.data.model.SubagentTailResponse
+import com.m57.hermescontrol.data.ws.contract.RpcMethods
+import com.m57.hermescontrol.data.ws.contract.SessionIdParams
+import com.m57.hermescontrol.data.ws.contract.SubagentTailParams
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.mockkObject
+import io.mockk.slot
+import io.mockk.unmockkAll
+import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -11,6 +23,48 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SubagentRepositoryTest {
+    @After
+    fun tearDown() {
+        unmockkAll()
+    }
+
+    @Test
+    fun listSubagentsPreservesSuppressedErrorsAndDecodesResult() {
+        val captured = slot<SessionIdParams>()
+        mockkObject(HermesWsClient)
+        coEvery { HermesWsClient.call(RpcMethods.SUBAGENT_LIST, capture(captured), any(), true) } returns
+            buildJsonObject { put("subagents", kotlinx.serialization.json.buildJsonArray { }) }
+
+        val response = runBlocking { SubagentRepository.listSubagents("s1") }
+
+        assertEquals(SessionIdParams("s1"), captured.captured)
+        assertNotNull(response)
+        assertTrue(response?.subagents?.isEmpty() == true)
+    }
+
+    @Test
+    fun tailSubagentSendsExactlySessionIdAndSubagentId() {
+        // #1379: the contract forbids extra keys (max_bytes) and requires session_id.
+        val captured = slot<SubagentTailParams>()
+        mockkObject(HermesWsClient)
+        coEvery { HermesWsClient.call(RpcMethods.SUBAGENT_TAIL, capture(captured), any(), true) } returns
+            buildJsonObject { put("subagent_id", "sub-1") }
+
+        runBlocking { SubagentRepository.tailSubagent("s1", "sub-1") }
+
+        assertEquals(SubagentTailParams("s1", "sub-1"), captured.captured)
+    }
+
+    @Test
+    fun tailSubagentSkipsTheCallWhenAnIdIsBlank() {
+        mockkObject(HermesWsClient)
+        runBlocking {
+            assertNull(SubagentRepository.tailSubagent("", "sub-1"))
+            assertNull(SubagentRepository.tailSubagent("s1", " "))
+        }
+        coVerify(exactly = 0) { HermesWsClient.call(RpcMethods.SUBAGENT_TAIL, any(), any(), any()) }
+    }
+
     @Test
     fun testWsMethodsConstants() {
         assertEquals("subagent.list", WsMethods.SUBAGENT_LIST)

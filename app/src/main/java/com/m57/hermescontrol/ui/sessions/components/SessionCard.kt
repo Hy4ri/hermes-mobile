@@ -98,19 +98,25 @@ fun BranchRow(
 fun sourceIcon(source: String?): ImageVector? =
     when (source?.lowercase()) {
         "telegram", "tg" -> Icons.AutoMirrored.Filled.Send
-        "web", "dashboard" -> Icons.Filled.Language
-        "api", "rest" -> Icons.Filled.Code
+        "web", "dashboard", "webui" -> Icons.Filled.Language
+        "api", "rest", "api_server" -> Icons.Filled.Code
         "cli", "terminal" -> Icons.Filled.Terminal
         else -> null
     }
 
 fun sourceLabel(source: String?): String =
     when (source?.lowercase()) {
+        null, "" -> "Unknown"
         "telegram", "tg" -> "Telegram"
-        "web", "dashboard" -> "Web"
-        "api", "rest" -> "API"
+        "web", "dashboard", "webui" -> "Web"
+        "api", "rest", "api_server" -> "API"
         "cli", "terminal" -> "CLI"
-        else -> source ?: "Unknown"
+        "tui" -> "TUI"
+        "desktop" -> "Desktop"
+        "acp" -> "ACP"
+        "cron" -> "Cron"
+        "bot_room" -> "Bot room"
+        else -> source.replace('_', ' ').replaceFirstChar { it.uppercase() }
     }
 
 fun highlightText(

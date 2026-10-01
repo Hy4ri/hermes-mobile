@@ -25,6 +25,8 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.SessionLiveStatus
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.theme.LocalSpacing
+import com.m57.hermescontrol.ui.common.StatusBadgeType
+import com.m57.hermescontrol.ui.common.statusBadgeColors
 
 @Composable
 fun SessionLiveStatusIndicator(
@@ -35,27 +37,26 @@ fun SessionLiveStatusIndicator(
     val spacing = LocalSpacing.current
     val statusColors = LocalHermesStatusColors.current
 
-    val (bgColor, fgColor, textRes, descRes) =
+    val (badgeType, textRes, descRes) =
         when (liveStatus) {
             SessionLiveStatus.WORKING -> {
-                Tuple4(
-                    statusColors.successContainer,
-                    statusColors.success,
+                Triple(
+                    StatusBadgeType.SUCCESS,
                     R.string.sessions_live_status_running,
                     R.string.sessions_live_status_running_desc,
                 )
             }
 
             SessionLiveStatus.WAITING -> {
-                Tuple4(
-                    statusColors.warningContainer,
-                    statusColors.warning,
+                Triple(
+                    StatusBadgeType.WARNING,
                     R.string.sessions_live_status_waiting,
                     R.string.sessions_live_status_waiting_desc,
                 )
             }
         }
 
+    val (bgColor, fgColor) = requireNotNull(statusBadgeColors(badgeType, statusColors))
     val text = stringResource(textRes)
     val description = stringResource(descRes)
 
@@ -103,10 +104,3 @@ fun SessionLiveStatusIndicator(
         }
     }
 }
-
-private data class Tuple4<A, B, C, D>(
-    val first: A,
-    val second: B,
-    val third: C,
-    val fourth: D,
-)

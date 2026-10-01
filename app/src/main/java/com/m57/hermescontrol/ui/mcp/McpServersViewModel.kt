@@ -10,6 +10,7 @@ import com.m57.hermescontrol.data.model.McpOAuthFlowResponse
 import com.m57.hermescontrol.data.model.McpServer
 import com.m57.hermescontrol.data.model.McpServerTestResponse
 import com.m57.hermescontrol.data.model.McpServerToggleRequest
+import com.m57.hermescontrol.data.model.McpServerUpdateRequest
 import com.m57.hermescontrol.data.model.McpServersResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkError
@@ -31,7 +32,10 @@ import kotlinx.coroutines.withContext
 
 enum class AddServerMode { HTTP, Stdio }
 
+enum class McpTab { INSTALLED, CATALOG }
+
 data class McpServersUiState(
+    val selectedTab: McpTab = McpTab.INSTALLED,
     val isLoading: Boolean = false,
     val servers: List<McpServer> = emptyList(),
     val errorMessage: String? = null,
@@ -458,7 +462,12 @@ class McpServersViewModel(
             val updatedEnv = existingEnv + (key to value)
             val result =
                 withContext(ioDispatcher) {
-                    safeApiCall { ApiClient.hermesApi.updateMcpServer(serverName, mapOf("env" to updatedEnv)) }
+                    safeApiCall {
+                        ApiClient.hermesApi.updateMcpServer(
+                            serverName,
+                            McpServerUpdateRequest(env = updatedEnv),
+                        )
+                    }
                 }
             when (result) {
                 is NetworkResult.Success -> {
@@ -490,7 +499,12 @@ class McpServersViewModel(
             val updatedEnv = existingEnv - key
             val result =
                 withContext(ioDispatcher) {
-                    safeApiCall { ApiClient.hermesApi.updateMcpServer(serverName, mapOf("env" to updatedEnv)) }
+                    safeApiCall {
+                        ApiClient.hermesApi.updateMcpServer(
+                            serverName,
+                            McpServerUpdateRequest(env = updatedEnv),
+                        )
+                    }
                 }
             when (result) {
                 is NetworkResult.Success -> {
@@ -536,6 +550,14 @@ class McpServersViewModel(
         }
     }
 
+    fun setTab(tab: McpTab) {
+        _uiState.update { it.copy(selectedTab = tab) }
+        val s = _uiState.value
+        if (tab == McpTab.CATALOG && s.catalogEntries.isEmpty() && !s.catalogLoading) {
+            loadCatalog()
+        }
+    }
+
     fun updateCatalogQuery(v: String) {
         _uiState.update { it.copy(catalogQuery = v) }
     }
@@ -563,6 +585,7 @@ class McpServersViewModel(
                         )
                     }
                     loadServers(forceRefresh = true)
+                    loadCatalog()
                 }
 
                 is NetworkResult.Failure -> {

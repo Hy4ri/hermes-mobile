@@ -19,6 +19,7 @@
     <string name="chat_next_match_desc">下一个匹配</string>
     <string name="chat_close_search_desc">关闭搜索</string>
     <string name="action_retry">重试</string>
+    <string name="action_copy_error">复制错误</string>
     <string name="action_cancel">取消</string>
     <string name="action_confirm">确认</string>
     <string name="action_clear">清除</string>
@@ -129,6 +130,7 @@
     <string name="notif_title">Hermes</string>
     <string name="notif_waiting_replies">等待 Hermes 回复</string>
     <string name="notif_connected_in_background">在后台保持连接</string>
+    <string name="notif_action_turn_off">关闭</string>
     <string name="notif_connecting">正在连接…</string>
     <string name="notif_waiting_network">等待网络连接</string>
     <string name="notif_reconnecting">正在重新连接</string>
@@ -730,6 +732,7 @@
     <string name="sessions_prune_desc">删除早于指定天数的会话。</string>
     <string name="sessions_prune_days_label">天数阈值</string>
     <string name="sessions_prune_confirm">清理</string>
+    <string name="sessions_pruning">正在清理旧会话…</string>
     <string name="sessions_empty_cleanup_desc">空会话</string>
     <string name="sessions_empty_cleanup_title">删除空会话？</string>
     <string name="sessions_empty_cleanup_message">删除 %1$d 个空会话？活动与归档会话会被保留。</string>
@@ -1223,7 +1226,6 @@
     <string name="image_viewer_close">关闭</string>
     <string name="image_viewer_save">保存到设备</string>
     <string name="image_viewer_share">分享</string>
-    <string name="image_viewer_share_title">分享图片</string>
     <string name="plugins_memory_manage">管理提供商…</string>
     <string name="memory_provider_empty_title">没有提供商配置</string>
     <string name="memory_provider_empty_desc">此提供商没有可配置的界面。</string>
@@ -1239,10 +1241,6 @@
     <string name="memory_provider_secret_label">API 密钥（留空保持不变）</string>
     <string name="memory_provider_bool_on">开</string>
     <string name="memory_provider_bool_off">关</string>
-    <string name="image_viewer_saved">图片已保存到下载目录</string>
-    <string name="image_viewer_save_failed">无法保存图片</string>
-    <string name="image_viewer_load_failed">无法加载图片：%1$s</string>
-    <string name="image_viewer_share_failed">无法分享图片</string>
     <plurals name="skills_hub_scan_findings_count">
         <item quantity="one">%1$d 处发现</item>
         <item quantity="other">%1$d 处发现</item>

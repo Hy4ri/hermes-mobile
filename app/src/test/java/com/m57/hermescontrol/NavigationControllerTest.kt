@@ -23,6 +23,7 @@ class NavigationControllerTest {
         NavigationController.backStack = null
         NavigationController.consumePendingSessionId()
         NavigationController.consumePendingNewChatNavigation()
+        NavigationController.consumeChatReturnScreen()
     }
 
     @After
@@ -30,6 +31,7 @@ class NavigationControllerTest {
         NavigationController.backStack = null
         NavigationController.consumePendingSessionId()
         NavigationController.consumePendingNewChatNavigation()
+        NavigationController.consumeChatReturnScreen()
     }
 
     // ── Dedup guard: navigateTo with same key ──────────────────────────────
@@ -169,6 +171,92 @@ class NavigationControllerTest {
         NavigationController.openChatSession("stored-session")
 
         assertFalse(NavigationController.consumePendingChatNavigation()?.scrollToBottom == true)
+    }
+
+    // ── Chat return screen: back from a list-opened chat returns to that list ──
+
+    @Test
+    fun `openChatSession from a list arms the list as the return screen`() {
+        NavigationController.backStack = NavBackStack<NavKey>(HistoryScreen)
+
+        NavigationController.openChatSession("stored-session")
+
+        assertEquals(ChatScreen, NavigationController.backStack?.lastOrNull())
+        assertEquals(HistoryScreen, NavigationController.chatReturnScreen)
+        assertEquals(HistoryScreen, NavigationController.consumeChatReturnScreen())
+        assertNull("consume must disarm", NavigationController.consumeChatReturnScreen())
+    }
+
+    @Test
+    fun `openChatSession from Bots arms Bots`() {
+        NavigationController.backStack = NavBackStack<NavKey>(BotsScreen)
+
+        NavigationController.openChatSession("bot-session")
+
+        assertEquals(BotsScreen, NavigationController.consumeChatReturnScreen())
+    }
+
+    @Test
+    fun `openChatSession from chat arms nothing`() {
+        NavigationController.backStack = NavBackStack<NavKey>(ChatScreen)
+
+        NavigationController.openChatSession("stored-session")
+
+        assertNull(NavigationController.consumeChatReturnScreen())
+    }
+
+    @Test
+    fun `notification open never arms a return screen`() {
+        NavigationController.backStack = NavBackStack<NavKey>(HistoryScreen)
+
+        NavigationController.openChatSessionFromNotification("stored-session")
+
+        assertEquals(ChatScreen, NavigationController.backStack?.lastOrNull())
+        assertNull(NavigationController.consumeChatReturnScreen())
+    }
+
+    @Test
+    fun `drawer navigation disarms a stale return screen`() {
+        NavigationController.backStack = NavBackStack<NavKey>(HistoryScreen)
+        NavigationController.openChatSession("stored-session")
+        assertEquals(HistoryScreen, NavigationController.chatReturnScreen)
+
+        // User opens the drawer and picks Skills instead of pressing back.
+        NavigationController.navigateTo(SkillsScreen)
+
+        assertNull("explicit navigation must invalidate the return", NavigationController.consumeChatReturnScreen())
+    }
+
+    @Test
+    fun `re-tapping chat in the drawer also disarms the return`() {
+        NavigationController.backStack = NavBackStack<NavKey>(HistoryScreen)
+        NavigationController.openChatSession("stored-session")
+        assertEquals(HistoryScreen, NavigationController.chatReturnScreen)
+
+        // Same-screen dedup would skip the body — the clear must still run.
+        NavigationController.navigateTo(ChatScreen)
+
+        assertNull(NavigationController.consumeChatReturnScreen())
+    }
+
+    @Test
+    fun `openNewChat does not arm a return screen`() {
+        NavigationController.backStack = NavBackStack<NavKey>(HistoryScreen)
+
+        NavigationController.openNewChat()
+
+        assertNull(NavigationController.consumeChatReturnScreen())
+    }
+
+    @Test
+    fun `resetTo disarms the return screen`() {
+        NavigationController.backStack = NavBackStack<NavKey>(HistoryScreen)
+        NavigationController.openChatSession("stored-session")
+        assertEquals(HistoryScreen, NavigationController.chatReturnScreen)
+
+        NavigationController.resetTo(ChatScreen)
+
+        assertNull(NavigationController.consumeChatReturnScreen())
     }
 
     // ── resetTo: atomic clear + navigate ──────────────────────────────────

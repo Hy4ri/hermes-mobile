@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.data.ws
 
+import com.m57.hermescontrol.data.model.MessageReaction
 import io.mockk.every
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
@@ -926,6 +927,52 @@ class EventParserTest {
             "nightly backup",
             (event as WsEvent.BackgroundComplete).data?.get("label"),
         )
+    }
+
+    @Test
+    fun testParseMessageReaction_returnsMessageReactionUpdated() {
+        val response =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "message.reaction",
+                        "session_id" to "s1",
+                        "payload" to
+                            mapOf(
+                                "row_id" to 42,
+                                "role" to "user",
+                                "reactions" to
+                                    listOf(
+                                        mapOf("emoji" to "\uD83D\uDE02", "author" to "agent", "at" to 1.0),
+                                        mapOf("emoji" to "", "author" to "user"),
+                                    ),
+                            ),
+                    ),
+            )
+        val event = EventParser.parse(response, "") as WsEvent.MessageReactionUpdated
+        assertEquals(42L, event.rowId)
+        assertEquals("user", event.role)
+        assertEquals("s1", event.sessionId)
+        assertEquals(listOf(MessageReaction("\uD83D\uDE02", "agent")), event.reactions)
+    }
+
+    @Test
+    fun testParseMessageReaction_withoutRowId_isUnknown() {
+        val response =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params = mapOf("type" to "message.reaction", "payload" to mapOf("reactions" to emptyList<Any>())),
+            )
+        assertTrue(EventParser.parse(response, "") is WsEvent.Unknown)
     }
 
     @Test

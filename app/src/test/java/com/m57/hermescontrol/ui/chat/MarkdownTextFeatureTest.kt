@@ -459,6 +459,28 @@ class MarkdownTextFeatureTest {
         assertEquals(0, o16.level)
     }
 
+    @Test
+    fun quotedBlocksRetainNestedHeadingsListsAndFences() {
+        val source = "> # Heading\n> - item\n>   ```kotlin\n>   val x = 1\n>   ```"
+        val quote = parseBlocks(source).single() as MdBlock.Quote
+        val nested = parseBlocks(quote.text)
+        assertTrue(nested.any { it is MdBlock.Heading && it.text == "Heading" })
+        val bullet = nested.filterIsInstance<MdBlock.Bullet>().single()
+        assertEquals("item", bullet.text)
+        assertEquals("val x = 1", (parseBlocks(bullet.nestedSource).single() as MdBlock.Code).code)
+    }
+
+    @Test
+    fun listItemsRetainFencedCodeAndHeadingsAsNestedBlocks() {
+        val source = "- intro\n  ```kotlin\n  val x = 1\n  ```\n  # Inside\n- next"
+        val bullets = parseBlocks(source).filterIsInstance<MdBlock.Bullet>()
+        assertEquals(listOf("intro", "next"), bullets.map { it.text })
+        val nested = parseBlocks(bullets.first().nestedSource)
+        assertTrue(nested.any { it is MdBlock.Code && it.code == "val x = 1" })
+        assertTrue(nested.any { it is MdBlock.Heading && it.text == "Inside" })
+        assertEquals("", bullets.last().nestedSource)
+    }
+
     // 19. NESTED CODEBLOCKS & EXTENDED CODE FENCES
     @Test
     fun testNestedCodeBlock_fourBackticksWrappingThreeBackticks() {

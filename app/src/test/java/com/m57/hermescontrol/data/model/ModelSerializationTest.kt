@@ -622,4 +622,33 @@ class ModelSerializationTest {
             json.decodeFromString<ToggleSkillRequest>(jsonInput)
         }
     }
+
+    @Test
+    fun moaConfigDecodesNullTemperaturesAndNewFields() {
+        val payload =
+            """
+            {"default_preset":"default","active_preset":"","privacy_filter":"",
+             "presets":{"default":{"enabled":true,
+               "reference_models":[{"provider":"openrouter","model":"x/y","enabled":false,"reasoning_effort":"high"}],
+               "aggregator":{"provider":"openrouter","model":"a/b"},
+               "reference_temperature":null,"aggregator_temperature":null,
+               "reference_timeout":null,"degraded_reference_policy":"silent","fanout":"every_n:3"}},
+             "reference_models":[{"provider":"openrouter","model":"x/y","enabled":true}],
+             "aggregator":{"provider":"openrouter","model":"a/b"},
+             "reference_temperature":null,"aggregator_temperature":null,
+             "reference_timeout":null,"degraded_reference_policy":"silent","fanout":"every_n:3","enabled":true}
+            """.trimIndent()
+        val cfg = json.decodeFromString<MoaConfigResponse>(payload)
+        assertNull(cfg.reference_temperature)
+        assertNull(cfg.aggregator_temperature)
+        assertEquals("every_n:3", cfg.fanout)
+        val preset = cfg.presets.getValue("default")
+        assertEquals("silent", preset.degraded_reference_policy)
+        assertEquals(false, preset.reference_models.first().enabled)
+        assertEquals("high", preset.reference_models.first().reasoning_effort)
+        // Round-trip keeps the non-default knobs so a save doesn't reset them.
+        val back = json.encodeToString(cfg)
+        assertTrue(back.contains("every_n:3"))
+        assertTrue(back.contains("silent"))
+    }
 }

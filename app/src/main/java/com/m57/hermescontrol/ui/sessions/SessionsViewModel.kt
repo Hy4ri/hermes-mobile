@@ -110,6 +110,7 @@ data class SessionsUiState(
     val searchNextOffset: Int? = null,
     val searchLoadMoreError: String? = null,
     val showHidden: Boolean = false,
+    val sourceFilter: String? = null,
     val pinnedExpanded: Boolean = true,
     val liveStatuses: Map<String, SessionLiveStatus> = emptyMap(),
     // Named projects used to label each row with the workspace it belongs to.
@@ -120,8 +121,29 @@ data class SessionsUiState(
     val hasHiddenSessions: Boolean
         get() = sessions.any { it.hidden == true }
 
-    val displaySessions: List<SessionInfo>
+    // Source chips only exist for sources present in the rows currently loaded.
+    val availableSources: List<String>
+        get() {
+            val rows = if (isSearchMode) searchResults.map { it.source } else visibleBySource.map { it.source }
+            return rows
+                .mapNotNull { it?.lowercase()?.takeIf(String::isNotBlank) }
+                .groupingBy { it }
+                .eachCount()
+                .entries
+                .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+                .map { it.key }
+        }
+
+    val activeSourceFilter: String?
+        get() = sourceFilter?.takeIf { it in availableSources }
+
+    private val visibleBySource: List<SessionInfo>
         get() = if (showHidden) sessions else sessions.filter { it.hidden != true }
+
+    val displaySessions: List<SessionInfo>
+        get() =
+            activeSourceFilter?.let { f -> visibleBySource.filter { it.source?.lowercase() == f } }
+                ?: visibleBySource
 
     val pinnedSessions: List<SessionInfo>
         get() = displaySessions.filter { it.pinned == true }
@@ -339,6 +361,7 @@ class SessionsViewModel(
         _uiState.update {
             it.copy(
                 section = section,
+                sourceFilter = null,
                 isLoading = false,
                 isLoadingMore = false,
                 sessions = emptyList(),
@@ -701,6 +724,10 @@ class SessionsViewModel(
 
     // ── Bulk selection ───────────────────────────────────────────────────
 
+    fun selectSourceFilter(source: String?) {
+        _uiState.update { it.copy(sourceFilter = if (it.sourceFilter == source) null else source) }
+    }
+
     fun toggleShowHidden() {
         _uiState.update { it.copy(showHidden = !it.showHidden) }
     }
@@ -963,7 +990,13 @@ class SessionsViewModel(
             val result =
                 safeApiCall {
                     ApiClient.hermesApi.bulkDeleteSessions(
-                        body = BulkDeleteRequest(ids = ids),
+                        body =
+                            BulkDeleteRequest(
+                                ids = ids,
+                                // Destructive POSTs scope by BODY profile; the
+                                // ?profile= query rewrite never reaches them.
+                                profile = AuthManager.activeProfileId.value,
+                            ),
                     )
                 }
             when (result) {
@@ -1021,7 +1054,16 @@ class SessionsViewModel(
             val result =
                 safeApiCall {
                     ApiClient.hermesApi.pruneSessions(
-                        body = PruneRequest(days = days),
+                        body =
+                            PruneRequest(
+                                // The server model is `older_than_days`; the
+                                // old `days` key was silently ignored and the
+                                // backend pruned its own 90-day default.
+                                olderThanDays = days,
+                                // Destructive POSTs scope by BODY profile; the
+                                // ?profile= query rewrite never reaches them.
+                                profile = AuthManager.activeProfileId.value,
+                            ),
                     )
                 }
             when (result) {

@@ -20,10 +20,12 @@ import com.m57.hermescontrol.data.model.CreateCronJobRequest
 import com.m57.hermescontrol.data.model.CreateProfileRequest
 import com.m57.hermescontrol.data.model.CreateTaskBody
 import com.m57.hermescontrol.data.model.CreateWebhookRequest
+import com.m57.hermescontrol.data.model.CredentialPoolAddRequest
 import com.m57.hermescontrol.data.model.CredentialPoolResponse
 import com.m57.hermescontrol.data.model.CronBlueprintListResponse
 import com.m57.hermescontrol.data.model.CronJob
 import com.m57.hermescontrol.data.model.CuratorResponse
+import com.m57.hermescontrol.data.model.DebugShareRequest
 import com.m57.hermescontrol.data.model.DebugShareResponse
 import com.m57.hermescontrol.data.model.DeleteWebhookResponse
 import com.m57.hermescontrol.data.model.DeliveryTargetsResponse
@@ -38,6 +40,8 @@ import com.m57.hermescontrol.data.model.EnvVarUpdate
 import com.m57.hermescontrol.data.model.GatewayMigrationPlan
 import com.m57.hermescontrol.data.model.GatewayMigrationStartResponse
 import com.m57.hermescontrol.data.model.HealthStatus
+import com.m57.hermescontrol.data.model.HookCreateRequest
+import com.m57.hermescontrol.data.model.HookDeleteRequest
 import com.m57.hermescontrol.data.model.HookResponse
 import com.m57.hermescontrol.data.model.InstantiateBlueprintRequest
 import com.m57.hermescontrol.data.model.KanbanBoardResponse
@@ -57,6 +61,7 @@ import com.m57.hermescontrol.data.model.McpOAuthFlowResponse
 import com.m57.hermescontrol.data.model.McpServer
 import com.m57.hermescontrol.data.model.McpServerTestResponse
 import com.m57.hermescontrol.data.model.McpServerToggleRequest
+import com.m57.hermescontrol.data.model.McpServerUpdateRequest
 import com.m57.hermescontrol.data.model.McpServersResponse
 import com.m57.hermescontrol.data.model.MemoryProviderConfigResponse
 import com.m57.hermescontrol.data.model.MemoryProviderConfigUpdateRequest
@@ -583,7 +588,7 @@ interface HermesApiService : KanbanApiService {
     @PUT("api/mcp/servers/{name}")
     suspend fun updateMcpServer(
         @Path("name") name: String,
-        @Body body: Map<String, Any>,
+        @Body body: McpServerUpdateRequest,
     ): Response<McpServer>
 
     @POST("api/mcp/servers/{name}/auth")
@@ -602,7 +607,7 @@ interface HermesApiService : KanbanApiService {
     @POST("api/mcp/catalog/install")
     suspend fun installMcpCatalogEntry(
         @Body body: McpCatalogInstallRequest,
-    ): Response<Map<String, Any>>
+    ): Response<ActionResponse>
 
     @GET("api/webhooks")
     suspend fun getWebhooks(): Response<WebhooksResponse>
@@ -881,7 +886,7 @@ interface HermesApiService : KanbanApiService {
     @PUT("api/curator/paused")
     suspend fun setCuratorPaused(
         @Body body: Map<String, Boolean>,
-    ): Response<Map<String, Any>>
+    ): Response<ActionResponse>
 
     @POST("api/curator/run")
     suspend fun runCurator(): Response<ActionResponse>
@@ -918,14 +923,14 @@ interface HermesApiService : KanbanApiService {
 
     @POST("api/credentials/pool")
     suspend fun addCredentialPoolEntry(
-        @Body body: Map<String, String>,
-    ): Response<Map<String, Any>>
+        @Body body: CredentialPoolAddRequest,
+    ): Response<ActionResponse>
 
     @DELETE("api/credentials/pool/{provider}/{index}")
     suspend fun removeCredentialPoolEntry(
         @Path("provider") provider: String,
         @Path("index") index: Int,
-    ): Response<Map<String, Any>>
+    ): Response<ActionResponse>
 
     // ── Admin: Operations ─────────────────────────────────────────────
     @POST("api/ops/security-audit")
@@ -968,7 +973,7 @@ interface HermesApiService : KanbanApiService {
     // ── Admin: Debug share ────────────────────────────────────────────
     @POST("api/ops/debug-share")
     suspend fun runDebugShare(
-        @Body body: Map<String, Any>,
+        @Body body: DebugShareRequest,
     ): Response<DebugShareResponse>
 
     // ── Admin: Checkpoints ────────────────────────────────────────────
@@ -984,13 +989,13 @@ interface HermesApiService : KanbanApiService {
 
     @POST("api/ops/hooks")
     suspend fun createHook(
-        @Body body: Map<String, Any>,
-    ): Response<Map<String, Any>>
+        @Body body: HookCreateRequest,
+    ): Response<ActionResponse>
 
-    @DELETE("api/ops/hooks")
+    @HTTP(method = "DELETE", path = "api/ops/hooks", hasBody = true)
     suspend fun deleteHook(
-        @Body body: Map<String, String>,
-    ): Response<Map<String, Any>>
+        @Body body: HookDeleteRequest,
+    ): Response<ActionResponse>
 
     // ── Admin: Action status (log viewer) ────────────────────────────
     @GET("api/actions/{name}/status")

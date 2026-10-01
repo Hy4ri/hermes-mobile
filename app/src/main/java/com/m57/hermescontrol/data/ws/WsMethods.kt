@@ -94,6 +94,9 @@ object WsMethods {
     /** Kill a single background process (scoped to the active session). */
     const val PROCESS_KILL = "process.kill"
 
+    /** Kill every background process in the gateway registry (`/stop`, global). */
+    const val PROCESS_STOP = "process.stop"
+
     // ── Subagents (issue #1089) ───────────────────────────────────────────
 
     /** List active subagents and delegations for a session. */

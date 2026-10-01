@@ -10,7 +10,9 @@ import com.m57.hermescontrol.data.model.ConnectorPolicy
 import com.m57.hermescontrol.data.ws.AccountConnectorRepository
 import com.m57.hermescontrol.data.ws.ConnectionOperationParser
 import com.m57.hermescontrol.data.ws.WsEvent
-import com.m57.hermescontrol.data.ws.WsMethods
+import com.m57.hermescontrol.data.ws.contract.ConnectionAnswer
+import com.m57.hermescontrol.data.ws.contract.ConnectionRespondParams
+import com.m57.hermescontrol.data.ws.contract.ConnectorOwner
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -143,7 +145,7 @@ class AccountConnectorsViewModelTest {
         runTest(dispatcher) {
             advanceUntilIdle()
             coEvery { repo.connect(any(), any()) } returns AccountConnectorResult.Success(snapshot())
-            coEvery { repo.operationRequest(any(), any()) } returns mapOf("status" to "ok")
+            coEvery { repo.operationRespond(any()) } returns mapOf("status" to "ok")
             coEvery { repo.operationStatus("op-a") } returns
                 AccountConnectorResult.Success(snapshot().copy(seq = 2, settled = true))
             vm.connect("drive")
@@ -151,12 +153,11 @@ class AccountConnectorsViewModelTest {
             vm.continueOperation()
             advanceUntilIdle()
             coVerify {
-                repo.operationRequest(
-                    WsMethods.CONNECTION_RESPOND,
-                    mapOf(
-                        "owner" to mapOf("type" to "account"),
-                        "op_id" to "op-a",
-                        "result" to mapOf("settled_by" to "continue"),
+                repo.operationRespond(
+                    ConnectionRespondParams(
+                        owner = ConnectorOwner.account(),
+                        opId = "op-a",
+                        result = ConnectionAnswer(settledBy = "continue"),
                     ),
                 )
             }

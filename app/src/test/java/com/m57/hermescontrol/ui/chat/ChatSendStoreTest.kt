@@ -210,7 +210,7 @@ class ChatSendStoreTest {
         val local = ChatMessage("send-1", MessageRole.USER, "repeat", serverRowId = 10)
         val server = ChatMessage("rest-session-20", MessageRole.USER, "repeat", serverRowId = 20)
         val reply = ChatMessage("rest-session-21", MessageRole.ASSISTANT, "done", serverRowId = 21)
-        val receipt = pending("send-1", "repeat").copy(userRowId = 10)
+        val receipt = pending("send-1", "repeat", PendingSendState.UNKNOWN).copy(userRowId = 10)
         val merged = mergeTranscriptWithLive(listOf(server, reply), listOf(local), preserveLiveIds = true)
 
         assertEquals(
@@ -227,5 +227,22 @@ class ChatSendStoreTest {
         val pending = listOf(pending("queued", "later", PendingSendState.QUEUED), pending("confirmed", "delivered"))
 
         assertEquals(listOf(queued, confirmed), messagesWithoutUnconfirmedReceipts(listOf(queued, confirmed), pending))
+    }
+
+    @Test
+    fun normalSendingAndAcceptedPromptsAreNotRecoveryItems() {
+        val sends = PendingSendState.entries.map { pending(it.name, "prompt", it) }
+
+        assertEquals(
+            setOf(
+                PendingSendState.QUEUED,
+                PendingSendState.PARKED,
+                PendingSendState.UNKNOWN,
+                PendingSendState.REJECTED,
+            ),
+            sends.filter { it.needsRecovery }.map { it.state }.toSet(),
+        )
+        val live = sends.filterNot { it.needsRecovery }.map { ChatMessage(it.id, MessageRole.USER, it.text) }
+        assertEquals(live, messagesWithoutUnconfirmedReceipts(live, sends))
     }
 }

@@ -219,6 +219,7 @@
     <string name="chat_busy_override">Send mode for this message</string>
     <string name="chat_busy_override_once">This choice applies once; the saved default stays the same.</string>
     <string name="chat_pending_sends">Pending messages</string>
+    <string name="chat_send_accepted">Accepted by server</string>
     <plurals name="chat_pending_count">
         <item quantity="one">%d pending message</item>
         <item quantity="other">%d pending messages</item>

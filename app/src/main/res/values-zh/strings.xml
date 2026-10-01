@@ -1535,6 +1535,12 @@
     <string name="chat_busy_override">本条消息的发送方式</string>
     <string name="chat_busy_override_once">此选择仅生效一次，不会更改保存的默认值。</string>
     <string name="chat_pending_sends">待发送消息</string>
+    <string name="chat_send_accepted">服务器已接收</string>
+    <plurals name="chat_pending_count">
+        <item quantity="other">%d 条待处理消息</item>
+    </plurals>
+    <string name="chat_pending_discard">移除</string>
+    <string name="chat_pending_discard_warning">要从本机队列中移除这条消息吗？这不会取消任务，也不会删除服务器已接收的消息。</string>
     <string name="chat_pending_queued">已在本机排队</string>
     <string name="chat_pending_parked">停止后已暂停</string>
     <string name="chat_pending_sending">正在发送…</string>

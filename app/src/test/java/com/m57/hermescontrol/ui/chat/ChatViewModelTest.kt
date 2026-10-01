@@ -3844,7 +3844,7 @@ class ChatViewModelTest {
         }
 
     @Test
-    fun interruptWithUnknownDeliveryQueuesWithoutInterrupting() =
+    fun interruptWithUnknownDeliverySubmitsWithoutReplayingEarlierPrompt() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()
             every { HermesWsClient.sendMessage(sessionId, "Uncertain", any(), false) } answers {
@@ -3863,8 +3863,8 @@ class ChatViewModelTest {
             val replacement =
                 viewModel.uiState.value.pendingSends
                     .single { it.text == "Replacement" }
-            assertEquals(BusySendMode.QUEUE, replacement.mode)
-            assertEquals(PendingSendState.QUEUED, replacement.state)
+            assertEquals(BusySendMode.CORRECT, replacement.mode)
+            assertEquals(PendingSendState.SENDING, replacement.state)
             assertEquals(
                 PendingSendState.UNKNOWN,
                 viewModel.uiState.value.pendingSends
@@ -3872,11 +3872,12 @@ class ChatViewModelTest {
                     .state,
             )
             verify(exactly = 0) { HermesWsClient.send(WsMethods.SESSION_INTERRUPT, any(), any()) }
-            verify(exactly = 0) { HermesWsClient.sendMessage(any(), "Replacement", any(), any()) }
+            verify(exactly = 1) { HermesWsClient.sendMessage(any(), "Replacement", any(), any()) }
+            verify(exactly = 1) { HermesWsClient.sendMessage(sessionId, "Uncertain", any(), any()) }
         }
 
     @Test
-    fun interruptWithAcceptedDeliveryQueuesWithoutInterrupting() =
+    fun interruptWithAcceptedDeliverySubmitsWithoutReplayingEarlierPrompt() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()
             every { HermesWsClient.sendMessage(sessionId, "Accepted", any(), false) } answers {
@@ -3895,8 +3896,8 @@ class ChatViewModelTest {
             val replacement =
                 viewModel.uiState.value.pendingSends
                     .single { it.text == "Replacement" }
-            assertEquals(BusySendMode.QUEUE, replacement.mode)
-            assertEquals(PendingSendState.QUEUED, replacement.state)
+            assertEquals(BusySendMode.CORRECT, replacement.mode)
+            assertEquals(PendingSendState.SENDING, replacement.state)
             assertEquals(
                 PendingSendState.ACCEPTED,
                 viewModel.uiState.value.pendingSends
@@ -3904,7 +3905,8 @@ class ChatViewModelTest {
                     .state,
             )
             verify(exactly = 0) { HermesWsClient.send(WsMethods.SESSION_INTERRUPT, any(), any()) }
-            verify(exactly = 0) { HermesWsClient.sendMessage(any(), "Replacement", any(), any()) }
+            verify(exactly = 1) { HermesWsClient.sendMessage(any(), "Replacement", any(), any()) }
+            verify(exactly = 1) { HermesWsClient.sendMessage(sessionId, "Accepted", any(), any()) }
         }
 
     @Test
@@ -4149,7 +4151,7 @@ class ChatViewModelTest {
         }
 
     @Test
-    fun sendNowWaitsForEarlierAcceptedTurnToReachRestHistory() =
+    fun acceptedReceiptReleasesNextQueuedSubmissionWithoutWaitingForHistory() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()
             every { HermesWsClient.sendMessage(sessionId, "First", any(), true) } answers {
@@ -4174,12 +4176,13 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             assertEquals(
-                PendingSendState.QUEUED,
+                PendingSendState.SENDING,
                 viewModel.uiState.value.pendingSends
                     .single { it.id == second.id }
                     .state,
             )
             verify(exactly = 0) { HermesWsClient.send(WsMethods.SESSION_INTERRUPT, any(), any()) }
+            verify(exactly = 1) { HermesWsClient.sendMessage(sessionId, "Second", any(), true) }
         }
 
     @Test
@@ -10535,5 +10538,108 @@ class ChatViewModelTest {
             mockEventsFlow.emit(WsEvent.MessageStart("session-969"))
             advanceUntilIdle()
             assertTrue(vm.uiState.value.canInterrupt)
+        }
+
+    @Test
+    fun changedReceiptIdentityDoesNotBlockNewPromptsOrFalselyConfirmDelivery() =
+        runTest {
+            val store = ChatSendStore()
+            val (vm, session) = createViewModelWithSession(sendStore = store)
+            every { HermesWsClient.sendMessage(session, "probe-first", any(), any()) } answers {
+                arg<((String) -> Unit)?>(2)?.invoke("probe-submit")
+                "probe-submit"
+            }
+            assertTrue(vm.sendMessage("probe-first"))
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.RpcResult("probe-submit", mapOf("status" to "streaming", "user_row_id" to 10)))
+            advanceUntilIdle()
+            coEvery { ApiClient.hermesApi.getSessionMessages(session, any(), any(), any(), any()) } returns
+                Response.success(
+                    SessionMessagesResponse(
+                        messages =
+                            listOf(
+                                SessionMessage(id = 20, role = "user", content = JsonPrimitive("probe-first")),
+                                SessionMessage(id = 21, role = "assistant", content = JsonPrimitive("probe-reply")),
+                            ),
+                        pagination = PaginationInfo(order = "latest"),
+                    ),
+                )
+            mockEventsFlow.emit(WsEvent.MessageStart(session))
+            mockEventsFlow.emit(WsEvent.MessageComplete("probe-reply", session))
+            advanceUntilIdle()
+            vm.syncCurrentSession()
+            advanceUntilIdle()
+            assertEquals(
+                2,
+                vm.uiState.value.messages
+                    .count { it.role == MessageRole.USER && it.content == "probe-first" },
+            )
+            assertEquals(
+                "probe-first",
+                vm.uiState.value.messages
+                    .last()
+                    .content,
+            )
+            assertEquals(PendingSendState.ACCEPTED, store.all().single().state)
+            assertTrue(vm.uiState.value.isSessionReady)
+            assertTrue(vm.sendMessage("probe-second"))
+            advanceUntilIdle()
+            assertTrue(
+                vm.uiState.value.messages
+                    .any { it.content == "probe-second" },
+            )
+            assertEquals(PendingSendState.SENDING, store.all().single { it.text == "probe-second" }.state)
+            assertNull(vm.uiState.value.errorMessage)
+            verify(exactly = 1) { HermesWsClient.sendMessage(session, "probe-second", any(), any()) }
+            verify(exactly = 1) { HermesWsClient.sendMessage(session, "probe-first", any(), any()) }
+            assertEquals(PendingSendState.ACCEPTED, store.all().single { it.text == "probe-first" }.state)
+            assertEquals(
+                1,
+                vm.transcriptState.value.messages
+                    .count { it.content == "probe-first" },
+            )
+        }
+
+    @Test
+    fun timeoutReleasesQueuedPromptWithoutReplayingUncertainSend() =
+        runTest {
+            val store = ChatSendStore()
+            val (vm, session) = createViewModelWithSession(sendStore = store)
+            every { HermesWsClient.sendMessage(session, "uncertain-first", any(), any()) } answers {
+                arg<((String) -> Unit)?>(2)?.invoke("uncertain-submit")
+                "uncertain-submit"
+            }
+            assertTrue(vm.sendMessage("uncertain-first"))
+            advanceUntilIdle()
+            assertTrue(vm.sendMessage("queued-second"))
+            advanceUntilIdle()
+            assertEquals(PendingSendState.QUEUED, store.all().single { it.text == "queued-second" }.state)
+            vm.expireOutgoingRequest("uncertain-submit")
+            advanceUntilIdle()
+
+            assertEquals(PendingSendState.UNKNOWN, store.all().single { it.text == "uncertain-first" }.state)
+            verify(exactly = 1) { HermesWsClient.sendMessage(session, "queued-second", any(), true) }
+            verify(exactly = 1) { HermesWsClient.sendMessage(session, "uncertain-first", any(), any()) }
+        }
+
+    @Test
+    fun dismissUnknownReceiptDoesNotResendAndCannotDismissInFlight() =
+        runTest {
+            val store = ChatSendStore()
+            val (vm, session) = createViewModelWithSession(sendStore = store)
+            assertTrue(vm.sendMessage("dismiss-first"))
+            advanceUntilIdle()
+            val receipt = store.all().single()
+            vm.discardPendingSend(receipt.id)
+            assertEquals(PendingSendState.SENDING, store.all().single().state)
+            store.update(receipt.id) { it.copy(state = PendingSendState.UNKNOWN) }
+            vm.discardPendingSend(receipt.id)
+            advanceUntilIdle()
+            assertTrue(store.all().isEmpty())
+            assertTrue(
+                vm.uiState.value.messages
+                    .none { it.id == receipt.id },
+            )
+            verify(exactly = 1) { HermesWsClient.sendMessage(session, "dismiss-first", any(), any()) }
         }
 }

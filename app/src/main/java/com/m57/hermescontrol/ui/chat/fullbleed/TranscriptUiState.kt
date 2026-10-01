@@ -10,6 +10,7 @@ import com.m57.hermescontrol.ui.chat.StreamingState
 import com.m57.hermescontrol.ui.chat.VaultCodePromptUi
 import com.m57.hermescontrol.ui.chat.VaultSaveLoginPromptUi
 import com.m57.hermescontrol.ui.chat.VaultUnlockPromptUi
+import com.m57.hermescontrol.ui.chat.messagesWithoutUnconfirmedReceipts
 
 /** The transcript's resolved, read-only state; the list never receives the whole chat ViewModel. */
 data class TranscriptUiState(
@@ -48,7 +49,8 @@ data class TranscriptUiState(
         ): TranscriptUiState {
             val historical = timeline.isHistorical
             return TranscriptUiState(
-                messages = timeline.historyMessages ?: chat.messages,
+                messages =
+                    timeline.historyMessages ?: messagesWithoutUnconfirmedReceipts(chat.messages, chat.pendingSends),
                 streamingState = if (historical) StreamingState() else streaming,
                 isAgentTyping = !historical && chat.isAgentTyping,
                 typingEffectEnabled = !historical && chat.typingEffectEnabled,

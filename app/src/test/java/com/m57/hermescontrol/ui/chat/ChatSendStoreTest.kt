@@ -204,4 +204,28 @@ class ChatSendStoreTest {
         assertEquals(PendingSendState.UNKNOWN, restored.state)
         assertEquals(0, restored.attempts)
     }
+
+    @Test
+    fun uncertainReceiptGhostsAreHiddenWithoutConfirmingChangedServerIdentity() {
+        val local = ChatMessage("send-1", MessageRole.USER, "repeat", serverRowId = 10)
+        val server = ChatMessage("rest-session-20", MessageRole.USER, "repeat", serverRowId = 20)
+        val reply = ChatMessage("rest-session-21", MessageRole.ASSISTANT, "done", serverRowId = 21)
+        val receipt = pending("send-1", "repeat").copy(userRowId = 10)
+        val merged = mergeTranscriptWithLive(listOf(server, reply), listOf(local), preserveLiveIds = true)
+
+        assertEquals(
+            listOf(server.id, reply.id),
+            messagesWithoutUnconfirmedReceipts(merged, listOf(receipt)).map { it.id },
+        )
+        assertTrue(pendingSendIdsConfirmedByDurableAliases(merged, listOf(receipt)).isEmpty())
+    }
+
+    @Test
+    fun queuedBubblesAndConfirmedAliasesStayInTheTranscript() {
+        val queued = ChatMessage("queued", MessageRole.USER, "later")
+        val confirmed = ChatMessage("confirmed", MessageRole.USER, "delivered", restId = "rest-session-10")
+        val pending = listOf(pending("queued", "later", PendingSendState.QUEUED), pending("confirmed", "delivered"))
+
+        assertEquals(listOf(queued, confirmed), messagesWithoutUnconfirmedReceipts(listOf(queued, confirmed), pending))
+    }
 }

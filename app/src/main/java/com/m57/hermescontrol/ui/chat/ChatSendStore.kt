@@ -158,9 +158,12 @@ internal fun messagesWithoutUnconfirmedReceipts(
     val recoveryIds =
         pending
             .filter {
-                it.state == PendingSendState.ACCEPTED || it.state == PendingSendState.UNKNOWN ||
-                    it.state == PendingSendState.REJECTED
+                it.state == PendingSendState.UNKNOWN || it.state == PendingSendState.REJECTED
             }.mapTo(mutableSetOf()) { it.id }
     if (recoveryIds.isEmpty()) return messages
     return messages.filterNot { it.id in recoveryIds && it.canonicalRestId == null }
 }
+
+/** #1427: normal submission/acceptance stays in the transcript, not in recovery. */
+internal val PendingSend.needsRecovery: Boolean
+    get() = state != PendingSendState.SENDING && state != PendingSendState.ACCEPTED

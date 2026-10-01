@@ -1,10 +1,14 @@
 package com.m57.hermescontrol.ui.chat.fullbleed
 
+import com.m57.hermescontrol.data.model.Attachment
+import com.m57.hermescontrol.data.model.BusySendMode
 import com.m57.hermescontrol.ui.chat.ChatMessage
 import com.m57.hermescontrol.ui.chat.ChatTimelineState
 import com.m57.hermescontrol.ui.chat.ChatUiState
 import com.m57.hermescontrol.ui.chat.ClarifyUi
 import com.m57.hermescontrol.ui.chat.MessageRole
+import com.m57.hermescontrol.ui.chat.PendingSend
+import com.m57.hermescontrol.ui.chat.PendingSendState
 import com.m57.hermescontrol.ui.chat.StreamingState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -17,6 +21,40 @@ class TranscriptUiStateTest {
     private val live = ChatMessage(id = "live", role = MessageRole.USER, content = "hello")
     private val historical = ChatMessage(id = "historical", role = MessageRole.USER, content = "older")
     private val clarify = ClarifyUi(text = "choose")
+
+    @Test
+    fun acceptedLivePromptKeepsItsTextAndImageUntilHistoryConfirmsIt() {
+        val image = Attachment("file:///private/photo", "photo.png", "image/png", 3)
+        val prompt = live.copy(attachments = listOf(image), serverRowId = 10)
+        val result =
+            TranscriptUiState.resolve(
+                chat =
+                    ChatUiState(
+                        messages = listOf(prompt),
+                        isAgentTyping = true,
+                        pendingSends =
+                            listOf(
+                                PendingSend(
+                                    prompt.id,
+                                    "scope",
+                                    "session",
+                                    prompt.content,
+                                    attachments = listOf(image),
+                                    mode = BusySendMode.CORRECT,
+                                    state = PendingSendState.ACCEPTED,
+                                    userRowId = 10,
+                                ),
+                            ),
+                    ),
+                timeline = ChatTimelineState(),
+                streaming = StreamingState(),
+                savingAttachmentPath = null,
+                speakingMessageId = null,
+            )
+
+        assertEquals(listOf(prompt), result.messages)
+        assertEquals(listOf(image), result.messages.single().attachments)
+    }
 
     @Test
     fun `live state preserves prompts streaming and paging actions`() {

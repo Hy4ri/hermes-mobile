@@ -51,15 +51,23 @@ class ChatSearchDelegateTest {
     fun `inactive and blank search skip filtering until reactivation scans latest transcript`() =
         runTest {
             val uiState = stateWith("needle old")
-            val delegate = ChatSearchDelegate(backgroundScope, uiState, dispatcher = StandardTestDispatcher(testScheduler))
+            val delegate =
+                ChatSearchDelegate(backgroundScope, uiState, dispatcher = StandardTestDispatcher(testScheduler))
             runCurrent()
-            uiState.value = uiState.value.copy(messages = uiState.value.messages + ChatMessage("m1", MessageRole.USER, "needle new"))
+            uiState.value =
+                uiState.value.copy(
+                    messages = uiState.value.messages + ChatMessage("m1", MessageRole.USER, "needle new"),
+                )
             runCurrent()
             assertEquals(0, delegate.searchableMessagesCallsForTest)
 
             delegate.toggleSearch()
             runCurrent()
-            uiState.value = uiState.value.copy(messages = uiState.value.messages + ChatMessage("m2", MessageRole.USER, "needle latest"))
+            uiState.value =
+                uiState.value.copy(
+                    messages =
+                        uiState.value.messages + ChatMessage("m2", MessageRole.USER, "needle latest"),
+                )
             runCurrent()
             assertEquals(0, delegate.searchableMessagesCallsForTest)
 
@@ -70,7 +78,11 @@ class ChatSearchDelegateTest {
             assertEquals(setOf("m0", "m1", "m2"), delegate.searchState.matchedIds)
             delegate.clearSearch()
             val callsAfterClose = delegate.searchableMessagesCallsForTest
-            uiState.value = uiState.value.copy(messages = uiState.value.messages + ChatMessage("m3", MessageRole.USER, "needle reopened"))
+            uiState.value =
+                uiState.value.copy(
+                    messages =
+                        uiState.value.messages + ChatMessage("m3", MessageRole.USER, "needle reopened"),
+                )
             runCurrent()
             assertEquals(callsAfterClose, delegate.searchableMessagesCallsForTest)
             delegate.toggleSearch()

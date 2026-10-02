@@ -1059,13 +1059,25 @@ class ChatViewModel(
             return
         }
 
-        // RpcError is reduced before ViewModel request handling. Drop stale
-        // session errors here so the shared reducer cannot clear loading or
-        // surface an error for a newly selected session.
+        // Guard both response types before reduction or any receipt/stream effects.
+        val responseId =
+            when (event) {
+                is WsEvent.RpcResult -> event.id
+                is WsEvent.RpcError -> event.id
+                else -> null
+            }
+        if (responseId != null &&
+            (!ownsTrackedResponseReceipt(responseId) || hasAcceptedTrackedResponseReceipt(responseId))
+        ) {
+            outgoingRequestById.remove(responseId)
+            hardInterruptRequestById.remove(responseId)
+            forgetRequest(responseId)
+            return
+        }
+        // RpcError is reduced before ViewModel request handling. A stale
+        // session error may settle its own receipt but must not touch this UI.
         if (event is WsEvent.RpcError && isStaleSessionRequest(event.id)) {
-            outgoingRequestById.remove(event.id)?.let { markPendingSend(it, PendingSendState.UNKNOWN) }
-            hardInterruptRequestById.remove(event.id)?.let { markPendingSend(it.messageId, PendingSendState.UNKNOWN) }
-            forgetRequest(event.id)
+            handleRpcError(event.id, event.error)
             return
         }
 
@@ -1710,6 +1722,17 @@ class ChatViewModel(
                 it.sessionId == request.sessionId && it.attempts == request.receiptAttempt
         }
 
+    private fun ownsTrackedResponseReceipt(id: String): Boolean {
+        val messageId = outgoingRequestById[id] ?: hardInterruptRequestById[id]?.messageId ?: return true
+        val request = sessionRequestById[id] ?: return false
+        return ownsOutgoingReceipt(request, messageId)
+    }
+
+    private fun hasAcceptedTrackedResponseReceipt(id: String): Boolean {
+        val messageId = outgoingRequestById[id] ?: hardInterruptRequestById[id]?.messageId ?: return false
+        return sendStore.all().any { it.id == messageId && it.state == PendingSendState.ACCEPTED }
+    }
+
     private fun settleStaleOutgoingResult(
         requestId: String,
         method: String,
@@ -1809,12 +1832,23 @@ class ChatViewModel(
         id: String,
         result: Any?,
     ) {
+        if (!ownsTrackedResponseReceipt(id)) {
+            outgoingRequestById.remove(id)
+            hardInterruptRequestById.remove(id)
+            forgetRequest(id)
+            return
+        }
         val method = idToMethod.remove(id) ?: return
         val request = sessionRequestById.remove(id)
         branchWholeRequests.remove(id)
         if (request != null && isStaleSessionRequest(request)) {
             settleStaleOutgoingResult(id, method, result, request)
-            hardInterruptRequestById.remove(id)?.let { markPendingSend(it.messageId, PendingSendState.UNKNOWN) }
+            hardInterruptRequestById.remove(id)?.let { tracked ->
+                val receipt = sendStore.all().firstOrNull { it.id == tracked.messageId }
+                if (receipt?.state == PendingSendState.SENDING) {
+                    markPendingSend(tracked.messageId, PendingSendState.UNKNOWN)
+                }
+            }
             return
         }
         if (method == WsMethods.PROMPT_SUBMIT || method == WsMethods.SESSION_REDIRECT ||
@@ -2249,6 +2283,12 @@ class ChatViewModel(
         id: String,
         error: Any?,
     ) {
+        if (!ownsTrackedResponseReceipt(id) || hasAcceptedTrackedResponseReceipt(id)) {
+            outgoingRequestById.remove(id)
+            hardInterruptRequestById.remove(id)
+            forgetRequest(id)
+            return
+        }
         val method = idToMethod.remove(id) ?: return
         val request = sessionRequestById.remove(id)
         val pendingBranch = branchWholeRequests.remove(id)
@@ -2260,13 +2300,14 @@ class ChatViewModel(
                     markPendingSend(messageId, PendingSendState.UNKNOWN)
                 }
             }
-            hardInterruptRequestById.remove(id)?.let { markPendingSend(it.messageId, PendingSendState.UNKNOWN) }
-            return
-        }
-        // An error for an expired or replaced RPC cannot mutate a newer receipt attempt.
-        val outgoingMessageId = outgoingRequestById[id]
-        if (outgoingMessageId != null && (request == null || !ownsOutgoingReceipt(request, outgoingMessageId))) {
-            outgoingRequestById.remove(id)
+            hardInterruptRequestById.remove(id)?.let { tracked ->
+                val receipt = sendStore.all().firstOrNull { it.id == tracked.messageId }
+                if (request != null && ownsOutgoingReceipt(request, tracked.messageId) &&
+                    receipt?.state == PendingSendState.SENDING
+                ) {
+                    markPendingSend(tracked.messageId, PendingSendState.UNKNOWN)
+                }
+            }
             return
         }
         val errorMsg =
@@ -2678,9 +2719,11 @@ class ChatViewModel(
             outgoingRequestById[requestId]
                 ?: hardInterruptRequestById[requestId]?.messageId
                 ?: return
+        val request = sessionRequestById[requestId] ?: return
+        if (!ownsOutgoingReceipt(request, messageId)) return
         if (sendStore.all().any { it.id == messageId && it.state == PendingSendState.SENDING }) {
             markPendingSend(messageId, PendingSendState.UNKNOWN)
-            removeUnconfirmedBubble(messageId)
+            if (!isStaleSessionRequest(request)) removeUnconfirmedBubble(messageId)
         }
     }
 
@@ -2691,11 +2734,14 @@ class ChatViewModel(
         interruptedTurnEpoch: Long,
     ) {
         hardInterruptRequestById[requestId] = HardInterruptRequest(messageId, interruptedTurnEpoch, owner)
+        val receipt = sendStore.all().firstOrNull { it.id == messageId }
         trackSessionRequest(
             requestId,
             WsMethods.SESSION_INTERRUPT,
             owner.generation,
             sessionId = owner.storageSessionId,
+            receiptScope = receipt?.scope,
+            receiptAttempt = receipt?.attempts,
         )
         if (!isTestEnvironment()) {
             viewModelScope.launch {

@@ -3747,6 +3747,218 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun lateAckForReplacedSameSessionReceiptCannotConfirmNewAttemptOrMessage() =
+        runTest {
+            val store = ChatSendStore()
+            val (viewModel, sessionId) = createViewModelWithSession(sendStore = store)
+            every { HermesWsClient.sendMessage(sessionId, "Replaced ACK", any(), any()) } answers {
+                arg<((String) -> Unit)?>(2)?.invoke("old-ack")
+                "old-ack"
+            }
+            assertTrue(viewModel.sendMessage("Replaced ACK"))
+            advanceUntilIdle()
+            val original = store.all().single()
+            val replacement = original.copy(attempts = original.attempts + 1, state = PendingSendState.SENDING)
+            store.put(replacement)
+            val messages = viewModel.uiState.value.messages
+
+            mockEventsFlow.emit(WsEvent.RpcResult("old-ack", mapOf("status" to "streaming", "user_row_id" to 991)))
+            advanceUntilIdle()
+
+            assertEquals(replacement, store.all().single())
+            assertEquals(messages, viewModel.uiState.value.messages)
+            assertNull(
+                viewModel.uiState.value.messages
+                    .single { it.id == original.id }
+                    .serverRowId,
+            )
+            verify(exactly = 1) { HermesWsClient.sendMessage(sessionId, "Replaced ACK", any(), any()) }
+        }
+
+    @Test
+    fun lateErrorForReplacedSameSessionReceiptCannotRejectNewAttemptOrClearMessages() =
+        runTest {
+            val store = ChatSendStore()
+            val (viewModel, sessionId) = createViewModelWithSession(sendStore = store)
+            every { HermesWsClient.sendMessage(sessionId, "Replaced error", any(), any()) } answers {
+                arg<((String) -> Unit)?>(2)?.invoke("old-error")
+                "old-error"
+            }
+            assertTrue(viewModel.sendMessage("Replaced error"))
+            advanceUntilIdle()
+            val original = store.all().single()
+            val replacement = original.copy(attempts = original.attempts + 1, state = PendingSendState.SENDING)
+            store.put(replacement)
+            val messages = viewModel.uiState.value.messages
+            val errorMessage = viewModel.uiState.value.errorMessage
+
+            mockEventsFlow.emit(WsEvent.RpcError("old-error", JsonRpcError(4001, "stale rejection")))
+            advanceUntilIdle()
+
+            assertEquals(replacement, store.all().single())
+            assertEquals(messages, viewModel.uiState.value.messages)
+            assertEquals(errorMessage, viewModel.uiState.value.errorMessage)
+            verify(exactly = 1) { HermesWsClient.sendMessage(sessionId, "Replaced error", any(), any()) }
+        }
+
+    @Test
+    fun expiredRequestForReplacedSameSessionReceiptCannotQuarantineNewAttempt() =
+        runTest {
+            val store = ChatSendStore()
+            val (viewModel, sessionId) = createViewModelWithSession(sendStore = store)
+            every { HermesWsClient.sendMessage(sessionId, "Replaced timeout", any(), any()) } answers {
+                arg<((String) -> Unit)?>(2)?.invoke("old-timeout")
+                "old-timeout"
+            }
+            assertTrue(viewModel.sendMessage("Replaced timeout"))
+            advanceUntilIdle()
+            val original = store.all().single()
+            val replacement = original.copy(attempts = original.attempts + 1, state = PendingSendState.SENDING)
+            store.put(replacement)
+            val messages = viewModel.uiState.value.messages
+
+            viewModel.expireOutgoingRequest("old-timeout")
+            advanceUntilIdle()
+
+            assertEquals(replacement, store.all().single())
+            assertEquals(messages, viewModel.uiState.value.messages)
+            verify(exactly = 1) { HermesWsClient.sendMessage(sessionId, "Replaced timeout", any(), any()) }
+        }
+
+    @Test
+    fun expiredHardInterruptForReplacedSameSessionReceiptCannotQuarantineNewAttempt() =
+        runTest {
+            val store = ChatSendStore()
+            val (viewModel, sessionId) = createViewModelWithSession(sendStore = store)
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            advanceUntilIdle()
+            assertTrue(viewModel.sendMessage("Replaced interrupt", BusySendMode.INTERRUPT))
+            advanceUntilIdle()
+            val interruptId = sentRequestMethods.last { it.first == WsMethods.SESSION_INTERRUPT }.second
+            val original = store.all().single()
+            val replacement = original.copy(attempts = original.attempts + 1, state = PendingSendState.SENDING)
+            store.put(replacement)
+            val messages = viewModel.uiState.value.messages
+
+            viewModel.expireOutgoingRequest(interruptId)
+            advanceUntilIdle()
+
+            assertEquals(replacement, store.all().single())
+            assertEquals(messages, viewModel.uiState.value.messages)
+            verify(exactly = 0) { HermesWsClient.sendMessage(any(), "Replaced interrupt", any(), any()) }
+        }
+
+    @Test
+    fun lateHardInterruptAckCannotDispatchReplacedSameSessionAttempt() =
+        runTest {
+            val store = ChatSendStore()
+            val (viewModel, sessionId) = createViewModelWithSession(sendStore = store)
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            advanceUntilIdle()
+            assertTrue(viewModel.sendMessage("Interrupt replacement", BusySendMode.INTERRUPT))
+            advanceUntilIdle()
+            val id = sentRequestMethods.last { it.first == WsMethods.SESSION_INTERRUPT }.second
+            val receipt = store.all().single()
+            val replacement = receipt.copy(attempts = receipt.attempts + 1, state = PendingSendState.SENDING)
+            store.put(replacement)
+            val before = viewModel.uiState.value
+            val streamBefore = viewModel.streamingState.value
+
+            mockEventsFlow.emit(WsEvent.RpcResult(id, mapOf("status" to "interrupted")))
+            advanceUntilIdle()
+
+            assertEquals(replacement, store.all().single())
+            assertEquals(before.messages, viewModel.uiState.value.messages)
+            assertEquals(before, viewModel.uiState.value)
+            assertEquals(streamBefore, viewModel.streamingState.value)
+            verify(exactly = 0) { HermesWsClient.sendMessage(any(), "Interrupt replacement", any(), any()) }
+        }
+
+    @Test
+    fun lateHardInterruptErrorCannotRejectReplacedSameSessionAttempt() =
+        runTest {
+            val store = ChatSendStore()
+            val (viewModel, sessionId) = createViewModelWithSession(sendStore = store)
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            advanceUntilIdle()
+            assertTrue(viewModel.sendMessage("Interrupt replacement", BusySendMode.INTERRUPT))
+            advanceUntilIdle()
+            val id = sentRequestMethods.last { it.first == WsMethods.SESSION_INTERRUPT }.second
+            val receipt = store.all().single()
+            val replacement = receipt.copy(attempts = receipt.attempts + 1, state = PendingSendState.SENDING)
+            store.put(replacement)
+            val before = viewModel.uiState.value
+            val streamBefore = viewModel.streamingState.value
+
+            mockEventsFlow.emit(WsEvent.RpcError(id, JsonRpcError(4001, "old interrupt")))
+            advanceUntilIdle()
+
+            assertEquals(replacement, store.all().single())
+            assertEquals(before.messages, viewModel.uiState.value.messages)
+            assertEquals(before, viewModel.uiState.value)
+            assertEquals(streamBefore, viewModel.streamingState.value)
+            verify(exactly = 0) { HermesWsClient.sendMessage(any(), "Interrupt replacement", any(), any()) }
+        }
+
+    @Test
+    fun lateHardInterruptAckCannotQuarantineReplacedStaleSessionAttempt() =
+        runTest {
+            stubSession456Rests(success = true)
+            val store = ChatSendStore()
+            val (viewModel, sessionId) = createViewModelWithSession(sendStore = store)
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            advanceUntilIdle()
+            assertTrue(viewModel.sendMessage("Interrupt replacement", BusySendMode.INTERRUPT))
+            advanceUntilIdle()
+            val id = sentRequestMethods.last { it.first == WsMethods.SESSION_INTERRUPT }.second
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+            val receipt = store.all().single()
+            val replacement = receipt.copy(attempts = receipt.attempts + 1, state = PendingSendState.SENDING)
+            store.put(replacement)
+            val before = viewModel.uiState.value
+            val streamBefore = viewModel.streamingState.value
+
+            mockEventsFlow.emit(WsEvent.RpcResult(id, mapOf("status" to "interrupted")))
+            advanceUntilIdle()
+
+            assertEquals(replacement, store.all().single())
+            assertEquals(before.messages, viewModel.uiState.value.messages)
+            assertEquals(before, viewModel.uiState.value)
+            assertEquals(streamBefore, viewModel.streamingState.value)
+            verify(exactly = 0) { HermesWsClient.sendMessage(any(), "Interrupt replacement", any(), any()) }
+        }
+
+    @Test
+    fun lateHardInterruptErrorCannotQuarantineReplacedStaleSessionAttempt() =
+        runTest {
+            stubSession456Rests(success = true)
+            val store = ChatSendStore()
+            val (viewModel, sessionId) = createViewModelWithSession(sendStore = store)
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            advanceUntilIdle()
+            assertTrue(viewModel.sendMessage("Interrupt replacement", BusySendMode.INTERRUPT))
+            advanceUntilIdle()
+            val id = sentRequestMethods.last { it.first == WsMethods.SESSION_INTERRUPT }.second
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+            val receipt = store.all().single()
+            val replacement = receipt.copy(attempts = receipt.attempts + 1, state = PendingSendState.SENDING)
+            store.put(replacement)
+            val before = viewModel.uiState.value
+            val streamBefore = viewModel.streamingState.value
+
+            mockEventsFlow.emit(WsEvent.RpcError(id, JsonRpcError(4001, "old interrupt")))
+            advanceUntilIdle()
+
+            assertEquals(replacement, store.all().single())
+            assertEquals(before.messages, viewModel.uiState.value.messages)
+            assertEquals(before, viewModel.uiState.value)
+            assertEquals(streamBefore, viewModel.streamingState.value)
+            verify(exactly = 0) { HermesWsClient.sendMessage(any(), "Interrupt replacement", any(), any()) }
+        }
+
+    @Test
     fun staleSessionRpcErrorCannotOverwriteReceiptFromOldSession() =
         runTest {
             stubSession456Rests(success = true)

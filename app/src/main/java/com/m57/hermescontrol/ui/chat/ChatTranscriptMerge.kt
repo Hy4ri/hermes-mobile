@@ -417,6 +417,12 @@ internal fun mergeCachedTranscriptPage(
                 match.id to
                     rich.copy(
                         id = match.id,
+                        attachments =
+                            if (rich.role == MessageRole.USER) {
+                                rich.attachments?.takeIf { it.isNotEmpty() } ?: message.attachments
+                            } else {
+                                rich.attachments
+                            },
                         content = preservedContent ?: rich.content,
                         restId = match.canonicalRestId ?: message.canonicalRestId,
                         serverRowId = match.serverRowId ?: message.serverRowId,
@@ -457,6 +463,15 @@ internal fun mergeTranscriptWithLive(
             when {
                 match?.role == MessageRole.USER -> {
                     match.copy(
+                        // #1432: cached user rows lack attachment metadata; hydrate from REST,
+                        // while preserving richer optimistic/local attachments when present.
+                        attachments = match.attachments?.takeIf { it.isNotEmpty() } ?: message.attachments,
+                        content =
+                            if (match.isHistoricalCache && !message.attachments.isNullOrEmpty()) {
+                                message.content
+                            } else {
+                                match.content
+                            },
                         restId = (message.canonicalRestId ?: match.canonicalRestId).takeUnless { it == match.id },
                         serverRowId = message.serverRowId ?: match.serverRowId,
                         reactions = message.reactions.ifEmpty { match.reactions },

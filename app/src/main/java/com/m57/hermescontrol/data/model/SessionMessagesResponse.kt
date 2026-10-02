@@ -3,6 +3,7 @@ package com.m57.hermescontrol.data.model
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
@@ -100,20 +101,10 @@ data class SessionMessage(
         }
 
     val contentText: String
-        get() =
-            when (content) {
-                is JsonPrimitive -> content.content
-                null -> ""
-                else -> content.toString()
-            }
+        get() = content?.transcriptText().orEmpty()
 
     val displayContentText: String?
-        get() =
-            when (display_content) {
-                is JsonPrimitive -> display_content.content
-                null -> null
-                else -> display_content.toString()
-            }
+        get() = display_content?.transcriptText()
 
     val reasoningText: String
         get() =
@@ -159,5 +150,26 @@ data class SessionMessage(
     val toolCallId: String
         get() = tool_call_id.orEmpty()
 }
+
+// #1432: model-facing multipart payloads contain inline image bytes, not displayable JSON.
+private fun JsonElement.transcriptText(): String =
+    when (this) {
+        is JsonPrimitive -> {
+            content
+        }
+
+        is JsonArray -> {
+            mapNotNull { part ->
+                val block = part as? JsonObject ?: return@mapNotNull null
+                val type = block["type"]
+                if (type != null && (type as? JsonPrimitive)?.content != "text") return@mapNotNull null
+                (block["text"] as? JsonPrimitive)?.takeIf { it.isString }?.content
+            }.joinToString("\n")
+        }
+
+        else -> {
+            toString()
+        }
+    }
 
 private val WHITESPACE = Regex("\\s+")

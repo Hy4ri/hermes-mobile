@@ -105,7 +105,7 @@ class GatewayContractTest {
                 // ChatViewModel, GroupChatViewModel
                 "session.create" to setOf("profile", "title", "source", "hidden"),
                 // ChatViewModel.resumeSession, NotificationReplyReceiver
-                "session.resume" to setOf("session_id", "omit_messages"),
+                "session.resume" to setOf("session_id", "source", "omit_messages"),
                 // ChatViewModel, GroupChatViewModel
                 "session.interrupt" to setOf("session_id"),
             )

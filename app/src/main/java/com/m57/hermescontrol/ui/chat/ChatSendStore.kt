@@ -61,6 +61,25 @@ internal fun pendingSendIdsConfirmedByDurableAliases(
         .toSet()
 }
 
+/**
+ * #1427: the `prompt.submit` `user_row_id` is the exact gateway row for that send, so a history
+ * page containing it proves delivery even when the merge could not alias the local bubble.
+ */
+internal fun pendingSendIdsConfirmedByRowIds(
+    pageRowIds: Set<Long>,
+    pending: List<PendingSend>,
+): Set<String> =
+    pending
+        .asSequence()
+        .filter {
+            it.state in setOf(PendingSendState.SENDING, PendingSendState.ACCEPTED, PendingSendState.UNKNOWN)
+        }.filter { it.userRowId != null && it.userRowId in pageRowIds }
+        .map { it.id }
+        .toSet()
+
+/** #1427: a receipt holding a gateway `user_row_id` is stored server-side and must never become UNKNOWN. */
+internal fun canDemoteAcceptedReceipt(receipt: PendingSend): Boolean = receipt.userRowId == null
+
 /** Synchronous writes keep the queue recoverable when Android kills the process just after a tap. */
 class ChatSendStore(
     private val prefs: SharedPreferences? = null,

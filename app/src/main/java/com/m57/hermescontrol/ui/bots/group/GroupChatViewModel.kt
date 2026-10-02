@@ -16,6 +16,7 @@ import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsEvent
+import com.m57.hermescontrol.data.ws.contract.DESKTOP_SESSION_SOURCE
 import com.m57.hermescontrol.data.ws.contract.ProfilesConfigureParams
 import com.m57.hermescontrol.data.ws.contract.ProfilesListParams
 import com.m57.hermescontrol.data.ws.contract.PromptSubmitParams
@@ -564,7 +565,7 @@ class GroupChatViewModel(
                     method = RpcMethods.SESSION_CREATE,
                     params =
                         SessionCreateParams(
-                            source = "desktop",
+                            source = DESKTOP_SESSION_SOURCE,
                             profile = bot.name,
                             title = title,
                             hidden = true,

@@ -105,8 +105,10 @@ fun UserBubble(
         val deliveryState =
             when {
                 pendingSendState == PendingSendState.SENDING -> DeliveryState.SENT
+
                 pendingSendState == PendingSendState.ACCEPTED ||
                     message.canonicalRestId != null || message.serverRowId != null -> DeliveryState.DELIVERED
+
                 else -> null
             }
 

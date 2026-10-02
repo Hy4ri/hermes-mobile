@@ -115,7 +115,13 @@ fun UserBubble(
 
         // #1432: also protect cached/legacy rows and unexpectedly large plain-string payloads.
         // Keep the original content for Copy; only the layout input is bounded.
-        val displayContent = remember(message.content) { ToolJson.clampForDisplay(message.content) }
+        val displayContent =
+            remember(message.content, message.attachments) {
+                // #1432: the path is only hidden when its image renders as an attachment below.
+                val visible =
+                    if (message.attachments.isNullOrEmpty()) message.content else hideImageRefLines(message.content)
+                ToolJson.clampForDisplay(visible)
+            }
         val highlightedText =
             remember(displayContent, searchQuery, isCurrentMatch, statusColors) {
                 if (searchQuery.isNotBlank()) {

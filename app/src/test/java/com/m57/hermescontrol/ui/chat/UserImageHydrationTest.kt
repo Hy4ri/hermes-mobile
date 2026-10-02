@@ -345,4 +345,11 @@ class UserImageHydrationTest {
         assertTrue(chatMessage.content.contains("@image:/var/log/screenshot.png"))
         assertNull(chatMessage.attachments)
     }
+
+    @Test
+    fun hideImageRefLines_removesOnlyPathLinesAndKeepsCaption() {
+        val content = "caption\n@image:/opt/data/images/a.jpg\nmore text @image:/inline.png"
+        assertEquals("caption\nmore text @image:/inline.png", hideImageRefLines(content))
+        assertEquals("plain", hideImageRefLines("plain"))
+    }
 }

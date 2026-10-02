@@ -47,3 +47,17 @@ internal fun userImageAttachments(
 
     return attachments
 }
+
+/** Hides whole-line `@image:/abs/path` refs from bubble text once they render as attachments. */
+internal fun hideImageRefLines(content: String): String {
+    if (!content.contains("@image:")) return content
+    return content
+        .lines()
+        .filterNot { line ->
+            line.trim().let {
+                it.startsWith("@image:") &&
+                    it.removePrefix("@image:").trim().startsWith("/")
+            }
+        }.joinToString("\n")
+        .trim()
+}

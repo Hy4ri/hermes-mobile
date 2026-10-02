@@ -10718,7 +10718,7 @@ class ChatViewModelTest {
         }
 
     @Test
-    fun dismissUnknownReceiptDoesNotResendAndCannotDismissInFlight() =
+    fun discardUnknownPreservesConversationAndReceiptIncludingAcknowledgedState() =
         runTest {
             val store = ChatSendStore()
             val (vm, session) = createViewModelWithSession(sendStore = store)
@@ -10728,13 +10728,190 @@ class ChatViewModelTest {
             vm.discardPendingSend(receipt.id)
             assertEquals(PendingSendState.SENDING, store.all().single().state)
             store.update(receipt.id) { it.copy(state = PendingSendState.UNKNOWN) }
-            vm.discardPendingSend(receipt.id)
-            advanceUntilIdle()
-            assertTrue(store.all().isEmpty())
-            assertTrue(
-                vm.uiState.value.messages
-                    .none { it.id == receipt.id },
-            )
+            for (acknowledged in listOf(false, true)) {
+                store.update(receipt.id) { it.copy(userOrderingReleased = acknowledged) }
+                val before = vm.uiState.value.messages
+                vm.discardPendingSend(receipt.id)
+                advanceUntilIdle()
+                assertEquals(PendingSendState.UNKNOWN, store.all().single().state)
+                assertEquals(acknowledged, store.all().single().userOrderingReleased)
+                assertEquals(before, vm.uiState.value.messages)
+                assertTrue(fakeRepo.dao.getMessagesForSession(session).any { it.id == receipt.id })
+            }
             verify(exactly = 1) { HermesWsClient.sendMessage(session, "dismiss-first", any(), any()) }
+        }
+
+    @Test
+    fun acknowledgeUnknownPersistsOnlyMetadataWithoutSendingOrDrainingQueuedRows() =
+        runTest {
+            val store = ChatSendStore()
+            val (vm, session) = createViewModelWithSession(sendStore = store)
+            assertTrue(vm.sendMessage("ack-first"))
+            advanceUntilIdle()
+            val receipt = store.all().single().copy(state = PendingSendState.UNKNOWN)
+            store.put(receipt)
+            val queued =
+                receipt.copy(
+                    id = "queued-after-ack",
+                    text = "queued-after-ack",
+                    state = PendingSendState.QUEUED,
+                )
+            store.put(queued)
+            val before = vm.uiState.value.messages
+
+            vm.acknowledgePendingSend(receipt.id)
+            advanceUntilIdle()
+
+            assertEquals(receipt.copy(userOrderingReleased = true), store.all().first { it.id == receipt.id })
+            assertEquals(queued, store.all().first { it.id == queued.id })
+            assertEquals(before, vm.uiState.value.messages)
+            assertNull(vm.uiState.value.errorMessage)
+            verify(exactly = 1) { HermesWsClient.sendMessage(session, "ack-first", any(), any()) }
+            verify(exactly = 0) { HermesWsClient.sendMessage(session, "queued-after-ack", any(), any()) }
+        }
+
+    @Test
+    fun acknowledgeUnknownCommitFailureRetainsReceiptAndShowsErrorWithoutSending() =
+        runTest {
+            every { app.getString(com.m57.hermescontrol.R.string.chat_pending_acknowledge_failed) } returns
+                "Could not acknowledge the pending entry. It has been kept; try again."
+            var saved: String? = null
+            var staged: String? = null
+            var writable = true
+            val prefs = mockk<SharedPreferences>()
+            val editor = mockk<SharedPreferences.Editor>()
+            every { prefs.getString("rows", null) } answers { saved }
+            every { prefs.edit() } returns editor
+            every { editor.putString("rows", any()) } answers {
+                staged = secondArg()
+                editor
+            }
+            every { editor.commit() } answers {
+                if (writable) saved = staged
+                writable
+            }
+            val store = ChatSendStore(prefs)
+            val (vm, session) = createViewModelWithSession(sendStore = store)
+            assertTrue(vm.sendMessage("ack-failure"))
+            advanceUntilIdle()
+            val receipt = store.all().single().copy(state = PendingSendState.UNKNOWN)
+            store.put(receipt)
+            val persistedBefore = saved
+            writable = false
+
+            assertNull(runCatching { vm.acknowledgePendingSend(receipt.id) }.exceptionOrNull())
+            advanceUntilIdle()
+            assertEquals(listOf(receipt), store.all())
+            assertEquals(persistedBefore, saved)
+            assertEquals(
+                "Could not acknowledge the pending entry. It has been kept; try again.",
+                vm.uiState.value.errorMessage,
+            )
+            verify(exactly = 1) { HermesWsClient.sendMessage(session, "ack-failure", any(), any()) }
+        }
+
+    @Test
+    fun removeAcknowledgedPendingSendPreservesConversationAndAttachmentSnapshots() =
+        runTest {
+            val store = ChatSendStore()
+            val (vm, session) = createViewModelWithSession(sendStore = store)
+            assertTrue(vm.sendMessage("preserved"))
+            advanceUntilIdle()
+            val original = store.all().single()
+            val file = java.io.File(attachmentFilesDir, "preserved.txt").apply { writeText("keep") }
+            val attachment = Attachment(file.toURI().toString(), "preserved.txt", "text/plain", 4)
+            val receipt =
+                original.copy(
+                    state = PendingSendState.UNKNOWN,
+                    userOrderingReleased = true,
+                    attachments = listOf(attachment),
+                )
+            store.put(receipt)
+            val history = ChatMessage(receipt.id, MessageRole.USER, receipt.text, attachments = listOf(attachment))
+            fakeRepo.persistMessage(history, session)
+            val stateField = ChatViewModel::class.java.getDeclaredField("_uiState").apply { isAccessible = true }
+
+            @Suppress("UNCHECKED_CAST")
+            val state = stateField.get(vm) as MutableStateFlow<ChatUiState>
+            state.value =
+                state.value.copy(messages = state.value.messages + history, pendingAttachments = listOf(attachment))
+            val messagesBefore = vm.uiState.value.messages
+
+            vm.removeAcknowledgedPendingSend(receipt)
+            advanceUntilIdle()
+
+            assertTrue(store.all().isEmpty())
+            assertEquals(messagesBefore, vm.uiState.value.messages)
+            assertTrue(fakeRepo.dao.getMessagesForSession(session).any { it.id == history.id })
+            assertEquals(listOf(attachment), vm.uiState.value.pendingAttachments)
+            assertTrue(file.exists())
+            verify(exactly = 1) { HermesWsClient.sendMessage(session, "preserved", any(), any()) }
+        }
+
+    @Test
+    fun removeAcknowledgedPendingSendFailureKeepsReceiptAndReportsError() =
+        runTest {
+            every { app.getString(com.m57.hermescontrol.R.string.chat_pending_remove_failed) } returns
+                "Could not remove the pending entry. It has been kept; try again."
+            var saved: String? = null
+            var writable = true
+            var staged: String? = null
+            val prefs = mockk<SharedPreferences>()
+            val editor = mockk<SharedPreferences.Editor>()
+            every { prefs.getString("rows", null) } answers { saved }
+            every { prefs.edit() } returns editor
+            every { editor.putString("rows", any()) } answers {
+                staged = secondArg()
+                editor
+            }
+            every { editor.commit() } answers {
+                if (writable) saved = staged
+                writable
+            }
+            val store = ChatSendStore(prefs)
+            val (vm, session) = createViewModelWithSession(sendStore = store)
+            assertTrue(vm.sendMessage("disk-failure"))
+            advanceUntilIdle()
+            val receipt = store.all().single().copy(state = PendingSendState.UNKNOWN, userOrderingReleased = true)
+            store.put(receipt)
+            val persistedBefore = saved
+            writable = false
+
+            assertNull(runCatching { vm.removeAcknowledgedPendingSend(receipt) }.exceptionOrNull())
+            advanceUntilIdle()
+            assertEquals(listOf(receipt), store.all())
+            assertEquals(persistedBefore, saved)
+            assertEquals(
+                "Could not remove the pending entry. It has been kept; try again.",
+                vm.uiState.value.errorMessage,
+            )
+            verify(exactly = 1) { HermesWsClient.sendMessage(session, "disk-failure", any(), any()) }
+        }
+
+    @Test
+    fun removeAcknowledgedPendingSendRejectsOtherScopeSessionAndStates() =
+        runTest {
+            val store = ChatSendStore()
+            val (vm, _) = createViewModelWithSession(sendStore = store)
+            assertTrue(vm.sendMessage("scope-check"))
+            advanceUntilIdle()
+            val released = store.all().single().copy(state = PendingSendState.UNKNOWN, userOrderingReleased = true)
+            store.put(released)
+            every { AuthManager.getBaseUrl() } returns "http://other-account.test/"
+            vm.removeAcknowledgedPendingSend(released)
+            assertEquals(listOf(released), store.all())
+            every { AuthManager.getBaseUrl() } returns "http://test.local/"
+            for (row in listOf(
+                released.copy(sessionId = "other-session"),
+                released.copy(state = PendingSendState.ACCEPTED),
+                released.copy(userOrderingReleased = false),
+            )) {
+                store.put(row)
+                vm.removeAcknowledgedPendingSend(row)
+                assertEquals(listOf(row), store.all())
+            }
+            store.put(released.copy(attempts = released.attempts + 1))
+            vm.removeAcknowledgedPendingSend(released)
+            assertEquals(released.attempts + 1, store.all().single().attempts)
         }
 }

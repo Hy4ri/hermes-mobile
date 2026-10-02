@@ -268,4 +268,31 @@ class ChatSendStoreTest {
         val live = sends.filterNot { it.needsRecovery }.map { ChatMessage(it.id, MessageRole.USER, it.text) }
         assertEquals(live, messagesWithoutUnconfirmedReceipts(live, sends))
     }
+
+    @Test
+    fun acknowledgementPersistsButDismissalRequiresExactReleasedUnknownSnapshot() {
+        val store = ChatSendStore()
+        val unknown = pending("unknown", "uncertain", PendingSendState.UNKNOWN)
+        val queued = pending("queued", "later", PendingSendState.QUEUED)
+        store.put(unknown)
+        store.put(queued)
+        assertEquals(false, store.dismissReleasedUnknown(unknown))
+        store.update(unknown.id) { it.copy(userOrderingReleased = true) }
+        val acknowledged = store.all().first()
+        assertEquals(PendingSendState.UNKNOWN, acknowledged.state)
+        assertEquals(false, store.dismissReleasedUnknown(unknown))
+        assertEquals(false, store.dismissReleasedUnknown(acknowledged.copy(attempts = 1)))
+        assertEquals(true, store.dismissReleasedUnknown(acknowledged))
+        assertEquals(false, store.dismissReleasedUnknown(acknowledged))
+        assertEquals(listOf(queued), store.all())
+    }
+
+    @Test
+    fun promotionClearsAcknowledgementBeforeRetry() {
+        val store = ChatSendStore()
+        store.put(pending("unknown", "uncertain", PendingSendState.UNKNOWN).copy(userOrderingReleased = true))
+        store.promote("unknown")
+        assertEquals(PendingSendState.QUEUED, store.all().single().state)
+        assertEquals(false, store.all().single().userOrderingReleased)
+    }
 }

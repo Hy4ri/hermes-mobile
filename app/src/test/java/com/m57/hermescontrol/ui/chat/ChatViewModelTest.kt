@@ -10636,7 +10636,8 @@ class ChatViewModelTest {
                     .last()
                     .content,
             )
-            assertEquals(PendingSendState.UNKNOWN, store.all().single().state)
+            // #1427: a mismatched history row cannot retire the gateway-confirmed receipt.
+            assertEquals(PendingSendState.ACCEPTED, store.all().single().state)
             assertTrue(vm.uiState.value.isSessionReady)
             assertTrue(vm.sendMessage("probe-second"))
             advanceUntilIdle()
@@ -10648,9 +10649,10 @@ class ChatViewModelTest {
             assertNull(vm.uiState.value.errorMessage)
             verify(exactly = 1) { HermesWsClient.sendMessage(session, "probe-second", any(), any()) }
             verify(exactly = 1) { HermesWsClient.sendMessage(session, "probe-first", any(), any()) }
-            assertEquals(PendingSendState.UNKNOWN, store.all().single { it.text == "probe-first" }.state)
+            assertEquals(PendingSendState.ACCEPTED, store.all().single { it.text == "probe-first" }.state)
+            // The accepted row 10 remains visible separately from the unrelated history row 20.
             assertEquals(
-                1,
+                2,
                 vm.transcriptState.value.messages
                     .count { it.content == "probe-first" },
             )

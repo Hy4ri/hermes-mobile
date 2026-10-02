@@ -360,6 +360,14 @@ class ChatViewModelTest {
             arg<((String) -> Unit)?>(2)?.invoke(id)
             id
         }
+        // Typed redirects bypass send(); keep this fixture off the real singleton transport.
+        every { HermesWsClient.sendRedirect(any(), any(), any()) } answers {
+            reqCount++
+            val id = "req-redirect-$reqCount"
+            sentRequestMethods += WsMethods.SESSION_REDIRECT to id
+            arg<((String) -> Unit)?>(2)?.invoke(id)
+            id
+        }
         every { HermesWsClient.respondToServerRequest(any(), any()) } returns true
         every { HermesWsClient.respondToServerRequestError(any(), any(), any()) } returns true
 

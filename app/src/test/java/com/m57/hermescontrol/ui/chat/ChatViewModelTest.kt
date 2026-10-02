@@ -4296,6 +4296,134 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun acknowledgedAttachmentRetryTimeoutIsUnacknowledged() =
+        runTest {
+            val store = ChatSendStore()
+            val (vm, session) = createViewModelWithSession(sendStore = store)
+            val scope =
+                listOf(
+                    AuthManager.getBaseUrl(),
+                    AuthManager.getSelectedProfileId() ?: AuthManager.DEFAULT_PROFILE_ID,
+                    AuthManager.activeProfileId.value ?: AuthManager.DEFAULT_PROFILE_ID,
+                ).joinToString("\u001f")
+            val uri = mockk<Uri>()
+            val snapshotUri = mockk<Uri>()
+            val resolver = mockk<ContentResolver>()
+            lateinit var snapshotFile: java.io.File
+            mockkStatic(Uri::class)
+            every { Uri.parse("content://retry/ack") } returns uri
+            every { Uri.fromFile(any()) } answers {
+                snapshotFile = firstArg()
+                snapshotUri
+            }
+            every { snapshotUri.toString() } returns "file://private-ack-retry-copy"
+            every { Uri.parse("file://private-ack-retry-copy") } returns snapshotUri
+            every { app.contentResolver } returns resolver
+            every { resolver.openInputStream(uri) } answers { "hello".byteInputStream() }
+            every { resolver.openInputStream(snapshotUri) } answers { snapshotFile.inputStream() }
+            mockkConstructor(android.util.Base64OutputStream::class)
+            every { anyConstructed<android.util.Base64OutputStream>().write(any<ByteArray>(), any(), any()) } returns
+                Unit
+            every { anyConstructed<android.util.Base64OutputStream>().close() } returns Unit
+            val attachmentRequest = slot<Map<String, Any>>()
+            every { HermesWsClient.request(WsMethods.FILE_ATTACH, capture(attachmentRequest), any()) } returns
+                CompletableDeferred<Any?>(mapOf("ref_text" to "@file:retry-ack.txt"))
+            var submittedRequestId: String? = null
+            every { HermesWsClient.sendMessage(session, any(), any(), any()) } answers {
+                "attachment-retry-submit".also { id ->
+                    submittedRequestId = id
+                    arg<((String) -> Unit)?>(2)?.invoke(id)
+                }
+            }
+            store.put(
+                PendingSend(
+                    id = "attachment-ack",
+                    scope = scope,
+                    sessionId = session,
+                    text = "again",
+                    attachments = listOf(Attachment("content://retry/ack", "retry-ack.txt", "text/plain", 5)),
+                    mode = BusySendMode.QUEUE,
+                    state = PendingSendState.UNKNOWN,
+                    userOrderingReleased = true,
+                ),
+            )
+            vm.sendQueuedNow("attachment-ack")
+            advanceUntilIdle()
+            verify(exactly = 1) { HermesWsClient.request(WsMethods.FILE_ATTACH, any(), any()) }
+            assertEquals(session, (attachmentRequest.captured["session_id"] as JsonPrimitive).content)
+            verify(exactly = 1) {
+                HermesWsClient.sendMessage(session, "@file:retry-ack.txt\n\nagain", any(), false)
+            }
+            assertEquals("attachment-retry-submit", submittedRequestId)
+            assertEquals(1, store.all().single().attempts)
+            assertEquals(PendingSendState.SENDING, store.all().single().state)
+            assertEquals(false, store.all().single().userOrderingReleased)
+            vm.expireOutgoingRequest(requireNotNull(submittedRequestId))
+            assertEquals(PendingSendState.UNKNOWN, store.all().single().state)
+            assertEquals(false, store.all().single().userOrderingReleased)
+        }
+
+    @Test
+    fun acknowledgedBusyTextRetryTimeoutIsUnacknowledged() =
+        runTest {
+            val store = ChatSendStore()
+            val (vm, session) = createViewModelWithSession(sendStore = store)
+            val scope =
+                listOf(
+                    AuthManager.getBaseUrl(),
+                    AuthManager.getSelectedProfileId() ?: AuthManager.DEFAULT_PROFILE_ID,
+                    AuthManager.activeProfileId.value ?: AuthManager.DEFAULT_PROFILE_ID,
+                ).joinToString("\u001f")
+            store.put(
+                PendingSend(
+                    id = "busy-ack",
+                    scope = scope,
+                    sessionId = session,
+                    text = "busy retry",
+                    mode = BusySendMode.QUEUE,
+                    state = PendingSendState.UNKNOWN,
+                    userOrderingReleased = true,
+                ),
+            )
+            mockEventsFlow.emit(WsEvent.MessageStart(session))
+            advanceUntilIdle()
+            vm.sendQueuedNow("busy-ack")
+            advanceUntilIdle()
+            assertEquals(false, store.all().single().userOrderingReleased)
+            val interruptId = sentRequestMethods.last { it.first == WsMethods.SESSION_INTERRUPT }.second
+            vm.expireOutgoingRequest(interruptId)
+            assertEquals(PendingSendState.UNKNOWN, store.all().single().state)
+            assertEquals(false, store.all().single().userOrderingReleased)
+
+            // The interrupt timeout above is not a prompt timeout. Retry the
+            // uncertain receipt and complete the interrupt to reach prompt.submit.
+            val attemptsAfterInterruptTimeout = store.all().single().attempts
+            var submittedRequestId: String? = null
+            every { HermesWsClient.sendMessage(session, "busy retry", any(), true) } answers {
+                "busy-retry-submit".also { id ->
+                    submittedRequestId = id
+                    arg<((String) -> Unit)?>(2)?.invoke(id)
+                }
+            }
+            vm.sendQueuedNow("busy-ack")
+            advanceUntilIdle()
+            val retryInterruptId = sentRequestMethods.last { it.first == WsMethods.SESSION_INTERRUPT }.second
+            assertTrue(retryInterruptId != interruptId)
+            assertEquals(attemptsAfterInterruptTimeout + 1, store.all().single().attempts)
+            assertEquals(false, store.all().single().userOrderingReleased)
+            verify(exactly = 0) { HermesWsClient.sendMessage(session, "busy retry", any(), any()) }
+
+            mockEventsFlow.emit(WsEvent.RpcResult(retryInterruptId, mapOf("status" to "interrupted")))
+            advanceUntilIdle()
+            verify(exactly = 1) { HermesWsClient.sendMessage(session, "busy retry", any(), true) }
+            assertEquals("busy-retry-submit", submittedRequestId)
+            assertEquals(PendingSendState.SENDING, store.all().single().state)
+            vm.expireOutgoingRequest(requireNotNull(submittedRequestId))
+            assertEquals(PendingSendState.UNKNOWN, store.all().single().state)
+            assertEquals(false, store.all().single().userOrderingReleased)
+        }
+
+    @Test
     fun manualRetryPreparationOversizePreservesOriginalReceipt() =
         runTest {
             val store = ChatSendStore()

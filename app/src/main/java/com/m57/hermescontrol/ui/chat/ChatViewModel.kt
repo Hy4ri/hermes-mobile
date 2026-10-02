@@ -2973,6 +2973,8 @@ class ChatViewModel(
                             mode = if (wasStreaming) BusySendMode.INTERRUPT else BusySendMode.QUEUE,
                             state = PendingSendState.SENDING,
                             attempts = row.attempts + 1,
+                            // A retry is a new attempt; the earlier local acknowledgment is not transferable.
+                            userOrderingReleased = false,
                         ),
                     userMessage = message,
                     wasStreaming = wasStreaming,
@@ -2995,7 +2997,11 @@ class ChatViewModel(
             viewModelScope.launch {
                 commitReceiptAndEnqueue(
                     owner,
-                    row.copy(state = PendingSendState.SENDING, attempts = row.attempts + 1),
+                    row.copy(
+                        state = PendingSendState.SENDING,
+                        attempts = row.attempts + 1,
+                        userOrderingReleased = false,
+                    ),
                     row,
                     deleteSnapshotOnRollback = false,
                 ) {

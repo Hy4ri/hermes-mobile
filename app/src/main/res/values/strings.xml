@@ -89,6 +89,7 @@
     <string name="screen_system">System</string>
     <string name="screen_settings">Settings</string>
     <string name="screen_account_connectors">Connectors</string>
+    <string name="screen_themes">Themes</string>
     <string name="screen_profiles">Profiles</string>
     <string name="screen_bots">Bots</string>
     <string name="bots_active_now">Active Now</string>
@@ -378,6 +379,30 @@
     <string name="theme_preset_amoled">AMOLED Black (Dark only)</string>
     <string name="theme_preset_nord">Nord</string>
     <string name="theme_preset_garnet">Garnet</string>
+    <string name="theme_preset_custom">Custom (marketplace)</string>
+
+    <!-- Theme Marketplace -->
+    <string name="theme_marketplace_search_placeholder">Search themes…</string>
+    <string name="theme_marketplace_empty_title">No themes found</string>
+    <string name="theme_marketplace_empty_desc">No themes match your search query</string>
+    <string name="theme_marketplace_subtitle">%1$s · %2$s installs</string>
+    <string name="theme_marketplace_load_more">Load more themes</string>
+    <string name="theme_marketplace_applying">Applying…</string>
+    <string name="theme_marketplace_provenance">Browsing the public VS Code Gallery</string>
+    <string name="theme_marketplace_apply">Apply</string>
+    <string name="theme_marketplace_already_active">Active — already applied</string>
+    <string name="theme_marketplace_active">Active</string>
+    <string name="theme_marketplace_active_source">Active theme: %1$s (%2$s)</string>
+    <string name="theme_marketplace_label_publisher">Publisher</string>
+    <string name="theme_marketplace_label_installs">Installs</string>
+    <string name="theme_marketplace_label_id">Gallery ID</string>
+    <string name="theme_marketplace_label_description">Description</string>
+    <string name="theme_marketplace_label_preview">Preview image</string>
+    <string name="theme_marketplace_custom_unavailable">Custom theme unavailable</string>
+    <string name="theme_marketplace_custom_unavailable_desc">Using the Default theme. The imported theme data is missing or corrupt.</string>
+    <string name="theme_marketplace_custom_unavailable_named">“%1$s” could not be restored. Using the Default theme — re-apply it or clear the import.</string>
+    <string name="theme_marketplace_reapply">Re-apply</string>
+    <string name="theme_marketplace_clear_custom">Clear custom theme</string>
 
     <!-- Language -->
     <string name="settings_item_language">Language</string>

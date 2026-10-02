@@ -23,8 +23,20 @@ import java.lang.reflect.Modifier
  */
 class ThemePaletteTest {
     @Test
-    fun registryCoversEveryPresetExactlyOnce() {
-        assertEquals(ThemePreset.entries, ThemeRegistry.map { it.preset })
+    fun registryCoversEveryBuiltinPresetExactlyOnce() {
+        assertEquals(
+            ThemePreset.entries.filter { it != ThemePreset.CUSTOM },
+            ThemeRegistry.map { it.preset },
+        )
+    }
+
+    @Test
+    fun customPresetResolvesSafelyWhenPaletteNotSet() {
+        setCustomPalette(null)
+        val schemeDark = resolveColorScheme(ThemePreset.CUSTOM, darkTheme = true)
+        val schemeLight = resolveColorScheme(ThemePreset.CUSTOM, darkTheme = false)
+        assertEquals(resolveColorScheme(ThemePreset.DEFAULT, darkTheme = true), schemeDark)
+        assertEquals(resolveColorScheme(ThemePreset.DEFAULT, darkTheme = false), schemeLight)
     }
 
     @Test

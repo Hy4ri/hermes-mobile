@@ -8,20 +8,32 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
 import com.m57.hermescontrol.theme.presets.DefaultTheme
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
 
 @Serializable
 enum class ThemePreference { SYSTEM, LIGHT, DARK }
 
 @Serializable
-enum class ThemePreset { DEFAULT, MONOCHROME, GRUVBOX, CATPPUCCIN, AMOLED, NORD, GARNET }
+enum class ThemePreset { DEFAULT, MONOCHROME, GRUVBOX, CATPPUCCIN, AMOLED, NORD, GARNET, CUSTOM }
 
 val LocalThemePreference = compositionLocalOf { ThemePreference.SYSTEM }
 val LocalThemePreset = compositionLocalOf { ThemePreset.DEFAULT }
 val LocalChatFontScale = compositionLocalOf { 1.0f }
+
+private val customPaletteFlowInternal = MutableStateFlow<ThemePalette?>(null)
+val customPaletteFlow: StateFlow<ThemePalette?> = customPaletteFlowInternal.asStateFlow()
+
+fun setCustomPalette(palette: ThemePalette?) {
+    customPaletteFlowInternal.value = palette
+}
 
 /**
  * Resolve the Material 3 [ColorScheme] for a preset + dark flag.
@@ -60,6 +72,7 @@ fun HermesControlTheme(
     chatFontScale: Float = LocalChatFontScale.current,
     content: @Composable () -> Unit,
 ) {
+    val customPalette by customPaletteFlow.collectAsState()
     val darkTheme =
         when (themePreference) {
             ThemePreference.SYSTEM -> isSystemInDarkTheme()

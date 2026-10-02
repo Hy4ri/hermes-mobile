@@ -20,6 +20,7 @@ import com.m57.hermescontrol.data.remote.CookieManager
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.ServerHeaders
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
+import com.m57.hermescontrol.data.theme.import.ThemeApplier
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
 import kotlinx.coroutines.CancellationException
@@ -236,6 +237,11 @@ object AuthManager {
                         _useDynamicColorsFlow.value = state.useDynamicColors
                         _themePresetFlow.value = state.themePreset
                         _chatFontScaleFlow.value = state.chatFontScale
+                        ThemeApplier.restorePersisted(
+                            state.customThemeId,
+                            state.customThemeName,
+                            state.customThemeTokensJson,
+                        )
                         scope.launch {
                             store.stateFlow.collect { latest ->
                                 _themePreferenceFlow.value = latest.themePreference

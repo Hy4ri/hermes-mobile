@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.HistoryEdu
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Power
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Schedule
@@ -58,6 +59,7 @@ import com.m57.hermescontrol.ui.sessions.SessionsScreen as HistoryScreenContent
 import com.m57.hermescontrol.ui.settings.SettingsScreen as SettingsScreenContent
 import com.m57.hermescontrol.ui.skills.SkillsScreen as SkillsScreenContent
 import com.m57.hermescontrol.ui.system.SystemScreen as SystemScreenContent
+import com.m57.hermescontrol.ui.thememarketplace.ThemeMarketplaceScreen as ThemeMarketplaceScreenContent
 import com.m57.hermescontrol.ui.toolsets.ToolsetsScreen as ToolsetsScreenContent
 import com.m57.hermescontrol.ui.webhooks.WebhooksScreen as WebhooksScreenContent
 
@@ -243,6 +245,12 @@ object ScreenRegistry {
                 Icons.Filled.Extension,
                 DrawerSection.CONFIGURE,
             ) { _, openDrawer -> AccountConnectorsScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                ThemeMarketplaceScreen,
+                R.string.screen_themes,
+                Icons.Filled.Palette,
+                DrawerSection.CONFIGURE,
+            ) { _, openDrawer -> ThemeMarketplaceScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
                 SettingsScreen,
                 R.string.screen_settings,

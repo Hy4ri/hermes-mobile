@@ -119,6 +119,48 @@ class SessionPromptTypesTest {
     }
 
     @Test
+    fun resumeWithDesktopSourceEncodesSourceKey() {
+        val params =
+            SessionResumeParams(
+                sessionId = "s-457",
+                source = DESKTOP_SESSION_SOURCE,
+                omitMessages = true,
+            )
+        val encoded = OkHttpProvider.json.encodeToJsonElement(SessionResumeParams.serializer(), params)
+
+        val expected =
+            buildJsonObject {
+                put("session_id", "s-457")
+                put("source", "desktop")
+                put("omit_messages", true)
+            }
+
+        assertEquals(expected, encoded)
+        assertTrue(encoded is JsonObject)
+        assertEquals(setOf("session_id", "source", "omit_messages"), (encoded as JsonObject).keys)
+    }
+
+    @Test
+    fun resumeOmitsSourceWhenUnset() {
+        val encoded =
+            OkHttpProvider.json.encodeToJsonElement(
+                SessionResumeParams.serializer(),
+                SessionResumeParams(sessionId = "s-458"),
+            )
+
+        assertTrue(encoded is JsonObject)
+        assertNull((encoded as JsonObject)["source"])
+    }
+
+    @Test
+    fun createAndResumeDeclareTheSameDesktopSource() {
+        // #1450: create passed source and resume did not, so the gateway resolved the resumed
+        // runtime from its host env ("tui") and staged a bogus surface switch. Same constant,
+        // so the two call sites cannot drift again.
+        assertEquals("desktop", DESKTOP_SESSION_SOURCE)
+    }
+
+    @Test
     fun resumeWithExplicitFalseOmitMessagesIsEncoded() {
         val params = SessionResumeParams(sessionId = "s-789", omitMessages = false)
         val encoded = OkHttpProvider.json.encodeToJsonElement(SessionResumeParams.serializer(), params)

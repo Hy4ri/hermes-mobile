@@ -330,7 +330,13 @@ class NotificationReplyReceiverTest {
         verify {
             HermesWsClient.request(
                 WsMethods.SESSION_RESUME,
-                match { it.str("session_id") == "session-abc" && it["omit_messages"] == JsonPrimitive(true) },
+                match {
+                    it.str("session_id") == "session-abc" &&
+                        it["omit_messages"] == JsonPrimitive(true) &&
+                        // #1450: source must match session.create, or the gateway resolves the
+                        // resumed runtime from its host env and stages a bogus surface switch.
+                        it["source"] == JsonPrimitive("desktop")
+                },
                 any(),
             )
             HermesWsClient.request(

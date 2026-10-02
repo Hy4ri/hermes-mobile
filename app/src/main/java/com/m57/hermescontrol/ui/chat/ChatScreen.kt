@@ -28,6 +28,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.input.clearText
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -70,7 +72,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -118,9 +119,12 @@ import com.m57.hermescontrol.ui.chat.components.SpeechRequest
 import com.m57.hermescontrol.ui.chat.components.SpeechText
 import com.m57.hermescontrol.ui.chat.components.SubagentInspectionSheet
 import com.m57.hermescontrol.ui.chat.components.TaskProgressChip
+import com.m57.hermescontrol.ui.chat.components.rememberChatImagePaste
 import com.m57.hermescontrol.ui.chat.components.rememberChatMediaLaunchers
 import com.m57.hermescontrol.ui.chat.components.rememberChatScrollController
 import com.m57.hermescontrol.ui.chat.components.rememberChatSpeech
+import com.m57.hermescontrol.ui.chat.components.replaceComposerDraft
+import com.m57.hermescontrol.ui.chat.components.restoreRejectedComposerDraft
 import com.m57.hermescontrol.ui.chat.components.shouldShowProgressChip
 import com.m57.hermescontrol.ui.chat.components.tailContentKey
 import com.m57.hermescontrol.ui.chat.fullbleed.FullBleedChatList
@@ -338,20 +342,18 @@ fun ChatScreen(
             !timelineState.isHistorical && scrollController.showFab(displayedMessages.isNotEmpty())
         }
     }
-    var inputFieldValue by rememberSaveable(stateSaver = TextFieldValue.Saver) {
-        mutableStateOf(TextFieldValue(""))
-    }
+    val inputState = rememberTextFieldState()
 
     LaunchedEffect(state.pendingPrefillText) {
         val prefill = state.pendingPrefillText
         if (prefill != null) {
-            inputFieldValue = ChatInputPolicy.commandFieldValue(prefill)
+            inputState.replaceComposerDraft(prefill)
             viewModel.consumePendingPrefill()
         }
     }
     LaunchedEffect(state.composerTextToRestore) {
         state.composerTextToRestore?.let { text ->
-            inputFieldValue = ChatInputPolicy.restoreRejectedText(text, inputFieldValue)
+            inputState.restoreRejectedComposerDraft(text)
             viewModel.consumeComposerTextRestore()
         }
     }
@@ -364,6 +366,10 @@ fun ChatScreen(
     }
     var viewingImage by rememberSaveable { mutableStateOf<ImageViewerModel?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
+    val imagePaste =
+        rememberChatImagePaste(viewModel) { message ->
+            scrollScope.launch { snackbarHostState.showSnackbar(message) }
+        }
     val launchExternalActivity: (() -> Unit) -> Unit = { launch ->
         ExternalActivityLifecycleGuard.launchExternalActivity(
             acquireConnectionLease = HermesWsClient::acquireExternalActivityConnectionLease,
@@ -411,8 +417,7 @@ fun ChatScreen(
 
     val mediaLaunchers =
         rememberChatMediaLaunchers(
-            inputFieldValue = inputFieldValue,
-            onInputFieldValueChange = { inputFieldValue = it },
+            inputState = inputState,
             onAddAttachment = { uri, name, mimeType, size ->
                 viewModel.addAttachment(uri, name, mimeType, size)
             },
@@ -865,11 +870,12 @@ fun ChatScreen(
             }
 
             ChatInputBar(
-                inputFieldValue = inputFieldValue,
-                onInputChange = { inputFieldValue = it },
+                inputState = inputState,
+                receiveContentListener = imagePaste,
+                isReceivingContent = imagePaste.isReceiving,
                 onSend = {
-                    if (viewModel.sendMessage(inputFieldValue.text)) {
-                        inputFieldValue = TextFieldValue("")
+                    if (!imagePaste.isReceiving && viewModel.sendMessage(inputState.text.toString())) {
+                        inputState.clearText()
                         // Jump only after an accepted send. A readiness race keeps the draft intact.
                         scrollController.jumpToBottom(animated = true)
                     }

@@ -404,6 +404,73 @@ class ChatViewModelTest {
         unmockkAll()
     }
 
+    @Test
+    fun pastedImages_areAddedOnlyToCapturedReadySessionWithoutSubmitting() =
+        runTest(testDispatcher) {
+            val (viewModel, _) = createViewModelWithSession()
+            val target = checkNotNull(viewModel.captureAttachmentTarget())
+            val image = Attachment("content://test/pasted.png", "pasted.png", "image/png", 4)
+            val messagesBefore = viewModel.uiState.value.messages
+            assertTrue(viewModel.addPastedAttachments(target, listOf(image)))
+            runCurrent()
+            assertEquals(listOf(image), viewModel.uiState.value.pendingAttachments)
+            assertEquals(messagesBefore, viewModel.uiState.value.messages)
+            verify(exactly = 0) { HermesWsClient.sendMessage(any(), any(), any(), any()) }
+        }
+
+    @Test
+    fun pastedImages_rejectLateCompletionAfterSwitchAwayAndBack() =
+        runTest(testDispatcher) {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val target = checkNotNull(viewModel.captureAttachmentTarget())
+            viewModel.switchSession("other-paste-test-session")
+            viewModel.switchSession(sessionId)
+            val image = Attachment("content://test/pasted.png", "pasted.png", "image/png", 4)
+            assertFalse(viewModel.addPastedAttachments(target, listOf(image)))
+            assertTrue(
+                viewModel.uiState.value.pendingAttachments
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun pastedImages_rejectChangedServerAndProfilesAndGeneration() =
+        runTest(testDispatcher) {
+            val (viewModel, _) = createViewModelWithSession()
+            val target = checkNotNull(viewModel.captureAttachmentTarget())
+            val image = Attachment("content://test/pasted.png", "pasted.png", "image/png", 4)
+            for (stale in listOf(
+                target.copy(baseUrl = "http://other-paste-test.local/"),
+                target.copy(connectionProfileId = "other-connection"),
+                target.copy(agentProfileId = "other-agent"),
+                target.copy(generation = target.generation + 1),
+            )) {
+                assertFalse(viewModel.addPastedAttachments(stale, listOf(image)))
+            }
+            assertTrue(
+                viewModel.uiState.value.pendingAttachments
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun pastedImages_cannotCaptureTargetBeforeReady() =
+        runTest(testDispatcher) {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+            assertNull(viewModel.captureAttachmentTarget())
+        }
+
+    @Test
+    fun pastedImages_rejectDisconnectedSessionBeforeCombinedUiStateCatchesUp() =
+        runTest(testDispatcher) {
+            val (viewModel, _) = createViewModelWithSession()
+            val target = checkNotNull(viewModel.captureAttachmentTarget())
+            mockConnectionStatus.value = ConnectionStatus.DISCONNECTED
+            assertNull(viewModel.captureAttachmentTarget())
+            assertFalse(viewModel.addPastedAttachments(target, emptyList()))
+        }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     /** Create a ViewModel with the fake repo injected directly. */

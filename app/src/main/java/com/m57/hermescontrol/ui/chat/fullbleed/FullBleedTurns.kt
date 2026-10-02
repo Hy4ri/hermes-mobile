@@ -60,7 +60,7 @@ internal fun ChatMessage.isSyntheticSystemRow(): Boolean =
         displayKind == null &&
         content.startsWith(MAX_ITERATIONS_SYSTEM_MARKER)
 
-private const val HIDDEN_TOOL_NAME = "react_to_msg"
+private const val HIDDEN_TOOL_NAME = "react_to_message"
 
 /** Tool rows that never get a transcript bubble. */
 internal fun ChatMessage.isHiddenTool(): Boolean = role == MessageRole.TOOL && toolName == HIDDEN_TOOL_NAME

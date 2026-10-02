@@ -480,11 +480,11 @@ class FullBleedTurnsTest {
     }
 
     @Test
-    fun `react_to_msg tool rows are hidden but other tools stay`() {
+    fun `react_to_message tool rows are hidden but other tools stay`() {
         val messages =
             listOf(
                 msg("u1", MessageRole.USER),
-                msg("react", MessageRole.TOOL).copy(toolName = "react_to_msg"),
+                msg("react", MessageRole.TOOL).copy(toolName = "react_to_message"),
                 msg("term", MessageRole.TOOL).copy(toolName = "terminal"),
                 msg("a1", MessageRole.ASSISTANT),
             )

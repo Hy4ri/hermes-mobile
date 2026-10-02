@@ -214,6 +214,7 @@ internal fun matchTranscriptMessages(
     existing: List<ChatMessage>,
     comparison: TranscriptComparison = TranscriptComparison(),
     allowAssistantContentMatches: Boolean = true,
+    contentMatchExcludedIds: Set<String> = emptySet(),
 ): List<ChatMessage?> {
     val byId = existing.withIndex().associate { it.value.id to it.index }
     val byRestId =
@@ -267,6 +268,7 @@ internal fun matchTranscriptMessages(
             candidates.firstOrNull { candidate ->
                 val other = existing[candidate]
                 !used[candidate] &&
+                    other.id !in contentMatchExcludedIds &&
                     (
                         allowAssistantContentMatches || message.role != MessageRole.ASSISTANT ||
                             message.completionId != null || other.completionId != null
@@ -445,10 +447,17 @@ internal fun mergeTranscriptWithLive(
     currentMessages: List<ChatMessage>,
     chronological: Boolean = true,
     preserveLiveIds: Boolean = false,
+    contentMatchExcludedIds: Set<String> = emptySet(),
 ): List<ChatMessage> {
     val incoming = restMessages.dedupeById()
     val current = currentMessages.dedupeById()
-    val matches = matchTranscriptMessages(incoming, current, allowAssistantContentMatches = chronological)
+    val matches =
+        matchTranscriptMessages(
+            incoming,
+            current,
+            allowAssistantContentMatches = chronological,
+            contentMatchExcludedIds = contentMatchExcludedIds,
+        )
     val consumed = matches.mapNotNull { it?.id }.toSet()
     val merged =
         incoming.mapIndexed { index, message ->

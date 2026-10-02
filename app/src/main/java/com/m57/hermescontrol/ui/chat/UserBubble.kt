@@ -25,6 +25,8 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -100,6 +102,13 @@ fun UserBubble(
         var copied by rememberCopyFeedback()
 
         val statusColors = LocalHermesStatusColors.current
+        val deliveryState =
+            when {
+                pendingSendState == PendingSendState.SENDING -> DeliveryState.SENT
+                pendingSendState == PendingSendState.ACCEPTED ||
+                    message.canonicalRestId != null || message.serverRowId != null -> DeliveryState.DELIVERED
+                else -> null
+            }
 
         val highlightedText =
             remember(message.content, searchQuery, isCurrentMatch, statusColors) {
@@ -183,23 +192,6 @@ fun UserBubble(
                                 canSave = canSaveAttachment,
                                 onImageClick = onImageClick,
                             )
-                            // #1427: keep the live text and media visible with an honest delivery label.
-                            if (pendingSendState == PendingSendState.SENDING ||
-                                pendingSendState == PendingSendState.ACCEPTED
-                            ) {
-                                Text(
-                                    stringResource(
-                                        if (pendingSendState == PendingSendState.SENDING) {
-                                            R.string.chat_pending_sending
-                                        } else {
-                                            R.string.chat_send_accepted
-                                        },
-                                    ),
-                                    color = userBubbleTextColor,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    modifier = Modifier.testTag("user_send_status_${message.id}"),
-                                )
-                            }
                             if (!message.isStreaming) {
                                 FlowRow(
                                     modifier =
@@ -236,6 +228,11 @@ fun UserBubble(
                                         color = userBubbleTextColor.copy(alpha = 0.6f),
                                         style = MaterialTheme.typography.labelSmall,
                                     )
+                                    DeliveryChecks(
+                                        state = deliveryState,
+                                        tint = userBubbleTextColor,
+                                        messageId = message.id,
+                                    )
                                     if (messageStatsEnabled && showUserMessageTokens &&
                                         message.tokenCount != null && message.tokenCount > 0
                                     ) {
@@ -267,4 +264,25 @@ fun UserBubble(
             }
         }
     }
+}
+
+/** WhatsApp-style delivery ticks: one dim check while sending, two once the server has the prompt. */
+private enum class DeliveryState { SENT, DELIVERED }
+
+@Composable
+private fun DeliveryChecks(
+    state: DeliveryState?,
+    tint: Color,
+    messageId: String,
+) {
+    if (state == null) return
+    val delivered = state == DeliveryState.DELIVERED
+    Spacer(modifier = Modifier.width(4.dp))
+    Icon(
+        imageVector = if (delivered) Icons.Filled.DoneAll else Icons.Filled.Done,
+        contentDescription =
+            stringResource(if (delivered) R.string.chat_send_accepted else R.string.chat_pending_sending),
+        modifier = Modifier.size(14.dp).testTag("user_send_status_$messageId"),
+        tint = tint.copy(alpha = if (delivered) 1f else 0.6f),
+    )
 }

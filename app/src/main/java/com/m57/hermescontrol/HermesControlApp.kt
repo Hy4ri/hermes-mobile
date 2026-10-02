@@ -11,6 +11,8 @@ import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.SessionListCacheStore
+import com.m57.hermescontrol.data.remote.CertificateImageInterceptor
+import com.m57.hermescontrol.data.remote.ClientCertificates
 import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.notification.TurnCorrelationTracker
@@ -33,6 +35,7 @@ class HermesControlApp :
         appScope.launch(Dispatchers.IO) {
             cleanStalePastedImages(cacheDir, startupTimeMs)
         }
+        ClientCertificates.initialize(this)
         AuthManager.init(this)
         NetworkMonitor.init(this)
         SessionListCacheStore.init(this)
@@ -52,6 +55,7 @@ class HermesControlApp :
         ImageLoader
             .Builder(context)
             .components {
+                add(CertificateImageInterceptor())
                 add(
                     OkHttpNetworkFetcherFactory(
                         callFactory = { OkHttpProvider.base },

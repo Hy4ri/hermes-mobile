@@ -10607,7 +10607,7 @@ class ChatViewModelTest {
             }
             assertTrue(vm.sendMessage("probe-first"))
             advanceUntilIdle()
-            mockEventsFlow.emit(WsEvent.RpcResult("probe-submit", mapOf("status" to "streaming", "user_row_id" to 10)))
+            mockEventsFlow.emit(WsEvent.RpcResult("probe-submit", mapOf("status" to "streaming")))
             advanceUntilIdle()
             coEvery { ApiClient.hermesApi.getSessionMessages(session, any(), any(), any(), any()) } returns
                 Response.success(
@@ -10636,7 +10636,7 @@ class ChatViewModelTest {
                     .last()
                     .content,
             )
-            assertEquals(PendingSendState.ACCEPTED, store.all().single().state)
+            assertEquals(PendingSendState.UNKNOWN, store.all().single().state)
             assertTrue(vm.uiState.value.isSessionReady)
             assertTrue(vm.sendMessage("probe-second"))
             advanceUntilIdle()
@@ -10648,7 +10648,7 @@ class ChatViewModelTest {
             assertNull(vm.uiState.value.errorMessage)
             verify(exactly = 1) { HermesWsClient.sendMessage(session, "probe-second", any(), any()) }
             verify(exactly = 1) { HermesWsClient.sendMessage(session, "probe-first", any(), any()) }
-            assertEquals(PendingSendState.ACCEPTED, store.all().single { it.text == "probe-first" }.state)
+            assertEquals(PendingSendState.UNKNOWN, store.all().single { it.text == "probe-first" }.state)
             assertEquals(
                 1,
                 vm.transcriptState.value.messages

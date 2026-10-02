@@ -41,6 +41,7 @@ import com.m57.hermescontrol.data.ws.contract.CommandDispatchParams
 import com.m57.hermescontrol.data.ws.contract.CommandsCatalogParams
 import com.m57.hermescontrol.data.ws.contract.ConfigGetParams
 import com.m57.hermescontrol.data.ws.contract.ConfigSetParams
+import com.m57.hermescontrol.data.ws.contract.DESKTOP_SESSION_SOURCE
 import com.m57.hermescontrol.data.ws.contract.FileAttachParams
 import com.m57.hermescontrol.data.ws.contract.ImageAttachBytesParams
 import com.m57.hermescontrol.data.ws.contract.ProcessStopParams
@@ -4540,7 +4541,7 @@ class ChatViewModel(
         viewModelScope.launch(ioDispatcher) {
             wsClient.send(
                 RpcMethods.SESSION_CREATE,
-                SessionCreateParams(source = "desktop"),
+                SessionCreateParams(source = DESKTOP_SESSION_SOURCE),
                 onSent = { id -> trackSessionRequest(id, WsMethods.SESSION_CREATE, generation) },
             )
         }
@@ -5380,6 +5381,7 @@ class ChatViewModel(
         val params =
             SessionResumeParams(
                 sessionId = sessionId,
+                source = DESKTOP_SESSION_SOURCE,
                 omitMessages = true,
                 profile = profile?.takeIf { it.isNotBlank() },
             )

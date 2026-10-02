@@ -674,8 +674,13 @@ private fun List<ChatMessage>.inTranscriptOrder(
             compareBy<IndexedValue<ChatMessage>> {
                 it.value.canonicalOrder ?: localAnchors[it.value.id] ?: Long.MAX_VALUE
             }.thenBy { if (localAnchors[it.value.id]?.let { anchor -> anchor != Long.MAX_VALUE } == true) 1 else 0 }
-                .thenBy { it.value.localOrder ?: pendingOrderByLocal[it.value.id] ?: Long.MAX_VALUE }
-                .thenBy { previousIndices[it.value.id] ?: it.index },
+                .thenBy {
+                    if (it.value.isSessionStartMarker() && it.value.localAnchorOrder != null) {
+                        Long.MIN_VALUE
+                    } else {
+                        it.value.localOrder ?: pendingOrderByLocal[it.value.id] ?: Long.MAX_VALUE
+                    }
+                }.thenBy { previousIndices[it.value.id] ?: it.index },
         ).map { it.value }
 }
 
@@ -701,7 +706,7 @@ internal fun ChatMessage.isSessionStartMarker(): Boolean =
 private val ChatMessage.canonicalOrder: Long?
     get() =
         when {
-            isSessionStartMarker() -> -1L
+            isSessionStartMarker() -> if (localAnchorOrder == null) -1L else null
             localOrder != null && restId == null -> null
             else -> canonicalRestId?.substringAfterLast('-')?.toLongOrNull()
         }

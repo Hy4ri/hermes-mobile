@@ -13,12 +13,14 @@ interface ChatMessageDao {
 
     @Query(
         "SELECT * FROM chat_messages WHERE session_id = :sessionId " +
+            "AND message_provenance != 'COMPRESSED_ALIAS' " +
             "ORDER BY sort_group, sort_order, id",
     )
     suspend fun getMessagesForSession(sessionId: String): List<ChatMessageEntity>
 
     @Query(
         "SELECT * FROM chat_messages WHERE session_id = :sessionId " +
+            "AND message_provenance != 'COMPRESSED_ALIAS' " +
             "ORDER BY sort_group DESC, sort_order DESC, id DESC LIMIT :limit",
     )
     suspend fun getLatestMessagePage(
@@ -28,6 +30,7 @@ interface ChatMessageDao {
 
     @Query(
         "SELECT * FROM chat_messages WHERE session_id = :sessionId " +
+            "AND message_provenance != 'COMPRESSED_ALIAS' " +
             "AND (sort_group, sort_order, id) < (:beforeGroup, :beforeOrder, :beforeId) " +
             "ORDER BY sort_group DESC, sort_order DESC, id DESC LIMIT :limit",
     )
@@ -75,6 +78,14 @@ interface ChatMessageDao {
         writeMessage(
             message.copy(
                 restId = restId,
+                messageProvenance =
+                    if (existing?.messageProvenance ==
+                        "COMPRESSED_ALIAS"
+                    ) {
+                        "COMPRESSED_ALIAS"
+                    } else {
+                        message.messageProvenance
+                    },
                 completionId = message.completionId ?: existing?.completionId,
                 sortGroup = if (canonicalOrder != null) 0 else 1,
                 sortOrder = canonicalOrder ?: existing?.sortOrder ?: nextLocalOrder(),
@@ -97,6 +108,51 @@ interface ChatMessageDao {
             existing?.copy(restId = message.restId, completionId = existing.completionId ?: message.completionId)
                 ?: message,
         )
+    }
+
+    @Query("DELETE FROM chat_messages WHERE session_id = :sessionId AND id IN (:ids)")
+    suspend fun deleteCanonicalIds(
+        sessionId: String,
+        ids: List<String>,
+    )
+
+    /** Replace only exact server-keyed rows. UUID/local rows are user data, even when aliased. */
+    @Transaction
+    suspend fun replaceCanonicalHistory(
+        sessionId: String,
+        replacements: List<ChatMessageEntity>,
+    ): List<ChatMessageEntity> {
+        val existing = getMessagesForSession(sessionId)
+        val retained = existing.filter { canonicalMessageOrder(it.id, sessionId) == null }
+        val canonicalIds =
+            existing.mapNotNull {
+                it.id.takeIf { id -> canonicalMessageOrder(id, sessionId) != null }
+            }
+        if (canonicalIds.isNotEmpty()) deleteCanonicalIds(sessionId, canonicalIds)
+        upsertAll(replacements)
+        val tail = replacements.mapNotNull { canonicalMessageOrder(it.id, sessionId) }.maxOrNull() ?: -1L
+        retained.forEach { row ->
+            if (row.isSessionStartMarker()) {
+                // Its original -1 placement predates the replaced history. Keep its identity,
+                // but seat it at the replacement boundary ahead of later local events.
+                writeMessage(row.copy(localAnchorOrder = tail, localPredecessorId = null))
+            } else {
+                if (row.restId != null && canonicalMessageOrder(row.restId, sessionId) != null) {
+                    // Preserve identity and payload, but remove obsolete confirmed aliases from all cache pages.
+                    writeMessage(row.copy(messageProvenance = "COMPRESSED_ALIAS"))
+                } else {
+                    writeMessage(
+                        row.copy(
+                            sortGroup = 1,
+                            sortOrder = if (row.sortGroup == 0) nextLocalOrder() else row.sortOrder,
+                            localAnchorOrder = tail,
+                            localPredecessorId = null,
+                        ),
+                    )
+                }
+            }
+        }
+        return getMessagesForSession(sessionId).filter { canonicalMessageOrder(it.id, sessionId) == null }
     }
 
     @Query("DELETE FROM chat_messages WHERE session_id = :sessionId")

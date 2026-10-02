@@ -29,7 +29,7 @@ class FakeChatMessageDao : ChatMessageDao {
         fullSessionReads++
         beforeRead()
         return messages.values
-            .filter { it.sessionId == sessionId }
+            .filter { it.sessionId == sessionId && it.messageProvenance != "COMPRESSED_ALIAS" }
             .sortedWith(ordering)
     }
 
@@ -42,7 +42,7 @@ class FakeChatMessageDao : ChatMessageDao {
         pageLimits += limit
         beforeRead()
         return messages.values
-            .filter { it.sessionId == sessionId }
+            .filter { it.sessionId == sessionId && it.messageProvenance != "COMPRESSED_ALIAS" }
             .sortedWith(ordering.reversed())
             .take(limit)
     }
@@ -58,7 +58,7 @@ class FakeChatMessageDao : ChatMessageDao {
         beforeRead()
         return messages.values
             .filter {
-                it.sessionId == sessionId &&
+                it.sessionId == sessionId && it.messageProvenance != "COMPRESSED_ALIAS" &&
                     (
                         it.sortGroup < beforeGroup ||
                             (
@@ -80,6 +80,13 @@ class FakeChatMessageDao : ChatMessageDao {
     override suspend fun writeMessage(message: ChatMessageEntity) {
         if (message.id !in messages) insertionSequence++
         messages[message.id] = message
+    }
+
+    override suspend fun deleteCanonicalIds(
+        sessionId: String,
+        ids: List<String>,
+    ) {
+        ids.forEach { id -> if (messages[id]?.sessionId == sessionId) messages.remove(id) }
     }
 
     override suspend fun deleteMessagesForSession(sessionId: String) {

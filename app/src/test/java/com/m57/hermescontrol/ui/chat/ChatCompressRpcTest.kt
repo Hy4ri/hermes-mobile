@@ -5,8 +5,10 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.model.CompressionSummary
+import com.m57.hermescontrol.data.model.PaginationInfo
 import com.m57.hermescontrol.data.model.SessionCompressResponse
 import com.m57.hermescontrol.data.model.SessionMessage
+import com.m57.hermescontrol.data.model.SessionMessagesResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
@@ -140,7 +142,9 @@ class ChatCompressRpcTest {
         unmockkAll()
     }
 
-    private suspend fun TestScope.createViewModelWithSession(): Pair<ChatViewModel, String> {
+    private suspend fun TestScope.createViewModelWithSession(
+        onHistoryReplaced: (() -> Unit)? = null,
+    ): Pair<ChatViewModel, String> {
         val vm =
             ChatViewModel(
                 app,
@@ -151,6 +155,7 @@ class ChatCompressRpcTest {
                 ioDispatcher = testDispatcher,
                 historyDispatcher = testDispatcher,
                 sendStore = ChatSendStore(),
+                onCompressionHistoryReplacedForTest = onHistoryReplaced,
             )
         advanceUntilIdle()
         mockConnectionStatus.value = ConnectionStatus.CONNECTED
@@ -378,6 +383,357 @@ class ChatCompressRpcTest {
             assertTrue("expected replacement assistant message", serverAssistantMsg != null)
             val summaryMsg = messages.lastOrNull { it.role == MessageRole.ASSISTANT }
             assertEquals("Summary headline", summaryMsg?.content)
+        }
+
+    @Test
+    fun `compression does not erase an earlier durable local command`() =
+        runTest {
+            val (vm, sessionId) = createViewModelWithSession()
+            val earlier = ChatMessage(role = MessageRole.USER, content = "/help")
+            fakeRepo.persistMessage(earlier, sessionId)
+            val response =
+                buildJsonObject {
+                    put("status", JsonPrimitive("ok"))
+                    put("message", JsonPrimitive("Compressed."))
+                    put(
+                        "messages",
+                        buildJsonArray {
+                            add(
+                                buildJsonObject {
+                                    put("id", JsonPrimitive(1))
+                                    put("role", JsonPrimitive("user"))
+                                    put("content", JsonPrimitive("Summary"))
+                                },
+                            )
+                        },
+                    )
+                }
+            every { HermesWsClient.request(WsMethods.SESSION_COMPRESS, any(), any()) } returns
+                CompletableDeferred(response)
+            vm.sendMessage("/compress")
+            advanceUntilIdle()
+            assertTrue(fakeRepo.loadMessages(sessionId).any { it.id == earlier.id && it.content == "/help" })
+        }
+
+    @Test
+    fun `confirmed UUID alias is archived rather than returned as an unconfirmed local after compression`() =
+        runTest {
+            val (vm, sessionId) = createViewModelWithSession()
+            val alias = ChatMessage(role = MessageRole.USER, content = "Old prompt", restId = "rest-$sessionId-50")
+            val pending = ChatMessage(role = MessageRole.USER, content = "Still pending")
+            fakeRepo.persistMessage(alias, sessionId)
+            fakeRepo.persistMessage(pending, sessionId)
+            every { HermesWsClient.request(WsMethods.SESSION_COMPRESS, any(), any()) } returns
+                CompletableDeferred(
+                    buildJsonObject {
+                        put("status", JsonPrimitive("ok"))
+                        put(
+                            "messages",
+                            buildJsonArray {
+                                add(
+                                    buildJsonObject {
+                                        put("id", JsonPrimitive(1))
+                                        put("role", JsonPrimitive("user"))
+                                        put("content", JsonPrimitive("Summary"))
+                                    },
+                                )
+                            },
+                        )
+                    },
+                )
+            vm.sendMessage("/compress")
+            advanceUntilIdle()
+            assertFalse(
+                vm.uiState.value.messages
+                    .any { it.id == alias.id || it.content == "Old prompt" },
+            )
+            assertTrue(
+                vm.uiState.value.messages
+                    .any { it.id == pending.id },
+            )
+            val stored = requireNotNull(fakeRepo.dao.getMessage(alias.id))
+            assertEquals("Old prompt", stored.content)
+            assertEquals(alias.restId, stored.restId)
+            assertEquals("COMPRESSED_ALIAS", stored.messageProvenance)
+            assertFalse(fakeRepo.replaceCanonicalHistory(sessionId, emptyList()).any { it.id == alias.id })
+        }
+
+    @Test
+    fun `malformed compression response reports error without claiming success`() =
+        runTest {
+            val (vm, _) = createViewModelWithSession()
+            every { HermesWsClient.request(WsMethods.SESSION_COMPRESS, any(), any()) } returns
+                CompletableDeferred<Any?>(buildJsonArray { add(JsonPrimitive("unexpected")) })
+            vm.sendMessage("/compress")
+            advanceUntilIdle()
+            val feedback =
+                vm.uiState.value.messages
+                    .last { it.role == MessageRole.ASSISTANT }
+                    .content
+            assertTrue(feedback.contains("/compress:"))
+            assertFalse(feedback.contains("Context compressed."))
+            assertFalse(vm.uiState.value.isCompressing)
+        }
+
+    @Test
+    fun `late compression result cannot modify another selected session`() =
+        runTest {
+            val (vm, _) = createViewModelWithSession()
+            val deferred = CompletableDeferred<Any?>()
+            every { HermesWsClient.request(WsMethods.SESSION_COMPRESS, any(), any()) } returns deferred
+            vm.sendMessage("/compress")
+            testDispatcher.scheduler.runCurrent()
+            val other = ChatMessage(role = MessageRole.USER, content = "/other-local")
+            fakeRepo.persistMessage(other, "other-session")
+            vm.switchSession("other-session")
+            testDispatcher.scheduler.runCurrent()
+            deferred.complete(
+                buildJsonObject {
+                    put("status", JsonPrimitive("ok"))
+                    put("message", JsonPrimitive("Old session compressed"))
+                    put(
+                        "messages",
+                        buildJsonArray {
+                            add(
+                                buildJsonObject {
+                                    put("id", JsonPrimitive(1))
+                                    put("role", JsonPrimitive("assistant"))
+                                    put("content", JsonPrimitive("Old session summary"))
+                                },
+                            )
+                        },
+                    )
+                },
+            )
+            advanceUntilIdle()
+            assertEquals("other-session", vm.uiState.value.currentSessionId)
+            assertTrue(fakeRepo.loadMessages("other-session").any { it.id == other.id })
+            assertFalse(
+                vm.uiState.value.messages.any {
+                    it.content == "Old session summary" ||
+                        it.content == "Old session compressed"
+                },
+            )
+        }
+
+    @Test
+    fun `compression replacement keeps command and feedback after refreshed history and cache reload`() =
+        runTest {
+            val (vm, sessionId) = createViewModelWithSession()
+            val old =
+                ChatMessage(
+                    id = "rest-$sessionId-50",
+                    role = MessageRole.USER,
+                    content = "Old prompt",
+                    timestamp = 900L,
+                )
+            fakeRepo.persistMessage(old, sessionId)
+            val response =
+                buildJsonObject {
+                    put("status", JsonPrimitive("ok"))
+                    put("message", JsonPrimitive("Compressed."))
+                    put(
+                        "messages",
+                        buildJsonArray {
+                            add(
+                                buildJsonObject {
+                                    put("id", JsonPrimitive(1))
+                                    put("role", JsonPrimitive("user"))
+                                    put("content", JsonPrimitive("Summary"))
+                                },
+                            )
+                            add(
+                                buildJsonObject {
+                                    put("id", JsonPrimitive(2))
+                                    put("role", JsonPrimitive("assistant"))
+                                    put("content", JsonPrimitive("Fresh answer"))
+                                },
+                            )
+                        },
+                    )
+                }
+            every { HermesWsClient.request(WsMethods.SESSION_COMPRESS, any(), any()) } returns
+                CompletableDeferred(response)
+
+            vm.sendMessage("/compress")
+            advanceUntilIdle()
+
+            // The session-start marker is local user data, not disposable server history.
+            val expected = listOf("Summary", "Fresh answer", "Session created", "/compress", "Compressed.")
+            assertEquals(
+                expected,
+                vm.uiState.value.messages
+                    .map { it.content },
+            )
+            val restored = mergeCachedTranscriptPage(fakeRepo.loadPage(sessionId, null, 150).messages, emptyList())
+            assertEquals(expected, restored.map { it.content })
+            val refreshed =
+                listOf(
+                    ChatMessage(id = "rest-$sessionId-0", role = MessageRole.USER, content = "Summary", timestamp = 1L),
+                    ChatMessage(
+                        id = "rest-$sessionId-1",
+                        role = MessageRole.ASSISTANT,
+                        content = "Fresh answer",
+                        timestamp = 2L,
+                    ),
+                )
+            assertEquals(expected, mergeTranscriptWithLive(refreshed, restored).map { it.content })
+            assertEquals(
+                expected,
+                mergeTranscriptWithLive(
+                    refreshed,
+                    mergeTranscriptWithLive(refreshed, restored),
+                ).map {
+                    it.content
+                },
+            )
+        }
+
+    @Test
+    fun `local command appended after replacement transaction retains identity and anchor across cache and REST`() =
+        runTest {
+            lateinit var vm: ChatViewModel
+            var callbackCount = 0
+            vm =
+                createViewModelWithSession(onHistoryReplaced = {
+                    callbackCount++
+                    val requestsBeforeUpdate = reqCount
+                    assertTrue(vm.sendMessage("/update")) // Client-side dialog, never a gateway request.
+                    assertEquals(requestsBeforeUpdate, reqCount)
+                }).first
+            val sessionId = requireNotNull(vm.uiState.value.currentSessionId)
+            val replacement =
+                buildJsonObject {
+                    put("status", JsonPrimitive("ok"))
+                    put("message", JsonPrimitive("Compressed."))
+                    put(
+                        "messages",
+                        buildJsonArray {
+                            add(
+                                buildJsonObject {
+                                    put("id", JsonPrimitive(1))
+                                    put("role", JsonPrimitive("user"))
+                                    put("content", JsonPrimitive("Summary"))
+                                },
+                            )
+                            add(
+                                buildJsonObject {
+                                    put("id", JsonPrimitive(2))
+                                    put("role", JsonPrimitive("assistant"))
+                                    put("content", JsonPrimitive("Fresh answer"))
+                                },
+                            )
+                        },
+                    )
+                }
+            every { HermesWsClient.request(WsMethods.SESSION_COMPRESS, any(), any()) } returns
+                CompletableDeferred(replacement)
+            vm.sendMessage("/compress")
+            advanceUntilIdle()
+            assertEquals(1, callbackCount)
+            val expected = listOf("Summary", "Fresh answer", "Session created", "/compress", "/update", "Compressed.")
+            val command =
+                vm.uiState.value.messages
+                    .single { it.content == "/update" }
+            assertEquals(
+                expected,
+                vm.uiState.value.messages
+                    .map { it.content },
+            )
+            assertEquals(1L, command.localAnchorOrder)
+            assertEquals(null, command.localPredecessorId)
+            val cached = mergeCachedTranscriptPage(fakeRepo.loadPage(sessionId, null, 150).messages, emptyList())
+            assertEquals(expected, cached.map { it.content })
+            assertEquals(command.id, cached.single { it.content == "/update" }.id)
+            assertEquals(1L, cached.single { it.id == command.id }.localAnchorOrder)
+            val rest =
+                listOf(
+                    ChatMessage(id = "rest-$sessionId-0", role = MessageRole.USER, content = "Summary", timestamp = 1L),
+                    ChatMessage(
+                        id = "rest-$sessionId-1",
+                        role = MessageRole.ASSISTANT,
+                        content = "Fresh answer",
+                        timestamp = 2L,
+                    ),
+                )
+            val once = mergeTranscriptWithLive(rest, cached)
+            val twice = mergeTranscriptWithLive(rest, once)
+            assertEquals(expected, once.map { it.content })
+            assertEquals(expected, twice.map { it.content })
+            assertEquals(command.id, twice.single { it.content == "/update" }.id)
+            assertEquals(1L, twice.single { it.id == command.id }.localAnchorOrder)
+        }
+
+    @Test
+    fun `idless compression fallback preserves cached local command when REST refresh fails`() =
+        runTest {
+            val (vm, sessionId) = createViewModelWithSession()
+            val api = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+            every { ApiClient.hermesApi } returns api
+            val canonical =
+                SessionMessagesResponse(
+                    messages = listOf(SessionMessage(id = 1, role = "user", content = JsonPrimitive("Canonical"))),
+                    pagination = PaginationInfo(order = "latest"),
+                )
+            coEvery { api.getSessionMessages(sessionId, any(), any(), any(), any()) } returns
+                retrofit2.Response.success(canonical)
+            every { HermesWsClient.request(WsMethods.SESSION_COMPRESS, any(), any()) } returns
+                CompletableDeferred(
+                    buildJsonObject {
+                        put("status", JsonPrimitive("ok"))
+                        put("message", JsonPrimitive("First compression"))
+                        put(
+                            "messages",
+                            buildJsonArray {
+                                add(
+                                    buildJsonObject {
+                                        put("id", JsonPrimitive(1))
+                                        put("role", JsonPrimitive("user"))
+                                        put("content", JsonPrimitive("Canonical"))
+                                    },
+                                )
+                            },
+                        )
+                    },
+                )
+            vm.sendMessage("/compress")
+            advanceUntilIdle()
+            vm.refreshCurrentSession()
+            advanceUntilIdle() // Negotiate latest paging before an id-less RPC result.
+            val before = fakeRepo.loadPage(sessionId, null, 150).messages.map { it.id to it.content }
+            coEvery { api.getSessionMessages(sessionId, any(), any(), any(), any()) } returns
+                retrofit2.Response.error(503, okhttp3.ResponseBody.create(null, "unavailable"))
+            every { HermesWsClient.request(WsMethods.SESSION_COMPRESS, any(), any()) } returns
+                CompletableDeferred(
+                    buildJsonObject {
+                        put("status", JsonPrimitive("ok"))
+                        put("message", JsonPrimitive("Idless"))
+                        put(
+                            "messages",
+                            buildJsonArray {
+                                add(
+                                    buildJsonObject {
+                                        put("role", JsonPrimitive("user"))
+                                        put("content", JsonPrimitive("Partial history"))
+                                    },
+                                )
+                            },
+                        )
+                    },
+                )
+            vm.sendMessage("/compress")
+            advanceUntilIdle()
+            val cached = fakeRepo.loadPage(sessionId, null, 150).messages
+            assertTrue(before.all { (id, content) -> cached.any { it.id == id && it.content == content } })
+            assertFalse(cached.any { it.content == "Partial history" })
+            assertTrue(
+                vm.uiState.value.messages
+                    .any { it.content == "Canonical" },
+            )
+            assertTrue(
+                vm.uiState.value.messages
+                    .any { it.content.contains("History refresh incomplete") },
+            )
         }
 
     @Test

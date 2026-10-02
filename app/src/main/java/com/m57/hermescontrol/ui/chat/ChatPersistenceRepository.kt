@@ -104,6 +104,19 @@ open class ChatPersistenceRepository(
         messages.forEach { dao.confirmIdentity(it.toEntity(sessionId)) }
     }
 
+    /** Atomic authoritative history swap; returns all retained local/UUID rows. */
+    suspend fun replaceCanonicalHistory(
+        sessionId: String,
+        messages: List<ChatMessage>,
+    ): List<ChatMessage> {
+        val dao = daoProvider()
+        val canonical =
+            messages.mapNotNull { message ->
+                message.canonicalRestId?.let { message.copy(id = it, restId = null).toEntity(sessionId) }
+            }
+        return restoreLocalAnchors(dao.replaceCanonicalHistory(sessionId, canonical), dao, sessionId)
+    }
+
     /** Clear all cached messages for a session (e.g. after /undo rewind). */
     suspend fun clearMessagesForSession(sessionId: String) {
         daoProvider().deleteMessagesForSession(sessionId)

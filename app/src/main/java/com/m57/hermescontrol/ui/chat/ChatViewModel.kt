@@ -71,6 +71,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
@@ -469,6 +470,7 @@ class ChatViewModel(
     private val historyDispatcher: kotlinx.coroutines.CoroutineDispatcher = searchDispatcher,
     private val sendStore: ChatSendStore = ChatSendStore(application),
     private val voiceNoteRepository: VoiceNoteRepository = VoiceNoteRepository(),
+    internal val onCompressionHistoryReplacedForTest: (() -> Unit)? = null,
 ) : AndroidViewModel(application) {
     constructor(application: Application) : this(application, startCleanup = true)
 
@@ -489,6 +491,9 @@ class ChatViewModel(
     private val _uiState = MutableStateFlow(ChatUiState())
     private val localTranscriptAppendLock = Any()
     private var localTranscriptPersistenceTail: Job? = null
+
+    /** Guarded by localTranscriptAppendLock; advanced only after the RPC replacement commits. */
+    private val compressedHistoryEpochs = mutableMapOf<String, Pair<Long, Long>>()
     val connectionOperationState: StateFlow<ConnectionOperationUiState> = connectionOperationDelegate.state
     private val connectionBrowserReturnTracker = BrowserReturnTracker()
 
@@ -4220,12 +4225,48 @@ class ChatViewModel(
                 val capturedMessage = placed
                 val capturedSessionId = sessionId
                 val previousWrite = localTranscriptPersistenceTail
+                val capturedEpoch = capturedSessionId?.let { compressedHistoryEpochs[it]?.first } ?: 0L
                 val job =
                     if (persist && capturedSessionId != null) {
                         viewModelScope
                             .launch(ioDispatcher, start = CoroutineStart.LAZY) {
                                 previousWrite?.join()
-                                repo.persistMessage(capturedMessage, capturedSessionId)
+                                val reanchor =
+                                    synchronized(localTranscriptAppendLock) {
+                                        compressedHistoryEpochs[capturedSessionId]
+                                            ?.takeIf { it.first != capturedEpoch }
+                                            ?.second
+                                    }
+                                val persisted =
+                                    if (reanchor != null && capturedMessage.isPermanentlyLocal() &&
+                                        !capturedMessage.isSessionStartMarker()
+                                    ) {
+                                        capturedMessage.copy(localAnchorOrder = reanchor, localPredecessorId = null)
+                                    } else {
+                                        capturedMessage
+                                    }
+                                repo.persistMessage(persisted, capturedSessionId)
+                                if (reanchor != null && persisted !== capturedMessage) {
+                                    _uiState.update { state ->
+                                        if (state.currentSessionId != capturedSessionId) {
+                                            state
+                                        } else {
+                                            state.copy(
+                                                messages =
+                                                    state.messages.map { current ->
+                                                        if (current.id == capturedMessage.id) {
+                                                            current.copy(
+                                                                localAnchorOrder = reanchor,
+                                                                localPredecessorId = null,
+                                                            )
+                                                        } else {
+                                                            current
+                                                        }
+                                                    },
+                                            )
+                                        }
+                                    }
+                                }
                             }.also { localTranscriptPersistenceTail = it }
                     } else {
                         null
@@ -4273,25 +4314,17 @@ class ChatViewModel(
     }
 
     private fun compressSession(focusTopic: String) {
-        val sessionId = runtimeSessionId ?: _uiState.value.currentSessionId
+        val sessionId = _uiState.value.currentSessionId
         if (sessionId == null) {
             addAssistantMessage("No active session to compress.")
             return
         }
-        if (_uiState.value.isCompressing) {
-            return
-        }
-
-        _uiState.update {
-            it.copy(
-                isCompressing = true,
-                compressionStatus = "⏳ Compressing context...",
-            )
-        }
-
+        if (_uiState.value.isCompressing) return
+        val generation = sessionGeneration
+        val current = { isCurrentSessionRequest(sessionId, generation) }
+        _uiState.update { it.copy(isCompressing = true, compressionStatus = "⏳ Compressing context...") }
         viewModelScope.launch(ioDispatcher) {
             try {
-                // Use extended timeout (e.g. 300_000L / 5 minutes) so LLM summarization doesn't timeout
                 val result =
                     wsClient.call(
                         RpcMethods.SESSION_COMPRESS,
@@ -4301,91 +4334,138 @@ class ChatViewModel(
                         ),
                         timeoutMs = 300_000L,
                     )
-
-                handleCompressionResult(result)
-            } catch (e: HermesWsClient.HermesRpcException) {
-                addAssistantMessage("/compress: ${e.message ?: "compression failed"}")
+                if (current()) handleCompressionResult(result, sessionId, generation)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
-                addAssistantMessage("/compress: ${e.message ?: "compression failed"}")
+                if (current()) addAssistantMessage("/compress: ${e.message ?: "compression failed"}")
             } finally {
-                _uiState.update {
-                    it.copy(
-                        isCompressing = false,
-                        compressionStatus = null,
-                    )
-                }
+                if (current()) _uiState.update { it.copy(isCompressing = false, compressionStatus = null) }
             }
         }
     }
 
-    private suspend fun handleCompressionResult(result: Any?) {
+    /** Serialize authoritative RPC replacement with local append writes. */
+    private suspend fun applyCompressedHistory(
+        sessionId: String,
+        generation: Long,
+        replacement: List<ChatMessage>,
+    ): Boolean {
+        if (!isCurrentSessionRequest(sessionId, generation)) return false
+        val replacementTail =
+            replacement
+                .mapNotNull { it.canonicalRestId?.substringAfterLast('-')?.toLongOrNull() }
+                .maxOrNull() ?: -1L
+        val barrier =
+            synchronized(localTranscriptAppendLock) {
+                val predecessor = localTranscriptPersistenceTail
+                viewModelScope
+                    .async(ioDispatcher, start = CoroutineStart.LAZY) {
+                        predecessor?.join()
+                        if (!isCurrentSessionRequest(sessionId, generation)) return@async false
+                        val retained = repo.replaceCanonicalHistory(sessionId, replacement)
+                        onCompressionHistoryReplacedForTest?.invoke()
+                        if (!isCurrentSessionRequest(sessionId, generation)) return@async false
+                        val retainedById = retained.associateBy { it.id }
+                        synchronized(localTranscriptAppendLock) {
+                            val nextEpoch = (compressedHistoryEpochs[sessionId]?.first ?: 0L) + 1L
+                            compressedHistoryEpochs[sessionId] = nextEpoch to replacementTail
+                            _uiState.update { state ->
+                                if (!isCurrentSessionRequest(sessionId, generation)) {
+                                    state
+                                } else {
+                                    val visible = state.messages.filter { it.canonicalRestId == null }
+                                    val visibleLocals =
+                                        visible.map { message ->
+                                            retainedById[message.id]?.let { row ->
+                                                message.copy(
+                                                    localAnchorOrder = row.localAnchorOrder,
+                                                    localPredecessorId = row.localPredecessorId,
+                                                )
+                                            } ?: if (message.isPermanentlyLocal() && !message.isSessionStartMarker()) {
+                                                message.copy(
+                                                    localAnchorOrder = replacementTail,
+                                                    localPredecessorId = null,
+                                                )
+                                            } else {
+                                                message
+                                            }
+                                        }
+                                    state.copy(messages = replacement + (visibleLocals + retained).distinctBy { it.id })
+                                }
+                            }
+                        }
+                        true
+                    }.also { localTranscriptPersistenceTail = it }
+            }
+        barrier.start()
+        return barrier.await()
+    }
+
+    private suspend fun handleCompressionResult(
+        result: Any?,
+        sessionId: String,
+        generation: Long,
+    ) {
         val response =
             try {
-                val jsonElement = result.toJsonElement()
-                OkHttpProvider.json.decodeFromJsonElement<SessionCompressResponse>(jsonElement)
+                OkHttpProvider.json.decodeFromJsonElement<SessionCompressResponse>(result.toJsonElement())
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to decode session.compress response", e)
                 null
             }
-
-        val sessionId = runtimeSessionId ?: _uiState.value.currentSessionId
-
-        // 1. Authoritative transcript replacement
-        // Rows without a server id can't be keyed under newest-anchored paging; the mapper would throw and
-        // abort the whole result (feedback included). Fall back to a REST reload for those.
-        var needsReload = false
-        if (response?.messages != null && sessionId != null) {
-            if (!latestPaging || response.messages.all { it.id != null }) {
-                val replacementMessages =
-                    withContext(historyDispatcher) {
-                        mapServerMessages(
-                            sessionId = sessionId,
-                            messages = response.messages,
-                            offset = 0,
-                            latestPaging = latestPaging,
-                            liveMessages = emptyList(),
-                            activeReplyTarget = ReplyNotificationTracker.getActiveTarget(getApplication()),
-                            mediaUrl = ::gatewayMediaUrl,
-                        )
-                    }
-                _uiState.update { it.copy(messages = replacementMessages) }
-                persistHistoryPage(replacementMessages, sessionId)
-            } else {
-                needsReload = true
-            }
+        if (!isCurrentSessionRequest(sessionId, generation)) return
+        if (response == null ||
+            (response.status != null && response.status != "ok") ||
+            (
+                response.status == null && response.messages == null && response.summary == null &&
+                    response.message == null && response.compressed == null
+            )
+        ) {
+            throw IllegalStateException("Unrecognized session.compress response; history was not reconciled")
         }
-
-        // 2. Display result summary via addAssistantMessage
+        val incompleteFallback = response.messages != null && latestPaging && response.messages.any { it.id == null }
+        if (response.messages != null && !incompleteFallback) {
+            val replacement =
+                withContext(historyDispatcher) {
+                    mapServerMessages(
+                        sessionId = sessionId,
+                        messages = response.messages,
+                        offset = 0,
+                        latestPaging = latestPaging,
+                        liveMessages = emptyList(),
+                        activeReplyTarget = ReplyNotificationTracker.getActiveTarget(getApplication()),
+                        mediaUrl = ::gatewayMediaUrl,
+                    )
+                }
+            if (!applyCompressedHistory(sessionId, generation, replacement)) return
+        } else if (incompleteFallback) {
+            // An id-less latest-page response needs the REST protocol's paging negotiation.
+            // loadSessionMessages starts a child job; joining it is essential before feedback.
+            hydratedGeneration = -1L
+            loadSessionMessages(sessionId, generation).join()
+            if (!isCurrentSessionRequest(sessionId, generation)) return
+        }
+        if (!isCurrentSessionRequest(sessionId, generation)) return
         val summary = response?.summary
-        val lines = mutableListOf<String>()
-        summary?.headline?.takeIf { it.isNotBlank() }?.let { lines.add(it) }
-        summary?.token_line?.takeIf { it.isNotBlank() }?.let { lines.add(it) }
-        summary?.note?.takeIf { it.isNotBlank() }?.let { lines.add(it) }
-
         val feedback =
-            if (lines.isNotEmpty()) {
-                lines.joinToString("\n")
-            } else {
-                response?.message ?: "Context compressed."
-            }
-        if (needsReload && sessionId != null) {
-            // Mirror handlePrefillResult: rehydrate from REST first, then post the feedback so it survives.
-            withContext(ioDispatcher) { repo.clearMessagesForSession(sessionId) }
-            _uiState.update { it.copy(messages = emptyList()) }
-            loadSessionMessages(sessionId, sessionGeneration)
-        }
-        addAssistantMessage(feedback)
-
-        // 3. Refresh usage & sessions
+            listOfNotNull(
+                summary?.headline?.takeIf { it.isNotBlank() },
+                summary?.token_line?.takeIf { it.isNotBlank() },
+                summary?.note?.takeIf { it.isNotBlank() },
+            ).takeIf { it.isNotEmpty() }?.joinToString("\n") ?: response?.message ?: "Context compressed."
+        addAssistantMessage(
+            if (incompleteFallback) "$feedback\nHistory refresh incomplete; cached history retained." else feedback,
+        )
+        if (!isCurrentSessionRequest(sessionId, generation)) return
         fetchContextUsage()
         loadSessions()
-
-        // 4. Handle lineage/session info if provided
+        if (!isCurrentSessionRequest(sessionId, generation)) return
         response?.info?.let { infoElement ->
             val infoMap = (infoElement.toAny() as? Map<*, *>)?.filterKeys { it is String } as? Map<String, Any?>
             handleSessionInfo(infoMap)
         }
-        sessionHasServerPresence = true
+        if (isCurrentSessionRequest(sessionId, generation)) sessionHasServerPresence = true
     }
 
     private fun handlePrefillResult(
@@ -5153,7 +5233,7 @@ class ChatViewModel(
     private fun loadSessionMessages(
         sessionId: String,
         generation: Long,
-    ) {
+    ): Job {
         if (activeHydrationRequestSequence != 0L && cacheJob?.isActive == true) {
             cacheJob?.cancel()
             if (!cacheLoaded) loadCachedMessages(sessionId, generation)
@@ -5166,8 +5246,8 @@ class ChatViewModel(
         isSyncingMessages = false
         _uiState.update { it.copy(isLoadingOlder = false) }
         val valid = { isCurrentHydration(sessionId, generation, requestSequence) }
-        hydrationJob =
-            viewModelScope.launch {
+        return viewModelScope
+            .launch {
                 try {
                     val latestResult = fetchMessagePage(sessionId, 0, MESSAGE_PAGE_SIZE, order = "latest")
                     if (!valid()) return@launch
@@ -5240,7 +5320,7 @@ class ChatViewModel(
                 } finally {
                     if (valid()) _uiState.update { it.copy(isLoading = false) }
                 }
-            }
+            }.also { hydrationJob = it }
     }
 
     private suspend fun persistHistoryPage(

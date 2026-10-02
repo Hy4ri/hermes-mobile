@@ -201,7 +201,8 @@ class ChatSendStoreTest {
 
         val restored = ChatSendStore(prefs).all().single()
 
-        assertEquals(PendingSendState.UNKNOWN, restored.state)
+        assertEquals(PendingSendState.ACCEPTED, restored.state)
+        assertTrue(restored.requiresExactReconciliation)
         assertEquals(0, restored.attempts)
     }
 

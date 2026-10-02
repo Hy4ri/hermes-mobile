@@ -100,6 +100,7 @@ private const val TAG = "ChatViewModel"
 private const val MESSAGE_PAGE_SIZE = 150
 private const val TIMELINE_PAGE_SIZE = 500
 private const val HISTORY_WINDOW_SIZE = 120
+private const val MAX_PENDING_RECEIPT_LOOKUPS = 8
 private const val VOICE_NOTE_OFFLINE_MESSAGE = "Voice note not sent — not connected"
 private const val VOICE_NOTE_EMPTY_MESSAGE = "No speech detected in the voice note"
 private const val VOICE_NOTE_FAILED_MESSAGE = "Voice note transcription failed"
@@ -508,6 +509,8 @@ class ChatViewModel(
         val resumeSequence: Long = 0L,
         val sessionId: String? = null,
         val connectionCheckpoint: ConnectionResumeCheckpoint? = null,
+        val receiptScope: String? = null,
+        val receiptAttempt: Int? = null,
     )
 
     private data class SendOwner(
@@ -624,6 +627,8 @@ class ChatViewModel(
     private var hydrationJob: Job? = null
     private var olderJob: Job? = null
     private var syncJob: Job? = null
+    private var receiptLookupJob: Job? = null
+    private var receiptLookupCursor = 0L
     private val historyFetchMutex = Mutex()
     private var timelineJob: Job? = null
     private var historyWindowJob: Job? = null
@@ -854,20 +859,17 @@ class ChatViewModel(
                     mainTurnBusy = false
                     // A gateway acceptance is not a durable REST acknowledgement. Recover even
                     // receipts whose RPC correlation was already removed, without resending them.
-                    val acceptedIds =
-                        sendStore
-                            .all()
-                            .filter {
-                                it.scope == sendScope() && it.state == PendingSendState.ACCEPTED
-                            }.map { it.id }
-                    (outgoingRequestById.values + hardInterruptRequestById.values.map { it.messageId } + acceptedIds)
+                    sendStore
+                        .all()
+                        .filter { it.scope == sendScope() && it.state == PendingSendState.ACCEPTED }
+                        .forEach { accepted ->
+                            sendStore.update(accepted.id) { it.copy(requiresExactReconciliation = true) }
+                        }
+                    publishPendingSends()
+                    (outgoingRequestById.values + hardInterruptRequestById.values.map { it.messageId })
                         .distinct()
                         .forEach { messageId ->
-                            if (sendStore.all().any {
-                                    it.id == messageId &&
-                                        (it.state == PendingSendState.SENDING || it.state == PendingSendState.ACCEPTED)
-                                }
-                            ) {
+                            if (sendStore.all().any { it.id == messageId && it.state == PendingSendState.SENDING }) {
                                 markPendingSend(messageId, PendingSendState.UNKNOWN)
                                 removeUnconfirmedBubble(messageId)
                             }
@@ -1687,6 +1689,56 @@ class ChatViewModel(
 
     // ── RPC response handling ────────────────────────────────────────────
 
+    private fun isAcceptedOutgoingStatus(
+        method: String,
+        status: String?,
+    ): Boolean =
+        when (method) {
+            WsMethods.SESSION_REDIRECT -> status == "redirected" || status == "queued"
+            WsMethods.SESSION_STEER -> status == "queued" || status == "steered"
+            WsMethods.PROMPT_SUBMIT -> status in setOf("streaming", "queued", "redirected", "steered")
+            else -> false
+        }
+
+    /** A stale UI generation does not invalidate an exact ACK for its original receipt. */
+    private fun ownsOutgoingReceipt(
+        request: SessionRequest,
+        messageId: String,
+    ): Boolean =
+        sendStore.all().any {
+            it.id == messageId && it.scope == request.receiptScope &&
+                it.sessionId == request.sessionId && it.attempts == request.receiptAttempt
+        }
+
+    private fun settleStaleOutgoingResult(
+        requestId: String,
+        method: String,
+        result: Any?,
+        request: SessionRequest,
+    ) {
+        val messageId = outgoingRequestById.remove(requestId) ?: return
+        val receipt = sendStore.all().firstOrNull { it.id == messageId } ?: return
+        if (receipt.scope != request.receiptScope || receipt.sessionId != request.sessionId ||
+            receipt.attempts != request.receiptAttempt
+        ) {
+            return
+        }
+        val resultMap = rpcResultMap(result)
+        if (!isAcceptedOutgoingStatus(method, resultMap?.get("status") as? String)) {
+            if (receipt.state == PendingSendState.SENDING) markPendingSend(messageId, PendingSendState.UNKNOWN)
+            return
+        }
+        sendStore.update(messageId) {
+            it.copy(
+                state = PendingSendState.ACCEPTED,
+                userRowId = positiveRowId(resultMap?.get("user_row_id")) ?: it.userRowId,
+                requiresExactReconciliation = true,
+            )
+        }
+        publishPendingSends()
+        if (receipt.sessionId == _uiState.value.currentSessionId) drainPendingQueue()
+    }
+
     private fun settleOutgoingResult(
         requestId: String,
         method: String,
@@ -1695,12 +1747,7 @@ class ChatViewModel(
         val messageId = outgoingRequestById.remove(requestId) ?: return
         val resultMap = rpcResultMap(result)
         val status = resultMap?.get("status") as? String
-        val accepted =
-            when (method) {
-                WsMethods.SESSION_REDIRECT -> status == "redirected" || status == "queued"
-                WsMethods.SESSION_STEER -> status == "queued" || status == "steered"
-                else -> status == "streaming" || status == "queued"
-            }
+        val accepted = isAcceptedOutgoingStatus(method, status)
         when {
             accepted -> {
                 // #1427: a gateway-queued prompt belongs to a future turn, not the
@@ -1766,7 +1813,7 @@ class ChatViewModel(
         val request = sessionRequestById.remove(id)
         branchWholeRequests.remove(id)
         if (request != null && isStaleSessionRequest(request)) {
-            outgoingRequestById.remove(id)?.let { markPendingSend(it, PendingSendState.UNKNOWN) }
+            settleStaleOutgoingResult(id, method, result, request)
             hardInterruptRequestById.remove(id)?.let { markPendingSend(it.messageId, PendingSendState.UNKNOWN) }
             return
         }
@@ -2206,8 +2253,20 @@ class ChatViewModel(
         val request = sessionRequestById.remove(id)
         val pendingBranch = branchWholeRequests.remove(id)
         if (request != null && isStaleSessionRequest(request)) {
-            outgoingRequestById.remove(id)?.let { markPendingSend(it, PendingSendState.UNKNOWN) }
+            outgoingRequestById.remove(id)?.let { messageId ->
+                if (ownsOutgoingReceipt(request, messageId) &&
+                    sendStore.all().any { it.id == messageId && it.state == PendingSendState.SENDING }
+                ) {
+                    markPendingSend(messageId, PendingSendState.UNKNOWN)
+                }
+            }
             hardInterruptRequestById.remove(id)?.let { markPendingSend(it.messageId, PendingSendState.UNKNOWN) }
+            return
+        }
+        // An error for an expired or replaced RPC cannot mutate a newer receipt attempt.
+        val outgoingMessageId = outgoingRequestById[id]
+        if (outgoingMessageId != null && (request == null || !ownsOutgoingReceipt(request, outgoingMessageId))) {
+            outgoingRequestById.remove(id)
             return
         }
         val errorMsg =
@@ -2597,7 +2656,15 @@ class ChatViewModel(
         sessionId: String,
     ) {
         outgoingRequestById[requestId] = messageId
-        trackSessionRequest(requestId, method, generation, sessionId = sessionId)
+        val receipt = sendStore.all().firstOrNull { it.id == messageId }
+        trackSessionRequest(
+            requestId,
+            method,
+            generation,
+            sessionId = sessionId,
+            receiptScope = receipt?.scope,
+            receiptAttempt = receipt?.attempts,
+        )
         if (!isTestEnvironment()) {
             viewModelScope.launch {
                 delay(30_000L)
@@ -4966,6 +5033,11 @@ class ChatViewModel(
                     receiptRows
                         .filter {
                             it.id !in visibleIds &&
+                                // Do not let an idless uncertain receipt claim a repeated REST row by text.
+                                (
+                                    (it.state != PendingSendState.UNKNOWN && !it.requiresExactReconciliation) ||
+                                        it.userRowId != null
+                                ) &&
                                 it.state in
                                 setOf(PendingSendState.SENDING, PendingSendState.ACCEPTED, PendingSendState.UNKNOWN)
                         }.map {
@@ -4980,6 +5052,10 @@ class ChatViewModel(
                         }
                 }
             val receiptCandidateIds = receiptCandidates.map { it.id }.toSet()
+            val exactOnlyIds =
+                receiptRows
+                    .filter { it.state == PendingSendState.UNKNOWN || it.requiresExactReconciliation }
+                    .mapTo(mutableSetOf()) { it.id }
             val computed =
                 withContext(historyDispatcher) {
                     val mapped = mapPage(snapshot.messages)
@@ -5032,6 +5108,7 @@ class ChatViewModel(
                                 snapshot.messages + receiptCandidates,
                                 chronological = !prepend,
                                 preserveLiveIds = true,
+                                contentMatchExcludedIds = exactOnlyIds,
                             ).filterNot { it.id in receiptCandidateIds && it.canonicalRestId == null }
                         }
                     val stableMessages = if (merged == snapshot.messages) snapshot.messages else merged
@@ -5055,6 +5132,9 @@ class ChatViewModel(
     private fun resetTimelineState() {
         timelineJob?.cancel()
         historyWindowJob?.cancel()
+        receiptLookupJob?.cancel()
+        receiptLookupJob = null
+        receiptLookupCursor = 0L
         activeTimelineRequestSequence = ++timelineRequestSequence
         activeHistoryWindowRequestSequence = ++historyWindowRequestSequence
         _timelineState.value = ChatTimelineState()
@@ -5116,6 +5196,8 @@ class ChatViewModel(
         val requestSequence = ++hydrationRequestSequence
         activeHydrationRequestSequence = requestSequence
         hydrationJob?.cancel()
+        receiptLookupJob?.cancel()
+        receiptLookupJob = null
         olderJob?.cancel()
         syncJob?.cancel()
         isSyncingMessages = false
@@ -5202,6 +5284,8 @@ class ChatViewModel(
         page: List<ChatMessage>,
         sessionId: String,
     ) {
+        val scope = sendScope()
+        val generation = sessionGeneration
         // A mapped page can reuse a live WS message. Never overwrite its newer persisted
         // version with the snapshot used for mapping; WS owns persistence of those IDs.
         val pageIds = page.mapNotNull { it.canonicalRestId }.toSet()
@@ -5213,12 +5297,77 @@ class ChatViewModel(
             )
             repo.confirmIdentities(aliases, sessionId)
         }
-        val scope = sendScope()
+        if (!isCurrentSessionRequest(sessionId, generation) || scope != sendScope()) return
         val scopedPending =
             sendStore.all().filter { it.scope == scope && it.sessionId == sessionId }
-        pendingSendIdsConfirmedByDurableAliases(aliases, scopedPending).forEach(::removePendingSend)
+        // Canonical rows can prove restored receipts by exact row identity.
+        pendingSendIdsConfirmedByDurableAliases(aliases + page, scopedPending).forEach(::removePendingSend)
         publishPendingSends()
         drainPendingQueue()
+        reconcileOlderPendingReceipts(sessionId)
+    }
+
+    /** Confirm acknowledged rows outside the latest page without replacing the visible transcript. */
+    private fun reconcileOlderPendingReceipts(sessionId: String) {
+        if (receiptLookupJob?.isActive == true) return
+        val scope = sendScope()
+        val generation = sessionGeneration
+        val requestSequence = activeHydrationRequestSequence
+        val profile = AuthManager.activeProfileId.value ?: AuthManager.DEFAULT_PROFILE_ID
+        val api = ApiClient.hermesApi
+        val eligibleStates = setOf(PendingSendState.SENDING, PendingSendState.ACCEPTED, PendingSendState.UNKNOWN)
+        val candidates =
+            sendStore.all().filter {
+                it.scope == scope && it.sessionId == sessionId && it.state in eligibleStates &&
+                    it.userRowId != null && it.userRowId in 1L..Int.MAX_VALUE.toLong()
+            }
+        val rowIds = candidates.mapNotNull { it.userRowId }.distinct().sorted()
+        // Rotate a bounded batch so one unavailable old row cannot starve later receipts.
+        val batch =
+            (rowIds.filter { it > receiptLookupCursor } + rowIds.filter { it <= receiptLookupCursor })
+                .take(MAX_PENDING_RECEIPT_LOOKUPS)
+        if (batch.isEmpty()) return
+        val valid = {
+            isCurrentHydration(sessionId, generation, requestSequence) && scope == sendScope()
+        }
+        receiptLookupJob =
+            viewModelScope.launch {
+                for (rowId in batch) {
+                    if (!valid()) return@launch
+                    receiptLookupCursor = rowId
+                    try {
+                        val result =
+                            withContext(ioDispatcher) {
+                                safeApiCall {
+                                    api.getSessionMessagesAround(sessionId, rowId.toInt(), profile, limit = 1)
+                                }
+                            }
+                        if (!valid()) return@launch
+                        if (result !is NetworkResult.Success) continue
+                        val response = result.data
+                        if ((response.session_id != null && response.session_id != sessionId) ||
+                            (response.profile != null && response.profile != profile) ||
+                            (response.pagination.row_id != null && response.pagination.row_id.toLong() != rowId) ||
+                            response.messages.size != 1 ||
+                            response.messages.none { it.id?.toLong() == rowId && it.role == "user" }
+                        ) {
+                            continue
+                        }
+                        // Only retire the captured receipt, not a replacement created during the request.
+                        val proven = candidates.filter { it.userRowId == rowId }
+                        sendStore
+                            .all()
+                            .filter { current ->
+                                current in proven && current.state in eligibleStates
+                            }.forEach { removePendingSend(it.id) }
+                        drainPendingQueue()
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: Exception) {
+                        // Missing/unsupported endpoints and transient failures leave delivery unknown.
+                    }
+                }
+            }
     }
 
     // ── Session resume recovery (desktop parity) ─────────────────────────
@@ -6282,6 +6431,8 @@ class ChatViewModel(
         resumeSequence: Long = 0L,
         sessionId: String? = null,
         connectionCheckpoint: ConnectionResumeCheckpoint? = null,
+        receiptScope: String? = null,
+        receiptAttempt: Int? = null,
     ) {
         sessionRequestById[id] =
             SessionRequest(
@@ -6289,6 +6440,8 @@ class ChatViewModel(
                 resumeSequence = resumeSequence,
                 sessionId = sessionId,
                 connectionCheckpoint = connectionCheckpoint,
+                receiptScope = receiptScope,
+                receiptAttempt = receiptAttempt,
             )
         trackRequest(id, method)
     }
@@ -6309,6 +6462,7 @@ class ChatViewModel(
 
     private fun isStaleSessionRequest(request: SessionRequest): Boolean =
         request.generation != sessionGeneration ||
+            (request.receiptScope != null && request.receiptScope != sendScope()) ||
             (request.sessionId != null && request.sessionId != _uiState.value.currentSessionId) ||
             (request.resumeSequence != 0L && request.resumeSequence != activeResumeRequestSequence)
 

@@ -360,6 +360,14 @@ class ChatViewModelTest {
             arg<((String) -> Unit)?>(2)?.invoke(id)
             id
         }
+        // Typed redirects bypass send(); keep this fixture off the real singleton transport.
+        every { HermesWsClient.sendRedirect(any(), any(), any()) } answers {
+            reqCount++
+            val id = "req-redirect-$reqCount"
+            sentRequestMethods += WsMethods.SESSION_REDIRECT to id
+            arg<((String) -> Unit)?>(2)?.invoke(id)
+            id
+        }
         every { HermesWsClient.respondToServerRequest(any(), any()) } returns true
         every { HermesWsClient.respondToServerRequestError(any(), any(), any()) } returns true
 
@@ -3712,7 +3720,52 @@ class ChatViewModelTest {
                 viewModel.uiState.value.pendingSends
                     .isEmpty(),
             )
-            assertEquals(PendingSendState.UNKNOWN, sendStore.all().single().state)
+            // The exact old RPC ACK belongs to its original receipt, not the new chat.
+            assertEquals(PendingSendState.ACCEPTED, sendStore.all().single().state)
+            assertTrue(sendStore.all().single().requiresExactReconciliation)
+            verify(exactly = 1) { HermesWsClient.sendMessage(sessionId, "Old session", any(), any()) }
+        }
+
+    @Test
+    fun lateRpcErrorCannotOverwriteNewerReceiptAttempt() =
+        runTest {
+            val store = ChatSendStore()
+            val (viewModel, sessionId) = createViewModelWithSession(sendStore = store)
+            every { HermesWsClient.sendMessage(sessionId, "Retry me", any(), any()) } answers {
+                arg<((String) -> Unit)?>(2)?.invoke("attempt-one")
+                "attempt-one"
+            }
+            assertTrue(viewModel.sendMessage("Retry me"))
+            advanceUntilIdle()
+            val receipt = store.all().single()
+            store.update(receipt.id) { it.copy(attempts = it.attempts + 1, state = PendingSendState.ACCEPTED) }
+
+            mockEventsFlow.emit(WsEvent.RpcError("attempt-one", JsonRpcError(4010, "old failure")))
+            advanceUntilIdle()
+            assertEquals(PendingSendState.ACCEPTED, store.all().single().state)
+            assertEquals(receipt.attempts + 1, store.all().single().attempts)
+        }
+
+    @Test
+    fun staleSessionRpcErrorCannotOverwriteReceiptFromOldSession() =
+        runTest {
+            stubSession456Rests(success = true)
+            val store = ChatSendStore()
+            val (viewModel, sessionId) = createViewModelWithSession(sendStore = store)
+            every { HermesWsClient.sendMessage(sessionId, "Old session error", any(), any()) } answers {
+                arg<((String) -> Unit)?>(2)?.invoke("old-error")
+                "old-error"
+            }
+            assertTrue(viewModel.sendMessage("Old session error"))
+            advanceUntilIdle()
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+            val receipt = store.all().single()
+            store.update(receipt.id) { it.copy(state = PendingSendState.ACCEPTED) }
+
+            mockEventsFlow.emit(WsEvent.RpcError("old-error", JsonRpcError(4001, "old failure")))
+            advanceUntilIdle()
+            assertEquals(PendingSendState.ACCEPTED, store.all().single().state)
         }
 
     @Test
@@ -4819,10 +4872,15 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             assertEquals(
-                PendingSendState.UNKNOWN,
+                PendingSendState.ACCEPTED,
                 viewModel.uiState.value.pendingSends
                     .single()
                     .state,
+            )
+            assertTrue(
+                viewModel.uiState.value.pendingSends
+                    .single()
+                    .requiresExactReconciliation,
             )
             verify(exactly = 1) {
                 HermesWsClient.sendMessage(sessionId, "Accepted before disconnect", any(), false)

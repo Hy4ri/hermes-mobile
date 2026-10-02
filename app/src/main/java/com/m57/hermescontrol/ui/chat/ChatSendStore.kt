@@ -23,6 +23,8 @@ data class PendingSend(
     val requiresAttachmentRecovery: Boolean = false,
     /** `prompt.submit` `user_row_id` receipt (#1285); null means unproven, not rejected. */
     val userRowId: Long? = null,
+    /** Restore and reconnect require exact REST identity, never inferred text. */
+    val requiresExactReconciliation: Boolean = false,
 )
 
 @Serializable
@@ -45,19 +47,28 @@ internal fun pendingSendIdsConfirmedByDurableAliases(
     confirmedAliases: List<ChatMessage>,
     pending: List<PendingSend>,
 ): Set<String> {
-    val durableUserAliasIds =
+    val durableUserRows =
         confirmedAliases
             .asSequence()
             .filter { it.role == MessageRole.USER && it.canonicalRestId != null }
-            .map { it.id }
-            .toSet()
+            .toList()
+    val durableUserAliasIds = durableUserRows.mapTo(mutableSetOf()) { it.id }
+    // A canonical cache row may own the REST identity instead of the missing optimistic UUID.
+    // Only an exact server receipt can bridge that gap; same text is not proof of delivery.
+    val durableUserRowIds = durableUserRows.mapNotNullTo(mutableSetOf()) { it.serverRowId }
     return pending
         .asSequence()
         .filter {
             it.state in
                 setOf(PendingSendState.SENDING, PendingSendState.ACCEPTED, PendingSendState.UNKNOWN)
+        }.filter {
+            // Never allow a content alias to override an exact receipt or idless UNKNOWN.
+            if (it.userRowId != null) {
+                it.userRowId in durableUserRowIds
+            } else {
+                it.state != PendingSendState.UNKNOWN && !it.requiresExactReconciliation && it.id in durableUserAliasIds
+            }
         }.map { it.id }
-        .filter { it in durableUserAliasIds }
         .toSet()
 }
 
@@ -80,12 +91,10 @@ class ChatSendStore(
         replace(
             rows.map {
                 it.quarantineLegacyAttachments().let { quarantined ->
-                    if (quarantined.state == PendingSendState.SENDING ||
-                        quarantined.state == PendingSendState.ACCEPTED
-                    ) {
-                        quarantined.copy(state = PendingSendState.UNKNOWN)
-                    } else {
-                        quarantined
+                    when (quarantined.state) {
+                        PendingSendState.SENDING -> quarantined.copy(state = PendingSendState.UNKNOWN)
+                        PendingSendState.ACCEPTED -> quarantined.copy(requiresExactReconciliation = true)
+                        else -> quarantined
                     }
                 }
             },

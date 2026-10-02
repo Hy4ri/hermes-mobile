@@ -10834,8 +10834,14 @@ class ChatViewModelTest {
             @Suppress("UNCHECKED_CAST")
             val state = stateField.get(vm) as MutableStateFlow<ChatUiState>
             state.value =
-                state.value.copy(messages = state.value.messages + history, pendingAttachments = listOf(attachment))
+                state.value.copy(
+                    messages = state.value.messages.map { if (it.id == history.id) history else it },
+                    pendingAttachments = listOf(attachment),
+                )
+            advanceUntilIdle()
             val messagesBefore = vm.uiState.value.messages
+            assertEquals(1, messagesBefore.count { it.id == history.id })
+            assertEquals(listOf(attachment), messagesBefore.single { it.id == history.id }.attachments)
 
             vm.removeAcknowledgedPendingSend(receipt)
             advanceUntilIdle()

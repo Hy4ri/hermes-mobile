@@ -50,6 +50,29 @@ class ChatSendStoreTest {
     }
 
     @Test
+    fun rowIdOnHistoryPageConfirmsAcceptedReceiptWithoutMergeMatch() {
+        val receipts =
+            listOf(
+                pending("send-1", "A").copy(userRowId = 334755L),
+                pending("send-2", "B").copy(userRowId = 999L),
+                pending("send-3", "C"),
+            )
+
+        val confirmed = pendingSendIdsConfirmedByRowIds(setOf(334755L), receipts)
+
+        assertEquals(setOf("send-1"), confirmed)
+    }
+
+    @Test
+    fun rowIdReceiptIsNotDowngradedButIdlessReceiptIs() {
+        val withRow = pending("send-1", "A").copy(userRowId = 334755L)
+        val idless = pending("send-2", "B")
+
+        assertTrue(!canDemoteAcceptedReceipt(withRow))
+        assertTrue(canDemoteAcceptedReceipt(idless))
+    }
+
+    @Test
     fun durableAliasConsumesOnlyOneDuplicateReceiptOccurrence() {
         val existing =
             listOf(

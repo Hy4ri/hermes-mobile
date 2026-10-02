@@ -5222,7 +5222,11 @@ class ChatViewModel(
         val scope = sendScope()
         val scopedPending =
             sendStore.all().filter { it.scope == scope && it.sessionId == sessionId }
-        pendingSendIdsConfirmedByDurableAliases(aliases, scopedPending).forEach(::removePendingSend)
+        val pageRowIds = page.mapNotNull { it.serverRowId }.toSet()
+        (
+            pendingSendIdsConfirmedByDurableAliases(aliases, scopedPending) +
+                pendingSendIdsConfirmedByRowIds(pageRowIds, scopedPending)
+        ).forEach(::removePendingSend)
         publishPendingSends()
         drainPendingQueue()
     }
@@ -5718,7 +5722,8 @@ class ChatViewModel(
                         persistHistoryPage(page, sessionId)
                         if (valid() && !mainTurnBusy && mainTurnEpoch == completedTurnEpoch) {
                             unverifiedAccepted.forEach { receipt ->
-                                if (sendStore.all().any { it == receipt }) {
+                                // A gateway-issued user_row_id means the row is stored: never walk back to UNKNOWN.
+                                if (canDemoteAcceptedReceipt(receipt) && sendStore.all().any { it == receipt }) {
                                     markPendingSend(receipt.id, PendingSendState.UNKNOWN)
                                 }
                             }

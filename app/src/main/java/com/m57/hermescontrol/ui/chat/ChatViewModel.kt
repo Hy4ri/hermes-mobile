@@ -4134,44 +4134,46 @@ class ChatViewModel(
         val arg = parts.getOrElse(1) { "" }
         viewModelScope.launch(ioDispatcher) {
             try {
-                // Primary path: command.dispatch handles quick/plugin/bundle/
-                // skill commands + a few hardcoded ones. It returns a hard 4018
-                // "not a ... command" for everything that lives only in the TUI
-                // slash worker (the 29 commands that 4018'd on mobile — issue
-                // #576). For those we fall back to slash.exec, which runs the
-                // full COMMAND_REGISTRY through the worker.
+                // Desktop parity: slash.exec owns generic commands. Handle errors here,
+                // not again through the shared RpcError banner (/usage regression).
                 val result =
                     wsClient.call(
-                        RpcMethods.COMMAND_DISPATCH,
-                        CommandDispatchParams(name = name, arg = arg, sessionId = sessionId),
+                        RpcMethods.SLASH_EXEC,
+                        SlashExecParams(sessionId = sessionId, command = command.removePrefix("/")),
+                        suppressErrorEvent = true,
                     )
-                handleDispatchResult(result.toAny())
-            } catch (e: HermesWsClient.HermesRpcException) {
-                val msg = e.message.orEmpty()
-                // Registry miss on command.dispatch: the backend emits exactly
-                // "not a quick/plugin/bundle/skill command: <name>" (tui_gateway
-                // server.py L12408). Match that precise phrase so unrelated
-                // errors can't accidentally trigger the slash.exec fallback.
-                if (msg.contains("not a quick/plugin/bundle/skill command")) {
-                    // Registry miss on command.dispatch -> retry via slash.exec,
-                    // which routes the full CLI command set through the worker.
-                    try {
-                        val result =
-                            wsClient.call(
-                                RpcMethods.SLASH_EXEC,
-                                SlashExecParams(
-                                    sessionId = sessionId,
-                                    command = "/$name${if (arg.isNotEmpty()) " $arg" else ""}",
-                                ),
-                            )
-                        val output = (result.toAny() as? Map<*, *>)?.get("output") as? String
-                        if (!output.isNullOrBlank()) addAssistantMessage(output)
-                    } catch (e2: HermesWsClient.HermesRpcException) {
-                        addAssistantMessage("/$name: ${e2.message}")
-                    }
+                val map = result.toAny() as? Map<*, *>
+                if (map?.get("type") is String) {
+                    handleDispatchResult(map)
                 } else {
-                    // Legit error from command.dispatch (busy, no history, etc.)
-                    addAssistantMessage("/$name: ${e.message}")
+                    val output = (map?.get("output") as? String).orEmpty().ifBlank { "/$name: no output" }
+                    val warning = (map?.get("warning") as? String).orEmpty()
+                    addAssistantMessage(if (warning.isBlank()) output else "warning: $warning\n$output")
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                try {
+                    val result =
+                        wsClient.call(
+                            RpcMethods.COMMAND_DISPATCH,
+                            CommandDispatchParams(name = name, arg = arg, sessionId = sessionId),
+                            suppressErrorEvent = true,
+                        )
+                    val map = result.toAny() as? Map<*, *>
+                    if (map?.get("type") is String) {
+                        handleDispatchResult(map)
+                    } else {
+                        addAssistantMessage("/$name: invalid response: command.dispatch")
+                    }
+                } catch (fallback: CancellationException) {
+                    throw fallback
+                } catch (fallback: Exception) {
+                    val registryMiss =
+                        Regex("not a quick/plugin/(?:bundle/)?skill command", RegexOption.IGNORE_CASE)
+                            .containsMatchIn(fallback.message.orEmpty())
+                    val failure = if (registryMiss) e else fallback
+                    addAssistantMessage("/$name: ${failure.message}")
                 }
             }
         }

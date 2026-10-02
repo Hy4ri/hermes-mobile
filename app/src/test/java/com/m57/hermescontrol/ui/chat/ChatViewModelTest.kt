@@ -661,7 +661,7 @@ class ChatViewModelTest {
             val (viewModel, sessionId) = createViewModelWithSession()
 
             every {
-                HermesWsClient.request(WsMethods.COMMAND_DISPATCH, any(), any())
+                HermesWsClient.request(WsMethods.SLASH_EXEC, any(), any(), true)
             } returns
                 CompletableDeferred(
                     mapOf("type" to "exec", "output" to "**Available Commands:**\n\u2022 `/status`\n\u2022 `/new`"),
@@ -1321,7 +1321,7 @@ class ChatViewModelTest {
             viewModel.sendMessage("/status")
             advanceUntilIdle()
 
-            verify { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) }
+            verify { HermesWsClient.request(WsMethods.SLASH_EXEC, any(), any(), true) }
         }
 
     @Test
@@ -1332,7 +1332,7 @@ class ChatViewModelTest {
             viewModel.sendMessage("/sessions")
             advanceUntilIdle()
 
-            verify { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) }
+            verify { HermesWsClient.request(WsMethods.SLASH_EXEC, any(), any(), true) }
         }
 
     @Test
@@ -1343,7 +1343,7 @@ class ChatViewModelTest {
             viewModel.sendMessage("/stats")
             advanceUntilIdle()
 
-            verify { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) }
+            verify { HermesWsClient.request(WsMethods.SLASH_EXEC, any(), any(), true) }
         }
 
     @Test

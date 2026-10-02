@@ -106,7 +106,7 @@ sealed class SlashResult {
     /** Create a new session (client-side immediate). */
     data object NewSession : SlashResult()
 
-    /** Forward to command.dispatch via WebSocket. */
+    /** Execute through slash.exec, with command.dispatch as the desktop-compatible fallback. */
     data object RpcDispatch : SlashResult()
 
     /** Fork the active conversation via the session.branch WebSocket RPC. */

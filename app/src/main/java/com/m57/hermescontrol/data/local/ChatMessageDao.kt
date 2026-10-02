@@ -4,6 +4,7 @@ import androidx.room3.Dao
 import androidx.room3.Query
 import androidx.room3.Transaction
 import androidx.room3.Upsert
+import com.m57.hermescontrol.ui.chat.isPermanentlyLocal
 
 @Dao
 interface ChatMessageDao {
@@ -45,6 +46,9 @@ interface ChatMessageDao {
     @Query("SELECT COALESCE(MAX(rowid), 0) + 1 FROM chat_messages")
     suspend fun nextLocalOrder(): Long
 
+    @Query("SELECT MAX(sort_order) FROM chat_messages WHERE session_id = :sessionId AND sort_group = 0")
+    suspend fun latestCanonicalOrder(sessionId: String): Long?
+
     @Upsert
     suspend fun writeMessage(message: ChatMessageEntity)
 
@@ -59,12 +63,23 @@ interface ChatMessageDao {
             } else {
                 canonicalMessageOrder(restId ?: message.id, message.sessionId)
             }
+        // Capture once, transactionally. A later payload update cannot move an old local event to today's tail.
+        val anchor =
+            if (existing != null) {
+                existing.localAnchorOrder ?: message.localAnchorOrder
+            } else if (canonicalOrder == null && message.toUiModel().isPermanentlyLocal()) {
+                message.localAnchorOrder ?: latestCanonicalOrder(message.sessionId) ?: -1L
+            } else {
+                message.localAnchorOrder
+            }
         writeMessage(
             message.copy(
                 restId = restId,
                 completionId = message.completionId ?: existing?.completionId,
                 sortGroup = if (canonicalOrder != null) 0 else 1,
                 sortOrder = canonicalOrder ?: existing?.sortOrder ?: nextLocalOrder(),
+                localAnchorOrder = anchor,
+                localPredecessorId = existing?.localPredecessorId ?: message.localPredecessorId,
             ),
         )
     }

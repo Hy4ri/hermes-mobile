@@ -9,6 +9,8 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.m57.hermescontrol.ui.chat.ChatMessage
 import com.m57.hermescontrol.ui.chat.ChatPersistenceRepository
 import com.m57.hermescontrol.ui.chat.MessageRole
+import com.m57.hermescontrol.ui.chat.mergeCachedTranscriptPage
+import com.m57.hermescontrol.ui.chat.mergeTranscriptWithLive
 import kotlinx.coroutines.runBlocking
 import net.zetetic.database.sqlcipher.driver.SQLCipherDriver
 import org.json.JSONObject
@@ -29,6 +31,23 @@ class ChatMessagePagingDeviceTest {
     private lateinit var repository: ChatPersistenceRepository
     private val databaseName = "paging-regression-${UUID.randomUUID()}.db"
 
+    @Test
+    fun localModelCommandKeepsExactPlacementAfterSqlCipherDatabaseReopen() =
+        runBlocking {
+            val earlier = restRow(10, 900L)
+            val command = ChatMessage(id = "command", role = MessageRole.USER, content = "/model test", timestamp = 1L)
+            val later = restRow(11, 100L)
+            repository.persistMessages(listOf(earlier, command, later), "session")
+            database.close()
+            openDatabase()
+            val cached = repository.loadPage("session", null, 150).messages
+            val restored = mergeCachedTranscriptPage(cached, emptyList())
+            val expected = listOf(earlier.id, command.id, later.id)
+            assertEquals(expected, restored.map { it.id })
+            assertEquals(expected, mergeTranscriptWithLive(listOf(earlier, later), restored).map { it.id })
+            assertEquals(null, restored.single { it.id == command.id }.restId)
+        }
+
     @Before
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
@@ -41,8 +60,11 @@ class ChatMessagePagingDeviceTest {
             Room
                 .databaseBuilder(context, HermesDatabase::class.java, databaseName)
                 .setDriver(driver())
-                .addMigrations(HermesDatabase.MIGRATION_8_9, HermesDatabase.MIGRATION_9_10)
-                .build()
+                .addMigrations(
+                    HermesDatabase.MIGRATION_8_9,
+                    HermesDatabase.MIGRATION_9_10,
+                    HermesDatabase.MIGRATION_10_11,
+                ).build()
         repository = ChatPersistenceRepository(database.chatMessageDao())
     }
 

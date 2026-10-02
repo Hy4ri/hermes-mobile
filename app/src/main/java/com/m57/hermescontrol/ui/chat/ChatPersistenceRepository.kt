@@ -1,6 +1,8 @@
 package com.m57.hermescontrol.ui.chat
 
 import com.m57.hermescontrol.data.local.ChatMessageDao
+import com.m57.hermescontrol.data.local.ChatMessageEntity
+import com.m57.hermescontrol.data.local.canonicalMessageOrder
 import com.m57.hermescontrol.data.local.toEntity
 import com.m57.hermescontrol.data.local.toUiModel
 
@@ -33,8 +35,30 @@ open class ChatPersistenceRepository(
     }
 
     /** Load cached messages for a session from Room. */
-    suspend fun loadMessages(sessionId: String): List<ChatMessage> =
-        daoProvider().getMessagesForSession(sessionId).map { it.toUiModel() }
+    suspend fun loadMessages(sessionId: String): List<ChatMessage> {
+        val dao = daoProvider()
+        return restoreLocalAnchors(dao.getMessagesForSession(sessionId), dao, sessionId)
+    }
+
+    /** Resolve a pending predecessor even when it falls outside the current cache page. */
+    private suspend fun restoreLocalAnchors(
+        rows: List<ChatMessageEntity>,
+        dao: ChatMessageDao,
+        sessionId: String,
+    ): List<ChatMessage> {
+        val predecessors = mutableMapOf<String, Long?>()
+        return rows.map { row ->
+            val message = row.toUiModel()
+            val id = message.localPredecessorId
+            if (!message.isPermanentlyLocal() || id == null) return@map message
+            if (id !in predecessors) {
+                val predecessor = dao.getMessage(id)?.takeIf { it.sessionId == sessionId }
+                predecessors[id] =
+                    predecessor?.let { canonicalMessageOrder(it.restId ?: it.id, sessionId) }
+            }
+            predecessors[id]?.let { message.copy(localAnchorOrder = it, localPredecessorId = null) } ?: message
+        }
+    }
 
     data class Cursor(
         val group: Int,
@@ -65,7 +89,7 @@ open class ChatPersistenceRepository(
         val page = rows.take(limit)
         val oldest = page.lastOrNull()
         return Page(
-            messages = page.asReversed().map { it.toUiModel() },
+            messages = restoreLocalAnchors(page.asReversed(), dao, sessionId),
             cursor = oldest?.let { Cursor(it.sortGroup, it.sortOrder, it.id) } ?: before,
             hasOlder = rows.size > limit,
         )

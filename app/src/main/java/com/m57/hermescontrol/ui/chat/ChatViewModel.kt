@@ -67,6 +67,7 @@ import com.m57.hermescontrol.ui.chat.fullbleed.TranscriptUiState
 import com.m57.hermescontrol.ui.chat.tool.ToolViewCache
 import com.m57.hermescontrol.ui.common.ActionProgressController
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
@@ -485,6 +486,8 @@ class ChatViewModel(
 
     // ── Internal state ───────────────────────────────────────────────────
     private val _uiState = MutableStateFlow(ChatUiState())
+    private val localTranscriptAppendLock = Any()
+    private var localTranscriptPersistenceTail: Job? = null
     val connectionOperationState: StateFlow<ConnectionOperationUiState> = connectionOperationDelegate.state
     private val connectionBrowserReturnTracker = BrowserReturnTracker()
 
@@ -3712,29 +3715,23 @@ class ChatViewModel(
         val displayContent =
             if (result is SlashResult.QueuePrompt) result.displayContent else command
         val userMsg =
-            ChatMessage(
-                role = MessageRole.USER,
-                content = displayContent,
-                tokenCount = TokenEstimator.estimate(displayContent).takeIf { it > 0 },
-                // Follow-up to #1253: stripped /queue text is an unconfirmed prompt,
-                // not a permanently-local command or an ambiguous legacy cache row.
-                messageProvenance =
-                    if (result is SlashResult.QueuePrompt && displayContent != command) {
-                        MessageProvenance.LOCAL_PENDING
-                    } else {
-                        MessageProvenance.UNKNOWN
-                    },
+            appendLocalTranscriptEvent(
+                message =
+                    ChatMessage(
+                        role = MessageRole.USER,
+                        content = displayContent,
+                        tokenCount = TokenEstimator.estimate(displayContent).takeIf { it > 0 },
+                        // Follow-up to #1253: stripped /queue text is an unconfirmed prompt,
+                        // not a permanently-local command or an ambiguous legacy cache row.
+                        messageProvenance =
+                            if (result is SlashResult.QueuePrompt && displayContent != command) {
+                                MessageProvenance.LOCAL_PENDING
+                            } else {
+                                MessageProvenance.UNKNOWN
+                            },
+                    ),
+                persist = result !is SlashResult.QueuePrompt,
             )
-        val sessionId = _uiState.value.currentSessionId
-
-        _uiState.update { it.copy(messages = it.messages + userMsg) }
-
-        // Persist — OUTSIDE update{}
-        if (sessionId != null && result !is SlashResult.QueuePrompt) {
-            viewModelScope.launch(ioDispatcher) {
-                repo.persistMessage(userMsg, sessionId)
-            }
-        }
 
         if (result is SlashResult.Undo) {
             handleUndoCommand(result.count)
@@ -4199,22 +4196,48 @@ class ChatViewModel(
         }
     }
 
+    /** Record producer order before IO scheduling can invert command and feedback writes. */
+    private fun appendLocalTranscriptEvent(
+        message: ChatMessage,
+        persist: Boolean = true,
+    ): ChatMessage {
+        val (placed, persistenceJob) =
+            synchronized(localTranscriptAppendLock) {
+                var placed = message
+                var sessionId: String? = null
+                _uiState.update { state ->
+                    placed = message.withLocalTranscriptAnchor(state.messages)
+                    sessionId = state.currentSessionId
+                    state.copy(messages = state.messages + placed)
+                }
+                val capturedMessage = placed
+                val capturedSessionId = sessionId
+                val previousWrite = localTranscriptPersistenceTail
+                val job =
+                    if (persist && capturedSessionId != null) {
+                        viewModelScope
+                            .launch(ioDispatcher, start = CoroutineStart.LAZY) {
+                                previousWrite?.join()
+                                repo.persistMessage(capturedMessage, capturedSessionId)
+                            }.also { localTranscriptPersistenceTail = it }
+                    } else {
+                        null
+                    }
+                placed to job
+            }
+        // No database access inside the StateFlow transform or append lock.
+        persistenceJob?.start()
+        return placed
+    }
+
     private fun addAssistantMessage(text: String) {
-        val msg =
+        appendLocalTranscriptEvent(
             ChatMessage(
                 role = MessageRole.ASSISTANT,
                 content = text,
                 displayKind = DisplayKind.LOCAL_FEEDBACK,
-            )
-        _uiState.update { it.copy(messages = it.messages + msg) }
-
-        // Persist — OUTSIDE update{}
-        val sessionId = _uiState.value.currentSessionId
-        if (sessionId != null) {
-            viewModelScope.launch(ioDispatcher) {
-                repo.persistMessage(msg, sessionId)
-            }
-        }
+            ),
+        )
     }
 
     private fun handleUndoCommand(count: String) {

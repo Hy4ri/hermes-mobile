@@ -13,6 +13,30 @@ class ChatPersistenceRepositoryTest {
     private lateinit var repository: ChatPersistenceRepository
 
     @Test
+    fun restoredModelCommandKeepsItsPositionAcrossRepeatedResume() =
+        runTest {
+            val earlier =
+                ChatMessage(id = "rest-s-10", role = MessageRole.ASSISTANT, content = "Earlier", timestamp = 900L)
+            val command =
+                ChatMessage(id = "model-command", role = MessageRole.USER, content = "/model test", timestamp = 1L)
+            val later = earlier.copy(id = "rest-s-11", content = "Later", timestamp = 100L)
+            repository.persistMessage(earlier, "s")
+            repository.persistMessage(command, "s")
+            repository.persistMessage(later, "s")
+
+            val freshRepository = ChatPersistenceRepository(dao)
+            val cached = freshRepository.loadPage("s", null, 150).messages
+            val restored = mergeCachedTranscriptPage(cached, emptyList())
+            val expected = listOf(earlier.id, command.id, later.id)
+            assertEquals(10L, cached.single { it.id == command.id }.localAnchorOrder)
+            assertEquals(expected, restored.map { it.id })
+            assertEquals(expected, mergeTranscriptWithLive(listOf(earlier, later), restored).map { it.id })
+            assertEquals(expected, mergeCachedTranscriptPage(cached, restored).map { it.id })
+            assertEquals(MessageProvenance.UNKNOWN, restored.single { it.id == command.id }.messageProvenance)
+            assertEquals(null, restored.single { it.id == command.id }.canonicalRestId)
+        }
+
+    @Test
     fun providerIsLazyAndPendingWriteWaitsForDatabase() =
         runTest {
             val ready = kotlinx.coroutines.CompletableDeferred<Unit>()

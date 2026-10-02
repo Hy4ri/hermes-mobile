@@ -279,7 +279,7 @@ object EventParser {
 
             "status.update" -> {
                 val status = payload?.get("status") as? String
-                WsEvent.StatusUpdate(status, payload)
+                WsEvent.StatusUpdate(status, payload, sessionId)
             }
 
             "error" -> {

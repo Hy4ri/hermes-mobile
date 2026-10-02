@@ -10,8 +10,11 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.content.ReceiveContentListener
+import androidx.compose.foundation.content.contentReceiver
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,6 +35,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Close
@@ -39,6 +45,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -64,8 +71,9 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
@@ -86,9 +94,9 @@ import com.m57.hermescontrol.util.BidiUtils
  * controls row (attach, model/reasoning pill, mic, send) inside it below.
  */
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 fun ChatInputBar(
-    inputFieldValue: TextFieldValue,
-    onInputChange: (TextFieldValue) -> Unit,
+    inputState: TextFieldState,
     onSend: () -> Unit,
     onMicTap: () -> Unit,
     isListening: Boolean,
@@ -127,15 +135,18 @@ fun ChatInputBar(
     isRecordingVoice: Boolean = false,
     amplitudeProvider: () -> Float = { 0f },
     onStopGeneration: () -> Unit = {},
+    receiveContentListener: ReceiveContentListener? = null,
+    isReceivingContent: Boolean = false,
 ) {
+    val inputText = inputState.text.toString()
     // Allow sending while the agent is mid-turn or awaiting approval: the
     // gateway's prompt.submit busy-input policy queues it as the next turn
     // (tui_gateway/server.py:_handle_busy_submit), so the message is never
     // dropped. Slash commands were already allowed; regular prompts now are too.
     val canSend =
-        pendingReasoningLevel == null &&
-            ChatInputPolicy.canSend(inputFieldValue.text, pendingAttachments, isConnected, isSessionReady)
-    val hasDraft = inputFieldValue.text.isNotBlank() || pendingAttachments.isNotEmpty()
+        !isReceivingContent && pendingReasoningLevel == null &&
+            ChatInputPolicy.canSend(inputText, pendingAttachments, isConnected, isSessionReady)
+    val hasDraft = inputText.isNotBlank() || pendingAttachments.isNotEmpty()
 
     // Attachment tray state
     var showAttachmentTray by remember { mutableStateOf(false) }
@@ -232,6 +243,16 @@ fun ChatInputBar(
                 border = BorderStroke(width = 1.dp, color = palette.cardBorder),
             ) {
                 Column(modifier = Modifier.padding(top = 8.dp, bottom = 10.dp)) {
+                    if (isReceivingContent) {
+                        val loadingLabel = stringResource(R.string.chat_image_paste_loading)
+                        LinearProgressIndicator(
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .testTag("chat_image_paste_progress")
+                                    .semantics { contentDescription = loadingLabel },
+                        )
+                    }
                     // Commands hidden from the suggestion menu — desktop/CLI-only and
                     // TUI-only commands that don't function on mobile (issue #574).
                     // Single source of truth: CommandBlocklist.UNSUPPORTED, which is
@@ -245,13 +266,13 @@ fun ChatInputBar(
                             .filter { it.lowercase() !in hiddenSlashDisplay }
 
                     androidx.compose.animation.AnimatedVisibility(
-                        visible = inputFieldValue.text.startsWith("/") && !inputFieldValue.text.contains(" "),
+                        visible = inputText.startsWith("/") && !inputText.contains(" "),
                         enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
                         exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically(),
                     ) {
                         val filteredCommands =
                             ChatInputPolicy.sortSlashSuggestions(
-                                commandNames.filter { it.startsWith(inputFieldValue.text, ignoreCase = true) },
+                                commandNames.filter { it.startsWith(inputText, ignoreCase = true) },
                                 slashUsageCounts,
                             )
                         if (filteredCommands.isNotEmpty()) {
@@ -280,7 +301,7 @@ fun ChatInputBar(
                                                     color = MaterialTheme.colorScheme.primary,
                                                 )
                                             },
-                                            onClick = { onInputChange(ChatInputPolicy.commandFieldValue(cmd)) },
+                                            onClick = { inputState.replaceComposerDraft(cmd) },
                                         )
                                     }
                                 }
@@ -341,7 +362,7 @@ fun ChatInputBar(
                                     stringResource(R.string.chat_input_placeholder_not_connected)
                                 }
 
-                                ChatInputPolicy.showQueuePlaceholder(inputFieldValue.text, isAgentTyping) -> {
+                                ChatInputPolicy.showQueuePlaceholder(inputText, isAgentTyping) -> {
                                     stringResource(R.string.chat_input_placeholder_queue)
                                 }
 
@@ -356,9 +377,9 @@ fun ChatInputBar(
 
                         val ambientLayoutDirection = LocalLayoutDirection.current
                         val inputLayoutDirection =
-                            remember(inputFieldValue.text, ambientLayoutDirection) {
+                            remember(inputText, ambientLayoutDirection) {
                                 BidiUtils.resolveLayoutDirection(
-                                    inputFieldValue.text,
+                                    inputText,
                                     fallback = ambientLayoutDirection,
                                 )
                             }
@@ -381,8 +402,7 @@ fun ChatInputBar(
                                     .heightIn(min = 42.dp),
                         ) {
                             BasicTextField(
-                                value = inputFieldValue,
-                                onValueChange = { if (!isRecordingVoice) onInputChange(it) },
+                                state = inputState,
                                 modifier =
                                     Modifier
                                         .fillMaxWidth()
@@ -392,18 +412,28 @@ fun ChatInputBar(
                                         .focusRequester(inputFocusRequester)
                                         .onFocusChanged { focusState ->
                                             inputFocused = focusState.isFocused
-                                        }.testTag("chat_input"),
+                                        }.testTag("chat_input")
+                                        .then(
+                                            if (receiveContentListener != null) {
+                                                Modifier.contentReceiver(receiveContentListener)
+                                            } else {
+                                                Modifier
+                                            },
+                                        ),
                                 enabled = isConnected,
+                                inputTransformation =
+                                    InputTransformation {
+                                        if (isRecordingVoice) revertAllChanges()
+                                    },
                                 textStyle =
                                     MaterialTheme.typography.bodyLarge.copy(
                                         color = palette.text,
                                         textAlign = if (isInputRtl) TextAlign.Right else TextAlign.Left,
                                         textDirection = if (isInputRtl) TextDirection.Rtl else TextDirection.Ltr,
                                     ),
-                                singleLine = false,
-                                maxLines = 8,
+                                lineLimits = TextFieldLineLimits.MultiLine(maxHeightInLines = 8),
                                 cursorBrush = SolidColor(palette.text),
-                                decorationBox = { innerTextField ->
+                                decorator = { innerTextField ->
                                     Box(
                                         modifier = Modifier.fillMaxWidth(),
                                         contentAlignment =
@@ -416,7 +446,7 @@ fun ChatInputBar(
                                         CompositionLocalProvider(
                                             LocalLayoutDirection provides inputLayoutDirection,
                                         ) {
-                                            if (inputFieldValue.text.isEmpty() && !isRecordingVoice) {
+                                            if (inputText.isEmpty() && !isRecordingVoice) {
                                                 Text(
                                                     text = placeholderText,
                                                     style = MaterialTheme.typography.bodyLarge,

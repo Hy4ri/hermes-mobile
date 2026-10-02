@@ -9,8 +9,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -43,16 +41,24 @@ class ChatSearchDelegate(
     private var queryEpoch = 0L
     private var lastScannedMessages: List<ChatMessage>? = null
 
+    /** Counts presentation filtering at this boundary, including validation rescans. */
+    internal var searchableMessagesCallsForTest = 0
+        private set
+
     init {
-        // Queue transitions can change the presented row indices without changing the query.
+        // Gate before queue filtering or list equality: inactive transcripts may be large.
         scope.launch {
-            uiState.map(::searchableMessages).distinctUntilChanged().collect { messages ->
+            uiState.collect { state ->
+                if (!searchState.isActive || searchState.query.isBlank()) return@collect
+                val messages = searchableMessages(state)
+                if (messages == lastScannedMessages) return@collect
                 // Do not bypass typing debounce; once it ends, scan the latest state.
                 searchJob?.join()
                 if (searchJob?.isActive == true) return@collect
                 val query = searchState.query
+                if (!searchState.isActive || query.isBlank()) return@collect
                 val latest = searchableMessages(uiState.value)
-                if (query.isNotBlank() && latest != lastScannedMessages) {
+                if (latest != lastScannedMessages) {
                     runSearch(query, queryEpoch, preserveCurrent = true, messages = latest)
                 }
             }
@@ -72,6 +78,8 @@ class ChatSearchDelegate(
         searchJob?.cancel()
         queryEpoch++
         searchState.query = query
+        // Direct callers may set a query without opening the search UI first.
+        if (query.isNotBlank()) searchState.isActive = true
         lastScannedMessages = null
 
         if (query.isBlank()) {
@@ -172,11 +180,13 @@ class ChatSearchDelegate(
     }
 
     // Keep search indices in the same presentation space as the transcript (custom queue UI).
-    private fun searchableMessages(state: ChatUiState): List<ChatMessage> =
-        messagesWithoutUnsentQueue(
+    private fun searchableMessages(state: ChatUiState): List<ChatMessage> {
+        searchableMessagesCallsForTest++
+        return messagesWithoutUnsentQueue(
             messagesWithoutUnconfirmedReceipts(state.messages, state.pendingSends),
             state.pendingSends,
         )
+    }
 
     fun clearSearch() {
         searchJob?.cancel()

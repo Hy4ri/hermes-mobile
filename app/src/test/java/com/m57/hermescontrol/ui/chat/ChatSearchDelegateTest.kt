@@ -48,6 +48,40 @@ class ChatSearchDelegateTest {
         )
 
     @Test
+    fun `inactive and blank search skip filtering until reactivation scans latest transcript`() =
+        runTest {
+            val uiState = stateWith("needle old")
+            val delegate = ChatSearchDelegate(backgroundScope, uiState, dispatcher = StandardTestDispatcher(testScheduler))
+            runCurrent()
+            uiState.value = uiState.value.copy(messages = uiState.value.messages + ChatMessage("m1", MessageRole.USER, "needle new"))
+            runCurrent()
+            assertEquals(0, delegate.searchableMessagesCallsForTest)
+
+            delegate.toggleSearch()
+            runCurrent()
+            uiState.value = uiState.value.copy(messages = uiState.value.messages + ChatMessage("m2", MessageRole.USER, "needle latest"))
+            runCurrent()
+            assertEquals(0, delegate.searchableMessagesCallsForTest)
+
+            delegate.setSearchQuery("needle")
+            advanceTimeBy(150)
+            runCurrent()
+            assertEquals(listOf(0, 1, 2), delegate.searchState.matchIndices)
+            assertEquals(setOf("m0", "m1", "m2"), delegate.searchState.matchedIds)
+            delegate.clearSearch()
+            val callsAfterClose = delegate.searchableMessagesCallsForTest
+            uiState.value = uiState.value.copy(messages = uiState.value.messages + ChatMessage("m3", MessageRole.USER, "needle reopened"))
+            runCurrent()
+            assertEquals(callsAfterClose, delegate.searchableMessagesCallsForTest)
+            delegate.toggleSearch()
+            delegate.setSearchQuery("needle")
+            advanceTimeBy(150)
+            runCurrent()
+            assertEquals(listOf(0, 1, 2, 3), delegate.searchState.matchIndices)
+            assertTrue("m3" in delegate.searchState.matchedIds)
+        }
+
+    @Test
     fun `queue becoming sending before current hit updates indices without changing query`() =
         runTest {
             val uiState = stateWith("needle queued", "needle server", "needle last")

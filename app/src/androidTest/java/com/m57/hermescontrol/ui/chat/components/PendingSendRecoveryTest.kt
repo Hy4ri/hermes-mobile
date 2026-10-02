@@ -130,7 +130,7 @@ class PendingSendRecoveryTest {
                 .boundsInRoot.height > 0
         }
         compose.onNodeWithContentDescription("photo.png").assertIsDisplayed()
-        compose.onNodeWithText("Accepted by server").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Accepted by server").assertIsDisplayed()
         compose.onNodeWithTag("pending_send_recovery").assertDoesNotExist()
     }
 

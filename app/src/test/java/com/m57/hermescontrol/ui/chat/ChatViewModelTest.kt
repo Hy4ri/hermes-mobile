@@ -507,6 +507,32 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun sessionResume_sendsDesktopSourceLikeSessionCreate() =
+        runTest {
+            // #1450: session.create declared source="desktop" but session.resume omitted it, so
+            // the gateway resolved the resumed runtime from its host env ("tui") and staged a
+            // bogus surface switch that also unloaded the desktop_ui toolset.
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            val captured = mutableListOf<Pair<String, Map<String, Any>>>()
+            every { HermesWsClient.send(any(), any(), any()) } answers {
+                val id = "req-${captured.size + 1}"
+                captured.add(arg<String>(0) to (arg<Map<String, Any>>(1)))
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            viewModel.switchSession("stored-session")
+            advanceUntilIdle()
+
+            val resumeSent = captured.firstOrNull { it.first == WsMethods.SESSION_RESUME }
+            assertNotNull("session.resume should be dispatched", resumeSent)
+            assertEquals(JsonPrimitive("stored-session"), resumeSent!!.second["session_id"])
+            assertEquals(JsonPrimitive("desktop"), resumeSent.second["source"])
+        }
+
+    @Test
     fun sessionResume_restoresRetainedFailureAsNonDurablePartial() =
         runTest {
             val viewModel = createViewModel()
@@ -1643,6 +1669,7 @@ class ChatViewModelTest {
                     JsonObject(
                         mapOf(
                             "session_id" to JsonPrimitive("session-from-notification"),
+                            "source" to JsonPrimitive("desktop"),
                             "omit_messages" to JsonPrimitive(true),
                         ),
                     ),
@@ -5096,6 +5123,7 @@ class ChatViewModelTest {
                     JsonObject(
                         mapOf(
                             "session_id" to JsonPrimitive("session-456"),
+                            "source" to JsonPrimitive("desktop"),
                             "omit_messages" to JsonPrimitive(true),
                         ),
                     ),
@@ -5951,6 +5979,7 @@ class ChatViewModelTest {
                     JsonObject(
                         mapOf(
                             "session_id" to JsonPrimitive("session-456"),
+                            "source" to JsonPrimitive("desktop"),
                             "omit_messages" to JsonPrimitive(true),
                         ),
                     ),
@@ -10644,7 +10673,8 @@ class ChatViewModelTest {
                     .last()
                     .content,
             )
-            assertEquals(PendingSendState.UNKNOWN, store.all().single().state)
+            // #1427: a mismatched history row cannot retire the gateway-confirmed receipt.
+            assertEquals(PendingSendState.ACCEPTED, store.all().single().state)
             assertTrue(vm.uiState.value.isSessionReady)
             assertTrue(vm.sendMessage("probe-second"))
             advanceUntilIdle()
@@ -10656,9 +10686,10 @@ class ChatViewModelTest {
             assertNull(vm.uiState.value.errorMessage)
             verify(exactly = 1) { HermesWsClient.sendMessage(session, "probe-second", any(), any()) }
             verify(exactly = 1) { HermesWsClient.sendMessage(session, "probe-first", any(), any()) }
-            assertEquals(PendingSendState.UNKNOWN, store.all().single { it.text == "probe-first" }.state)
+            assertEquals(PendingSendState.ACCEPTED, store.all().single { it.text == "probe-first" }.state)
+            // The accepted row 10 remains visible separately from the unrelated history row 20.
             assertEquals(
-                1,
+                2,
                 vm.transcriptState.value.messages
                     .count { it.content == "probe-first" },
             )

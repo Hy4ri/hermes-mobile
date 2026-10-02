@@ -205,6 +205,7 @@ sealed class WsEvent {
     data class StatusUpdate(
         val status: String?,
         val data: Map<String, Any?>?,
+        val sessionId: String? = null,
     ) : WsEvent()
 
     data class SessionUpdated(

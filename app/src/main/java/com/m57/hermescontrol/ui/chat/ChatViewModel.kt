@@ -1511,6 +1511,10 @@ class ChatViewModel(
                     viewModelScope.launch { fetchContextUsage() }
                 }
 
+                is ReducerEffect.DeleteLocalMessage -> {
+                    viewModelScope.launch(ioDispatcher) { repo.deleteMessage(effect.messageId) }
+                }
+
                 is ReducerEffect.AttachHostMedia -> {
                     // Issue #724: turn host-path MEDIA: directives into real
                     // attachments (images inline, every other file tappable)
@@ -1804,6 +1808,8 @@ class ChatViewModel(
                         contextBreakdown = null,
                         compressionCount = null,
                         sessionUsage = null,
+                        isCompressing = false,
+                        compressionStatus = null,
                     )
                 }
                 publishPendingSends()
@@ -5324,6 +5330,9 @@ class ChatViewModel(
                 contextBreakdown = null,
                 compressionCount = null,
                 sessionUsage = null,
+                // #1433: compaction state belongs to the session being left.
+                isCompressing = false,
+                compressionStatus = null,
                 pendingAttachments = emptyList(),
                 composerTextToRestore = null,
                 reactionKind = null,

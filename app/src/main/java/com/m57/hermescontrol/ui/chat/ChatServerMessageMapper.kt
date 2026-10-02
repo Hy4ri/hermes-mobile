@@ -275,7 +275,7 @@ internal fun mapServerMessages(
                 completionId = completionId,
                 serverRowId = msg.id?.toLong()?.takeIf { it > 0L },
                 reactions = msg.reactions,
-            ),
+            ).normalizedGatewayNotice(),
         )
     }
 

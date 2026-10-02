@@ -77,15 +77,21 @@ class HermesWsClientTypedSendTest {
 
     @After
     fun tearDown() {
-        AuthManager.resetAuthStateForTest()
-        HermesWsClient.releaseExternalActivityConnectionLease()
-        HermesWsClient.releaseBackgroundConnectionLease()
-        HermesWsClient.disconnect(clearPendingMessages = true)
-        runBlocking {
-            withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.DISCONNECTED } }
+        try {
+            AuthManager.resetAuthStateForTest()
+            HermesWsClient.releaseExternalActivityConnectionLease()
+            HermesWsClient.releaseBackgroundConnectionLease()
+            HermesWsClient.disconnect(clearPendingMessages = true)
+            runBlocking {
+                withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.DISCONNECTED } }
+            }
+        } finally {
+            try {
+                mockWebServer.shutdown()
+            } finally {
+                unmockkAll()
+            }
         }
-        runCatching { mockWebServer.shutdown() }
-        unmockkAll()
     }
 
     private fun connectClient() {
@@ -102,7 +108,7 @@ class HermesWsClientTypedSendTest {
         val frameRef = AtomicReference<JsonObject?>(null)
 
         mockWebServer.enqueue(
-            MockResponse().withWebSocketUpgrade(
+            MockResponse().withClosingWebSocketUpgrade(
                 object : WebSocketListener() {
                     override fun onOpen(
                         webSocket: WebSocket,
@@ -163,7 +169,7 @@ class HermesWsClientTypedSendTest {
         val frameRef = AtomicReference<JsonObject?>(null)
 
         mockWebServer.enqueue(
-            MockResponse().withWebSocketUpgrade(
+            MockResponse().withClosingWebSocketUpgrade(
                 object : WebSocketListener() {
                     override fun onOpen(
                         webSocket: WebSocket,
@@ -216,7 +222,7 @@ class HermesWsClientTypedSendTest {
         val frameRef = AtomicReference<JsonObject?>(null)
 
         mockWebServer.enqueue(
-            MockResponse().withWebSocketUpgrade(
+            MockResponse().withClosingWebSocketUpgrade(
                 object : WebSocketListener() {
                     override fun onOpen(
                         webSocket: WebSocket,
@@ -274,7 +280,7 @@ class HermesWsClientTypedSendTest {
         val frameRef = AtomicReference<JsonObject?>(null)
 
         mockWebServer.enqueue(
-            MockResponse().withWebSocketUpgrade(
+            MockResponse().withClosingWebSocketUpgrade(
                 object : WebSocketListener() {
                     override fun onOpen(
                         webSocket: WebSocket,
@@ -325,7 +331,7 @@ class HermesWsClientTypedSendTest {
         val frameRef = AtomicReference<JsonObject?>(null)
 
         mockWebServer.enqueue(
-            MockResponse().withWebSocketUpgrade(
+            MockResponse().withClosingWebSocketUpgrade(
                 object : WebSocketListener() {
                     override fun onOpen(
                         webSocket: WebSocket,
@@ -382,7 +388,7 @@ class HermesWsClientTypedSendTest {
         val frameRef = AtomicReference<JsonObject?>(null)
 
         mockWebServer.enqueue(
-            MockResponse().withWebSocketUpgrade(
+            MockResponse().withClosingWebSocketUpgrade(
                 object : WebSocketListener() {
                     override fun onOpen(
                         webSocket: WebSocket,
@@ -437,7 +443,7 @@ class HermesWsClientTypedSendTest {
         val frameRef = AtomicReference<JsonObject?>(null)
 
         mockWebServer.enqueue(
-            MockResponse().withWebSocketUpgrade(
+            MockResponse().withClosingWebSocketUpgrade(
                 object : WebSocketListener() {
                     override fun onOpen(
                         webSocket: WebSocket,

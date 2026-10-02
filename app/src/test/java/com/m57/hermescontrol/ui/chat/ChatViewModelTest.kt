@@ -360,6 +360,14 @@ class ChatViewModelTest {
             arg<((String) -> Unit)?>(2)?.invoke(id)
             id
         }
+        // Typed redirects bypass send(); keep this fixture off the real singleton transport.
+        every { HermesWsClient.sendRedirect(any(), any(), any()) } answers {
+            reqCount++
+            val id = "req-redirect-$reqCount"
+            sentRequestMethods += WsMethods.SESSION_REDIRECT to id
+            arg<((String) -> Unit)?>(2)?.invoke(id)
+            id
+        }
         every { HermesWsClient.respondToServerRequest(any(), any()) } returns true
         every { HermesWsClient.respondToServerRequestError(any(), any(), any()) } returns true
 
@@ -395,6 +403,73 @@ class ChatViewModelTest {
         attachmentFilesDir.deleteRecursively()
         unmockkAll()
     }
+
+    @Test
+    fun pastedImages_areAddedOnlyToCapturedReadySessionWithoutSubmitting() =
+        runTest(testDispatcher) {
+            val (viewModel, _) = createViewModelWithSession()
+            val target = checkNotNull(viewModel.captureAttachmentTarget())
+            val image = Attachment("content://test/pasted.png", "pasted.png", "image/png", 4)
+            val messagesBefore = viewModel.uiState.value.messages
+            assertTrue(viewModel.addPastedAttachments(target, listOf(image)))
+            runCurrent()
+            assertEquals(listOf(image), viewModel.uiState.value.pendingAttachments)
+            assertEquals(messagesBefore, viewModel.uiState.value.messages)
+            verify(exactly = 0) { HermesWsClient.sendMessage(any(), any(), any(), any()) }
+        }
+
+    @Test
+    fun pastedImages_rejectLateCompletionAfterSwitchAwayAndBack() =
+        runTest(testDispatcher) {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val target = checkNotNull(viewModel.captureAttachmentTarget())
+            viewModel.switchSession("other-paste-test-session")
+            viewModel.switchSession(sessionId)
+            val image = Attachment("content://test/pasted.png", "pasted.png", "image/png", 4)
+            assertFalse(viewModel.addPastedAttachments(target, listOf(image)))
+            assertTrue(
+                viewModel.uiState.value.pendingAttachments
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun pastedImages_rejectChangedServerAndProfilesAndGeneration() =
+        runTest(testDispatcher) {
+            val (viewModel, _) = createViewModelWithSession()
+            val target = checkNotNull(viewModel.captureAttachmentTarget())
+            val image = Attachment("content://test/pasted.png", "pasted.png", "image/png", 4)
+            for (stale in listOf(
+                target.copy(baseUrl = "http://other-paste-test.local/"),
+                target.copy(connectionProfileId = "other-connection"),
+                target.copy(agentProfileId = "other-agent"),
+                target.copy(generation = target.generation + 1),
+            )) {
+                assertFalse(viewModel.addPastedAttachments(stale, listOf(image)))
+            }
+            assertTrue(
+                viewModel.uiState.value.pendingAttachments
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun pastedImages_cannotCaptureTargetBeforeReady() =
+        runTest(testDispatcher) {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+            assertNull(viewModel.captureAttachmentTarget())
+        }
+
+    @Test
+    fun pastedImages_rejectDisconnectedSessionBeforeCombinedUiStateCatchesUp() =
+        runTest(testDispatcher) {
+            val (viewModel, _) = createViewModelWithSession()
+            val target = checkNotNull(viewModel.captureAttachmentTarget())
+            mockConnectionStatus.value = ConnectionStatus.DISCONNECTED
+            assertNull(viewModel.captureAttachmentTarget())
+            assertFalse(viewModel.addPastedAttachments(target, emptyList()))
+        }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -496,6 +571,32 @@ class ChatViewModelTest {
             val operation = viewModel.connectionOperationState.value.operation
             assertEquals("runtime-session", operation?.sessionId)
             assertEquals("op-1218", operation?.opId)
+        }
+
+    @Test
+    fun sessionResume_sendsDesktopSourceLikeSessionCreate() =
+        runTest {
+            // #1450: session.create declared source="desktop" but session.resume omitted it, so
+            // the gateway resolved the resumed runtime from its host env ("tui") and staged a
+            // bogus surface switch that also unloaded the desktop_ui toolset.
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            val captured = mutableListOf<Pair<String, Map<String, Any>>>()
+            every { HermesWsClient.send(any(), any(), any()) } answers {
+                val id = "req-${captured.size + 1}"
+                captured.add(arg<String>(0) to (arg<Map<String, Any>>(1)))
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            viewModel.switchSession("stored-session")
+            advanceUntilIdle()
+
+            val resumeSent = captured.firstOrNull { it.first == WsMethods.SESSION_RESUME }
+            assertNotNull("session.resume should be dispatched", resumeSent)
+            assertEquals(JsonPrimitive("stored-session"), resumeSent!!.second["session_id"])
+            assertEquals(JsonPrimitive("desktop"), resumeSent.second["source"])
         }
 
     @Test
@@ -627,7 +728,7 @@ class ChatViewModelTest {
             val (viewModel, sessionId) = createViewModelWithSession()
 
             every {
-                HermesWsClient.request(WsMethods.COMMAND_DISPATCH, any(), any())
+                HermesWsClient.request(WsMethods.SLASH_EXEC, any(), any(), true)
             } returns
                 CompletableDeferred(
                     mapOf("type" to "exec", "output" to "**Available Commands:**\n\u2022 `/status`\n\u2022 `/new`"),
@@ -1287,7 +1388,7 @@ class ChatViewModelTest {
             viewModel.sendMessage("/status")
             advanceUntilIdle()
 
-            verify { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) }
+            verify { HermesWsClient.request(WsMethods.SLASH_EXEC, any(), any(), true) }
         }
 
     @Test
@@ -1298,7 +1399,7 @@ class ChatViewModelTest {
             viewModel.sendMessage("/sessions")
             advanceUntilIdle()
 
-            verify { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) }
+            verify { HermesWsClient.request(WsMethods.SLASH_EXEC, any(), any(), true) }
         }
 
     @Test
@@ -1309,7 +1410,7 @@ class ChatViewModelTest {
             viewModel.sendMessage("/stats")
             advanceUntilIdle()
 
-            verify { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) }
+            verify { HermesWsClient.request(WsMethods.SLASH_EXEC, any(), any(), true) }
         }
 
     @Test
@@ -1635,6 +1736,7 @@ class ChatViewModelTest {
                     JsonObject(
                         mapOf(
                             "session_id" to JsonPrimitive("session-from-notification"),
+                            "source" to JsonPrimitive("desktop"),
                             "omit_messages" to JsonPrimitive(true),
                         ),
                     ),
@@ -5088,6 +5190,7 @@ class ChatViewModelTest {
                     JsonObject(
                         mapOf(
                             "session_id" to JsonPrimitive("session-456"),
+                            "source" to JsonPrimitive("desktop"),
                             "omit_messages" to JsonPrimitive(true),
                         ),
                     ),
@@ -5943,6 +6046,7 @@ class ChatViewModelTest {
                     JsonObject(
                         mapOf(
                             "session_id" to JsonPrimitive("session-456"),
+                            "source" to JsonPrimitive("desktop"),
                             "omit_messages" to JsonPrimitive(true),
                         ),
                     ),
@@ -10636,7 +10740,8 @@ class ChatViewModelTest {
                     .last()
                     .content,
             )
-            assertEquals(PendingSendState.UNKNOWN, store.all().single().state)
+            // #1427: a mismatched history row cannot retire the gateway-confirmed receipt.
+            assertEquals(PendingSendState.ACCEPTED, store.all().single().state)
             assertTrue(vm.uiState.value.isSessionReady)
             assertTrue(vm.sendMessage("probe-second"))
             advanceUntilIdle()
@@ -10648,9 +10753,10 @@ class ChatViewModelTest {
             assertNull(vm.uiState.value.errorMessage)
             verify(exactly = 1) { HermesWsClient.sendMessage(session, "probe-second", any(), any()) }
             verify(exactly = 1) { HermesWsClient.sendMessage(session, "probe-first", any(), any()) }
-            assertEquals(PendingSendState.UNKNOWN, store.all().single { it.text == "probe-first" }.state)
+            assertEquals(PendingSendState.ACCEPTED, store.all().single { it.text == "probe-first" }.state)
+            // The accepted row 10 remains visible separately from the unrelated history row 20.
             assertEquals(
-                1,
+                2,
                 vm.transcriptState.value.messages
                     .count { it.content == "probe-first" },
             )

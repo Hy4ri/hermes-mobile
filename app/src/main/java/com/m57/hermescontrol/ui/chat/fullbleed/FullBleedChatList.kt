@@ -58,6 +58,23 @@ private object FullBleedContentType {
     const val SYSTEM_EVENT: String = "system_event"
 }
 
+/** Only show the placeholder when there are no messages or renderable live tail items. */
+internal fun shouldShowChatEmptyState(
+    transcript: TranscriptUiState,
+    hasReplyError: Boolean,
+): Boolean =
+    transcript.messages.isEmpty() &&
+        transcript.streamingState.streamingMessage == null &&
+        !transcript.isLoading &&
+        !transcript.isAgentTyping &&
+        !hasReplyError &&
+        transcript.clarifyRequest == null &&
+        transcript.vaultUnlockPrompt == null &&
+        transcript.vaultSaveLoginPrompt == null &&
+        transcript.vaultCodePrompt == null &&
+        !transcript.isCompressing &&
+        transcript.compressionStatus == null
+
 /**
  * The chat message list for FULL-BLEED style (issue #866) — the single chat
  * surface since the bubble renderer was removed. User messages keep their
@@ -105,7 +122,7 @@ fun FullBleedChatList(
     val isCompressing = transcript.isCompressing
     val compressionStatus = transcript.compressionStatus
     val speakingMessageId = transcript.speakingMessageId
-    if (messages.isEmpty() && !isLoading && !isAgentTyping && replyErrorContent == null) {
+    if (shouldShowChatEmptyState(transcript, hasReplyError = replyErrorContent != null)) {
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center,

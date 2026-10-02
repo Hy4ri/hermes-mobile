@@ -11,6 +11,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.HermesWsClient
+import com.m57.hermescontrol.data.ws.contract.DESKTOP_SESSION_SOURCE
 import com.m57.hermescontrol.data.ws.contract.PromptSubmitParams
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
 import com.m57.hermescontrol.data.ws.contract.SessionResumeParams
@@ -157,6 +158,7 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
         val params =
             SessionResumeParams(
                 sessionId = storedSessionId,
+                source = DESKTOP_SESSION_SOURCE,
                 omitMessages = true,
                 profile = profile,
             )

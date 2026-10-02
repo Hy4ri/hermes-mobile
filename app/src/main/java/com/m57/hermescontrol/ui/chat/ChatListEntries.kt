@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.m57.hermescontrol.ui.chat.fullbleed.isHiddenTool
 
 /**
  * Every [TOOL_CALL_DIVIDER_INTERVAL]th tool call within a single turn renders a
@@ -56,7 +57,7 @@ fun toolCallMilestones(messages: List<ChatMessage>): Map<String, Int> {
                 toolCount = 0
             }
 
-            message.role == MessageRole.TOOL -> {
+            message.role == MessageRole.TOOL && !message.isHiddenTool() -> {
                 toolCount += 1
                 if (toolCount % TOOL_CALL_DIVIDER_INTERVAL == 0) {
                     milestones[message.id] = toolCount
@@ -79,7 +80,7 @@ fun toolCallMilestoneIndices(messages: List<ChatMessage>): Map<Int, Int> {
                 toolCount = 0
             }
 
-            message.role == MessageRole.TOOL -> {
+            message.role == MessageRole.TOOL && !message.isHiddenTool() -> {
                 toolCount += 1
                 if (toolCount % TOOL_CALL_DIVIDER_INTERVAL == 0) {
                     milestones[index] = toolCount

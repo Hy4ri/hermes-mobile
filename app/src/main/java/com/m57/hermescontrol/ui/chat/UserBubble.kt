@@ -25,6 +25,8 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -58,6 +60,7 @@ import com.m57.hermescontrol.theme.DarkOnSurface
 import com.m57.hermescontrol.theme.LightOnSurface
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.chat.components.rememberCopyFeedback
+import com.m57.hermescontrol.ui.chat.tool.ToolJson
 import com.m57.hermescontrol.util.BidiUtils
 import kotlinx.coroutines.launch
 
@@ -100,18 +103,36 @@ fun UserBubble(
         var copied by rememberCopyFeedback()
 
         val statusColors = LocalHermesStatusColors.current
+        val deliveryState =
+            when {
+                pendingSendState == PendingSendState.SENDING -> DeliveryState.SENT
 
+                pendingSendState == PendingSendState.ACCEPTED ||
+                    message.canonicalRestId != null || message.serverRowId != null -> DeliveryState.DELIVERED
+
+                else -> null
+            }
+
+        // #1432: also protect cached/legacy rows and unexpectedly large plain-string payloads.
+        // Keep the original content for Copy; only the layout input is bounded.
+        val displayContent =
+            remember(message.content, message.attachments) {
+                // #1432: the path is only hidden when its image renders as an attachment below.
+                val visible =
+                    if (message.attachments.isNullOrEmpty()) message.content else hideImageRefLines(message.content)
+                ToolJson.clampForDisplay(visible)
+            }
         val highlightedText =
-            remember(message.content, searchQuery, isCurrentMatch, statusColors) {
+            remember(displayContent, searchQuery, isCurrentMatch, statusColors) {
                 if (searchQuery.isNotBlank()) {
                     buildHighlightedString(
-                        message.content,
+                        displayContent,
                         searchQuery,
                         isCurrentMatch,
                         statusColors,
                     )
                 } else {
-                    AnnotatedString(message.content)
+                    AnnotatedString(displayContent)
                 }
             }
         Box(
@@ -153,7 +174,7 @@ fun UserBubble(
                     color = Color.Transparent,
                     tonalElevation = 0.dp,
                 ) {
-                    val isRtl = remember(message.content) { BidiUtils.isRtlText(message.content) }
+                    val isRtl = remember(displayContent) { BidiUtils.isRtlText(displayContent) }
                     val bubbleDirection = if (isRtl) LayoutDirection.Rtl else LocalLayoutDirection.current
                     CompositionLocalProvider(LocalLayoutDirection provides bubbleDirection) {
                         Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
@@ -183,23 +204,6 @@ fun UserBubble(
                                 canSave = canSaveAttachment,
                                 onImageClick = onImageClick,
                             )
-                            // #1427: keep the live text and media visible with an honest delivery label.
-                            if (pendingSendState == PendingSendState.SENDING ||
-                                pendingSendState == PendingSendState.ACCEPTED
-                            ) {
-                                Text(
-                                    stringResource(
-                                        if (pendingSendState == PendingSendState.SENDING) {
-                                            R.string.chat_pending_sending
-                                        } else {
-                                            R.string.chat_send_accepted
-                                        },
-                                    ),
-                                    color = userBubbleTextColor,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    modifier = Modifier.testTag("user_send_status_${message.id}"),
-                                )
-                            }
                             if (!message.isStreaming) {
                                 FlowRow(
                                     modifier =
@@ -236,6 +240,11 @@ fun UserBubble(
                                         color = userBubbleTextColor.copy(alpha = 0.6f),
                                         style = MaterialTheme.typography.labelSmall,
                                     )
+                                    DeliveryChecks(
+                                        state = deliveryState,
+                                        tint = userBubbleTextColor,
+                                        messageId = message.id,
+                                    )
                                     if (messageStatsEnabled && showUserMessageTokens &&
                                         message.tokenCount != null && message.tokenCount > 0
                                     ) {
@@ -267,4 +276,25 @@ fun UserBubble(
             }
         }
     }
+}
+
+/** WhatsApp-style delivery ticks: one dim check while sending, two once the server has the prompt. */
+private enum class DeliveryState { SENT, DELIVERED }
+
+@Composable
+private fun DeliveryChecks(
+    state: DeliveryState?,
+    tint: Color,
+    messageId: String,
+) {
+    if (state == null) return
+    val delivered = state == DeliveryState.DELIVERED
+    Spacer(modifier = Modifier.width(4.dp))
+    Icon(
+        imageVector = if (delivered) Icons.Filled.DoneAll else Icons.Filled.Done,
+        contentDescription =
+            stringResource(if (delivered) R.string.chat_send_accepted else R.string.chat_pending_sending),
+        modifier = Modifier.size(14.dp).testTag("user_send_status_$messageId"),
+        tint = tint.copy(alpha = if (delivered) 1f else 0.6f),
+    )
 }

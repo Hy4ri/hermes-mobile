@@ -417,6 +417,12 @@ internal fun mergeCachedTranscriptPage(
                 match.id to
                     rich.copy(
                         id = match.id,
+                        attachments =
+                            if (rich.role == MessageRole.USER) {
+                                rich.attachments?.takeIf { it.isNotEmpty() } ?: message.attachments
+                            } else {
+                                rich.attachments
+                            },
                         content = preservedContent ?: rich.content,
                         restId = match.canonicalRestId ?: message.canonicalRestId,
                         serverRowId = match.serverRowId ?: message.serverRowId,
@@ -457,6 +463,15 @@ internal fun mergeTranscriptWithLive(
             when {
                 match?.role == MessageRole.USER -> {
                     match.copy(
+                        // #1432: cached user rows lack attachment metadata; hydrate from REST,
+                        // while preserving richer optimistic/local attachments when present.
+                        attachments = match.attachments?.takeIf { it.isNotEmpty() } ?: message.attachments,
+                        content =
+                            if (match.isHistoricalCache && !message.attachments.isNullOrEmpty()) {
+                                message.content
+                            } else {
+                                match.content
+                            },
                         restId = (message.canonicalRestId ?: match.canonicalRestId).takeUnless { it == match.id },
                         serverRowId = message.serverRowId ?: match.serverRowId,
                         reactions = message.reactions.ifEmpty { match.reactions },
@@ -531,14 +546,21 @@ internal fun mergeTranscriptWithLive(
             .mapNotNull { index ->
                 matches[index]?.id?.let { id -> incoming[index].canonicalOrder?.let { id to it } }
             }.toMap()
-    return dedupeCachedMessages(transcript.inTranscriptOrder(current, resolvedOrders), confirmedOnly = true)
-        .reconcileReasoningRows()
+    return dedupeCachedMessages(
+        transcript.inTranscriptOrder(
+            previous = current,
+            resolvedOrders = resolvedOrders,
+            observedSuccessorAnchors = current,
+        ),
+        confirmedOnly = true,
+    ).reconcileReasoningRows()
 }
 
 /** Keep server order; place local notices and commands after their last preceding confirmed message, not at the transcript tail. */
 private fun List<ChatMessage>.inTranscriptOrder(
     previous: List<ChatMessage>,
     resolvedOrders: Map<String, Long>,
+    observedSuccessorAnchors: List<ChatMessage>? = null,
 ): List<ChatMessage> {
     val latestCanonical = mapNotNull { it.canonicalOrder }.maxOrNull() ?: -1L
     // Session-start markers use -1 and must remain before unresolved cached history.
@@ -549,6 +571,21 @@ private fun List<ChatMessage>.inTranscriptOrder(
     var pendingLocalOrder: Long? = null
     val localAnchors = mutableMapOf<String, Long>()
     val pendingOrderByLocal = mutableMapOf<String, Long>()
+    // #1451: an observed live block must stay before its later confirmed USER successor,
+    // even when its own REST echoes are absent. Successor anchors derive only from genuinely
+    // observed current lists (never cache concatenations) and only from later USER prompts.
+    val nextCanonicalOrder = mutableMapOf<String, Long>()
+    val anchorSource = observedSuccessorAnchors ?: emptyList()
+    var followingUserCanonical: Long? = null
+    for (i in anchorSource.indices.reversed()) {
+        val message = anchorSource[i]
+        val order = resolvedOrders[message.id] ?: message.canonicalOrder
+        if (order != null && message.role == MessageRole.USER) {
+            followingUserCanonical = order
+        } else if (followingUserCanonical != null) {
+            nextCanonicalOrder[message.id] = followingUserCanonical
+        }
+    }
     previous.forEach { message ->
         val order = resolvedOrders[message.id] ?: message.canonicalOrder
         if (order != null) {
@@ -563,7 +600,7 @@ private fun List<ChatMessage>.inTranscriptOrder(
         } else if (message.isPermanentlyLocal()) {
             localAnchors[message.id] =
                 if (hasPendingPredecessor) {
-                    Long.MAX_VALUE
+                    nextCanonicalOrder[message.id]?.let { it - 1L } ?: Long.MAX_VALUE
                 } else {
                     precedingCanonical?.takeIf { it >= 0L }
                         ?: if (message.role == MessageRole.USER) {
@@ -581,6 +618,9 @@ private fun List<ChatMessage>.inTranscriptOrder(
         } else {
             hasPendingPredecessor = true
             pendingLocalOrder = message.localOrder
+            nextCanonicalOrder[message.id]?.let { successor ->
+                localAnchors[message.id] = successor - 1L
+            }
         }
     }
     val previousIndices = previous.withIndex().associate { it.value.id to it.index }

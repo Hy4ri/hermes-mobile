@@ -60,6 +60,7 @@ import com.m57.hermescontrol.theme.DarkOnSurface
 import com.m57.hermescontrol.theme.LightOnSurface
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.chat.components.rememberCopyFeedback
+import com.m57.hermescontrol.ui.chat.tool.ToolJson
 import com.m57.hermescontrol.util.BidiUtils
 import kotlinx.coroutines.launch
 
@@ -112,17 +113,20 @@ fun UserBubble(
                 else -> null
             }
 
+        // #1432: also protect cached/legacy rows and unexpectedly large plain-string payloads.
+        // Keep the original content for Copy; only the layout input is bounded.
+        val displayContent = remember(message.content) { ToolJson.clampForDisplay(message.content) }
         val highlightedText =
-            remember(message.content, searchQuery, isCurrentMatch, statusColors) {
+            remember(displayContent, searchQuery, isCurrentMatch, statusColors) {
                 if (searchQuery.isNotBlank()) {
                     buildHighlightedString(
-                        message.content,
+                        displayContent,
                         searchQuery,
                         isCurrentMatch,
                         statusColors,
                     )
                 } else {
-                    AnnotatedString(message.content)
+                    AnnotatedString(displayContent)
                 }
             }
         Box(
@@ -164,7 +168,7 @@ fun UserBubble(
                     color = Color.Transparent,
                     tonalElevation = 0.dp,
                 ) {
-                    val isRtl = remember(message.content) { BidiUtils.isRtlText(message.content) }
+                    val isRtl = remember(displayContent) { BidiUtils.isRtlText(displayContent) }
                     val bubbleDirection = if (isRtl) LayoutDirection.Rtl else LocalLayoutDirection.current
                     CompositionLocalProvider(LocalLayoutDirection provides bubbleDirection) {
                         Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {

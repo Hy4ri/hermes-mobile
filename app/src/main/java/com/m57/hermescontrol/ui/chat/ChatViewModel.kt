@@ -5076,7 +5076,22 @@ class ChatViewModel(
         val page = withContext(historyDispatcher) { repo.loadPage(sessionId, before, MESSAGE_PAGE_SIZE) }
         val valid = { isCurrent() && cacheCursor == before }
         if (!valid()) return false
-        mergeHistoryPage(valid, cached = true) { page.messages } ?: return false
+        mergeHistoryPage(valid, cached = true) {
+            // #1432: Room retains host references, not connection-bound download URLs.
+            page.messages.map { message ->
+                if (message.role == MessageRole.USER && message.attachments.isNullOrEmpty()) {
+                    message.copy(
+                        attachments =
+                            userImageAttachments(
+                                message.content,
+                                ::gatewayMediaUrl,
+                            ).takeIf { it.isNotEmpty() },
+                    )
+                } else {
+                    message
+                }
+            }
+        } ?: return false
         if (!valid()) return false
         cacheCursor = page.cursor
         cacheHasOlder = page.hasOlder

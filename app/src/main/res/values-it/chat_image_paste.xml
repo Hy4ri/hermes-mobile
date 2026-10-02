@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="chat_image_paste_loading">Aggiunta delle immagini incollate…</string>
-    <string name="chat_image_paste_failed">Impossibile incollare l’immagine. Verifica l’accesso e riprova.</string>
-    <string name="chat_image_paste_too_large">L’immagine supera il limite di 10 MB per allegato.</string>
-    <string name="chat_image_paste_batch_limit">Incolla fino a 8 immagini per un totale massimo di 20 MB.</string>
-    <string name="chat_image_paste_busy">Attendi il caricamento delle immagini prima di incollare di nuovo.</string>
-</resources>

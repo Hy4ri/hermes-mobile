@@ -1,9 +1,8 @@
 package com.m57.hermescontrol.ui.chat.components
 
-import androidx.compose.runtime.getValue
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
@@ -11,12 +10,12 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
-import androidx.compose.ui.text.input.TextFieldValue
 import com.m57.hermescontrol.data.ws.CommandCatalog
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 
+@OptIn(ExperimentalFoundationApi::class)
 class ComposerReadinessTest {
     @get:Rule
     val compose = createComposeRule()
@@ -26,10 +25,9 @@ class ComposerReadinessTest {
         val ready = mutableStateOf(false)
         var sends = 0
         compose.setContent {
-            var input by remember { mutableStateOf(TextFieldValue("")) }
+            val input = rememberTextFieldState()
             ChatInputBar(
-                inputFieldValue = input,
-                onInputChange = { input = it },
+                inputState = input,
                 onSend = { sends++ },
                 onMicTap = {},
                 isListening = false,
@@ -64,10 +62,9 @@ class ComposerReadinessTest {
     @Test
     fun emptyDraftWhileStreamingMakesStopThePrimaryAction() {
         compose.setContent {
-            var input by remember { mutableStateOf(TextFieldValue("")) }
+            val input = rememberTextFieldState()
             ChatInputBar(
-                inputFieldValue = input,
-                onInputChange = { input = it },
+                inputState = input,
                 onSend = {},
                 onMicTap = {},
                 isListening = false,

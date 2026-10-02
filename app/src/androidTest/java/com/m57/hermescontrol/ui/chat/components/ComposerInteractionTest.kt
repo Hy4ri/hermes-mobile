@@ -12,7 +12,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
@@ -20,6 +23,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
@@ -32,6 +36,7 @@ import androidx.test.filters.MediumTest
 import androidx.test.platform.app.InstrumentationRegistry
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.Attachment
+import com.m57.hermescontrol.data.model.BusySendMode
 import com.m57.hermescontrol.data.ws.CommandCatalog
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -56,6 +61,204 @@ class ComposerInteractionTest {
     private var cameraTaps = 0
     private var photosTaps = 0
     private var fileTaps = 0
+
+    private fun setContextualComposer(
+        text: String,
+        isMainTurnBusy: Boolean,
+        attachments: List<Attachment> = emptyList(),
+        onSend: () -> Unit = {},
+        onBusySend: (BusySendMode) -> Unit = {},
+        isConnected: Boolean = true,
+        isSessionReady: Boolean = true,
+        pendingReasoningLevel: String? = null,
+    ) {
+        composeTestRule.setContent {
+            ChatInputBar(
+                inputFieldValue = TextFieldValue(text),
+                onInputChange = {},
+                onSend = onSend,
+                onBusySend = onBusySend,
+                onMicTap = {},
+                isListening = false,
+                isAgentTyping = isMainTurnBusy,
+                isMainTurnBusy = isMainTurnBusy,
+                isConnected = isConnected,
+                commandCatalog = CommandCatalog(),
+                isSessionReady = isSessionReady,
+                pendingAttachments = attachments,
+                pendingReasoningLevel = pendingReasoningLevel,
+            )
+        }
+    }
+
+    @Test
+    fun idleDraft_showsRegularSendWithoutBusyActions() {
+        setContextualComposer(text = "hello", isMainTurnBusy = false)
+
+        composeTestRule.onNodeWithTag("send_button").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("queue_button").assertDoesNotExist()
+    }
+
+    @Test
+    fun busyBlankDraft_hidesBusyActions() {
+        setContextualComposer(text = "", isMainTurnBusy = true)
+
+        composeTestRule.onNodeWithTag("send_button").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("queue_button").assertDoesNotExist()
+    }
+
+    @Test
+    fun busyTextDraft_showsSendAndQueueAndRoutesCallbacks() {
+        var regularSends = 0
+        val selected = mutableListOf<BusySendMode>()
+        setContextualComposer(
+            text = "change course",
+            isMainTurnBusy = true,
+            onSend = { regularSends++ },
+            onBusySend = selected::add,
+        )
+
+        composeTestRule.onNodeWithTag("send_button").assertIsDisplayed().performClick()
+        composeTestRule.onNodeWithTag("queue_button").assertIsDisplayed().performClick()
+
+        composeTestRule.runOnIdle {
+            assertEquals(1, regularSends)
+            assertEquals(listOf(BusySendMode.QUEUE), selected)
+        }
+    }
+
+    @Test
+    fun busyDraft_longPressStopAndSendUsesExplicitInterrupt() {
+        var regularSends = 0
+        val selected = mutableListOf<BusySendMode>()
+        setContextualComposer(
+            text = "change course",
+            isMainTurnBusy = true,
+            onSend = { regularSends++ },
+            onBusySend = selected::add,
+        )
+
+        composeTestRule.onNodeWithTag("send_button").performSemanticsAction(SemanticsActions.OnLongClick)
+        composeTestRule.runOnIdle {
+            assertEquals(0, regularSends)
+            assertEquals(listOf(BusySendMode.INTERRUPT), selected)
+        }
+    }
+
+    @Test
+    fun busyDraft_accessibilityStopAndSendUsesExplicitInterrupt() {
+        val selected = mutableListOf<BusySendMode>()
+        setContextualComposer(
+            text = "change course",
+            isMainTurnBusy = true,
+            onBusySend = selected::add,
+        )
+
+        val actions =
+            composeTestRule
+                .onNodeWithTag("send_button")
+                .fetchSemanticsNode()
+                .config[SemanticsActions.CustomActions]
+        composeTestRule.runOnIdle {
+            assertEquals(true, actions.any { it.label == "Stop & send" && it.action() })
+            assertEquals(listOf(BusySendMode.INTERRUPT), selected)
+        }
+    }
+
+    @Test
+    fun busyAttachmentOnly_showsSendAndQueue() {
+        val attachment = Attachment("content://document/1", "notes.txt", "text/plain")
+        setContextualComposer(text = "", isMainTurnBusy = true, attachments = listOf(attachment))
+
+        composeTestRule.onNodeWithTag("send_button").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("queue_button").assertIsDisplayed()
+    }
+
+    @Test
+    fun busyDisconnectedDraft_disablesSendAndQueue() {
+        setContextualComposer(text = "hello", isMainTurnBusy = true, isConnected = false)
+        composeTestRule.onNodeWithTag("send_button").assertIsNotEnabled()
+        composeTestRule.onNodeWithTag("queue_button").assertIsNotEnabled()
+    }
+
+    @Test
+    fun busySessionNotReady_disablesSendAndQueue() {
+        setContextualComposer(text = "hello", isMainTurnBusy = true, isSessionReady = false)
+        composeTestRule.onNodeWithTag("send_button").assertIsNotEnabled()
+        composeTestRule.onNodeWithTag("queue_button").assertIsNotEnabled()
+    }
+
+    @Test
+    fun busyPendingReasoning_disablesSendAndQueue() {
+        setContextualComposer(text = "hello", isMainTurnBusy = true, pendingReasoningLevel = "high")
+        composeTestRule.onNodeWithTag("send_button").assertIsNotEnabled()
+        composeTestRule.onNodeWithTag("queue_button").assertIsNotEnabled()
+    }
+
+    @Test
+    fun busySlashDraft_usesRegularSendWithoutBusyActions() {
+        var regularSends = 0
+        setContextualComposer(
+            text = "/stop",
+            isMainTurnBusy = true,
+            onSend = { regularSends++ },
+        )
+
+        composeTestRule.onNodeWithTag("queue_button").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("send_button").performClick()
+        composeTestRule.runOnIdle { assertEquals(1, regularSends) }
+    }
+
+    @Test
+    fun busyBecomesIdle_hidesQueueAndPreservesTypedDraft() {
+        val busy = mutableStateOf(true)
+        composeTestRule.setContent {
+            var input by remember { mutableStateOf(TextFieldValue("draft in progress")) }
+            ChatInputBar(
+                inputFieldValue = input,
+                onInputChange = { input = it },
+                onSend = {},
+                onBusySend = {},
+                onMicTap = {},
+                isListening = false,
+                isAgentTyping = busy.value,
+                isMainTurnBusy = busy.value,
+                isConnected = true,
+                commandCatalog = CommandCatalog(),
+                isSessionReady = true,
+            )
+        }
+
+        composeTestRule.onNodeWithTag("queue_button").assertIsDisplayed()
+        composeTestRule.runOnUiThread { busy.value = false }
+        composeTestRule.onNodeWithTag("queue_button").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("chat_input").assertTextEquals("draft in progress")
+        composeTestRule.onNodeWithTag("send_button").assertIsDisplayed()
+    }
+
+    @Test
+    fun busyDraft_narrowWidthKeepsSendAndQueueAccessible() {
+        composeTestRule.setContent {
+            Box(Modifier.width(220.dp)) {
+                ChatInputBar(
+                    inputFieldValue = TextFieldValue("change course"),
+                    onInputChange = {},
+                    onSend = {},
+                    onBusySend = {},
+                    onMicTap = {},
+                    isListening = false,
+                    isAgentTyping = true,
+                    isMainTurnBusy = true,
+                    isConnected = true,
+                    commandCatalog = CommandCatalog(),
+                    isSessionReady = true,
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithTag("queue_button").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("send_button").assertIsDisplayed()
+    }
 
     /** Renders the real input bar with live text and a mic that toggles like ChatMediaLaunchers. */
     private fun setComposer(

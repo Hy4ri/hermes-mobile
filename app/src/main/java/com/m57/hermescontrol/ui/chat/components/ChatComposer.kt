@@ -74,6 +74,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.Attachment
+import com.m57.hermescontrol.data.model.BusySendMode
 import com.m57.hermescontrol.data.model.ProfileInfo
 import com.m57.hermescontrol.data.ws.CommandBlocklist
 import com.m57.hermescontrol.data.ws.CommandCatalog
@@ -90,9 +91,11 @@ fun ChatInputBar(
     inputFieldValue: TextFieldValue,
     onInputChange: (TextFieldValue) -> Unit,
     onSend: () -> Unit,
+    onBusySend: (BusySendMode) -> Unit = {},
     onMicTap: () -> Unit,
     isListening: Boolean,
     isAgentTyping: Boolean,
+    isMainTurnBusy: Boolean = false,
     canInterrupt: Boolean = false,
     isConnected: Boolean,
     commandCatalog: CommandCatalog,
@@ -136,6 +139,7 @@ fun ChatInputBar(
         pendingReasoningLevel == null &&
             ChatInputPolicy.canSend(inputFieldValue.text, pendingAttachments, isConnected, isSessionReady)
     val hasDraft = inputFieldValue.text.isNotBlank() || pendingAttachments.isNotEmpty()
+    val showBusyActions = isMainTurnBusy && hasDraft && !inputFieldValue.text.trimStart().startsWith("/")
 
     // Attachment tray state
     var showAttachmentTray by remember { mutableStateOf(false) }
@@ -156,6 +160,7 @@ fun ChatInputBar(
     // freezes the slot layout synchronously (an effect would land a frame
     // late, after the slots already collapsed) and recording-end thaws them.
     val holdShowSend = remember { mutableStateOf(false) }
+    val holdShowQueue = remember { mutableStateOf(false) }
     val holdCanInterrupt = remember { mutableStateOf(false) }
     // Snapshot at hold start: whether the keyboard was up (for the restore
     // safety net) and the trailing slot layout (frozen while recording, see
@@ -163,6 +168,7 @@ fun ChatInputBar(
     val handleMicHoldStart = {
         restoreInputFocus = inputFocused
         holdShowSend.value = hasDraft
+        holdShowQueue.value = showBusyActions
         holdCanInterrupt.value = canInterrupt
         onMicHoldStart()
     }
@@ -209,6 +215,7 @@ fun ChatInputBar(
     }
     val recording = isRecordingVoice
     val composerShowSend = if (recording) holdShowSend.value else hasDraft
+    val composerShowQueue = if (recording) holdShowQueue.value else showBusyActions
     val composerCanInterrupt = if (recording) holdCanInterrupt.value else canInterrupt
 
     val palette = composerPalette()
@@ -457,6 +464,21 @@ fun ChatInputBar(
                         canSend = canSend,
                         showSend = composerShowSend,
                         onSend = onSend,
+                        showQueue = composerShowQueue,
+                        onQueue = {
+                            if (showBusyActions && canSend &&
+                                !isVoiceNoteLocked
+                            ) {
+                                onBusySend(BusySendMode.QUEUE)
+                            }
+                        },
+                        onStopAndSend = {
+                            if (showBusyActions && canSend &&
+                                !isVoiceNoteLocked
+                            ) {
+                                onBusySend(BusySendMode.INTERRUPT)
+                            }
+                        },
                         canInterrupt = composerCanInterrupt,
                         onStopGeneration = onStopGeneration,
                         onAttachTap = { showAttachmentTray = !showAttachmentTray },

@@ -874,6 +874,12 @@ fun ChatScreen(
                         scrollController.jumpToBottom(animated = true)
                     }
                 },
+                onBusySend = { mode ->
+                    if (viewModel.sendMessage(inputFieldValue.text, mode)) {
+                        inputFieldValue = TextFieldValue("")
+                        scrollController.jumpToBottom(animated = true)
+                    }
+                },
                 onMicTap = mediaLaunchers.onMicTap,
                 onMicHoldStart = mediaLaunchers.onMicHoldStart,
                 onMicHoldEnd = mediaLaunchers.onMicHoldEnd,
@@ -885,6 +891,7 @@ fun ChatScreen(
                 amplitudeProvider = mediaLaunchers.amplitudeProvider,
                 onStopGeneration = { viewModel.interruptSession() },
                 isAgentTyping = state.isAgentTyping,
+                isMainTurnBusy = state.isMainTurnBusy,
                 canInterrupt = state.canInterrupt,
                 isConnected = state.isConnected,
                 isSessionReady = state.isSessionReady && !timelineState.isHistorical,

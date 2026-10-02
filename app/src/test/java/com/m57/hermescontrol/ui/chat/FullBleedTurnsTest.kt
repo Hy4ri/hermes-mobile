@@ -478,4 +478,27 @@ class FullBleedTurnsTest {
         assertEquals(setOf("u1", "a2"), matchedMessageIds(msgs, listOf(0, 2, 0)))
         assertEquals(emptySet<String>(), matchedMessageIds(msgs, listOf(9)))
     }
+
+    @Test
+    fun `react_to_message tool rows are hidden but other tools stay`() {
+        val messages =
+            listOf(
+                msg("u1", MessageRole.USER),
+                msg("react", MessageRole.TOOL).copy(toolName = "react_to_message"),
+                msg("term", MessageRole.TOOL).copy(toolName = "terminal"),
+                msg("a1", MessageRole.ASSISTANT),
+            )
+        val agent = groupIntoTurns(messages).filterIsInstance<ChatTurn.Agent>().single()
+        assertEquals(
+            listOf("term", "a1"),
+            agent.entries.map {
+                when (it) {
+                    is AgentEntry.Prose -> it.message.id
+                    is AgentEntry.ToolRow -> it.message.id
+                    is AgentEntry.SystemEvent -> it.message.id
+                }
+            },
+        )
+        assertEquals(emptyList<SearchMatch>(), ChatSearchController().findMatches(messages.take(2), "react").matches)
+    }
 }

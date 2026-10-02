@@ -70,6 +70,44 @@ class ChatLocalPlacementTest {
         }
 
     @Test
+    fun unresolvedDurablePredecessorInheritsObservedLaterUserSuccessor() {
+        val pending =
+            ChatMessage(id = "pending", role = MessageRole.USER, content = "Pending", localOrder = 1L)
+        val placed = command.copy(localOrder = 2L).withLocalTranscriptAnchor(listOf(earlier, pending))
+        val feedback =
+            ChatMessage(
+                id = "feedback",
+                role = MessageRole.ASSISTANT,
+                content = "Changed",
+                displayKind = DisplayKind.LOCAL_FEEDBACK,
+                localOrder = 3L,
+            ).withLocalTranscriptAnchor(listOf(earlier, pending, placed))
+        val laterUser =
+            ChatMessage(id = "later-user", role = MessageRole.USER, content = "Later prompt")
+        val confirmedUser = laterUser.copy(id = "rest-s-20")
+        val observed = listOf(earlier, pending, placed, feedback, laterUser)
+        val expected = observed.map { it.id }
+
+        assertEquals(pending.id, placed.localPredecessorId)
+        assertEquals(pending.id, placed.toEntity("s").toUiModel().localPredecessorId)
+        val merged = mergeTranscriptWithLive(listOf(confirmedUser), observed)
+        assertEquals(expected, merged.map { it.id })
+        assertEquals(confirmedUser.id, merged.last().canonicalRestId)
+        assertEquals(expected, mergeTranscriptWithLive(listOf(confirmedUser), merged).map { it.id })
+        assertNull(merged.single { it.id == placed.id }.canonicalRestId)
+
+        // A cold cache page has no observed successor: do not infer one from its grouped rows.
+        val cached = listOf(earlier, confirmedUser, pending, placed, feedback)
+        val restored = mergeCachedTranscriptPage(cached, emptyList())
+        assertEquals(cached.map { it.id }, restored.map { it.id })
+        assertEquals(pending.id, restored.single { it.id == placed.id }.localPredecessorId)
+        assertEquals(
+            cached.map { it.id },
+            mergeTranscriptWithLive(listOf(confirmedUser), restored).map { it.id },
+        )
+    }
+
+    @Test
     fun confirmedPredecessorOutsideCachePageStillPositionsCommand() =
         runTest {
             val dao = FakeChatMessageDao()

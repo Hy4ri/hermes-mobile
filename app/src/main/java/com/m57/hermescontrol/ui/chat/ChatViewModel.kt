@@ -41,6 +41,7 @@ import com.m57.hermescontrol.data.ws.contract.CommandDispatchParams
 import com.m57.hermescontrol.data.ws.contract.CommandsCatalogParams
 import com.m57.hermescontrol.data.ws.contract.ConfigGetParams
 import com.m57.hermescontrol.data.ws.contract.ConfigSetParams
+import com.m57.hermescontrol.data.ws.contract.DESKTOP_SESSION_SOURCE
 import com.m57.hermescontrol.data.ws.contract.FileAttachParams
 import com.m57.hermescontrol.data.ws.contract.ImageAttachBytesParams
 import com.m57.hermescontrol.data.ws.contract.ProcessStopParams
@@ -1514,6 +1515,10 @@ class ChatViewModel(
                     viewModelScope.launch { fetchContextUsage() }
                 }
 
+                is ReducerEffect.DeleteLocalMessage -> {
+                    viewModelScope.launch(ioDispatcher) { repo.deleteMessage(effect.messageId) }
+                }
+
                 is ReducerEffect.AttachHostMedia -> {
                     // Issue #724: turn host-path MEDIA: directives into real
                     // attachments (images inline, every other file tappable)
@@ -1807,6 +1812,8 @@ class ChatViewModel(
                         contextBreakdown = null,
                         compressionCount = null,
                         sessionUsage = null,
+                        isCompressing = false,
+                        compressionStatus = null,
                     )
                 }
                 publishPendingSends()
@@ -4557,7 +4564,7 @@ class ChatViewModel(
         viewModelScope.launch(ioDispatcher) {
             wsClient.send(
                 RpcMethods.SESSION_CREATE,
-                SessionCreateParams(source = "desktop"),
+                SessionCreateParams(source = DESKTOP_SESSION_SOURCE),
                 onSent = { id -> trackSessionRequest(id, WsMethods.SESSION_CREATE, generation) },
             )
         }
@@ -5093,7 +5100,22 @@ class ChatViewModel(
         val page = withContext(historyDispatcher) { repo.loadPage(sessionId, before, MESSAGE_PAGE_SIZE) }
         val valid = { isCurrent() && cacheCursor == before }
         if (!valid()) return false
-        mergeHistoryPage(valid, cached = true) { page.messages } ?: return false
+        mergeHistoryPage(valid, cached = true) {
+            // #1432: Room retains host references, not connection-bound download URLs.
+            page.messages.map { message ->
+                if (message.role == MessageRole.USER && message.attachments.isNullOrEmpty()) {
+                    message.copy(
+                        attachments =
+                            userImageAttachments(
+                                message.content,
+                                ::gatewayMediaUrl,
+                            ).takeIf { it.isNotEmpty() },
+                    )
+                } else {
+                    message
+                }
+            }
+        } ?: return false
         if (!valid()) return false
         cacheCursor = page.cursor
         cacheHasOlder = page.hasOlder
@@ -5239,7 +5261,11 @@ class ChatViewModel(
         val scope = sendScope()
         val scopedPending =
             sendStore.all().filter { it.scope == scope && it.sessionId == sessionId }
-        pendingSendIdsConfirmedByDurableAliases(aliases, scopedPending).forEach(::removePendingSend)
+        val pageRowIds = page.mapNotNull { it.serverRowId }.toSet()
+        (
+            pendingSendIdsConfirmedByDurableAliases(aliases, scopedPending) +
+                pendingSendIdsConfirmedByRowIds(pageRowIds, scopedPending)
+        ).forEach(::removePendingSend)
         publishPendingSends()
         drainPendingQueue()
     }
@@ -5347,6 +5373,9 @@ class ChatViewModel(
                 contextBreakdown = null,
                 compressionCount = null,
                 sessionUsage = null,
+                // #1433: compaction state belongs to the session being left.
+                isCompressing = false,
+                compressionStatus = null,
                 pendingAttachments = emptyList(),
                 composerTextToRestore = null,
                 reactionKind = null,
@@ -5375,6 +5404,7 @@ class ChatViewModel(
         val params =
             SessionResumeParams(
                 sessionId = sessionId,
+                source = DESKTOP_SESSION_SOURCE,
                 omitMessages = true,
                 profile = profile?.takeIf { it.isNotBlank() },
             )
@@ -5732,7 +5762,8 @@ class ChatViewModel(
                         persistHistoryPage(page, sessionId)
                         if (valid() && !mainTurnBusy && mainTurnEpoch == completedTurnEpoch) {
                             unverifiedAccepted.forEach { receipt ->
-                                if (sendStore.all().any { it == receipt }) {
+                                // A gateway-issued user_row_id means the row is stored: never walk back to UNKNOWN.
+                                if (canDemoteAcceptedReceipt(receipt) && sendStore.all().any { it == receipt }) {
                                     markPendingSend(receipt.id, PendingSendState.UNKNOWN)
                                 }
                             }

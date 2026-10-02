@@ -280,6 +280,103 @@ class ChatMessagePagingDeviceTest {
         }
 
     @Test
+    fun migration10to11PreservesHistoryAndWritesNewAnchoredEvent() =
+        runBlocking {
+            val history =
+                listOf(
+                    ChatMessageEntity(
+                        id = "rest-session-10",
+                        sessionId = "session",
+                        role = "USER",
+                        content = "first prompt",
+                        timestamp = 900L,
+                        restId = "rest-session-10",
+                        sortGroup = 0,
+                        sortOrder = 10L,
+                        messageProvenance = "SERVER_CONFIRMED",
+                    ),
+                    ChatMessageEntity(
+                        id = "legacy-command",
+                        sessionId = "session",
+                        role = "USER",
+                        content = "/model old",
+                        timestamp = 1L,
+                        sortOrder = 17L,
+                        reasoningText = "retained trace",
+                        toolName = "terminal",
+                        toolCallId = "call-old",
+                        toolStatus = "COMPLETED",
+                        isStreaming = true,
+                        displayKind = "LOCAL_COMMAND",
+                        tokenCount = 7,
+                        tps = 2.5,
+                        completionId = "completion-old",
+                    ),
+                    ChatMessageEntity(
+                        id = "rest-other-3",
+                        sessionId = "other",
+                        role = "ASSISTANT",
+                        content = "other session",
+                        timestamp = 100L,
+                        sortGroup = 0,
+                        sortOrder = 3L,
+                    ),
+                    ChatMessageEntity(
+                        id = "legacy-feedback",
+                        sessionId = "session",
+                        role = "SYSTEM",
+                        content = "model changed",
+                        timestamp = 2L,
+                        sortOrder = 18L,
+                        messageProvenance = "LOCAL_ONLY",
+                    ),
+                )
+            createVersion10(history)
+            // Generated Room validation runs on opening this encrypted v10 file.
+            openDatabase()
+            history.forEach { original ->
+                val migrated = database.chatMessageDao().getMessage(original.id)
+                assertEquals(original, migrated)
+                assertEquals(null, migrated?.localAnchorOrder)
+                assertEquals(null, migrated?.localPredecessorId)
+            }
+            val anchored =
+                ChatMessage(
+                    id = "new-command",
+                    role = MessageRole.USER,
+                    content = "/model new",
+                    timestamp = 2L,
+                    localAnchorOrder = 10L,
+                    localPredecessorId = "pending-prompt",
+                )
+            repository.persistMessage(anchored, "session")
+            val feedback =
+                ChatMessage(
+                    id = "new-feedback",
+                    role = MessageRole.SYSTEM,
+                    content = "new model selected",
+                    timestamp = 3L,
+                    localAnchorOrder = 10L,
+                    localPredecessorId = anchored.id,
+                )
+            repository.persistMessage(feedback, "session")
+            database.close()
+            openDatabase()
+            val saved = database.chatMessageDao().getMessage(anchored.id)!!
+            assertEquals(10L, saved.localAnchorOrder)
+            assertEquals("pending-prompt", saved.localPredecessorId)
+            assertEquals(anchored.localAnchorOrder, saved.toUiModel().localAnchorOrder)
+            assertEquals(anchored.localPredecessorId, saved.toUiModel().localPredecessorId)
+            val savedFeedback = database.chatMessageDao().getMessage(feedback.id)!!
+            assertEquals(10L, savedFeedback.localAnchorOrder)
+            assertEquals(anchored.id, savedFeedback.localPredecessorId)
+            val restored = mergeCachedTranscriptPage(repository.loadPage("session", null, 20).messages, emptyList())
+            assertTrue(restored.any { it.id == anchored.id && it.localAnchorOrder == 10L })
+            assertTrue(restored.any { it.id == feedback.id && it.localPredecessorId == anchored.id })
+            history.forEach { assertEquals(it, database.chatMessageDao().getMessage(it.id)) }
+        }
+
+    @Test
     fun confirmedAliasPreservesLivePayloadAndCanonicalOrderAcrossReopen() =
         runBlocking {
             val live =
@@ -449,6 +546,65 @@ class ChatMessagePagingDeviceTest {
                     }
                 }
             connection.execSQL("PRAGMA user_version = 9")
+        }
+    }
+
+    /** Seed an encrypted database from the exported v10 schema, before Room validates v10 -> v11. */
+    private fun createVersion10(rows: List<ChatMessageEntity>) {
+        database.close()
+        context.deleteDatabase(databaseName)
+        val schema =
+            InstrumentationRegistry
+                .getInstrumentation()
+                .context.assets
+                .open("com.m57.hermescontrol.data.local.HermesDatabase/10.json")
+                .bufferedReader()
+                .use { JSONObject(it.readText()).getJSONObject("database") }
+        val file = context.getDatabasePath(databaseName)
+        file.parentFile?.mkdirs()
+        driver().open(file.absolutePath).use { connection ->
+            val entity = schema.getJSONArray("entities").getJSONObject(0)
+            connection.execSQL(entity.getString("createSql").replace("\${TABLE_NAME}", "chat_messages"))
+            val indices = entity.getJSONArray("indices")
+            for (index in 0 until indices.length()) {
+                connection.execSQL(
+                    indices.getJSONObject(index).getString("createSql").replace("\${TABLE_NAME}", "chat_messages"),
+                )
+            }
+            val setup = schema.getJSONArray("setupQueries")
+            for (index in 0 until setup.length()) connection.execSQL(setup.getString(index))
+            connection
+                .prepare(
+                    "INSERT INTO chat_messages (id, session_id, role, content, reasoning_text, timestamp, " +
+                        "tool_name, tool_call_id, tool_status, is_streaming, display_kind, token_count, tps, " +
+                        "completion_id, rest_id, sort_group, sort_order, message_provenance) " +
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                ).use { insert ->
+                    rows.forEach { row ->
+                        insert.bindText(1, row.id)
+                        insert.bindText(2, row.sessionId)
+                        insert.bindText(3, row.role)
+                        insert.bindText(4, row.content)
+                        insert.bindText(5, row.reasoningText)
+                        insert.bindLong(6, row.timestamp)
+                        row.toolName?.let { insert.bindText(7, it) } ?: insert.bindNull(7)
+                        insert.bindText(8, row.toolCallId)
+                        row.toolStatus?.let { insert.bindText(9, it) } ?: insert.bindNull(9)
+                        insert.bindLong(10, if (row.isStreaming) 1L else 0L)
+                        row.displayKind?.let { insert.bindText(11, it) } ?: insert.bindNull(11)
+                        row.tokenCount?.let { insert.bindLong(12, it.toLong()) } ?: insert.bindNull(12)
+                        row.tps?.let { insert.bindDouble(13, it) } ?: insert.bindNull(13)
+                        row.completionId?.let { insert.bindText(14, it) } ?: insert.bindNull(14)
+                        row.restId?.let { insert.bindText(15, it) } ?: insert.bindNull(15)
+                        insert.bindLong(16, row.sortGroup.toLong())
+                        insert.bindLong(17, row.sortOrder)
+                        insert.bindText(18, row.messageProvenance)
+                        insert.step()
+                        insert.reset()
+                        insert.clearBindings()
+                    }
+                }
+            connection.execSQL("PRAGMA user_version = 10")
         }
     }
 

@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.chat
 
+import com.m57.hermescontrol.ui.chat.fullbleed.isHiddenTool
 import com.m57.hermescontrol.ui.chat.fullbleed.isSyntheticSystemRow
 import com.m57.hermescontrol.ui.chat.fullbleed.isTimelineMarker
 import com.m57.hermescontrol.ui.chat.tool.ToolViewCache
@@ -100,7 +101,7 @@ class ChatSearchController {
                 }
 
                 MessageRole.TOOL -> {
-                    scan(idx, searchableToolText(message), SearchTarget.TOOL)
+                    if (!message.isHiddenTool()) scan(idx, searchableToolText(message), SearchTarget.TOOL)
                 }
 
                 MessageRole.SYSTEM -> {

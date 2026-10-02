@@ -60,6 +60,11 @@ internal fun ChatMessage.isSyntheticSystemRow(): Boolean =
         displayKind == null &&
         content.startsWith(MAX_ITERATIONS_SYSTEM_MARKER)
 
+private const val HIDDEN_TOOL_NAME = "react_to_msg"
+
+/** Tool rows that never get a transcript bubble. */
+internal fun ChatMessage.isHiddenTool(): Boolean = role == MessageRole.TOOL && toolName == HIDDEN_TOOL_NAME
+
 internal fun ChatMessage.isTimelineMarker(): Boolean = displayKind != null && displayKind !in DisplayKind.nonMarkerKinds
 
 /**
@@ -106,6 +111,10 @@ fun groupIntoTurns(messages: List<ChatMessage>): List<ChatTurn> {
 
             MessageRole.ASSISTANT == message.role -> {
                 agentEntries += AgentEntry.Prose(message)
+            }
+
+            message.isHiddenTool() -> {
+                // Reaction tool calls have no useful bubble; the reaction itself is the feedback.
             }
 
             MessageRole.TOOL == message.role -> {

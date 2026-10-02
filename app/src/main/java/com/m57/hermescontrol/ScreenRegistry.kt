@@ -32,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation3.runtime.NavKey
 import com.m57.hermescontrol.ui.common.NeurologyIcon
+import com.m57.hermescontrol.ui.settings.ConnectionsPage
 import com.m57.hermescontrol.ui.achievements.AchievementsScreen as AchievementsScreenContent
 import com.m57.hermescontrol.ui.analytics.AnalyticsScreen as AnalyticsScreenContent
 import com.m57.hermescontrol.ui.billing.BillingScreen as BillingScreenContent
@@ -243,6 +244,12 @@ object ScreenRegistry {
                 Icons.Filled.Extension,
                 DrawerSection.CONFIGURE,
             ) { _, openDrawer -> AccountConnectorsScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                ConnectionsScreen,
+                R.string.screen_connections,
+                Icons.Filled.Dns,
+                DrawerSection.CONFIGURE,
+            ) { _, openDrawer -> ConnectionsPage(onOpenDrawer = openDrawer) },
             ScreenDefinition(
                 SettingsScreen,
                 R.string.screen_settings,

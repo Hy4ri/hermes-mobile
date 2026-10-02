@@ -22,6 +22,58 @@ class ChatPastedImageStoreTest {
     @get:Rule val temp = TemporaryFolder()
 
     @Test
+    fun startupSweepDeletesOnlyPastedImagesOlderThanSevenDays() {
+        val cacheDir = temp.newFolder("cache")
+        val directory = cacheDir.resolve("pasted_images").apply { mkdir() }
+        val now = 2_000_000_000_000L
+        val cutoff = now - TimeUnit.DAYS.toMillis(7)
+        val stale = stagePastedImage(ByteArrayInputStream(byteArrayOf(1)), directory, "png")!!
+        assertTrue(stale.setLastModified(cutoff - 1000))
+        val boundary = directory.resolve("boundary.png").apply { writeText("keep") }
+        assertTrue(boundary.setLastModified(cutoff))
+        val recent = directory.resolve("recent.png").apply { writeText("keep") }
+        assertTrue(recent.setLastModified(now))
+        val future = directory.resolve("future.png").apply { writeText("keep") }
+        assertTrue(future.setLastModified(now + 1000))
+        val unrelated = cacheDir.resolve("unrelated.png").apply { writeText("keep") }
+        assertTrue(unrelated.setLastModified(cutoff - 1000))
+        val nested =
+            directory
+                .resolve("nested")
+                .apply { mkdir() }
+                .resolve("old.png")
+                .apply { writeText("keep") }
+        assertTrue(nested.setLastModified(cutoff - 1000))
+
+        cleanStalePastedImages(cacheDir, now)
+        cleanStalePastedImages(cacheDir, now)
+
+        assertFalse(stale.exists())
+        listOf(boundary, recent, future, unrelated, nested).forEach { assertEquals("keep", it.readText()) }
+    }
+
+    @Test
+    fun startupSweepDoesNotCreateAMissingCacheDirectory() {
+        val cacheDir = temp.newFolder("empty-cache")
+
+        cleanStalePastedImages(cacheDir)
+
+        assertTrue(cacheDir.listFiles()!!.isEmpty())
+    }
+
+    @Test
+    fun startupSweepPreservesAnImportCreatedAfterTheStartupSnapshot() {
+        val cacheDir = temp.newFolder("live-cache")
+        val directory = cacheDir.resolve("pasted_images")
+        val startupTime = System.currentTimeMillis()
+        val imported = stagePastedImage(ByteArrayInputStream(byteArrayOf(1, 2)), directory, "png")!!
+
+        cleanStalePastedImages(cacheDir, startupTime)
+
+        assertArrayEquals(byteArrayOf(1, 2), imported.readBytes())
+    }
+
+    @Test
     fun exactLimitIsAcceptedWithItsActualByteCount() {
         val dir = temp.newFolder("exact")
         val bytes = byteArrayOf(1, 2, 3, 4)

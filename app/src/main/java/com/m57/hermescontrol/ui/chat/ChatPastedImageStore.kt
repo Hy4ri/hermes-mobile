@@ -15,6 +15,28 @@ import java.io.IOException
 import java.io.InputStream
 import java.util.UUID
 
+private const val PASTED_IMAGE_DIRECTORY = "pasted_images"
+private const val PASTED_IMAGE_MAX_AGE_MS = 7L * 24 * 60 * 60 * 1000
+
+/**
+ * Startup-only sweep (#1444). Keep recent files for transcript previews/retries;
+ * never run during a live session where an old attachment may still be uploading.
+ */
+internal fun cleanStalePastedImages(
+    cacheDir: File,
+    nowMs: Long = System.currentTimeMillis(),
+) {
+    val directory = File(cacheDir, PASTED_IMAGE_DIRECTORY)
+    val files = runCatching { directory.listFiles() }.getOrNull() ?: return
+    val cutoff = nowMs - PASTED_IMAGE_MAX_AGE_MS
+    for (file in files) {
+        runCatching {
+            // Do not traverse subdirectories or touch any other cache namespace.
+            if (file.isFile && file.lastModified() < cutoff) file.delete()
+        }
+    }
+}
+
 internal class PastedImageTooLargeException : IOException("Pasted image exceeds attachment limit")
 
 /** A private cache file owned by the caller after [ChatPastedImageStore.importImage] returns. */
@@ -60,7 +82,7 @@ class ChatPastedImageStore(
                     val file =
                         stagePastedImage(
                             input = input,
-                            directory = File(context.cacheDir, "pasted_images"),
+                            directory = File(context.cacheDir, PASTED_IMAGE_DIRECTORY),
                             extension = extension,
                             maxBytes = maxBytes,
                             checkActive = { activeContext.ensureActive() },

@@ -161,16 +161,18 @@ fun CronJobsScreen(
                                     )
                                     StatusBadge(
                                         text =
-                                            if (job.state == "active") {
-                                                stringResource(R.string.cron_status_active)
-                                            } else {
-                                                stringResource(R.string.cron_status_paused)
+                                            when (job.state) {
+                                                "scheduled", "active" -> stringResource(R.string.cron_status_active)
+                                                "completed" -> stringResource(R.string.cron_status_completed)
+                                                "error" -> stringResource(R.string.cron_status_error)
+                                                else -> stringResource(R.string.cron_status_paused)
                                             },
                                         status =
-                                            if (job.state == "active") {
-                                                StatusBadgeType.SUCCESS
-                                            } else {
-                                                StatusBadgeType.NEUTRAL
+                                            when (job.state) {
+                                                "scheduled", "active" -> StatusBadgeType.SUCCESS
+                                                "completed" -> StatusBadgeType.INFO
+                                                "error" -> StatusBadgeType.ERROR
+                                                else -> StatusBadgeType.NEUTRAL
                                             },
                                     )
                                     // Run-status badge: blocked_config looks like a
@@ -233,7 +235,7 @@ fun CronJobsScreen(
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
                                     }
-                                    if (job.state == "active") {
+                                    if (job.state == "scheduled" || job.state == "active") {
                                         IconButton(
                                             onClick = { viewModel.pauseCronJob(job.id) },
                                         ) {
@@ -243,7 +245,7 @@ fun CronJobsScreen(
                                                 tint = MaterialTheme.colorScheme.primary,
                                             )
                                         }
-                                    } else {
+                                    } else if (job.state != "completed") {
                                         IconButton(
                                             onClick = { viewModel.resumeCronJob(job.id) },
                                         ) {

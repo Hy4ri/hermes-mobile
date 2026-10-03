@@ -25,4 +25,9 @@ internal val ThemeRegistry =
         ThemeDefinition(ThemePreset.GARNET, GarnetTheme),
     )
 
-internal fun ThemePreset.palette(): ThemePalette = ThemeRegistry.single { it.preset == this }.palette
+internal fun ThemePreset.palette(): ThemePalette =
+    if (this == ThemePreset.CUSTOM) {
+        customPaletteFlow.value ?: DefaultTheme
+    } else {
+        ThemeRegistry.single { it.preset == this }.palette
+    }

@@ -31,7 +31,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.ThemeMarketplaceScreen
+import com.m57.hermescontrol.data.theme.import.ThemeApplier
+import com.m57.hermescontrol.theme.ThemePreset
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.settings.components.AboutSection
@@ -118,6 +122,8 @@ internal fun SettingsAppearancePage(
     viewModel: SettingsViewModel = viewModel { SettingsViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val restoreFailed by ThemeApplier.restoreFailed.collectAsStateWithLifecycle()
+    val unavailableThemeName by ThemeApplier.unavailableThemeName.collectAsStateWithLifecycle()
 
     HermesScaffold(
         title = { Text(stringResource(R.string.settings_sec_appearance)) },
@@ -139,6 +145,10 @@ internal fun SettingsAppearancePage(
                 onUseDynamicColorsChange = viewModel::onUseDynamicColorsChange,
                 themePreset = state.themePreset,
                 onThemePresetChange = viewModel::onThemePresetChange,
+                customThemeUnavailable = state.themePreset == ThemePreset.CUSTOM && restoreFailed,
+                unavailableThemeName = unavailableThemeName,
+                onReapplyCustomTheme = { NavigationController.navigateTo(ThemeMarketplaceScreen) },
+                onClearCustomTheme = { ThemeApplier.clearCustomTheme() },
             )
         }
     }

@@ -82,6 +82,8 @@ import kotlinx.serialization.Serializable
 
 @Serializable data object AccountConnectorsScreen : NavKey
 
+@Serializable data object ThemeMarketplaceScreen : NavKey
+
 // ── Settings drill-down sub-pages ──────────────────────────────────────
 
 @Serializable data object SettingsConnection : NavKey

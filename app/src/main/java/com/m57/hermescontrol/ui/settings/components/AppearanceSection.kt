@@ -37,13 +37,16 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.BusySendMode
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
 import com.m57.hermescontrol.theme.ThemeRegistry
+import com.m57.hermescontrol.theme.customPaletteFlow
 import com.m57.hermescontrol.ui.chat.label
 import com.m57.hermescontrol.ui.settings.SectionCard
+import com.m57.hermescontrol.ui.thememarketplace.ThemeMarketplaceRecoveryBanner
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -55,9 +58,23 @@ internal fun AppearanceSection(
     onUseDynamicColorsChange: (Boolean) -> Unit,
     themePreset: ThemePreset,
     onThemePresetChange: (ThemePreset) -> Unit,
+    customThemeUnavailable: Boolean = false,
+    unavailableThemeName: String? = null,
+    onReapplyCustomTheme: () -> Unit = {},
+    onClearCustomTheme: () -> Unit = {},
 ) {
     val dynamicAvailable = useDynamicColors && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    val customPalette by customPaletteFlow.collectAsStateWithLifecycle()
     SectionCard {
+        if (customThemeUnavailable) {
+            ThemeMarketplaceRecoveryBanner(
+                themeName = unavailableThemeName,
+                onReapply = onReapplyCustomTheme,
+                onClear = onClearCustomTheme,
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
         Text(
             text = stringResource(R.string.settings_item_theme),
             style = MaterialTheme.typography.bodyLarge,
@@ -149,6 +166,15 @@ internal fun AppearanceSection(
                         },
                     )
                 }
+                if (customPalette != null || themePreset == ThemePreset.CUSTOM) {
+                    DropdownMenuItem(
+                        text = { Text(ThemePreset.CUSTOM.label()) },
+                        onClick = {
+                            onThemePresetChange(ThemePreset.CUSTOM)
+                            presetsExpanded = false
+                        },
+                    )
+                }
             }
         }
     }
@@ -165,6 +191,7 @@ private fun ThemePreset.label(): String =
             ThemePreset.AMOLED -> R.string.theme_preset_amoled
             ThemePreset.NORD -> R.string.theme_preset_nord
             ThemePreset.GARNET -> R.string.theme_preset_garnet
+            ThemePreset.CUSTOM -> R.string.theme_preset_custom
         },
     )
 

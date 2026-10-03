@@ -478,12 +478,13 @@ class ChatViewModelTest {
         startCleanup: Boolean = false,
         historyDispatcher: kotlinx.coroutines.CoroutineDispatcher = testDispatcher,
         sendStore: ChatSendStore = ChatSendStore(),
+        repository: ChatPersistenceRepository = fakeRepo,
     ): ChatViewModel =
         // All injected dispatchers share the test scheduler so RPC ordering is deterministic.
         ChatViewModel(
             app,
             startCleanup,
-            fakeRepo,
+            repository,
             fakeSlashUsageStore,
             testDispatcher,
             testDispatcher,
@@ -502,8 +503,9 @@ class ChatViewModelTest {
         startCleanup: Boolean = false,
         historyDispatcher: kotlinx.coroutines.CoroutineDispatcher = testDispatcher,
         sendStore: ChatSendStore = ChatSendStore(),
+        repository: ChatPersistenceRepository = fakeRepo,
     ): Pair<ChatViewModel, String> {
-        val viewModel = createViewModel(startCleanup, historyDispatcher, sendStore)
+        val viewModel = createViewModel(startCleanup, historyDispatcher, sendStore, repository)
         advanceUntilIdle()
 
         mockConnectionStatus.value = ConnectionStatus.CONNECTED
@@ -721,6 +723,47 @@ class ChatViewModelTest {
         )
 
     // ── Slash command tests ──────────────────────────────────────────────────
+
+    @Test
+    fun blockedCommand_feedbackCannotPersistAheadOfVisibleCommand() =
+        runTest(testDispatcher) {
+            val commandEntered = CompletableDeferred<Unit>()
+            val releaseCommand = CompletableDeferred<Unit>()
+            var gateNextWrite = false
+            val repository =
+                ChatPersistenceRepository {
+                    if (gateNextWrite) {
+                        gateNextWrite = false
+                        commandEntered.complete(Unit)
+                        releaseCommand.await()
+                    }
+                    fakeRepo.dao
+                }
+            val (viewModel, sessionId) = createViewModelWithSession(repository = repository)
+            val baselineCount = fakeRepo.dao.count()
+            gateNextWrite = true
+
+            viewModel.sendMessage("/clear")
+            runCurrent()
+            commandEntered.await()
+
+            val visible =
+                viewModel.uiState.value.messages
+                    .takeLast(2)
+            assertEquals(listOf("/clear", "/clear is not supported on mobile"), visible.map { it.content })
+            // The first DAO access is deliberately suspended. A second local write must
+            // not overtake it and acquire the earlier physical sort order.
+            assertEquals(baselineCount, fakeRepo.dao.count())
+
+            releaseCommand.complete(Unit)
+            advanceUntilIdle()
+            val rows = fakeRepo.dao.getMessagesForSession(sessionId)
+            assertEquals(baselineCount + 2, rows.size)
+            assertEquals(visible.map { it.id }, rows.takeLast(2).map { it.id })
+            val restored = repository.loadMessages(sessionId)
+            assertEquals(visible.map { it.id }, restored.takeLast(2).map { it.id })
+            assertEquals(visible.map { it.content }, restored.takeLast(2).map { it.content })
+        }
 
     @Test
     fun testSlashCommand_help_addsHelpMessage() =
@@ -8434,11 +8477,141 @@ class ChatViewModelTest {
             cacheRead.complete(Unit)
             advanceUntilIdle()
 
+            // Persistence records a session-start anchor when no canonical
+            // predecessor exists. Later REST hydration must not move it to the tail.
+            repeat(3) {
+                assertEquals(
+                    listOf(localCommand.id) + (100..102).map { "rest-session-456-$it" },
+                    viewModel.uiState.value.messages
+                        .map { it.id },
+                )
+                val retained =
+                    viewModel.uiState.value.messages
+                        .single { it.id == localCommand.id }
+                assertEquals(localCommand.content, retained.content)
+                assertEquals(MessageRole.USER, retained.role)
+                assertEquals(-1L, retained.localAnchorOrder)
+                assertNull(retained.localPredecessorId)
+                assertNull(retained.canonicalRestId)
+                assertEquals(MessageProvenance.UNKNOWN, retained.messageProvenance)
+                assertTrue(fakeRepo.dao.idsForSession("session-456").contains(localCommand.id))
+                viewModel.refreshCurrentSession()
+                advanceUntilIdle()
+            }
+            verify(exactly = 0) { HermesWsClient.sendMessage(any(), any(), any(), any()) }
+        }
+
+    @Test
+    fun paging_coldRestartLegacyCommandStaysOutsideHydratedTailWithoutInventedPlacement() =
+        runTest {
+            val commandId = "legacy-model-command"
+            // Simulate a migrated row: bypass today's anchor allocation in upsert().
+            fakeRepo.dao.addMessageDirect(
+                com.m57.hermescontrol.data.local.ChatMessageEntity(
+                    id = commandId,
+                    sessionId = "session-456",
+                    role = "USER",
+                    content = "/model old",
+                    timestamp = 0L,
+                ),
+            )
+            val cacheRead = CompletableDeferred<Unit>()
+            fakeRepo.dao.beforeRead = { cacheRead.await() }
+            val (viewModel, _) = createViewModelWithSession()
+            coEvery {
+                ApiClient.hermesApi.getSessionMessages("session-456", any(), any(), any(), any())
+            } returns pagingResponse(100..102)
+
+            viewModel.switchSession("session-456")
+            runCurrent()
+            cacheRead.complete(Unit)
+            advanceUntilIdle()
+
+            repeat(3) {
+                assertEquals(
+                    listOf(commandId) + (100..102).map { "rest-session-456-$it" },
+                    viewModel.uiState.value.messages
+                        .map { it.id },
+                )
+                val retained =
+                    viewModel.uiState.value.messages
+                        .single { it.id == commandId }
+                assertEquals("/model old", retained.content)
+                assertEquals(MessageRole.USER, retained.role)
+                assertNull(retained.localAnchorOrder)
+                assertNull(retained.localPredecessorId)
+                assertNull(retained.canonicalRestId)
+                assertEquals(MessageProvenance.UNKNOWN, retained.messageProvenance)
+                assertTrue(fakeRepo.dao.idsForSession("session-456").contains(commandId))
+                viewModel.refreshCurrentSession()
+                advanceUntilIdle()
+            }
+            verify(exactly = 0) { HermesWsClient.sendMessage(any(), any(), any(), any()) }
+        }
+
+    @Test
+    fun paging_coldRestartAnchoredLocalCommandRetainsRecordedPositionAcrossRefresh() =
+        runTest {
+            val predecessor =
+                ChatMessage(
+                    id = "rest-session-456-101",
+                    role = MessageRole.ASSISTANT,
+                    content = "Preceding reply",
+                    timestamp = 1L,
+                )
+            val localCommand =
+                ChatMessage(
+                    id = "anchored-model-command",
+                    role = MessageRole.USER,
+                    content = "/model test",
+                    timestamp = Long.MAX_VALUE,
+                ).withLocalTranscriptAnchor(listOf(predecessor))
+            fakeRepo.persistMessage(localCommand, "session-456")
+            val cacheRead = CompletableDeferred<Unit>()
+            fakeRepo.dao.beforeRead = { cacheRead.await() }
+            val (viewModel, _) = createViewModelWithSession()
+            coEvery {
+                ApiClient.hermesApi.getSessionMessages("session-456", any(), any(), any(), any())
+            } returns pagingResponse(100..102)
+
+            viewModel.switchSession("session-456")
+            runCurrent()
+            cacheRead.complete(Unit)
+            advanceUntilIdle()
+
+            repeat(3) {
+                assertEquals(
+                    listOf("rest-session-456-100", predecessor.id, localCommand.id, "rest-session-456-102"),
+                    viewModel.uiState.value.messages
+                        .map { it.id },
+                )
+                val retained =
+                    viewModel.uiState.value.messages
+                        .single { it.id == localCommand.id }
+                assertEquals(localCommand.content, retained.content)
+                assertEquals(101L, retained.localAnchorOrder)
+                assertNull(retained.canonicalRestId)
+                assertEquals(MessageProvenance.UNKNOWN, retained.messageProvenance)
+                viewModel.refreshCurrentSession()
+                advanceUntilIdle()
+            }
+            coEvery {
+                ApiClient.hermesApi.getSessionMessages("session-456", any(), any(), any(), any())
+            } returns pagingResponse(100..104)
+            viewModel.refreshCurrentSession()
+            advanceUntilIdle()
             assertEquals(
-                (100..102).map { "rest-session-456-$it" } + localCommand.id,
+                listOf("rest-session-456-100", predecessor.id, localCommand.id) +
+                    (102..104).map { "rest-session-456-$it" },
                 viewModel.uiState.value.messages
                     .map { it.id },
             )
+            assertNull(
+                viewModel.uiState.value.messages
+                    .single { it.id == localCommand.id }
+                    .canonicalRestId,
+            )
+            verify(exactly = 0) { HermesWsClient.sendMessage(any(), any(), any(), any()) }
         }
 
     @Test

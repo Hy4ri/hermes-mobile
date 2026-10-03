@@ -33,6 +33,7 @@ import com.m57.hermescontrol.ui.chat.InlineAttachment
 import com.m57.hermescontrol.ui.chat.PendingSend
 import com.m57.hermescontrol.ui.chat.PendingSendState
 import com.m57.hermescontrol.ui.chat.needsRecovery
+import com.m57.hermescontrol.ui.chat.pendingSendActivityWarning
 
 /** #1427: a compact recovery entry keeps uncertain delivery visible without a floating queue panel. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -219,7 +220,9 @@ fun PendingSendRecovery(
                     if (send.state == PendingSendState.ACCEPTED || send.state == PendingSendState.UNKNOWN) {
                         Text(stringResource(R.string.chat_pending_unknown))
                     }
-                    if (mainTurnBusy) Text(stringResource(R.string.chat_pending_send_now_warning))
+                    pendingSendActivityWarning(mainTurnBusy, listOf(send))?.let { warning ->
+                        Text(stringResource(warning))
+                    }
                 }
             },
             confirmButton = {

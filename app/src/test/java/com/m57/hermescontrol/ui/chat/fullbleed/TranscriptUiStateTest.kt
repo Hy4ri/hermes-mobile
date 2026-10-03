@@ -74,6 +74,47 @@ class TranscriptUiStateTest {
     }
 
     @Test
+    fun `live transcript hides parked and queued optimistic rows but keeps confirmed rows`() {
+        val queued = live.copy(id = "queued")
+        val parked = live.copy(id = "parked")
+        val confirmed = live.copy(id = "confirmed", restId = "rest-42")
+
+        fun send(
+            id: String,
+            state: PendingSendState,
+        ) = PendingSend(id, "scope", "session", "hello", mode = BusySendMode.QUEUE, state = state)
+        val chat =
+            ChatUiState(
+                messages = listOf(live, queued, parked, confirmed),
+                pendingSends =
+                    listOf(
+                        send("queued", PendingSendState.QUEUED),
+                        send("parked", PendingSendState.PARKED),
+                        send("confirmed", PendingSendState.QUEUED),
+                    ),
+            )
+        val visible = TranscriptUiState.resolve(chat, ChatTimelineState(), StreamingState(), null, null)
+        assertEquals(listOf(live, confirmed), visible.messages)
+        assertEquals(4, chat.messages.size)
+        val dispatched = chat.copy(pendingSends = listOf(send("queued", PendingSendState.SENDING)))
+        assertEquals(
+            listOf(live, queued, parked, confirmed),
+            TranscriptUiState.resolve(dispatched, ChatTimelineState(), StreamingState(), null, null).messages,
+        )
+        assertEquals(
+            listOf(live, queued, parked, confirmed),
+            TranscriptUiState
+                .resolve(
+                    chat,
+                    ChatTimelineState(historyMessages = chat.messages),
+                    StreamingState(),
+                    null,
+                    null,
+                ).messages,
+        )
+    }
+
+    @Test
     fun acceptedLivePromptKeepsItsTextAndImageUntilHistoryConfirmsIt() {
         val image = Attachment("file:///private/photo", "photo.png", "image/png", 3)
         val prompt = live.copy(attachments = listOf(image), serverRowId = 10)

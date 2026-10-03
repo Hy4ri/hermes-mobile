@@ -1,8 +1,11 @@
 package com.m57.hermescontrol.ui.chat.components
 
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.input.clearText
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -23,7 +26,6 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -58,6 +60,7 @@ class ComposerInteractionTest {
     private var fileTaps = 0
 
     /** Renders the real input bar with live text and a mic that toggles like ChatMediaLaunchers. */
+    @OptIn(ExperimentalFoundationApi::class)
     private fun setComposer(
         reasoningLevel: String? = "medium",
         model: String = "openai/gpt-5.5",
@@ -67,18 +70,17 @@ class ComposerInteractionTest {
         showModelProvider: Boolean = false,
     ) {
         composeTestRule.setContent {
-            var input by remember { mutableStateOf(TextFieldValue("")) }
+            val input = rememberTextFieldState()
             var listening by remember { mutableStateOf(false) }
             var currentModel by remember { mutableStateOf(model) }
 
             CompositionLocalProvider(LocalLayoutDirection provides layoutDirection) {
                 val composer: @Composable () -> Unit = {
                     ChatInputBar(
-                        inputFieldValue = input,
-                        onInputChange = { input = it },
+                        inputState = input,
                         onSend = {
                             sends++
-                            input = TextFieldValue("")
+                            input.clearText()
                         },
                         onMicTap = {
                             micTaps++

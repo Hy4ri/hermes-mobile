@@ -3775,6 +3775,34 @@ class ChatViewModel(
 
     fun addAttachments(attachments: List<Attachment>) = attachmentsDelegate.addAttachments(attachments)
 
+    /** Clipboard reads are asynchronous: bind them to this exact session generation and server. */
+    internal fun captureAttachmentTarget(): ChatAttachmentTarget? {
+        val state = _uiState.value
+        val sessionId = state.currentSessionId ?: return null
+        // Connection status is combined into public uiState, not written to _uiState.
+        if (wsClient.connectionStatus.value != ConnectionStatus.CONNECTED ||
+            !state.isSessionReady || _timelineState.value.isHistorical
+        ) {
+            return null
+        }
+        return ChatAttachmentTarget(
+            sessionId = sessionId,
+            generation = sessionGeneration,
+            baseUrl = AuthManager.getBaseUrl(),
+            connectionProfileId = AuthManager.getSelectedProfileId(),
+            agentProfileId = AuthManager.activeProfileId.value,
+        )
+    }
+
+    internal fun addPastedAttachments(
+        target: ChatAttachmentTarget,
+        attachments: List<Attachment>,
+    ): Boolean {
+        if (captureAttachmentTarget() != target) return false
+        attachmentsDelegate.addAttachments(attachments)
+        return true
+    }
+
     fun removeAttachment(index: Int) = attachmentsDelegate.removeAttachment(index)
 
     fun openAttachment(attachment: Attachment) = mediaDelegate.openAttachment(attachment)

@@ -11,6 +11,7 @@ import android.speech.RecognizerIntent
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -21,13 +22,11 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.m57.hermescontrol.ExternalActivityLifecycleGuard
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.Attachment
-import com.m57.hermescontrol.ui.chat.ChatInputPolicy
 import com.m57.hermescontrol.ui.chat.SpeechInputHelper
 import com.m57.hermescontrol.ui.chat.VoiceNoteRecorder
 import kotlinx.coroutines.delay
@@ -55,8 +54,7 @@ class ChatMediaLaunchers(
 
 @Composable
 fun rememberChatMediaLaunchers(
-    inputFieldValue: TextFieldValue,
-    onInputFieldValueChange: (TextFieldValue) -> Unit,
+    inputState: TextFieldState,
     onAddAttachment: (uri: String, name: String, mimeType: String, size: Long) -> Unit,
     onAddAttachments: (List<Attachment>) -> Unit,
     onVoiceNoteRecorded: (file: File) -> Unit,
@@ -68,8 +66,7 @@ fun rememberChatMediaLaunchers(
     var isListening by remember { mutableStateOf(false) }
     var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
 
-    val currentInputFieldValue by rememberUpdatedState(inputFieldValue)
-    val currentOnInputFieldValueChange by rememberUpdatedState(onInputFieldValueChange)
+    val currentInputState by rememberUpdatedState(inputState)
     val currentOnAddAttachment by rememberUpdatedState(onAddAttachment)
     val currentOnAddAttachments by rememberUpdatedState(onAddAttachments)
     val currentOnVoiceNoteRecorded by rememberUpdatedState(onVoiceNoteRecorded)
@@ -134,14 +131,7 @@ fun rememberChatMediaLaunchers(
                         ?.firstOrNull()
                         .orEmpty()
                 if (spokenText.isNotBlank()) {
-                    val currentText = currentInputFieldValue.text
-                    val merged =
-                        if (currentText.isBlank()) {
-                            spokenText
-                        } else {
-                            "$currentText $spokenText"
-                        }
-                    currentOnInputFieldValueChange(ChatInputPolicy.commandFieldValue(merged))
+                    currentInputState.appendSpeechComposerDraft(spokenText)
                 }
             }
         }

@@ -34,6 +34,20 @@ class NavigationControllerTest {
         NavigationController.consumeChatReturnScreen()
     }
 
+    @Test
+    fun `first launch can manage certificates and return to landing without a connection`() {
+        val stack = NavBackStack<NavKey>(LandingScreen)
+        NavigationController.backStack = stack
+        NavigationController.navigateTo(ConnectionsScreen)
+        NavigationController.navigateTo(ClientCertificatesScreen)
+        NavigationController.navigateTo(ClientCertificatesScreen)
+        assertEquals(listOf(LandingScreen, ConnectionsScreen, ClientCertificatesScreen), stack.toList())
+        NavigationController.goBack()
+        assertEquals(ConnectionsScreen, stack.last())
+        NavigationController.goBack()
+        assertEquals(listOf(LandingScreen), stack.toList())
+    }
+
     // ── Dedup guard: navigateTo with same key ──────────────────────────────
 
     @Test

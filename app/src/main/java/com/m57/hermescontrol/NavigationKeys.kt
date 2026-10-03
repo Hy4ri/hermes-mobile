@@ -97,3 +97,7 @@ import kotlinx.serialization.Serializable
 @Serializable data object SettingsVault : NavKey
 
 @Serializable data object SettingsAbout : NavKey
+
+@Serializable data object ConnectionsScreen : NavKey
+
+@Serializable data object ClientCertificatesScreen : NavKey

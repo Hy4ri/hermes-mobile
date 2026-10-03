@@ -5280,7 +5280,10 @@ class ChatViewModel(
                 applied = isCurrent() && current.messages === snapshot.messages && current.todos === snapshot.todos
                 if (applied) current.copy(messages = computed.second, todos = computed.third) else current
             }
-            if (applied) return computed.first
+            if (applied) {
+                ChatImageDiagnostics.history(snapshot.messages, computed.first, computed.second, cached)
+                return computed.first
+            }
         }
         return null
     }

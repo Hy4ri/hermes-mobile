@@ -3,9 +3,12 @@ package com.m57.hermescontrol.ui.chat.components
 import android.graphics.drawable.Animatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -13,11 +16,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -27,11 +36,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.asDrawable
 import coil3.compose.AsyncImage
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.ui.chat.ChatImageDiagnostics
+
+private enum class ThumbnailState { LOADING, SUCCESS, ERROR }
 
 @Composable
 fun GifImageThumbnail(
@@ -40,9 +53,13 @@ fun GifImageThumbnail(
     isGif: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    diagnosticId: String? = null,
 ) {
-    var isPlaying by remember { mutableStateOf(true) }
-    var animatableDrawable by remember { mutableStateOf<Animatable?>(null) }
+    // #1459: an attachment is not proof that its image loaded. Keep failures visible and retryable.
+    var retry by remember(model) { mutableIntStateOf(0) }
+    var state by remember(model, retry) { mutableStateOf(ThumbnailState.LOADING) }
+    var isPlaying by remember(model, retry) { mutableStateOf(true) }
+    var animatableDrawable by remember(model, retry) { mutableStateOf<Animatable?>(null) }
 
     val togglePlayPause: () -> Unit = {
         val nextState = !isPlaying
@@ -56,36 +73,87 @@ fun GifImageThumbnail(
         }
     }
 
+    DisposableEffect(model, diagnosticId) {
+        onDispose { ChatImageDiagnostics.load("dispose", model, diagnosticId) }
+    }
     val context = LocalContext.current
     Box(
         modifier =
             modifier
                 .fillMaxWidth()
+                .heightIn(min = if (state == ThumbnailState.SUCCESS) 0.dp else 120.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .clickable { onClick() },
+                .clickable(enabled = state == ThumbnailState.SUCCESS, onClick = onClick),
+        contentAlignment = Alignment.Center,
     ) {
-        AsyncImage(
-            model = model,
-            contentDescription = contentDescription,
-            onSuccess = { result ->
-                val drawable = result.result.image.asDrawable(context.resources)
-                if (drawable is Animatable) {
-                    animatableDrawable = drawable
-                    if (isPlaying) {
-                        drawable.start()
+        key(model, retry) {
+            AsyncImage(
+                model = model,
+                contentDescription = contentDescription.takeIf { state == ThumbnailState.SUCCESS },
+                onLoading = {
+                    state = ThumbnailState.LOADING
+                    ChatImageDiagnostics.load("start", model, diagnosticId)
+                },
+                onError = { result ->
+                    state = ThumbnailState.ERROR
+                    ChatImageDiagnostics.load("error", model, diagnosticId, result.result.throwable)
+                },
+                onSuccess = { result ->
+                    state = ThumbnailState.SUCCESS
+                    ChatImageDiagnostics.load("success", model, diagnosticId)
+                    val drawable = result.result.image.asDrawable(context.resources)
+                    if (drawable is Animatable) {
+                        animatableDrawable = drawable
+                        if (isPlaying) {
+                            drawable.start()
+                        } else {
+                            drawable.stop()
+                        }
+                    }
+                },
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp)),
+                contentScale = ContentScale.FillWidth,
+            )
+        }
+
+        if (state != ThumbnailState.SUCCESS) {
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+            ) {
+                Column(
+                    modifier = Modifier.heightIn(min = 120.dp).padding(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    if (state == ThumbnailState.ERROR) {
+                        Text(stringResource(R.string.chat_image_load_failed))
                     } else {
-                        drawable.stop()
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    }
+                    contentDescription?.takeIf { it.isNotBlank() }?.let { name ->
+                        Text(
+                            text = name,
+                            modifier = Modifier.padding(top = 6.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    if (state == ThumbnailState.ERROR) {
+                        TextButton(onClick = { retry++ }) {
+                            Text(stringResource(R.string.action_retry))
+                        }
                     }
                 }
-            },
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp)),
-            contentScale = ContentScale.FillWidth,
-        )
+            }
+        }
 
-        if (isGif) {
+        if (isGif && state == ThumbnailState.SUCCESS) {
             // Play / Pause toggle badge
             Box(
                 modifier =

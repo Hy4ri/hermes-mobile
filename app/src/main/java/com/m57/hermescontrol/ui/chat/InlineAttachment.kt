@@ -49,12 +49,14 @@ internal fun InlineAttachmentList(
     openingPath: String?,
     canSave: Boolean,
     onImageClick: (ImageViewerModel) -> Unit,
+    diagnosticId: String? = null,
 ) {
     if (attachments.isNullOrEmpty()) return
     Spacer(modifier = Modifier.height(6.dp))
-    attachments.forEach { attachment ->
+    attachments.forEachIndexed { index, attachment ->
         InlineAttachment(
             attachment = attachment,
+            diagnosticId = diagnosticId?.let { "$it:$index" },
             textColor = textColor,
             onOpen = onOpen,
             onSave = onSave,
@@ -81,6 +83,7 @@ internal fun InlineAttachment(
     openingPath: String?,
     canSave: Boolean,
     onImageClick: (ImageViewerModel) -> Unit,
+    diagnosticId: String? = null,
 ) {
     val attachmentPath = attachment.gatewayUrl?.let(::gatewayPathFromUrl) ?: attachment.name
     val isSaving = savingPath != null && savingPath == attachmentPath
@@ -106,6 +109,7 @@ internal fun InlineAttachment(
         // Image / GIF attachment — show thumbnail with GIF badge & tap-to-play animation.
         com.m57.hermescontrol.ui.chat.components.GifImageThumbnail(
             model = attachment.uri,
+            diagnosticId = diagnosticId,
             contentDescription = attachment.name,
             isGif = attachment.isGif,
             onClick = {

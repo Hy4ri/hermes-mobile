@@ -148,6 +148,7 @@ fun CronJobsScreen(
                                 ),
                         ) {
                             Column(modifier = Modifier.padding(spacing.md)) {
+                                val displayState = CronJobDisplayState.from(job.state)
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -159,7 +160,6 @@ fun CronJobsScreen(
                                         fontWeight = FontWeight.SemiBold,
                                         modifier = Modifier.weight(1f),
                                     )
-                                    val displayState = CronJobDisplayState.from(job.state)
                                     StatusBadge(
                                         text =
                                             when (displayState) {

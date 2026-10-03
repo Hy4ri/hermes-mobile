@@ -23,6 +23,8 @@ data class PendingSend(
     val requiresAttachmentRecovery: Boolean = false,
     /** `prompt.submit` `user_row_id` receipt (#1285); null means unproven, not rejected. */
     val userRowId: Long? = null,
+    /** Local acknowledgment is not proof of delivery and never gates queue draining. */
+    val userOrderingReleased: Boolean = false,
 )
 
 @Serializable
@@ -139,10 +141,22 @@ class ChatSendStore(
         replace(rows.map { if (it.id == id) transform(it) else it })
     }
 
+    /** Compare the entire captured receipt; a stale UI snapshot must not remove a changed send. */
+    @Synchronized
+    fun dismissReleasedUnknown(snapshot: PendingSend): Boolean {
+        if (snapshot.state != PendingSendState.UNKNOWN || !snapshot.userOrderingReleased) return false
+        if (rows.firstOrNull { it.id == snapshot.id } != snapshot) return false
+        replace(rows.filterNot { it.id == snapshot.id })
+        return true
+    }
+
     @Synchronized
     fun promote(id: String) {
         val row = rows.firstOrNull { it.id == id } ?: return
-        replace(listOf(row.copy(state = PendingSendState.QUEUED)) + rows.filterNot { it.id == id })
+        replace(
+            listOf(row.copy(state = PendingSendState.QUEUED, userOrderingReleased = false)) +
+                rows.filterNot { it.id == id },
+        )
     }
 
     @Synchronized

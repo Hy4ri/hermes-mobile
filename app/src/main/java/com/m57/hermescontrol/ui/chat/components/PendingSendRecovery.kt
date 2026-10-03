@@ -44,6 +44,8 @@ fun PendingSendRecovery(
     mainTurnBusy: Boolean,
     onSendAgain: (String) -> Unit,
     onDiscard: (String) -> Unit,
+    onAcknowledge: (String) -> Unit,
+    onRemoveAcknowledged: (PendingSend) -> Unit,
     onOpenAttachment: (Attachment) -> Unit = {},
     onImageClick: (ImageViewerModel) -> Unit = {},
 ) {
@@ -52,6 +54,8 @@ fun PendingSendRecovery(
     var open by remember { mutableStateOf(false) }
     var retryId by remember { mutableStateOf<String?>(null) }
     var discardId by remember { mutableStateOf<String?>(null) }
+    var acknowledgeId by remember { mutableStateOf<String?>(null) }
+    var removeSnapshot by remember { mutableStateOf<PendingSend?>(null) }
     val keyboard = LocalSoftwareKeyboardController.current
     val submissionInFlight = sends.any { it.state == PendingSendState.SENDING }
     TextButton(
@@ -80,12 +84,33 @@ fun PendingSendRecovery(
                         Text(
                             stringResource(
                                 when (send.state) {
-                                    PendingSendState.QUEUED -> R.string.chat_pending_queued
-                                    PendingSendState.PARKED -> R.string.chat_pending_parked
-                                    PendingSendState.SENDING -> R.string.chat_pending_sending
-                                    PendingSendState.ACCEPTED -> R.string.chat_pending_accepted
-                                    PendingSendState.UNKNOWN -> R.string.chat_pending_unknown
-                                    PendingSendState.REJECTED -> R.string.chat_pending_rejected
+                                    PendingSendState.QUEUED -> {
+                                        R.string.chat_pending_queued
+                                    }
+
+                                    PendingSendState.PARKED -> {
+                                        R.string.chat_pending_parked
+                                    }
+
+                                    PendingSendState.SENDING -> {
+                                        R.string.chat_pending_sending
+                                    }
+
+                                    PendingSendState.ACCEPTED -> {
+                                        R.string.chat_pending_accepted
+                                    }
+
+                                    PendingSendState.UNKNOWN -> {
+                                        if (send.userOrderingReleased) {
+                                            R.string.chat_pending_unknown_released
+                                        } else {
+                                            R.string.chat_pending_unknown
+                                        }
+                                    }
+
+                                    PendingSendState.REJECTED -> {
+                                        R.string.chat_pending_rejected
+                                    }
                                 },
                             ),
                             style = MaterialTheme.typography.bodySmall,
@@ -106,10 +131,48 @@ fun PendingSendRecovery(
                                 onImageClick = onImageClick,
                             )
                         }
+                        if (send.state == PendingSendState.UNKNOWN) {
+                            Text(
+                                stringResource(R.string.chat_pending_delivery_unverified),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            TextButton(
+                                onClick = {
+                                    if (send.userOrderingReleased) {
+                                        removeSnapshot = send
+                                    } else {
+                                        acknowledgeId =
+                                            send.id
+                                    }
+                                },
+                                enabled =
+                                    send.userOrderingReleased ||
+                                        (canSend && !mainTurnBusy && !submissionInFlight),
+                                modifier =
+                                    Modifier.testTag(
+                                        if (send.userOrderingReleased) {
+                                            "pending_remove_${send.id}"
+                                        } else {
+                                            "pending_acknowledge_${send.id}"
+                                        },
+                                    ),
+                            ) {
+                                Text(
+                                    stringResource(
+                                        if (send.userOrderingReleased) {
+                                            R.string.chat_pending_remove
+                                        } else {
+                                            R.string.chat_pending_continue_queue
+                                        },
+                                    ),
+                                )
+                            }
+                        }
                         Row {
                             TextButton(
                                 onClick = {
-                                    if (mainTurnBusy || send.state == PendingSendState.ACCEPTED ||
+                                    if (mainTurnBusy ||
+                                        send.state == PendingSendState.ACCEPTED ||
                                         send.state == PendingSendState.UNKNOWN
                                     ) {
                                         retryId = send.id
@@ -132,12 +195,14 @@ fun PendingSendRecovery(
                                     ),
                                 )
                             }
-                            TextButton(
-                                onClick = { discardId = send.id },
-                                enabled = send.state != PendingSendState.SENDING,
-                                modifier = Modifier.heightIn(min = 48.dp).testTag("pending_discard_${send.id}"),
-                            ) {
-                                Text(stringResource(R.string.chat_pending_discard))
+                            if (send.state != PendingSendState.UNKNOWN) {
+                                TextButton(
+                                    onClick = { discardId = send.id },
+                                    enabled = send.state != PendingSendState.SENDING,
+                                    modifier = Modifier.heightIn(min = 48.dp).testTag("pending_discard_${send.id}"),
+                                ) {
+                                    Text(stringResource(R.string.chat_pending_discard))
+                                }
                             }
                         }
                     }
@@ -173,7 +238,53 @@ fun PendingSendRecovery(
             },
         )
     }
-    recoverySends.firstOrNull { it.id == discardId }?.let { send ->
+    recoverySends.firstOrNull { it.id == acknowledgeId }?.let { send ->
+        AlertDialog(
+            onDismissRequest = { acknowledgeId = null },
+            title = { Text(stringResource(R.string.chat_pending_continue_title)) },
+            text = { Text(stringResource(R.string.chat_pending_continue_warning)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        acknowledgeId = null
+                        onAcknowledge(send.id)
+                    },
+                    enabled = canSend && !mainTurnBusy && !submissionInFlight,
+                    modifier = Modifier.testTag("pending_acknowledge_confirm"),
+                ) { Text(stringResource(R.string.chat_pending_continue_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { acknowledgeId = null }) { Text(stringResource(R.string.system_confirm_cancel)) }
+            },
+        )
+    }
+    removeSnapshot?.let { snapshot ->
+        val current = recoverySends.firstOrNull { it.id == snapshot.id }
+        AlertDialog(
+            onDismissRequest = { removeSnapshot = null },
+            title = { Text(stringResource(R.string.chat_pending_remove_title)) },
+            text = { Text(stringResource(R.string.chat_pending_remove_warning)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        removeSnapshot = null
+                        onRemoveAcknowledged(snapshot)
+                    },
+                    enabled =
+                        current == snapshot &&
+                            snapshot.state == PendingSendState.UNKNOWN &&
+                            snapshot.userOrderingReleased,
+                    modifier = Modifier.testTag("pending_remove_confirm"),
+                ) { Text(stringResource(R.string.chat_pending_remove_confirm)) }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { removeSnapshot = null },
+                ) { Text(stringResource(R.string.system_confirm_cancel)) }
+            },
+        )
+    }
+    recoverySends.firstOrNull { it.id == discardId && it.state != PendingSendState.UNKNOWN }?.let { send ->
         AlertDialog(
             onDismissRequest = { discardId = null },
             title = { Text(stringResource(R.string.chat_pending_discard)) },
@@ -182,9 +293,11 @@ fun PendingSendRecovery(
                 TextButton(
                     onClick = {
                         discardId = null
-                        onDiscard(send.id)
+                        if (recoverySends.any { it.id == send.id && it.state != PendingSendState.UNKNOWN }) {
+                            onDiscard(send.id)
+                        }
                     },
-                    enabled = send.state != PendingSendState.SENDING,
+                    enabled = send.state != PendingSendState.SENDING && send.state != PendingSendState.UNKNOWN,
                     modifier =
                         Modifier.testTag(
                             "pending_discard_confirm",

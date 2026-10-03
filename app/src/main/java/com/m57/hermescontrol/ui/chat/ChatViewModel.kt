@@ -5,6 +5,7 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.local.HermesDatabase
@@ -1052,7 +1053,8 @@ class ChatViewModel(
                 else -> null
             }
         if (turnSessionId != null && !isCurrentSession(turnSessionId)) return
-        if (event is WsEvent.MessageComplete && event.rawPayload?.get("status") == "error" &&
+        if (event is WsEvent.MessageComplete &&
+            event.rawPayload?.get("status") == "error" &&
             event.sessionId == null
         ) {
             return
@@ -1615,7 +1617,8 @@ class ChatViewModel(
                 // it. Wait for the RPC's live context_max instead; the
                 // chip stays hidden until the real window lands.
                 viewModelScope.launch { fetchContextUsage(skipRestFallback = true) }
-            } else if ((initialHydration || meterEmpty) && newModelLabel != null &&
+            } else if ((initialHydration || meterEmpty) &&
+                newModelLabel != null &&
                 contextUsageJob?.isActive != true
             ) {
                 viewModelScope.launch { fetchContextUsage() }
@@ -1775,7 +1778,8 @@ class ChatViewModel(
             hardInterruptRequestById.remove(id)?.let { markPendingSend(it.messageId, PendingSendState.UNKNOWN) }
             return
         }
-        if (method == WsMethods.PROMPT_SUBMIT || method == WsMethods.SESSION_REDIRECT ||
+        if (method == WsMethods.PROMPT_SUBMIT ||
+            method == WsMethods.SESSION_REDIRECT ||
             method == WsMethods.SESSION_STEER
         ) {
             settleOutgoingResult(id, method, result)
@@ -2473,7 +2477,8 @@ class ChatViewModel(
                 if (reservation.originalPending == null) deleteQueuedAttachmentSnapshot(reservation.pending.id)
                 return
             }
-            if (reservation.wasStreaming && staged.mode == BusySendMode.INTERRUPT &&
+            if (reservation.wasStreaming &&
+                staged.mode == BusySendMode.INTERRUPT &&
                 reservation.mainTurnEpoch != mainTurnEpoch
             ) {
                 staged = staged.copy(mode = BusySendMode.QUEUE, state = PendingSendState.QUEUED)
@@ -2675,7 +2680,9 @@ class ChatViewModel(
         sendStore
             .all()
             .filter {
-                it.scope == scope && it.sessionId == sessionId && it.userRowId == userRowId &&
+                it.scope == scope &&
+                    it.sessionId == sessionId &&
+                    it.userRowId == userRowId &&
                     it.state in setOf(PendingSendState.SENDING, PendingSendState.ACCEPTED, PendingSendState.UNKNOWN)
             }.forEach { removePendingSend(it.id) }
     }
@@ -2703,7 +2710,8 @@ class ChatViewModel(
         val sessionId = _uiState.value.currentSessionId ?: return
         val runtimeId = runtimeSessionId ?: return
         val scope = sendScope()
-        if (mainTurnBusy || !_uiState.value.isSessionReady ||
+        if (mainTurnBusy ||
+            !_uiState.value.isSessionReady ||
             wsClient.connectionStatus.value != ConnectionStatus.CONNECTED
         ) {
             return
@@ -2812,7 +2820,8 @@ class ChatViewModel(
     private fun refreshSendReceipts() {
         val sessionId = _uiState.value.currentSessionId ?: return
         if (sendStore.all().any {
-                it.scope == sendScope() && it.sessionId == sessionId &&
+                it.scope == sendScope() &&
+                    it.sessionId == sessionId &&
                     it.state in setOf(PendingSendState.SENDING, PendingSendState.ACCEPTED, PendingSendState.UNKNOWN)
             }
         ) {
@@ -2822,12 +2831,14 @@ class ChatViewModel(
         }
     }
 
-    /** #1427: explicit recovery can dismiss an uncertain receipt without guessing delivery or resending it. */
+    /** Discard is destructive; uncertain sends retain their conversation and receipt. */
     @Synchronized
     fun discardPendingSend(id: String) {
         val row = sendStore.all().firstOrNull { it.id == id } ?: return
-        if (row.scope != sendScope() || row.sessionId != _uiState.value.currentSessionId ||
+        if (row.scope != sendScope() ||
+            row.sessionId != _uiState.value.currentSessionId ||
             row.state == PendingSendState.SENDING ||
+            row.state == PendingSendState.UNKNOWN ||
             synchronized(pendingSendReservationLock) { pendingSendReservations.any { it.pending.id == id } }
         ) {
             return
@@ -2837,12 +2848,81 @@ class ChatViewModel(
         drainPendingQueue()
     }
 
+    /** Acknowledgment is local metadata, not a delivery receipt or a queue release barrier. */
+    @Synchronized
+    fun acknowledgePendingSend(id: String) {
+        val snapshot = sendStore.all().firstOrNull { it.id == id } ?: return
+        val state = _uiState.value
+        val generation = sessionGeneration
+        if (snapshot.state != PendingSendState.UNKNOWN ||
+            snapshot.userOrderingReleased ||
+            snapshot.scope != sendScope() ||
+            snapshot.sessionId != state.currentSessionId ||
+            !isCurrentSessionRequest(snapshot.sessionId, generation) ||
+            runtimeSessionId == null ||
+            !state.isSessionReady ||
+            wsClient.connectionStatus.value != ConnectionStatus.CONNECTED ||
+            mainTurnBusy ||
+            queueDrainJob?.isActive == true ||
+            queuedStagingIds.contains(id) ||
+            sendStore.all().any {
+                it.scope == snapshot.scope &&
+                    it.sessionId == snapshot.sessionId &&
+                    it.state == PendingSendState.SENDING
+            } ||
+            synchronized(pendingSendReservationLock) {
+                pendingSendReservations.any { it.scope == snapshot.scope && it.storageSessionId == snapshot.sessionId }
+            }
+        ) {
+            return
+        }
+        // Recheck the captured identity just before persisting; no REST/WS call or queue drain.
+        if (generation != sessionGeneration || sendStore.all().firstOrNull { it.id == id } != snapshot) return
+        try {
+            sendStore.update(id) { it.copy(userOrderingReleased = true) }
+        } catch (_: IllegalStateException) {
+            _uiState.update {
+                it.copy(
+                    errorMessage = getApplication<Application>().getString(R.string.chat_pending_acknowledge_failed),
+                )
+            }
+            return
+        }
+        publishPendingSends()
+    }
+
+    /** Forget only the captured local receipt; leave conversation and attachment files untouched. */
+    @Synchronized
+    fun removeAcknowledgedPendingSend(snapshot: PendingSend) {
+        val generation = sessionGeneration
+        if (snapshot.scope != sendScope() ||
+            snapshot.sessionId != _uiState.value.currentSessionId ||
+            !isCurrentSessionRequest(snapshot.sessionId, generation) ||
+            synchronized(pendingSendReservationLock) { pendingSendReservations.any { it.pending.id == snapshot.id } }
+        ) {
+            return
+        }
+        val removed =
+            try {
+                sendStore.dismissReleasedUnknown(snapshot)
+            } catch (_: IllegalStateException) {
+                _uiState.update {
+                    it.copy(errorMessage = getApplication<Application>().getString(R.string.chat_pending_remove_failed))
+                }
+                return
+            }
+        if (!removed) return
+        publishPendingSends()
+    }
+
     /** A manual promotion is the only path that may retry an uncertain send. */
     @Synchronized
     fun sendQueuedNow(id: String) {
         val row = sendStore.all().firstOrNull { it.id == id } ?: return
-        if (row.scope != sendScope() || row.sessionId != _uiState.value.currentSessionId ||
-            runtimeSessionId == null || !_uiState.value.isSessionReady ||
+        if (row.scope != sendScope() ||
+            row.sessionId != _uiState.value.currentSessionId ||
+            runtimeSessionId == null ||
+            !_uiState.value.isSessionReady ||
             wsClient.connectionStatus.value != ConnectionStatus.CONNECTED
         ) {
             return
@@ -2865,7 +2945,9 @@ class ChatViewModel(
         }
         val others =
             sendStore.all().any {
-                it.id != id && it.scope == row.scope && it.sessionId == row.sessionId &&
+                it.id != id &&
+                    it.scope == row.scope &&
+                    it.sessionId == row.sessionId &&
                     it.state == PendingSendState.SENDING
             }
         if (others) {
@@ -2891,6 +2973,8 @@ class ChatViewModel(
                             mode = if (wasStreaming) BusySendMode.INTERRUPT else BusySendMode.QUEUE,
                             state = PendingSendState.SENDING,
                             attempts = row.attempts + 1,
+                            // A retry is a new attempt; the earlier local acknowledgment is not transferable.
+                            userOrderingReleased = false,
                         ),
                     userMessage = message,
                     wasStreaming = wasStreaming,
@@ -2913,7 +2997,11 @@ class ChatViewModel(
             viewModelScope.launch {
                 commitReceiptAndEnqueue(
                     owner,
-                    row.copy(state = PendingSendState.SENDING, attempts = row.attempts + 1),
+                    row.copy(
+                        state = PendingSendState.SENDING,
+                        attempts = row.attempts + 1,
+                        userOrderingReleased = false,
+                    ),
                     row,
                     deleteSnapshotOnRollback = false,
                 ) {
@@ -2985,9 +3073,11 @@ class ChatViewModel(
         val clickedMainTurnEpoch = mainTurnEpoch
         val hasOutstandingDelivery =
             sendStore.all().any {
-                it.scope == sendScope() && it.sessionId == _uiState.value.currentSessionId &&
+                it.scope == sendScope() &&
+                    it.sessionId == _uiState.value.currentSessionId &&
                     it.state == PendingSendState.SENDING
-            } || hasPendingSendReservation(sendScope(), _uiState.value.currentSessionId)
+            } ||
+                hasPendingSendReservation(sendScope(), _uiState.value.currentSessionId)
         val busy = wasStreaming || hasOutstandingDelivery
         val selectedMode = modeOverride ?: _uiState.value.busySendMode
         val mode =
@@ -2996,7 +3086,8 @@ class ChatViewModel(
                     BusySendMode.QUEUE
                 }
 
-                busy && selectedMode != BusySendMode.INTERRUPT &&
+                busy &&
+                    selectedMode != BusySendMode.INTERRUPT &&
                     (attachments.isNotEmpty() || !wasStreaming) -> {
                     BusySendMode.QUEUE
                 }
@@ -3019,7 +3110,8 @@ class ChatViewModel(
         val agentSessionId = runtimeSessionId
         val scope = sendScope()
         val createdAt = nextPendingSendCreatedAt()
-        if (storageSessionId != null && agentSessionId != null &&
+        if (storageSessionId != null &&
+            agentSessionId != null &&
             (attachments.isNotEmpty() || hasPendingSendReservation(scope, storageSessionId))
         ) {
             val generation = sessionGeneration
@@ -5713,8 +5805,12 @@ class ChatViewModel(
         if (!sessionHasServerPresence) return
         val state = _uiState.value
         val sessionId = state.currentSessionId ?: return
-        if (isSyncingMessages || hydrationJob?.isActive == true || state.isLoading || state.isLoadingOlder ||
-            state.isAgentTyping || _streamingState.value.streamingMessage != null
+        if (isSyncingMessages ||
+            hydrationJob?.isActive == true ||
+            state.isLoading ||
+            state.isLoadingOlder ||
+            state.isAgentTyping ||
+            _streamingState.value.streamingMessage != null
         ) {
             return
         }
@@ -5729,8 +5825,10 @@ class ChatViewModel(
         val completedTurnEpoch = mainTurnEpoch
         val unverifiedAccepted =
             sendStore.all().filter {
-                it.scope == sendScope() && it.sessionId == sessionId &&
-                    it.state == PendingSendState.ACCEPTED && it.createdAt <= completionAt &&
+                it.scope == sendScope() &&
+                    it.sessionId == sessionId &&
+                    it.state == PendingSendState.ACCEPTED &&
+                    it.createdAt <= completionAt &&
                     acceptedTurnEpochById[it.id]?.let { epoch -> epoch <= completedTurnEpoch } == true
             }
         val nextOffset =

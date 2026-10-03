@@ -414,6 +414,19 @@ internal fun mergeCachedTranscriptPage(
                             match
                         }
                     }
+                // A scoped cache refresh may have resolved a predecessor outside this page.
+                // Accept that progression once; an older unresolved snapshot cannot demote it again.
+                val placement =
+                    if (message.localAnchorOrder != null &&
+                        (
+                            match.localAnchorOrder == null ||
+                                (match.localPredecessorId != null && message.localPredecessorId == null)
+                        )
+                    ) {
+                        message
+                    } else {
+                        match
+                    }
                 match.id to
                     rich.copy(
                         id = match.id,
@@ -429,6 +442,8 @@ internal fun mergeCachedTranscriptPage(
                         reactions = message.reactions.ifEmpty { match.reactions },
                         completionId = match.completionId ?: message.completionId,
                         displayKind = match.displayKind ?: message.displayKind,
+                        localAnchorOrder = placement.localAnchorOrder,
+                        localPredecessorId = placement.localPredecessorId,
                         isRestoredUnconfirmed =
                             match.isRestoredUnconfirmed && message.isRestoredUnconfirmed &&
                                 match.canonicalRestId == null && message.canonicalRestId == null,
@@ -571,6 +586,7 @@ private fun List<ChatMessage>.inTranscriptOrder(
     var pendingLocalOrder: Long? = null
     val localAnchors = mutableMapOf<String, Long>()
     val pendingOrderByLocal = mutableMapOf<String, Long>()
+    val byId = (previous + this).associateBy { it.id }
     // #1451: an observed live block must stay before its later confirmed USER successor,
     // even when its own REST echoes are absent. Successor anchors derive only from genuinely
     // observed current lists (never cache concatenations) and only from later USER prompts.
@@ -586,30 +602,59 @@ private fun List<ChatMessage>.inTranscriptOrder(
             nextCanonicalOrder[message.id] = followingUserCanonical
         }
     }
-    previous.forEach { message ->
+    previous.forEach { previousMessage ->
+        val message = byId[previousMessage.id] ?: previousMessage
         val order = resolvedOrders[message.id] ?: message.canonicalOrder
         if (order != null) {
             precedingCanonical = order
             hasPendingPredecessor = false
             pendingLocalOrder = null
-        } else if (message.localOrder != null && message.isPermanentlyLocal()) {
-            // Restored from Room, where local rows sort after every server row. Seat it by time after the
-            // last confirmed row that is not newer, or before the loaded window when it predates it.
+        } else if (message.localOrder != null && message.isPermanentlyLocal() &&
+            message.localAnchorOrder == null && message.localPredecessorId == null
+        ) {
+            // Only migrated legacy rows lack durable placement. Room groups them after server rows;
+            // seat those by time, never overriding an explicit anchor or pending predecessor.
             localAnchors[message.id] =
                 timedCanonical.filter { it.first <= message.timestamp }.maxOfOrNull { it.second } ?: beforeCanonical
         } else if (message.isPermanentlyLocal()) {
+            val predecessor = message.localPredecessorId?.let { byId[it] }
+            val predecessorOrder = predecessor?.let { resolvedOrders[it.id] ?: it.canonicalOrder }
             localAnchors[message.id] =
-                if (hasPendingPredecessor) {
-                    nextCanonicalOrder[message.id]?.let { it - 1L } ?: Long.MAX_VALUE
-                } else {
-                    precedingCanonical?.takeIf { it >= 0L }
-                        ?: if (message.role == MessageRole.USER) {
-                            precedingCanonical ?: latestCanonical
-                        } else {
-                            latestCanonical
-                        }
+                when {
+                    predecessorOrder != null -> {
+                        predecessorOrder
+                    }
+
+                    predecessor != null -> {
+                        // An unresolved durable predecessor still bounds this local row when a
+                        // later USER was actually observed after the block. Never infer that
+                        // boundary from cache order alone.
+                        (nextCanonicalOrder[message.id] ?: nextCanonicalOrder[predecessor.id])
+                            ?.let { it - 1L } ?: Long.MAX_VALUE
+                    }
+
+                    message.localAnchorOrder != null -> {
+                        message.localAnchorOrder
+                    }
+
+                    hasPendingPredecessor -> {
+                        nextCanonicalOrder[message.id]?.let { it - 1L } ?: Long.MAX_VALUE
+                    }
+
+                    else -> {
+                        precedingCanonical?.takeIf { it >= 0L }
+                            ?: if (message.role == MessageRole.USER) {
+                                precedingCanonical ?: latestCanonical
+                            } else {
+                                latestCanonical
+                            }
+                    }
                 }
-            if (hasPendingPredecessor) pendingOrderByLocal[message.id] = pendingLocalOrder ?: Long.MAX_VALUE
+            if (predecessor != null && predecessorOrder == null) {
+                pendingOrderByLocal[message.id] = predecessor.localOrder ?: Long.MAX_VALUE
+            } else if (hasPendingPredecessor && message.localAnchorOrder == null && message.localOrder == null) {
+                pendingOrderByLocal[message.id] = pendingLocalOrder ?: Long.MAX_VALUE
+            }
         } else if (message.isHistoricalCache || message.isRestoredUnconfirmed) {
             // Room groups UUID-only rows after all confirmed rows; that predecessor is
             // not a chronological anchor. Restored legacy rows stay before the server
@@ -629,8 +674,13 @@ private fun List<ChatMessage>.inTranscriptOrder(
             compareBy<IndexedValue<ChatMessage>> {
                 it.value.canonicalOrder ?: localAnchors[it.value.id] ?: Long.MAX_VALUE
             }.thenBy { if (localAnchors[it.value.id]?.let { anchor -> anchor != Long.MAX_VALUE } == true) 1 else 0 }
-                .thenBy { it.value.localOrder ?: pendingOrderByLocal[it.value.id] ?: Long.MAX_VALUE }
-                .thenBy { previousIndices[it.value.id] ?: it.index },
+                .thenBy {
+                    if (it.value.isSessionStartMarker() && it.value.localAnchorOrder != null) {
+                        Long.MIN_VALUE
+                    } else {
+                        it.value.localOrder ?: pendingOrderByLocal[it.value.id] ?: Long.MAX_VALUE
+                    }
+                }.thenBy { previousIndices[it.value.id] ?: it.index },
         ).map { it.value }
 }
 
@@ -639,13 +689,24 @@ internal fun ChatMessage.isPermanentlyLocal(): Boolean =
         (role == MessageRole.USER && (content.startsWith("/") || displayKind == DisplayKind.CLARIFY_RESPONSE)) ||
         (role == MessageRole.ASSISTANT && displayKind == DisplayKind.LOCAL_FEEDBACK)
 
+/** Capture visible placement before persistence/RPC suspension, not from Room's grouped cache order. */
+internal fun ChatMessage.withLocalTranscriptAnchor(previous: List<ChatMessage>): ChatMessage {
+    if (!isPermanentlyLocal() || canonicalRestId != null || isSessionStartMarker()) return this
+    val preceding = previous.lastOrNull { it.canonicalOrder != null }
+    val pending =
+        previous.drop((preceding?.let { previous.indexOf(it) } ?: -1) + 1).lastOrNull {
+            !it.isPermanentlyLocal() && !it.isHistoricalCache && !it.isRestoredUnconfirmed
+        }
+    return copy(localAnchorOrder = preceding?.canonicalOrder ?: -1L, localPredecessorId = pending?.id)
+}
+
 internal fun ChatMessage.isSessionStartMarker(): Boolean =
     role == MessageRole.SYSTEM && (content == "Session created" || content == "Session branched")
 
 private val ChatMessage.canonicalOrder: Long?
     get() =
         when {
-            isSessionStartMarker() -> -1L
+            isSessionStartMarker() -> if (localAnchorOrder == null) -1L else null
             localOrder != null && restId == null -> null
             else -> canonicalRestId?.substringAfterLast('-')?.toLongOrNull()
         }

@@ -16,6 +16,7 @@ internal class CertificateBindings(
     private val bindings = MutableStateFlow(initial.toMap())
     val state = bindings.asStateFlow()
     private var cacheVersions = versions.toMap()
+    private val processEpoch = UUID.randomUUID().toString()
 
     @Synchronized
     fun save(
@@ -48,7 +49,10 @@ internal class CertificateBindings(
         val origin = CertificateOrigin.from(url)
         val version = origin?.let { cacheVersions[it.storageKey] }.orEmpty()
         // Redirect destinations are unknown before fetching, so every remote cache also has a shared epoch.
-        return "$url#mtls=$version/${cacheVersions[GLOBAL_CACHE_VERSION].orEmpty()}"
+        val key = "$url#mtls=$version/${cacheVersions[GLOBAL_CACHE_VERSION].orEmpty()}"
+        // KeyChain changes while the process was stopped are never observed, so persisted generations cannot
+        // vouch for the installed identity. With bindings, remote caches are valid only for this process.
+        return if (bindings.value.isEmpty()) key else "$key/$processEpoch"
     }
 
     /** KeyChain removal/revocation retires credentials without discarding the user's saved aliases. */

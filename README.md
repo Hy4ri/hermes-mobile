@@ -141,7 +141,9 @@ TLS sockets and session contexts for the affected addresses. Retry failed reques
 restart media playback; content already displayed or buffered may remain visible.
 Remote image memory/disk cache keys and gateway file cache keys include persistent
 identity generations and a shared cache epoch covering redirect destinations, so a late old response cannot populate the new identity's cache.
-Old cache entries age out under the existing cache policies. To isolate client identities,
+While any binding exists, remote cache keys also include a per-launch epoch, because a
+KeyChain change made while the app was stopped cannot be observed; cached remote content is
+reused only within one app launch. Old cache entries age out under the existing cache policies. To isolate client identities,
 HTTP/2 connection coalescing across origins is disabled for the shared clients, including
 unbound origins; HTTP/2 within one origin remains enabled. A binding change also changes
 cache keys for unrelated remote resources because their redirect destinations are unknown

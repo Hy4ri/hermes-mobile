@@ -100,6 +100,40 @@ class CertificateBindingsTest {
     }
 
     @Test
+    fun `cache generations restored after a stopped process cannot vouch for a bound identity`() {
+        var persisted = emptyMap<String, String?>()
+        var versions = emptyMap<String, String>()
+        val store =
+            CertificateBindings(persist = { saved, revisions ->
+                persisted = saved
+                versions = revisions
+            }, invalidate = {})
+        store.save(null, url, "first", store.state.value)
+        val image = "https://cdn.test/image".toHttpUrl()
+        val relaunched = CertificateBindings(persisted, versions, persist = { _, _ -> }, invalidate = {})
+        assertEquals("first", relaunched.state.value[url.toString()])
+        assertNotEquals(store.cacheKey(url), relaunched.cacheKey(url))
+        assertNotEquals(store.cacheKey(image), relaunched.cacheKey(image))
+        assertEquals(relaunched.cacheKey(image), relaunched.cacheKey(image))
+    }
+
+    @Test
+    fun `cache generations persist across launches when no binding exists`() {
+        var persisted = emptyMap<String, String?>()
+        var versions = emptyMap<String, String>()
+        val store =
+            CertificateBindings(persist = { saved, revisions ->
+                persisted = saved
+                versions = revisions
+            }, invalidate = {})
+        store.save(null, url, "first", store.state.value)
+        store.save(url, null, null, store.state.value)
+        val image = "https://cdn.test/image".toHttpUrl()
+        val relaunched = CertificateBindings(persisted, versions, persist = { _, _ -> }, invalidate = {})
+        assertEquals(store.cacheKey(image), relaunched.cacheKey(image))
+    }
+
+    @Test
     fun `duplicates stale edits and persistence errors leave state and sockets intact`() {
         var fail = false
         var invalidations = 0

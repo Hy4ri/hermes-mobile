@@ -366,6 +366,7 @@ jobs:
       - name: Check job results
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           KTLINT_RESULT: ${{ needs.ktlint.result }}
           LINT_RESULT: ${{ needs.android-lint.result }}
           TEST_RESULT: ${{ needs.unit-tests.result }}
@@ -391,11 +392,11 @@ jobs:
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             PR=${{ github.event.pull_request.number }}
             if [[ "$FAILED" -eq 1 ]]; then
-              gh pr edit "$PR" --add-label "$LABEL" \
+              gh api -X POST "repos/$GH_REPO/issues/$PR/labels" -f "labels[]=$LABEL" --silent \
                 && echo "::notice::Added \"$LABEL\" to PR #$PR (failed: ${FAILED_JOBS% })"
             else
               # Fails if the label isn't present — that's fine, ignore it.
-              gh pr edit "$PR" --remove-label "$LABEL" 2>/dev/null || true
+              gh api -X DELETE "repos/$GH_REPO/issues/$PR/labels/$LABEL" --silent 2>/dev/null || true
             fi
           fi
 

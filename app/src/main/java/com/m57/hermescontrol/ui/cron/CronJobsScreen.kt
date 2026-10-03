@@ -159,20 +159,32 @@ fun CronJobsScreen(
                                         fontWeight = FontWeight.SemiBold,
                                         modifier = Modifier.weight(1f),
                                     )
+                                    val displayState = CronJobDisplayState.from(job.state)
                                     StatusBadge(
                                         text =
-                                            when (job.state) {
-                                                "scheduled", "active" -> stringResource(R.string.cron_status_active)
-                                                "completed" -> stringResource(R.string.cron_status_completed)
-                                                "error" -> stringResource(R.string.cron_status_error)
-                                                else -> stringResource(R.string.cron_status_paused)
+                                            when (displayState) {
+                                                CronJobDisplayState.ACTIVE -> {
+                                                    stringResource(R.string.cron_status_active)
+                                                }
+
+                                                CronJobDisplayState.COMPLETED -> {
+                                                    stringResource(R.string.cron_status_completed)
+                                                }
+
+                                                CronJobDisplayState.ERROR -> {
+                                                    stringResource(R.string.cron_status_error)
+                                                }
+
+                                                CronJobDisplayState.PAUSED -> {
+                                                    stringResource(R.string.cron_status_paused)
+                                                }
                                             },
                                         status =
-                                            when (job.state) {
-                                                "scheduled", "active" -> StatusBadgeType.SUCCESS
-                                                "completed" -> StatusBadgeType.INFO
-                                                "error" -> StatusBadgeType.ERROR
-                                                else -> StatusBadgeType.NEUTRAL
+                                            when (displayState) {
+                                                CronJobDisplayState.ACTIVE -> StatusBadgeType.SUCCESS
+                                                CronJobDisplayState.COMPLETED -> StatusBadgeType.INFO
+                                                CronJobDisplayState.ERROR -> StatusBadgeType.ERROR
+                                                CronJobDisplayState.PAUSED -> StatusBadgeType.NEUTRAL
                                             },
                                     )
                                     // Run-status badge: blocked_config looks like a
@@ -235,7 +247,7 @@ fun CronJobsScreen(
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
                                     }
-                                    if (job.state == "scheduled" || job.state == "active") {
+                                    if (displayState.canPause) {
                                         IconButton(
                                             onClick = { viewModel.pauseCronJob(job.id) },
                                         ) {
@@ -245,7 +257,7 @@ fun CronJobsScreen(
                                                 tint = MaterialTheme.colorScheme.primary,
                                             )
                                         }
-                                    } else if (job.state != "completed") {
+                                    } else if (displayState.canResume) {
                                         IconButton(
                                             onClick = { viewModel.resumeCronJob(job.id) },
                                         ) {

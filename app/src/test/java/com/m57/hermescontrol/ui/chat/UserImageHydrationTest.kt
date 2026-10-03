@@ -23,6 +23,57 @@ import org.junit.Test
  */
 class UserImageHydrationTest {
     @Test
+    fun issue1459PlainHistorySurvivesLiveMergeAndCacheRestore() {
+        val row =
+            kotlinx.serialization.json.Json { ignoreUnknownKeys = true }.decodeFromString<SessionMessage>(
+                """
+                {"id":344596,"role":"user","active":1,"compacted":0,
+                 "content":"图片附件测试\n@image:/opt/data/images/upload_20261003_211435_1.jpg\n[screenshot]"}
+                """.trimIndent(),
+            )
+        val session = "20261003_211412_83b369"
+        val remote =
+            mapServerMessages(
+                sessionId = session,
+                messages = listOf(row),
+                offset = 0,
+                latestPaging = true,
+                liveMessages = emptyList(),
+                mediaUrl = { "https://gateway.test/api/files/download?path=$it" },
+            ).single()
+        assertEquals(1, remote.attachments?.size)
+        assertEquals("upload_20261003_211435_1.jpg", remote.attachments!!.single().name)
+        val local =
+            remote.copy(
+                id = "local-prompt",
+                restId = remote.id,
+                attachments =
+                    listOf(
+                        com.m57.hermescontrol.data.model.Attachment(
+                            "content://photos/1",
+                            "photo.jpg",
+                            "image/jpeg",
+                        ),
+                    ),
+            )
+        val merged = mergeTranscriptWithLive(listOf(remote), listOf(local)).single()
+        assertEquals(local.attachments, merged.attachments)
+        assertEquals(row.contentText, merged.content)
+        val cached = merged.toEntity(session).toUiModel()
+        val restored =
+            cached.copy(
+                isHistoricalCache = true,
+                attachments = userImageAttachments(cached.content) { "https://new-gateway.test/download?path=$it" },
+            )
+        val cacheMerged = mergeCachedTranscriptPage(listOf(restored), emptyList()).single()
+        val refreshed = mergeTranscriptWithLive(listOf(remote), listOf(cacheMerged)).single()
+        assertEquals(1, refreshed.attachments?.size)
+        assertEquals(AttachmentSource.GATEWAY, refreshed.attachments!!.single().source)
+        assertEquals(row.contentText, refreshed.content)
+        assertEquals(refreshed, mergeTranscriptWithLive(listOf(remote), listOf(refreshed)).single())
+    }
+
+    @Test
     fun restHydrationEnrichesCachedUserWithoutReplacingLocalAttachments() {
         val rest =
             mapServerMessages(

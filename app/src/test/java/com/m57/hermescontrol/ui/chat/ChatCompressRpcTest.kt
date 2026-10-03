@@ -143,6 +143,8 @@ class ChatCompressRpcTest {
     }
 
     private suspend fun TestScope.createViewModelWithSession(
+        runtimeId: String = "session-xyz",
+        storageId: String = runtimeId,
         onHistoryReplaced: (() -> Unit)? = null,
     ): Pair<ChatViewModel, String> {
         val vm =
@@ -162,10 +164,56 @@ class ChatCompressRpcTest {
         mockEventsFlow.emit(WsEvent.GatewayReady(null))
         advanceUntilIdle()
         val createRequestId = requireNotNull(sessionCreateRequestId) { "session.create was not sent" }
-        mockEventsFlow.emit(WsEvent.RpcResult(createRequestId, mapOf("session_id" to "session-xyz")))
+        mockEventsFlow.emit(
+            WsEvent.RpcResult(createRequestId, mapOf("session_id" to runtimeId, "stored_session_id" to storageId)),
+        )
         advanceUntilIdle()
-        return Pair(vm, "session-xyz")
+        return Pair(vm, storageId)
     }
+
+    @Test
+    fun `compress targets runtime ID and persists feedback under stored history ID`() =
+        runTest {
+            val (vm, storageId) = createViewModelWithSession(runtimeId = "runtime-123", storageId = "history-456")
+            val paramsCalls = mutableListOf<Map<String, Any>>()
+            every {
+                HermesWsClient.request(WsMethods.SESSION_COMPRESS, capture(paramsCalls), any())
+            } answers {
+                CompletableDeferred<Any?>(
+                    buildJsonObject {
+                        put("status", "ok")
+                        put("message", "Context compressed under stored history")
+                    },
+                )
+            }
+
+            vm.sendMessage("/compress preserve decisions")
+            advanceUntilIdle()
+
+            assertEquals(JsonPrimitive("runtime-123"), paramsCalls.single()["session_id"])
+            assertEquals(JsonPrimitive("preserve decisions"), paramsCalls.single()["focus_topic"])
+            assertEquals(storageId, vm.uiState.value.currentSessionId)
+            assertTrue(fakeRepo.loadMessages(storageId).any { it.content == "Context compressed under stored history" })
+            assertTrue(fakeRepo.loadMessages("runtime-123").isEmpty())
+        }
+
+    @Test
+    fun `compact alias targets runtime ID when stored history ID differs`() =
+        runTest {
+            val (vm, _) = createViewModelWithSession(runtimeId = "runtime-123", storageId = "history-456")
+            val paramsCalls = mutableListOf<Map<String, Any>>()
+            every {
+                HermesWsClient.request(WsMethods.SESSION_COMPRESS, capture(paramsCalls), any())
+            } answers {
+                CompletableDeferred<Any?>(buildJsonObject { put("status", "ok") })
+            }
+
+            vm.sendMessage("/compact")
+            advanceUntilIdle()
+
+            assertEquals(JsonPrimitive("runtime-123"), paramsCalls.single()["session_id"])
+            assertFalse(paramsCalls.single().containsKey("focus_topic"))
+        }
 
     @Test
     fun `compress calls SESSION_COMPRESS not command dispatch or slash exec`() =
@@ -185,6 +233,36 @@ class ChatCompressRpcTest {
             assertTrue("expected SESSION_COMPRESS in $methodCalls", WsMethods.SESSION_COMPRESS in methodCalls)
             assertTrue("expected NO command.dispatch", WsMethods.COMMAND_DISPATCH !in methodCalls)
             assertTrue("expected NO slash.exec", "slash.exec" !in methodCalls)
+        }
+
+    @Test
+    fun `compress accepts compressed status emitted by the real gateway`() =
+        runTest {
+            val (vm, _) = createViewModelWithSession()
+            every {
+                HermesWsClient.request(WsMethods.SESSION_COMPRESS, any(), any())
+            } answers {
+                CompletableDeferred<Any?>(
+                    buildJsonObject {
+                        put("status", "compressed")
+                        put("removed", 20)
+                        put("before_messages", 48)
+                        put("after_messages", 28)
+                        put(
+                            "summary",
+                            buildJsonObject { put("headline", "Context compressed by the real gateway") },
+                        )
+                    },
+                )
+            }
+
+            vm.sendMessage("/compress")
+            advanceUntilIdle()
+
+            val lastMessage =
+                vm.uiState.value.messages
+                    .last()
+            assertEquals("Context compressed by the real gateway", lastMessage.content)
         }
 
     @Test
@@ -587,6 +665,84 @@ class ChatCompressRpcTest {
                     it.content
                 },
             )
+        }
+
+    @Test
+    fun `bare and whitespace queue commands and usage survive compression and repository reload`() =
+        runTest {
+            val (vm, sessionId) = createViewModelWithSession()
+            val sendsBefore = reqCount
+            assertTrue(vm.sendMessage("/queue"))
+            assertTrue(vm.sendMessage("/queue    "))
+            advanceUntilIdle()
+            val local =
+                vm.uiState.value.messages.filter {
+                    it.content.startsWith("/queue") ||
+                        it.content == "usage: /queue <prompt>"
+                }
+            assertEquals(
+                listOf("/queue", "usage: /queue <prompt>", "/queue", "usage: /queue <prompt>"),
+                local.map { it.content },
+            )
+            assertEquals(4, local.map { it.id }.distinct().size)
+            assertEquals(sendsBefore, reqCount)
+            val durableBefore = fakeRepo.loadMessages(sessionId)
+            assertTrue(local.all { row -> durableBefore.any { it.id == row.id && it.content == row.content } })
+
+            every { HermesWsClient.request(WsMethods.SESSION_COMPRESS, any(), any()) } returns
+                CompletableDeferred(
+                    buildJsonObject {
+                        put("status", JsonPrimitive("ok"))
+                        put("message", JsonPrimitive("Compressed."))
+                        put(
+                            "messages",
+                            buildJsonArray {
+                                add(
+                                    buildJsonObject {
+                                        put("id", JsonPrimitive(1))
+                                        put("role", JsonPrimitive("user"))
+                                        put("content", JsonPrimitive("Summary"))
+                                    },
+                                )
+                                add(
+                                    buildJsonObject {
+                                        put("id", JsonPrimitive(2))
+                                        put("role", JsonPrimitive("assistant"))
+                                        put("content", JsonPrimitive("Fresh answer"))
+                                    },
+                                )
+                            },
+                        )
+                    },
+                )
+            vm.sendMessage("/compress")
+            advanceUntilIdle()
+            val freshRepo = FakeChatPersistenceRepository(fakeRepo.dao)
+            val restored = mergeCachedTranscriptPage(freshRepo.loadPage(sessionId, null, 150).messages, emptyList())
+            val refreshed =
+                listOf(
+                    ChatMessage(id = "rest-$sessionId-0", role = MessageRole.USER, content = "Summary", timestamp = 1L),
+                    ChatMessage(
+                        id = "rest-$sessionId-1",
+                        role = MessageRole.ASSISTANT,
+                        content = "Fresh answer",
+                        timestamp = 2L,
+                    ),
+                )
+            val once = mergeTranscriptWithLive(refreshed, restored)
+            val twice = mergeTranscriptWithLive(refreshed, once)
+            val expected =
+                listOf("Summary", "Fresh answer", "Session created") + local.map { it.content } +
+                    listOf("/compress", "Compressed.")
+            assertEquals(
+                expected,
+                vm.uiState.value.messages
+                    .map { it.content },
+            )
+            assertEquals(expected, restored.map { it.content })
+            assertEquals(expected, once.map { it.content })
+            assertEquals(expected, twice.map { it.content })
+            assertEquals(local.map { it.id }, twice.filter { it.id in local.map { row -> row.id } }.map { it.id })
         }
 
     @Test

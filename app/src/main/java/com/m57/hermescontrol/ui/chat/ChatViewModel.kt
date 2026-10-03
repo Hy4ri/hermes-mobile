@@ -3742,7 +3742,9 @@ class ChatViewModel(
                                 MessageProvenance.UNKNOWN
                             },
                     ),
-                persist = result !is SlashResult.QueuePrompt,
+                // Fix #1437 follow-up: an empty /queue is local feedback, not a staged prompt.
+                // Only stripped, nonempty queue prompts defer persistence to the send pipeline.
+                persist = result !is SlashResult.QueuePrompt || displayContent == command,
             )
 
         if (result is SlashResult.Undo) {
@@ -4315,7 +4317,10 @@ class ChatViewModel(
 
     private fun compressSession(focusTopic: String) {
         val sessionId = _uiState.value.currentSessionId
-        if (sessionId == null) {
+        // Fix #1437: session.compress resolves a runtime ID, not the persisted history key.
+        // Keep the stored ID below for generation guards and transcript persistence.
+        val rpcSessionId = runtimeSessionId
+        if (sessionId == null || rpcSessionId == null) {
             addAssistantMessage("No active session to compress.")
             return
         }
@@ -4329,7 +4334,7 @@ class ChatViewModel(
                     wsClient.call(
                         RpcMethods.SESSION_COMPRESS,
                         SessionCompressParams(
-                            sessionId = sessionId,
+                            sessionId = rpcSessionId,
                             focusTopic = focusTopic.takeIf { it.isNotBlank() },
                         ),
                         timeoutMs = 300_000L,
@@ -4416,7 +4421,7 @@ class ChatViewModel(
             }
         if (!isCurrentSessionRequest(sessionId, generation)) return
         if (response == null ||
-            (response.status != null && response.status != "ok") ||
+            (response.status != null && response.status !in setOf("ok", "compressed")) ||
             (
                 response.status == null && response.messages == null && response.summary == null &&
                     response.message == null && response.compressed == null

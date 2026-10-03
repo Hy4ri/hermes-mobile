@@ -1242,7 +1242,7 @@
     <!-- CronJobs Screen -->
     <string name="cron_empty_title">No cron jobs</string>
     <string name="cron_empty_desc">Scheduled tasks from Hermes will appear here.</string>
-    <string name="cron_status_active">Active</string>
+    <string name="cron_status_scheduled">Scheduled</string>
     <string name="cron_status_paused">Paused</string>
     <string name="cron_status_completed">Completed</string>
     <string name="cron_status_error">Error</string>

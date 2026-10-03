@@ -164,7 +164,7 @@ fun CronJobsScreen(
                                         text =
                                             when (displayState) {
                                                 CronJobDisplayState.ACTIVE -> {
-                                                    stringResource(R.string.cron_status_active)
+                                                    stringResource(R.string.cron_status_scheduled)
                                                 }
 
                                                 CronJobDisplayState.COMPLETED -> {

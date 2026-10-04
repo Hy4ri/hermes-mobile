@@ -1,9 +1,9 @@
 package com.m57.hermescontrol.ui.mcp
 
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.model.McpServer
 import com.m57.hermescontrol.data.model.McpServerTestResponse
-import com.m57.hermescontrol.data.model.McpServerUpdateRequest
 import com.m57.hermescontrol.data.model.McpServersResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.HermesApiService
@@ -16,9 +16,12 @@ import io.mockk.mockkObject
 import io.mockk.unmockkAll
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -42,7 +45,8 @@ class McpOwnershipTest {
         api = mockk()
         mockkObject(ApiClient, AuthManager)
         every { ApiClient.hermesApi } returns api
-        every { AuthManager.currentDataScope() } throws IllegalStateException("No test scope")
+        every { AuthManager.activeProfileId } returns MutableStateFlow("work")
+        every { AuthManager.currentDataScope() } returns null
     }
 
     @After
@@ -92,7 +96,7 @@ class McpOwnershipTest {
         assertNull(vm.uiState.value.editingEnvFor)
         coVerify(exactly = 0) { api.toggleMcpServer(any(), any()) }
         coVerify(exactly = 0) { api.deleteMcpServer(any()) }
-        coVerify(exactly = 0) { api.updateMcpServer(any(), any()) }
+        coVerify(exactly = 0) { api.replaceMcpServers(any()) }
         coVerify(exactly = 0) { api.authMcpServer(any()) }
         coEvery { api.testMcpServer(owned.name) } returns Response.success(McpServerTestResponse(ok = true))
         vm.testServer(owned.name)
@@ -118,15 +122,29 @@ class McpOwnershipTest {
         )
         vm.startEditingEnv(config)
         assertEquals(config.name, vm.uiState.value.editingEnvFor)
-        coEvery { api.updateMcpServer(config.name, any()) } returns Response.success(config)
+        coEvery { api.replaceMcpServers(any()) } returns Response.success(Unit)
         vm.updateEnvKey("KEY")
         vm.updateEnvValue("value")
         vm.addEnvVar(config.name)
         dispatcher.scheduler.advanceUntilIdle()
-        coVerify { api.updateMcpServer(config.name, McpServerUpdateRequest(env = mapOf("KEY" to "value"))) }
+        coVerify {
+            api.replaceMcpServers(
+                match {
+                    (it.servers[config.name] as JsonObject)["env"] ==
+                        JsonObject(mapOf("KEY" to JsonPrimitive("value")))
+                },
+            )
+        }
         vm.removeEnvVar(config.name, "KEY")
         dispatcher.scheduler.advanceUntilIdle()
-        coVerify { api.updateMcpServer(config.name, McpServerUpdateRequest(env = emptyMap())) }
+        coVerify {
+            api.replaceMcpServers(
+                match {
+                    (it.servers[config.name] as JsonObject)["env"] ==
+                        JsonObject(emptyMap())
+                },
+            )
+        }
         coEvery { api.deleteMcpServer(config.name) } returns Response.success(Unit)
         vm.deleteServer(config.name)
         dispatcher.scheduler.advanceUntilIdle()
@@ -150,7 +168,7 @@ class McpOwnershipTest {
         vm.deleteServer(config.name)
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(conflict, vm.uiState.value.toastMessage)
-        coEvery { api.updateMcpServer(any(), any()) } coAnswers { conflictResponse() }
+        coEvery { api.replaceMcpServers(any()) } coAnswers { conflictResponse() }
         vm.updateEnvKey("KEY")
         vm.addEnvVar(config.name)
         dispatcher.scheduler.advanceUntilIdle()
@@ -164,6 +182,88 @@ class McpOwnershipTest {
         vm.startMcpOAuthFlow(config) { error("Must not open browser") }
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(conflict, vm.uiState.value.toastMessage)
+    }
+
+    @Test
+    fun `failed saved config read never replaces the collection`() {
+        val config = owned.copy(source = "config", plugin = null)
+        val vm = loaded(config)
+        coEvery { api.getSavedConfig("work") } returns conflictResponse()
+        vm.updateEnvKey("KEY")
+        vm.addEnvVar(config.name)
+        dispatcher.scheduler.advanceUntilIdle()
+        coVerify(exactly = 0) { api.replaceMcpServers(any()) }
+        assertEquals(conflict, vm.uiState.value.toastMessage)
+    }
+
+    @Test
+    fun `missing saved server never replaces unrelated servers`() {
+        val config = owned.copy(source = "config", plugin = null)
+        val vm = loaded(config)
+        coEvery { api.getSavedConfig("work") } returns Response.success(mapOf("mcp_servers" to JsonObject(emptyMap())))
+        vm.removeEnvVar(config.name, "KEY")
+        dispatcher.scheduler.advanceUntilIdle()
+        coVerify(exactly = 0) { api.replaceMcpServers(any()) }
+        assertTrue(
+            vm.uiState.value.toastMessage!!
+                .contains("not editable"),
+        )
+    }
+
+    @Test
+    fun `profile switch during saved config read cancels the write`() {
+        val profile = MutableStateFlow<String?>("work")
+        every { AuthManager.activeProfileId } returns profile
+        val config = owned.copy(source = "config", plugin = null)
+        val vm = loaded(config)
+        coEvery { api.getSavedConfig("work") } coAnswers {
+            profile.value = "other"
+            Response.success(mapOf("mcp_servers" to JsonObject(mapOf(config.name to JsonObject(emptyMap())))))
+        }
+        vm.updateEnvKey("KEY")
+        vm.addEnvVar(config.name)
+        dispatcher.scheduler.advanceUntilIdle()
+        coVerify(exactly = 0) { api.replaceMcpServers(any()) }
+        assertTrue(
+            vm.uiState.value.toastMessage!!
+                .contains("profile changed"),
+        )
+    }
+
+    @Test
+    fun `server switch with same profile during saved config read cancels the write`() {
+        val initial = DataScope("server-one", "https://one.example", "work")
+        var scope = initial
+        every { AuthManager.currentDataScope() } answers { scope }
+        val config = owned.copy(source = "config", plugin = null)
+        val vm = loaded(config)
+        coEvery { api.getSavedConfig("work") } coAnswers {
+            scope = initial.copy(connectionProfileId = "server-two", baseUrl = "https://two.example")
+            Response.success(mapOf("mcp_servers" to JsonObject(mapOf(config.name to JsonObject(emptyMap())))))
+        }
+        vm.updateEnvKey("KEY")
+        vm.addEnvVar(config.name)
+        dispatcher.scheduler.advanceUntilIdle()
+        coVerify(exactly = 0) { api.replaceMcpServers(any()) }
+        assertTrue(
+            vm.uiState.value.toastMessage!!
+                .contains("Server or profile changed"),
+        )
+    }
+
+    @Test
+    fun `server switch before queued edit starts never reads or replaces the new context`() {
+        val initial = DataScope("server-one", "https://one.example", "work")
+        var scope = initial
+        every { AuthManager.currentDataScope() } answers { scope }
+        val config = owned.copy(source = "config", plugin = null)
+        val vm = loaded(config)
+        vm.updateEnvKey("KEY")
+        vm.addEnvVar(config.name)
+        scope = initial.copy(connectionProfileId = "server-two", baseUrl = "https://two.example")
+        dispatcher.scheduler.advanceUntilIdle()
+        coVerify(exactly = 0) { api.getSavedConfig(any(), any()) }
+        coVerify(exactly = 0) { api.replaceMcpServers(any()) }
     }
 
     @Test
@@ -183,6 +283,15 @@ class McpOwnershipTest {
 
     private fun loaded(server: McpServer): McpServersViewModel {
         coEvery { api.getMcpServers() } returns Response.success(McpServersResponse(listOf(server)))
+        coEvery { api.getSavedConfig("work") } returns
+            Response.success(
+                mapOf(
+                    "mcp_servers" to
+                        JsonObject(
+                            mapOf(server.name to JsonObject(mapOf("command" to JsonPrimitive("tool")))),
+                        ),
+                ),
+            )
         return McpServersViewModel(ioDispatcher = dispatcher).also {
             it.loadServers()
             dispatcher.scheduler.advanceUntilIdle()

@@ -61,7 +61,7 @@ import com.m57.hermescontrol.data.model.McpOAuthFlowResponse
 import com.m57.hermescontrol.data.model.McpServer
 import com.m57.hermescontrol.data.model.McpServerTestResponse
 import com.m57.hermescontrol.data.model.McpServerToggleRequest
-import com.m57.hermescontrol.data.model.McpServerUpdateRequest
+import com.m57.hermescontrol.data.model.McpServersReplaceRequest
 import com.m57.hermescontrol.data.model.McpServersResponse
 import com.m57.hermescontrol.data.model.MemoryProviderConfigResponse
 import com.m57.hermescontrol.data.model.MemoryProviderConfigUpdateRequest
@@ -550,6 +550,12 @@ interface HermesApiService : KanbanApiService {
     @GET("api/config")
     suspend fun getConfig(): Response<Map<String, JsonElement>>
 
+    @GET("api/config")
+    suspend fun getSavedConfig(
+        @Query("profile") profile: String? = null,
+        @Query("include_defaults") includeDefaults: Boolean = false,
+    ): Response<Map<String, JsonElement>>
+
     @GET("api/config/schema")
     suspend fun getConfigSchema(): Response<ConfigSchemaResponse>
 
@@ -585,11 +591,10 @@ interface HermesApiService : KanbanApiService {
         @Body body: AddMcpServerRequest,
     ): Response<McpServer>
 
-    @PUT("api/mcp/servers/{name}")
-    suspend fun updateMcpServer(
-        @Path("name") name: String,
-        @Body body: McpServerUpdateRequest,
-    ): Response<McpServer>
+    @PUT("api/mcp/servers")
+    suspend fun replaceMcpServers(
+        @Body body: McpServersReplaceRequest,
+    ): Response<Unit>
 
     @POST("api/mcp/servers/{name}/auth")
     suspend fun authMcpServer(

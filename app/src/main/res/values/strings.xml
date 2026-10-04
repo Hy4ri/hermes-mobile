@@ -1862,4 +1862,33 @@
     <string name="mcp_servers_catalog_empty_title">No catalog entries</string>
     <string name="mcp_servers_catalog_installed">Installed</string>
     <string name="settings_desc_theme_preset_dynamic">Used for status colors while Material You supplies the app colors.</string>
+    <string name="screen_connections">Connections</string>
+    <string name="mtls_title">HTTPS mTLS client certificate configuration</string>
+    <string name="mtls_add">Add Configuration</string>
+    <string name="mtls_edit">Edit Configuration</string>
+    <string name="mtls_delete">Delete Configuration</string>
+    <string name="mtls_delete_title">Delete configuration?</string>
+    <string name="mtls_empty">No configurations</string>
+    <string name="mtls_help">Configure a client certificate only when an HTTPS server requires one. The certificate proves your identity to the server.</string>
+    <string name="mtls_none">No certificate selected</string>
+    <string name="mtls_host">Server address (hostname or IP)</string>
+    <string name="mtls_port">HTTPS port</string>
+    <string name="mtls_certificate">Client certificate</string>
+    <string name="mtls_select">Select Certificate</string>
+    <string name="mtls_replace">Change Certificate</string>
+    <string name="mtls_choosing">Selecting certificate…</string>
+    <string name="mtls_delete_help">Delete %1$s? This cannot be undone.</string>
+    <string name="mtls_duplicate">A configuration already exists for this server address and port. Edit that configuration instead.</string>
+    <string name="mtls_invalid_host">Enter a valid hostname or IP address.</string>
+    <string name="mtls_invalid_port">Enter a port number between 1 and 65535.</string>
+    <string name="mtls_save_error">Could not save. Reopen the configuration and try again.</string>
+    <string name="mtls_select_error">The selected certificate could not be used. Select it again.</string>
+    <string name="mtls_discard_title">Discard unsaved changes?</string>
+    <string name="mtls_discard_help">Your unsaved changes will be lost.</string>
+    <string name="mtls_discard">Discard Changes</string>
+    <string name="mtls_continue_editing">Continue Editing</string>
+    <plurals name="mtls_saved_configurations">
+        <item quantity="one">Saved Configuration (%1$d)</item>
+        <item quantity="other">Saved Configurations (%1$d)</item>
+    </plurals>
 </resources>

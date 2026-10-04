@@ -1017,7 +1017,7 @@
     <string name="pressure_banner_memory_elevated">代理内存不足</string>
     <string name="cron_empty_title">没有定时任务</string>
     <string name="cron_empty_desc">Hermes 的定时任务将显示在这里。</string>
-    <string name="cron_status_active">启用</string>
+    <string name="cron_status_scheduled">已计划</string>
     <string name="cron_status_paused">已暂停</string>
     <string name="cron_action_pause">暂停</string>
     <string name="cron_action_resume">恢复</string>

@@ -8,7 +8,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Holds chat in-message search state and logic, extracted from [ChatViewModel]
@@ -36,6 +38,32 @@ class ChatSearchDelegate(
     private val debounceMs: Long = SEARCH_DEBOUNCE_MS,
 ) {
     private var searchJob: Job? = null
+    private var queryEpoch = 0L
+    private var lastScannedMessages: List<ChatMessage>? = null
+
+    /** Counts presentation filtering at this boundary, including validation rescans. */
+    internal var searchableMessagesCallsForTest = 0
+        private set
+
+    init {
+        // Gate before queue filtering or list equality: inactive transcripts may be large.
+        scope.launch {
+            uiState.collect { state ->
+                if (!searchState.isActive || searchState.query.isBlank()) return@collect
+                val messages = searchableMessages(state)
+                if (messages == lastScannedMessages) return@collect
+                // Do not bypass typing debounce; once it ends, scan the latest state.
+                searchJob?.join()
+                if (searchJob?.isActive == true) return@collect
+                val query = searchState.query
+                if (!searchState.isActive || query.isBlank()) return@collect
+                val latest = searchableMessages(uiState.value)
+                if (latest != lastScannedMessages) {
+                    runSearch(query, queryEpoch, preserveCurrent = true, messages = latest)
+                }
+            }
+        }
+    }
 
     fun toggleSearch() {
         if (searchState.isActive) {
@@ -48,7 +76,11 @@ class ChatSearchDelegate(
 
     fun setSearchQuery(query: String) {
         searchJob?.cancel()
+        queryEpoch++
         searchState.query = query
+        // Direct callers may set a query without opening the search UI first.
+        if (query.isNotBlank()) searchState.isActive = true
+        lastScannedMessages = null
 
         if (query.isBlank()) {
             resetMatches()
@@ -58,32 +90,82 @@ class ChatSearchDelegate(
         // Keep local state in sync immediately so UI feels responsive, then
         // debounce: cancel any pending scan and only run one after typing
         // pauses for debounceMs (fast typing = one scan, not one per char).
+        val epoch = queryEpoch
         searchJob =
-            scope.launch(dispatcher) {
+            scope.launch {
                 delay(debounceMs)
-                runSearch(query)
+                runSearch(query, epoch, preserveCurrent = false)
             }
     }
 
-    private fun runSearch(query: String) {
-        val messages = uiState.value.messages
-        val result = searchController.findMatches(messages, query)
+    private suspend fun runSearch(
+        query: String,
+        epoch: Long,
+        preserveCurrent: Boolean,
+        messages: List<ChatMessage> = searchableMessages(uiState.value),
+    ) {
+        val result = withContext(dispatcher) { searchController.findMatches(messages, query) }
+        applySearchResult(query, epoch, preserveCurrent, messages, result)
+    }
 
-        // Only update matches if the search query hasn't changed in the meantime.
-        if (searchState.query != query) return
+    /** Called on the caller/UI context; no suspension between validation and publication. */
+    private fun applySearchResult(
+        query: String,
+        epoch: Long,
+        preserveCurrent: Boolean,
+        messages: List<ChatMessage>,
+        result: SearchResult,
+    ) {
+        // A query can change away and back to the same text, or presentation can
+        // change during a scan. Neither stale result may replace the current one.
+        if (queryEpoch != epoch || searchState.query != query || searchableMessages(uiState.value) != messages) return
 
+        val previousId = if (preserveCurrent) searchState.currentMatchId else null
+        val previousTarget = if (preserveCurrent) searchState.matchTargets.getOrNull(searchState.currentIndex) else null
+        val previousOffset = if (preserveCurrent) searchState.matchOffsets.getOrNull(searchState.currentIndex) else null
+        val preservedIndex =
+            result.matches
+                .indexOfFirst { match ->
+                    messages[match.messageIndex].id == previousId && match.target == previousTarget &&
+                        match.contentOffset == previousOffset
+                }.takeIf { it >= 0 } ?: result.matches
+                .indexOfFirst { match ->
+                    messages[match.messageIndex].id == previousId && match.target == previousTarget
+                }.takeIf { it >= 0 }
+
+        lastScannedMessages = messages
         searchState.matchIndices = result.matches.map { m -> m.messageIndex }
         searchState.matchOffsets = result.matches.map { m -> m.contentOffset }
         searchState.matchTargets = result.matches.map { m -> m.target }
         searchState.matchTotal = result.totalMatches
         searchState.matchCapped = result.capped
-        searchState.currentIndex = if (result.matches.isNotEmpty()) 0 else -1
+        searchState.currentIndex = if (result.matches.isNotEmpty()) preservedIndex ?: 0 else -1
         searchState.matchedIds = matchedMessageIds(messages, searchState.matchIndices)
         searchState.currentMatchId =
             currentMatchMessageId(messages, searchState.matchIndices, searchState.currentIndex)
     }
 
     fun navigateSearchMatch(direction: Int) {
+        // A navigation click can arrive before the state-flow collector handles a queue transition.
+        val query = searchState.query
+        if (searchJob?.isActive == true) return
+        val messages = searchableMessages(uiState.value)
+        if (query.isNotBlank() && messages != lastScannedMessages) {
+            val epoch = queryEpoch
+            searchJob =
+                scope.launch {
+                    runSearch(query, epoch, preserveCurrent = true, messages = messages)
+                    if (queryEpoch == epoch && searchState.query == query && lastScannedMessages == messages) {
+                        applyNavigation(direction)
+                    }
+                }
+            return
+        }
+        applyNavigation(direction)
+    }
+
+    /** Called on the UI scope, including after a worker rescan completes. */
+    private fun applyNavigation(direction: Int) {
         val indices = searchState.matchIndices
         if (indices.isEmpty()) return
         val newIdx =
@@ -94,13 +176,24 @@ class ChatSearchDelegate(
             )
         searchState.currentIndex = newIdx
         searchState.currentMatchId =
-            currentMatchMessageId(uiState.value.messages, indices, newIdx)
+            currentMatchMessageId(searchableMessages(uiState.value), indices, newIdx)
+    }
+
+    // Keep search indices in the same presentation space as the transcript (custom queue UI).
+    private fun searchableMessages(state: ChatUiState): List<ChatMessage> {
+        searchableMessagesCallsForTest++
+        return messagesWithoutUnsentQueue(
+            messagesWithoutUnconfirmedReceipts(state.messages, state.pendingSends),
+            state.pendingSends,
+        )
     }
 
     fun clearSearch() {
         searchJob?.cancel()
+        queryEpoch++
         searchState.isActive = false
         searchState.query = ""
+        lastScannedMessages = null
         resetMatches()
     }
 

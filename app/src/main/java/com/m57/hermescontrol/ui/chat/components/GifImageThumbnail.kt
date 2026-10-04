@@ -7,8 +7,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -24,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -35,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -43,6 +46,8 @@ import coil3.asDrawable
 import coil3.compose.AsyncImage
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.ui.chat.ChatImageDiagnostics
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private enum class ThumbnailState { LOADING, SUCCESS, ERROR }
 
@@ -54,6 +59,7 @@ fun GifImageThumbnail(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     diagnosticId: String? = null,
+    frameKey: String? = null,
 ) {
     // #1459: an attachment is not proof that its image loaded. Keep failures visible and retryable.
     var retry by remember(model) { mutableIntStateOf(0) }
@@ -77,11 +83,26 @@ fun GifImageThumbnail(
         onDispose { ChatImageDiagnostics.load("dispose", model, diagnosticId) }
     }
     val context = LocalContext.current
+    // #1459: one rectangle per logical image, chosen before the first pixel and never changed afterwards.
+    val frameId = frameKey ?: model.toString()
+    val isLocal = model is String && (model.startsWith("file:", true) || model.startsWith("content:", true))
+    var frameRatio by remember(frameId) {
+        mutableStateOf(
+            ImageFrameStore.get(frameId) ?: if (isLocal) null else ImageFrameStore.establish(frameId, Float.NaN),
+        )
+    }
+    LaunchedEffect(frameId) {
+        if (frameRatio == null) {
+            val measured = withContext(Dispatchers.IO) { readLocalImageRatio(context, model as String) }
+            frameRatio = ImageFrameStore.establish(frameId, measured ?: Float.NaN)
+        }
+    }
     Box(
         modifier =
             modifier
                 .fillMaxWidth()
-                .heightIn(min = if (state == ThumbnailState.SUCCESS) 0.dp else 120.dp)
+                .testTag("chat_image_frame")
+                .aspectRatio(frameRatio ?: ImageFrameStore.FALLBACK_RATIO)
                 .clip(RoundedCornerShape(12.dp))
                 .clickable(enabled = state == ThumbnailState.SUCCESS, onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -113,20 +134,20 @@ fun GifImageThumbnail(
                 },
                 modifier =
                     Modifier
-                        .fillMaxWidth()
+                        .fillMaxSize()
                         .clip(RoundedCornerShape(12.dp)),
-                contentScale = ContentScale.FillWidth,
+                contentScale = ContentScale.Fit,
             )
         }
 
         if (state != ThumbnailState.SUCCESS) {
             Surface(
                 color = MaterialTheme.colorScheme.surfaceContainer,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxSize(),
                 shape = RoundedCornerShape(12.dp),
             ) {
                 Column(
-                    modifier = Modifier.heightIn(min = 120.dp).padding(12.dp),
+                    modifier = Modifier.fillMaxSize().padding(8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                 ) {
@@ -140,7 +161,7 @@ fun GifImageThumbnail(
                             text = name,
                             modifier = Modifier.padding(top = 6.dp),
                             style = MaterialTheme.typography.bodySmall,
-                            maxLines = 2,
+                            maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                     }

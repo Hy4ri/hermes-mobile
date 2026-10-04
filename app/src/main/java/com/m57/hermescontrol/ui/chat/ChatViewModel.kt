@@ -1216,6 +1216,10 @@ class ChatViewModel(
                 loadSessions()
             }
 
+            is WsEvent.SessionReclaimed -> {
+                handleSessionReclaimed(event)
+            }
+
             is WsEvent.TranscriptResyncRequired -> {
                 val current = runtimeSessionId ?: _uiState.value.currentSessionId
                 if (current != null && (current == event.sessionId || event.sessionId.isEmpty())) {
@@ -5951,6 +5955,40 @@ class ChatViewModel(
         // until its result lands so the user actually sees it.
         pendingGoneSessionNotice = true
         createNewSession(setLoading = false)
+    }
+
+    /**
+     * Issue #1463: the gateway reclaimed a live runtime (broadcast to every client). Invalidate ONLY the runtime
+     * this chat is bound to: the event must name it explicitly, and a stored id alone never matches, so a newer
+     * runtime already resumed for the same conversation survives a late reclaim. History, drafts and pending-send
+     * receipts are kept; the existing resume error + Retry ([retryResumeSession]) rebinds the stored session.
+     */
+    private fun handleSessionReclaimed(event: WsEvent.SessionReclaimed) {
+        val boundRuntime = runtimeSessionId ?: return
+        if (event.sessionId != boundRuntime) return
+        val current = _uiState.value.currentSessionId
+        if (event.storedSessionId != null && current != null && event.storedSessionId != current) return
+        mainTurnBusy = false
+        runtimeSessionId = null
+        ActiveSessionHolder.clear()
+        resumedGeneration = -1L
+        hydratedGeneration = -1L
+        activeResumeRequestSequence = ++resumeRequestSequence
+        // Late results/errors tied to the reclaimed runtime are rejected as stale.
+        sessionGeneration++
+        queueDrainJob?.cancel()
+        queueDrainJob = null
+        cancelResumeRetry()
+        _uiState.update {
+            it.copy(
+                isSessionReady = false,
+                isLoading = false,
+                isAgentTyping = false,
+                isThinking = false,
+                isResumeRetrying = false,
+                resumeError = "Live session was reclaimed by the server. Retry to reconnect.",
+            )
+        }
     }
 
     private fun handleResumeFailure(

@@ -1651,4 +1651,32 @@
     <string name="vault_unlock_password_label">主密码</string>
     <string name="vault_unlock_success">%1$s 解锁成功</string>
     <string name="vault_unlock_title">解锁 %1$s</string>
+    <string name="screen_connections">连接</string>
+    <string name="mtls_title">HTTPS mTLS客户端证书配置</string>
+    <string name="mtls_add">添加配置</string>
+    <string name="mtls_edit">编辑配置</string>
+    <string name="mtls_delete">删除配置</string>
+    <string name="mtls_delete_title">删除配置？</string>
+    <string name="mtls_empty">暂无配置</string>
+    <string name="mtls_help">仅当 HTTPS 服务器要求提供客户端证书时，才需要配置。证书用于向服务器证明您的身份。</string>
+    <string name="mtls_none">未选择证书</string>
+    <string name="mtls_host">服务器地址（域名或 IP）</string>
+    <string name="mtls_port">HTTPS 端口</string>
+    <string name="mtls_certificate">客户端证书</string>
+    <string name="mtls_select">选择证书</string>
+    <string name="mtls_replace">更换证书</string>
+    <string name="mtls_choosing">正在选择证书…</string>
+    <string name="mtls_delete_help">确定要删除 %1$s 吗？此操作无法撤销。</string>
+    <string name="mtls_duplicate">此服务器地址和端口已有配置，请编辑现有配置。</string>
+    <string name="mtls_invalid_host">请输入有效的域名或 IP 地址。</string>
+    <string name="mtls_invalid_port">请输入 1 – 65535 之间的端口号。</string>
+    <string name="mtls_save_error">保存失败，请重新打开配置后重试。</string>
+    <string name="mtls_select_error">无法使用所选证书，请重新选择。</string>
+    <string name="mtls_discard_title">放弃未保存的修改？</string>
+    <string name="mtls_discard_help">尚未保存的修改将丢失。</string>
+    <string name="mtls_discard">放弃修改</string>
+    <string name="mtls_continue_editing">继续编辑</string>
+    <plurals name="mtls_saved_configurations">
+        <item quantity="other">已保存配置（%1$d）</item>
+    </plurals>
 </resources>

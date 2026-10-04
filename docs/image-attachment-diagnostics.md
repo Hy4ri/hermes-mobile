@@ -1,7 +1,21 @@
 # Image attachment diagnostics
 
-This diagnostic build addresses the invisible-failure part of [#1459](https://github.com/Hy4ri/hermes-mobile/issues/1459).
-It does **not** establish the cause of the reporter's disappearing image, or normalize model-facing image payloads.
+This build addresses [#1459](https://github.com/Hy4ri/hermes-mobile/issues/1459).
+
+Root cause found from the reporter's trace: the app displayed an image from its private staged copy
+(`filesDir/chat-send/<id>/`), but settling the delivery receipt deleted that copy while the bubble still
+referenced it. The first scroll-out/scroll-in then failed with `FileNotFoundException`, and history
+reconciliation kept that dead local source instead of the confirmed gateway image.
+
+Fixes in this build:
+- Receipt settlement no longer deletes a staged copy a visible bubble still uses. Unreferenced copies are
+  released after a history merge.
+- A confirmed gateway image set replaces local image sources for the same message; partial sets never drop a
+  local image, and non-image attachments are kept. `@image:` references survive alias de-duplication.
+- Every logical image keeps one rectangle (loading, error, retry and source handoff), so rows no longer resize
+  and move the reader. Unknown dimensions use a 4:3 fitted frame, never cropped.
+
+It does **not** normalize older model-facing multipart image payloads (the separate "Mode A" in the issue).
 
 ## Capture on the affected device
 
@@ -35,4 +49,9 @@ The history trace is emitted only after a history merge successfully applies, ne
 - `GifImageThumbnailTest`: real Coil loading on an emulator; missing local file → visible error → Retry → recovered image; HTTP 403 → visible error → Retry → valid PNG. Retry must not open the viewer. The diagnostic log must contain the error and success but not the private URL/path.
 - `ChatImageDiagnosticsTest`: allowlisted source/error/status metadata, loss visibility, and redaction.
 
-Final acceptance still requires the reporter's affected gateway/device flow.
+- `ChatViewModelTest.retiredReceiptKeepsStagedImageReadableWhileBubbleStillReferencesIt`: a real staged file through receipt retirement.
+- `UserImageHydrationTest`: confirmed-set handoff, partial set, mixed attachments, caption-only cached alias.
+- `GifImageThumbnailTest.frameBoundsStayIdenticalAcrossErrorRetrySuccessAndDisposal`: identical frame bounds.
+- `FullBleedImageScrollTest`: in the real chat list, the row below an image stays at the same pixel offset while the image loads, fails, and across repeated dispose/re-enter cycles (portrait and landscape).
+
+Final acceptance still requires the reporter's affected gateway/device flow and m57's own scrolling check.

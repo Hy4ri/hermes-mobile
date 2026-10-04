@@ -5,6 +5,7 @@ import com.m57.hermescontrol.data.model.DebugShareRequest
 import com.m57.hermescontrol.data.model.HookCreateRequest
 import com.m57.hermescontrol.data.model.HookDeleteRequest
 import com.m57.hermescontrol.data.model.McpCatalogInstallRequest
+import com.m57.hermescontrol.data.model.MessagingPlatformUpdate
 import com.m57.hermescontrol.data.model.replaceMcpEnvValue
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonPrimitive
@@ -87,6 +88,29 @@ class HermesApiServiceConverterTest {
             val updated = replaced.getValue("s").jsonObject
             assertEquals(original - "env", updated - "env")
             assertEquals(original.getValue("env").jsonObject - "OLD", updated.getValue("env").jsonObject)
+        }
+
+    @Test
+    fun disconnectPlatform_sendsScopedDisableAndCredentialClear() =
+        runBlocking {
+            ok("""{"ok":true,"platform":"telegram","hot_served":true}""")
+            val response =
+                api.configurePlatform(
+                    "telegram",
+                    MessagingPlatformUpdate(
+                        enabled = false,
+                        clearEnv = listOf("TELEGRAM_BOT_TOKEN"),
+                        profile = "work",
+                    ),
+                )
+            val request = server.takeRequest()
+            assertEquals("PUT", request.method)
+            assertEquals("/api/messaging/platforms/telegram", request.path)
+            assertEquals(
+                """{"enabled":false,"clear_env":["TELEGRAM_BOT_TOKEN"],"profile":"work"}""",
+                request.body.readUtf8(),
+            )
+            assertEquals(true, response.body()?.hotServed)
         }
 
     @Test

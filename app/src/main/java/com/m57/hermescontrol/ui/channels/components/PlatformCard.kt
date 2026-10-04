@@ -269,7 +269,7 @@ internal fun PlatformCard(
                     } else {
                         Icon(
                             imageVector = Icons.Filled.Delete,
-                            contentDescription = stringResource(R.string.platform_remove_desc),
+                            contentDescription = stringResource(R.string.platform_disconnect_desc),
                             tint = MaterialTheme.colorScheme.error,
                         )
                     }
@@ -310,8 +310,8 @@ internal fun PlatformCard(
     if (showRemoveConfirm) {
         AlertDialog(
             onDismissRequest = { showRemoveConfirm = false },
-            title = { Text(stringResource(R.string.platform_remove_confirm_title, platform.name)) },
-            text = { Text(stringResource(R.string.platform_remove_confirm_text)) },
+            title = { Text(stringResource(R.string.platform_disconnect_confirm_title, platform.name)) },
+            text = { Text(stringResource(R.string.platform_disconnect_confirm_text)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -320,7 +320,7 @@ internal fun PlatformCard(
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                 ) {
-                    Text("Remove")
+                    Text(stringResource(R.string.providers_action_disconnect))
                 }
             },
             dismissButton = {

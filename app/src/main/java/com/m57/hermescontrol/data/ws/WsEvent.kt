@@ -213,6 +213,26 @@ sealed class WsEvent {
     ) : WsEvent()
 
     /**
+     * Auto-titling renamed a session (issue #1463). Payload `session_id` is the STORED key, not the
+     * runtime id; [sessionId] is the envelope's runtime id when the gateway sent one.
+     */
+    data class SessionTitle(
+        val storedSessionId: String,
+        val title: String,
+        val sessionId: String? = null,
+    ) : WsEvent()
+
+    /**
+     * The backend reclaimed a live runtime session (idle timeout / LRU / orphan reap), broadcast to
+     * every client (issue #1463). The stored session survives; only [sessionId], the runtime binding, is gone.
+     */
+    data class SessionReclaimed(
+        val sessionId: String?,
+        val storedSessionId: String?,
+        val reason: String?,
+    ) : WsEvent()
+
+    /**
      * Live token & compression usage snapshot emitted during a turn (issue #919).
      * Carried in `session.usage` push events (`tui_gateway/server.py` `_start_usage_ticker`).
      * Payload: `{ "usage": { "compressions": Int, "context_used": Long, "context_max": Long, ... } }`

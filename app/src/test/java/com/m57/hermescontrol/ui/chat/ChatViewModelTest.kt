@@ -7023,6 +7023,87 @@ class ChatViewModelTest {
             assertEquals(ChatViewModel.MAX_RESUME_RETRIES + 2, resumeSends)
         }
 
+    private suspend fun TestScope.resumeSession456(
+        viewModel: ChatViewModel,
+        captured: MutableList<Pair<String, String>>,
+    ) {
+        viewModel.switchSession("session-456")
+        advanceUntilIdle()
+        val resumeId = captured.last { it.first == WsMethods.SESSION_RESUME }.second
+        mockEventsFlow.emit(WsEvent.RpcResult(resumeId, mapOf("session_id" to "runtime-456")))
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun testSessionReclaimed_forBoundRuntime_invalidatesRuntimeAndOffersRetry() =
+        runTest {
+            stubSession456Rests(success = true)
+            val (viewModel, _) = createViewModelWithSession()
+            val captured = captureSends()
+            resumeSession456(viewModel, captured)
+            assertTrue(viewModel.uiState.value.isSessionReady)
+            val resumesBefore = captured.count { it.first == WsMethods.SESSION_RESUME }
+
+            mockEventsFlow.emit(WsEvent.SessionReclaimed("runtime-456", "session-456", "idle_timeout"))
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertFalse(state.isSessionReady)
+            assertNotNull("reclaim must surface the Retry affordance", state.resumeError)
+            assertEquals("stored session and history must be kept", "session-456", state.currentSessionId)
+            assertEquals(
+                "no automatic resume after a reclaim",
+                resumesBefore,
+                captured.count {
+                    it.first ==
+                        WsMethods.SESSION_RESUME
+                },
+            )
+
+            viewModel.retryResumeSession()
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.resumeError)
+            assertEquals(resumesBefore + 1, captured.count { it.first == WsMethods.SESSION_RESUME })
+        }
+
+    @Test
+    fun testSessionReclaimed_forOtherOrAmbiguousRuntime_isIgnored() =
+        runTest {
+            stubSession456Rests(success = true)
+            val (viewModel, _) = createViewModelWithSession()
+            val captured = captureSends()
+            resumeSession456(viewModel, captured)
+
+            // Another runtime, a stored-id-only event, and a conflicting stored id must not touch this chat.
+            mockEventsFlow.emit(WsEvent.SessionReclaimed("runtime-other", "session-456", "lru_evict"))
+            mockEventsFlow.emit(WsEvent.SessionReclaimed(null, "session-456", "lru_evict"))
+            mockEventsFlow.emit(WsEvent.SessionReclaimed("runtime-456", "session-other", "lru_evict"))
+            advanceUntilIdle()
+
+            assertTrue(viewModel.uiState.value.isSessionReady)
+            assertNull(viewModel.uiState.value.resumeError)
+        }
+
+    @Test
+    fun testSessionReclaimed_duplicateIsIdempotent() =
+        runTest {
+            stubSession456Rests(success = true)
+            val (viewModel, _) = createViewModelWithSession()
+            val captured = captureSends()
+            resumeSession456(viewModel, captured)
+
+            val event = WsEvent.SessionReclaimed("runtime-456", "session-456", "ws_orphan_reap")
+            mockEventsFlow.emit(event)
+            advanceUntilIdle()
+            val afterFirst = viewModel.uiState.value
+            mockEventsFlow.emit(event)
+            advanceUntilIdle()
+
+            assertEquals(afterFirst.resumeError, viewModel.uiState.value.resumeError)
+            assertFalse(viewModel.uiState.value.isSessionReady)
+        }
+
     @Test
     fun testGatewayReconnect_clearsResumeErrorAndRestartsCycle() =
         runTest {

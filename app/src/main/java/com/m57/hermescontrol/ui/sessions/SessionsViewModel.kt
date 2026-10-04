@@ -1187,6 +1187,7 @@ class SessionsViewModel(
                     liveStatusSource.events.collect { event ->
                         liveTrackingState = SessionLiveStatusReducer.applyWsEvent(liveTrackingState, event)
                         _uiState.update { it.copy(liveStatuses = liveTrackingState.liveStatuses) }
+                        if (event is WsEvent.SessionTitle) applySessionTitle(event)
                     }
                 }
 
@@ -1207,6 +1208,30 @@ class SessionsViewModel(
                     }
                 }
             }
+    }
+
+    /**
+     * Issue #1463: apply an auto-title push to the loaded rows in place (no spinner, selection or paging reset) and
+     * drop only the current scope+section cache entries so a cache-first reopen can't resurrect the old title.
+     */
+    private fun applySessionTitle(event: WsEvent.SessionTitle) {
+        _uiState.update { state ->
+            if (state.sessions.none { it.id == event.storedSessionId }) {
+                state
+            } else {
+                state.copy(
+                    sessions =
+                        state.sessions.map {
+                            if (it.id == event.storedSessionId) it.copy(title = event.title) else it
+                        },
+                )
+            }
+        }
+        val section = _uiState.value.section
+        val localKey = "${section.name}:${section.source}:${section.excludeSources}"
+        val scope = runCatching { AuthManager.currentDataScope() }.getOrNull() ?: return
+        sessionsPageCache.remove(scope.inMemoryKey(localKey))
+        SessionListCacheStore.remove(scope.persistentKey(localKey))
     }
 
     fun stopLiveStatusTracking() {

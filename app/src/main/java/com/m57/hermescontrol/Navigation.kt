@@ -56,6 +56,7 @@ import com.m57.hermescontrol.ui.common.DisableDrawerGestures
 import com.m57.hermescontrol.ui.common.DrawerGestureController
 import com.m57.hermescontrol.ui.common.LocalDrawerGestureController
 import com.m57.hermescontrol.ui.plugins.MemoryProviderDetailScreen
+import com.m57.hermescontrol.ui.settings.ClientCertificatesPage
 import com.m57.hermescontrol.ui.settings.SettingsAboutPage
 import com.m57.hermescontrol.ui.settings.SettingsAppearancePage
 import com.m57.hermescontrol.ui.settings.SettingsBehaviorPage
@@ -76,6 +77,7 @@ private fun appEntryProvider(
     entry<LandingScreen> {
         // B7 (Jun 30 2026, kanban t_424): route landing screen buttons through navigateTo to prevent duplicate screens
         LandingScreenContent(
+            onConnections = { NavigationController.navigateTo(ConnectionsScreen) },
             onAuthLogin = {
                 NavigationController.navigateTo(AuthLoginScreen)
             },
@@ -107,6 +109,9 @@ private fun appEntryProvider(
     // single source of truth that prevents the drawer-scrim stuck-open bug
     // (issue #619). No global gesture set, no closeDrawer callback, no
     // LaunchedEffect(snapTo(Closed)) — the scaffold reconciles automatically.
+    entry<ClientCertificatesScreen> {
+        ClientCertificatesPage(onBack = { NavigationController.goBack() })
+    }
     entry<SettingsConnection> {
         SettingsConnectionPage(
             onBack = { NavigationController.goBack() },
@@ -306,7 +311,7 @@ fun MainNavigation(sessionId: String? = null) {
                             fontWeight = FontWeight.SemiBold,
                         )
                         ScreenRegistry.ALL_SCREENS
-                            .filter { it.drawerSection == section }
+                            .filter { it.drawerSection == section && (hasToken || it.key == ConnectionsScreen) }
                             .forEach { entry ->
                                 NavigationDrawerItem(
                                     icon = { Icon(entry.icon, contentDescription = null) },

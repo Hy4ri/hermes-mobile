@@ -11,6 +11,50 @@ import org.junit.Test
 
 class ChatWsEventReducerTest {
     @Test
+    fun sessionTitle_updatesChatTitleAndPickerRowForCurrentStoredSession() {
+        val state =
+            ChatUiState(
+                currentSessionId = "stored-1",
+                chatTitle = "Old",
+                sessions = listOf(SessionUi("stored-1", "Old"), SessionUi("stored-2", "Other")),
+            )
+        val result =
+            ChatWsEventReducer.reduce(state, StreamingState(), WsEvent.SessionTitle("stored-1", "New", "rt-1"), "rt-1")
+        assertEquals("New", result.state.chatTitle)
+        assertEquals(listOf("New", "Other"), result.state.sessions.map { it.title })
+    }
+
+    @Test
+    fun sessionTitle_forAnotherSession_renamesOnlyItsPickerRow() {
+        val state =
+            ChatUiState(
+                currentSessionId = "stored-1",
+                chatTitle = "Mine",
+                sessions = listOf(SessionUi("stored-1", "Mine"), SessionUi("stored-2", "Other")),
+            )
+        val result =
+            ChatWsEventReducer.reduce(state, StreamingState(), WsEvent.SessionTitle("stored-2", "Renamed"), "rt-1")
+        assertEquals("Mine", result.state.chatTitle)
+        assertEquals(listOf("Mine", "Renamed"), result.state.sessions.map { it.title })
+    }
+
+    @Test
+    fun sessionTitle_forUnknownSession_isNoOpAndIdempotent() {
+        val state = ChatUiState(currentSessionId = "stored-1", chatTitle = "Mine")
+        val event = WsEvent.SessionTitle("stored-9", "Ghost")
+        val first = ChatWsEventReducer.reduce(state, StreamingState(), event, "rt-1")
+        assertEquals(state, first.state)
+        val current =
+            ChatWsEventReducer.reduce(
+                state,
+                StreamingState(),
+                WsEvent.SessionTitle("stored-1", "Mine"),
+                "rt-1",
+            )
+        assertEquals(state, current.state)
+    }
+
+    @Test
     fun interruptedIdentitySurvivesDoneButNotANewStart() {
         val partial = ChatMessage(id = "partial", role = MessageRole.ASSISTANT, content = "old reply")
         val state = ChatUiState(currentSessionId = "session-1", messages = listOf(partial))

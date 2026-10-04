@@ -63,7 +63,7 @@ class PendingSendRecoveryTest {
         var retried: String? = null
         compose.setContent {
             MaterialTheme {
-                PendingSendRecovery(listOf(uncertain), true, false, { retried = it }, {})
+                PendingSendRecovery(listOf(uncertain), true, false, { retried = it }, {}, {}, {})
             }
         }
         compose.onNodeWithTag("pending_send_recovery").assertIsDisplayed().performClick()
@@ -78,11 +78,19 @@ class PendingSendRecoveryTest {
     }
 
     @Test
-    fun disconnectedSessionCanInspectAndDismissButCannotRetry() {
+    fun disconnectedSessionCanInspectAndDiscardQueuedButCannotRetry() {
         var dismissed: String? = null
         compose.setContent {
             MaterialTheme {
-                PendingSendRecovery(listOf(uncertain), false, false, {}, { dismissed = it })
+                PendingSendRecovery(
+                    listOf(uncertain.copy(state = PendingSendState.QUEUED)),
+                    false,
+                    false,
+                    {},
+                    { dismissed = it },
+                    {},
+                    {},
+                )
             }
         }
         compose.onNodeWithTag("pending_send_recovery").performClick()
@@ -98,10 +106,32 @@ class PendingSendRecoveryTest {
     }
 
     @Test
+    fun unknownIncludingAcknowledgedHasNoDestructiveDiscard() {
+        var discarded: String? = null
+        compose.setContent {
+            MaterialTheme {
+                PendingSendRecovery(
+                    listOf(uncertain, uncertain.copy(id = "acknowledged", userOrderingReleased = true)),
+                    false,
+                    false,
+                    {},
+                    { discarded = it },
+                    {},
+                    {},
+                )
+            }
+        }
+        compose.onNodeWithTag("pending_send_recovery").performClick()
+        compose.onNodeWithTag("pending_discard_uncertain").assertDoesNotExist()
+        compose.onNodeWithTag("pending_discard_acknowledged").assertDoesNotExist()
+        compose.runOnIdle { assertNull(discarded) }
+    }
+
+    @Test
     fun emptyOutboxDoesNotAddAComposerControl() {
         compose.setContent {
             MaterialTheme {
-                PendingSendRecovery(emptyList(), true, false, {}, {})
+                PendingSendRecovery(emptyList(), true, false, {}, {}, {}, {})
             }
         }
         compose.onNodeWithTag("pending_send_recovery").assertDoesNotExist()
@@ -118,7 +148,7 @@ class PendingSendRecoveryTest {
                         ChatMessage(accepted.id, MessageRole.USER, accepted.text, attachments = accepted.attachments),
                         pendingSendState = accepted.state,
                     )
-                    PendingSendRecovery(listOf(accepted), true, true, {}, {})
+                    PendingSendRecovery(listOf(accepted), true, true, {}, {}, {}, {})
                 }
             }
         }
@@ -148,6 +178,8 @@ class PendingSendRecoveryTest {
                     false,
                     {},
                     {},
+                    onAcknowledge = {},
+                    onRemoveAcknowledged = {},
                     onOpenAttachment = { openedFile = it.name },
                     onImageClick = { openedImage = it.name },
                 )
@@ -182,7 +214,15 @@ class PendingSendRecoveryTest {
             compose.runOnUiThread { resources.updateConfiguration(chinese, resources.displayMetrics) }
             compose.setContent {
                 MaterialTheme {
-                    PendingSendRecovery(listOf(uncertain), false, false, {}, {})
+                    PendingSendRecovery(
+                        listOf(uncertain.copy(state = PendingSendState.QUEUED)),
+                        false,
+                        false,
+                        {},
+                        {},
+                        {},
+                        {},
+                    )
                 }
             }
             compose.onNodeWithText("1 条待处理消息").assertIsDisplayed().performClick()
@@ -208,6 +248,8 @@ class PendingSendRecoveryTest {
                     listOf(uncertain.copy(text = "Long diagnostic text ".repeat(200))),
                     true,
                     false,
+                    {},
+                    {},
                     {},
                     {},
                 )

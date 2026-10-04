@@ -2,8 +2,10 @@ package com.m57.hermescontrol.ui.channels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.MessagingPlatform
 import com.m57.hermescontrol.data.model.MessagingPlatformUpdate
+import com.m57.hermescontrol.data.model.MessagingPlatformUpdateResponse
 import com.m57.hermescontrol.data.model.TelegramOnboardingApplyRequest
 import com.m57.hermescontrol.data.model.TelegramOnboardingStartRequest
 import com.m57.hermescontrol.data.model.TelegramOnboardingStartResponse
@@ -20,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import retrofit2.Response
 
 enum class OnboardingPhase {
     IDLE,
@@ -168,30 +171,68 @@ class ChannelsViewModel :
         )
     }
 
-    /** Remove an entire platform. */
+    /** Issue #1468: disconnect a catalog platform using its supported configuration endpoint. */
     fun removePlatform(platformId: String) {
+        val scope = AuthManager.currentDataScope()
+        val profile = AuthManager.activeProfileId.value ?: "default"
+        val api = ApiClient.hermesApi
         _uiState.update { it.copy(removingId = platformId) }
         safeLaunchLoad(
             apiCall = {
-                safeApiCall {
-                    ApiClient.hermesApi.removeMessagingPlatform(platformId)
+                // Do not replay a credential mutation after the active connection changes.
+                safeApiCall(retries = 0) {
+                    val catalog = api.getMessagingPlatforms(profile)
+                    if (!catalog.isSuccessful) {
+                        Response.error<MessagingPlatformUpdateResponse>(
+                            catalog.code(),
+                            requireNotNull(catalog.errorBody()),
+                        )
+                    } else {
+                        val platform =
+                            catalog.body()?.platforms?.firstOrNull { it.id == platformId }
+                                ?: error("Platform is unavailable in the selected profile")
+                        val fields = platform.envVars ?: error("Platform credential metadata is unavailable")
+                        check(
+                            AuthManager.currentDataScope() == scope &&
+                                (AuthManager.activeProfileId.value ?: "default") == profile,
+                        ) { "Connection or profile changed; retry disconnect" }
+                        val response =
+                            api.configurePlatform(
+                                platformId,
+                                MessagingPlatformUpdate(
+                                    enabled = false,
+                                    clearEnv = fields.map { it.key }.distinct(),
+                                    profile = profile,
+                                ),
+                            )
+                        if (response.isSuccessful) {
+                            check(response.body()?.ok == true) { "Gateway did not confirm platform disconnection" }
+                        }
+                        response
+                    }
                 }
             },
             onStart = {},
-            onSuccess = {
+            onSuccess = { response ->
                 _uiState.update { state ->
                     state.copy(
-                        platforms = state.platforms.filter { it.id != platformId },
                         removingId = null,
-                        toastMessage = "Platform removed",
+                        restartNeeded = state.restartNeeded || !response.hotServed,
+                        toastMessage =
+                            if (response.hotServed) {
+                                "Platform disconnected and credentials cleared live"
+                            } else {
+                                "Platform disconnected and credentials cleared; restart the gateway"
+                            },
                     )
                 }
+                loadPlatforms()
             },
             onError = { error ->
                 _uiState.update {
                     it.copy(
                         removingId = null,
-                        toastMessage = "Failed to remove: $error",
+                        toastMessage = "Disconnect failed: $error. Refresh platform settings before retrying.",
                     )
                 }
             },

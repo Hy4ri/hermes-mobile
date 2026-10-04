@@ -4,6 +4,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 @Serializable
 data class McpServersResponse(
@@ -111,8 +112,27 @@ data class McpOAuthFlowResponse(
     val error: String? = null,
 )
 
-/** Body for PUT api/mcp/servers/{name}; only the fields being changed are sent. */
+/** Body for the collection PUT; complete saved definitions must be preserved. */
 @Serializable
-data class McpServerUpdateRequest(
-    val env: Map<String, String>? = null,
+data class McpServersReplaceRequest(
+    val servers: Map<String, JsonElement>,
+    val profile: String? = null,
 )
+
+/** Edit raw configuration rather than the summary, which omits headers and unknown fields. */
+fun replaceMcpEnvValue(
+    config: Map<String, JsonElement>,
+    serverName: String,
+    key: String,
+    value: String?,
+    profile: String? = null,
+): McpServersReplaceRequest {
+    val servers = config["mcp_servers"] as? JsonObject ?: error("Saved MCP configuration is unavailable")
+    val server = servers[serverName] as? JsonObject ?: error("Server is not editable in the saved configuration")
+    val envValue = server["env"]
+    val env = if (envValue == null) emptyMap() else envValue as? JsonObject ?: error("Saved MCP environment is invalid")
+    val updatedEnv = env.toMutableMap()
+    if (value == null) updatedEnv.remove(key) else updatedEnv[key] = JsonPrimitive(value)
+    val updatedServer = JsonObject(server + ("env" to JsonObject(updatedEnv)))
+    return McpServersReplaceRequest(servers + (serverName to updatedServer), profile)
+}

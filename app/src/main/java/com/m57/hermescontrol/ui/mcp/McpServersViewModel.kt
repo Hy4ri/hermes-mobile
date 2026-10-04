@@ -2,6 +2,8 @@ package com.m57.hermescontrol.ui.mcp
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.AddMcpServerRequest
 import com.m57.hermescontrol.data.model.McpCatalogEntry
@@ -10,8 +12,8 @@ import com.m57.hermescontrol.data.model.McpOAuthFlowResponse
 import com.m57.hermescontrol.data.model.McpServer
 import com.m57.hermescontrol.data.model.McpServerTestResponse
 import com.m57.hermescontrol.data.model.McpServerToggleRequest
-import com.m57.hermescontrol.data.model.McpServerUpdateRequest
 import com.m57.hermescontrol.data.model.McpServersResponse
+import com.m57.hermescontrol.data.model.replaceMcpEnvValue
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkError
 import com.m57.hermescontrol.data.remote.NetworkResult
@@ -28,7 +30,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import retrofit2.Response
 
 enum class AddServerMode { HTTP, Stdio }
 
@@ -457,16 +462,13 @@ class McpServersViewModel(
             _uiState.update { it.copy(toastMessage = "Key is required") }
             return
         }
+        val scope = AuthManager.currentDataScope()
+        val profile = AuthManager.activeProfileId.value
         viewModelScope.launch {
-            val existingEnv = state.servers.find { it.name == serverName }?.env ?: emptyMap()
-            val updatedEnv = existingEnv + (key to value)
             val result =
                 withContext(ioDispatcher) {
-                    safeApiCall {
-                        ApiClient.hermesApi.updateMcpServer(
-                            serverName,
-                            McpServerUpdateRequest(env = updatedEnv),
-                        )
+                    safeApiCall(retries = 0) {
+                        updateServerEnv(serverName, key, value, scope, profile)
                     }
                 }
             when (result) {
@@ -493,17 +495,13 @@ class McpServersViewModel(
         key: String,
     ) {
         if (isPluginOwned(serverName)) return
+        val scope = AuthManager.currentDataScope()
+        val profile = AuthManager.activeProfileId.value
         viewModelScope.launch {
-            val state = _uiState.value
-            val existingEnv = state.servers.find { it.name == serverName }?.env ?: emptyMap()
-            val updatedEnv = existingEnv - key
             val result =
                 withContext(ioDispatcher) {
-                    safeApiCall {
-                        ApiClient.hermesApi.updateMcpServer(
-                            serverName,
-                            McpServerUpdateRequest(env = updatedEnv),
-                        )
+                    safeApiCall(retries = 0) {
+                        updateServerEnv(serverName, key, null, scope, profile)
                     }
                 }
             when (result) {
@@ -520,6 +518,36 @@ class McpServersViewModel(
     }
 
     // ── Catalog ──────────────────────────────────────────────
+
+    // #1469: the dashboard only supports replacing the complete saved MCP map.
+    private val envMutationMutex = Mutex()
+
+    private suspend fun updateServerEnv(
+        serverName: String,
+        key: String,
+        value: String?,
+        scope: DataScope?,
+        profile: String?,
+    ): Response<Unit> =
+        envMutationMutex.withLock {
+            check(AuthManager.currentDataScope() == scope && AuthManager.activeProfileId.value == profile) {
+                "Server or profile changed; retry this edit in the selected profile"
+            }
+            val api = ApiClient.hermesApi
+            val saved = api.getSavedConfig(profile)
+            if (!saved.isSuccessful) {
+                return@withLock Response.error(
+                    saved.code(),
+                    saved.errorBody() ?: error("Could not read saved MCP configuration"),
+                )
+            }
+            val config = saved.body() ?: error("Saved MCP configuration is empty")
+            val replacement = replaceMcpEnvValue(config, serverName, key, value, profile)
+            check(
+                AuthManager.currentDataScope() == scope && AuthManager.activeProfileId.value == profile,
+            ) { "Server or profile changed; retry this edit in the selected profile" }
+            api.replaceMcpServers(replacement)
+        }
 
     fun loadCatalog() {
         _uiState.update { it.copy(catalogLoading = true, catalogError = null) }

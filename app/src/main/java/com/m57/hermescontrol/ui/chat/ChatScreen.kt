@@ -864,6 +864,8 @@ fun ChatScreen(
                     mainTurnBusy = state.isMainTurnBusy,
                     onSendAgain = viewModel::sendQueuedNow,
                     onDiscard = viewModel::discardPendingSend,
+                    onAcknowledge = viewModel::acknowledgePendingSend,
+                    onRemoveAcknowledged = viewModel::removeAcknowledgedPendingSend,
                     onOpenAttachment = viewModel::openAttachment,
                     onImageClick = { viewingImage = it },
                 )

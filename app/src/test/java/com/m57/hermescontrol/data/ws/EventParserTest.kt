@@ -874,6 +874,55 @@ class EventParserTest {
         assertEquals(mapOf("session_id" to "sess-1"), (event as WsEvent.SessionUpdated).data)
     }
 
+    private fun pushEvent(
+        type: String,
+        payload: Map<String, Any?>?,
+        envelopeSessionId: String? = null,
+    ): WsEvent {
+        val params = mutableMapOf<String, Any?>("type" to type, "payload" to payload)
+        if (envelopeSessionId != null) params["session_id"] = envelopeSessionId
+        return EventParser.parse(
+            createJsonRpcResponse(jsonrpc = "2.0", id = null, method = "event", params = params),
+        )
+    }
+
+    @Test
+    fun testParseSessionTitle_keepsStoredAndRuntimeIdsSeparate() {
+        val event =
+            pushEvent("session.title", mapOf("session_id" to "stored-1", "title" to " New title "), "runtime-1")
+        assertEquals(WsEvent.SessionTitle("stored-1", "New title", "runtime-1"), event)
+    }
+
+    @Test
+    fun testParseSessionTitle_withoutEnvelopeId_hasNullRuntimeId() {
+        val event = pushEvent("session.title", mapOf("session_id" to "stored-1", "title" to "T"))
+        assertEquals(WsEvent.SessionTitle("stored-1", "T", null), event)
+    }
+
+    @Test
+    fun testParseSessionTitle_missingStoredIdOrTitle_isUnknown() {
+        assertTrue(pushEvent("session.title", mapOf("title" to "T")) is WsEvent.Unknown)
+        assertTrue(pushEvent("session.title", mapOf("session_id" to "stored-1")) is WsEvent.Unknown)
+        assertTrue(pushEvent("session.title", mapOf("session_id" to "stored-1", "title" to " ")) is WsEvent.Unknown)
+        assertTrue(pushEvent("session.title", null) is WsEvent.Unknown)
+    }
+
+    @Test
+    fun testParseSessionReclaimed_carriesBothIdsAndReason() {
+        val event =
+            pushEvent(
+                "session.reclaimed",
+                mapOf("session_id" to "runtime-1", "stored_session_id" to "stored-1", "reason" to "idle_timeout"),
+            )
+        assertEquals(WsEvent.SessionReclaimed("runtime-1", "stored-1", "idle_timeout"), event)
+    }
+
+    @Test
+    fun testParseSessionReclaimed_withoutAnyIdentity_isUnknown() {
+        assertTrue(pushEvent("session.reclaimed", mapOf("reason" to "lru_evict")) is WsEvent.Unknown)
+        assertTrue(pushEvent("session.reclaimed", null) is WsEvent.Unknown)
+    }
+
     @Test
     fun testParseGatewayError_returnsGatewayErrorEvent() {
         val response =

@@ -1,7 +1,9 @@
 name: Merge Conflict Detector
 
 on:
-  pull_request:
+  # pull_request_target: fork PRs get a read-only token under pull_request, so
+  # labeling 403s. Safe here because this workflow never checks out PR code.
+  pull_request_target:
     types: [opened, synchronize, reopened]
     branches: [main, dev]
   push:
@@ -12,7 +14,7 @@ on:
 # for pushes to main (refs/heads/main), so one expression covers both triggers
 # and actually cancels a stale bulk run when a newer push arrives.
 concurrency:
-  group: merge-conflict-${{ github.ref }}
+  group: merge-conflict-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -118,8 +120,8 @@ jobs:
               }
             }
 
-            // ── Single PR (pull_request event) ─────────────────────────
-            if (context.eventName === 'pull_request') {
+            // ── Single PR (pull_request_target event) ─────────────────────────
+            if (context.eventName === 'pull_request_target') {
               // For a single PR we already have the number; fetch resolves mergeable.
               await checkAndLabel({ number: context.issue.number });
               return;

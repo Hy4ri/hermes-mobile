@@ -32,6 +32,7 @@ object OkHttpProvider {
     val base: OkHttpClient by lazy {
         OkHttpClient
             .Builder()
+            .let(ClientCertificates::configure)
             .cookieJar(resolveCookieJar())
             .addNetworkInterceptor(ServerHeadersInterceptor())
             .connectionPool(connectionPool)

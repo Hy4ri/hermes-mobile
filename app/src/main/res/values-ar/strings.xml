@@ -1050,7 +1050,7 @@
 <string name="pressure_banner_memory_elevated">ذاكرة الوكيل منخفضة</string>
 <string name="cron_empty_title">لا توجد مهام cron</string>
 <string name="cron_empty_desc">ستظهر المهام المجدولة من Hermes هنا.</string>
-<string name="cron_status_active">نشط</string>
+<string name="cron_status_scheduled">مجدول</string>
 <string name="cron_status_paused">متوقف مؤقتاً</string>
 <string name="cron_action_pause">إيقاف مؤقت</string>
 <string name="cron_action_resume">استئناف</string>

@@ -71,14 +71,20 @@ class GatewayContractFramesTest {
 
     @After
     fun tearDown() {
-        HermesWsClient.releaseExternalActivityConnectionLease()
-        HermesWsClient.releaseBackgroundConnectionLease()
-        HermesWsClient.disconnect(clearPendingMessages = true)
-        runBlocking {
-            withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.DISCONNECTED } }
+        try {
+            HermesWsClient.releaseExternalActivityConnectionLease()
+            HermesWsClient.releaseBackgroundConnectionLease()
+            HermesWsClient.disconnect(clearPendingMessages = true)
+            runBlocking {
+                withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.DISCONNECTED } }
+            }
+        } finally {
+            try {
+                mockWebServer.shutdown()
+            } finally {
+                unmockkAll()
+            }
         }
-        runCatching { mockWebServer.shutdown() }
-        unmockkAll()
     }
 
     /** Connect, run [trigger], and return the first frame the server sees for [method]. */
@@ -91,7 +97,7 @@ class GatewayContractFramesTest {
         val captured = CountDownLatch(1)
         val frame = AtomicReference<JsonObject?>(null)
         mockWebServer.enqueue(
-            MockResponse().withWebSocketUpgrade(
+            MockResponse().withClosingWebSocketUpgrade(
                 object : WebSocketListener() {
                     override fun onOpen(
                         webSocket: WebSocket,

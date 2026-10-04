@@ -19,6 +19,7 @@ import io.mockk.unmockkAll
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -103,15 +104,21 @@ class HermesWsClientTypedCallTest {
 
     @After
     fun tearDown() {
-        AuthManager.resetAuthStateForTest()
-        HermesWsClient.releaseExternalActivityConnectionLease()
-        HermesWsClient.releaseBackgroundConnectionLease()
-        HermesWsClient.disconnect(clearPendingMessages = true)
-        runBlocking {
-            withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.DISCONNECTED } }
+        try {
+            AuthManager.resetAuthStateForTest()
+            HermesWsClient.releaseExternalActivityConnectionLease()
+            HermesWsClient.releaseBackgroundConnectionLease()
+            HermesWsClient.disconnect(clearPendingMessages = true)
+            runBlocking {
+                withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.DISCONNECTED } }
+            }
+        } finally {
+            try {
+                mockWebServer.shutdown()
+            } finally {
+                unmockkAll()
+            }
         }
-        runCatching { mockWebServer.shutdown() }
-        unmockkAll()
     }
 
     private fun connectClient() {
@@ -128,7 +135,7 @@ class HermesWsClientTypedCallTest {
         val frameRef = AtomicReference<JsonObject?>(null)
 
         mockWebServer.enqueue(
-            MockResponse().withWebSocketUpgrade(
+            MockResponse().withClosingWebSocketUpgrade(
                 object : WebSocketListener() {
                     override fun onOpen(
                         webSocket: WebSocket,
@@ -190,7 +197,7 @@ class HermesWsClientTypedCallTest {
         val opened = CountDownLatch(1)
 
         mockWebServer.enqueue(
-            MockResponse().withWebSocketUpgrade(
+            MockResponse().withClosingWebSocketUpgrade(
                 object : WebSocketListener() {
                     override fun onOpen(
                         webSocket: WebSocket,
@@ -233,7 +240,7 @@ class HermesWsClientTypedCallTest {
         val opened = CountDownLatch(1)
 
         mockWebServer.enqueue(
-            MockResponse().withWebSocketUpgrade(
+            MockResponse().withClosingWebSocketUpgrade(
                 object : WebSocketListener() {
                     override fun onOpen(
                         webSocket: WebSocket,
@@ -281,7 +288,7 @@ class HermesWsClientTypedCallTest {
         val frameRef = AtomicReference<JsonObject?>(null)
 
         mockWebServer.enqueue(
-            MockResponse().withWebSocketUpgrade(
+            MockResponse().withClosingWebSocketUpgrade(
                 object : WebSocketListener() {
                     override fun onOpen(
                         webSocket: WebSocket,
@@ -332,7 +339,7 @@ class HermesWsClientTypedCallTest {
         val frameRef = AtomicReference<JsonObject?>(null)
 
         mockWebServer.enqueue(
-            MockResponse().withWebSocketUpgrade(
+            MockResponse().withClosingWebSocketUpgrade(
                 object : WebSocketListener() {
                     override fun onOpen(
                         webSocket: WebSocket,
@@ -382,7 +389,7 @@ class HermesWsClientTypedCallTest {
         val frameRef = AtomicReference<JsonObject?>(null)
 
         mockWebServer.enqueue(
-            MockResponse().withWebSocketUpgrade(
+            MockResponse().withClosingWebSocketUpgrade(
                 object : WebSocketListener() {
                     override fun onOpen(
                         webSocket: WebSocket,
@@ -429,7 +436,7 @@ class HermesWsClientTypedCallTest {
         val opened = CountDownLatch(1)
 
         mockWebServer.enqueue(
-            MockResponse().withWebSocketUpgrade(
+            MockResponse().withClosingWebSocketUpgrade(
                 object : WebSocketListener() {
                     override fun onOpen(
                         webSocket: WebSocket,
@@ -473,9 +480,10 @@ class HermesWsClientTypedCallTest {
     fun cancellingCallingCoroutineCleansPendingCall() {
         val opened = CountDownLatch(1)
         val requestReceived = CountDownLatch(1)
+        val requestId = AtomicReference<String?>(null)
 
         mockWebServer.enqueue(
-            MockResponse().withWebSocketUpgrade(
+            MockResponse().withClosingWebSocketUpgrade(
                 object : WebSocketListener() {
                     override fun onOpen(
                         webSocket: WebSocket,
@@ -486,6 +494,9 @@ class HermesWsClientTypedCallTest {
                         webSocket: WebSocket,
                         text: String,
                     ) {
+                        val frame = OkHttpProvider.json.parseToJsonElement(text) as? JsonObject ?: return
+                        if ((frame["method"] as? JsonPrimitive)?.content != WsMethods.SESSION_EVENTS_SINCE) return
+                        requestId.set((frame["id"] as? JsonPrimitive)?.content ?: return)
                         requestReceived.countDown()
                         // Do not reply, keeping the call pending
                     }
@@ -507,6 +518,13 @@ class HermesWsClientTypedCallTest {
                 }
 
             assertTrue("Server should receive request", requestReceived.await(5, TimeUnit.SECONDS))
+            // Wire receipt can precede the client's post-send pending-call registration.
+            withTimeout(2000) {
+                while (requestId.get() !in HermesWsClient.pendingCallIdsForTest()) {
+                    kotlinx.coroutines.delay(20)
+                }
+            }
+            assertEquals(setOf(requestId.get()), HermesWsClient.pendingCallIdsForTest())
 
             assertEquals(
                 "Should have exactly 1 pending call while awaiting",
@@ -514,7 +532,7 @@ class HermesWsClientTypedCallTest {
                 HermesWsClient.pendingCallIdsForTest().size,
             )
 
-            callJob.cancel()
+            callJob.cancelAndJoin()
 
             // Wait briefly for cancellation cleanup to execute
             withTimeout(2000) {

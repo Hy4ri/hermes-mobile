@@ -897,7 +897,7 @@
     <!-- CronJobs Screen -->
     <string name="cron_empty_title">크론 작업 없음</string>
     <string name="cron_empty_desc">예약된 작업이 여기에 표시됩니다.</string>
-    <string name="cron_status_active">활성</string>
+    <string name="cron_status_scheduled">예약됨</string>
     <string name="cron_status_paused">일시정지</string>
     <string name="cron_action_pause">일시정지</string>
     <string name="cron_action_resume">재개</string>

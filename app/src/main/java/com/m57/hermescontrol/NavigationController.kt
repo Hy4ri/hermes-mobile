@@ -82,8 +82,10 @@ object NavigationController {
         }
 
         if (isPrimaryScreen(key)) {
+            // Connection management must return to Landing before the first login.
+            val root = if (stack.firstOrNull() == LandingScreen) LandingScreen else ChatScreen
             stack.clear()
-            stack.add(ChatScreen)
+            stack.add(root)
             stack.add(key)
             return
         }

@@ -4,6 +4,7 @@ import com.m57.hermescontrol.ui.chat.ChatMessage
 import com.m57.hermescontrol.ui.chat.MessageProvenance
 import com.m57.hermescontrol.ui.chat.MessageRole
 import com.m57.hermescontrol.ui.chat.ToolStatus
+import com.m57.hermescontrol.ui.chat.normalizedGatewayNotice
 
 /**
  * Converts between the Room [ChatMessageEntity] and the UI [ChatMessage].
@@ -41,10 +42,12 @@ fun ChatMessageEntity.toUiModel(): ChatMessage =
         completionId = completionId,
         restId = restId,
         localOrder = sortOrder.takeIf { sortGroup == 1 && it > 0 && !isSessionStartMarker() },
+        localAnchorOrder = localAnchorOrder,
+        localPredecessorId = localPredecessorId,
         messageProvenance =
             MessageProvenance.entries.firstOrNull { it.name == messageProvenance }
                 ?: MessageProvenance.UNKNOWN,
-    )
+    ).normalizedGatewayNotice()
 
 fun ChatMessage.toEntity(sessionId: String): ChatMessageEntity =
     ChatMessageEntity(
@@ -64,4 +67,6 @@ fun ChatMessage.toEntity(sessionId: String): ChatMessageEntity =
         completionId = completionId,
         restId = restId,
         messageProvenance = messageProvenance.name,
+        localAnchorOrder = localAnchorOrder,
+        localPredecessorId = localPredecessorId,
     )

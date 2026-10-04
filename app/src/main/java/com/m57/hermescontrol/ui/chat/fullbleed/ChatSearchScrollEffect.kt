@@ -22,12 +22,16 @@ internal fun ChatSearchScrollEffect(
         searchState.matchIndices,
         searchState.matchOffsets,
         searchState.matchTargets,
+        searchState.currentMatchId,
+        messages,
         renderedFirstId,
     ) {
         val index = searchState.currentIndex
         if (!searchState.isActive || index !in searchState.matchIndices.indices) return@LaunchedEffect
         val messageIndex = searchState.matchIndices[index]
         val message = messages.getOrNull(messageIndex) ?: return@LaunchedEffect
+        // Do not scroll to a different row while a presentation transition is being rescanned.
+        if (message.id != searchState.currentMatchId) return@LaunchedEffect
         val target = searchState.matchTargets.getOrNull(index) ?: return@LaunchedEffect
         val match =
             com.m57.hermescontrol.ui.chat.SearchMatch(

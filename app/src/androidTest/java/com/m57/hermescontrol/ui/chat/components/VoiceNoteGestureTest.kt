@@ -3,9 +3,11 @@ package com.m57.hermescontrol.ui.chat.components
 import android.content.Context
 import android.graphics.Bitmap
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -19,6 +21,7 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -26,7 +29,6 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
 import com.m57.hermescontrol.data.ws.CommandCatalog
@@ -52,6 +54,7 @@ import java.io.File
  */
 @RunWith(AndroidJUnit4::class)
 @MediumTest
+@OptIn(ExperimentalFoundationApi::class)
 class VoiceNoteGestureTest {
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
@@ -88,8 +91,7 @@ class VoiceNoteGestureTest {
             Column(modifier = Modifier.fillMaxSize()) {
                 Spacer(modifier = Modifier.weight(1f))
                 ChatInputBar(
-                    inputFieldValue = TextFieldValue(draft),
-                    onInputChange = {},
+                    inputState = rememberTextFieldState(initialText = draft),
                     onSend = { sendCount++ },
                     onMicTap = { micTaps++ },
                     isListening = false,
@@ -275,6 +277,8 @@ class VoiceNoteGestureTest {
             assertEquals("release must submit the note", 1, holdEnds)
             assertEquals("a stationary hold-release must not fire a tap", tapsBefore, micTaps)
         }
+        // The state-based input must retain the draft when the recording strip is removed.
+        composeTestRule.onNodeWithTag("chat_input").assertTextEquals("draft")
     }
 
     @Test

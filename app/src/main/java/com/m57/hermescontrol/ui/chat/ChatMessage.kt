@@ -98,6 +98,10 @@ data class ChatMessage(
     val restId: String? = null,
     /** Cache insertion sequence for unconfirmed local rows; null before first persistence. */
     val localOrder: Long? = null,
+    /** Placement only: preceding confirmed server order. Never an identity or delivery receipt. */
+    val localAnchorOrder: Long? = null,
+    /** A live unresolved predecessor whose eventual canonical alias determines local placement. */
+    val localPredecessorId: String? = null,
     /** Persisted before prompt submission so process death cannot turn an unsent prompt into old history. */
     val messageProvenance: MessageProvenance = MessageProvenance.UNKNOWN,
     /** Read from history, not observed live in this view. Never persisted as delivery state. */

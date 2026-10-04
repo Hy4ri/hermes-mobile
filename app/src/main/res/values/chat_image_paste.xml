@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_image_paste_loading">Adding pasted images…</string>
+    <string name="chat_image_paste_failed">Could not paste the image. Check access and try again.</string>
+    <string name="chat_image_paste_too_large">Image exceeds the 10 MB attachment limit.</string>
+    <string name="chat_image_paste_batch_limit">Paste up to 8 images totaling no more than 20 MB.</string>
+    <string name="chat_image_paste_busy">Wait for the images to finish loading before pasting again.</string>
+</resources>

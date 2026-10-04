@@ -25,6 +25,8 @@ data class PendingSend(
     val userRowId: Long? = null,
     /** Restore and reconnect require exact REST identity, never inferred text. */
     val requiresExactReconciliation: Boolean = false,
+    /** Local acknowledgment is not proof of delivery and never gates queue draining. */
+    val userOrderingReleased: Boolean = false,
 )
 
 @Serializable
@@ -71,6 +73,25 @@ internal fun pendingSendIdsConfirmedByDurableAliases(
         }.map { it.id }
         .toSet()
 }
+
+/**
+ * #1427: the `prompt.submit` `user_row_id` is the exact gateway row for that send, so a history
+ * page containing it proves delivery even when the merge could not alias the local bubble.
+ */
+internal fun pendingSendIdsConfirmedByRowIds(
+    pageRowIds: Set<Long>,
+    pending: List<PendingSend>,
+): Set<String> =
+    pending
+        .asSequence()
+        .filter {
+            it.state in setOf(PendingSendState.SENDING, PendingSendState.ACCEPTED, PendingSendState.UNKNOWN)
+        }.filter { it.userRowId != null && it.userRowId in pageRowIds }
+        .map { it.id }
+        .toSet()
+
+/** #1427: a receipt holding a gateway `user_row_id` is stored server-side and must never become UNKNOWN. */
+internal fun canDemoteAcceptedReceipt(receipt: PendingSend): Boolean = receipt.userRowId == null
 
 /** Synchronous writes keep the queue recoverable when Android kills the process just after a tap. */
 class ChatSendStore(
@@ -129,10 +150,22 @@ class ChatSendStore(
         replace(rows.map { if (it.id == id) transform(it) else it })
     }
 
+    /** Compare the entire captured receipt; a stale UI snapshot must not remove a changed send. */
+    @Synchronized
+    fun dismissReleasedUnknown(snapshot: PendingSend): Boolean {
+        if (snapshot.state != PendingSendState.UNKNOWN || !snapshot.userOrderingReleased) return false
+        if (rows.firstOrNull { it.id == snapshot.id } != snapshot) return false
+        replace(rows.filterNot { it.id == snapshot.id })
+        return true
+    }
+
     @Synchronized
     fun promote(id: String) {
         val row = rows.firstOrNull { it.id == id } ?: return
-        replace(listOf(row.copy(state = PendingSendState.QUEUED)) + rows.filterNot { it.id == id })
+        replace(
+            listOf(row.copy(state = PendingSendState.QUEUED, userOrderingReleased = false)) +
+                rows.filterNot { it.id == id },
+        )
     }
 
     @Synchronized

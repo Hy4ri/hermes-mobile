@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_pending_delivery_unverified">Consegna non verificata: non significa che il lavoro sia ancora in corso. Verifica la consegna prima di riprovare per evitare messaggi duplicati.</string>
+    <string name="chat_pending_unknown_released">Non verificato · preso atto localmente</string>
+    <string name="chat_pending_check_delivery">Verifica consegna</string>
+    <string name="chat_pending_continue_queue">Prendi atto senza reinviare</string>
+    <string name="chat_pending_continue_title">Prendere atto di questo invio non verificato?</string>
+    <string name="chat_pending_continue_warning">Questo consente la rimozione facoltativa della voce locale in sospeso. Non conferma la consegna, non reinvia il messaggio e non elimina la conversazione o i suoi allegati. I nuovi messaggi possono già procedere senza questa conferma.</string>
+    <string name="chat_pending_continue_confirm">Prendi atto</string>
+    <string name="chat_pending_remove">Rimuovi dalle voci in sospeso</string>
+    <string name="chat_pending_remove_title">Rimuovere questa voce in sospeso?</string>
+    <string name="chat_pending_remove_warning">Rimuove solo la voce locale in sospeso. Non conferma la consegna né elimina la conversazione o i suoi allegati. Questo messaggio non verrà reinviato e non potrai più riprovare da questo pannello.</string>
+    <string name="chat_pending_remove_confirm">Rimuovi</string>
+    <string name="chat_pending_remove_failed">Impossibile rimuovere la voce in sospeso. È stata conservata; riprova.</string>
+    <string name="chat_pending_acknowledge_failed">Impossibile prendere atto della voce in sospeso. È stata conservata; riprova.</string>
+</resources>

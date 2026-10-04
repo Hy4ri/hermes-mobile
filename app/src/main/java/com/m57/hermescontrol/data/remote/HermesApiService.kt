@@ -720,11 +720,6 @@ interface HermesApiService : KanbanApiService {
         @Path("platform_id") platformId: String,
     ): Response<MessagingPlatformTestResult>
 
-    @DELETE("api/messaging/platforms/{platform_id}")
-    suspend fun removeMessagingPlatform(
-        @Path("platform_id") platformId: String,
-    ): Response<Unit>
-
     @POST("api/messaging/telegram/onboarding/start")
     suspend fun startTelegramOnboarding(
         @Body body: TelegramOnboardingStartRequest,

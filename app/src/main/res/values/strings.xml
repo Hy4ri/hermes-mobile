@@ -1588,6 +1588,9 @@
     <string name="platform_remove_confirm_text">This will permanently remove this platform\'s configuration.</string>
     <string name="platform_remove_confirm_title">Remove %1$s?</string>
     <string name="platform_remove_desc">Remove platform</string>
+    <string name="platform_disconnect_confirm_text">This will disable the platform and clear its saved credentials and setup fields. Restart the gateway if prompted.</string>
+    <string name="platform_disconnect_confirm_title">Disconnect %1$s?</string>
+    <string name="platform_disconnect_desc">Disconnect platform</string>
     <string name="platform_setup_qr">Set up with QR</string>
     <string name="plugins_repo_placeholder">owner/repo, owner/repo/subdir, or https://...</string>
     <string name="plugins_search_placeholder">Search plugins...</string>

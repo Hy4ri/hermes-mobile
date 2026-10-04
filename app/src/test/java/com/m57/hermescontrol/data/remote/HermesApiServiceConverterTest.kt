@@ -5,9 +5,11 @@ import com.m57.hermescontrol.data.model.DebugShareRequest
 import com.m57.hermescontrol.data.model.HookCreateRequest
 import com.m57.hermescontrol.data.model.HookDeleteRequest
 import com.m57.hermescontrol.data.model.McpCatalogInstallRequest
-import com.m57.hermescontrol.data.model.McpServerUpdateRequest
 import com.m57.hermescontrol.data.model.MessagingPlatformUpdate
+import com.m57.hermescontrol.data.model.replaceMcpEnvValue
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -59,13 +61,33 @@ class HermesApiServiceConverterTest {
         }
 
     @Test
-    fun updateMcpServer_sendsEnvBody() =
+    fun replaceMcpServers_preservesSavedDefinitionsAndDeletesEnvKey() =
         runBlocking {
-            ok("""{"name":"s","enabled":true}""")
-            api.updateMcpServer("s", McpServerUpdateRequest(env = mapOf("K" to "v")))
+            ok(
+                """
+                {"mcp_servers":{
+                  "s":{"command":"tool","enabled":false,"headers":{"Authorization":"${'$'}{TOKEN}"},
+                       "env":{"OLD":"value","KEEP":"${'$'}{KEY}"},"future":{"nested":true}},
+                  "other":{"url":"https://example.com"}
+                }}
+                """.trimIndent(),
+            )
+            val config = api.getSavedConfig("work").body()!!
+            assertEquals("/api/config?profile=work&include_defaults=false", server.takeRequest().path)
+            ok()
+            assertTrue(api.replaceMcpServers(replaceMcpEnvValue(config, "s", "OLD", null, "work")).isSuccessful)
             val req = server.takeRequest()
             assertEquals("PUT", req.method)
-            assertEquals("""{"env":{"K":"v"}}""", req.body.readUtf8())
+            assertEquals("/api/mcp/servers", req.path)
+            val body = OkHttpProvider.json.parseToJsonElement(req.body.readUtf8()).jsonObject
+            assertEquals(JsonPrimitive("work"), body["profile"])
+            val savedServers = config.getValue("mcp_servers").jsonObject
+            val replaced = body.getValue("servers").jsonObject
+            assertEquals(savedServers["other"], replaced["other"])
+            val original = savedServers.getValue("s").jsonObject
+            val updated = replaced.getValue("s").jsonObject
+            assertEquals(original - "env", updated - "env")
+            assertEquals(original.getValue("env").jsonObject - "OLD", updated.getValue("env").jsonObject)
         }
 
     @Test

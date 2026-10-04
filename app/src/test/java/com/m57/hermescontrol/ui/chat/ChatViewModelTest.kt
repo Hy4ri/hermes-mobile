@@ -3614,6 +3614,69 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun retiredReceiptKeepsStagedImageReadableWhileBubbleStillReferencesIt() =
+        runTest {
+            // #1459: retiring the delivery receipt deleted the only file the visible bubble could load.
+            val store = ChatSendStore()
+            val (viewModel, sessionId) = createViewModelWithSession(sendStore = store)
+            val sourceUri = mockk<Uri>()
+            val snapshotUri = mockk<Uri>()
+            val resolver = mockk<ContentResolver>()
+            lateinit var snapshotFile: java.io.File
+            mockkStatic(Uri::class)
+            every { Uri.parse("content://retire/photo") } returns sourceUri
+            every { Uri.fromFile(any()) } answers {
+                snapshotFile = firstArg()
+                snapshotUri
+            }
+            every { snapshotUri.toString() } returns "file://private-retire-copy"
+            every { Uri.parse("file://private-retire-copy") } returns snapshotUri
+            every { app.contentResolver } returns resolver
+            every { resolver.openInputStream(sourceUri) } answers { byteArrayOf(1, 2, 3).inputStream() }
+            every { resolver.openInputStream(snapshotUri) } answers { snapshotFile.inputStream() }
+            mockkConstructor(android.util.Base64OutputStream::class)
+            every { anyConstructed<android.util.Base64OutputStream>().write(any<ByteArray>(), any(), any()) } returns
+                Unit
+            every { anyConstructed<android.util.Base64OutputStream>().close() } returns Unit
+            every { HermesWsClient.request(WsMethods.IMAGE_ATTACH_BYTES, any(), any()) } returns
+                CompletableDeferred<Any?>(mapOf("attached" to true))
+            every { HermesWsClient.sendMessage(sessionId, "Retire me", any(), any()) } answers {
+                arg<((String) -> Unit)?>(2)?.invoke("retire-submit")
+                "retire-submit"
+            }
+
+            viewModel.addAttachment("content://retire/photo", "photo.png", "image/png", 3)
+            assertTrue(viewModel.sendMessage("Retire me"))
+            advanceUntilIdle()
+            mockEventsFlow.emit(
+                WsEvent.RpcResult("retire-submit", mapOf("status" to "streaming", "user_row_id" to 91)),
+            )
+            advanceUntilIdle()
+            assertTrue(snapshotFile.exists())
+
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            mockEventsFlow.emit(
+                WsEvent.MessageComplete(
+                    "Reply",
+                    sessionId,
+                    rawPayload =
+                        mapOf(
+                            "persisted_turn" to
+                                mapOf("row_ids" to listOf(91, 92), "complete" to true, "user_row_id" to 91),
+                        ),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertTrue("The delivery receipt must retire", store.all().isEmpty())
+            val bubble =
+                viewModel.uiState.value.messages
+                    .single { it.role == MessageRole.USER }
+            assertEquals("file://private-retire-copy", bubble.attachments?.single()?.uri)
+            assertTrue("The bubble's only image source was deleted at receipt retirement", snapshotFile.exists())
+        }
+
+    @Test
     fun interruptAttachmentReceiptIsPrivateBeforeInterruptRequest() =
         runTest {
             val store = ChatSendStore()

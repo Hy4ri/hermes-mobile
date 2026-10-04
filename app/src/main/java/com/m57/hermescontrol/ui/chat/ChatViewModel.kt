@@ -2672,8 +2672,38 @@ class ChatViewModel(
     private fun removePendingSend(messageId: String) {
         acceptedTurnEpochById.remove(messageId)
         sendStore.remove(messageId)
-        viewModelScope.launch(ioDispatcher) { deleteQueuedAttachmentSnapshot(messageId) }
+        // #1459: the receipt is settled, but a visible bubble may still load this private file.
+        // Release it only once the transcript no longer references it (see releaseUnreferencedSnapshots).
+        if (!visibleBubbleReferencesSnapshot(messageId)) {
+            viewModelScope.launch(ioDispatcher) { deleteQueuedAttachmentSnapshot(messageId) }
+        }
         publishPendingSends()
+    }
+
+    private fun visibleBubbleReferencesSnapshot(messageId: String): Boolean =
+        _uiState.value.messages.any { message ->
+            message.id == messageId && message.attachments.orEmpty().any { it.uri.startsWith("file:", true) }
+        }
+
+    /**
+     * Delete staged snapshots that no receipt, reservation or visible bubble can still read. Called after a
+     * history merge, when a confirmed gateway image may have replaced the local file source.
+     */
+    private fun releaseUnreferencedSnapshots() {
+        viewModelScope.launch(ioDispatcher) {
+            // Best-effort housekeeping: never let it disturb the history merge that triggered it.
+            val root = runCatching { File(getApplication<Application>().filesDir, "chat-send") }.getOrNull()
+            val dirs = root?.listFiles { file -> file.isDirectory } ?: return@launch
+            val receipts = sendStore.all().mapTo(mutableSetOf()) { it.id }
+            dirs.forEach { dir ->
+                val id = dir.name
+                val reserved =
+                    synchronized(pendingSendReservationLock) { pendingSendReservations.any { it.pending.id == id } }
+                if (id in receipts || reserved || queuedStagingIds.contains(id)) return@forEach
+                if (withContext(Dispatchers.Main.immediate) { visibleBubbleReferencesSnapshot(id) }) return@forEach
+                dir.deleteRecursively()
+            }
+        }
     }
 
     /**
@@ -5282,6 +5312,7 @@ class ChatViewModel(
             }
             if (applied) {
                 ChatImageDiagnostics.history(snapshot.messages, computed.first, computed.second, cached)
+                if (!cached) releaseUnreferencedSnapshots()
                 return computed.first
             }
         }

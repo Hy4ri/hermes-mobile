@@ -57,8 +57,9 @@ class UserImageHydrationTest {
                     ),
             )
         val merged = mergeTranscriptWithLive(listOf(remote), listOf(local)).single()
-        assertEquals(local.attachments, merged.attachments)
-        assertEquals(row.contentText, merged.content)
+        // #1459: a confirmed gateway image replaces the optimistic local file source.
+        assertEquals(remote.attachments, merged.attachments)
+        assertEquals(local.id, merged.id)
         val cached = merged.toEntity(session).toUiModel()
         val restored =
             cached.copy(
@@ -71,6 +72,85 @@ class UserImageHydrationTest {
         assertEquals(AttachmentSource.GATEWAY, refreshed.attachments!!.single().source)
         assertEquals(row.contentText, refreshed.content)
         assertEquals(refreshed, mergeTranscriptWithLive(listOf(remote), listOf(refreshed)).single())
+    }
+
+    private fun imageRow(
+        id: Int,
+        vararg paths: String,
+        caption: String = "caption",
+    ): ChatMessage =
+        mapServerMessages(
+            sessionId = "session-1",
+            messages =
+                listOf(
+                    SessionMessage(
+                        id = id,
+                        role = "user",
+                        content = JsonPrimitive(caption + paths.joinToString("") { "\n@image:$it" } + "\n[screenshot]"),
+                    ),
+                ),
+            offset = 0,
+            latestPaging = true,
+            liveMessages = emptyList(),
+            mediaUrl = { "https://gateway.test/download?path=$it" },
+        ).single()
+
+    private fun localImage(name: String) =
+        com.m57.hermescontrol.data.model
+            .Attachment("file:///private/chat-send/x/$name", name, "image/jpeg")
+
+    @Test
+    fun issue1459ConfirmedImageSetReplacesLocalFilesAndKeepsOtherAttachmentsAndNoModelScaffolding() {
+        val remote = imageRow(7, "/opt/data/images/a.jpg", "/opt/data/images/b.jpg")
+        val document =
+            com.m57.hermescontrol.data.model.Attachment(
+                "file:///private/chat-send/x/doc",
+                "notes.pdf",
+                "application/pdf",
+            )
+        val local =
+            ChatMessage(
+                id = "local-1",
+                role = MessageRole.USER,
+                content = "caption",
+                attachments = listOf(localImage("one.jpg"), document, localImage("two.jpg")),
+            )
+        val merged = mergeTranscriptWithLive(listOf(remote), listOf(local)).single()
+        assertEquals(listOf("a.jpg", "b.jpg", "notes.pdf"), merged.attachments!!.map { it.name })
+        assertEquals(AttachmentSource.GATEWAY, merged.attachments!!.first().source)
+        assertEquals(document, merged.attachments!!.last())
+        // Durable refs survive; the model-facing [screenshot] placeholder never enters the live bubble.
+        assertTrue(merged.content.contains("@image:/opt/data/images/a.jpg"))
+        assertTrue(merged.content.contains("@image:/opt/data/images/b.jpg"))
+        assertFalse(merged.content.contains("[screenshot]"))
+        assertEquals("caption", hideImageRefLines(merged.content))
+        assertEquals(merged, mergeTranscriptWithLive(listOf(remote), listOf(merged)).single())
+    }
+
+    @Test
+    fun issue1459PartialConfirmedImageSetKeepsEveryLocalImage() {
+        val remote = imageRow(8, "/opt/data/images/a.jpg")
+        val local =
+            ChatMessage(
+                id = "local-2",
+                role = MessageRole.USER,
+                content = "caption",
+                attachments = listOf(localImage("one.jpg"), localImage("two.jpg")),
+            )
+        val merged = mergeTranscriptWithLive(listOf(remote), listOf(local)).single()
+        assertEquals(local.attachments, merged.attachments)
+    }
+
+    @Test
+    fun issue1459CachedCaptionOnlyAliasRecoversImageRefsFromItsRestTwin() {
+        val twin = imageRow(9, "/opt/data/images/upload.jpg", caption = "图片附件测试")
+        val alias = ChatMessage(id = "uuid-9", role = MessageRole.USER, content = "图片附件测试")
+        val deduped = dedupeCachedMessages(listOf(alias, twin))
+        val row = deduped.single()
+        assertEquals("uuid-9", row.id)
+        assertTrue(row.content.contains("@image:/opt/data/images/upload.jpg"))
+        assertEquals("upload.jpg", row.attachments?.single()?.name)
+        assertEquals(row, dedupeCachedMessages(listOf(row, twin)).single())
     }
 
     @Test
@@ -103,7 +183,8 @@ class UserImageHydrationTest {
                     .Attachment("content://local/image", "image.png", "image/png"),
             )
         val local = rest.copy(attachments = localAttachments)
-        assertEquals(localAttachments, mergeTranscriptWithLive(listOf(rest), listOf(local)).single().attachments)
+        // #1459: the confirmed gateway image supersedes a picker URI that may no longer be readable.
+        assertEquals(rest.attachments, mergeTranscriptWithLive(listOf(rest), listOf(local)).single().attachments)
     }
 
     @Test

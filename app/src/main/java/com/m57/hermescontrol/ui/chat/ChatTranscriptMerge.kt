@@ -346,7 +346,16 @@ internal fun dedupeCachedMessages(
             }.toMap()
     return unique.filterNot { it.id in echoes }.map { message ->
         aliases[message.id]?.let {
+            // #1459: the caption-only UUID alias must not outlive the REST twin that carries its image.
+            val images =
+                if (message.role == MessageRole.USER) {
+                    reconcileUserImages(message.attachments, message.content, it.attachments, it.content)
+                } else {
+                    null
+                }
             message.copy(
+                attachments = images?.attachments ?: message.attachments,
+                content = images?.content ?: message.content,
                 restId = it.canonicalRestId,
                 serverRowId = message.serverRowId ?: it.serverRowId,
                 reactions = it.reactions.ifEmpty { message.reactions },
@@ -427,16 +436,22 @@ internal fun mergeCachedTranscriptPage(
                     } else {
                         match
                     }
+                val userImages =
+                    if (rich.role == MessageRole.USER) {
+                        reconcileUserImages(
+                            rich.attachments,
+                            preservedContent ?: rich.content,
+                            message.attachments,
+                            message.content,
+                        )
+                    } else {
+                        null
+                    }
                 match.id to
                     rich.copy(
                         id = match.id,
-                        attachments =
-                            if (rich.role == MessageRole.USER) {
-                                rich.attachments?.takeIf { it.isNotEmpty() } ?: message.attachments
-                            } else {
-                                rich.attachments
-                            },
-                        content = preservedContent ?: rich.content,
+                        attachments = userImages?.attachments ?: rich.attachments,
+                        content = userImages?.content ?: preservedContent ?: rich.content,
                         restId = match.canonicalRestId ?: message.canonicalRestId,
                         serverRowId = match.serverRowId ?: message.serverRowId,
                         reactions = message.reactions.ifEmpty { match.reactions },
@@ -477,16 +492,19 @@ internal fun mergeTranscriptWithLive(
             // Keep local user metadata and stable IDs already used by the renderer.
             when {
                 match?.role == MessageRole.USER -> {
+                    val baseContent =
+                        if (match.isHistoricalCache && !message.attachments.isNullOrEmpty()) {
+                            message.content
+                        } else {
+                            match.content
+                        }
+                    // #1432: cached rows lack attachment metadata, so hydrate from REST. #1459: a confirmed
+                    // gateway image set replaces optimistic local file sources that can disappear.
+                    val images =
+                        reconcileUserImages(match.attachments, baseContent, message.attachments, message.content)
                     match.copy(
-                        // #1432: cached user rows lack attachment metadata; hydrate from REST,
-                        // while preserving richer optimistic/local attachments when present.
-                        attachments = match.attachments?.takeIf { it.isNotEmpty() } ?: message.attachments,
-                        content =
-                            if (match.isHistoricalCache && !message.attachments.isNullOrEmpty()) {
-                                message.content
-                            } else {
-                                match.content
-                            },
+                        attachments = images.attachments,
+                        content = images.content,
                         restId = (message.canonicalRestId ?: match.canonicalRestId).takeUnless { it == match.id },
                         serverRowId = message.serverRowId ?: match.serverRowId,
                         reactions = message.reactions.ifEmpty { match.reactions },

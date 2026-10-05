@@ -159,6 +159,7 @@ fun ChatLifecycleEffects(
                         error,
                         actionLabel = copyLabel,
                         duration = SnackbarDuration.Long,
+                        withDismissAction = true,
                     )
                 if (result == SnackbarResult.ActionPerformed) {
                     clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, error)))

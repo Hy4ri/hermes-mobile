@@ -755,6 +755,14 @@ fun SessionsScreen(
                         )
                     }
 
+                    state.sessions.isEmpty() && state.showArchived -> {
+                        EmptyState(
+                            title = stringResource(R.string.sessions_archived_empty_title),
+                            subtitle = stringResource(R.string.sessions_archived_empty_desc),
+                            icon = Icons.Filled.Archive,
+                        )
+                    }
+
                     state.sessions.isEmpty() -> {
                         EmptyState(
                             title =

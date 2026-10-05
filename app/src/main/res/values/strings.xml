@@ -895,6 +895,8 @@
     <string name="sessions_action_unpin">Unpin</string>
     <string name="sessions_action_archive">Archive</string>
     <string name="sessions_action_unarchive">Unarchive</string>
+    <string name="sessions_archived_empty_title">No archived sessions</string>
+    <string name="sessions_archived_empty_desc">Sessions you archive will show up here.</string>
     <string name="sessions_show_archived">Show archived sessions</string>
     <string name="sessions_hide_archived">Back to active sessions</string>
     <string name="sessions_show_hidden">Show hidden sessions</string>

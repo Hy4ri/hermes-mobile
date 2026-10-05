@@ -225,7 +225,7 @@ class PendingSendRecoveryTest {
                     )
                 }
             }
-            compose.onNodeWithText("1 条待处理消息").assertIsDisplayed().performClick()
+            compose.onNodeWithText("1 条待发送消息").assertIsDisplayed().performClick()
             compose
                 .onNodeWithText("移除")
                 .performScrollTo()

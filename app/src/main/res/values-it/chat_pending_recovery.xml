@@ -2,7 +2,6 @@
 <resources>
     <string name="chat_pending_delivery_unverified">Consegna non verificata: non significa che il lavoro sia ancora in corso. Verifica la consegna prima di riprovare per evitare messaggi duplicati.</string>
     <string name="chat_pending_unknown_released">Non verificato · preso atto localmente</string>
-    <string name="chat_pending_check_delivery">Verifica consegna</string>
     <string name="chat_pending_continue_queue">Prendi atto senza reinviare</string>
     <string name="chat_pending_continue_title">Prendere atto di questo invio non verificato?</string>
     <string name="chat_pending_continue_warning">Questo consente la rimozione facoltativa della voce locale in sospeso. Non conferma la consegna, non reinvia il messaggio e non elimina la conversazione o i suoi allegati. I nuovi messaggi possono già procedere senza questa conferma.</string>

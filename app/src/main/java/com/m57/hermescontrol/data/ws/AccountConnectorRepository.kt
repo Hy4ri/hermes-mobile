@@ -18,7 +18,7 @@ import com.m57.hermescontrol.data.ws.contract.ConnectorsOperationStatusParams
 import com.m57.hermescontrol.data.ws.contract.ConnectorsPolicyGetParams
 import com.m57.hermescontrol.data.ws.contract.ConnectorsPolicySetParams
 import com.m57.hermescontrol.data.ws.contract.ConnectorsToolsParams
-import com.m57.hermescontrol.data.ws.contract.HermesRpcCaller
+import com.m57.hermescontrol.data.ws.contract.RpcMethod
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
 import com.m57.hermescontrol.data.ws.contract.TypedRpcCaller
 import kotlinx.coroutines.CancellationException
@@ -28,6 +28,14 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+
+// #1477: account connector failures are rendered by their owner, not the shared chat error banner.
+private object AccountConnectorRpcCaller : TypedRpcCaller {
+    override suspend fun <P, R> call(
+        method: RpcMethod<P, R>,
+        params: P,
+    ): R = HermesWsClient.call(method, params, suppressErrorEvent = true)
+}
 
 interface AccountConnectorRepository {
     suspend fun catalog(): AccountConnectorResult<List<ConnectorCatalogEntry>>
@@ -74,7 +82,7 @@ interface AccountConnectorRepository {
 }
 
 class HermesAccountConnectorRepository(
-    private val caller: TypedRpcCaller = HermesRpcCaller,
+    private val caller: TypedRpcCaller = AccountConnectorRpcCaller,
 ) : AccountConnectorRepository {
     private suspend fun <T> guarded(block: suspend () -> T): AccountConnectorResult<T> =
         try {

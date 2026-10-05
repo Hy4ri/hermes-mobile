@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_pending_delivery_unverified">Entrega no verificada: esto no significa que la tarea aún se esté ejecutando. Comprueba la entrega antes de reintentar para evitar mensajes duplicados.</string>
+    <string name="chat_pending_unknown_released">No verificado · confirmado localmente</string>
+    <string name="chat_pending_continue_queue">Confirmar sin reenviar</string>
+    <string name="chat_pending_continue_title">¿Confirmar este envío no verificado?</string>
+    <string name="chat_pending_continue_warning">Esto permite la eliminación opcional de esta entrada pendiente local. No confirma la entrega, no reenvía este mensaje ni elimina la conversación o sus adjuntos. Los nuevos mensajes ya pueden continuar sin confirmar esta entrada.</string>
+    <string name="chat_pending_continue_confirm">Confirmar entrada</string>
+    <string name="chat_pending_remove">Eliminar de pendientes</string>
+    <string name="chat_pending_remove_title">¿Eliminar este mensaje pendiente?</string>
+    <string name="chat_pending_remove_warning">Esto solo elimina la entrada pendiente local. No confirma la entrega ni elimina la conversación o sus adjuntos. Este mensaje no se reenviará. Ya no podrás reintentarlo desde este panel.</string>
+    <string name="chat_pending_remove_confirm">Eliminar</string>
+    <string name="chat_pending_remove_failed">No se pudo eliminar la entrada pendiente. Se ha conservado; inténtalo de nuevo.</string>
+    <string name="chat_pending_acknowledge_failed">No se pudo confirmar la entrada pendiente. Se ha conservado; inténtalo de nuevo.</string>
+</resources>

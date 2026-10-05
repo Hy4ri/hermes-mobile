@@ -22,10 +22,32 @@ concurrency:
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────
+  # Job -1: PR template gate — runs first; failure skips every job below.
+  # Uses the base branch's copy of the script so a PR cannot weaken its own check.
+  # The explanatory bot comment is posted by pr-template.yml.
+  # ─────────────────────────────────────────────────────────────────────
+  pr-template:
+    name: PR Template
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Checkout trusted script (base branch)
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+      - name: Validate PR description
+        run: python3 .github/scripts/check_pr_template.py "$GITHUB_EVENT_PATH"
+
+  # ─────────────────────────────────────────────────────────────────────
   # Job 0: Detect changes — skips heavy Android build/tests for doc-only PRs
   # ─────────────────────────────────────────────────────────────────────
   changes:
     name: Detect Changes
+    needs: [pr-template]
+    if: ${{ !cancelled() && contains(fromJSON('["success","skipped"]'), needs.pr-template.result) }}
     runs-on: ubuntu-latest
     timeout-minutes: 3
     outputs:
@@ -355,7 +377,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   ci-summary:
     name: CI Summary
-    needs: [changes, ktlint, android-lint, unit-tests, build, release-compile, instrumented-tests]
+    needs: [pr-template, changes, ktlint, android-lint, unit-tests, build, release-compile, instrumented-tests]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     if: always()
@@ -367,6 +389,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          TEMPLATE_RESULT: ${{ needs.pr-template.result }}
           KTLINT_RESULT: ${{ needs.ktlint.result }}
           LINT_RESULT: ${{ needs.android-lint.result }}
           TEST_RESULT: ${{ needs.unit-tests.result }}
@@ -377,7 +400,7 @@ jobs:
           LABEL="ci-red"
           FAILED=0
           FAILED_JOBS=""
-          for entry in "ktlint:$KTLINT_RESULT" "android-lint:$LINT_RESULT" "unit-tests:$TEST_RESULT" "build:$BUILD_RESULT" "release-compile:$RELEASE_COMPILE_RESULT" "instrumented-tests:$INSTRUMENTED_RESULT"; do
+          for entry in "pr-template:$TEMPLATE_RESULT" "ktlint:$KTLINT_RESULT" "android-lint:$LINT_RESULT" "unit-tests:$TEST_RESULT" "build:$BUILD_RESULT" "release-compile:$RELEASE_COMPILE_RESULT" "instrumented-tests:$INSTRUMENTED_RESULT"; do
             name="${entry%%:*}"
             result="${entry#*:}"
             echo "::notice::$name = $result"

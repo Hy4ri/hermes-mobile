@@ -68,6 +68,7 @@ import com.m57.hermescontrol.ui.settings.SettingsViewModel
 import com.m57.hermescontrol.ui.toolsets.ToolsetDetailScreen
 import kotlinx.coroutines.launch
 import com.m57.hermescontrol.ui.authlogin.AuthLoginScreen as AuthLoginScreenContent
+import com.m57.hermescontrol.ui.connectors.AccountConnectorsScreen as AccountConnectorsScreenContent
 import com.m57.hermescontrol.ui.landing.LandingScreen as LandingScreenContent
 
 private fun appEntryProvider(
@@ -118,6 +119,9 @@ private fun appEntryProvider(
             onLogout = { /* handled by caller via goBack fallback */ },
             viewModel = viewModel { SettingsViewModel() },
         )
+    }
+    entry<AccountConnectorsScreen> {
+        AccountConnectorsScreenContent(onBack = { NavigationController.goBack() })
     }
     entry<SettingsAppearance> {
         SettingsAppearancePage(
@@ -311,7 +315,7 @@ fun MainNavigation(sessionId: String? = null) {
                             fontWeight = FontWeight.SemiBold,
                         )
                         ScreenRegistry.ALL_SCREENS
-                            .filter { it.drawerSection == section && (hasToken || it.key == ConnectionsScreen) }
+                            .filter { it.drawerSection == section && hasToken }
                             .forEach { entry ->
                                 NavigationDrawerItem(
                                     icon = { Icon(entry.icon, contentDescription = null) },

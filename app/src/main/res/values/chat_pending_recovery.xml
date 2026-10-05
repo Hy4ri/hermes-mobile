@@ -2,7 +2,6 @@
 <resources>
     <string name="chat_pending_delivery_unverified">Delivery unverified: this does not mean work is still running. Check delivery before retrying to avoid duplicate messages.</string>
     <string name="chat_pending_unknown_released">Unverified · acknowledged locally</string>
-    <string name="chat_pending_check_delivery">Check delivery</string>
     <string name="chat_pending_continue_queue">Acknowledge without resending</string>
     <string name="chat_pending_continue_title">Acknowledge this unverified send?</string>
     <string name="chat_pending_continue_warning">This allows optional removal of this local pending entry. It does not confirm delivery, resend this message, or delete the conversation or its attachments. New messages can already proceed without acknowledging this entry.</string>

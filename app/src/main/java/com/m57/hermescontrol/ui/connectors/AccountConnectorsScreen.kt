@@ -11,6 +11,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -50,7 +54,7 @@ import com.m57.hermescontrol.util.ConnectorUrlValidator
 
 @Composable
 fun AccountConnectorsScreen(
-    onOpenDrawer: () -> Unit,
+    onBack: () -> Unit,
     vm: AccountConnectorsViewModel = viewModel { AccountConnectorsViewModel() },
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -81,12 +85,24 @@ fun AccountConnectorsScreen(
     }
     HermesScaffold(
         title = { Text(stringResource(R.string.account_connectors_title)) },
-        navigationIcon = NavIcon.Menu(onOpenDrawer),
+        navigationIcon = NavIcon.Back(onBack),
+        drawerGesturesEnabled = false,
         onRefresh = vm::refresh,
     ) {
         when {
             state.loading -> {
                 LoadingState()
+            }
+
+            state.unavailable -> {
+                EmptyState(
+                    title = stringResource(R.string.account_connectors_unavailable_title),
+                    subtitle = stringResource(R.string.account_connectors_unavailable_description),
+                    icon = Icons.Filled.LinkOff,
+                    actionLabel = stringResource(R.string.account_connectors_check_again),
+                    onAction = vm::refresh,
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                )
             }
 
             state.error != null && state.catalog.isEmpty() && state.accounts.isEmpty() -> {

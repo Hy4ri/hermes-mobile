@@ -107,7 +107,7 @@ class AccountConnectorsScreenTest {
                     themePreference = if (largeTextRtl) ThemePreference.DARK else ThemePreference.LIGHT,
                 ) {
                     Box(Modifier.size(width = 320.dp, height = 480.dp)) {
-                        AccountConnectorsScreen(onOpenDrawer = {}, vm = vm)
+                        AccountConnectorsScreen(onBack = {}, vm = vm)
                     }
                 }
             }

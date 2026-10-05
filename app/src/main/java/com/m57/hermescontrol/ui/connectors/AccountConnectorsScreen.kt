@@ -54,7 +54,7 @@ import com.m57.hermescontrol.util.ConnectorUrlValidator
 
 @Composable
 fun AccountConnectorsScreen(
-    onOpenDrawer: () -> Unit,
+    onBack: () -> Unit,
     vm: AccountConnectorsViewModel = viewModel { AccountConnectorsViewModel() },
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -85,7 +85,8 @@ fun AccountConnectorsScreen(
     }
     HermesScaffold(
         title = { Text(stringResource(R.string.account_connectors_title)) },
-        navigationIcon = NavIcon.Menu(onOpenDrawer),
+        navigationIcon = NavIcon.Back(onBack),
+        drawerGesturesEnabled = false,
         onRefresh = vm::refresh,
     ) {
         when {

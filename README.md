@@ -130,7 +130,18 @@ leaving an edited draft asks whether to discard unsaved changes. Host/port edits
 preserve the draft certificate and invalidate pending choices.
 An editor dismissed or destroyed while the picker is open ignores its late callback.
 
-Network requests never open a certificate picker or wait for user selection. Missing,
+On the login screen, a failed initial `/api/status` probe offers certificate setup only
+when its HTTPS error cause chain contains an SSL exception with the exact
+`TLSV1_ALERT_CERTIFICATE_REQUIRED` alert. The dialog fixes the host and port; you must
+explicitly select an installed certificate. **Save** verifies that candidate with a fresh
+TLS connection and one credential-free `GET /api/status` to that origin. Any HTTP response
+headers suffice, including 401/403; redirects are not followed. Failed verification leaves
+existing bindings unchanged. Cancel returns to the original connection error. After saving,
+use the connection button to retry; the inline notice points to **Connections** for changes.
+
+TLS 1.2 peers and providers reporting other alerts may not trigger this prompt; use the
+manual configuration above. Later login steps, background requests and other screens do
+not trigger it. Network requests never open the system picker or wait for selection. Missing,
 expired, revoked or incompatible keys result in no client identity, so servers requiring
 mTLS fail normally until a usable binding is saved. REST, WebSocket, images, attachments
 and audio/video share the TLS configuration. Default Android server trust and hostname

@@ -1708,4 +1708,8 @@
     <string name="mcp_servers_catalog_empty_title">暂无目录条目</string>
     <string name="mcp_servers_catalog_installed">已安装</string>
     <string name="settings_desc_theme_preset_dynamic">用于状态颜色，应用颜色由 Material You 提供。</string>
+    <string name="mtls_prompt_title">服务器请求客户端证书</string>
+    <string name="mtls_prompt_help">此服务器请求了客户端证书，连接失败。请选择已安装的证书，然后点击保存以验证它能否用于此地址。取消将返回原连接错误。</string>
+    <string name="mtls_prompt_verifying">正在验证…</string>
+    <string name="mtls_prompt_saved">已为 %1$s 保存证书。之后可在 Connections（连接）中修改或删除此绑定。请点击连接按钮继续。</string>
 </resources>

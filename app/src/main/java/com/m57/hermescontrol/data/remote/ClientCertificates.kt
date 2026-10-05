@@ -121,6 +121,23 @@ object ClientCertificates {
         registry.save(previous, url, alias, expected)
     }
 
+    /** Verify an explicit draft without publishing it to normal traffic or sharing TLS sessions. */
+    internal suspend fun verifyCandidate(
+        url: HttpUrl,
+        alias: String,
+    ) {
+        if (!available(alias, null, null)) throw IOException("Client certificate is unavailable")
+        verifyClientCertificate(
+            url,
+            trust,
+            ClientCertificateKeyManager(
+                choose = { types, issuers, _ -> alias.takeIf { available(it, types, issuers) } },
+                privateKey = { selected -> if (selected == alias) key(alias) else null },
+                certificateChain = { selected -> if (selected == alias) chain(alias) else null },
+            ),
+        )
+    }
+
     /** Persistent generation isolates late cache responses from a previous TLS identity. */
     fun cacheKey(url: HttpUrl): String = registry.cacheKey(url)
 

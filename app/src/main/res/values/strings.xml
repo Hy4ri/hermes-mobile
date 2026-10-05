@@ -1849,4 +1849,8 @@
         <item quantity="one">Saved Configuration (%1$d)</item>
         <item quantity="other">Saved Configurations (%1$d)</item>
     </plurals>
+    <string name="mtls_prompt_title">Client certificate requested</string>
+    <string name="mtls_prompt_help">This server requested a client certificate and the connection failed. Select an installed certificate, then save to verify it for this address. Cancel to return to the connection error.</string>
+    <string name="mtls_prompt_verifying">Verifying…</string>
+    <string name="mtls_prompt_saved">Certificate saved for %1$s. You can change or remove this binding in Connections. Use the connection button to continue.</string>
 </resources>

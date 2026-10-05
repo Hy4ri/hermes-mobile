@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.ui.authlogin
 
 import android.app.Application
+import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -50,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.remote.ClientCertificates
 import com.m57.hermescontrol.ui.common.CustomHeadersButton
 
 @Composable
@@ -67,6 +69,27 @@ fun AuthLoginScreen(
         ),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val certificateState by viewModel.certificatePrompt.state.collectAsStateWithLifecycle()
+    val activity = LocalActivity.current
+    if (certificateState.origin != null) {
+        CertificatePromptDialog(
+            state = certificateState,
+            onSelect = {
+                val host = activity
+                val origin = certificateState.origin
+                if (host != null && origin != null) {
+                    val attempt = viewModel.certificatePrompt.beginSelection()
+                    if (attempt != null) {
+                        ClientCertificates.select(host, origin, certificateState.alias) { alias, valid ->
+                            viewModel.certificatePrompt.selected(attempt, alias, valid)
+                        }
+                    }
+                }
+            },
+            onSave = viewModel::saveCertificate,
+            onDismiss = { viewModel.certificatePrompt.reset() },
+        )
+    }
 
     LaunchedEffect(state.connectionSuccess) {
         if (state.connectionSuccess) {
@@ -297,6 +320,8 @@ fun AuthLoginScreen(
                     )
                 }
             }
+
+            certificateState.savedOrigin?.let { CertificateSavedNotice(it) }
 
             // Error message
             AnimatedVisibility(

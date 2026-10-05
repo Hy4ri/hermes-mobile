@@ -22,7 +22,8 @@ concurrency:
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────
-  # Job -1: PR template gate — runs first; failure skips every job below.
+  # Job -1: PR template gate — runs alongside Detect Changes; a failure skips
+  # every expensive job (lint/tests/build) but not the cheap ones.
   # Uses the base branch's copy of the script so a PR cannot weaken its own check.
   # The explanatory bot comment is posted by pr-template.yml.
   # ─────────────────────────────────────────────────────────────────────
@@ -46,8 +47,6 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   changes:
     name: Detect Changes
-    needs: [pr-template]
-    if: ${{ !cancelled() && contains(fromJSON('["success","skipped"]'), needs.pr-template.result) }}
     runs-on: ubuntu-latest
     timeout-minutes: 3
     outputs:
@@ -78,8 +77,8 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   ktlint:
     name: ktlint — Code Style
-    needs: [changes]
-    if: needs.changes.outputs.code == 'true'
+    needs: [pr-template, changes]
+    if: ${{ !cancelled() && needs.pr-template.result != 'failure' && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -139,8 +138,8 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   android-lint:
     name: Android Lint — Static Analysis
-    needs: [changes]
-    if: needs.changes.outputs.code == 'true'
+    needs: [pr-template, changes]
+    if: ${{ !cancelled() && needs.pr-template.result != 'failure' && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -178,8 +177,8 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   unit-tests:
     name: Unit & Integration Tests
-    needs: [changes]
-    if: needs.changes.outputs.code == 'true'
+    needs: [pr-template, changes]
+    if: ${{ !cancelled() && needs.pr-template.result != 'failure' && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -236,8 +235,8 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   build:
     name: Build Debug APK
-    needs: [changes]
-    if: needs.changes.outputs.code == 'true'
+    needs: [pr-template, changes]
+    if: ${{ !cancelled() && needs.pr-template.result != 'failure' && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -279,8 +278,8 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   release-compile:
     name: Release Compile Check
-    needs: [changes]
-    if: needs.changes.outputs.code == 'true'
+    needs: [pr-template, changes]
+    if: ${{ !cancelled() && needs.pr-template.result != 'failure' && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -312,8 +311,8 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   instrumented-tests:
     name: Instrumented Tests
-    needs: [changes]
-    if: needs.changes.outputs.code == 'true'
+    needs: [pr-template, changes]
+    if: ${{ !cancelled() && needs.pr-template.result != 'failure' && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

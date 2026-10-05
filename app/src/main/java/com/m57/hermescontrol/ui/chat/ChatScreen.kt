@@ -518,7 +518,7 @@ fun ChatScreen(
         },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         snackbarHost = {
-            SnackbarHost(snackbarHostState) { data ->
+            SnackbarHost(snackbarHostState, modifier = Modifier.imePadding()) { data ->
                 val statusColors = LocalHermesStatusColors.current
                 val isDownloadComplete = data.visuals.message.startsWith("Saved ")
                 Snackbar(

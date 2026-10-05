@@ -40,7 +40,6 @@ import com.m57.hermescontrol.ui.bots.BotsScreen as BotsScreenContent
 import com.m57.hermescontrol.ui.channels.ChannelsScreen as ChannelsScreenContent
 import com.m57.hermescontrol.ui.chat.ChatScreen as ChatScreenContent
 import com.m57.hermescontrol.ui.config.ConfigScreen as ConfigScreenContent
-import com.m57.hermescontrol.ui.connectors.AccountConnectorsScreen as AccountConnectorsScreenContent
 import com.m57.hermescontrol.ui.cron.CronJobsScreen as CronJobsScreenContent
 import com.m57.hermescontrol.ui.files.FilesScreen as FilesScreenContent
 import com.m57.hermescontrol.ui.gateway.GatewayScreen as GatewayScreenContent
@@ -239,17 +238,11 @@ object ScreenRegistry {
                 DrawerSection.INSPECT,
             ) { sessionId, openDrawer -> AchievementsScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
-                AccountConnectorsScreen,
-                R.string.screen_account_connectors,
-                Icons.Filled.Extension,
-                DrawerSection.CONFIGURE,
-            ) { _, openDrawer -> AccountConnectorsScreenContent(onOpenDrawer = openDrawer) },
-            ScreenDefinition(
                 ConnectionsScreen,
                 R.string.screen_connections,
                 Icons.Filled.Dns,
-                DrawerSection.CONFIGURE,
-            ) { _, openDrawer -> ConnectionsPage(onOpenDrawer = openDrawer) },
+                null,
+            ) { _, _ -> ConnectionsPage() },
             ScreenDefinition(
                 SettingsScreen,
                 R.string.screen_settings,

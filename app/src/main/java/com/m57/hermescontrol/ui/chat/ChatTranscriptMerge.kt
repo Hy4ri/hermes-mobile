@@ -269,6 +269,7 @@ internal fun matchTranscriptMessages(
                 val other = existing[candidate]
                 !used[candidate] &&
                     other.id !in contentMatchExcludedIds &&
+                    message.id !in contentMatchExcludedIds &&
                     (
                         allowAssistantContentMatches || message.role != MessageRole.ASSISTANT ||
                             message.completionId != null || other.completionId != null
@@ -292,7 +293,53 @@ internal fun matchTranscriptMessages(
             matches[index] = existing[match]
         }
     }
+    matchRewrittenUserRows(incoming, existing, comparison, used, matches)
     return matches.toList()
+}
+
+/** Clock skew between phone and gateway plus send latency; a rewritten row keeps its original timestamp. */
+private const val REWRITTEN_ROW_WINDOW_MS = 120_000L
+
+/**
+ * #1491: compaction re-issues gateway row ids, so a restored local USER row can no longer match its
+ * canonical copy by id. Fold the pair only when it is unambiguous: same text, timestamps inside
+ * [REWRITTEN_ROW_WINDOW_MS], and exactly one candidate on each side. Repeated prompts stay separate.
+ */
+private fun matchRewrittenUserRows(
+    incoming: List<ChatMessage>,
+    existing: List<ChatMessage>,
+    comparison: TranscriptComparison,
+    used: BooleanArray,
+    matches: Array<ChatMessage?>,
+) {
+    fun sameText(
+        a: ChatMessage,
+        b: ChatMessage,
+    ) = a.role == MessageRole.USER && b.role == MessageRole.USER &&
+        a.displayKind != DisplayKind.CLARIFY_RESPONSE && b.displayKind != DisplayKind.CLARIFY_RESPONSE &&
+        !a.isPermanentlyLocal() && !b.isPermanentlyLocal() && a.content.isNotBlank() &&
+        comparison.same(a.copy(restId = null, serverRowId = null), b.copy(restId = null, serverRowId = null)) &&
+        kotlin.math.abs(a.timestamp - b.timestamp) <= REWRITTEN_ROW_WINDOW_MS
+
+    val restored =
+        existing.indices.filter {
+            !used[it] && existing[it].isRestoredUnconfirmed && existing[it].role == MessageRole.USER
+        }
+    if (restored.isEmpty()) return
+    val open =
+        incoming.indices.filter {
+            matches[it] == null && incoming[it].role == MessageRole.USER && incoming[it].canonicalRestId != null
+        }
+    for (candidate in restored) {
+        val hits = open.filter { matches[it] == null && sameText(incoming[it], existing[candidate]) }
+        val single = hits.singleOrNull() ?: continue
+        val rivals = restored.count { !used[it] && sameText(incoming[single], existing[it]) }
+        val incomingRivals = open.count { matches[it] == null && sameText(incoming[it], existing[candidate]) }
+        if (rivals == 1 && incomingRivals == 1) {
+            used[candidate] = true
+            matches[single] = existing[candidate]
+        }
+    }
 }
 
 /**
@@ -323,13 +370,17 @@ internal fun stripAttachmentRefLines(content: String): String =
 internal fun dedupeCachedMessages(
     messages: List<ChatMessage>,
     confirmedOnly: Boolean = false,
+    contentMatchExcludedIds: Set<String> = emptySet(),
 ): List<ChatMessage> {
     val unique = messages.dedupeById()
     val rest = unique.filter { RestMessageId.isRest(it.id) }
     val live = unique.filterNot { RestMessageId.isRest(it.id) }
     if (rest.isEmpty() || live.isEmpty()) return unique
     val matches =
-        matchTranscriptMessages(rest, live).mapIndexed { index, match ->
+        matchTranscriptMessages(rest, live, contentMatchExcludedIds = contentMatchExcludedIds).mapIndexed {
+            index,
+            match,
+            ->
             match?.takeIf {
                 !confirmedOnly || rest[index].canonicalRestId == it.canonicalRestId ||
                     (rest[index].completionId != null && rest[index].completionId == it.completionId)
@@ -373,6 +424,7 @@ internal fun dedupeCachedMessages(
 internal fun mergeCachedTranscriptPage(
     page: List<ChatMessage>,
     current: List<ChatMessage>,
+    contentMatchExcludedIds: Set<String> = emptySet(),
 ): List<ChatMessage> {
     val currentById = current.associateBy { it.id }
     // Legacy cached UUIDs may lack an alias. Restore a known alias before page-local matching
@@ -382,8 +434,9 @@ internal fun mergeCachedTranscriptPage(
             page.map { message ->
                 currentById[message.id]?.restId?.let { message.copy(restId = it) } ?: message
             },
+            contentMatchExcludedIds = contentMatchExcludedIds,
         )
-    val matches = matchTranscriptMessages(incoming, current)
+    val matches = matchTranscriptMessages(incoming, current, contentMatchExcludedIds = contentMatchExcludedIds)
     val replacements =
         incoming
             .mapIndexedNotNull { index, message ->
@@ -595,6 +648,7 @@ internal fun mergeTranscriptWithLive(
             observedSuccessorAnchors = current,
         ),
         confirmedOnly = true,
+        contentMatchExcludedIds = contentMatchExcludedIds,
     ).reconcileReasoningRows()
 }
 

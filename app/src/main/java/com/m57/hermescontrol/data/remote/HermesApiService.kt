@@ -192,6 +192,8 @@ interface HermesApiService : KanbanApiService {
         @Query("order") order: String = "recent",
         @Query("source") source: String? = null,
         @Query("exclude_sources") excludeSources: String? = null,
+        // exclude (backend default) | include | only (issue #1496)
+        @Query("archived") archived: String? = null,
     ): Response<SessionListResponse>
 
     @GET("api/sessions/search")
@@ -256,10 +258,10 @@ interface HermesApiService : KanbanApiService {
         @Body body: SessionRenameRequest,
     ): Response<Unit>
 
-    // Hide/unhide rides the same PATCH /api/sessions/{id} — body carries only
-    // {hidden} (backend SessionRename model, any subset accepted; issue #1019).
+    // Archive/unarchive rides the same PATCH /api/sessions/{id} — body carries only
+    // {archived} (backend SessionRename model, any subset accepted; issue #1496).
     @PATCH("api/sessions/{id}")
-    suspend fun setSessionHidden(
+    suspend fun setSessionArchived(
         @Path("id", encoded = true) sessionId: String,
         @Body body: SessionRenameRequest,
     ): Response<Unit>

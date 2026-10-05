@@ -22,6 +22,32 @@ concurrency:
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────
+  # Job -1: PR template gate — runs alongside Detect Changes; a failure skips
+  # every expensive job (lint/tests/build) but not the cheap ones.
+  # Uses the base branch's copy of the script so a PR cannot weaken its own check.
+  # The explanatory bot comment is posted by pr-template.yml.
+  # ─────────────────────────────────────────────────────────────────────
+  pr-template:
+    name: PR Template
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout trusted script (base branch)
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+      - name: Validate PR description
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/check_pr_template.py "$GITHUB_EVENT_PATH"
+
+  # ─────────────────────────────────────────────────────────────────────
   # Job 0: Detect changes — skips heavy Android build/tests for doc-only PRs
   # ─────────────────────────────────────────────────────────────────────
   changes:
@@ -56,8 +82,8 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   ktlint:
     name: ktlint — Code Style
-    needs: [changes]
-    if: needs.changes.outputs.code == 'true'
+    needs: [pr-template, changes]
+    if: ${{ !cancelled() && needs.pr-template.result != 'failure' && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -117,8 +143,8 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   android-lint:
     name: Android Lint — Static Analysis
-    needs: [changes]
-    if: needs.changes.outputs.code == 'true'
+    needs: [pr-template, changes]
+    if: ${{ !cancelled() && needs.pr-template.result != 'failure' && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -156,8 +182,8 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   unit-tests:
     name: Unit & Integration Tests
-    needs: [changes]
-    if: needs.changes.outputs.code == 'true'
+    needs: [pr-template, changes]
+    if: ${{ !cancelled() && needs.pr-template.result != 'failure' && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -214,8 +240,8 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   build:
     name: Build Debug APK
-    needs: [changes]
-    if: needs.changes.outputs.code == 'true'
+    needs: [pr-template, changes]
+    if: ${{ !cancelled() && needs.pr-template.result != 'failure' && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -257,8 +283,8 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   release-compile:
     name: Release Compile Check
-    needs: [changes]
-    if: needs.changes.outputs.code == 'true'
+    needs: [pr-template, changes]
+    if: ${{ !cancelled() && needs.pr-template.result != 'failure' && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -290,8 +316,8 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   instrumented-tests:
     name: Instrumented Tests
-    needs: [changes]
-    if: needs.changes.outputs.code == 'true'
+    needs: [pr-template, changes]
+    if: ${{ !cancelled() && needs.pr-template.result != 'failure' && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -355,7 +381,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   ci-summary:
     name: CI Summary
-    needs: [changes, ktlint, android-lint, unit-tests, build, release-compile, instrumented-tests]
+    needs: [pr-template, changes, ktlint, android-lint, unit-tests, build, release-compile, instrumented-tests]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     if: always()
@@ -367,6 +393,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          TEMPLATE_RESULT: ${{ needs.pr-template.result }}
           KTLINT_RESULT: ${{ needs.ktlint.result }}
           LINT_RESULT: ${{ needs.android-lint.result }}
           TEST_RESULT: ${{ needs.unit-tests.result }}
@@ -377,7 +404,7 @@ jobs:
           LABEL="ci-red"
           FAILED=0
           FAILED_JOBS=""
-          for entry in "ktlint:$KTLINT_RESULT" "android-lint:$LINT_RESULT" "unit-tests:$TEST_RESULT" "build:$BUILD_RESULT" "release-compile:$RELEASE_COMPILE_RESULT" "instrumented-tests:$INSTRUMENTED_RESULT"; do
+          for entry in "pr-template:$TEMPLATE_RESULT" "ktlint:$KTLINT_RESULT" "android-lint:$LINT_RESULT" "unit-tests:$TEST_RESULT" "build:$BUILD_RESULT" "release-compile:$RELEASE_COMPILE_RESULT" "instrumented-tests:$INSTRUMENTED_RESULT"; do
             name="${entry%%:*}"
             result="${entry#*:}"
             echo "::notice::$name = $result"

@@ -8,12 +8,11 @@ import com.m57.hermescontrol.data.local.AuthManager
 
 /** Reuse the connection settings flow, including before the first server login. */
 @Composable
-internal fun ConnectionsPage(onOpenDrawer: () -> Unit) {
+internal fun ConnectionsPage() {
     val token by AuthManager.tokenFlow.collectAsStateWithLifecycle()
     SettingsConnectionPage(
         onBack = { NavigationController.goBack() },
         onLogout = {},
-        onOpenDrawer = onOpenDrawer,
         showLogout = !token.isNullOrBlank(),
     )
 }

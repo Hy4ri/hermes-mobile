@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /** #1491: compaction re-issues gateway row ids, so a locally sent row must fold into its REST copy. */
-class ChatRewrittenIdentityTest {
+class ChatTranscriptMergeTest {
     private val sent = 1_000_000_000L
 
     private fun local(

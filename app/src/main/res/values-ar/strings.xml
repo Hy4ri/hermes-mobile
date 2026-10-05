@@ -35,9 +35,7 @@
 <string name="content_desc_refresh">تحديث</string>
 <string name="common_save">حفظ</string>
 <string name="empty_action_browse_hub">تصفح مركز المهارات (Skill Hub)</string>
-<string name="empty_action_retry_search">إعادة محاولة البحث</string>
 <string name="empty_action_create_job">إنشاء مهمتك الأولى</string>
-<string name="empty_action_add_server">إضافة خادم</string>
 <string name="empty_action_connect_telegram">ربط قناة Telegram</string>
 <string name="empty_action_configure_model">تهيئة النموذج</string>
 <string name="empty_action_start_chat">بدء محادثة جديدة</string>
@@ -142,7 +140,6 @@
 <string name="notif_channel_chat_name">ردود محادثة Hermes</string>
 <string name="notif_channel_chat_desc">تنبيهات عند استلام ردود جديدة من Hermes</string>
 <string name="action_reply">رد</string>
-<string name="bot_chat_never_resets_notice">محادثات البوت هي محادثة مستمرة واحدة — يتم ضغطها بدلاً من ذلك. للحصول على جلسة مؤقتة، أنشئ محادثة قياسية.</string>
 <string name="chat_action_search">بحث</string>
 <string name="chat_action_close_search">إغلاق البحث</string>
 <string name="chat_action_reconnect">إعادة الاتصال</string>
@@ -215,7 +212,6 @@
 <string name="settings_delay_100ms">100 مللي ثانية</string>
 <string name="settings_item_chat_font_size">حجم خط المحادثة</string>
 <string name="settings_desc_chat_font_size">تغيير حجم النص في رسائل المحادثة</string>
-<string name="settings_font_scale_value">حجم الخط: %1$s</string>
 <string name="settings_font_scale_small">صغير (0.85×)</string>
 <string name="settings_font_scale_default">افتراضي (1.0×)</string>
 <string name="settings_font_scale_large">كبير (1.15×)</string>
@@ -330,7 +326,6 @@
 <string name="kanban_complete_title">إكمال المهمة</string>
 <string name="kanban_complete_summary_label">ملخص الإكمال</string>
 <string name="kanban_complete_summary_hint">يُحفظ كنتيجة للمهمة</string>
-<string name="kanban_move_failed">فشل النقل: %1$s</string>
 <string name="kanban_live">مباشر</string>
 <string name="kanban_offline">غير متصل</string>
 <string name="kanban_no_tasks">لا توجد مهام</string>
@@ -349,7 +344,6 @@
     <string name="kanban_parent_task">المهمة الأصلية</string>
     <string name="kanban_parent_none">لا يوجد</string>
     <string name="kanban_model_override">تجاوز النموذج</string>
-    <string name="kanban_provider_override">تجاوز المزود</string>
     <string name="kanban_reasoning_effort">جهد الاستنتاج</string>
     <string name="kanban_workspace_kind">نوع مساحة العمل</string>
     <string name="kanban_workspace_path">تجاوز مسار مساحة العمل</string>
@@ -404,7 +398,6 @@
     <string name="kanban_reestimate_action">إعادة التقدير</string>
     <string name="kanban_estimated_tokens">الرموز المقدرة: %1$d</string>
     <string name="kanban_complexity">التعقيد: %1$s</string>
-    <string name="kanban_rationale">السبب والمنطق</string>
     <string name="kanban_delete_task">حذف المهمة</string>
     <string name="kanban_delete_task_confirm">هل أنت متأكد من حذف هذه المهمة؟ لا يمكن التراجع عن هذا الإجراء.</string>
     <string name="kanban_bulk_assign">تعيين</string>
@@ -414,8 +407,6 @@
     <string name="kanban_export_board">تصدير اللوحة</string>
     <string name="kanban_import_board">استيراد لوحة</string>
     <string name="kanban_runtime_working">قيد التشغيل</string>
-    <string name="kanban_runtime_stale">متوقف (لا توجد إشارة)</string>
-    <string name="kanban_runtime_wont_run">لن تعمل: غير معيّنة</string>
     <string name="kanban_runtime_elapsed">· %1$s</string>
     <string name="kanban_runtime_stale_badge">· متوقف</string>
     <string name="kanban_runtime_wont_run_badge">· لن تعمل</string>
@@ -493,7 +484,6 @@
 <string name="skills_hub_search_placeholder">البحث في مركز المهارات\u2026</string>
 <string name="skills_hub_search_button">بحث في المركز</string>
 <string name="skills_hub_empty_results">لم يتم العثور على مهارات في المركز</string>
-<string name="skills_hub_search_hint">اكتب مصطلح البحث لتصفح مركز المهارات</string>
 <string name="skills_hub_install">تثبيت</string>
 <string name="skills_hub_sources_title">المصادر المتصلة</string>
 <string name="skills_hub_source_rate_limited">تم تجاوز حد الطلبات</string>
@@ -706,7 +696,6 @@
 <string name="history_empty_title">لا يوجد سجل</string>
 <string name="history_empty_desc">ستظهر جلسات المحادثة السابقة من Hermes هنا.</string>
 <string name="history_untitled">بلا عنوان</string>
-<string name="history_message_count">%1$d رسالة</string>
 <plurals name="sessions_card_message_count">
     <item quantity="zero">%1$d رسالة</item>
     <item quantity="one">%1$d رسالة</item>
@@ -755,7 +744,6 @@
 <string name="sessions_search_match_label">تطابق</string>
 <string name="sessions_search_model_label">النموذج</string>
 <string name="sessions_stat_total">الإجمالي</string>
-<string name="sessions_stat_messages">الرسائل</string>
 <string name="sessions_action_prune">تنقيح</string>
 <string name="sessions_prune_title">تنقيح الجلسات القديمة</string>
 <string name="sessions_prune_desc">حذف الجلسات الأقدم من عدد الأيام المحدد.</string>
@@ -1010,13 +998,11 @@
     <string name="mcp_servers_field_args">الوسائط</string>
     <string name="mcp_servers_action_submit">إضافة خادم</string>
     <string name="mcp_servers_action_adding">جارٍ الإضافة…</string>
-    <string name="mcp_servers_action_restart">إعادة التشغيل</string>
     <string name="mcp_servers_env_vars">متغيرات البيئة</string>
     <string name="mcp_servers_env_add">إضافة متغير بيئة</string>
     <string name="mcp_servers_env_key">المفتاح</string>
     <string name="mcp_servers_env_value">القيمة</string>
     <string name="mcp_servers_env_no_vars">لم يتم تكوين أي متغيرات بيئة.</string>
-<string name="mcp_servers_section_catalog">الدليل</string>
 <string name="mcp_servers_catalog_search">البحث في الدليل…</string>
 <string name="mcp_servers_catalog_empty">لا توجد عناصر في الدليل تطابق بحثك.</string>
 <string name="mcp_servers_catalog_install">تثبيت</string>
@@ -1130,7 +1116,6 @@
 <string name="keys_search_placeholder">بحث في المفاتيح…</string>
 <string name="keys_no_matching_title">لا توجد مفاتيح مطابقة</string>
 <string name="keys_no_matching_desc">جرب استخدام مصطلح بحث آخر.</string>
-<string name="keys_add_header">إضافة مفتاح جديد</string>
 <string name="keys_add_key_label">اسم المفتاح</string>
 <string name="keys_add_value_label">قيمة المفتاح</string>
 <string name="keys_add_action">إضافة مفتاح</string>
@@ -1292,10 +1277,8 @@
 <string name="chat_attachment_photos">الصور</string>
 <string name="chat_attachment_file">ملف</string>
 <string name="chat_fast_mode_label">سريع</string>
-<string name="chat_fast_mode_desc">الوضع السريع</string>
 <string name="chat_fast_mode_unavailable">الوضع السريع غير مدعوم لهذا النموذج</string>
 <string name="chat_reasoning_default">الافتراضي</string>
-<string name="chat_reasoning_applying">جارٍ تطبيق الاستدلال…</string>
 <string name="chat_reasoning_clamped_desc">المطلوب %1$s، يرسل المسار %2$s</string>
 <string name="chat_save_attachment">حفظ %1$s</string>
 <string name="chat_switch_model_title">تبديل النموذج (لهذه المحادثة)</string>
@@ -1358,9 +1341,6 @@
 <string name="model_set_aux">تعيين المساعد: %1$s</string>
 <string name="model_set_main">تعيين النموذج الرئيسي</string>
 <string name="model_settings">إعدادات النموذج</string>
-<string name="platform_remove_confirm_text">سيؤدي هذا إلى إزالة تهيئة هذا النظام الأساسي نهائيًا.</string>
-<string name="platform_remove_confirm_title">إزالة %1$s؟</string>
-<string name="platform_remove_desc">إزالة النظام الأساسي</string>
 <string name="platform_setup_qr">الإعداد عبر رمز QR</string>
 <string name="plugins_repo_placeholder">owner/repo أو owner/repo/subdir أو https://...</string>
 <string name="plugins_search_placeholder">البحث في الإضافات...</string>
@@ -1423,7 +1403,6 @@
 <string name="tool_duration">المدة: %1$s</string>
 <string name="tool_redacted">· محجوب</string>
 <string name="toolsets_search_placeholder">البحث في مجموعات الأدوات...</string>
-<string name="video_play">تشغيل الفيديو</string>
 <string name="webhooks_delete_subscription">حذف الاشتراك</string>
 <string name="webhooks_placeholder">ما الذي يقوم به هذا الـ Webhook...</string>
 <string name="webhooks_receiver_url">رابط الاستلام (URL): %1$s</string>
@@ -1441,7 +1420,6 @@
 <string name="group_chat_tool_no_output">لا يوجد مخرجات</string>
 <string name="group_chat_tool_no_output_success">رمز الخروج 0 (لا يوجد مخرجات)</string>
 <string name="group_chat_members_count">%1$d أعضاء</string>
-<string name="group_chat_mention_all">@all</string>
 <string name="group_chat_capped_limit">المحادثة متوقفة مؤقتًا (تم الوصول إلى الحد الأقصى لعدد الردود) — أرسل ردًا للمتابعة</string>
 <string name="group_chat_settings_title">إعدادات المحادثة الجماعية</string>
 <string name="group_chat_settings_max_messages">الحد الأقصى لرسائل البوت</string>
@@ -1495,19 +1473,12 @@
 
     <!-- Kanban task detail -->
     <string name="kanban_specify_task">تحديد المهمة</string>
-    <string name="kanban_specifying">جارٍ التحديد…</string>
-    <string name="kanban_specify_success">تم تحديد المهمة بنجاح</string>
-    <string name="kanban_specify_failed">تعذر تحديد المهمة: %1$s</string>
     <string name="kanban_add_parent">إضافة مهمة أصل</string>
     <string name="kanban_parent_id">معرّف المهمة الأصل</string>
-    <string name="kanban_link_gated">لا يمكن إنشاء الرابط قبل تحديد المهمة</string>
-    <string name="kanban_link_created">تم إنشاء رابط المهمة</string>
     <string name="kanban_run_details">تفاصيل التشغيل</string>
     <string name="kanban_inspect_run">فحص التشغيل</string>
     <string name="kanban_terminate_run">إنهاء التشغيل</string>
     <string name="kanban_terminate_run_confirm">هل تريد إنهاء هذا التشغيل؟</string>
-    <string name="kanban_run_terminated">تم إنهاء التشغيل</string>
-    <string name="kanban_run_inactive">التشغيل غير نشط</string>
     <string name="kanban_run_inspection_unavailable">فحص التشغيل غير متاح</string>
     <string name="kanban_run_state_filter">حالة التشغيل</string>
     <string name="kanban_all_runs">كل عمليات التشغيل</string>
@@ -1515,7 +1486,6 @@
     <string name="kanban_delete_attachment_confirm">هل تريد حذف هذا المرفق؟</string>
     <string name="kanban_download_attachment">تنزيل المرفق</string>
     <string name="kanban_attachment_saved">تم حفظ المرفق</string>
-    <string name="kanban_attachment_deleted">تم حذف المرفق</string>
     <string name="kanban_attachment_error">خطأ في المرفق: %1$s</string>
     <string name="kanban_active_workers">العاملون النشطون</string>
     <string name="kanban_no_active_workers">لا يوجد عاملون نشطون</string>
@@ -1535,8 +1505,6 @@
     <string name="media_player_save_failed">تعذر حفظ الوسائط</string>
     <string name="media_player_load_failed">تعذر تحميل الوسائط: %1$s</string>
     <string name="media_player_share_failed">تعذر مشاركة الوسائط</string>
-    <string name="media_player_buffering">جار التحميل…</string>
-    <string name="media_player_seek">تقديم/ترجيع</string>
     <string name="media_player_play_audio">تشغيل الصوت</string>
     <string name="media_player_play_video">تشغيل الفيديو</string>
     <string name="chat_session_preparing">جارٍ تجهيز الجلسة…</string>
@@ -1581,8 +1549,6 @@
 <string name="chat_busy_guide">توجيه عند النقطة الآمنة التالية</string>
 <string name="chat_busy_interrupt">مقاطعة قسرية ثم إرسال</string>
 <string name="chat_busy_interrupt_warning">قد توقف المقاطعة القسرية الوكلاء الفرعيين. يسمح الانتظار والتوجيه باستمرار العمل الحالي.</string>
-<string name="chat_busy_override">وضع إرسال هذه الرسالة</string>
-<string name="chat_busy_override_once">يسري هذا الاختيار مرة واحدة فقط ولا يغير الإعداد الافتراضي المحفوظ.</string>
 <string name="chat_pending_sends">رسائل معلّقة</string>
 <string name="chat_pending_queued">في قائمة الانتظار على هذا الجهاز</string>
 <string name="chat_pending_parked">موقوفة بعد الإيقاف</string>
@@ -1593,5 +1559,4 @@
 <string name="chat_pending_send_now">إرسال الآن</string>
 <string name="chat_pending_send_now_warning">قد يقطع إرسال رسالة معلّقة الآن العمل الجاري ويوقف الوكلاء الفرعيين.</string>
 <string name="chat_pending_send_again">إرسال مجددًا</string>
-<string name="chat_pending_attachments">ستُرسل المرفقات مع هذه الرسالة.</string>
 </resources>

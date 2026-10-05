@@ -141,7 +141,6 @@
     <string name="action_reply">답장</string>
 
     <!-- Chat Screen & Bubble -->
-    <string name="bot_chat_never_resets_notice">봇 대화는 지속적인 대화입니다 — 대신 압축합니다. 임시 세션을 사용하려면 일반 채팅을 생성하세요.</string>
     <string name="chat_action_search">검색</string>
     <string name="chat_action_close_search">검색 닫기</string>
     <string name="chat_action_reconnect">재접속</string>
@@ -218,7 +217,6 @@
     <string name="settings_delay_100ms">100 ms</string>
     <string name="settings_item_chat_font_size">채팅 글꼴 크기</string>
     <string name="settings_desc_chat_font_size">채팅 메시지의 텍스트 크기를 조절합니다</string>
-    <string name="settings_font_scale_value">글꼴 크기: %1$s</string>
     <string name="settings_font_scale_small">작게 (0.85×)</string>
     <string name="settings_font_scale_default">기본 (1.0×)</string>
     <string name="settings_font_scale_large">크게 (1.15×)</string>
@@ -328,7 +326,6 @@
     <string name="kanban_complete_title">작업 완료</string>
     <string name="kanban_complete_summary_label">완료 요약</string>
     <string name="kanban_complete_summary_hint">작업 결과로 저장됩니다</string>
-    <string name="kanban_move_failed">이동 실패: %1$s</string>
     <string name="kanban_live">실시간</string>
     <string name="kanban_offline">오프라인</string>
     <string name="kanban_no_tasks">작업 없음</string>
@@ -347,7 +344,6 @@
     <string name="kanban_parent_task">상위 작업</string>
     <string name="kanban_parent_none">없음</string>
     <string name="kanban_model_override">모델 오버라이드</string>
-    <string name="kanban_provider_override">공급자 오버라이드</string>
     <string name="kanban_reasoning_effort">추론 강도</string>
     <string name="kanban_workspace_kind">작업공간 종류</string>
     <string name="kanban_workspace_path">작업공간 경로 오버라이드</string>
@@ -402,7 +398,6 @@
     <string name="kanban_reestimate_action">재추정</string>
     <string name="kanban_estimated_tokens">예상 토큰: %1$d</string>
     <string name="kanban_complexity">복잡도: %1$s</string>
-    <string name="kanban_rationale">근거</string>
     <string name="kanban_delete_task">작업 삭제</string>
     <string name="kanban_delete_task_confirm">이 작업을 삭제하시겠습니까? 이 동작은 되돌릴 수 없습니다.</string>
     <string name="kanban_bulk_assign">담당자 지정</string>
@@ -412,8 +407,6 @@
     <string name="kanban_export_board">보드 내보내기</string>
     <string name="kanban_import_board">보드 가져오기</string>
     <string name="kanban_runtime_working">실행 중</string>
-    <string name="kanban_runtime_stale">응답 없음 (하트비트 지연)</string>
-    <string name="kanban_runtime_wont_run">실행 안 됨: 담당자 미지정</string>
     <string name="kanban_runtime_elapsed">· %1$s</string>
     <string name="kanban_runtime_stale_badge">· 응답 없음</string>
     <string name="kanban_runtime_wont_run_badge">· 실행 안 됨</string>
@@ -494,7 +487,6 @@
     <string name="skills_hub_search_placeholder">스킬 허브 검색…</string>
     <string name="skills_hub_search_button">허브 검색</string>
     <string name="skills_hub_empty_results">허브에서 스킬을 찾을 수 없음</string>
-    <string name="skills_hub_search_hint">검색어를 입력해 스킬 허브를 탐색하세요</string>
     <string name="skills_hub_install">설치</string>
     <string name="skills_content_placeholder">스킬 내용 입력…</string>
     <string name="skills_empty_message">스킬이 없습니다</string>
@@ -613,7 +605,6 @@
     <string name="history_empty_title">히스토리 없음</string>
     <string name="history_empty_desc">이전 채팅 세션이 여기에 표시됩니다.</string>
     <string name="history_untitled">제목 없음</string>
-    <string name="history_message_count">%1$d개 메시지</string>
     <plurals name="sessions_card_message_count">
         <item quantity="one">%1$d개 메시지</item>
         <item quantity="other">%1$d개 메시지</item>
@@ -642,7 +633,6 @@
     <!-- Sessions Stats -->
     <string name="sessions_search_placeholder">세션 검색…</string>
     <string name="sessions_stat_total">전체</string>
-    <string name="sessions_stat_messages">메시지</string>
     <string name="sessions_action_prune">정리</string>
     <string name="sessions_prune_title">오래된 세션 정리</string>
     <string name="sessions_prune_desc">지정된 일수보다 오래된 세션을 삭제합니다.</string>
@@ -864,13 +854,11 @@
     <string name="mcp_servers_field_args">인자</string>
     <string name="mcp_servers_action_submit">서버 추가</string>
     <string name="mcp_servers_action_adding">추가 중…</string>
-    <string name="mcp_servers_action_restart">재시작</string>
     <string name="mcp_servers_env_vars">환경 변수</string>
     <string name="mcp_servers_env_add">환경 변수 추가</string>
     <string name="mcp_servers_env_key">키</string>
     <string name="mcp_servers_env_value">값</string>
     <string name="mcp_servers_env_no_vars">설정된 환경 변수가 없습니다.</string>
-    <string name="mcp_servers_section_catalog">카탈로그</string>
     <string name="mcp_servers_catalog_search">카탈로그 검색…</string>
     <string name="mcp_servers_catalog_empty">검색 결과가 없습니다.</string>
     <string name="mcp_servers_catalog_install">설치</string>
@@ -967,7 +955,6 @@
     <string name="keys_label_not_configured">설정 안 됨</string>
     <string name="keys_action_toggle_visibility">표시 전환</string>
     <string name="keys_search_placeholder">키 검색…</string>
-    <string name="keys_add_header">새 키 추가</string>
     <string name="keys_add_key_label">키</string>
     <string name="keys_add_value_label">값</string>
     <string name="keys_add_action">키 추가</string>
@@ -1103,7 +1090,6 @@
     <string name="group_chat_thinking">%1$s 생각 중…</string>
     <string name="group_chat_typing">입력 중…</string>
     <string name="group_chat_members_count">멤버 %1$d명</string>
-    <string name="group_chat_mention_all">@all</string>
     <string name="group_chat_capped_limit">대화가 일시중지되었습니다(턴 한도 도달) — 계속하려면 메시지를 보내세요</string>
     <string name="group_chat_settings_title">그룹 채팅 설정</string>
     <string name="group_chat_settings_max_messages">최대 봇 메시지 수</string>
@@ -1138,10 +1124,8 @@
     <string name="chat_attachment_photos">사진</string>
     <string name="chat_attachment_file">파일</string>
     <string name="chat_fast_mode_label">빠름</string>
-    <string name="chat_fast_mode_desc">빠른 모드</string>
     <string name="chat_fast_mode_unavailable">이 모델에서는 빠른 모드를 사용할 수 없습니다</string>
     <string name="chat_reasoning_default">기본값</string>
-    <string name="chat_reasoning_applying">추론 설정 적용 중…</string>
     <string name="chat_reasoning_clamped_desc">요청 %1$s, 경로 전송 %2$s</string>
 
     <!-- Session Integrations (issue #1091) -->
@@ -1191,8 +1175,6 @@
     <string name="media_player_save_failed">미디어를 저장할 수 없습니다</string>
     <string name="media_player_load_failed">미디어를 불러올 수 없습니다: %1$s</string>
     <string name="media_player_share_failed">미디어를 공유할 수 없습니다</string>
-    <string name="media_player_buffering">로딩 중…</string>
-    <string name="media_player_seek">탐색</string>
     <string name="media_player_play_audio">오디오 재생</string>
     <string name="media_player_play_video">비디오 재생</string>
     <string name="chat_session_preparing">세션 준비 중…</string>
@@ -1232,19 +1214,12 @@
 
     <!-- Kanban task detail -->
     <string name="kanban_specify_task">작업 지정</string>
-    <string name="kanban_specifying">지정 중…</string>
-    <string name="kanban_specify_success">작업이 지정되었습니다</string>
-    <string name="kanban_specify_failed">작업 지정 실패: %1$s</string>
     <string name="kanban_add_parent">상위 작업 추가</string>
     <string name="kanban_parent_id">상위 작업 ID</string>
-    <string name="kanban_link_gated">작업을 지정하기 전에는 연결할 수 없습니다</string>
-    <string name="kanban_link_created">작업 링크가 생성되었습니다</string>
     <string name="kanban_run_details">실행 상세 정보</string>
     <string name="kanban_inspect_run">실행 검사</string>
     <string name="kanban_terminate_run">실행 종료</string>
     <string name="kanban_terminate_run_confirm">이 실행을 종료하시겠습니까?</string>
-    <string name="kanban_run_terminated">실행이 종료되었습니다</string>
-    <string name="kanban_run_inactive">실행이 비활성 상태입니다</string>
     <string name="kanban_run_inspection_unavailable">실행 검사를 사용할 수 없습니다</string>
     <string name="kanban_run_state_filter">실행 상태</string>
     <string name="kanban_all_runs">모든 실행</string>
@@ -1252,7 +1227,6 @@
     <string name="kanban_delete_attachment_confirm">이 첨부 파일을 삭제하시겠습니까?</string>
     <string name="kanban_download_attachment">첨부 파일 다운로드</string>
     <string name="kanban_attachment_saved">첨부 파일이 저장되었습니다</string>
-    <string name="kanban_attachment_deleted">첨부 파일이 삭제되었습니다</string>
     <string name="kanban_attachment_error">첨부 파일 오류: %1$s</string>
     <string name="kanban_active_workers">활성 작업자</string>
     <string name="kanban_no_active_workers">활성 작업자가 없습니다</string>
@@ -1264,8 +1238,6 @@
     <string name="chat_busy_guide">다음 안전 지점에서 안내</string>
     <string name="chat_busy_interrupt">강제 중단 후 전송</string>
     <string name="chat_busy_interrupt_warning">강제 중단은 하위 에이전트를 중지할 수 있습니다. 대기열과 안내는 현재 작업을 계속합니다.</string>
-    <string name="chat_busy_override">이 메시지의 전송 방식</string>
-    <string name="chat_busy_override_once">이 선택은 한 번만 적용되며 저장된 기본값은 바뀌지 않습니다.</string>
     <string name="chat_pending_sends">대기 중인 메시지</string>
     <string name="chat_pending_queued">이 기기에서 대기 중</string>
     <string name="chat_pending_parked">중지 후 보류됨</string>
@@ -1276,5 +1248,4 @@
     <string name="chat_pending_send_now">지금 보내기</string>
     <string name="chat_pending_send_now_warning">대기 중인 메시지를 지금 보내면 진행 중인 작업이 중단되고 하위 에이전트가 멈출 수 있습니다.</string>
     <string name="chat_pending_send_again">다시 보내기</string>
-    <string name="chat_pending_attachments">첨부 파일도 함께 전송됩니다.</string>
 </resources>

@@ -35,9 +35,7 @@
     <string name="content_desc_refresh">刷新</string>
     <string name="common_save">保存</string>
     <string name="empty_action_browse_hub">浏览技能中心</string>
-    <string name="empty_action_retry_search">重试搜索</string>
     <string name="empty_action_create_job">创建第一个任务</string>
-    <string name="empty_action_add_server">添加服务器</string>
     <string name="empty_action_connect_telegram">连接 Telegram 渠道</string>
     <string name="empty_action_configure_model">配置模型</string>
     <string name="empty_action_start_chat">开始新对话</string>
@@ -142,7 +140,6 @@
     <string name="notif_channel_chat_name">Hermes 对话回复</string>
     <string name="notif_channel_chat_desc">Hermes 新回复提醒</string>
     <string name="action_reply">回复</string>
-    <string name="bot_chat_never_resets_notice">Bot 聊天是连续对话 — 正在压缩替代。如需临时会话，请使用普通聊天。</string>
     <string name="chat_action_search">搜索</string>
     <string name="chat_action_close_search">关闭搜索</string>
     <string name="chat_action_reconnect">重新连接</string>
@@ -215,7 +212,6 @@
     <string name="settings_delay_100ms">100 毫秒</string>
     <string name="settings_item_chat_font_size">聊天字体大小</string>
     <string name="settings_desc_chat_font_size">缩放聊天消息文字大小</string>
-    <string name="settings_font_scale_value">字体大小：%1$s</string>
     <string name="settings_font_scale_small">小 (0.85×)</string>
     <string name="settings_font_scale_default">默认 (1.0×)</string>
     <string name="settings_font_scale_large">大 (1.15×)</string>
@@ -329,7 +325,6 @@
     <string name="kanban_complete_title">完成任务</string>
     <string name="kanban_complete_summary_label">完成摘要</string>
     <string name="kanban_complete_summary_hint">将作为任务结果保存</string>
-    <string name="kanban_move_failed">移动失败：%1$s</string>
     <string name="kanban_live">实时</string>
     <string name="kanban_offline">离线</string>
     <string name="kanban_no_tasks">暂无任务</string>
@@ -348,7 +343,6 @@
     <string name="kanban_parent_task">父任务</string>
     <string name="kanban_parent_none">无</string>
     <string name="kanban_model_override">覆盖模型</string>
-    <string name="kanban_provider_override">覆盖提供商</string>
     <string name="kanban_reasoning_effort">推理强度</string>
     <string name="kanban_workspace_kind">工作区类型</string>
     <string name="kanban_workspace_path">覆盖工作区路径</string>
@@ -403,7 +397,6 @@
     <string name="kanban_reestimate_action">重新评估</string>
     <string name="kanban_estimated_tokens">预计 Token：%1$d</string>
     <string name="kanban_complexity">复杂度：%1$s</string>
-    <string name="kanban_rationale">评估依据</string>
     <string name="kanban_delete_task">删除任务</string>
     <string name="kanban_delete_task_confirm">确定要删除此任务吗？此操作无法撤销。</string>
     <string name="kanban_bulk_assign">分配负责人</string>
@@ -413,8 +406,6 @@
     <string name="kanban_export_board">导出看板</string>
     <string name="kanban_import_board">导入看板</string>
     <string name="kanban_runtime_working">运行中</string>
-    <string name="kanban_runtime_stale">无响应 (心跳超时)</string>
-    <string name="kanban_runtime_wont_run">无法运行：未指定负责人</string>
     <string name="kanban_runtime_elapsed">· %1$s</string>
     <string name="kanban_runtime_stale_badge">· 无响应</string>
     <string name="kanban_runtime_wont_run_badge">· 无法运行</string>
@@ -492,7 +483,6 @@
     <string name="skills_hub_search_placeholder">搜索技能中心…</string>
     <string name="skills_hub_search_button">搜索中心</string>
     <string name="skills_hub_empty_results">技能中心未找到相关技能</string>
-    <string name="skills_hub_search_hint">输入关键词浏览技能中心</string>
     <string name="skills_hub_install">安装</string>
     <string name="skills_hub_sources_title">已连接来源</string>
     <string name="skills_hub_source_rate_limited">已限流</string>
@@ -693,7 +683,6 @@
     <string name="history_empty_title">暂无历史</string>
     <string name="history_empty_desc">之前的 Hermes 对话会话将显示在这里。</string>
     <string name="history_untitled">未命名</string>
-    <string name="history_message_count">%1$d 条消息</string>
     <plurals name="sessions_card_message_count">
         <item quantity="one">%1$d 条消息</item>
         <item quantity="other">%1$d 条消息</item>
@@ -726,7 +715,6 @@
     <string name="sessions_search_match_label">匹配</string>
     <string name="sessions_search_model_label">模型</string>
     <string name="sessions_stat_total">总计</string>
-    <string name="sessions_stat_messages">消息</string>
     <string name="sessions_action_prune">清理</string>
     <string name="sessions_prune_title">清理旧会话</string>
     <string name="sessions_prune_desc">删除早于指定天数的会话。</string>
@@ -977,13 +965,11 @@
     <string name="mcp_servers_field_args">参数</string>
     <string name="mcp_servers_action_submit">添加服务器</string>
     <string name="mcp_servers_action_adding">添加中…</string>
-    <string name="mcp_servers_action_restart">重启</string>
     <string name="mcp_servers_env_vars">环境变量</string>
     <string name="mcp_servers_env_add">添加环境变量</string>
     <string name="mcp_servers_env_key">键</string>
     <string name="mcp_servers_env_value">值</string>
     <string name="mcp_servers_env_no_vars">未配置环境变量。</string>
-    <string name="mcp_servers_section_catalog">目录</string>
     <string name="mcp_servers_catalog_search">搜索目录…</string>
     <string name="mcp_servers_catalog_empty">没有与搜索匹配的目录条目。</string>
     <string name="mcp_servers_catalog_install">安装</string>
@@ -1097,7 +1083,6 @@
     <string name="keys_search_placeholder">搜索密钥…</string>
     <string name="keys_no_matching_title">没有匹配的密钥</string>
     <string name="keys_no_matching_desc">尝试其他搜索词。</string>
-    <string name="keys_add_header">添加新密钥</string>
     <string name="keys_add_key_label">密钥名称</string>
     <string name="keys_add_value_label">密钥值</string>
     <string name="keys_add_action">添加密钥</string>
@@ -1259,10 +1244,8 @@
     <string name="chat_attachment_photos">照片</string>
     <string name="chat_attachment_file">文件</string>
     <string name="chat_fast_mode_label">快速</string>
-    <string name="chat_fast_mode_desc">快速模式</string>
     <string name="chat_fast_mode_unavailable">此模型不支持快速模式</string>
     <string name="chat_reasoning_default">默认</string>
-    <string name="chat_reasoning_applying">正在应用推理设置…</string>
     <string name="chat_reasoning_clamped_desc">请求 %1$s，路由实际发送 %2$s</string>
     <string name="chat_save_attachment">保存 %1$s</string>
     <string name="chat_switch_model_title">切换模型（当前对话）</string>
@@ -1325,9 +1308,6 @@
     <string name="model_set_aux">设置辅助：%1$s</string>
     <string name="model_set_main">设置主模型</string>
     <string name="model_settings">模型设置</string>
-    <string name="platform_remove_confirm_text">这将永久移除该平台的配置。</string>
-    <string name="platform_remove_confirm_title">移除 %1$s？</string>
-    <string name="platform_remove_desc">移除平台</string>
     <string name="platform_setup_qr">扫码设置</string>
     <string name="plugins_repo_placeholder">owner/repo、owner/repo/subdir 或 https://...</string>
     <string name="plugins_search_placeholder">搜索插件…</string>
@@ -1380,7 +1360,6 @@
     <string name="tool_duration">耗时：%1$s</string>
     <string name="tool_redacted">· 已脱敏</string>
     <string name="toolsets_search_placeholder">搜索工具集…</string>
-    <string name="video_play">播放视频</string>
     <string name="webhooks_delete_subscription">删除订阅</string>
     <string name="webhooks_placeholder">此 Webhook 的作用…</string>
     <string name="webhooks_receiver_url">接收地址：%1$s</string>
@@ -1396,7 +1375,6 @@
     <string name="group_chat_thinking">%1$s 正在思考…</string>
     <string name="group_chat_typing">正在输入…</string>
     <string name="group_chat_members_count">%1$d 个成员</string>
-    <string name="group_chat_mention_all">@all</string>
     <string name="group_chat_capped_limit">讨论已暂停（达到轮次上限）— 发送消息继续</string>
     <string name="group_chat_settings_title">群聊设置</string>
     <string name="group_chat_settings_max_messages">最大 Bot 回复数</string>
@@ -1461,8 +1439,6 @@
     <string name="media_player_save_failed">无法保存媒体</string>
     <string name="media_player_load_failed">无法加载媒体: %1$s</string>
     <string name="media_player_share_failed">无法分享媒体</string>
-    <string name="media_player_buffering">正在加载…</string>
-    <string name="media_player_seek">跳转进度</string>
     <string name="media_player_play_audio">播放音频</string>
     <string name="media_player_play_video">播放视频</string>
     <string name="chat_session_preparing">正在准备会话…</string>
@@ -1470,19 +1446,12 @@
 
     <!-- Kanban task detail -->
     <string name="kanban_specify_task">指定任务</string>
-    <string name="kanban_specifying">正在指定…</string>
-    <string name="kanban_specify_success">任务指定成功</string>
-    <string name="kanban_specify_failed">指定任务失败：%1$s</string>
     <string name="kanban_add_parent">添加父任务</string>
     <string name="kanban_parent_id">父任务 ID</string>
-    <string name="kanban_link_gated">指定任务前无法创建链接</string>
-    <string name="kanban_link_created">任务链接已创建</string>
     <string name="kanban_run_details">运行详情</string>
     <string name="kanban_inspect_run">检查运行</string>
     <string name="kanban_terminate_run">终止运行</string>
     <string name="kanban_terminate_run_confirm">确定要终止此运行吗？</string>
-    <string name="kanban_run_terminated">运行已终止</string>
-    <string name="kanban_run_inactive">运行未处于活动状态</string>
     <string name="kanban_run_inspection_unavailable">无法检查运行</string>
     <string name="kanban_run_state_filter">运行状态</string>
     <string name="kanban_all_runs">所有运行</string>
@@ -1490,7 +1459,6 @@
     <string name="kanban_delete_attachment_confirm">确定要删除此附件吗？</string>
     <string name="kanban_download_attachment">下载附件</string>
     <string name="kanban_attachment_saved">附件已保存</string>
-    <string name="kanban_attachment_deleted">附件已删除</string>
     <string name="kanban_attachment_error">附件错误：%1$s</string>
     <string name="kanban_active_workers">活跃工作进程</string>
     <string name="kanban_no_active_workers">没有活跃工作进程</string>
@@ -1532,8 +1500,6 @@
     <string name="chat_busy_guide">在下一个安全点提供指导</string>
     <string name="chat_busy_interrupt">强制中断后发送</string>
     <string name="chat_busy_interrupt_warning">强制中断可能停止子智能体。排队和指导会让当前工作继续。</string>
-    <string name="chat_busy_override">本条消息的发送方式</string>
-    <string name="chat_busy_override_once">此选择仅生效一次，不会更改保存的默认值。</string>
     <string name="chat_pending_sends">待发送消息</string>
     <string name="chat_send_accepted">服务器已接收</string>
     <plurals name="chat_pending_count">
@@ -1550,7 +1516,6 @@
     <string name="chat_pending_send_now">立即发送</string>
     <string name="chat_pending_send_now_warning">现在发送待处理消息可能会中断当前任务并停止子代理。</string>
     <string name="chat_pending_send_again">再次发送</string>
-    <string name="chat_pending_attachments">附件将随这条消息发送。</string>
     <string name="chat_action_timeline">时间线</string>
     <string name="chat_history_window_latest">回到最新</string>
     <string name="chat_history_window_more_both">此窗口之前和之后还有更多消息。</string>
@@ -1587,8 +1552,6 @@
     <string name="plugins_catalog_filter_community">社区</string>
     <string name="plugins_catalog_filter_official">官方</string>
     <string name="plugins_catalog_installed_badge">已安装</string>
-    <string name="plugins_catalog_installed_success">插件“%1$s”安装成功</string>
-    <string name="plugins_catalog_installing">正在安装 %1$s…</string>
     <string name="plugins_catalog_maintainer">作者 %1$s</string>
     <string name="plugins_catalog_search_placeholder">搜索目录插件…</string>
     <string name="plugins_catalog_tier_community">社区</string>
@@ -1610,7 +1573,6 @@
     <string name="subagent_inspect_transcript">查看转录</string>
     <string name="subagent_subagents_header">子代理</string>
     <string name="subagent_transcript_empty">暂无转录输出。</string>
-    <string name="subagent_transcript_error">无法加载转录</string>
     <string name="subagent_transcript_loading">正在加载实时转录…</string>
     <string name="subagent_transcript_retry">重试</string>
     <string name="subagent_transcript_truncated">滚动显示最近 16KB（更早输出已截断）</string>
@@ -1627,14 +1589,12 @@
     <string name="vault_items_empty">保险库中暂无条目</string>
     <string name="vault_items_title">已存条目</string>
     <string name="vault_lock_all">锁定全部管理器</string>
-    <string name="vault_lock_all_success">已锁定全部密码管理器</string>
     <string name="vault_save_login_action">保存并填充</string>
     <string name="vault_save_login_desc">将 %1$s 的账号密码保存到凭据保险库？</string>
     <string name="vault_save_login_dismiss">不保存</string>
     <string name="vault_save_login_identifier">用户名或邮箱</string>
     <string name="vault_save_login_password">密码</string>
     <string name="vault_save_login_title">保存登录信息到保险库</string>
-    <string name="vault_source_installed">已安装</string>
     <string name="vault_source_lock">锁定</string>
     <string name="vault_source_locked">已锁定</string>
     <string name="vault_source_not_installed">未安装</string>
@@ -1647,9 +1607,7 @@
     <string name="vault_unlock_dialog_confirm">解锁</string>
     <string name="vault_unlock_dialog_title">解锁 %1$s</string>
     <string name="vault_unlock_dismiss">保持锁定</string>
-    <string name="vault_unlock_failed">无法解锁 %1$s</string>
     <string name="vault_unlock_password_label">主密码</string>
-    <string name="vault_unlock_success">%1$s 解锁成功</string>
     <string name="vault_unlock_title">解锁 %1$s</string>
     <string name="screen_connections">连接</string>
     <string name="mtls_title">HTTPS mTLS客户端证书配置</string>

@@ -74,8 +74,8 @@
     <string name="bots_search_placeholder">搜索智能体…</string>
     <string name="bots_hidden_badge">已隐藏</string>
     <string name="bots_show_hidden">显示隐藏的智能体</string>
-    <string name="bots_hide_hidden">隐藏不显示的智能体</string>
-    <string name="bots_action_create">创建 Bot</string>
+    <string name="bots_hide_hidden">不显示已隐藏的智能体</string>
+    <string name="bots_action_create">创建智能体</string>
     <string name="bots_create_title">新建 Bot</string>
     <string name="bots_create_name_label">标识 / 别名</string>
     <string name="bots_create_name_placeholder">例如 scout, reviewer</string>
@@ -200,7 +200,7 @@
     <string name="settings_item_tokens_per_second">每秒令牌数 (TPS)</string>
     <string name="settings_item_show_model_provider">显示提供商名称</string>
     <string name="settings_desc_show_model_provider">在聊天输入栏的模型名称前显示提供商。</string>
-    <string name="chat_agent_status_typing">助手正在输入</string>
+    <string name="chat_agent_status_typing">Agent 正在输入</string>
     <string name="chat_agent_status_thinking">正在思考…</string>
     <string name="chat_agent_status_searching">正在搜索…</string>
     <string name="chat_agent_status_reading">正在读取文件…</string>
@@ -713,7 +713,7 @@
     <string name="sessions_search_empty_title">无结果</string>
     <string name="sessions_search_empty_desc">没有匹配"%1$s"的会话</string>
     <string name="sessions_search_results_header">找到 %1$d 个结果（"%2$s"）</string>
-    <string name="sessions_search_played_at">播放于 %1$s</string>
+    <string name="sessions_search_played_at">运行于 %1$s</string>
     <string name="sessions_search_match_label">匹配</string>
     <string name="sessions_search_model_label">模型</string>
     <string name="sessions_stat_total">总计</string>
@@ -915,7 +915,7 @@
     <string name="plugins_context_engine_label">上下文引擎</string>
     <string name="plugins_provider_defaults">（配置默认值）</string>
     <string name="plugins_remove_confirm_title">移除插件</string>
-    <string name="plugins_remove_confirm_text">这将从你的 Agent 中移除"%1$s"插件。</string>
+    <string name="plugins_remove_confirm_text">这将从你的 Agent 中移除\"%1$s\"插件。</string>
     <string name="plugins_auth_required">需要认证</string>
     <string name="plugins_auth_command_hint">认证命令：%1$s</string>
     <string name="plugins_dashboard_slots">Dashboard 槽位：%1$s</string>
@@ -1049,7 +1049,7 @@
     <string name="cron_discard_title">放弃修改？</string>
     <string name="cron_discard_message">有未保存的更改。要放弃吗？</string>
     <string name="cron_delete_title">删除任务？</string>
-    <string name="cron_delete_message">删除"%1$s"？此操作无法撤销。</string>
+    <string name="cron_delete_message">删除\"%1$s\"？此操作无法撤销。</string>
     <string name="achievements_empty_title">还没有成就</string>
     <string name="achievements_empty_desc">完成任务解锁成就。</string>
     <string name="achievements_label_progress">进度：%1$d / %2$d</string>
@@ -1094,7 +1094,7 @@
     <string name="content_desc_delete_key">删除密钥</string>
     <string name="content_desc_add_key">添加新环境密钥</string>
     <string name="keys_dialog_delete_title">删除密钥？</string>
-    <string name="keys_dialog_delete_message">确定要删除环境密钥"%1$s"吗？更改在重启网关后生效。</string>
+    <string name="keys_dialog_delete_message">确定要删除环境密钥\"%1$s\"吗？更改在重启网关后生效。</string>
     <string name="keys_action_delete">删除</string>
     <string name="keys_dialog_add_title">添加环境密钥</string>
     <string name="keys_action_copy">复制值</string>
@@ -1117,7 +1117,7 @@
     <string name="files_new_folder_label">文件夹名称</string>
     <string name="files_new_folder_placeholder">my-folder</string>
     <string name="files_dialog_delete_title">删除？</string>
-    <string name="files_dialog_delete_message">确定要删除"%1$s"吗？此操作无法撤销。</string>
+    <string name="files_dialog_delete_message">确定要删除\"%1$s\"吗？此操作无法撤销。</string>
     <string name="channels_empty_title">未配置渠道</string>
     <string name="channels_empty_desc">在 Hermes 中添加消息平台后，会显示在这里。</string>
     <string name="channels_action_configure">配置</string>
@@ -1188,7 +1188,7 @@
     <string name="processes_no_session_desc">请先打开一个对话会话——进程列表按会话隔离。</string>
     <string name="processes_running_hint">运行中</string>
     <string name="processes_kill_title">结束进程？</string>
-    <string name="processes_kill_desc">停止"%1$s"？此操作无法撤销。</string>
+    <string name="processes_kill_desc">停止\"%1$s\"？此操作无法撤销。</string>
     <string name="analytics_empty_title">暂无分析数据</string>
     <string name="analytics_empty_desc">Agent 开始活动后，用量统计将显示在这里。</string>
     <string name="analytics_days">%1$d 天</string>
@@ -1505,7 +1505,7 @@
     <string name="chat_pending_sends">待发送消息</string>
     <string name="chat_send_accepted">服务器已接收</string>
     <plurals name="chat_pending_count">
-        <item quantity="other">%d 条待处理消息</item>
+        <item quantity="other">%1$d 条待发送消息</item>
     </plurals>
     <string name="chat_pending_discard">移除</string>
     <string name="chat_pending_discard_warning">要从本机队列中移除这条消息吗？这不会取消任务，也不会删除服务器已接收的消息。</string>

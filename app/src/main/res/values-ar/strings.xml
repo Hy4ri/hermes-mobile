@@ -166,7 +166,7 @@
 <string name="chat_tool_exit_code">رمز الخروج: %1$d</string>
 <string name="chat_tool_output_omitted">تم حذف %1$d حرف من مخرجات العملية</string>
 <string name="chat_tool_fallback">أداة</string>
-<string name="chat_tool_show_raw">عرض ملف JSON الأولي</string>
+<string name="chat_tool_show_raw">عرض بيانات JSON الأولية</string>
 <string name="chat_tool_show_parsed">عرض المخرجات المعالجة</string>
 <string name="chat_tool_format_json">تنسيق JSON</string>
 <string name="chat_tool_compact_json">ضغط JSON</string>
@@ -182,7 +182,7 @@
 <string name="settings_sec_connection">الاتصال</string>
 <string name="settings_field_token">رمز المصادقة (Token)</string>
 <string name="settings_keep_connected_in_background_title">البقاء متصلاً في الخلفية</string>
-<string name="settings_keep_connected_in_background_desc">إبقاء هيرمس متصلاً أثناء استخدام تطبيقات أخرى. يعرض إشعاراً مستمراً وقد يستهلك المزيد من البطارية.</string>
+<string name="settings_keep_connected_in_background_desc">إبقاء Hermes متصلاً أثناء استخدام تطبيقات أخرى. يعرض إشعاراً مستمراً وقد يستهلك المزيد من البطارية.</string>
 <string name="settings_sec_behavior">السلوك</string>
 <string name="settings_item_auto_reconnect">إعادة الاتصال التلقائي</string>
 <string name="settings_desc_auto_reconnect">إعادة الاتصال تلقائيًا عند انقطاعه</string>
@@ -410,8 +410,8 @@
     <string name="kanban_import_board">استيراد لوحة</string>
     <string name="kanban_runtime_working">قيد التشغيل</string>
     <string name="kanban_runtime_elapsed">· %1$s</string>
-    <string name="kanban_runtime_stale_badge">· متوقف</string>
-    <string name="kanban_runtime_wont_run_badge">· لن تعمل</string>
+    <string name="kanban_runtime_stale_badge">· غير محدَّث</string>
+    <string name="kanban_runtime_wont_run_badge">· لن يُنفَّذ</string>
     <string name="kanban_task_actions">إجراءات المهمة</string>
     <string name="kanban_reclaim_task">استعادة المهمة</string>
     <string name="kanban_no_comments">لا توجد تعليقات بعد.</string>
@@ -458,8 +458,8 @@
     <string name="kanban_event_worker_started">بدأ العامل</string>
     <string name="kanban_event_completed">مكتملة</string>
     <string name="kanban_event_blocked">محظورة</string>
-    <string name="kanban_event_unblocked">أزيل حظرها</string>
-    <string name="kanban_event_unblocked_to">أزيل حظرها (%1$s)</string>
+    <string name="kanban_event_unblocked">تم إلغاء الحظر</string>
+    <string name="kanban_event_unblocked_to">تم إلغاء الحظر (%1$s)</string>
     <string name="kanban_event_reclaimed">تمت الاستعادة</string>
     <string name="kanban_event_specified">تم التحديد</string>
     <string name="kanban_event_promoted">تمت الترقية إلى جاهزة</string>
@@ -569,7 +569,7 @@
 <string name="system_portal_feature_routing">توجيه بوابة الأدوات (Tool Gateway)</string>
 <string name="system_portal_login_hint">سجّل الدخول باستخدام hermes portal.</string>
 <string name="system_sec_curator">مُنظِّم المهارات (Skill curator)</string>
-<string name="memory_sec_self_improvement">نشاط التحسين الذاتي والتعلم &amp;</string>
+<string name="memory_sec_self_improvement">نشاط التحسين الذاتي والتعلم</string>
 <string name="memory_self_improvement_desc">سجل زمني لمهارات الوكيل، والذكريات، وتحديثات مخزن الحقائق المكتسبة بمرور الوقت.</string>
 <string name="memory_self_improvement_no_activity">لم يتم تسجيل أي أحداث تحسين ذاتي بعد.</string>
 <string name="system_status_active">نشط</string>
@@ -746,12 +746,12 @@
 <string name="sessions_search_match_label">تطابق</string>
 <string name="sessions_search_model_label">النموذج</string>
 <string name="sessions_stat_total">الإجمالي</string>
-<string name="sessions_action_prune">تنقيح</string>
-<string name="sessions_prune_title">تنقيح الجلسات القديمة</string>
+<string name="sessions_action_prune">تنظيف</string>
+<string name="sessions_prune_title">تنظيف الجلسات القديمة</string>
 <string name="sessions_prune_desc">حذف الجلسات الأقدم من عدد الأيام المحدد.</string>
 <string name="sessions_prune_days_label">حد الأيام</string>
-<string name="sessions_prune_confirm">تنقيح</string>
-<string name="sessions_pruning">جارٍ تنقيح الجلسات القديمة…</string>
+<string name="sessions_prune_confirm">تنظيف</string>
+<string name="sessions_pruning">جارٍ تنظيف الجلسات القديمة…</string>
 <string name="sessions_empty_cleanup_desc">فارغة</string>
 <string name="sessions_empty_cleanup_title">هل تريد حذف الجلسات الفارغة؟</string>
 <string name="sessions_empty_cleanup_message">حذف %1$d من الجلسات الفارغة. سيتم الاحتفاظ بالجلسات النشطة والمؤرشفة.</string>
@@ -839,14 +839,14 @@
 <string name="config_action_save">حفظ</string>
 <string name="config_action_save_yaml">حفظ YAML</string>
 <string name="profiles_empty_title">لا توجد ملفات تعريف متاحة</string>
-<string name="profiles_empty_desc">ستظهر ملفات تعريف الاتصال من Hermes هنا.</string>
+<string name="profiles_empty_desc">ستظهر الملفات الشخصية من Hermes هنا.</string>
 <string name="profiles_label_model">النموذج: %1$s</string>
 <string name="profiles_label_provider">المزود: %1$s</string>
-<string name="profiles_label_skills">%1$d مهارات</string>
+<string name="profiles_label_skills">%1$d مهارة</string>
 <string name="profiles_label_path">المسار: %1$s</string>
 <string name="profiles_badge_auto_generated">تم إنشاؤه تلقائياً</string>
 <string name="profiles_action_activate">تفعيل</string>
-<string name="profiles_action_edit_soul">تعديل الـ Soul</string>
+<string name="profiles_action_edit_soul">تعديل الشخصية (Soul)</string>
 <string name="profiles_action_set_model">تعيين النموذج</string>
 <string name="profiles_action_clone">استنساخ</string>
 <string name="profiles_action_edit_description">تعديل الوصف</string>
@@ -867,7 +867,7 @@
 </plurals>
 <string name="profiles_all_hidden_desc">جميع الملفات الشخصية مخفية حاليًا. انقر أدناه لإظهار الملفات الشخصية المخفية.</string>
 <string name="profiles_content_desc_active">الملف الشخصي النشط</string>
-<string name="profiles_title_edit_soul">تعديل ملف الـ Soul: %1$s</string>
+<string name="profiles_title_edit_soul">تعديل الشخصية (Soul): %1$s</string>
 <string name="profiles_title_set_model">تعيين النموذج: %1$s</string>
 <string name="profiles_title_clone">استنساخ الملف الشخصي: %1$s</string>
 <string name="profiles_title_edit_description">تعديل الوصف: %1$s</string>
@@ -1569,7 +1569,7 @@
     <string name="chat_voice_slide_to_cancel_prefix">اسحب لـ</string>
     <string name="chat_voice_stop_generating">إيقاف التوليد</string>
     <string name="chat_image_load_failed">تعذر تحميل الصورة</string>
-    <string name="notif_input_needed">هيرميس بحاجة لمدخلاتك</string>
+    <string name="notif_input_needed">Hermes بحاجة إلى مدخلاتك</string>
     <string name="notif_session_complete">اكتملت الجلسة: %1$s</string>
     <string name="notif_session_failed">فشلت الجلسة: %1$s</string>
     <string name="content_desc_speak">قراءة بصوت عالٍ</string>
@@ -1611,8 +1611,8 @@
     <string name="account_connectors_no_tools">لا توجد أدوات متاحة</string>
     <string name="account_connectors_policy_locked">قيود سياسة للقراءة فقط</string>
     <string name="settings_notify_session_completions_title">إشعار عند اكتمال الجلسة</string>
-    <string name="settings_notify_session_completions_desc">تنبيه عند انتهاء أي جلسة هيرميس أثناء وجود التطبيق في الخلفية. يبقي هيرميس متصلاً في الخلفية (إشعار مستمر، استهلاك إضافي للبطارية) لتتمكن الجلسات المكتملة من تنبيهك.</string>
-    <string name="theme_preset_garnet">العقيقي</string>
+    <string name="settings_notify_session_completions_desc">تنبيه عند انتهاء أي جلسة Hermes أثناء وجود التطبيق في الخلفية. يُبقي Hermes متصلاً في الخلفية (إشعار مستمر، استهلاك إضافي للبطارية) لتتمكن الجلسات المكتملة من تنبيهك.</string>
+    <string name="theme_preset_garnet">العقيق</string>
     <string name="settings_desc_theme_preset_dynamic">يُستخدم لألوان الحالة بينما يوفر Material You ألوان التطبيق.</string>
     <string name="settings_sec_vault">خزنة بيانات الاعتماد</string>
     <string name="settings_summary_vault">مديرو كلمات المرور وبيانات الاعتماد</string>
@@ -1660,8 +1660,8 @@
     <string name="detail_dialog_tier">المستوى</string>
     <string name="detail_dialog_maintainer">المشرف</string>
     <string name="detail_dialog_repository">المستودع</string>
-    <string name="detail_dialog_commit">معرّف الالتزام (SHA)</string>
-    <string name="detail_dialog_requires_hermes">يتطلب هيرميس</string>
+    <string name="detail_dialog_commit">تجزئة الإيداع (SHA)</string>
+    <string name="detail_dialog_requires_hermes">يتطلب Hermes</string>
     <string name="detail_dialog_docs">التوثيق</string>
     <string name="detail_dialog_capabilities">الإمكانات</string>
     <string name="mcp_servers_from_plugin">من الإضافة %1$s · للقراءة فقط</string>
@@ -1695,7 +1695,7 @@
     <string name="vault_unlock_dialog_title">إلغاء قفل %1$s</string>
     <string name="vault_unlock_dialog_confirm">إلغاء القفل</string>
     <string name="vault_unlock_title">إلغاء قفل %1$s</string>
-    <string name="vault_unlock_desc">يحتاج الوكيل إلى بيانات اعتماد للمتابعة. أدخل كلمتك المرور الرئيسية لإلغاء قفل %1$s.</string>
+    <string name="vault_unlock_desc">يحتاج الوكيل إلى بيانات اعتماد للمتابعة. أدخل كلمة المرور الرئيسية الخاصة بك لإلغاء قفل %1$s.</string>
     <string name="vault_unlock_password_label">كلمة المرور الرئيسية</string>
     <string name="vault_unlock_action">إلغاء القفل</string>
     <string name="vault_unlock_dismiss">إبقاء القفل</string>
@@ -1711,7 +1711,7 @@
     <string name="vault_code_action">إرسال</string>
     <string name="vault_code_dismiss">تخطي</string>
     <string name="custom_headers_title">الترويسات المخصصة</string>
-    <string name="custom_headers_description">تم حفظها بأمان لعنوان URL لهذا الخادم. استخدم ترويسات رموز خدمة Cloudflare Access هنا. لا يزال تسجيل الدخول إلى هيرميس مطلوبًا.</string>
+    <string name="custom_headers_description">تم حفظها بأمان لعنوان URL لهذا الخادم. استخدم ترويسات رموز خدمة Cloudflare Access هنا. لا يزال تسجيل الدخول إلى Hermes مطلوبًا.</string>
     <string name="custom_headers_name">اسم الترويسة</string>
     <string name="custom_headers_value">قيمة الترويسة</string>
     <string name="custom_headers_add">إضافة ترويسة</string>

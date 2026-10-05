@@ -39,7 +39,7 @@
     <string name="action_progress_running">Ejecutando…</string>
     <string name="action_progress_succeeded">Completado</string>
     <string name="action_progress_failed">Fallido</string>
-    <string name="action_progress_failed_exit">Fallido (salir de%1$d)</string>
+    <string name="action_progress_failed_exit">Fallido (código de salida: %1$d)</string>
     <string name="action_delete">Eliminar</string>
 
     <!-- Content Descriptions -->
@@ -118,14 +118,14 @@
     <string name="bots_tab_groups">Grupos</string>
     <string name="bots_groups_empty_title">Sin chats grupales</string>
     <string name="bots_groups_empty_desc">Cree un chat grupal de múltiples agentes para permitir que los bots colaboren.</string>
-    <string name="bots_group_members_count">Bots%1$d</string>
+    <string name="bots_group_members_count">%1$d bots</string>
     <string name="bots_group_disband">Disolver grupo</string>
-    <string name="bots_group_disband_confirm_title">¿Disolver%1$s?</string>
+    <string name="bots_group_disband_confirm_title">¿Disolver %1$s?</string>
     <string name="bots_group_disband_confirm_msg">Esto elimina el chat grupal de todos los bots miembros. Los bots individuales no se eliminarán.</string>
     <string name="bots_edit_title">Editar Bot</string>
     <string name="bots_edit_save">Guardar cambios</string>
     <string name="bots_edit_delete">Eliminar Bot</string>
-    <string name="bots_edit_delete_confirm_title">¿Eliminar%1$s?</string>
+    <string name="bots_edit_delete_confirm_title">¿Eliminar %1$s?</string>
     <string name="bots_edit_delete_confirm_msg">Esto eliminará permanentemente el perfil del agente y su configuración.</string>
     <string name="screen_webhooks">Webhooks</string>
     <string name="screen_gateway">Gateway</string>
@@ -228,9 +228,9 @@
     <string name="chat_pending_send_now">Enviar ahora</string>
     <string name="chat_pending_send_now_warning">Enviar un mensaje pendiente ahora puede interrumpir el trabajo activo y detener a los agentes secundarios.</string>
     <string name="chat_pending_send_again">Enviar de nuevo</string>
-    <string name="chat_tool_execution_error">Error de ejecución:%1$s</string>
-    <string name="chat_tool_exit_code">Código de salida:%1$d</string>
-    <string name="chat_tool_output_omitted">Caracteres%1$domitidos de la salida del proceso</string>
+    <string name="chat_tool_execution_error">Error de ejecución: %1$s</string>
+    <string name="chat_tool_exit_code">Código de salida: %1$d</string>
+    <string name="chat_tool_output_omitted">%1$d caracteres omitidos de la salida del proceso</string>
     <string name="chat_tool_fallback">Herramienta</string>
     <string name="chat_tool_show_raw">Mostrar JSON sin formato</string>
     <string name="chat_tool_show_parsed">Mostrar salida analizada</string>
@@ -268,7 +268,7 @@
     <string name="account_connectors_no_accounts">No hay cuentas de conector autorizadas.</string>
     <string name="account_connectors_remove">Quitar</string>
     <string name="account_connectors_remove_confirm_title">¿Quitar cuenta del conector?</string>
-    <string name="account_connectors_remove_confirm_message">¿Quitar%1$s? Es posible que tengas que autorizarlo nuevamente.</string>
+    <string name="account_connectors_remove_confirm_message">¿Quitar %1$s? Es posible que debas autorizarlo nuevamente.</string>
     <string name="settings_field_token">Token de autenticación</string>
     <string name="settings_keep_connected_in_background_title">Manténgase conectado en segundo plano</string>
     <string name="settings_keep_connected_in_background_desc">Mantenga a Hermes conectado mientras usa otras aplicaciones. Muestra una notificación en curso y puede consumir más batería.</string>
@@ -319,14 +319,14 @@
     <string name="settings_about_build">Construir</string>
     <string name="settings_about_debug">Depurar</string>
     <string name="settings_about_release">Liberar</string>
-    <string name="settings_about_commit">Comprometerse</string>
+    <string name="settings_about_commit">Commit</string>
     <string name="settings_about_update">Actualizar</string>
     <string name="settings_about_update_check">Buscar actualizaciones</string>
-    <string name="settings_about_update_checking">De cheques…</string>
+    <string name="settings_about_update_checking">Comprobando…</string>
     <string name="settings_about_update_uptodate">Actualizado (v%1$s)</string>
     <string name="settings_about_update_available">Actualización disponible: v%1$s</string>
     <string name="settings_about_update_action">Actualizar</string>
-    <string name="settings_about_update_downloading">Descargando%1$d%%</string>
+    <string name="settings_about_update_downloading">Descargando %1$d%%</string>
     <string name="settings_about_update_installing">Instalando v%1$s…</string>
     <string name="settings_about_update_allow_sources">Permitir instalaciones desde esta fuente</string>
     <string name="settings_about_update_open_settings">Abrir configuración</string>
@@ -338,7 +338,7 @@
     <string name="settings_support_action">Apoyame en Ko-fi</string>
 
     <!-- Settings list summaries (drill-down) -->
-    <string name="settings_summary_profiles">%1$dguardado</string>
+    <string name="settings_summary_profiles">%1$d guardados</string>
     <string name="settings_summary_typing_on">Efecto de escritura activado</string>
     <string name="settings_summary_typing_off">Efecto de escritura desactivado</string>
     <string name="settings_summary_on">Encendido</string>
@@ -393,15 +393,15 @@
     <string name="connect_error_token_required">Se requiere token</string>
     <string name="connect_error_401">Token no válido (401 no autorizado)</string>
     <string name="connect_error_403">Acceso denegado (403 prohibido)</string>
-    <string name="connect_error_http_code">El servidor devolvió HTTP%1$d</string>
+    <string name="connect_error_http_code">El servidor devolvió HTTP %1$d</string>
     <string name="connect_error_timeout">Se agotó el tiempo de espera de la conexión</string>
     <string name="connect_error_refused">Conexión rechazada: ¿se está ejecutando Hermes?</string>
     <string name="connect_error_resolve">No se pudo resolver el host</string>
-    <string name="connect_error_connection_failed">Error de conexión:%1$s</string>
+    <string name="connect_error_connection_failed">Error de conexión: %1$s</string>
 
     <string name="connect_save_profile">Guardar perfil de conexión</string>
     <string name="connect_profile_name">Nombre del perfil</string>
-    <string name="connect_placeholder_profile_name">p.e. Ermitaño local, servidor remoto</string>
+    <string name="connect_placeholder_profile_name">p. ej., Hermes local, Servidor remoto</string>
     <string name="connect_action_hide_manual">Ocultar entrada manual</string>
     <string name="connect_action_show_manual">Ingresar manualmente en su lugar</string>
     <string name="connect_placeholder_token">Token API</string>
@@ -440,7 +440,7 @@
     <string name="kanban_priority_high">2 (Alta)</string>
     <string name="kanban_priority_urgent">3 (Urgente)</string>
     <string name="kanban_assignee">Asignatario</string>
-    <string name="kanban_assignee_default_suffix">%1$s(Predeterminado)</string>
+    <string name="kanban_assignee_default_suffix">%1$s (Predeterminado)</string>
     <string name="kanban_assignee_unassigned">Predeterminado (Sin asignar)</string>
     <string name="kanban_assignee_parked">Estacionado (Sin trabajador)</string>
     <string name="kanban_goal_mode">Modo de objetivo autónomo</string>
@@ -497,23 +497,23 @@
     <string name="kanban_auto_describe">Descripción automática</string>
     <string name="kanban_dependencies">Dependencias</string>
     <string name="kanban_blocked_by">Bloqueado por</string>
-    <string name="kanban_blocks">Bloques</string>
+    <string name="kanban_blocks">Bloquea</string>
     <string name="kanban_estimate">Estimación de esfuerzo</string>
     <string name="kanban_estimate_action">Estimación de esfuerzo</string>
     <string name="kanban_reestimate_action">Reestimación</string>
-    <string name="kanban_estimated_tokens">Tokens:%1$d</string>
-    <string name="kanban_complexity">Complejidad:%1$s</string>
+    <string name="kanban_estimated_tokens">Tokens: %1$d</string>
+    <string name="kanban_complexity">Complejidad: %1$s</string>
     <string name="kanban_delete_task">Eliminar tarea</string>
     <string name="kanban_delete_task_confirm">¿Está seguro de que desea eliminar esta tarea? Esto no se puede deshacer.</string>
     <string name="kanban_bulk_assign">Asignar</string>
     <string name="kanban_bulk_unassign">Desasignar</string>
     <string name="kanban_bulk_delete">Eliminar</string>
-    <string name="kanban_bulk_delete_confirm">¿Eliminar tareas seleccionadas de%1$d? Esto no se puede deshacer.</string>
-    <string name="kanban_bulk_complete_title">Tareas%1$dcompletas</string>
-    <string name="kanban_export_board">Tablero de exportación</string>
-    <string name="kanban_import_board">Tablero de importación</string>
+    <string name="kanban_bulk_delete_confirm">¿Eliminar las %1$d tareas seleccionadas? Esto no se puede deshacer.</string>
+    <string name="kanban_bulk_complete_title">Completar %1$d tareas</string>
+    <string name="kanban_export_board">Exportar tablero</string>
+    <string name="kanban_import_board">Importar tablero</string>
     <string name="kanban_runtime_working">Trabajando</string>
-    <string name="kanban_runtime_elapsed">·%1$s</string>
+    <string name="kanban_runtime_elapsed">· %1$s</string>
     <string name="kanban_runtime_stale_badge">· STALE</string>
     <string name="kanban_runtime_wont_run_badge">· NO SE EJECUTArá</string>
     <string name="kanban_task_actions">Acciones de tarea</string>
@@ -538,7 +538,7 @@
     <string name="kanban_select_all">Todo</string>
     <string name="kanban_move">Mover</string>
     <string name="kanban_close_multi_select">Cerrar selección múltiple</string>
-    <string name="kanban_move_tasks">Mover tareas%1$d</string>
+    <string name="kanban_move_tasks">Mover %1$d tareas</string>
     <string name="kanban_create_new_board">Crear nuevo tablero</string>
     <string name="kanban_slug">Slug (id)</string>
     <string name="kanban_display_name">Nombre para mostrar</string>
@@ -551,12 +551,12 @@
     <string name="kanban_tab_runs">Ejecuciones</string>
     <string name="kanban_tab_activity">Actividad</string>
     <string name="kanban_tab_files">Archivos</string>
-    <string name="kanban_event_created">Creado en%1$s</string>
-    <string name="kanban_event_created_by">Creado en%1$spor%2$s</string>
-    <string name="kanban_event_moved">Movido a%1$s</string>
-    <string name="kanban_event_assigned">Asignado a%1$s</string>
+    <string name="kanban_event_created">Creado en %1$s</string>
+    <string name="kanban_event_created_by">Creado en %1$s por %2$s</string>
+    <string name="kanban_event_moved">Movido a %1$s</string>
+    <string name="kanban_event_assigned">Asignado a %1$s</string>
     <string name="kanban_event_unassigned">Sin asignar</string>
-    <string name="kanban_event_commented">Comentario de%1$s</string>
+    <string name="kanban_event_commented">Comentario de %1$s</string>
     <string name="kanban_event_claimed_review">Reclamado para revisión</string>
     <string name="kanban_event_claimed_worker">Reclamado por el trabajador</string>
     <string name="kanban_event_worker_started">Trabajador iniciado</string>
@@ -569,14 +569,14 @@
     <string name="kanban_event_promoted">Promovido a listo</string>
     <string name="kanban_event_scheduled">Programado</string>
     <string name="kanban_event_archived">Archivado</string>
-    <string name="kanban_event_priority">Prioridad establecida en%1$s</string>
+    <string name="kanban_event_priority">Prioridad establecida en %1$s</string>
     <string name="kanban_workspace_scratch">Scratch (Predeterminado)</string>
     <string name="kanban_workspace_worktree">Árbol de trabajo</string>
     <string name="kanban_workspace_dir">Dir</string>
     <string name="kanban_unassigned_group">Sin asignar</string>
-    <string name="kanban_expand_column">Expandir%1$s</string>
-    <string name="kanban_collapse_column">Contraer%1$s</string>
-    <string name="kanban_add_to_column">Agregar tarea a%1$s</string>
+    <string name="kanban_expand_column">Expandir %1$s</string>
+    <string name="kanban_collapse_column">Contraer %1$s</string>
+    <string name="kanban_add_to_column">Agregar tarea a %1$s</string>
     <string name="action_add">Agregar</string>
     <!-- Skills Screen -->
     <string name="skills_status_all">Todos los estados</string>
@@ -779,27 +779,27 @@
     <string name="system_checkpoints_prune_confirm_desc">¿Eliminar el almacén oculto del punto de control de reversión? Se perderán los puntos existentes/de reversión.</string>
 
     <!-- Shell hooks section -->
-    <string name="system_sec_hooks">Ganchos de concha</string>
-    <string name="system_hooks_new">Nuevo gancho</string>
-    <string name="system_hooks_empty">No hay ganchos de concha configurados.</string>
-    <string name="system_hooks_matcher">comparador:%1$s</string>
+    <string name="system_sec_hooks">Hooks de shell</string>
+    <string name="system_hooks_new">Nuevo hook</string>
+    <string name="system_hooks_empty">No hay hooks de shell configurados.</string>
+    <string name="system_hooks_matcher">comparador: %1$s</string>
     <string name="system_hooks_not_executable">no ejecutable</string>
     <string name="system_hooks_allowed">permitido</string>
     <string name="system_hooks_not_approved">no aprobado</string>
-    <string name="system_hooks_modal_title">Nuevo gancho de shell</string>
+    <string name="system_hooks_modal_title">Nuevo hook de shell</string>
     <string name="system_hooks_field_event">Evento</string>
     <string name="system_hooks_field_command">Comando (ruta absoluta)</string>
     <string name="system_hooks_field_matcher">Coincidencia (opcional)</string>
     <string name="system_hooks_field_timeout">Tiempo de espera (s)</string>
     <string name="system_hooks_field_approve">Aprobar ahora (otorgue consentimiento para que se active; de lo contrario, permanece configurado pero inactivo)</string>
-    <string name="system_hooks_warning">Los ganchos de Shell se ejecutan comandos arbitrarios en este host. Agregue únicamente scripts en los que confíe. Entra en vigor en el próximo reinicio de la gateway/sesión.</string>
-    <string name="system_hooks_create">Crear gancho</string>
+    <string name="system_hooks_warning">Los hooks de shell ejecutan comandos arbitrarios en este host. Agregue únicamente scripts en los que confíe. Entra en vigor en el próximo reinicio de la gateway/sesión.</string>
+    <string name="system_hooks_create">Crear hook</string>
 
     <!-- Action log viewer -->
     <string name="system_action_log_title">Registro de acciones</string>
     <string name="system_action_log_running">ejecutando</string>
     <string name="system_action_log_done">hecho</string>
-    <string name="system_action_log_exit">salir de%1$d</string>
+    <string name="system_action_log_exit">código de salida: %1$d</string>
     <string name="system_action_log_starting">Iniciando…</string>
 
     <!-- Confirmation dialog -->
@@ -815,8 +815,8 @@
     <string name="model_label_available">Modelos disponibles:</string>
     <string name="model_no_models">No se informaron modelos o el proveedor necesita autenticación.</string>
     <string name="content_desc_active_model">Modelo activo</string>
-    <string name="content_desc_expand_provider">Expandir modelos%1$s</string>
-    <string name="content_desc_collapse_provider">Contraer modelos%1$s</string>
+    <string name="content_desc_expand_provider">Expandir modelos de %1$s</string>
+    <string name="content_desc_collapse_provider">Contraer modelos de %1$s</string>
     <string name="model_section_pinned">Modelos fijados</string>
     <string name="content_desc_unpin_model">Desanclar modelo</string>
     <string name="content_desc_pinned_section_toggle">Alternar visibilidad de sección fijada</string>
@@ -852,15 +852,15 @@
         <item quantity="one">Activo hace %1$d día</item>
         <item quantity="other">Activo hace %1$d días</item>
     </plurals>
-    <string name="session_age_date_desc">%1$sactivo</string>
+    <string name="session_age_date_desc">Activo %1$s</string>
     <string name="history_load_more">Cargar más sesiones…</string>
 
     <!-- Sessions Stats -->
     <string name="sessions_search_placeholder">Buscar sesiones…</string>
     <string name="sessions_search_empty_title">Sin resultados</string>
     <string name="sessions_search_empty_desc">Ninguna sesión coincide con “%1$s”</string>
-    <string name="sessions_search_results_header">Resultado(s) de%1$dpara “%2$s”</string>
-    <string name="sessions_search_played_at">%1$sreproducido</string>
+    <string name="sessions_search_results_header">%1$d resultado(s) para “%2$s”</string>
+    <string name="sessions_search_played_at">Reproducido %1$s</string>
     <string name="sessions_search_match_label">Coincidencia</string>
     <string name="sessions_search_model_label">Modelo</string>
     <string name="sessions_stat_total">Total</string>
@@ -869,26 +869,26 @@
     <string name="sessions_tab_automations">Automatizaciones</string>
     <string name="sessions_automations_empty_title">Sin historial de automatización</string>
     <string name="sessions_automations_empty_desc">Las ejecuciones iniciadas por automatizaciones programadas aparecerán aquí.</string>
-    <string name="sessions_section_automation_job">Trabajo%1$s</string>
+    <string name="sessions_section_automation_job">Trabajo %1$s</string>
     <string name="sessions_section_automation_unknown">Ejecución de automatización</string>
-    <string name="sessions_section_automation_runs">Ejecuciones cargadas de%1$d</string>
+    <string name="sessions_section_automation_runs">%1$d ejecuciones cargadas</string>
     <string name="sessions_action_prune">Eliminar</string>
     <string name="sessions_prune_title">Eliminar sesiones antiguas</string>
     <string name="sessions_prune_desc">Eliminar sesiones anteriores al número de días especificado.</string>
     <string name="sessions_prune_days_label">Umbral de días</string>
-    <string name="sessions_prune_confirm">Podar</string>
-    <string name="sessions_pruning">Podar sesiones antiguas…</string>
+    <string name="sessions_prune_confirm">Eliminar</string>
+    <string name="sessions_pruning">Eliminando sesiones antiguas…</string>
     <string name="sessions_empty_cleanup_desc">Vaciar</string>
     <string name="sessions_empty_cleanup_title">¿Eliminar sesiones vacías?</string>
-    <string name="sessions_empty_cleanup_message">Eliminar sesiones vacías de%1$d. Se mantienen las sesiones activas y archivadas.</string>
+    <string name="sessions_empty_cleanup_message">Eliminar %1$d sesión(es) vacía(s). Se mantienen las sesiones activas y archivadas.</string>
     <string name="sessions_empty_cleanup_confirm">Eliminar</string>
     <string name="sessions_delete_title">¿Eliminar sesión?</string>
     <string name="sessions_delete_message">¿Está seguro de que desea eliminar \"%1$s\"? Esto no se puede deshacer.</string>
     <string name="sessions_bulk_delete_title">¿Eliminar sesiones?</string>
-    <string name="sessions_bulk_delete_message">¿Está seguro de que desea eliminar las sesiones%1$d? Esto no se puede deshacer.</string>
+    <string name="sessions_bulk_delete_message">¿Está seguro de que desea eliminar %1$d sesiones? Esto no se puede deshacer.</string>
     <string name="sessions_action_select_all">Seleccionar todo</string>
     <string name="sessions_action_deselect_all">Deseleccionar</string>
-    <string name="sessions_action_delete_n">Eliminar%1$d</string>
+    <string name="sessions_action_delete_n">Eliminar %1$d</string>
     <string name="sessions_action_select">Seleccionar</string>
     <string name="sessions_action_rename">Cambiar nombre</string>
     <string name="sessions_action_pin">Fijar</string>
@@ -897,7 +897,7 @@
     <string name="sessions_action_unhide">Mostrar</string>
     <string name="sessions_show_hidden">Mostrar sesiones ocultas</string>
     <string name="sessions_hide_hidden">Ocultar sesiones ocultas</string>
-    <string name="sessions_hidden_badge">Ocultar</string>
+    <string name="sessions_hidden_badge">Oculto</string>
     <string name="sessions_all_hidden_desc">Todas las sesiones están actualmente ocultas. Toque a continuación para mostrar sesiones ocultas.</string>
     <string name="sessions_pinned_indicator">Fijado</string>
     <string name="sessions_fork_indicator">Sesión bifurcada</string>
@@ -927,21 +927,21 @@
     <string name="toolset_env_save">Guardar</string>
     <string name="toolset_action_delete">Eliminar</string>
     <string name="toolset_delete_env_title">¿Quitar clave?</string>
-    <string name="toolset_delete_env_message">Esto borra%1$sdel entorno.</string>
-    <string name="toolset_edit_env_desc">Editar%1$s</string>
-    <string name="toolset_reveal_env_desc">Revelar%1$s</string>
-    <string name="toolset_hide_env_desc">Ocultar%1$s</string>
-    <string name="toolset_clear_env_desc">Borrar%1$s</string>
+    <string name="toolset_delete_env_message">Esto borra %1$s del entorno.</string>
+    <string name="toolset_edit_env_desc">Editar %1$s</string>
+    <string name="toolset_reveal_env_desc">Revelar %1$s</string>
+    <string name="toolset_hide_env_desc">Ocultar %1$s</string>
+    <string name="toolset_clear_env_desc">Borrar %1$s</string>
     <string name="toolset_post_setup_run">Ejecutar la configuración</string>
     <string name="toolset_post_setup_rerun">Volver a ejecutar la configuración</string>
     <string name="toolset_post_setup_running">Ejecutando…</string>
     <string name="toolset_post_setup_installed">Instalado</string>
     <string name="toolset_post_setup_hint">Instala las dependencias que faltan para este backend</string>
     <string name="toolset_post_setup_installed_hint">Las dependencias están instaladas</string>
-    <string name="toolset_post_setup_done_ok">Configuración finalizada (salida de%1$d)</string>
-    <string name="toolset_post_setup_done_fail">Configuración fallida (salida de%1$d)</string>
-    <string name="toolset_web_search_active">Búsqueda:%1$s</string>
-    <string name="toolset_web_extract_active">Extracto:%1$s</string>
+    <string name="toolset_post_setup_done_ok">Configuración finalizada (salida %1$d)</string>
+    <string name="toolset_post_setup_done_fail">Configuración fallida (salida %1$d)</string>
+    <string name="toolset_web_search_active">Búsqueda: %1$s</string>
+    <string name="toolset_web_extract_active">Extracción: %1$s</string>
 
     <!-- Webhooks Screen -->
     <string name="webhooks_sec_status">Estado de webhooks globales</string>
@@ -962,7 +962,7 @@
     <string name="webhooks_field_secret">Secreto</string>
     <string name="webhooks_hint_name">p.e. github-push</string>
     <string name="webhooks_hint_events">separados por comas (por ejemplo, push, pull_request)</string>
-    <string name="webhooks_hint_deliver">registro, telegrama, discordia, origen, todo…</string>
+    <string name="webhooks_hint_deliver">log, telegram, discord, origin, all…</string>
     <string name="webhooks_hint_secret">generado automáticamente si está vacío</string>
     <string name="webhooks_no_matching">No hay suscripciones coincidentes</string>
     <string name="webhooks_no_matching_desc">Intente ajustar su búsqueda.</string>
@@ -976,10 +976,10 @@
     <!-- Profiles Screen -->
     <string name="profiles_empty_title">No hay perfiles disponibles</string>
     <string name="profiles_empty_desc">Los perfiles de conexión de Hermes aparecerán aquí.</string>
-    <string name="profiles_label_model">Modelo:%1$s</string>
-    <string name="profiles_label_provider">Proveedor:%1$s</string>
-    <string name="profiles_label_skills">Habilidades%1$d</string>
-    <string name="profiles_label_path">Ruta:%1$s</string>
+    <string name="profiles_label_model">Modelo: %1$s</string>
+    <string name="profiles_label_provider">Proveedor: %1$s</string>
+    <string name="profiles_label_skills">%1$d habilidades</string>
+    <string name="profiles_label_path">Ruta: %1$s</string>
     <string name="profiles_badge_auto_generated">Generado automáticamente</string>
     <string name="profiles_action_activate">Activar</string>
     <string name="profiles_action_edit_soul">Editar alma</string>
@@ -999,10 +999,10 @@
     </plurals>
     <string name="profiles_all_hidden_desc">Todos los perfiles están actualmente ocultos. Toque a continuación para mostrar perfiles ocultos.</string>
     <string name="profiles_content_desc_active">Perfil activo</string>
-    <string name="profiles_title_edit_soul">Editar perfil de alma:%1$s</string>
-    <string name="profiles_title_set_model">Establecer modelo:%1$s</string>
-    <string name="profiles_title_clone">Perfil de clonación:%1$s</string>
-    <string name="profiles_title_edit_description">Editar descripción:%1$s</string>
+    <string name="profiles_title_edit_soul">Editar alma: %1$s</string>
+    <string name="profiles_title_set_model">Establecer modelo: %1$s</string>
+    <string name="profiles_title_clone">Clonar perfil: %1$s</string>
+    <string name="profiles_title_edit_description">Editar descripción: %1$s</string>
     <string name="profiles_label_new_name_input">Nuevo nombre de perfil</string>
     <string name="profiles_label_description_input">Descripción</string>
     <string name="profiles_description_placeholder">No se proporciona descripción. Describe la función de este perfil.</string>
@@ -1018,7 +1018,7 @@
     <string name="profiles_delete_path">Ruta:%1$s</string>
     <string name="profiles_delete_gateway_warning">Este perfil tiene una gateway en ejecución; al eliminarla se detendrá.</string>
     <string name="profiles_setup_command_hint">Ejecute este comando en la CLI de Hermes para configurar este perfil.</string>
-    <string name="profiles_builder_step_indicator">Paso%1$dde 5</string>
+    <string name="profiles_builder_step_indicator">Paso %1$d de 5</string>
     <string name="profiles_builder_step_identity">Identidad</string>
     <string name="profiles_builder_step_model">Configuración del modelo</string>
     <string name="profiles_builder_step_skills">Selección de habilidades</string>
@@ -1034,7 +1034,7 @@
     <string name="profiles_builder_skills_default">Incluir paquete de habilidades predeterminado</string>
     <string name="profiles_builder_skills_default_desc">Empaqueta automáticamente herramientas comunes del sistema</string>
     <string name="profiles_builder_skills_local">Seleccionar habilidades locales</string>
-    <string name="profiles_builder_skills_search_hub">Centro de búsqueda</string>
+    <string name="profiles_builder_skills_search_hub">Buscar en el Hub</string>
     <string name="profiles_builder_skills_hub_title">Agregar habilidades desde Hermes Hub</string>
     <string name="profiles_builder_skills_added">Habilidades agregadas:</string>
     <string name="profiles_builder_skills_search_results">Resultados de búsqueda:</string>
@@ -1050,16 +1050,16 @@
     <string name="profiles_builder_mcp_sse_url">URL de SSE</string>
     <string name="profiles_builder_review_name">Nombre del perfil</string>
     <string name="profiles_builder_review_description">Descripción</string>
-    <string name="profiles_builder_review_provider">Proveedor:%1$s</string>
-    <string name="profiles_builder_review_model">Modelo:%1$s</string>
+    <string name="profiles_builder_review_provider">Proveedor: %1$s</string>
+    <string name="profiles_builder_review_model">Modelo: %1$s</string>
     <string name="profiles_builder_review_model_settings">Configuración del modelo</string>
     <string name="profiles_builder_review_system_defaults">Uso de los valores predeterminados del sistema</string>
     <string name="profiles_builder_review_skills_title">Configuración de habilidades</string>
     <string name="profiles_builder_review_skills_default">Paquete predeterminado completo</string>
-    <string name="profiles_builder_review_skills_local">Habilidades locales de%1$dseleccionadas</string>
-    <string name="profiles_builder_review_skills_hub">Habilidades del concentrador%1$dagregadas</string>
+    <string name="profiles_builder_review_skills_local">%1$d habilidades locales seleccionadas</string>
+    <string name="profiles_builder_review_skills_hub">%1$d habilidades del Hub agregadas</string>
     <string name="profiles_builder_review_mcp_title">Servidores MCP</string>
-    <string name="profiles_builder_review_mcp_none">Sin MCP servidores configurados</string>
+    <string name="profiles_builder_review_mcp_none">No hay servidores MCP configurados</string>
     <string name="profiles_builder_mcp_none">Aún no hay servidores MCP configurados</string>
     <string name="profiles_builder_action_add">Agregar</string>
 
@@ -1095,11 +1095,11 @@
     <string name="plugins_server_state_app_not_running">La aplicación no se ejecuta</string>
     <string name="plugins_server_state_endpoint_unavailable">Punto final no disponible</string>
     <string name="plugins_server_state_no_interactive_session">Sin sesión interactiva</string>
-    <string name="plugins_server_state_version_too_old">Versión también antigua</string>
+    <string name="plugins_server_state_version_too_old">Versión demasiado antigua</string>
     <string name="plugins_server_state_missing_app">Falta la aplicación</string>
     <string name="plugins_server_state_unknown">Estado desconocido</string>
-    <string name="plugins_auth_command_hint">Comando de autenticación:%1$s</string>
-    <string name="plugins_dashboard_slots">Ranuras del panel:%1$s</string>
+    <string name="plugins_auth_command_hint">Comando de autenticación: %1$s</string>
+    <string name="plugins_dashboard_slots">Ranuras del panel: %1$s</string>
     <string name="plugins_orphan_heading">Complementos de panel huérfanos</string>
     <string name="plugins_show_in_sidebar">Mostrar en la barra lateral</string>
     <string name="plugins_hide_from_sidebar">Ocultar de la barra lateral</string>
@@ -1111,8 +1111,8 @@
     <string name="plugins_catalog_update">Actualizar</string>
     <string name="plugins_catalog_installed_badge">Instalado</string>
     <string name="plugins_catalog_filter_all">Todo</string>
-    <string name="plugins_catalog_filter_official">Comunidad oficial</string>
-    <string name="plugins_catalog_filter_community"></string>
+    <string name="plugins_catalog_filter_official">Oficial</string>
+    <string name="plugins_catalog_filter_community">Comunidad</string>
     <string name="plugins_catalog_maintainer">por%1$s</string>
     <string name="plugins_catalog_tier_official">Oficial</string>
     <string name="plugins_catalog_tier_community">Comunidad</string>
@@ -1246,7 +1246,7 @@
     <string name="cron_edit_hint_run_continuity">Inyecta la salida anterior de este trabajo en cada ejecución</string>
     <string name="cron_badge_continuity">Continuidad</string>
     <string name="cron_detail_dispatch_error">Error de envío</string>
-    <string name="cron_badge_dispatch_error">Error de incendio</string>
+    <string name="cron_badge_dispatch_error">Error de disparo</string>
     <string name="cron_edit_monitor_mode">Modo de monitor</string>
     <string name="cron_edit_monitor_off">Apagado</string>
     <string name="cron_edit_monitor_script">Script</string>
@@ -1279,17 +1279,17 @@
     <string name="achievements_scan_running">Escaneando…</string>
     <string name="achievements_scan_scanning">Reescaneando…</string>
     <string name="achievements_scan_error">Error</string>
-    <string name="achievements_scan_count">Escaneos%1$d</string>
+    <string name="achievements_scan_count">%1$d escaneos</string>
     <string name="achievements_stale">En caché</string>
     <string name="achievements_filter_all">Todo</string>
     <string name="achievements_state_unlocked">Desbloqueado</string>
     <string name="achievements_state_discovered">Descubierto</string>
     <string name="achievements_state_secret">Secreto</string>
     <string name="achievements_recent_title">Desbloqueos recientes</string>
-    <string name="achievements_count_label">%1$dde los logros de%2$d</string>
+    <string name="achievements_count_label">%1$d de %2$d logros</string>
     <string name="achievements_criteria_show">Mostrar criterios</string>
     <string name="achievements_criteria_hide">Ocultar criterios</string>
-    <string name="achievements_unlocked_at">%1$sdesbloqueado</string>
+    <string name="achievements_unlocked_at">Desbloqueado %1$s</string>
     <string name="achievements_menu_desc">Menú de logros</string>
     <string name="achievements_action_rescan">Volver a escanear todas las sesiones</string>
     <string name="achievements_action_reset">Restablecer todos los datos de logros</string>
@@ -1301,7 +1301,7 @@
     <string name="keys_empty_desc">Las claves de entorno de Hermes aparecerán aquí.</string>
     <string name="keys_label_not_configured">No configurado</string>
     <string name="keys_action_toggle_visibility">Alternar visibilidad</string>
-    <string name="keys_search_placeholder">Teclas de búsqueda…</string>
+    <string name="keys_search_placeholder">Buscar claves…</string>
     <string name="keys_no_matching_title">No hay claves coincidentes</string>
     <string name="keys_no_matching_desc">Pruebe con un término de búsqueda diferente.</string>
     <string name="keys_add_key_label">Nombre de clave</string>
@@ -1362,8 +1362,8 @@
     <string name="pairing_empty_desc">Los usuarios que soliciten acceso a sus canales de mensajería aparecerán aquí para su aprobación.</string>
     <string name="pairing_empty_approved">Aún no hay usuarios aprobados.</string>
     <string name="pairing_label_unknown_user">Usuario desconocido</string>
-    <string name="pairing_label_request_age_m">Hace%1$dm</string>
-    <string name="pairing_label_request_age_hm">%1$dh Hace%2$dm</string>
+    <string name="pairing_label_request_age_m">Hace %1$dm</string>
+    <string name="pairing_label_request_age_hm">Hace %1$dh %2$dm</string>
 
     <!-- Settings -->
     <string name="settings_saved_profiles">Perfiles guardados (%1$d)</string>
@@ -1377,7 +1377,7 @@
     <string name="auth_login_username_label">Nombre de usuario</string>
     <string name="auth_login_password_label">Contraseña</string>
     <string name="auth_login_action_connect">Conectar</string>
-    <string name="auth_login_action_probing">Panel de control de sondeo...</string>
+    <string name="auth_login_action_probing">Sondeando panel…</string>
     <string name="auth_login_probing_dashboard">Comprobando la configuración del panel...</string>
     <string name="auth_login_error_token_required">Se requiere token de sesión</string>
     <string name="auth_login_error_username_required">Se requiere nombre de usuario</string>
@@ -1386,7 +1386,7 @@
     <string name="auth_login_error_oauth_unsupported">El inicio de sesión de OAuth (Nous Portal) aún no es compatible con esta versión de la aplicación. Cambie el panel al modo de autenticación básica o token. (problema #639)</string>
     <string name="auth_login_oauth_coming_soon">Este panel utiliza el inicio de sesión OAuth (Nous Portal), que pronto estará disponible en Hermes Mobile.</string>
     <string name="auth_login_existing_profiles_title">Utilice el perfil de inicio de sesión existente:</string>
-    <string name="auth_login_use_profile">Ingrese como%1$s</string>
+    <string name="auth_login_use_profile">Ingresar como %1$s</string>
 
     <!-- Landing Screen -->
     <string name="landing_title">Hermes Mobile</string>
@@ -1430,14 +1430,14 @@
     <string name="processes_empty_desc">Los procesos en segundo plano para esta sesión aparecerán aquí.</string>
     <string name="processes_no_session_title">No hay sesión de chat activa</string>
     <string name="processes_no_session_desc">Primero abra una sesión de chat: la lista de procesos tiene como alcance una sesión.</string>
-    <string name="processes_running_hint">¿Está ejecutando</string>
-    <string name="processes_kill_title">el proceso de eliminación?</string>
+    <string name="processes_running_hint">En ejecución</string>
+    <string name="processes_kill_title">¿Finalizar proceso?</string>
     <string name="processes_kill_desc">¿Detener \u201c%1$s\u201d? Esto no se puede deshacer.</string>
-
+ 
     <!-- Analytics Screen (issue #537) -->
     <string name="analytics_empty_title">Aún no hay análisis.</string>
     <string name="analytics_empty_desc">Las estadísticas de uso aparecerán aquí una vez que el agente haya estado activo.</string>
-    <string name="analytics_days">%1$ddías</string>
+    <string name="analytics_days">%1$d días</string>
     <string name="analytics_estimated_cost">Est. costo</string>
     <string name="analytics_sessions">Sesiones</string>
     <string name="analytics_api_calls">Llamadas API</string>
@@ -1451,10 +1451,10 @@
     <string name="analytics_daily_cost">Costo estimado diario</string>
     <string name="analytics_loading_usage">Cargando análisis de uso…</string>
     <string name="analytics_no_cost_data">No se registró ningún costo en este período.</string>
-    <string name="analytics_skill_uses">%1$dusa \u2022%2$d%% del total de</string>
-    <string name="analytics_tool_uses">llamadas%1$d\u2022%2$d%% del total</string>
-    <string name="processes_kill_confirm">Matar</string>
-    <string name="processes_kill_cd">Matar proceso</string>
+    <string name="analytics_skill_uses">%1$d usos \u2022 %2$d%% del total</string>
+    <string name="analytics_tool_uses">%1$d llamadas \u2022 %2$d%% del total</string>
+    <string name="processes_kill_confirm">Finalizar</string>
+    <string name="processes_kill_cd">Finalizar proceso</string>
 
     <!-- Image viewer (issue #723) -->
     <string name="image_viewer_content_desc">Imagen de chat</string>
@@ -1492,9 +1492,9 @@
     <string name="chat_fast_mode_label">Rápido</string>
     <string name="chat_fast_mode_unavailable">Modo rápido no disponible para este modelo</string>
     <string name="chat_reasoning_default">Predeterminado</string>
-    <string name="chat_reasoning_clamped_desc">%1$ssolicitado, envíos de ruta%2$s</string>
+    <string name="chat_reasoning_clamped_desc">Solicitado: %1$s, la ruta envía %2$s</string>
     <string name="chat_reasoning_menu_desc">Opciones de razonamiento</string>
-    <string name="chat_save_attachment">Guardar%1$s</string>
+    <string name="chat_save_attachment">Guardar %1$s</string>
     <string name="chat_switch_model_title">Cambiar modelo (este chat)</string>
     <string name="config_clear_value">Borrar valor</string>
     <string name="config_invalid_json">JSON no válido</string>
@@ -1623,23 +1623,23 @@
     <string name="toolsets_search_placeholder">Buscar conjuntos de herramientas...</string>
     <string name="webhooks_delete_subscription">Eliminar suscripción</string>
     <string name="webhooks_placeholder">Qué hace este webhook...</string>
-    <string name="webhooks_receiver_url">URL del receptor:%1$s</string>
+    <string name="webhooks_receiver_url">URL del receptor: %1$s</string>
     <string name="webhooks_secret_configured">Secreto configurado</string>
     <string name="system_dump">Volcado</string>
     <!-- system action toast templates -->
-    <string name="system_action_started">%1$siniciado</string>
-    <string name="system_action_failed">%1$sfalló:%2$s</string>
+    <string name="system_action_started">%1$s iniciado</string>
+    <string name="system_action_failed">%1$s falló: %2$s</string>
     <!-- Group Chat Room -->
-    <string name="group_chat_composer_hint">Mensaje%1$s… (use @bot para mencionar)</string>
+    <string name="group_chat_composer_hint">Mensaje %1$s… (use @bot para mencionar)</string>
     <string name="group_chat_empty_title">Aún no hay mensajes</string>
     <string name="group_chat_empty_subtitle">Mencione un bot o use @all para iniciar la colaboración.</string>
-    <string name="group_chat_thinking">%1$sestá pensando...</string>
-    <string name="group_chat_bot_passed">%1$saprobó</string>
-    <string name="group_chat_typing">Escribiendo...</string>
-    <string name="group_chat_tool_running">Ejecutando...</string>
+    <string name="group_chat_thinking">%1$s está pensando…</string>
+    <string name="group_chat_bot_passed">%1$s pasó turno</string>
+    <string name="group_chat_typing">Escribiendo…</string>
+    <string name="group_chat_tool_running">Ejecutando…</string>
     <string name="group_chat_tool_no_output">Sin resultados</string>
     <string name="group_chat_tool_no_output_success">Código de salida 0 (sin resultados)</string>
-    <string name="group_chat_members_count">Miembros de%1$d</string>
+    <string name="group_chat_members_count">%1$d miembros</string>
     <string name="group_chat_capped_limit">Discusión en pausa (límite de turnos alcanzado) - responder para continuar</string>
     <string name="group_chat_settings_title">Configuración de chat grupal</string>
     <string name="group_chat_settings_max_messages">Mensajes máximos de bot</string>
@@ -1679,14 +1679,14 @@
     <string name="vault_unlock_password_label">Contraseña maestra</string>
     <string name="vault_unlock_action">Desbloquear</string>
     <string name="vault_unlock_dismiss">Mantener bloqueado</string>
-    <string name="vault_save_login_title">Guardar Iniciar sesión en Vault</string>
-    <string name="vault_save_login_desc">¿Guardar credenciales para%1$sen su bóveda de credenciales?</string>
+    <string name="vault_save_login_title">Guardar inicio de sesión en la bóveda</string>
+    <string name="vault_save_login_desc">¿Guardar credenciales para %1$s en su bóveda de credenciales?</string>
     <string name="vault_save_login_identifier">Nombre de usuario o correo electrónico</string>
     <string name="vault_save_login_password">Contraseña</string>
     <string name="vault_save_login_action">Guardar y completar</string>
     <string name="vault_save_login_dismiss">No guardar</string>
     <string name="vault_code_title">Código de verificación</string>
-    <string name="vault_code_desc">Ingrese la 2FA o el código de verificación para%1$s.</string>
+    <string name="vault_code_desc">Ingrese la 2FA o el código de verificación para %1$s.</string>
     <string name="vault_code_label">Código de verificación</string>
     <string name="vault_code_action">Enviar</string>
     <string name="vault_code_dismiss">Omitir</string>
@@ -1755,16 +1755,16 @@
     <string name="connection_setup_required">Se requiere%1$s</string>
     <string name="connection_setup_request_failed">No se pudo enviar la respuesta de configuración. Intentar otra vez.</string>
     <string name="connection_setup_pending">Esperando a Hermes…</string>
-    <string name="connection_catalog_title">Instalar%1$s</string>
+    <string name="connection_catalog_title">Instalar %1$s</string>
     <string name="connection_catalog_kind_plugin">Complemento</string>
     <string name="connection_catalog_kind_skill">Habilidad</string>
-    <string name="connection_catalog_tier_official">Comunidad</string>
-    <string name="connection_catalog_tier_community">oficial</string>
-    <string name="connection_catalog_source">Fuente:%1$s</string>
-    <string name="connection_catalog_pin">Confirmación fijada:%1$s</string>
-    <string name="connection_catalog_platforms">Plataformas:%1$s</string>
-    <string name="connection_catalog_requirements">Requiere:%1$s</string>
-    <string name="connection_catalog_target_profile">Se instala en el perfil:%1$s</string>
+    <string name="connection_catalog_tier_official">Oficial</string>
+    <string name="connection_catalog_tier_community">Comunidad</string>
+    <string name="connection_catalog_source">Fuente: %1$s</string>
+    <string name="connection_catalog_pin">Commit fijado: %1$s</string>
+    <string name="connection_catalog_platforms">Plataformas: %1$s</string>
+    <string name="connection_catalog_requirements">Requiere: %1$s</string>
+    <string name="connection_catalog_target_profile">Se instala en el perfil: %1$s</string>
     <string name="connection_catalog_scan_passed">Escaneo de seguridad aprobado</string>
     <string name="connection_catalog_scan_warnings">Advertencias de escaneo de seguridad encontradas</string>
     <string name="connection_catalog_scan_failed">Escaneo de seguridad fallido</string>
@@ -1772,7 +1772,7 @@
     <string name="connection_catalog_install">Instalar</string>
     <string name="connection_catalog_retry">Inténtalo de nuevo</string>
     <string name="connection_catalog_installing">Instalando…</string>
-    <string name="connection_catalog_skill_ready">Habilidad disponible:%1$s</string>
+    <string name="connection_catalog_skill_ready">Habilidad disponible: %1$s</string>
 
     <!-- Kanban task detail -->
     <string name="kanban_specify_task">Especificar tarea</string>

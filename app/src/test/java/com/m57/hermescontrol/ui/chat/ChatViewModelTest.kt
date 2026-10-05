@@ -576,6 +576,106 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun sessionResume_clarifyReplayBeforeRuntimeBindingRestoresOptions() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+            viewModel.switchSession("stored-clarify")
+            advanceUntilIdle()
+            val resumeId = sentRequestMethods.last { it.first == WsMethods.SESSION_RESUME }.second
+            val params =
+                mapOf(
+                    "session_id" to "runtime-clarify",
+                    "question" to "QA color?",
+                    "choices" to listOf("QA BLUE", "QA GREEN"),
+                )
+            // RpcChannel emits open_requests before its enclosing resume result.
+            mockEventsFlow.emit(WsEvent.ServerRequest("srq-resume", "clarify", params, replayed = true))
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.clarifyRequest)
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    resumeId,
+                    mapOf(
+                        "session_id" to "runtime-clarify",
+                        "resumed" to "stored-clarify",
+                        "open_requests" to
+                            listOf(mapOf("id" to "srq-resume", "method" to "clarify", "params" to params)),
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals("stored-clarify", viewModel.uiState.value.currentSessionId)
+            val clarify = viewModel.uiState.value.clarifyRequest
+            assertNotNull("Pending clarify must survive runtime binding on resume", clarify)
+            assertEquals("srq-resume", clarify?.serverRequestId)
+            assertEquals(listOf("QA BLUE", "QA GREEN"), clarify?.options)
+            verify(exactly = 0) { HermesWsClient.respondToServerRequest(any(), any()) }
+        }
+
+    @Test
+    fun sessionResume_clarifyReplayFromStaleResumeCannotSurface() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+            viewModel.switchSession("stored-old-clarify")
+            advanceUntilIdle()
+            val staleId = sentRequestMethods.last { it.first == WsMethods.SESSION_RESUME }.second
+            viewModel.switchSession("stored-current-clarify")
+            advanceUntilIdle()
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    staleId,
+                    mapOf(
+                        "session_id" to "runtime-old-clarify",
+                        "resumed" to "stored-old-clarify",
+                        "open_requests" to
+                            listOf(
+                                mapOf(
+                                    "id" to "srq-old",
+                                    "method" to "clarify",
+                                    "params" to mapOf("session_id" to "runtime-old-clarify", "question" to "Old?"),
+                                ),
+                            ),
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals("stored-current-clarify", viewModel.uiState.value.currentSessionId)
+            assertNull(viewModel.uiState.value.clarifyRequest)
+            verify(exactly = 0) { HermesWsClient.respondToServerRequest(any(), any()) }
+        }
+
+    @Test
+    fun sessionResume_clarifyReplayRejectsUnrelatedRequestSession() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+            viewModel.switchSession("stored-clarify")
+            advanceUntilIdle()
+            val resumeId = sentRequestMethods.last { it.first == WsMethods.SESSION_RESUME }.second
+            val params = mapOf("session_id" to "runtime-unrelated", "question" to "Unrelated?")
+            mockEventsFlow.emit(WsEvent.ServerRequest("srq-unrelated", "clarify", params, replayed = true))
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    resumeId,
+                    mapOf(
+                        "session_id" to "runtime-clarify",
+                        "resumed" to "stored-clarify",
+                        "open_requests" to
+                            listOf(mapOf("id" to "srq-unrelated", "method" to "clarify", "params" to params)),
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.clarifyRequest)
+            verify(exactly = 0) { HermesWsClient.respondToServerRequest(any(), any()) }
+        }
+
+    @Test
     fun sessionResume_sendsDesktopSourceLikeSessionCreate() =
         runTest {
             // #1450: session.create declared source="desktop" but session.resume omitted it, so

@@ -549,11 +549,11 @@
     <string name="skills_status_disabled">Disabilitato</string>
     <string name="skills_category_all">Tutte</string>
     <string name="skills_screen_title">Skill</string>
-    <string name="skills_search_placeholder">Cerca skill\\u2026</string>
+    <string name="skills_search_placeholder">Cerca skill\u2026</string>
     <string name="skills_edit_title">Modifica: %1$s</string>
     <string name="skills_preview_title">Anteprima: %1$s</string>
     <string name="skills_preview_empty">Nessun contenuto da visualizzare in anteprima</string>
-    <string name="skills_hub_search_placeholder">Cerca nell\'hub delle skill\\u2026</string>
+    <string name="skills_hub_search_placeholder">Cerca nell\'hub delle skill\u2026</string>
     <string name="skills_hub_search_button">Cerca nell\'hub</string>
     <string name="skills_hub_empty_results">Nessuna skill trovata nell\'hub</string>
     <string name="skills_hub_install">Installa</string>
@@ -574,7 +574,7 @@
         <item quantity="one">%1$d risultato</item>
         <item quantity="other">%1$d risultati</item>
     </plurals>
-    <string name="skills_content_placeholder">Inserisci il contenuto della skill\\u2026</string>
+    <string name="skills_content_placeholder">Inserisci il contenuto della skill\u2026</string>
     <string name="skills_empty_message">Nessuna skill trovata</string>
     <string name="skills_discard_title">Scartare le modifiche?</string>
     <string name="skills_discard_message">Ci sono modifiche non salvate. Sei sicuro di volerle scartare?</string>
@@ -1471,7 +1471,7 @@
     <string name="system_checkpoint_prune">Pulizia checkpoint</string>
     <string name="system_config_migrate">Migrazione configurazione</string>
     <string name="system_curator_run">Esecuzione curator</string>
-    <string name="system_more_lines">… %1$d altra/e riga/he</string>
+    <string name="system_more_lines">… altre %1$d righe</string>
     <string name="system_prompt_size_check">Controllo dimensione prompt</string>
     <string name="system_security_audit">Audit di sicurezza</string>
     <string name="system_skills_update">Aggiornamento skill</string>

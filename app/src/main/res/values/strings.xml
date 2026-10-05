@@ -50,9 +50,7 @@
 
     <!-- Empty-state CTAs (issue #618) -->
     <string name="empty_action_browse_hub">Browse skill hub</string>
-    <string name="empty_action_retry_search">Retry search</string>
     <string name="empty_action_create_job">Create your first job</string>
-    <string name="empty_action_add_server">Add a server</string>
     <string name="empty_action_connect_telegram">Connect a Telegram channel</string>
     <string name="empty_action_configure_model">Configure model</string>
     <string name="empty_action_start_chat">Start a new chat</string>
@@ -171,7 +169,6 @@
     <string name="action_reply">Reply</string>
 
     <!-- Chat Screen & Bubble -->
-    <string name="bot_chat_never_resets_notice">Bot chats are one continuous conversation — compacting instead. For a throwaway session, create a standard chat.</string>
     <string name="chat_action_search">Search</string>
     <string name="chat_action_close_search">Close search</string>
     <string name="chat_action_timeline">Timeline</string>
@@ -214,11 +211,6 @@
     <string name="chat_busy_guide">Guide at next safe point</string>
     <string name="chat_busy_interrupt">Hard interrupt, then send</string>
     <string name="chat_busy_interrupt_warning">Hard interrupt can stop child agents. Queue and guide let current work continue.</string>
-    <string name="chat_busy_queue_action">Queue</string>
-    <string name="chat_busy_stop_and_send">Stop &amp; send</string>
-    <string name="chat_busy_more">More</string>
-    <string name="chat_busy_override">Send mode for this message</string>
-    <string name="chat_busy_override_once">This choice applies once; the saved default stays the same.</string>
     <string name="chat_pending_sends">Pending messages</string>
     <string name="chat_send_accepted">Accepted by server</string>
     <plurals name="chat_pending_count">
@@ -236,7 +228,6 @@
     <string name="chat_pending_send_now">Send now</string>
     <string name="chat_pending_send_now_warning">Sending a pending message now may interrupt active work and stop child agents.</string>
     <string name="chat_pending_send_again">Send again</string>
-    <string name="chat_pending_attachments">Attachments will be sent with this message.</string>
     <string name="chat_tool_execution_error">Execution Error: %1$s</string>
     <string name="chat_tool_exit_code">Exit Code: %1$d</string>
     <string name="chat_tool_output_omitted">%1$d characters omitted from process output</string>
@@ -251,9 +242,7 @@
     <string name="content_desc_copied">Copied</string>
     <string name="content_desc_speak">Read aloud</string>
     <string name="content_desc_stop_speaking">Stop speaking</string>
-    <string name="tts_error_network">Could not reach the Hermes server for speech</string>
     <string name="tts_error_synthesis">Could not synthesize the message audio</string>
-    <string name="tts_error_playback">Could not play the message audio</string>
     <string name="content_desc_edit">Edit</string>
     <string name="chat_msg_tokens">%1$s tok</string>
     <string name="chat_msg_tps">%1$s t/s</string>
@@ -314,7 +303,6 @@
     <string name="settings_delay_100ms">100 ms</string>
     <string name="settings_item_chat_font_size">Chat Font Size</string>
     <string name="settings_desc_chat_font_size">Scale text size in chat messages</string>
-    <string name="settings_font_scale_value">Font Size: %1$s</string>
     <string name="settings_font_scale_small">Small (0.85×)</string>
     <string name="settings_font_scale_default">Default (1.0×)</string>
     <string name="settings_font_scale_large">Large (1.15×)</string>
@@ -441,7 +429,6 @@
     <string name="kanban_complete_title">Complete task</string>
     <string name="kanban_complete_summary_label">Completion summary</string>
     <string name="kanban_complete_summary_hint">Stored as the task result</string>
-    <string name="kanban_move_failed">Move failed: %1$s</string>
     <string name="kanban_live">Live</string>
     <string name="kanban_offline">Offline</string>
     <string name="kanban_no_tasks">No tasks</string>
@@ -460,7 +447,6 @@
     <string name="kanban_parent_task">Parent Task</string>
     <string name="kanban_parent_none">None</string>
     <string name="kanban_model_override">Model Override</string>
-    <string name="kanban_provider_override">Provider Override</string>
     <string name="kanban_reasoning_effort">Reasoning Effort</string>
     <string name="kanban_workspace_kind">Workspace Kind</string>
     <string name="kanban_workspace_path">Workspace Path Override</string>
@@ -515,7 +501,6 @@
     <string name="kanban_reestimate_action">Re-estimate</string>
     <string name="kanban_estimated_tokens">Tokens: %1$d</string>
     <string name="kanban_complexity">Complexity: %1$s</string>
-    <string name="kanban_rationale">Rationale</string>
     <string name="kanban_delete_task">Delete Task</string>
     <string name="kanban_delete_task_confirm">Are you sure you want to delete this task? This cannot be undone.</string>
     <string name="kanban_bulk_assign">Assign</string>
@@ -526,8 +511,6 @@
     <string name="kanban_export_board">Export Board</string>
     <string name="kanban_import_board">Import Board</string>
     <string name="kanban_runtime_working">Working</string>
-    <string name="kanban_runtime_stale">Stale (no heartbeat)</string>
-    <string name="kanban_runtime_wont_run">Won\'t run: unassigned</string>
     <string name="kanban_runtime_elapsed">· %1$s</string>
     <string name="kanban_runtime_stale_badge">· STALE</string>
     <string name="kanban_runtime_wont_run_badge">· WON\'T RUN</string>
@@ -606,7 +589,6 @@
     <string name="skills_hub_search_placeholder">Search skill hub\u2026</string>
     <string name="skills_hub_search_button">Search Hub</string>
     <string name="skills_hub_empty_results">No skills found in hub</string>
-    <string name="skills_hub_search_hint">Type a search term to browse the skill hub</string>
     <string name="skills_hub_install">Install</string>
     <string name="skills_hub_sources_title">Connected sources</string>
     <string name="skills_hub_source_rate_limited">rate limited</string>
@@ -845,7 +827,6 @@
     <string name="history_empty_title">No history</string>
     <string name="history_empty_desc">Previous chat sessions from Hermes will appear here.</string>
     <string name="history_untitled">Untitled</string>
-    <string name="history_message_count">%1$d messages</string>
     <plurals name="sessions_card_message_count">
         <item quantity="one">%1$d message</item>
         <item quantity="other">%1$d messages</item>
@@ -881,7 +862,6 @@
     <string name="sessions_search_match_label">Match</string>
     <string name="sessions_search_model_label">Model</string>
     <string name="sessions_stat_total">Total</string>
-    <string name="sessions_stat_messages">Messages</string>
     <string name="sessions_stat_messages_loaded">Messages loaded</string>
     <string name="sessions_tab_conversations">Conversations</string>
     <string name="sessions_tab_automations">Automations</string>
@@ -1087,7 +1067,6 @@
     <string name="plugins_no_desc">No description provided.</string>
     <string name="plugins_action_update">Update</string>
     <string name="plugins_action_uninstall">Uninstall</string>
-    <string name="plugins_action_settings">Settings</string>
     <string name="plugins_action_enable">Enable</string>
     <string name="plugins_action_install">Install</string>
     <string name="plugins_action_remove">Remove</string>
@@ -1104,17 +1083,12 @@
     <string name="plugins_remove_confirm_text">This will remove the "%1$s" plugin from your agent.</string>
     <string name="plugins_auth_required">Auth Required</string>
     <string name="plugins_settings_loading">Loading plugin settings…</string>
-    <string name="plugins_settings_title">Plugin Settings</string>
     <string name="plugins_settings_save">Save Settings</string>
-    <string name="plugins_settings_saved">Plugin settings saved</string>
-    <string name="plugins_settings_save_failed">Failed to save settings: %1$s</string>
     <string name="plugins_diagnostics_heading">Diagnostics</string>
-    <string name="plugins_diagnostics_empty">No diagnostics reported</string>
     <string name="plugins_settings_heading">Settings</string>
     <string name="plugins_settings_secret_set">set</string>
     <string name="plugins_settings_secret_not_set">not set</string>
     <string name="plugins_settings_secret_hint">Stored in .env as %1$s (leave blank to keep)</string>
-    <string name="plugins_settings_empty">No configurable settings</string>
     <string name="plugins_server_state_connected">Connected</string>
     <string name="plugins_server_state_app_not_running">App not running</string>
     <string name="plugins_server_state_endpoint_unavailable">Endpoint unavailable</string>
@@ -1132,8 +1106,6 @@
     <string name="plugins_catalog_search_placeholder">Search catalog plugins...</string>
     <string name="plugins_catalog_empty_title">No catalog plugins found</string>
     <string name="plugins_catalog_empty_desc">No plugins match your filter or search query</string>
-    <string name="plugins_catalog_installing">Installing %1$s…</string>
-    <string name="plugins_catalog_installed_success">Plugin \"%1$s\" installed successfully</string>
     <string name="plugins_catalog_update">Update</string>
     <string name="plugins_catalog_installed_badge">Installed</string>
     <string name="plugins_catalog_filter_all">All</string>
@@ -1200,13 +1172,11 @@
     <string name="mcp_servers_field_args">Arguments</string>
     <string name="mcp_servers_action_submit">Add server</string>
     <string name="mcp_servers_action_adding">Adding…</string>
-    <string name="mcp_servers_action_restart">Restart</string>
     <string name="mcp_servers_env_vars">Env vars</string>
     <string name="mcp_servers_env_add">Add env var</string>
     <string name="mcp_servers_env_key">Key</string>
     <string name="mcp_servers_env_value">Value</string>
     <string name="mcp_servers_env_no_vars">No environment variables configured.</string>
-    <string name="mcp_servers_section_catalog">Catalog</string>
     <string name="mcp_servers_catalog_search">Search catalog…</string>
     <string name="mcp_servers_catalog_empty">No catalog entries match your search.</string>
     <string name="mcp_servers_catalog_install">Install</string>
@@ -1332,7 +1302,6 @@
     <string name="keys_search_placeholder">Search keys…</string>
     <string name="keys_no_matching_title">No matching keys</string>
     <string name="keys_no_matching_desc">Try a different search term.</string>
-    <string name="keys_add_header">Add new key</string>
     <string name="keys_add_key_label">Key name</string>
     <string name="keys_add_value_label">Key value</string>
     <string name="keys_add_action">Add key</string>
@@ -1519,10 +1488,8 @@
     <string name="chat_attachment_photos">Photos</string>
     <string name="chat_attachment_file">File</string>
     <string name="chat_fast_mode_label">Fast</string>
-    <string name="chat_fast_mode_desc">Fast mode</string>
     <string name="chat_fast_mode_unavailable">Fast mode unavailable for this model</string>
     <string name="chat_reasoning_default">Default</string>
-    <string name="chat_reasoning_applying">Applying reasoning…</string>
     <string name="chat_reasoning_clamped_desc">Requested %1$s, route sends %2$s</string>
     <string name="chat_reasoning_menu_desc">Reasoning options</string>
     <string name="chat_save_attachment">Save %1$s</string>
@@ -1588,9 +1555,6 @@
     <string name="model_set_aux">Set Aux: %1$s</string>
     <string name="model_set_main">Set Main Model</string>
     <string name="model_settings">Model Settings</string>
-    <string name="platform_remove_confirm_text">This will permanently remove this platform\'s configuration.</string>
-    <string name="platform_remove_confirm_title">Remove %1$s?</string>
-    <string name="platform_remove_desc">Remove platform</string>
     <string name="platform_disconnect_confirm_text">This will disable the platform and clear its saved credentials and setup fields. Restart the gateway if prompted.</string>
     <string name="platform_disconnect_confirm_title">Disconnect %1$s?</string>
     <string name="platform_disconnect_desc">Disconnect platform</string>
@@ -1624,7 +1588,6 @@
     <string name="subagent_hide_transcript">Hide Transcript</string>
     <string name="subagent_transcript_loading">Loading live transcript…</string>
     <string name="subagent_transcript_empty">No transcript output available.</string>
-    <string name="subagent_transcript_error">Unable to load transcript</string>
     <string name="subagent_transcript_retry">Retry</string>
     <string name="subagent_transcript_truncated">Rolling 16KB tail (older output truncated)</string>
     <string name="system_auth_required">Auth required</string>
@@ -1656,7 +1619,6 @@
     <string name="tool_duration">Duration: %1$s</string>
     <string name="tool_redacted">· redacted</string>
     <string name="toolsets_search_placeholder">Search toolsets...</string>
-    <string name="video_play">Play Video</string>
     <string name="webhooks_delete_subscription">Delete subscription</string>
     <string name="webhooks_placeholder">What this webhook does...</string>
     <string name="webhooks_receiver_url">Receiver URL: %1$s</string>
@@ -1676,7 +1638,6 @@
     <string name="group_chat_tool_no_output">No output</string>
     <string name="group_chat_tool_no_output_success">Exit code 0 (no output)</string>
     <string name="group_chat_members_count">%1$d members</string>
-    <string name="group_chat_mention_all">@all</string>
     <string name="group_chat_capped_limit">Discussion paused (turn limit reached) — reply to continue</string>
     <string name="group_chat_settings_title">Group Chat Settings</string>
     <string name="group_chat_settings_max_messages">Max Bot Messages</string>
@@ -1701,20 +1662,16 @@
     <string name="settings_summary_vault">Password managers &amp; credentials</string>
     <string name="vault_sources_title">Password Managers</string>
     <string name="vault_sources_desc">External password managers provide autofill credentials to the agent.</string>
-    <string name="vault_source_installed">Installed</string>
     <string name="vault_source_not_installed">Not installed</string>
     <string name="vault_source_unlocked">Unlocked</string>
     <string name="vault_source_locked">Locked</string>
     <string name="vault_source_unlock">Unlock</string>
     <string name="vault_source_lock">Lock</string>
     <string name="vault_lock_all">Lock All Managers</string>
-    <string name="vault_lock_all_success">All password managers locked</string>
     <string name="vault_items_title">Stored Items</string>
     <string name="vault_items_empty">No vault items stored</string>
     <string name="vault_unlock_dialog_title">Unlock %1$s</string>
     <string name="vault_unlock_dialog_confirm">Unlock</string>
-    <string name="vault_unlock_success">%1$s unlocked successfully</string>
-    <string name="vault_unlock_failed">Failed to unlock %1$s</string>
     <string name="vault_unlock_title">Unlock %1$s</string>
     <string name="vault_unlock_desc">The agent needs credentials to continue. Enter your master password to unlock %1$s.</string>
     <string name="vault_unlock_password_label">Master Password</string>
@@ -1779,8 +1736,6 @@
     <string name="media_player_save_failed">Could not save media</string>
     <string name="media_player_load_failed">Could not load media: %1$s</string>
     <string name="media_player_share_failed">Could not share media</string>
-    <string name="media_player_buffering">Loading…</string>
-    <string name="media_player_seek">Seek</string>
     <string name="media_player_play_audio">Play audio</string>
     <string name="media_player_play_video">Play video</string>
     <string name="chat_session_preparing">Preparing session…</string>
@@ -1819,19 +1774,12 @@
 
     <!-- Kanban task detail -->
     <string name="kanban_specify_task">Specify task</string>
-    <string name="kanban_specifying">Specifying…</string>
-    <string name="kanban_specify_success">Task specified successfully</string>
-    <string name="kanban_specify_failed">Failed to specify task: %1$s</string>
     <string name="kanban_add_parent">Add parent</string>
     <string name="kanban_parent_id">Parent task ID</string>
-    <string name="kanban_link_gated">Linking is unavailable until the task is specified</string>
-    <string name="kanban_link_created">Task link created</string>
     <string name="kanban_run_details">Run details</string>
     <string name="kanban_inspect_run">Inspect run</string>
     <string name="kanban_terminate_run">Terminate run</string>
     <string name="kanban_terminate_run_confirm">Terminate this run?</string>
-    <string name="kanban_run_terminated">Run terminated</string>
-    <string name="kanban_run_inactive">Run is inactive</string>
     <string name="kanban_run_inspection_unavailable">Run inspection is unavailable</string>
     <string name="kanban_run_state_filter">Run state</string>
     <string name="kanban_all_runs">All runs</string>
@@ -1839,7 +1787,6 @@
     <string name="kanban_delete_attachment_confirm">Delete this attachment?</string>
     <string name="kanban_download_attachment">Download attachment</string>
     <string name="kanban_attachment_saved">Attachment saved</string>
-    <string name="kanban_attachment_deleted">Attachment deleted</string>
     <string name="kanban_attachment_error">Attachment error: %1$s</string>
     <string name="kanban_active_workers">Active workers</string>
     <string name="kanban_no_active_workers">No active workers</string>

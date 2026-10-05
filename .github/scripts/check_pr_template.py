@@ -3,6 +3,9 @@
 
 Usage: check_pr_template.py <event.json> [--comment]
 
+UI PRs (changed files under ui/, theme/ or drawables) must show a screenshot or
+recording in "## Screenshots"; other PRs do not need one.
+
 Reads only the pull_request event payload (no PR code is executed). Exits 1 when
 the description is incomplete. With --comment, also upserts a single bot comment
 on the PR explaining what is missing (or marks it resolved once fixed).
@@ -21,6 +24,15 @@ REQUIRED = ["Summary", "Description", "Type of Change", "How to test", "Checklis
 MIN_SUMMARY = 10
 MIN_DESCRIPTION = 20
 MIN_TEST = 20
+UI_PATHS = re.compile(
+    r"^app/src/main/(java/com/m57/hermescontrol/(ui|theme)/.+\.kt|res/drawable[^/]*/.+)$"
+)
+MEDIA = re.compile(
+    r"!\[[^\]]*\]\(\s*\S+|<img\b[^>]*\bsrc=|<video\b|"
+    r"https://github\.com/(user-attachments|[^/\s]+/[^/\s]+/assets)/\S+|"
+    r"https://user-images\.githubusercontent\.com/\S+",
+    re.IGNORECASE,
+)
 
 
 def strip_comments(text):
@@ -38,8 +50,8 @@ def prose_len(text):
     return len(text.strip())
 
 
-def validate(body):
-    """Return a list of (problem, how_to_fix)."""
+def validate(body, ui_files=()):
+    """Return a list of (problem, how_to_fix). ui_files: changed UI paths, if any."""
     secs = sections(body or "")
     problems = []
 
@@ -68,6 +80,18 @@ def validate(body):
     types = present("Type of Change")
     if types is not None and not re.search(r"^\s*[-*]\s*\[[xX]\]", types, flags=re.MULTILINE):
         problems.append(("**Type of Change** has no box ticked.", "Tick at least one `- [x]` that matches the PR."))
+
+    if ui_files:
+        shots = present("Screenshots")
+        if shots is None or not MEDIA.search(shots):
+            shown = ", ".join(f"`{f.rsplit('/', 1)[-1]}`" for f in ui_files[:3]) + (" …" if len(ui_files) > 3 else "")
+            problems.append(
+                (
+                    f"This PR changes UI ({shown}) but **Screenshots** has no image or recording.",
+                    "Add a `## Screenshots` section and drag in before/after screenshots or a screen recording. "
+                    "A link without an image does not count.",
+                )
+            )
 
     checklist = present("Checklist")
     if checklist is not None:
@@ -137,6 +161,22 @@ def upsert_comment(repo, number, body, token, only_if_exists):
         api("POST", f"{base}/{number}/comments", token, {"body": body})
 
 
+def ui_changed_files(repo, number, token):
+    """Changed UI files in the PR, or None if they could not be listed (fail open)."""
+    found, page = [], 1
+    try:
+        while True:
+            url = f"https://api.github.com/repos/{repo}/pulls/{number}/files?per_page=100&page={page}"
+            batch = api("GET", url, token)
+            found += [f["filename"] for f in batch if UI_PATHS.match(f["filename"])]
+            if len(batch) < 100:
+                return found
+            page += 1
+    except Exception as exc:
+        print(f"::warning::Could not list changed files, skipping screenshot check: {exc}")
+        return None
+
+
 def main():
     event = json.load(open(sys.argv[1]))
     pr = event["pull_request"]
@@ -147,12 +187,14 @@ def main():
         print("PR exempt from template check.")
         return 0
 
-    problems = validate(pr.get("body"))
+    token = os.environ.get("GITHUB_TOKEN")
+    ui_files = (ui_changed_files(repo, pr["number"], token) if token else None) or []
+    problems = validate(pr.get("body"), ui_files)
     report = render(problems, repo)
 
-    if "--comment" in sys.argv and os.environ.get("GITHUB_TOKEN"):
+    if "--comment" in sys.argv and token:
         try:
-            upsert_comment(repo, pr["number"], report, os.environ["GITHUB_TOKEN"], only_if_exists=not problems)
+            upsert_comment(repo, pr["number"], report, token, only_if_exists=not problems)
         except Exception as exc:  # commenting is best-effort; the verdict is the exit code
             print(f"::warning::Could not post comment: {exc}")
 

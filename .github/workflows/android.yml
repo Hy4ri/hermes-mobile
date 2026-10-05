@@ -32,6 +32,9 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 2
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - name: Checkout trusted script (base branch)
         uses: actions/checkout@v7
@@ -40,6 +43,8 @@ jobs:
           persist-credentials: false
           sparse-checkout: .github/scripts
       - name: Validate PR description
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: python3 .github/scripts/check_pr_template.py "$GITHUB_EVENT_PATH"
 
   # ─────────────────────────────────────────────────────────────────────

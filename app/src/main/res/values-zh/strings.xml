@@ -738,8 +738,6 @@
     <string name="sessions_action_rename">重命名</string>
     <string name="sessions_action_pin">置顶</string>
     <string name="sessions_action_unpin">取消置顶</string>
-    <string name="sessions_action_hide">隐藏</string>
-    <string name="sessions_action_unhide">取消隐藏</string>
     <string name="sessions_show_hidden">显示已隐藏的会话</string>
     <string name="sessions_hide_hidden">隐藏已隐藏的会话</string>
     <string name="sessions_hidden_badge">已隐藏</string>

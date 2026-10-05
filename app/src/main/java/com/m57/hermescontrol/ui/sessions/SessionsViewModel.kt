@@ -110,6 +110,8 @@ data class SessionsUiState(
     val searchNextOffset: Int? = null,
     val searchLoadMoreError: String? = null,
     val showHidden: Boolean = false,
+    // Archived view (issue #1496): lists only archived rows (backend archived=only).
+    val showArchived: Boolean = false,
     val sourceFilter: String? = null,
     val pinnedExpanded: Boolean = true,
     val liveStatuses: Map<String, SessionLiveStatus> = emptyMap(),
@@ -117,6 +119,8 @@ data class SessionsUiState(
     val projects: List<ProjectInfo> = emptyList(),
 ) {
     val isSearchMode: Boolean get() = searchQuery.isNotBlank()
+
+    val archivedQuery: String? get() = if (showArchived) "only" else null
 
     val hasHiddenSessions: Boolean
         get() = sessions.any { it.hidden == true }
@@ -202,6 +206,7 @@ class SessionsViewModel(
                                 order = "recent",
                                 source = capturedSection.source,
                                 excludeSources = capturedSection.excludeSources,
+                                archived = _uiState.value.archivedQuery,
                             )
                         }
                 ) {
@@ -221,7 +226,7 @@ class SessionsViewModel(
                 val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
                 if (requestGeneration == generation && currentScope == requestScope) {
                     if (handleStorageHealth(data)) return@refreshOnChange
-                    val localKey = "${capturedSection.name}:${capturedSection.source}:${capturedSection.excludeSources}"
+                    val localKey = listKey(capturedSection)
                     val inMemoryKey = requestScope?.inMemoryKey(localKey)
                     val persistentKey = requestScope?.persistentKey(localKey)
                     if (inMemoryKey != null) sessionsPageCache.put(inMemoryKey, data)
@@ -404,7 +409,7 @@ class SessionsViewModel(
         val requestGeneration = generation
         val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
         val section = _uiState.value.section
-        val localKey = "${section.name}:${section.source}:${section.excludeSources}"
+        val localKey = listKey(section)
         val inMemoryKey = requestScope?.inMemoryKey(localKey)
         val persistentKey = requestScope?.persistentKey(localKey)
         // #1286: keep the last good cache until a healthy refresh replaces it.
@@ -451,6 +456,7 @@ class SessionsViewModel(
                             order = "recent",
                             source = section.source,
                             excludeSources = section.excludeSources,
+                            archived = _uiState.value.archivedQuery,
                         )
                     }
                 },
@@ -533,6 +539,7 @@ class SessionsViewModel(
                             order = "recent",
                             source = state.section.source,
                             excludeSources = state.section.excludeSources,
+                            archived = state.archivedQuery,
                         )
                     }
                 val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
@@ -875,46 +882,65 @@ class SessionsViewModel(
         }
     }
 
-    // ── Hide / unhide (issue #1019) ──────────────────────────────────────
+    // ── Archive / unarchive (issue #1496) ────────────────────────────────
 
     /**
-     * Toggle the hidden flag on a session via PATCH /api/sessions/{id} ({hidden}).
+     * Toggle the archived flag on a session via PATCH /api/sessions/{id} ({archived}).
+     * The list is filtered server-side by archived state, so on success the row leaves
+     * the current view (active list on archive, archived list on unarchive).
      */
-    fun toggleHide(sessionId: String) {
+    fun toggleArchive(sessionId: String) {
         val session = _uiState.value.sessions.find { it.id == sessionId } ?: return
-        val targetHidden = session.hidden != true
+        val targetArchived = session.archived != true
         viewModelScope.launch {
             val result =
                 safeApiCall {
-                    ApiClient.hermesApi.setSessionHidden(
+                    ApiClient.hermesApi.setSessionArchived(
                         sessionId = sessionId,
-                        body = SessionRenameRequest(hidden = targetHidden),
+                        body = SessionRenameRequest(archived = targetArchived),
                     )
                 }
             when (result) {
                 is NetworkResult.Success -> {
                     _uiState.update {
                         it.copy(
-                            sessions =
-                                it.sessions
-                                    .map { s -> if (s.id == sessionId) s.copy(hidden = targetHidden) else s },
+                            sessions = it.sessions.filterNot { s -> s.id == sessionId },
+                            total = (it.total - 1).coerceAtLeast(0),
                             toastMessage =
-                                if (targetHidden) {
-                                    "Session hidden"
+                                if (targetArchived) {
+                                    "Session archived"
                                 } else {
-                                    "Session unhidden"
+                                    "Session unarchived"
                                 },
                         )
                     }
+                    invalidateListCache()
                 }
 
                 is NetworkResult.Failure -> {
                     _uiState.update {
-                        it.copy(toastMessage = "Hide failed: ${result.error.message}")
+                        it.copy(toastMessage = "Archive failed: ${result.error.message}")
                     }
                 }
             }
         }
+    }
+
+    /** Switch between the active list and the archived-only list. */
+    fun toggleShowArchived() {
+        _uiState.update { it.copy(showArchived = !it.showArchived, sessions = emptyList(), selectedIds = emptySet()) }
+        loadSessions()
+    }
+
+    private fun listKey(section: HistorySection) =
+        "${section.name}:${section.source}:${section.excludeSources}:${_uiState.value.showArchived}"
+
+    private fun invalidateListCache() {
+        val section = _uiState.value.section
+        val localKey = listKey(section)
+        val scope = runCatching { AuthManager.currentDataScope() }.getOrNull() ?: return
+        sessionsPageCache.remove(scope.inMemoryKey(localKey))
+        SessionListCacheStore.remove(scope.persistentKey(localKey))
     }
 
     // ── Delete (single) ──────────────────────────────────────────────────
@@ -1228,7 +1254,7 @@ class SessionsViewModel(
             }
         }
         val section = _uiState.value.section
-        val localKey = "${section.name}:${section.source}:${section.excludeSources}"
+        val localKey = listKey(section)
         val scope = runCatching { AuthManager.currentDataScope() }.getOrNull() ?: return
         sessionsPageCache.remove(scope.inMemoryKey(localKey))
         SessionListCacheStore.remove(scope.persistentKey(localKey))

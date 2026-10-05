@@ -893,8 +893,12 @@
     <string name="sessions_action_rename">Rename</string>
     <string name="sessions_action_pin">Pin</string>
     <string name="sessions_action_unpin">Unpin</string>
-    <string name="sessions_action_hide">Hide</string>
-    <string name="sessions_action_unhide">Unhide</string>
+    <string name="sessions_action_archive">Archive</string>
+    <string name="sessions_action_unarchive">Unarchive</string>
+    <string name="sessions_archived_empty_title">No archived sessions</string>
+    <string name="sessions_archived_empty_desc">Sessions you archive will show up here.</string>
+    <string name="sessions_show_archived">Show archived sessions</string>
+    <string name="sessions_hide_archived">Back to active sessions</string>
     <string name="sessions_show_hidden">Show hidden sessions</string>
     <string name="sessions_hide_hidden">Hide hidden sessions</string>
     <string name="sessions_hidden_badge">Hidden</string>

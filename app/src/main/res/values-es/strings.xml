@@ -893,8 +893,6 @@
     <string name="sessions_action_rename">Cambiar nombre</string>
     <string name="sessions_action_pin">Fijar</string>
     <string name="sessions_action_unpin">Desanclar</string>
-    <string name="sessions_action_hide">Ocultar</string>
-    <string name="sessions_action_unhide">Mostrar</string>
     <string name="sessions_show_hidden">Mostrar sesiones ocultas</string>
     <string name="sessions_hide_hidden">Ocultar sesiones ocultas</string>
     <string name="sessions_hidden_badge">Oculto</string>

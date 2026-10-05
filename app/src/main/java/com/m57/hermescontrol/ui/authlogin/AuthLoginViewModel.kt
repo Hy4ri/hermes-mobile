@@ -16,7 +16,7 @@ import com.m57.hermescontrol.data.remote.ClientCertificates
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.await
-import com.m57.hermescontrol.data.remote.isClientCertificateRequired
+import com.m57.hermescontrol.data.remote.isClientCertificateAuthenticationFailure
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import kotlinx.coroutines.Dispatchers
@@ -117,6 +117,7 @@ class AuthLoginViewModel(
         certificatePrompt.save(viewModelScope, ClientCertificates::verifyCandidate) { url, alias ->
             val previous = url.takeIf { CertificateOrigin.from(it)!!.storageKey in expected }
             ClientCertificates.save(previous, url, alias, expected)
+            _uiState.update { it.copy(errorMessage = null) }
         }
     }
 
@@ -169,9 +170,10 @@ class AuthLoginViewModel(
         _uiState.update { it.copy(probing = true, errorMessage = null, authMode = null) }
 
         viewModelScope.launch {
+            var certificateFailure = false
             val result =
                 withContext(Dispatchers.IO) {
-                    probeDashboardInternal(endpoint, certificateAttempt)
+                    probeDashboardInternal(endpoint) { certificateFailure = true }
                 }
             _uiState.update {
                 it.copy(
@@ -180,12 +182,20 @@ class AuthLoginViewModel(
                     token = result?.extractedToken ?: it.token,
                     errorMessage =
                         if (result == null) {
-                            app.getString(R.string.auth_login_error_unreachable)
+                            app.getString(
+                                if (certificateFailure) {
+                                    R.string.mtls_prompt_connection_error
+                                } else {
+                                    R.string.auth_login_error_unreachable
+                                },
+                            )
                         } else {
                             null
                         },
                 )
             }
+            // Publish the failed probe state before offering the dialog so a fast save cannot be overwritten by it.
+            if (certificateFailure) certificatePrompt.offer(certificateAttempt, endpoint.baseUrl)
         }
     }
 
@@ -232,7 +242,7 @@ class AuthLoginViewModel(
      */
     private suspend fun probeDashboardInternal(
         endpoint: ServerEndpoint,
-        certificateAttempt: Long,
+        onCertificateFailure: () -> Unit,
     ): ProbeResult? {
         // Step 1: reachability + auth mode from the public status endpoint.
         val statusJson =
@@ -247,8 +257,8 @@ class AuthLoginViewModel(
                 if (!resp.isSuccessful) return null
                 resp.body.string()
             } catch (e: Exception) {
-                if (isClientCertificateRequired(endpoint.baseUrl, e)) {
-                    certificatePrompt.offer(certificateAttempt, endpoint.baseUrl)
+                if (isClientCertificateAuthenticationFailure(endpoint.baseUrl, e)) {
+                    onCertificateFailure()
                 }
                 Log.w(TAG, "Status probe failed: ${e.message}")
                 return null // Dashboard unreachable

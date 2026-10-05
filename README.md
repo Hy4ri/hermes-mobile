@@ -132,14 +132,21 @@ An editor dismissed or destroyed while the picker is open ignores its late callb
 
 On the login screen, a failed initial `/api/status` probe offers certificate setup only
 when its HTTPS error cause chain contains an SSL exception with the exact
-`TLSV1_ALERT_CERTIFICATE_REQUIRED` alert. The dialog fixes the host and port; you must
+received alert `TLSV1_ALERT_CERTIFICATE_REQUIRED`, `SSLV3_ALERT_BAD_CERTIFICATE`,
+`SSLV3_ALERT_UNSUPPORTED_CERTIFICATE`, `SSLV3_ALERT_CERTIFICATE_REVOKED`,
+`SSLV3_ALERT_CERTIFICATE_EXPIRED`, `SSLV3_ALERT_CERTIFICATE_UNKNOWN`, or
+`TLSV1_ALERT_UNKNOWN_CA`. Local server-trust/hostname failures and generic handshake or
+network failures do not trigger it. Missing and rejected client certificates use the same
+dialog and wording. The dialog fixes the host and port; you must
 explicitly select an installed certificate. **Save** verifies that candidate with a fresh
 TLS connection and one credential-free `GET /api/status` to that origin. Any HTTP response
 headers suffice, including 401/403; redirects are not followed. Failed verification leaves
-existing bindings unchanged. Cancel returns to the original connection error. After saving,
-use the connection button to retry; the inline notice points to **Connections** for changes.
+existing bindings unchanged and allows another selection. Cancel preserves the mTLS
+connection error. A successful save replaces any binding for that host and port and clears
+the previous connection error. Use the connection button to retry; later errors still
+appear normally. The inline notice points to **Connections** for changes.
 
-TLS 1.2 peers and providers reporting other alerts may not trigger this prompt; use the
+Peers and providers reporting generic failures or other error formats may not trigger this prompt; use the
 manual configuration above. Later login steps, background requests and other screens do
 not trigger it. Network requests never open the system picker or wait for selection. Missing,
 expired, revoked or incompatible keys result in no client identity, so servers requiring

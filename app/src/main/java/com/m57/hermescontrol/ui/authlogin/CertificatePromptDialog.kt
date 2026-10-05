@@ -35,8 +35,7 @@ internal fun CertificatePromptDialog(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(LocalSpacing.current.md),
             ) {
-                Text(origin.certificateAddress(), style = MaterialTheme.typography.titleSmall)
-                Text(stringResource(R.string.mtls_prompt_help))
+                Text(stringResource(R.string.mtls_prompt_help, origin.certificateAddress()))
                 Text(state.alias ?: stringResource(R.string.mtls_none))
                 TextButton(onClick = onSelect, enabled = !state.choosing && !state.saving) {
                     Text(stringResource(if (state.choosing) R.string.mtls_choosing else R.string.mtls_select))
@@ -45,6 +44,14 @@ internal fun CertificatePromptDialog(
                     Text(stringResource(R.string.mtls_select_error), color = MaterialTheme.colorScheme.error)
                 }
                 state.error?.let {
+                    Text(
+                        stringResource(R.string.mtls_prompt_verification_failed),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    Text(
+                        stringResource(R.string.mtls_prompt_error_details),
+                        style = MaterialTheme.typography.labelMedium,
+                    )
                     Text(
                         it,
                         color = MaterialTheme.colorScheme.error,

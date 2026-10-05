@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.remote.CertificateBindings
 import com.m57.hermescontrol.data.remote.ClientCertificates
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.ServerEndpoint
@@ -18,7 +19,6 @@ import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -58,6 +58,7 @@ class AuthLoginViewModelTest {
         every { android.util.Log.d(any(), any()) } returns 0
 
         every { app.getString(R.string.auth_login_error_unreachable) } returns "Dashboard unreachable"
+        every { app.getString(R.string.mtls_prompt_connection_error) } returns "mTLS client certificate required"
 
         viewModel = AuthLoginViewModel(app)
     }
@@ -131,25 +132,49 @@ class AuthLoginViewModelTest {
     }
 
     @Test
-    fun `first status alert offers certificate selection while preserving original error`() {
-        val call = mockk<okhttp3.Call>()
-        every { mockProbeClient.newCall(any()) } returns call
-        coEvery { call.await() } throws
-            IOException(
-                "OkHttp wrapper",
-                javax.net.ssl.SSLProtocolException("TLSV1_ALERT_CERTIFICATE_REQUIRED"),
-            )
-        viewModel.probe()
-        val state = runBlocking { viewModel.uiState.first { !it.probing } }
-        assertEquals("Dashboard unreachable", state.errorMessage)
-        assertEquals(
-            "https://127.0.0.1:9119/",
-            viewModel.certificatePrompt.state.value.origin
-                .toString(),
-        )
-        viewModel.clearConnectionState()
-        assertNull(viewModel.certificatePrompt.state.value.origin)
-    }
+    fun `missing or rejected client certificate uses the same prompt and localized error`() =
+        runBlocking {
+            for (alert in listOf(
+                "TLSV1_ALERT_CERTIFICATE_REQUIRED",
+                "SSLV3_ALERT_BAD_CERTIFICATE",
+                "TLSV1_ALERT_UNKNOWN_CA",
+            )) {
+                val call = mockk<okhttp3.Call>()
+                every { mockProbeClient.newCall(any()) } returns call
+                coEvery { call.await() } throws IOException("OkHttp wrapper", javax.net.ssl.SSLProtocolException(alert))
+                viewModel.probe()
+                val state = viewModel.uiState.first { !it.probing }
+                withTimeout(5000) { viewModel.certificatePrompt.state.first { it.origin != null } }
+                assertEquals("mTLS client certificate required", state.errorMessage)
+                assertEquals(
+                    "https://127.0.0.1:9119/",
+                    viewModel.certificatePrompt.state.value.origin
+                        .toString(),
+                )
+                viewModel.clearConnectionState()
+                assertNull(viewModel.certificatePrompt.state.value.origin)
+            }
+        }
+
+    @Test
+    fun `dismissal preserves the mTLS error and only a manual probe offers the prompt again`() =
+        runBlocking {
+            val call = mockk<okhttp3.Call>()
+            every { mockProbeClient.newCall(any()) } returns call
+            coEvery { call.await() } throws javax.net.ssl.SSLProtocolException("SSLV3_ALERT_BAD_CERTIFICATE")
+            viewModel.probe()
+            viewModel.uiState.first { !it.probing }
+            withTimeout(5000) { viewModel.certificatePrompt.state.first { it.origin != null } }
+            viewModel.certificatePrompt.reset()
+            assertNull(viewModel.certificatePrompt.state.value.origin)
+            assertEquals("mTLS client certificate required", viewModel.uiState.value.errorMessage)
+            verify(exactly = 1) { mockProbeClient.newCall(any()) }
+            viewModel.probe()
+            viewModel.uiState.first { !it.probing }
+            withTimeout(5000) { viewModel.certificatePrompt.state.first { it.origin != null } }
+            assertEquals("https://127.0.0.1:9119/".toHttpUrl(), viewModel.certificatePrompt.state.value.origin)
+            verify(exactly = 2) { mockProbeClient.newCall(any()) }
+        }
 
     @Test
     fun `ordinary TLS error retains original unreachable path without certificate dialog`() {
@@ -202,15 +227,25 @@ class AuthLoginViewModelTest {
         }
 
     @Test
-    fun `saving explicitly replaces only the matching binding without retrying probe`() =
+    fun `successful save replaces only the matching binding clears old error and preserves later failures`() =
         runBlocking {
             val origin = "https://example.test:8443/".toHttpUrl()
             val expected = mapOf(origin.toString() to "old", "https://example.test:9443/" to "other-port")
+            val bindings = CertificateBindings(initial = expected, persist = { _, _ -> }, invalidate = {})
             mockkObject(ClientCertificates)
-            every { ClientCertificates.state } returns MutableStateFlow(expected)
+            every { ClientCertificates.state } returns bindings.state
             coEvery { ClientCertificates.verifyCandidate(origin, "candidate") } returns Unit
-            every { ClientCertificates.save(origin, origin, "candidate", expected) } returns Unit
-            viewModel.certificatePrompt.offer(viewModel.certificatePrompt.reset(), origin)
+            every { ClientCertificates.save(origin, origin, "candidate", expected) } answers {
+                bindings.save(origin, origin, "candidate", expected)
+            }
+            val call = mockk<okhttp3.Call>()
+            every { mockProbeClient.newCall(any()) } returns call
+            coEvery { call.await() } throws javax.net.ssl.SSLProtocolException("TLSV1_ALERT_UNKNOWN_CA")
+            viewModel.onBaseUrlChange(origin.toString())
+            viewModel.probe()
+            viewModel.uiState.first { !it.probing }
+            withTimeout(5000) { viewModel.certificatePrompt.state.first { it.origin != null } }
+            assertEquals("mTLS client certificate required", viewModel.uiState.value.errorMessage)
             viewModel.certificatePrompt.selected(
                 requireNotNull(viewModel.certificatePrompt.beginSelection()),
                 "candidate",
@@ -219,7 +254,54 @@ class AuthLoginViewModelTest {
             viewModel.saveCertificate()
             withTimeout(5000) { viewModel.certificatePrompt.state.first { it.savedOrigin != null } }
             verify(exactly = 1) { ClientCertificates.save(origin, origin, "candidate", expected) }
-            verify(exactly = 0) { mockProbeClient.newCall(any()) }
+            assertEquals(expected + (origin.toString() to "candidate"), bindings.state.value)
+            assertNull(viewModel.uiState.value.errorMessage)
+            verify(exactly = 1) { mockProbeClient.newCall(any()) }
+
+            coEvery { call.await() } throws IOException("Connection refused")
+            viewModel.probe()
+            viewModel.uiState.first { !it.probing }
+            assertEquals("Dashboard unreachable", viewModel.uiState.value.errorMessage)
+            assertNull(viewModel.certificatePrompt.state.value.origin)
+            verify(exactly = 2) { mockProbeClient.newCall(any()) }
+        }
+
+    @Test
+    fun `failed replacement keeps the old binding and connection error until a successful save`() =
+        runBlocking {
+            val origin = "https://127.0.0.1:9119/".toHttpUrl()
+            val expected = mapOf(origin.toString() to "old", "https://127.0.0.1:9443/" to "other-port")
+            val bindings = CertificateBindings(initial = expected, persist = { _, _ -> }, invalidate = {})
+            mockkObject(ClientCertificates)
+            every { ClientCertificates.state } returns bindings.state
+            val call = mockk<okhttp3.Call>()
+            every { mockProbeClient.newCall(any()) } returns call
+            coEvery { call.await() } throws javax.net.ssl.SSLProtocolException("SSLV3_ALERT_BAD_CERTIFICATE")
+            viewModel.probe()
+            viewModel.uiState.first { !it.probing }
+            withTimeout(5000) { viewModel.certificatePrompt.state.first { it.origin != null } }
+            viewModel.certificatePrompt.selected(
+                requireNotNull(viewModel.certificatePrompt.beginSelection()),
+                "candidate",
+                true,
+            )
+            coEvery { ClientCertificates.verifyCandidate(origin, "candidate") } throws IOException("TLS rejected")
+            viewModel.saveCertificate()
+            withTimeout(5000) { viewModel.certificatePrompt.state.first { it.error != null } }
+            assertEquals(expected, bindings.state.value)
+            assertEquals(origin, viewModel.certificatePrompt.state.value.origin)
+            assertEquals("mTLS client certificate required", viewModel.uiState.value.errorMessage)
+            assertNull(viewModel.certificatePrompt.state.value.savedOrigin)
+            verify(exactly = 0) { ClientCertificates.save(any(), any(), any(), any()) }
+
+            coEvery { ClientCertificates.verifyCandidate(origin, "candidate") } returns Unit
+            every { ClientCertificates.save(origin, origin, "candidate", expected) } throws
+                IOException("Storage failed")
+            viewModel.saveCertificate()
+            withTimeout(5000) { viewModel.certificatePrompt.state.first { it.error == "Storage failed" } }
+            assertEquals(expected, bindings.state.value)
+            assertEquals("mTLS client certificate required", viewModel.uiState.value.errorMessage)
+            assertNull(viewModel.certificatePrompt.state.value.savedOrigin)
         }
 
     // ── deriveAuthMode (authoritative /api/status mapping) ──

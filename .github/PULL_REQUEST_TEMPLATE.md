@@ -31,11 +31,19 @@ Fixes #
 
 ## Checklist
 
+<!-- Tick every box. If one truly does not apply, tick it and add `N/A: <reason>` to the end of the line. -->
+
+- [ ] I searched open/closed PRs and issues for duplicates
 - [ ] PR is focused on one feature or one fix (no unrelated changes)
 - [ ] Branch rebased onto `dev` (`git rebase origin/dev`)
 - [ ] `./gradlew ktlintCheck` passes (ran `ktlintFormat` first)
 - [ ] `./gradlew testDebugUnitTest` green (or CI unit-tests job)
 - [ ] `checkColorLiterals` passes (no hardcoded Color outside theme/)
+- [ ] No unused imports, unused parameters, or dead code
 - [ ] Navigation goes through `NavigationController.navigateTo()` (not `backStack.add`)
+- [ ] Icon-only actions and meaningful images have localized accessible labels (decorative ones use `contentDescription = null`)
+- [ ] New screens use `HermesScaffold` and implement Loading/Error/Empty states
 - [ ] For UI changes, exercised the changed behavior on a device/emulator and recorded the result above (or explicitly documented the unverified gate)
-- [ ] Documentation matches changed behavior; UI changes follow DESIGN.md
+- [ ] UI changes follow DESIGN.md (contrast, touch targets, font scaling, RTL) and match similar existing screens
+- [ ] Documentation matches changed behavior
+- [ ] Commits follow Conventional Commits and are atomic (subject + max 2 lines of body)

@@ -267,6 +267,9 @@
     <!-- Settings Screen -->
     <string name="settings_sec_connection">Connection</string>
     <string name="account_connectors_title">Account connectors</string>
+    <string name="account_connectors_unavailable_title">Connectors unavailable</string>
+    <string name="account_connectors_unavailable_description">Connectors are not enabled for this account. Nous Portal must enable managed tools for your account, and the gateway must allow connectors. Check your Portal access or rollout status; this is not a connection error.</string>
+    <string name="account_connectors_check_again">Check again</string>
     <string name="account_connectors_summary">Manage account authorizations and tool access without a chat session.</string>
     <string name="account_connectors_accounts">Authorized accounts</string>
     <string name="account_connectors_connect">Connect</string>

@@ -1719,6 +1719,28 @@ class ChatViewModel(
         handleWsEvent(event.copy(lockedAnswers = lockedAnswers))
     }
 
+    private fun restoreResumeClarifyRequest(
+        result: Map<String, Any?>,
+        runtimeId: String,
+    ) {
+        // RpcChannel replays open requests before the resume result binds the runtime ID.
+        // A distinct stored ID makes the reducer reject that early replay. Retry only the
+        // validated resume snapshot, without replacing a prompt already accepted live.
+        if (_uiState.value.clarifyRequest != null) return
+        val openRequests = result["open_requests"] as? List<*> ?: return
+        for (item in openRequests) {
+            val replay = item as? Map<*, *> ?: continue
+            if (replay["method"] != "clarify") continue
+            val id = (replay["id"] as? String)?.takeIf { it.isNotBlank() } ?: continue
+
+            @Suppress("UNCHECKED_CAST")
+            val params = replay["params"] as? Map<String, Any?> ?: continue
+            if (params["session_id"] != runtimeId) continue
+            handleServerRequest(WsEvent.ServerRequest(id, "clarify", params, replayed = true))
+            if (_uiState.value.clarifyRequest != null) return
+        }
+    }
+
     // ── RPC response handling ────────────────────────────────────────────
 
     private fun isAcceptedOutgoingStatus(
@@ -2119,6 +2141,7 @@ class ChatViewModel(
                         runtimeSessionId ?: sessionId,
                     )
                 }
+                restoreResumeClarifyRequest(resultMap, runtimeId)
                 val activeSessionId = runtimeSessionId ?: sessionId
                 // Reconnect replay: the backend-owned connector operation is
                 // authoritative and uses the same full snapshot as the live

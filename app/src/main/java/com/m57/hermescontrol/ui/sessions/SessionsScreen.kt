@@ -35,6 +35,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.CallSplit
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -46,6 +47,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
@@ -457,6 +459,20 @@ fun SessionsScreen(
                 Icon(
                     imageVector = Icons.Filled.Add,
                     contentDescription = stringResource(R.string.content_desc_new_chat),
+                )
+            }
+            IconButton(
+                onClick = { viewModel.toggleShowArchived() },
+                modifier = Modifier.testTag("sessions_action_toggle_archived"),
+            ) {
+                Icon(
+                    imageVector = if (state.showArchived) Icons.Filled.Unarchive else Icons.Filled.Archive,
+                    contentDescription =
+                        if (state.showArchived) {
+                            stringResource(R.string.sessions_hide_archived)
+                        } else {
+                            stringResource(R.string.sessions_show_archived)
+                        },
                 )
             }
             if (state.hasHiddenSessions) {
@@ -874,7 +890,7 @@ fun SessionsScreen(
                                         isSelected = session.id in state.selectedIds,
                                         isDeleting = session.id in state.deletingSessionIds,
                                         isPinned = session.pinned == true,
-                                        isHidden = session.hidden == true,
+                                        isArchived = session.archived == true,
                                         liveStatus = state.liveStatuses[session.id],
                                         project = project,
                                         nowMillis = nowMillis,
@@ -899,7 +915,7 @@ fun SessionsScreen(
                                             )
                                         },
                                         onTogglePin = { viewModel.togglePin(session.id) },
-                                        onToggleHide = { viewModel.toggleHide(session.id) },
+                                        onToggleArchive = { viewModel.toggleArchive(session.id) },
                                         onDelete = { viewModel.requestDeleteSession(session.id) },
                                     )
                                 }

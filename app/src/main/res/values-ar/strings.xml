@@ -767,8 +767,6 @@
 <string name="sessions_action_rename">إعادة تسمية</string>
 <string name="sessions_action_pin">تثبيت</string>
 <string name="sessions_action_unpin">إلغاء التثبيت</string>
-<string name="sessions_action_hide">إخفاء</string>
-<string name="sessions_action_unhide">إظهار</string>
 <string name="sessions_show_hidden">إظهار الجلسات المخفية</string>
 <string name="sessions_hide_hidden">إخفاء الجلسات المخفية</string>
 <string name="sessions_hidden_badge">مخفية</string>

@@ -649,8 +649,6 @@
     <string name="sessions_action_select_all">전체 선택</string>
     <string name="sessions_action_deselect_all">선택 해제</string>
     <string name="sessions_action_delete_n">%1$d개 삭제</string>
-    <string name="sessions_action_hide">숨기기</string>
-    <string name="sessions_action_unhide">숨김 해제</string>
     <string name="sessions_show_hidden">숨겨진 세션 표시</string>
     <string name="sessions_hide_hidden">숨겨진 세션 숨기기</string>
     <string name="sessions_hidden_badge">숨김</string>

@@ -821,8 +821,6 @@
     <string name="sessions_action_rename">Rinomina</string>
     <string name="sessions_action_pin">Fissa</string>
     <string name="sessions_action_unpin">Rimuovi da fissati</string>
-    <string name="sessions_action_hide">Nascondi</string>
-    <string name="sessions_action_unhide">Mostra</string>
     <string name="sessions_show_hidden">Mostra sessioni nascoste</string>
     <string name="sessions_hide_hidden">Nascondi sessioni nascoste</string>
     <string name="sessions_hidden_badge">Nascosta</string>

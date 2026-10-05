@@ -75,7 +75,7 @@ class SessionLiveStatusIndicatorTest {
                     isSelected = false,
                     isDeleting = false,
                     isPinned = false,
-                    isHidden = false,
+                    isArchived = false,
                     liveStatus = SessionLiveStatus.WORKING,
                     highlightBackground = Color.Transparent,
                     highlightForeground = Color.Transparent,
@@ -84,7 +84,7 @@ class SessionLiveStatusIndicatorTest {
                     onSelect = {},
                     onRename = {},
                     onTogglePin = {},
-                    onToggleHide = {},
+                    onToggleArchive = {},
                     onDelete = {},
                 )
             }
@@ -121,7 +121,7 @@ class SessionLiveStatusIndicatorTest {
                     isSelected = false,
                     isDeleting = false,
                     isPinned = false,
-                    isHidden = false,
+                    isArchived = false,
                     liveStatus = null,
                     highlightBackground = Color.Transparent,
                     highlightForeground = Color.Transparent,
@@ -130,7 +130,7 @@ class SessionLiveStatusIndicatorTest {
                     onSelect = {},
                     onRename = {},
                     onTogglePin = {},
-                    onToggleHide = {},
+                    onToggleArchive = {},
                     onDelete = {},
                 )
             }

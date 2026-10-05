@@ -1,0 +1,38 @@
+name: PR Template
+
+# Posts the explanatory comment. The *gate* itself is the `pr-template` job in
+# android.yml (workflows cannot `needs` each other). This workflow exists because
+# fork PRs get a read-only token under `pull_request`, so only `pull_request_target`
+# can comment. It never checks out or runs PR code: the script comes from the base branch.
+
+on:
+  pull_request_target:
+    types: [opened, edited, reopened, synchronize, ready_for_review]
+    branches: [main, dev]
+
+concurrency:
+  group: pr-template-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  comment:
+    name: PR Template Comment
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check out trusted script (base branch only)
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+
+      - name: Validate and comment
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/check_pr_template.py "$GITHUB_EVENT_PATH" --comment

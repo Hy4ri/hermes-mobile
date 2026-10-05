@@ -269,6 +269,7 @@ internal fun matchTranscriptMessages(
                 val other = existing[candidate]
                 !used[candidate] &&
                     other.id !in contentMatchExcludedIds &&
+                    message.id !in contentMatchExcludedIds &&
                     (
                         allowAssistantContentMatches || message.role != MessageRole.ASSISTANT ||
                             message.completionId != null || other.completionId != null
@@ -323,13 +324,17 @@ internal fun stripAttachmentRefLines(content: String): String =
 internal fun dedupeCachedMessages(
     messages: List<ChatMessage>,
     confirmedOnly: Boolean = false,
+    contentMatchExcludedIds: Set<String> = emptySet(),
 ): List<ChatMessage> {
     val unique = messages.dedupeById()
     val rest = unique.filter { RestMessageId.isRest(it.id) }
     val live = unique.filterNot { RestMessageId.isRest(it.id) }
     if (rest.isEmpty() || live.isEmpty()) return unique
     val matches =
-        matchTranscriptMessages(rest, live).mapIndexed { index, match ->
+        matchTranscriptMessages(rest, live, contentMatchExcludedIds = contentMatchExcludedIds).mapIndexed {
+            index,
+            match,
+            ->
             match?.takeIf {
                 !confirmedOnly || rest[index].canonicalRestId == it.canonicalRestId ||
                     (rest[index].completionId != null && rest[index].completionId == it.completionId)
@@ -373,6 +378,7 @@ internal fun dedupeCachedMessages(
 internal fun mergeCachedTranscriptPage(
     page: List<ChatMessage>,
     current: List<ChatMessage>,
+    contentMatchExcludedIds: Set<String> = emptySet(),
 ): List<ChatMessage> {
     val currentById = current.associateBy { it.id }
     // Legacy cached UUIDs may lack an alias. Restore a known alias before page-local matching
@@ -382,8 +388,9 @@ internal fun mergeCachedTranscriptPage(
             page.map { message ->
                 currentById[message.id]?.restId?.let { message.copy(restId = it) } ?: message
             },
+            contentMatchExcludedIds = contentMatchExcludedIds,
         )
-    val matches = matchTranscriptMessages(incoming, current)
+    val matches = matchTranscriptMessages(incoming, current, contentMatchExcludedIds = contentMatchExcludedIds)
     val replacements =
         incoming
             .mapIndexedNotNull { index, message ->
@@ -595,6 +602,7 @@ internal fun mergeTranscriptWithLive(
             observedSuccessorAnchors = current,
         ),
         confirmedOnly = true,
+        contentMatchExcludedIds = contentMatchExcludedIds,
     ).reconcileReasoningRows()
 }
 

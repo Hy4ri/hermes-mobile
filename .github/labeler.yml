@@ -9,7 +9,7 @@ documentation:
           - "docs/**"
           - "fastlane/**"
           - "*.md"
-          - "**/*.md"
+          - "app/**/*.md"
           - "LICENSE"
   - head-branch: ['^docs/']
 

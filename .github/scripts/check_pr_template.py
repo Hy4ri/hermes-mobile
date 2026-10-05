@@ -24,6 +24,17 @@ REQUIRED = ["Summary", "Description", "Type of Change", "How to test", "Checklis
 MIN_SUMMARY = 10
 MIN_DESCRIPTION = 20
 MIN_TEST = 20
+# Conventional Commit prefix -> the Type of Change box (emoji-stripped label) it requires.
+TYPE_FOR_PREFIX = {
+    "fix": "Bug fix",
+    "feat": "Feature",
+    "refactor": "Refactor",
+    "docs": "Docs",
+    "test": "Tests",
+    "ci": "CI / chore",
+    "chore": "CI / chore",
+    "build": "CI / chore",
+}
 TITLE = re.compile(r"^(feat|fix|refactor|docs|test|ci|chore|perf|i18n|build)(\([^)\n]+\))?!?: \S")
 UI_PATHS = re.compile(
     r"^app/src/main/(java/com/m57/hermescontrol/(ui|theme)/.+\.kt|res/drawable[^/]*/.+)$"
@@ -95,8 +106,21 @@ def validate(body, ui_files=(), title=None, base=None):
             problems.append((f"**{name}** is empty or only placeholder text.", hint))
 
     types = present("Type of Change")
-    if types is not None and not re.search(r"^\s*[-*]\s*\[[xX]\]", types, flags=re.MULTILINE):
-        problems.append(("**Type of Change** has no box ticked.", "Tick at least one `- [x]` that matches the PR."))
+    if types is not None:
+        ticked = re.findall(r"^\s*[-*]\s*\[[xX]\]\s*(.+)$", types, flags=re.MULTILINE)
+        if not ticked:
+            problems.append(("**Type of Change** has no box ticked.", "Tick at least one `- [x]` that matches the PR."))
+        else:
+            prefix = re.match(r"^(\w+)", title or "")
+            want = TYPE_FOR_PREFIX.get(prefix.group(1)) if prefix else None
+            if want and not any(want.lower() in t.lower() for t in ticked):
+                problems.append(
+                    (
+                        f"Title prefix `{prefix.group(1)}:` expects the **{want}** box under Type of Change, "
+                        "but it is not ticked.",
+                        f"Tick **{want}**, or rename the PR title if the prefix is wrong.",
+                    )
+                )
 
     if ui_files:
         shots = present("Screenshots")

@@ -283,6 +283,7 @@
     <string name="language_chinese">简体中文</string>
     <string name="language_korean">한국어</string>
     <string name="language_italian">Italiano</string>
+    <string name="language_spanish">Español</string>
     <string name="connect_selected_profile">配置：%1$s</string>
     <string name="connect_action_select_profile">选择已保存配置</string>
     <string name="connect_health_title">后端健康状态</string>

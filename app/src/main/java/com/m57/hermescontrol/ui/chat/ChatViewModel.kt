@@ -5337,12 +5337,19 @@ class ChatViewModel(
                 sendStore
                     .all()
                     .filter { it.scope == currentSendScope && it.sessionId == snapshot.currentSessionId }
+            val receiptsById = receiptRows.associateBy { it.id }
             val receiptBackedIds =
                 receiptRows
                     .filter {
                         it.state in
                             setOf(PendingSendState.SENDING, PendingSendState.ACCEPTED, PendingSendState.UNKNOWN)
                     }.mapTo(mutableSetOf()) { it.id }
+            // Fix #1446 follow-up: a restored legacy ACK is not a newly observed live turn.
+            // Placement is independent of delivery proof; retain the exact-only receipt.
+            val restoredAcceptedReceiptIds =
+                receiptRows
+                    .filter { it.state == PendingSendState.ACCEPTED && it.requiresExactReconciliation }
+                    .mapTo(mutableSetOf()) { it.id }
             val receiptCandidates =
                 if (cached) {
                     emptyList()
@@ -5373,6 +5380,13 @@ class ChatViewModel(
                 receiptRows
                     .filter { it.state == PendingSendState.UNKNOWN || it.requiresExactReconciliation }
                     .mapTo(mutableSetOf()) { it.id }
+            // A restored, unanchored pending row must not claim an unrelated same-text
+            // canonical occurrence, even when it has no receipt at all.
+            exactOnlyIds.addAll(
+                snapshot.messages
+                    .filter { it.isRestoredUnconfirmed && it.messageProvenance == MessageProvenance.LOCAL_PENDING }
+                    .map { it.id },
+            )
             val computed =
                 withContext(historyDispatcher) {
                     val mapped = mapPage(snapshot.messages)
@@ -5383,6 +5397,21 @@ class ChatViewModel(
                     val page =
                         if (cached) {
                             mapped.map { message ->
+                                val receipt = receiptsById[message.id]
+                                val coldPendingOrphan =
+                                    message.role == MessageRole.USER &&
+                                        message.messageProvenance == MessageProvenance.LOCAL_PENDING &&
+                                        message.canonicalRestId == null &&
+                                        message.localAnchorOrder == null &&
+                                        message.localPredecessorId == null &&
+                                        !message.isPermanentlyLocal() &&
+                                        (
+                                            receipt == null ||
+                                                (
+                                                    receipt.state == PendingSendState.ACCEPTED &&
+                                                        receipt.requiresExactReconciliation
+                                                )
+                                        )
                                 message.copy(
                                     isHistoricalCache =
                                         when {
@@ -5398,8 +5427,14 @@ class ChatViewModel(
                                             message.role != MessageRole.USER ||
                                                 message.canonicalRestId != null ||
                                                 message.isPermanentlyLocal() ||
-                                                message.messageProvenance == MessageProvenance.LOCAL_PENDING ||
-                                                message.id in receiptBackedIds -> {
+                                                (
+                                                    message.messageProvenance == MessageProvenance.LOCAL_PENDING &&
+                                                        !coldPendingOrphan
+                                                ) ||
+                                                (
+                                                    message.id in receiptBackedIds &&
+                                                        message.id !in restoredAcceptedReceiptIds
+                                                ) -> {
                                                 false
                                             }
 
@@ -5416,16 +5451,29 @@ class ChatViewModel(
                         } else {
                             mapped
                         }
+                    // Protect both incoming and existing candidates in every matching pass,
+                    // including cache-local deduplication when REST arrived first.
+                    val contentMatchExcludedIds =
+                        exactOnlyIds +
+                            page
+                                .filter {
+                                    it.isRestoredUnconfirmed &&
+                                        it.messageProvenance == MessageProvenance.LOCAL_PENDING
+                                }.map { it.id }
                     val merged =
                         if (cached) {
-                            mergeCachedTranscriptPage(page, snapshot.messages)
+                            mergeCachedTranscriptPage(
+                                page,
+                                snapshot.messages,
+                                contentMatchExcludedIds = contentMatchExcludedIds,
+                            )
                         } else {
                             mergeTranscriptWithLive(
                                 page,
                                 snapshot.messages + receiptCandidates,
                                 chronological = !prepend,
                                 preserveLiveIds = true,
-                                contentMatchExcludedIds = exactOnlyIds,
+                                contentMatchExcludedIds = contentMatchExcludedIds,
                             ).filterNot { it.id in receiptCandidateIds && it.canonicalRestId == null }
                         }
                     val stableMessages = if (merged == snapshot.messages) snapshot.messages else merged

@@ -11,6 +11,7 @@ documentation:
           - "*.md"
           - "**/*.md"
           - "LICENSE"
+  - head-branch: ['^docs/']
 
 # ── CI / workflows ───────────────────────────────────────────────
 ci:
@@ -19,6 +20,8 @@ ci:
           - ".github/**"
           - ".weblate.json"
           - ".envrc"
+          - "scripts/**"
+  - head-branch: ['^ci/']
 
 # ── tests ─────────────────────────────────────────────────────────
 testing:
@@ -29,6 +32,8 @@ testing:
           - "**/*Test.kt"
           - "**/*Benchmark.kt"
           - "**/fakes/**"
+          - "app/src/test/resources/**"
+  - head-branch: ['^test/']
 
 # ── UI / UX ───────────────────────────────────────────────────────
 ux:
@@ -51,6 +56,9 @@ networking:
           - "app/src/main/**/data/ws/**"
           - "app/src/main/**/data/remote/**"
           - "app/src/main/**/data/update/**"
+          - "app/src/main/**/util/ConnectorUrlValidator.kt"
+          - "app/src/main/**/util/StreamingUriRequestBody.kt"
+          - "app/src/test/resources/gateway-contract/**"
 
 # ── data layer (Room, models, local, config) ──────────────────────
 data-layer:
@@ -60,6 +68,7 @@ data-layer:
           - "app/src/main/**/data/model/**"
           - "app/src/main/**/data/session/**"
           - "app/src/main/**/data/config/**"
+          - "app/src/main/**/data/repository/**"
           - "app/schemas/**"
 
 # ── security (auth, tokens, encryption) ───────────────────────────
@@ -107,3 +116,40 @@ build:
           - "**/.gitignore"
           - "app/proguard-rules.pro"
           - "app/src/main/AndroidManifest.xml"
+          - "app/debug.keystore"
+          - "app/src/debug/**"
+  - head-branch: ['^build/']
+
+# ── chat (screen + pipeline) ──────────────────────────────────────
+chat:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "app/src/main/**/ui/chat/**"
+          - "app/src/main/**/notification/Chat*"
+          - "app/src/test/**/ui/chat/**"
+          - "app/src/androidTest/**/ui/chat/**"
+
+# ── localization ──────────────────────────────────────────────────
+i18n:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "app/src/main/res/values-*/**"
+          - "app/src/debug/res/values-*/**"
+          - ".weblate.json"
+  - head-branch: ['^i18n/']
+
+# ── change type, from the branch naming convention in CONTRIBUTING ─
+bug:
+  - head-branch: ['^fix/', '^fix-', '^hotfix/']
+
+enhancement:
+  - head-branch: ['^feat/', '^feature/']
+
+refactor:
+  - head-branch: ['^refactor/']
+
+performance:
+  - head-branch: ['^perf/']
+
+cleanup:
+  - head-branch: ['^chore/(remove|cleanup|dead)']

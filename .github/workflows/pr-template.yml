@@ -1,9 +1,9 @@
-name: PR Template
+name: PR Automation
 
-# Posts the explanatory comment. The *gate* itself is the `pr-template` job in
-# android.yml (workflows cannot `needs` each other). This workflow exists because
-# fork PRs get a read-only token under `pull_request`, so only `pull_request_target`
-# can comment. It never checks out or runs PR code: the script comes from the base branch.
+# Runs on pull_request_target so fork PRs get a write token. Never checks out or
+# runs PR code: the script comes from the base branch. Order: label first, then
+# the template comment. (The pass/fail gate itself is the `pr-template` job in
+# android.yml, since workflows cannot `needs` each other.)
 
 on:
   pull_request_target:
@@ -11,19 +11,40 @@ on:
     branches: [main, dev]
 
 concurrency:
-  group: pr-template-${{ github.event.pull_request.number }}
+  group: pr-automation-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 permissions:
   contents: read
-  pull-requests: write
-  issues: write
 
 jobs:
-  comment:
+  label:
+    name: Auto-Label
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Label by changed files and branch name
+        uses: actions/labeler@v7
+        with:
+          dot: true
+          sync-labels: false
+        # Reads .github/labeler.yml from the base branch. Additive only
+        # (sync-labels: false) so manual and Dependabot labels are never removed.
+
+  template-comment:
     name: PR Template Comment
+    needs: [label]
+    # Comment even if labeling failed; the label is cosmetic, the comment is not.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
     steps:
       - name: Check out trusted script (base branch only)
         uses: actions/checkout@v7

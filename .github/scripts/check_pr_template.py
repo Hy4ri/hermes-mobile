@@ -24,6 +24,7 @@ REQUIRED = ["Summary", "Description", "Type of Change", "How to test", "Checklis
 MIN_SUMMARY = 10
 MIN_DESCRIPTION = 20
 MIN_TEST = 20
+TITLE = re.compile(r"^(feat|fix|refactor|docs|test|ci|chore|perf|i18n|build)(\([^)\n]+\))?!?: \S")
 UI_PATHS = re.compile(
     r"^app/src/main/(java/com/m57/hermescontrol/(ui|theme)/.+\.kt|res/drawable[^/]*/.+)$"
 )
@@ -50,10 +51,26 @@ def prose_len(text):
     return len(text.strip())
 
 
-def validate(body, ui_files=()):
+def validate(body, ui_files=(), title=None, base=None):
     """Return a list of (problem, how_to_fix). ui_files: changed UI paths, if any."""
     secs = sections(body or "")
     problems = []
+
+    if title is not None and not TITLE.match(title):
+        problems.append(
+            (
+                f"PR title `{title}` is not a Conventional Commit.",
+                "Rename it like `fix(#123): short description` or `feat: short description`. "
+                "Types: feat, fix, refactor, docs, test, ci, chore, perf, i18n, build.",
+            )
+        )
+    if base is not None and base != "dev":
+        problems.append(
+            (
+                f"PR targets `{base}`, but every change must target `dev`.",
+                "Change the base branch (Edit next to the title) to `dev`.",
+            )
+        )
 
     missing = [name for name in REQUIRED if name.lower() not in secs]
     if missing:
@@ -189,7 +206,7 @@ def main():
 
     token = os.environ.get("GITHUB_TOKEN")
     ui_files = (ui_changed_files(repo, pr["number"], token) if token else None) or []
-    problems = validate(pr.get("body"), ui_files)
+    problems = validate(pr.get("body"), ui_files, pr["title"], pr["base"]["ref"])
     report = render(problems, repo)
 
     if "--comment" in sys.argv and token:

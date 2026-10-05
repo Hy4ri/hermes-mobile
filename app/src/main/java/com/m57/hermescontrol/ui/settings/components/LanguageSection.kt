@@ -35,6 +35,7 @@ internal fun supportedLanguages(): List<Pair<String, String>> =
         "ar" to stringResource(R.string.language_arabic),
         "zh" to stringResource(R.string.language_chinese),
         "ko" to stringResource(R.string.language_korean),
+        "it" to stringResource(R.string.language_italian),
     )
 
 /** Display label for a language code, falling back to English for unknown codes. */

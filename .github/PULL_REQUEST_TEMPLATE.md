@@ -25,6 +25,10 @@ Fixes #
 2.
 3.
 
+## Screenshots
+
+<!-- REQUIRED if this PR changes UI (anything under ui/, theme/ or drawables): drag in before/after screenshots or a screen recording. No UI change? Write N/A. -->
+
 ## Checklist
 
 - [ ] PR is focused on one feature or one fix (no unrelated changes)

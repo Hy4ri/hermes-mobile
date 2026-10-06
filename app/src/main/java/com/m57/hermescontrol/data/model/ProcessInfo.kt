@@ -46,5 +46,28 @@ data class ProcessInfo(
                 .orEmpty()
                 .ifEmpty { "background process" }
 
-    companion object
+    companion object {
+        /** Build a [ProcessInfo] from a raw `process.list` entry map; null when `session_id` is missing. */
+        fun fromMap(raw: Map<*, *>): ProcessInfo? {
+            val m = raw.mapKeys { it.key.toString() }
+            val id = (m["session_id"] as? String)?.takeIf { it.isNotBlank() } ?: return null
+
+            fun str(key: String) = (m[key] as? String)?.takeIf { it.isNotBlank() }
+
+            fun int(key: String) = (m[key] as? Number)?.toInt()
+            return ProcessInfo(
+                sessionId = id,
+                command = str("command"),
+                cwd = str("cwd"),
+                pid = int("pid"),
+                startedAt = str("started_at"),
+                uptimeSeconds = int("uptime_seconds"),
+                status = str("status"),
+                outputPreview = str("output_preview"),
+                outputTail = str("output_tail"),
+                exitCode = int("exit_code"),
+                sessionScoped = (m["session_scoped"] as? Boolean) ?: false,
+            )
+        }
+    }
 }

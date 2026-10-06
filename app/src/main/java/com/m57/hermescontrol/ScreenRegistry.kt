@@ -19,7 +19,6 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.HistoryEdu
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Key
-import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Power
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Schedule
@@ -51,7 +50,6 @@ import com.m57.hermescontrol.ui.memory.MemoryScreen as MemoryScreenContent
 import com.m57.hermescontrol.ui.model.ModelScreen as ModelScreenContent
 import com.m57.hermescontrol.ui.pairing.PairingScreen as PairingScreenContent
 import com.m57.hermescontrol.ui.plugins.PluginsScreen as PluginsScreenContent
-import com.m57.hermescontrol.ui.process.ProcessesScreen as ProcessesScreenContent
 import com.m57.hermescontrol.ui.profiles.ProfilesScreen as ProfilesScreenContent
 import com.m57.hermescontrol.ui.providers.ProvidersScreen as ProvidersScreenContent
 import com.m57.hermescontrol.ui.sessions.SessionsScreen as HistoryScreenContent
@@ -207,12 +205,6 @@ object ScreenRegistry {
                 Icons.Filled.HistoryEdu,
                 DrawerSection.INSPECT,
             ) { sessionId, openDrawer -> LogsScreenContent(onOpenDrawer = openDrawer) },
-            ScreenDefinition(
-                ProcessesScreen,
-                R.string.screen_processes,
-                Icons.Filled.Memory,
-                DrawerSection.INSPECT,
-            ) { sessionId, openDrawer -> ProcessesScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
                 AnalyticsScreen,
                 R.string.screen_analytics,

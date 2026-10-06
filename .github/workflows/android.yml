@@ -1,4 +1,7 @@
 name: Android CI/CD
+# Stable PR identity for recovery when GitHub omits fork run.pull_requests (#1506).
+run-name: >-
+  ${{ github.event_name == 'pull_request' && format('Android CI PR #{0}', github.event.pull_request.number) || format('Android CI {0}', github.ref_name) }}
 
 env:
   GRADLE_CACHE_ENCRYPTED_KEY: ${{ secrets.GRADLE_ENCRYPTED_KEY }}

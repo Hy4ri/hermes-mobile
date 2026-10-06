@@ -151,7 +151,7 @@ def validate(body, ui_files=(), title=None, base=None):
 
 def render(problems, repo):
     if not problems:
-        return f"{MARKER}\n✅ PR description now matches the template. CI is unblocked."
+        return f"{MARKER}\n✅ PR description now matches the template. See Actions for CI status."
     lines = [
         MARKER,
         "### 🚧 PR description is incomplete",

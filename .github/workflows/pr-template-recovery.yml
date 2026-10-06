@@ -1,0 +1,73 @@
+name: PR Template Recovery
+
+# Metadata only: NEVER check out a PR head, download its artifacts or run its code.
+# dev is the trusted/default branch. workflow_run only activates after this file
+# lands there; it closes the edit-before-Android-completion race (issue #1506).
+on:
+  pull_request_target:
+    types: [edited, ready_for_review]
+    branches: [dev]
+  workflow_run:
+    workflows: [Android CI/CD]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    if: >-
+      github.event_name == 'pull_request_target' ||
+      (github.event.workflow_run.event == 'pull_request' &&
+       github.event.workflow_run.conclusion == 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    outputs:
+      prs: ${{ steps.resolve.outputs.prs }}
+    steps:
+      - name: Check out trusted automation only
+        uses: actions/checkout@v7
+        with:
+          ref: dev
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+      - name: Resolve live PRs (including fork runs)
+        id: resolve
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/recover_pr_template.py --resolve
+
+  recover:
+    needs: resolve
+    if: needs.resolve.outputs.prs != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        pr: ${{ fromJSON(needs.resolve.outputs.prs) }}
+    # Both event paths share this lock; do not cancel a request between its
+    # accepted restart and its receipt. Pending events re-read live state.
+    concurrency:
+      group: pr-template-recovery-${{ matrix.pr }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      actions: write
+      pull-requests: write
+    steps:
+      - name: Check out trusted automation only
+        uses: actions/checkout@v7
+        with:
+          ref: dev
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+      - name: Recover a template-blocked run
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ matrix.pr }}
+        run: python3 .github/scripts/recover_pr_template.py --pr "$PR_NUMBER"

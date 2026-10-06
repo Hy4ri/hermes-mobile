@@ -1856,4 +1856,5 @@
     <string name="mtls_prompt_connection_error">Connection failed: the server requires an mTLS client certificate for authentication.</string>
     <string name="mtls_prompt_verification_failed">Verification failed. The certificate has not been saved.</string>
     <string name="mtls_prompt_error_details">Error details</string>
+    <string name="mtls_prompt_verification_details">Check the selected certificate and server connection, then try again. If the problem persists, review this server’s certificate configuration in Connections.</string>
 </resources>

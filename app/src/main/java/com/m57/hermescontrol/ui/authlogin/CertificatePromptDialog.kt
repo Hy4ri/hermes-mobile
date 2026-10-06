@@ -53,7 +53,7 @@ internal fun CertificatePromptDialog(
                         style = MaterialTheme.typography.labelMedium,
                     )
                     Text(
-                        it,
+                        stringResource(it),
                         color = MaterialTheme.colorScheme.error,
                         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                     )

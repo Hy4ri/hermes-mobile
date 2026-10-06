@@ -1,5 +1,8 @@
 package com.m57.hermescontrol.ui.authlogin
 
+import android.util.Log
+import androidx.annotation.StringRes
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.remote.CertificateOrigin
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -19,7 +22,7 @@ internal data class CertificatePromptState(
     val choosing: Boolean = false,
     val saving: Boolean = false,
     val selectionFailed: Boolean = false,
-    val error: String? = null,
+    @param:StringRes val error: Int? = null,
     val savedOrigin: HttpUrl? = null,
 )
 
@@ -103,9 +106,16 @@ internal class CertificatePromptController {
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (failure: Exception) {
+                    // Exception messages/causes can contain URLs or credentials. Keep the
+                    // exception type and original stack for diagnosis without logging them.
+                    Log.w(
+                        "CertificatePrompt",
+                        "Certificate verification/save failed: ${failure.javaClass.name}\n" +
+                            failure.stackTrace.joinToString("\n"),
+                    )
                     synchronized(this@CertificatePromptController) {
                         if (revision == attempt) {
-                            mutableState.value = current.copy(error = failure.message ?: failure.javaClass.simpleName)
+                            mutableState.value = current.copy(error = R.string.mtls_prompt_verification_details)
                         }
                     }
                 }

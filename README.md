@@ -116,9 +116,8 @@ Tap **Sign in** on the landing screen and enter the dashboard host and port. The
 
 ### Manual HTTPS client certificates (mTLS)
 
-Open **Connections → HTTPS mTLS client certificate configuration** from the drawer, or tap
-**Connections** on the first-launch landing page before signing in. The existing
-**Settings → Connection** page also links to the manager. Install client certificates
+Open **Settings → Connection → HTTPS mTLS client certificate configuration**, or tap
+**Connections** on the first-launch landing page before signing in. Install client certificates
 in Android settings first; the app stores aliases only, never private keys.
 
 Each binding belongs to an HTTPS hostname and port across all paths and connection

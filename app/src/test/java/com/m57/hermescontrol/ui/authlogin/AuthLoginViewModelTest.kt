@@ -298,7 +298,9 @@ class AuthLoginViewModelTest {
             every { ClientCertificates.save(origin, origin, "candidate", expected) } throws
                 IOException("Storage failed")
             viewModel.saveCertificate()
-            withTimeout(5000) { viewModel.certificatePrompt.state.first { it.error == "Storage failed" } }
+            withTimeout(5000) {
+                viewModel.certificatePrompt.state.first { it.error == R.string.mtls_prompt_verification_details }
+            }
             assertEquals(expected, bindings.state.value)
             assertEquals("mTLS client certificate required", viewModel.uiState.value.errorMessage)
             assertNull(viewModel.certificatePrompt.state.value.savedOrigin)

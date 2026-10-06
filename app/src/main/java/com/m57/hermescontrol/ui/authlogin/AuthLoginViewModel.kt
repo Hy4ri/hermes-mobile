@@ -10,10 +10,13 @@ import com.m57.hermescontrol.data.config.ConnectionProfile
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.AuthPayloads
+import com.m57.hermescontrol.data.remote.CertificateOrigin
 import com.m57.hermescontrol.data.remote.CleartextPolicy
+import com.m57.hermescontrol.data.remote.ClientCertificates
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.await
+import com.m57.hermescontrol.data.remote.isClientCertificateAuthenticationFailure
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import kotlinx.coroutines.Dispatchers
@@ -107,7 +110,19 @@ class AuthLoginViewModel(
     private val probeClient: OkHttpClient =
         com.m57.hermescontrol.data.remote.OkHttpProvider.probe
 
+    internal val certificatePrompt = CertificatePromptController()
+
+    internal fun saveCertificate() {
+        val expected = ClientCertificates.state.value
+        certificatePrompt.save(viewModelScope, ClientCertificates::verifyCandidate) { url, alias ->
+            val previous = url.takeIf { CertificateOrigin.from(it)!!.storageKey in expected }
+            ClientCertificates.save(previous, url, alias, expected)
+            _uiState.update { it.copy(errorMessage = null) }
+        }
+    }
+
     fun onBaseUrlChange(value: String) {
+        certificatePrompt.reset()
         val trimmed = value.trim()
         val warning =
             runCatching {
@@ -118,6 +133,7 @@ class AuthLoginViewModel(
 
     /** Reset ephemeral connection state (called when screen leaves composition). */
     fun clearConnectionState() {
+        certificatePrompt.reset()
         _uiState.update { it.copy(connectionSuccess = false, errorMessage = null, isLoading = false) }
     }
 
@@ -142,6 +158,7 @@ class AuthLoginViewModel(
      * [DashboardAuthMode] instead of sniffing redirects, which is a heuristic.
      */
     fun probe() {
+        val certificateAttempt = certificatePrompt.reset()
         val state = _uiState.value
         val endpoint =
             runCatching { ServerEndpoint.parseForBuild(state.baseUrl) }.getOrNull()
@@ -153,9 +170,10 @@ class AuthLoginViewModel(
         _uiState.update { it.copy(probing = true, errorMessage = null, authMode = null) }
 
         viewModelScope.launch {
+            var certificateFailure = false
             val result =
                 withContext(Dispatchers.IO) {
-                    probeDashboardInternal(endpoint)
+                    probeDashboardInternal(endpoint) { certificateFailure = true }
                 }
             _uiState.update {
                 it.copy(
@@ -164,12 +182,20 @@ class AuthLoginViewModel(
                     token = result?.extractedToken ?: it.token,
                     errorMessage =
                         if (result == null) {
-                            app.getString(R.string.auth_login_error_unreachable)
+                            app.getString(
+                                if (certificateFailure) {
+                                    R.string.mtls_prompt_connection_error
+                                } else {
+                                    R.string.auth_login_error_unreachable
+                                },
+                            )
                         } else {
                             null
                         },
                 )
             }
+            // Publish the failed probe state before offering the dialog so a fast save cannot be overwritten by it.
+            if (certificateFailure) certificatePrompt.offer(certificateAttempt, endpoint.baseUrl)
         }
     }
 
@@ -214,7 +240,10 @@ class AuthLoginViewModel(
      * is non-null, the session token was found embedded in the dashboard SPA HTML
      * (loopback mode only) and can be auto-populated.
      */
-    private suspend fun probeDashboardInternal(endpoint: ServerEndpoint): ProbeResult? {
+    private suspend fun probeDashboardInternal(
+        endpoint: ServerEndpoint,
+        onCertificateFailure: () -> Unit,
+    ): ProbeResult? {
         // Step 1: reachability + auth mode from the public status endpoint.
         val statusJson =
             try {
@@ -228,6 +257,9 @@ class AuthLoginViewModel(
                 if (!resp.isSuccessful) return null
                 resp.body.string()
             } catch (e: Exception) {
+                if (isClientCertificateAuthenticationFailure(endpoint.baseUrl, e)) {
+                    onCertificateFailure()
+                }
                 Log.w(TAG, "Status probe failed: ${e.message}")
                 return null // Dashboard unreachable
             }

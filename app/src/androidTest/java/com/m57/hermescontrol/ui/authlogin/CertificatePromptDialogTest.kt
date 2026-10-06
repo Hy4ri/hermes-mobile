@@ -17,6 +17,7 @@ import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.Density
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
@@ -66,6 +67,7 @@ class CertificatePromptDialogTest {
         val resources = show(failedState(), Locale.SIMPLIFIED_CHINESE, fontScale = 1.3f)
         composeTestRule
             .onNodeWithText(resources.getString(R.string.mtls_prompt_verification_details))
+            .performScrollTo()
             .assertIsDisplayed()
         composeTestRule.onNodeWithText(resources.getString(R.string.mtls_select)).assertIsEnabled()
         composeTestRule.onNodeWithText(resources.getString(R.string.action_save)).assertIsEnabled()

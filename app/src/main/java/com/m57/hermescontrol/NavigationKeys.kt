@@ -70,8 +70,6 @@ import kotlinx.serialization.Serializable
     val taskId: String,
 ) : NavKey
 
-@Serializable data object ProcessesScreen : NavKey
-
 @Serializable data object ProvidersScreen : NavKey
 
 @Serializable data object AnalyticsScreen : NavKey

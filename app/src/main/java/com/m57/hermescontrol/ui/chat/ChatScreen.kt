@@ -142,6 +142,9 @@ import kotlinx.coroutines.launch
 
 private const val SESSION_SYNC_INTERVAL_MS = 30_000L
 
+/** Desktop-parity cadence for `process.list` polling (issue #1503). */
+private const val BACKGROUND_PROCESS_POLL_MS = 5_000L
+
 internal fun acceptedSaveDestination(
     resultCode: Int,
     destination: Uri?,
@@ -362,6 +365,16 @@ fun ChatScreen(
     LaunchedEffect(showSubagentInspectionSheet) {
         if (showSubagentInspectionSheet) {
             viewModel.hydrateSubagents()
+        }
+    }
+    // Issue #1503: the gateway has no push event for background process start/exit,
+    // so poll process.list (desktop uses 5s) while the chat is on screen.
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                viewModel.refreshBackgroundProcesses()
+                delay(BACKGROUND_PROCESS_POLL_MS)
+            }
         }
     }
     var viewingImage by rememberSaveable { mutableStateOf<ImageViewerModel?>(null) }
@@ -639,11 +652,12 @@ fun ChatScreen(
             // Issue #942: compact glanceable progress strip while work is active.
             // Bound to the same hydrated todos / subagentIndicators state.
             // Auto-hides when all todos complete/cancel and no subagent is running.
-            val workActive = shouldShowProgressChip(state.todos, state.subagentIndicators)
+            val workActive = shouldShowProgressChip(state.todos, state.subagentIndicators, state.backgroundProcesses)
             TaskProgressChip(
                 visible = workActive,
                 todos = state.todos,
                 indicators = state.subagentIndicators,
+                processes = state.backgroundProcesses,
                 onClick = {
                     showSubagentInspectionSheet = true
                     scrollController.resumeFollowing()
@@ -1022,6 +1036,9 @@ fun ChatScreen(
             SubagentInspectionSheet(
                 indicators = state.subagentIndicators,
                 todos = state.todos,
+                processes = state.backgroundProcesses,
+                killingProcessId = state.killingProcessId,
+                onKillProcess = { id -> viewModel.killBackgroundProcess(id) },
                 inspectingSubagentId = state.inspectingSubagentId,
                 subagentTranscript = state.subagentTranscript,
                 onToggleTranscript = { subagentId -> viewModel.toggleSubagentTranscript(subagentId) },

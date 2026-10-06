@@ -142,7 +142,6 @@
     <string name="screen_kanban">Kanban</string>
     <string name="screen_achievements">Logros</string>
     <string name="screen_history">Historial</string>
-    <string name="screen_processes">Procesos</string>
     <string name="screen_providers">Proveedores</string>
     <string name="screen_analytics">Análisis</string>
     <string name="screen_billing">Facturación</string>
@@ -1424,11 +1423,6 @@
     <string name="update_dialog_action_skip">Omitir esta versión</string>
 
     <!-- Processes Screen (issue #532) -->
-    <string name="processes_empty_title">No hay procesos en ejecución</string>
-    <string name="processes_empty_desc">Los procesos en segundo plano para esta sesión aparecerán aquí.</string>
-    <string name="processes_no_session_title">No hay sesión de chat activa</string>
-    <string name="processes_no_session_desc">Primero abra una sesión de chat: la lista de procesos tiene como alcance una sesión.</string>
-    <string name="processes_running_hint">En ejecución</string>
     <string name="processes_kill_title">¿Finalizar proceso?</string>
     <string name="processes_kill_desc">¿Detener \u201c%1$s\u201d? Esto no se puede deshacer.</string>
  

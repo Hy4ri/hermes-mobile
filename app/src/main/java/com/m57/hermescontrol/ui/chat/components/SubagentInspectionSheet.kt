@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -51,6 +52,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -67,9 +69,11 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.model.ProcessInfo
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.chat.SubagentIndicator
 import com.m57.hermescontrol.ui.chat.SubagentTranscriptUiState
@@ -83,6 +87,9 @@ import com.m57.hermescontrol.ui.chat.TodoItem
 fun SubagentInspectionSheet(
     indicators: List<SubagentIndicator> = emptyList(),
     todos: List<TodoItem> = emptyList(),
+    processes: List<ProcessInfo> = emptyList(),
+    killingProcessId: String? = null,
+    onKillProcess: ((String) -> Unit)? = null,
     inspectingSubagentId: String? = null,
     subagentTranscript: SubagentTranscriptUiState? = null,
     onToggleTranscript: ((String) -> Unit)? = null,
@@ -95,7 +102,28 @@ fun SubagentInspectionSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val todoTree = remember(todos) { buildTodoTree(todos) }
     var collapsedParentIds by remember { mutableStateOf(setOf<String>()) }
+    var killTarget by remember { mutableStateOf<ProcessInfo?>(null) }
     val displayRows = remember(todoTree, collapsedParentIds) { flattenTodoTree(todoTree, collapsedParentIds) }
+
+    killTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { killTarget = null },
+            title = { Text(stringResource(R.string.processes_kill_title)) },
+            text = { Text(stringResource(R.string.processes_kill_desc, target.title)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onKillProcess?.invoke(target.sessionId)
+                        killTarget = null
+                    },
+                    modifier = Modifier.testTag("process_kill_confirm"),
+                ) { Text(stringResource(R.string.processes_kill_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { killTarget = null }) { Text(stringResource(android.R.string.cancel)) }
+            },
+        )
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -140,7 +168,7 @@ fun SubagentInspectionSheet(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            if (indicators.isEmpty() && todos.isEmpty()) {
+            if (indicators.isEmpty() && todos.isEmpty() && processes.isEmpty()) {
                 Text(
                     text = stringResource(R.string.subagent_no_active),
                     style = MaterialTheme.typography.bodyMedium,
@@ -192,6 +220,36 @@ fun SubagentInspectionSheet(
                                     } else {
                                         null
                                     },
+                            )
+                        }
+                    }
+
+                    if (processes.isNotEmpty()) {
+                        item(key = "processes_header") {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Terminal,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = stringResource(R.string.subagent_processes_header).uppercase(),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        }
+                        items(items = processes, key = { process -> "process-${process.sessionId}" }) { process ->
+                            ProcessInspectionCard(
+                                process = process,
+                                isKilling = killingProcessId == process.sessionId,
+                                onKill = if (onKillProcess != null) ({ killTarget = process }) else null,
                             )
                         }
                     }
@@ -251,6 +309,80 @@ fun SubagentInspectionSheet(
                 }
             }
         }
+    }
+}
+
+/** Row for one running background process: command, pid/uptime/cwd subtitle, and a kill button. */
+@Composable
+private fun ProcessInspectionCard(
+    process: ProcessInfo,
+    isKilling: Boolean,
+    onKill: (() -> Unit)?,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().testTag("process_row_${process.sessionId}"),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = process.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                val subtitle = process.subtitle
+                if (subtitle.isNotEmpty()) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            if (onKill != null) {
+                Spacer(modifier = Modifier.width(8.dp))
+                if (isKilling) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                } else {
+                    IconButton(
+                        onClick = onKill,
+                        modifier = Modifier.size(36.dp).testTag("process_kill_${process.sessionId}"),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Stop,
+                            contentDescription = stringResource(R.string.processes_kill_cd),
+                            tint = LocalHermesStatusColors.current.error,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** "pid 42 · 1m 5s · /cwd" — only the parts the gateway reported. */
+internal val ProcessInfo.subtitle: String
+    get() =
+        listOfNotNull(
+            pid?.let { "pid $it" },
+            uptimeSeconds?.let(::formatProcessUptime),
+            cwd,
+        ).joinToString(" · ")
+
+internal fun formatProcessUptime(seconds: Int): String {
+    val m = seconds / 60
+    return when {
+        m <= 0 -> "${seconds}s"
+        m < 60 -> "${m}m ${seconds % 60}s"
+        else -> "${m / 60}h ${m % 60}m"
     }
 }
 

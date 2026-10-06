@@ -120,7 +120,6 @@
     <string name="screen_kanban">看板</string>
     <string name="screen_achievements">成就</string>
     <string name="screen_history">历史</string>
-    <string name="screen_processes">进程</string>
     <string name="screen_providers">提供商</string>
     <string name="screen_analytics">分析</string>
     <string name="screen_billing">计费</string>
@@ -1180,11 +1179,6 @@
     <string name="action_close">关闭</string>
     <string name="update_notice_banner_text">Hermes Mobile %1$s 已可用</string>
     <string name="update_notice_banner_action">更新</string>
-    <string name="processes_empty_title">没有运行中的进程</string>
-    <string name="processes_empty_desc">此会话的后台进程将显示在这里。</string>
-    <string name="processes_no_session_title">没有活动的对话会话</string>
-    <string name="processes_no_session_desc">请先打开一个对话会话——进程列表按会话隔离。</string>
-    <string name="processes_running_hint">运行中</string>
     <string name="processes_kill_title">结束进程？</string>
     <string name="processes_kill_desc">停止\"%1$s\"？此操作无法撤销。</string>
     <string name="analytics_empty_title">暂无分析数据</string>

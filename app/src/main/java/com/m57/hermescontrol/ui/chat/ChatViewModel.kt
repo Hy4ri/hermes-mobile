@@ -15,6 +15,7 @@ import com.m57.hermescontrol.data.model.BusySendMode
 import com.m57.hermescontrol.data.model.ModelCapabilities
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
+import com.m57.hermescontrol.data.model.ProcessInfo
 import com.m57.hermescontrol.data.model.SessionCompressResponse
 import com.m57.hermescontrol.data.model.SessionTimelineEntry
 import com.m57.hermescontrol.data.model.UsageSnapshotResponse
@@ -294,6 +295,10 @@ data class ChatUiState(
     val subagentTranscript: SubagentTranscriptUiState? = null,
     /** Agent todo / plan items (issue #736). */
     val todos: List<TodoItem> = emptyList(),
+    /** Running background processes of the active session, from `process.list` (issue #1503). */
+    val backgroundProcesses: List<ProcessInfo> = emptyList(),
+    /** Process id currently being killed (drives the in-row spinner). */
+    val killingProcessId: String? = null,
     // Session resume recovery (desktop parity: bounded auto-retry + error UI)
     val isSessionReady: Boolean = false,
     val resumeError: String? = null,
@@ -773,6 +778,14 @@ class ChatViewModel(
 
     private val subagentsDelegate =
         ChatSubagentsDelegate(
+            uiState = _uiState,
+            scope = viewModelScope,
+            ioDispatcher = ioDispatcher,
+            runtimeSessionId = { runtimeSessionId ?: _uiState.value.currentSessionId },
+        )
+
+    private val processesDelegate =
+        ChatProcessesDelegate(
             uiState = _uiState,
             scope = viewModelScope,
             ioDispatcher = ioDispatcher,
@@ -4922,6 +4935,14 @@ class ChatViewModel(
         subagentsDelegate.hydrateSubagents(sessionId ?: runtimeSessionId ?: _uiState.value.currentSessionId)
     }
 
+    fun refreshBackgroundProcesses() {
+        processesDelegate.refresh()
+    }
+
+    fun killBackgroundProcess(processId: String) {
+        processesDelegate.kill(processId)
+    }
+
     fun toggleSubagentTranscript(subagentId: String) {
         subagentsDelegate.toggleSubagentTranscript(subagentId)
     }
@@ -5892,6 +5913,8 @@ class ChatViewModel(
                 reactionKind = null,
                 subagentIndicators = emptyList(),
                 todos = emptyList(),
+                backgroundProcesses = emptyList(),
+                killingProcessId = null,
                 resumeError = null,
                 isResumeRetrying = false,
                 pendingPrefillText = null,

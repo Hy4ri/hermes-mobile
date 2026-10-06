@@ -129,7 +129,6 @@
     <string name="screen_kanban">Kanban</string>
     <string name="screen_achievements">Obiettivi</string>
     <string name="screen_history">Cronologia</string>
-    <string name="screen_processes">Processi</string>
     <string name="screen_providers">Provider</string>
     <string name="screen_analytics">Analitiche</string>
     <string name="screen_billing">Fatturazione</string>
@@ -1306,11 +1305,6 @@
     <string name="update_dialog_action_install">Scarica e installa</string>
     <string name="update_dialog_action_later">Ricordamelo più tardi</string>
     <string name="update_dialog_action_skip">Salta questa versione</string>
-    <string name="processes_empty_title">Nessun processo in esecuzione</string>
-    <string name="processes_empty_desc">I processi in background per questa sessione appariranno qui.</string>
-    <string name="processes_no_session_title">Nessuna sessione di chat attiva</string>
-    <string name="processes_no_session_desc">Apri prima una sessione di chat: l\'elenco dei processi è limitato a una sessione.</string>
-    <string name="processes_running_hint">In esecuzione</string>
     <string name="processes_kill_title">Terminare il processo?</string>
     <string name="processes_kill_desc">Arrestare \u201c%1$s\u201d? L\'azione non può essere annullata.</string>
     <string name="analytics_empty_title">Nessuna analisi disponibile</string>

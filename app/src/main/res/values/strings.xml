@@ -142,7 +142,6 @@
     <string name="screen_kanban">Kanban</string>
     <string name="screen_achievements">Achievements</string>
     <string name="screen_history">History</string>
-    <string name="screen_processes">Processes</string>
     <string name="screen_providers">Providers</string>
     <string name="screen_analytics">Analytics</string>
     <string name="screen_billing">Billing</string>
@@ -1430,11 +1429,6 @@
     <string name="update_dialog_action_skip">Skip this version</string>
 
     <!-- Processes Screen (issue #532) -->
-    <string name="processes_empty_title">No running processes</string>
-    <string name="processes_empty_desc">Background processes for this session will appear here.</string>
-    <string name="processes_no_session_title">No active chat session</string>
-    <string name="processes_no_session_desc">Open a chat session first — the process list is scoped to a session.</string>
-    <string name="processes_running_hint">Running</string>
     <string name="processes_kill_title">Kill process?</string>
     <string name="processes_kill_desc">Stop \u201c%1$s\u201d? This cannot be undone.</string>
 
@@ -1590,6 +1584,7 @@
     <string name="subagent_status_failed">Failed</string>
     <string name="subagent_duration">%1$.1fs</string>
     <string name="subagent_subagents_header">Subagents</string>
+    <string name="subagent_processes_header">Background processes</string>
     <string name="subagent_inspect_transcript">Inspect Transcript</string>
     <string name="subagent_hide_transcript">Hide Transcript</string>
     <string name="subagent_transcript_loading">Loading live transcript…</string>
@@ -1620,6 +1615,10 @@
     <plurals name="task_progress_agent_running">
         <item quantity="one">%1$d agent running</item>
         <item quantity="other">%1$d agents running</item>
+    </plurals>
+    <plurals name="task_progress_processes">
+        <item quantity="one">%1$d process</item>
+        <item quantity="other">%1$d processes</item>
     </plurals>
     <string name="task_progress_open_details">Open task details</string>
     <string name="tool_duration">Duration: %1$s</string>
@@ -1850,4 +1849,12 @@
         <item quantity="one">Saved Configuration (%1$d)</item>
         <item quantity="other">Saved Configurations (%1$d)</item>
     </plurals>
+    <string name="mtls_prompt_title">Server requires an mTLS client certificate for authentication</string>
+    <string name="mtls_prompt_help">Connection to server (%1$s) failed. This server requires an mTLS client certificate for authentication. Please select the correct certificate.</string>
+    <string name="mtls_prompt_verifying">Verifying…</string>
+    <string name="mtls_prompt_saved">An mTLS client certificate has been saved for %1$s. To change it, go to Connections. Tap the button below to continue connecting.</string>
+    <string name="mtls_prompt_connection_error">Connection failed: the server requires an mTLS client certificate for authentication.</string>
+    <string name="mtls_prompt_verification_failed">Verification failed. The certificate has not been saved.</string>
+    <string name="mtls_prompt_error_details">Error details</string>
+    <string name="mtls_prompt_verification_details">Check the selected certificate and server connection, then try again. If the problem persists, review this server’s certificate configuration in Connections.</string>
 </resources>

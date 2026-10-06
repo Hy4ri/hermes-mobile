@@ -120,7 +120,6 @@
     <string name="screen_kanban">看板</string>
     <string name="screen_achievements">成就</string>
     <string name="screen_history">历史</string>
-    <string name="screen_processes">进程</string>
     <string name="screen_providers">提供商</string>
     <string name="screen_analytics">分析</string>
     <string name="screen_billing">计费</string>
@@ -1180,11 +1179,6 @@
     <string name="action_close">关闭</string>
     <string name="update_notice_banner_text">Hermes Mobile %1$s 已可用</string>
     <string name="update_notice_banner_action">更新</string>
-    <string name="processes_empty_title">没有运行中的进程</string>
-    <string name="processes_empty_desc">此会话的后台进程将显示在这里。</string>
-    <string name="processes_no_session_title">没有活动的对话会话</string>
-    <string name="processes_no_session_desc">请先打开一个对话会话——进程列表按会话隔离。</string>
-    <string name="processes_running_hint">运行中</string>
     <string name="processes_kill_title">结束进程？</string>
     <string name="processes_kill_desc">停止\"%1$s\"？此操作无法撤销。</string>
     <string name="analytics_empty_title">暂无分析数据</string>
@@ -1714,4 +1708,12 @@
     <string name="mcp_servers_catalog_empty_title">暂无目录条目</string>
     <string name="mcp_servers_catalog_installed">已安装</string>
     <string name="settings_desc_theme_preset_dynamic">用于状态颜色，应用颜色由 Material You 提供。</string>
+    <string name="mtls_prompt_title">服务器要求mTLS客户端证书进行身份认证</string>
+    <string name="mtls_prompt_help">连接至服务器（%1$s）失败。此服务器要求使用mTLS客户端证书进行身份认证，请选择正确的证书。</string>
+    <string name="mtls_prompt_verifying">正在验证…</string>
+    <string name="mtls_prompt_saved">已为%1$s保存mTLS客户端证书，如需更改请前往“连接”页面。请点击下方按钮继续连接。</string>
+    <string name="mtls_prompt_connection_error">连接失败：服务器要求mTLS客户端证书进行身份认证。</string>
+    <string name="mtls_prompt_verification_failed">验证失败，证书尚未保存。</string>
+    <string name="mtls_prompt_error_details">错误详情</string>
+    <string name="mtls_prompt_verification_details">请检查所选证书和服务器连接，然后重试。如果问题仍然存在，请前往“连接”页面检查此服务器的证书配置。</string>
 </resources>

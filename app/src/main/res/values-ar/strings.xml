@@ -120,7 +120,6 @@
 <string name="screen_kanban">كانبان</string>
 <string name="screen_achievements">الإنجازات</string>
 <string name="screen_history">السجل</string>
-<string name="screen_processes">العمليات</string>
 <string name="screen_providers">المزوّدون</string>
 <string name="screen_analytics">التحليلات</string>
 <string name="screen_billing">الفواتير والاشتراكات</string>
@@ -1218,11 +1217,6 @@
 <string name="update_dialog_action_install">تنزيل وتثبيت</string>
 <string name="update_dialog_action_later">تذكيري لاحقًا</string>
 <string name="update_dialog_action_skip">تخطي هذا الإصدار</string>
-<string name="processes_empty_title">لا توجد عمليات قيد التشغيل</string>
-<string name="processes_empty_desc">ستظهر هنا العمليات التي تعمل في الخلفية لهذه الجلسة.</string>
-<string name="processes_no_session_title">لا توجد جلسة محادثة نشطة</string>
-<string name="processes_no_session_desc">افتح جلسة محادثة أولاً — قائمة العمليات مرتبطة بالجلسة.</string>
-<string name="processes_running_hint">قيد التشغيل</string>
 <string name="processes_kill_title">إنهاء العملية؟</string>
 <string name="processes_kill_desc">هل تريد إيقاف \u201c%1$s\u201d؟ لا يمكن التراجع عن هذا الإجراء.</string>
 <string name="analytics_empty_title">لا توجد تحليلات بعد</string>

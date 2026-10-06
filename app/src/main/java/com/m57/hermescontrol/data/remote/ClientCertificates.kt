@@ -9,6 +9,9 @@ import android.os.Handler
 import android.os.Looper
 import android.security.KeyChain
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 import com.m57.hermescontrol.ExternalActivityLifecycleGuard
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.notification.NotificationHelper
@@ -121,6 +124,23 @@ object ClientCertificates {
         registry.save(previous, url, alias, expected)
     }
 
+    /** Verify an explicit draft without publishing it to normal traffic or sharing TLS sessions. */
+    internal suspend fun verifyCandidate(
+        url: HttpUrl,
+        alias: String,
+    ) {
+        if (!available(alias, null, null)) throw IOException("Client certificate is unavailable")
+        verifyClientCertificate(
+            url,
+            trust,
+            ClientCertificateKeyManager(
+                choose = { types, issuers, _ -> alias.takeIf { available(it, types, issuers) } },
+                privateKey = { selected -> if (selected == alias) key(alias) else null },
+                certificateChain = { selected -> if (selected == alias) chain(alias) else null },
+            ),
+        )
+    }
+
     /** Persistent generation isolates late cache responses from a previous TLS identity. */
     fun cacheKey(url: HttpUrl): String = registry.cacheKey(url)
 
@@ -133,10 +153,40 @@ object ClientCertificates {
     ) {
         check(Looper.myLooper() == Looper.getMainLooper())
         val origin = requireNotNull(CertificateOrigin.from(url))
-        if (host.isFinishing || host.isDestroyed || !chooserBusy.compareAndSet(false, true)) {
+        val lifecycle = (host as? LifecycleOwner)?.lifecycle
+        if (host.isFinishing || host.isDestroyed ||
+            lifecycle?.currentState != Lifecycle.State.RESUMED || !chooserBusy.compareAndSet(false, true)
+        ) {
             result(null, false)
             return
         }
+        lateinit var observer: LifecycleEventObserver
+        val session =
+            CertificatePickerSession(
+                schedule = { delay, action ->
+                    val runnable = Runnable(action)
+                    main.postDelayed(runnable, delay)
+                    val cancel: () -> Unit = { main.removeCallbacks(runnable) }
+                    cancel
+                },
+                result = { alias, valid ->
+                    lifecycle.removeObserver(observer)
+                    chooserBusy.set(false)
+                    ExternalActivityLifecycleGuard.externalActivityReturned()
+                    result(alias, valid)
+                },
+            )
+        observer =
+            LifecycleEventObserver { _, event ->
+                when (event) {
+                    Lifecycle.Event.ON_PAUSE -> session.paused()
+                    Lifecycle.Event.ON_RESUME -> session.resumed()
+                    Lifecycle.Event.ON_DESTROY -> session.finish(null, true)
+                    else -> Unit
+                }
+            }
+        lifecycle.addObserver(observer)
+        session.launched()
         try {
             ExternalActivityLifecycleGuard.launchExternalActivity(
                 acquireConnectionLease = HermesWsClient::acquireExternalActivityConnectionLease,
@@ -147,12 +197,12 @@ object ClientCertificates {
                     KeyChain.choosePrivateKeyAlias(
                         host,
                         { alias ->
-                            scope.launch {
-                                val valid = alias == null || available(alias, null, null)
-                                main.post {
-                                    chooserBusy.set(false)
-                                    ExternalActivityLifecycleGuard.externalActivityReturned()
-                                    if (!host.isDestroyed && !host.isFinishing) result(alias, valid)
+                            if (session.callbackReceived()) {
+                                scope.launch {
+                                    val valid = alias == null || available(alias, null, null)
+                                    main.post {
+                                        session.finish(alias, valid)
+                                    }
                                 }
                             }
                         },
@@ -165,8 +215,7 @@ object ClientCertificates {
                 },
             )
         } catch (_: RuntimeException) {
-            chooserBusy.set(false)
-            result(null, false)
+            session.finish(null, false)
         }
     }
 

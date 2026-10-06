@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.chat
 
+import com.m57.hermescontrol.data.model.ProcessInfo
 import com.m57.hermescontrol.ui.chat.components.buildTodoTree
 import com.m57.hermescontrol.ui.chat.components.computeChipDisplay
 import com.m57.hermescontrol.ui.chat.components.flattenTodoTree
@@ -212,5 +213,19 @@ class TaskProgressChipTest {
         assertTrue(collapsedRows[0].hasChildren)
         assertFalse(collapsedRows[0].isExpanded)
         assertEquals("2", collapsedRows[1].todo.id)
+    }
+
+    @Test
+    fun `running background process alone shows the chip and is counted`() {
+        val running = listOf(ProcessInfo(sessionId = "p1", status = "running"))
+        assertTrue(shouldShowProgressChip(emptyList(), emptyList(), running))
+        assertEquals(1, computeChipDisplay(emptyList(), emptyList(), running).runningProcesses)
+    }
+
+    @Test
+    fun `exited background process does not show the chip`() {
+        val exited = listOf(ProcessInfo(sessionId = "p1", status = "exited", exitCode = 0))
+        assertFalse(shouldShowProgressChip(emptyList(), emptyList(), exited))
+        assertEquals(0, computeChipDisplay(emptyList(), emptyList(), exited).runningProcesses)
     }
 }

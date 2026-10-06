@@ -1,4 +1,7 @@
 name: Android CI/CD
+# Stable PR identity for recovery when GitHub omits fork run.pull_requests (#1506).
+run-name: >-
+  ${{ github.event_name == 'pull_request' && format('Android CI PR #{0}', github.event.pull_request.number) || format('Android CI {0}', github.ref_name) }}
 
 env:
   GRADLE_CACHE_ENCRYPTED_KEY: ${{ secrets.GRADLE_ENCRYPTED_KEY }}
@@ -26,6 +29,7 @@ jobs:
   # every expensive job (lint/tests/build) but not the cheap ones.
   # Uses the base branch's copy of the script so a PR cannot weaken its own check.
   # The explanatory bot comment is posted by pr-template.yml.
+  # Re-running this job re-reads the current PR body (see the step below).
   # ─────────────────────────────────────────────────────────────────────
   pr-template:
     name: PR Template
@@ -42,10 +46,17 @@ jobs:
           ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
           sparse-checkout: .github/scripts
+      # Validate the LIVE description, not $GITHUB_EVENT_PATH: a re-run replays the
+      # original event payload, so a fixed description could never turn this green.
       - name: Validate PR description
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: python3 .github/scripts/check_pr_template.py "$GITHUB_EVENT_PATH"
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          gh api "repos/$GH_REPO/pulls/$PR_NUMBER" \
+            | jq --arg repo "$GH_REPO" '{pull_request: ., repository: {full_name: $repo}}' > "$RUNNER_TEMP/event.json"
+          python3 .github/scripts/check_pr_template.py "$RUNNER_TEMP/event.json"
 
   # ─────────────────────────────────────────────────────────────────────
   # Job 0: Detect changes — skips heavy Android build/tests for doc-only PRs

@@ -10,6 +10,7 @@ import com.m57.hermescontrol.data.config.ServerStore
 import com.m57.hermescontrol.data.config.ServerStoreMigration
 import com.m57.hermescontrol.data.config.ServerStoreSerializer
 import com.m57.hermescontrol.data.config.ServerUrlMigration
+import com.m57.hermescontrol.data.config.migrateConnectionAuthParam
 import com.m57.hermescontrol.data.config.resolvedBaseUrl
 import com.m57.hermescontrol.data.config.resolvedHost
 import com.m57.hermescontrol.data.config.resolvedPort
@@ -206,6 +207,7 @@ object AuthManager {
                         val store = ServerStore.create(dataStore, scope)
                         _serverStore = store
                         ensureDefaultProfile()
+                        store.update { it.migrateConnectionAuthParam() }
                         val masterKey = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
                         val p =
                             EncryptedSharedPreferences.create(
@@ -227,6 +229,10 @@ object AuthManager {
                         }
                         prefs.complete(p)
                         val state = store.getLatestState()
+                        store.update { current ->
+                            val selected = current.connectionProfiles.firstOrNull { it.id == current.selectedProfileId }
+                            current.copy(wsAuthParam = selected?.wsAuthParam ?: current.wsAuthParam)
+                        }
                         _selectedProfileFlow.value = state.selectedProfileId
                         _baseUrlFlow.value = state.resolvedBaseUrl
                         val profileId = normalizedProfileId(state.selectedProfileId)
@@ -273,7 +279,15 @@ object AuthManager {
         checkNotNull(readyPrefs) { "AuthManager is not ready. Await initialization before accessing credentials." }
 
     fun setWsAuthParam(param: String) {
-        serverStore.update { it.copy(wsAuthParam = param) }
+        serverStore.update { state ->
+            state.copy(
+                wsAuthParam = param,
+                connectionProfiles =
+                    state.connectionProfiles.map { profile ->
+                        if (profile.id == state.selectedProfileId) profile.copy(wsAuthParam = param) else profile
+                    },
+            )
+        }
     }
 
     /**
@@ -481,22 +495,31 @@ object AuthManager {
     }
 
     fun setSelectedProfileId(id: String?) {
-        if (getSelectedProfileId() != id?.takeIf { it.isNotBlank() }) {
+        val normalizedId = id?.takeIf { it.isNotBlank() }
+        val changed = getSelectedProfileId() != normalizedId
+        if (changed) {
             ActiveSessionHolder.clear()
+            setActiveProfileId(null)
         }
-        serverStore.update { it.copy(selectedProfileId = id) }
+        serverStore.update { state ->
+            val selected = state.connectionProfiles.firstOrNull { it.id == normalizedId }
+            state.copy(
+                selectedProfileId = normalizedId,
+                wsAuthParam = selected?.wsAuthParam ?: state.wsAuthParam,
+            )
+        }
         // Keep contextFlow truthful: the base URL resolves per selected
         // profile, so a connection-profile switch must re-emit the NEW
         // server's URL (previously stale — reactive consumers saw the old
         // server's URL after a switch).
         _baseUrlFlow.value = serverStore.getLatestState().resolvedBaseUrl
-        _selectedProfileFlow.value = id
+        _selectedProfileFlow.value = normalizedId
         synchronized(this) {
             tokenInitialized = false
         }
         _tokenFlow.value = getToken()
         // B7 (Jul 08 2026, kanban t_470): keep cookie scope aligned with active profile.
-        appScope?.launch { syncCookieStoreForProfile(id) }
+        appScope?.launch { syncCookieStoreForProfile(normalizedId) }
     }
 
     /**
@@ -617,19 +640,16 @@ object AuthManager {
     }
 
     /**
-     * Per-server token semantics: a profile that has no token of its own
-     * inherits the connection (default) token — same dashboard = same auth.
-     * This is what makes profile switching never require a re-login, and it
-     * is restart-safe (the fallback applies on every resolution, not just
-     * at switch time). Profiles with their own token (a different server
-     * connection) keep it untouched.
+     * Connection credentials never cross server boundaries (#1512). Only an
+     * absent selection resolves to the default connection; a selected server
+     * without credentials must authenticate independently.
      */
     internal fun resolveConnectionToken(
         selectedId: String?,
         tokenFor: (String) -> String?,
     ): String? {
         val id = selectedId?.takeIf { it.isNotBlank() } ?: DEFAULT_PROFILE_ID
-        return tokenFor(id) ?: tokenFor(DEFAULT_PROFILE_ID)
+        return if (selectedId.isNullOrBlank()) tokenFor(DEFAULT_PROFILE_ID) else tokenFor(id)
     }
 
     fun setToken(token: String?) {

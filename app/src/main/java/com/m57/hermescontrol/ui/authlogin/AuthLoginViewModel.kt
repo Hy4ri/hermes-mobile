@@ -18,7 +18,7 @@ import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.await
 import com.m57.hermescontrol.data.remote.isClientCertificateAuthenticationFailure
 import com.m57.hermescontrol.data.remote.safeApiCall
-import com.m57.hermescontrol.data.ws.HermesWsClient
+import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -82,7 +82,26 @@ class AuthLoginViewModel(
         )
     val uiState: StateFlow<AuthLoginUiState> = _uiState.asStateFlow()
 
+    private var refreshedConnectionId: String? = null
+    private var refreshedBaseUrl: String? = null
+
     init {
+        loadLoggedInProfiles()
+    }
+
+    /** Refresh cached login state when the selected local connection changes. */
+    fun refreshForSelectedConnection() {
+        val selectedConnectionId = AuthManager.getSelectedProfileId()
+        val currentBaseUrl = AuthManager.getBaseUrl()
+        if (selectedConnectionId == refreshedConnectionId && currentBaseUrl == refreshedBaseUrl) {
+            loadLoggedInProfiles()
+            return
+        }
+
+        refreshedConnectionId = selectedConnectionId
+        refreshedBaseUrl = currentBaseUrl
+        certificatePrompt.reset()
+        _uiState.value = AuthLoginUiState(baseUrl = currentBaseUrl)
         loadLoggedInProfiles()
     }
 
@@ -97,10 +116,10 @@ class AuthLoginViewModel(
     }
 
     fun useExistingProfile(profileId: String) {
-        AuthManager.setSelectedProfileId(profileId)
-        ApiClient.rebuild()
-        HermesWsClient.connect()
-        _uiState.update { it.copy(connectionSuccess = true) }
+        viewModelScope.launch {
+            ProfileSwitchCoordinator.switchConnectionProfile(profileId)
+            _uiState.update { it.copy(connectionSuccess = true) }
+        }
     }
 
     companion object {
@@ -377,8 +396,7 @@ class AuthLoginViewModel(
                     // param to the ticket minted above.
                     AuthManager.setWsAuthParam("ticket")
                 }
-                ApiClient.rebuild()
-                HermesWsClient.connect()
+                ProfileSwitchCoordinator.switchConnectionProfile(AuthManager.getSelectedProfileId())
                 _uiState.update { it.copy(isLoading = false, connectionSuccess = true) }
             }
         }

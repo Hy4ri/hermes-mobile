@@ -15,7 +15,9 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 
 class TestContext(
     private val tempDir: java.io.File,
@@ -27,6 +29,9 @@ class TestContext(
 }
 
 class AuthManagerTest {
+    @get:Rule
+    val tempFolder = TemporaryFolder()
+
     private lateinit var mockPrefs: SharedPreferences
     private lateinit var mockEditor: SharedPreferences.Editor
     private lateinit var mockContext: Context
@@ -54,13 +59,7 @@ class AuthManagerTest {
         every { android.util.Log.i(any(), any()) } returns 0
 
         // Mock filesDir to point to temporary directory for DataStore
-        val tempDir = java.io.File(System.getProperty("java.io.tmpdir") ?: "/tmp")
-        testContext = TestContext(tempDir, mockContext)
-
-        val tempFile = java.io.File(tempDir, "server_store.json")
-        if (tempFile.exists()) {
-            tempFile.delete()
-        }
+        testContext = TestContext(tempFolder.root, mockContext)
 
         // Mock EncryptedSharedPreferences static methods
         mockkStatic(EncryptedSharedPreferences::class)
@@ -105,11 +104,6 @@ class AuthManagerTest {
         // server_store.json and surface as UncaughtExceptionsBeforeTest
         // phantoms in whichever test class runs next.
         kotlinx.coroutines.runBlocking { AuthManager.resetAndAwaitForTest() }
-        val tempDir = java.io.File(System.getProperty("java.io.tmpdir") ?: "/tmp")
-        val tempFile = java.io.File(tempDir, "server_store.json")
-        if (tempFile.exists()) {
-            tempFile.delete()
-        }
         unmockkAll()
     }
 
@@ -194,16 +188,16 @@ class AuthManagerTest {
         }
 
     @Test
-    fun defaultTokenUpdateRefreshesInheritedTokenCache() {
+    fun defaultTokenUpdateDoesNotPopulateAnotherConnectionCache() {
         AuthManager.saveConnectionProfiles(listOf(ConnectionProfile(id = "other", name = "Other")))
         every { mockPrefs.getString("token_other", null) } returns null
         every { mockPrefs.getString("token_default", null) } returns "old"
         AuthManager.setSelectedProfileId("other")
-        assertEquals("old", AuthManager.getToken())
+        assertNull(AuthManager.getToken())
         every { mockPrefs.getString("token_default", null) } returns "new"
         AuthManager.setProfileToken("default", "new")
-        assertEquals("new", AuthManager.getToken())
-        assertEquals("new", AuthManager.tokenFlow.value)
+        assertNull(AuthManager.getToken())
+        assertNull(AuthManager.tokenFlow.value)
     }
 
     @Test
@@ -330,13 +324,13 @@ class AuthManagerTest {
     }
 
     @Test
-    fun testGetToken_profileWithoutToken_fallsBackToDefault() {
+    fun testGetToken_profileWithoutToken_doesNotFallBackToDefault() {
         val profile1 = ConnectionProfile(id = "prof-1", name = "Profile 1", baseUrl = "http://127.0.0.1:9119/")
         AuthManager.saveConnectionProfiles(listOf(profile1))
         every { mockPrefs.getString("token_prof-1", null) } returns null
         every { mockPrefs.getString("token_${AuthManager.DEFAULT_PROFILE_ID}", null) } returns "connection-token"
         AuthManager.setSelectedProfileId("prof-1")
-        assertEquals("connection-token", AuthManager.getToken())
+        assertNull(AuthManager.getToken())
     }
 
     @Test
@@ -457,7 +451,7 @@ class AuthManagerTest {
     }
 
     @Test
-    fun testGetToken_profileWithoutToken_fallsBackToDefaultToken() {
+    fun testGetToken_profileWithoutToken_doesNotFallBackToDefaultToken() {
         val profileA = ConnectionProfile(id = "prof-a", name = "Profile A", baseUrl = "http://127.0.0.1:9119/")
         val profileB = ConnectionProfile(id = "prof-b", name = "Profile B", baseUrl = "http://127.0.0.1:9119/")
         AuthManager.saveConnectionProfiles(listOf(profileA, profileB))
@@ -465,15 +459,15 @@ class AuthManagerTest {
         // The default profile carries the connection token.
         every { mockPrefs.getString("token_${AuthManager.DEFAULT_PROFILE_ID}", null) } returns "conn-token"
 
-        // Profile A is selected but has no token → inherits the connection token
+        // Profile A is selected but has no token → remains isolated from the default token
         every { mockPrefs.getString("token_prof-a", null) } returns null
         AuthManager.setSelectedProfileId("prof-a")
-        assertEquals("conn-token", AuthManager.getToken())
+        assertNull(AuthManager.getToken())
 
-        // Profile B also has no token → same fallback
+        // Profile B also has no token → remains isolated
         every { mockPrefs.getString("token_prof-b", null) } returns null
         AuthManager.setSelectedProfileId("prof-b")
-        assertEquals("conn-token", AuthManager.getToken())
+        assertNull(AuthManager.getToken())
 
         // When even the default has no token → null
         every { mockPrefs.getString("token_${AuthManager.DEFAULT_PROFILE_ID}", null) } returns null
@@ -482,7 +476,7 @@ class AuthManagerTest {
     }
 
     @Test
-    fun testGetToken_selectiveProfileTokens_fallsBackWhenMissing() {
+    fun testGetToken_selectiveProfileTokens_areIsolatedWhenMissing() {
         val profileA = ConnectionProfile(id = "prof-a", name = "Profile A", baseUrl = "http://127.0.0.1:9119/")
         val profileB = ConnectionProfile(id = "prof-b", name = "Profile B", baseUrl = "http://127.0.0.1:9119/")
         val profileC = ConnectionProfile(id = "prof-c", name = "Profile C", baseUrl = "http://127.0.0.1:9119/")
@@ -495,10 +489,10 @@ class AuthManagerTest {
         AuthManager.setSelectedProfileId("prof-a")
         assertEquals("token-a", AuthManager.getToken())
 
-        // Profile B has no token → inherits the connection (default) token
+        // Profile B has no token → remains isolated from the default token
         every { mockPrefs.getString("token_prof-b", null) } returns null
         AuthManager.setSelectedProfileId("prof-b")
-        assertEquals("conn-token", AuthManager.getToken())
+        assertNull(AuthManager.getToken())
 
         // Profile C has its own token too → its own wins
         every { mockPrefs.getString("token_prof-c", null) } returns "token-c"

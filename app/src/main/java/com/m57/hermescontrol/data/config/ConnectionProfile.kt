@@ -13,6 +13,8 @@ data class ConnectionProfile(
     val host: String = "127.0.0.1",
     val port: Int = 9119,
     val baseUrl: String? = null,
+    /** Null is reserved for legacy profiles before auth-mode migration. */
+    val wsAuthParam: String? = null,
 ) {
     /**
      * Resolves this profile's own base URL, falling back to the legacy loopback

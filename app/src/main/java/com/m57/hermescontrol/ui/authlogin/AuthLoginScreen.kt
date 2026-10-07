@@ -91,6 +91,10 @@ fun AuthLoginScreen(
         )
     }
 
+    LaunchedEffect(Unit) {
+        viewModel.refreshForSelectedConnection()
+    }
+
     LaunchedEffect(state.connectionSuccess) {
         if (state.connectionSuccess) {
             onConnected()

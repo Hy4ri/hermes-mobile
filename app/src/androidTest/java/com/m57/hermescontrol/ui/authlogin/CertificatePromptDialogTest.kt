@@ -66,7 +66,7 @@ class CertificatePromptDialogTest {
     fun verificationFailure_ChineseAtLargerFontRemainsReadable() {
         val resources = show(failedState(), Locale.SIMPLIFIED_CHINESE, fontScale = 1.3f)
         composeTestRule
-            .onNodeWithText(resources.getString(R.string.mtls_prompt_verification_details))
+            .onNodeWithText(resources.getString(R.string.mtls_prompt_verification_failed))
             .performScrollTo()
             .assertIsDisplayed()
         composeTestRule.onNodeWithText(resources.getString(R.string.mtls_select)).assertIsEnabled()

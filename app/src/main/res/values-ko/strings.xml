@@ -1570,8 +1570,6 @@
     <string name="files_dialog_delete_title">삭제하시겠습니까?</string>
     <string name="files_dialog_delete_message">\"%1$s\"을(를) 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.</string>
     <string name="auth_login_base_url_label">서버 URL</string>
-    <string name="auth_login_error_oauth_unsupported">이 앱 버전에서는 아직 OAuth 로그인 (Nous Portal)을 지원하지 않습니다. 대시보드를 기본 인증 또는 토큰 모드로 전환하세요. (이슈 #639)</string>
-    <string name="auth_login_oauth_coming_soon">이 대시보드는 OAuth (Nous Portal) 로그인을 사용하며, 헤르메스 모바일에서 곧 지원될 예정입니다.</string>
     <string name="update_notice_banner_text">헤르메스 모바일 %1$s 버전을 사용할 수 있습니다</string>
     <string name="update_notice_banner_action">업데이트</string>
     <string name="update_dialog_title">%1$s(으)로 업데이트</string>

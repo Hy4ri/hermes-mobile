@@ -316,35 +316,39 @@ class AuthLoginViewModelTest {
         )
     }
 
-    @Test
-    fun `deriveAuthMode oauth provider returns OAUTH`() {
-        assertEquals(
-            DashboardAuthMode.OAUTH,
-            viewModel.deriveAuthMode(authRequired = true, providers = listOf("oauth")),
-        )
-    }
+    private val basic = AuthProviderOption("basic", "Username & Password", supportsPassword = true)
+    private val oidc = AuthProviderOption("self-hosted", "Self-Hosted OIDC", supportsPassword = false)
+    private val nous = AuthProviderOption("nous", "Nous Research", supportsPassword = false)
 
     @Test
-    fun `deriveAuthMode basic provider returns BASIC_AUTH`() {
+    fun `deriveAuthMode password provider returns BASIC_AUTH`() {
         assertEquals(
             DashboardAuthMode.BASIC_AUTH,
-            viewModel.deriveAuthMode(authRequired = true, providers = listOf("basic")),
+            viewModel.deriveAuthMode(authRequired = true, providers = listOf(basic)),
         )
     }
 
     @Test
-    fun `deriveAuthMode oauth takes precedence over basic`() {
-        assertEquals(
-            DashboardAuthMode.OAUTH,
-            viewModel.deriveAuthMode(authRequired = true, providers = listOf("basic", "oauth")),
-        )
+    fun `deriveAuthMode OIDC-only dashboard never shows the password form`() {
+        assertEquals(DashboardAuthMode.BROWSER, viewModel.deriveAuthMode(authRequired = true, providers = listOf(oidc)))
     }
 
     @Test
-    fun `deriveAuthMode gate up with unknown provider falls back to BASIC_AUTH`() {
+    fun `deriveAuthMode nous provider uses the browser`() {
+        assertEquals(DashboardAuthMode.BROWSER, viewModel.deriveAuthMode(authRequired = true, providers = listOf(nous)))
+    }
+
+    @Test
+    fun `deriveAuthMode gate up with no advertised provider keeps the legacy password form`() {
         assertEquals(
             DashboardAuthMode.BASIC_AUTH,
-            viewModel.deriveAuthMode(authRequired = true, providers = listOf("weird")),
+            viewModel.deriveAuthMode(authRequired = true, providers = emptyList()),
         )
+    }
+
+    @Test
+    fun `modeForProvider follows supports_password`() {
+        assertEquals(DashboardAuthMode.BASIC_AUTH, viewModel.modeForProvider(basic))
+        assertEquals(DashboardAuthMode.BROWSER, viewModel.modeForProvider(oidc))
     }
 }

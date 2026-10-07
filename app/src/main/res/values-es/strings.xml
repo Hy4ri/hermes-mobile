@@ -1380,8 +1380,6 @@
     <string name="auth_login_error_username_required">Se requiere nombre de usuario</string>
     <string name="auth_login_error_password_required">Se requiere contraseña</string>
     <string name="auth_login_error_unreachable">Panel de control inalcanzable: verifique IP y puerto</string>
-    <string name="auth_login_error_oauth_unsupported">El inicio de sesión de OAuth (Nous Portal) aún no es compatible con esta versión de la aplicación. Cambie el panel al modo de autenticación básica o token. (problema #639)</string>
-    <string name="auth_login_oauth_coming_soon">Este panel utiliza el inicio de sesión OAuth (Nous Portal), que pronto estará disponible en Hermes Mobile.</string>
     <string name="auth_login_existing_profiles_title">Utilice el perfil de inicio de sesión existente:</string>
     <string name="auth_login_use_profile">Ingresar como %1$s</string>
 

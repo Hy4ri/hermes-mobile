@@ -1151,8 +1151,6 @@
     <string name="auth_login_error_username_required">需要填写用户名</string>
     <string name="auth_login_error_password_required">需要填写密码</string>
     <string name="auth_login_error_unreachable">无法访问 dashboard——检查 IP 和端口</string>
-    <string name="auth_login_error_oauth_unsupported">此版本暂不支持 OAuth 登录（Nous Portal）。请将 dashboard 切换到 basic auth 或令牌模式。（issue #639）</string>
-    <string name="auth_login_oauth_coming_soon">此 dashboard 使用 OAuth（Nous Portal）登录，该功能即将在 Hermes Mobile 中支持。</string>
     <string name="auth_login_existing_profiles_title">使用已登录的配置：</string>
     <string name="auth_login_use_profile">以 %1$s 身份进入</string>
     <string name="landing_title">Hermes Mobile</string>

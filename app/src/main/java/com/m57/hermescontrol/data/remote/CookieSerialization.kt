@@ -93,6 +93,15 @@ val SESSION_COOKIE_NAMES: List<String> =
         SESSION_COOKIE_NAME,
     )
 
+const val SESSION_RT_COOKIE_NAME = "hermes_session_rt"
+const val SESSION_PROVIDER_COOKIE_NAME = "hermes_session_provider"
+
+/** Every name variant of the access, refresh and provider cookies the dashboard may have set. */
+val SESSION_FAMILY_COOKIE_NAMES: Set<String> =
+    listOf(SESSION_COOKIE_NAME, SESSION_RT_COOKIE_NAME, SESSION_PROVIDER_COOKIE_NAME)
+        .flatMap { listOf("__Host-$it", "__Secure-$it", it) }
+        .toSet()
+
 /** True when [name] is any recognized dashboard session-cookie name. */
 fun isSessionCookieName(name: String): Boolean = name in SESSION_COOKIE_NAMES
 

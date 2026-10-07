@@ -1386,8 +1386,14 @@
     <string name="auth_login_error_username_required">Username is required</string>
     <string name="auth_login_error_password_required">Password is required</string>
     <string name="auth_login_error_unreachable">Dashboard unreachable — check IP and port</string>
-    <string name="auth_login_error_oauth_unsupported">OAuth login (Nous Portal) is not supported in this app version yet. Switch the dashboard to basic auth or token mode. (issue #639)</string>
-    <string name="auth_login_oauth_coming_soon">This dashboard uses OAuth (Nous Portal) login, which is coming soon to Hermes Mobile.</string>
+    <string name="auth_login_action_browser">Sign in with %1$s</string>
+    <string name="auth_login_browser_desc">This dashboard signs in with %1$s. A browser tab opens for the sign-in, then returns here.</string>
+    <string name="auth_login_browser_waiting">Finish signing in in the browser, then return to Hermes Mobile…</string>
+    <string name="auth_login_error_browser_unsupported">This dashboard is too old for browser sign-in. Update Hermes Agent on the server.</string>
+    <string name="auth_login_error_browser_no_browser">No browser available to open the sign-in page.</string>
+    <string name="auth_login_error_browser_denied">Sign-in was not completed (%1$s).</string>
+    <string name="auth_login_error_browser_timeout">Sign-in timed out. Try again.</string>
+    <string name="auth_login_error_browser_bad_response">The dashboard returned an unexpected sign-in response.</string>
     <string name="auth_login_existing_profiles_title">Use existing logged-in profile:</string>
     <string name="auth_login_use_profile">Enter as %1$s</string>
 

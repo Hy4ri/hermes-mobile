@@ -40,6 +40,7 @@ import com.m57.hermescontrol.ui.settings.components.BehaviorSection
 import com.m57.hermescontrol.ui.settings.components.ChatSection
 import com.m57.hermescontrol.ui.settings.components.ConnectionSection
 import com.m57.hermescontrol.ui.settings.components.LanguageSection
+import com.m57.hermescontrol.ui.settings.components.ServerTrustSection
 import com.m57.hermescontrol.ui.settings.components.TestConnectionButton
 import com.m57.hermescontrol.ui.settings.components.TestResultCard
 import com.m57.hermescontrol.ui.settings.components.VaultItemsSection
@@ -102,6 +103,8 @@ internal fun SettingsConnectionPage(
                 },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(stringResource(R.string.mtls_title)) }
+
+            ServerTrustSection()
 
             Spacer(modifier = Modifier.height(2.dp))
 

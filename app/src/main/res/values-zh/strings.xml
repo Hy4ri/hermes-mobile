@@ -1714,4 +1714,7 @@
     <string name="mtls_prompt_verification_failed">验证失败，证书尚未保存。</string>
     <string name="mtls_prompt_error_details">错误详情</string>
     <string name="mtls_prompt_verification_details">请检查所选证书和服务器连接，然后重试。如果问题仍然存在，请前往“连接”页面检查此服务器的证书配置。</string>
+    <string name="trust_user_cas_title">信任用户安装的 CA</string>
+    <string name="trust_user_cas_description">为所有连接信任系统 CA 和 Android 用户证书库中的所有 CA。任何用户安装的 CA 都可用于验证本应用连接的服务器。证书和主机名校验保持开启。默认关闭。</string>
+    <string name="trust_user_cas_save_failed">无法保存信任设置，请重试。</string>
 </resources>

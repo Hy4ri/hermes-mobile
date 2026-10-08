@@ -2,7 +2,10 @@ package com.m57.hermescontrol.ui.authlogin
 
 import com.m57.hermescontrol.data.remote.CookieManager
 import com.m57.hermescontrol.data.remote.OkHttpProvider
+import com.m57.hermescontrol.data.remote.ServerTrust
 import com.m57.hermescontrol.data.remote.buildFakePersistentCookieJar
+import com.m57.hermescontrol.data.remote.mockSystemServerTrust
+import io.mockk.unmockkObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -44,6 +47,7 @@ class AuthLoginBasicAuthFlowTest {
 
     @BeforeEach
     fun setUp() {
+        mockSystemServerTrust()
         Dispatchers.setMain(dispatcher)
         server = MockWebServer()
         server.start()
@@ -54,6 +58,7 @@ class AuthLoginBasicAuthFlowTest {
     fun tearDown() {
         server.shutdown()
         Dispatchers.resetMain()
+        unmockkObject(ServerTrust)
     }
 
     @Test

@@ -23,13 +23,10 @@ import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import java.io.IOException
-import java.security.KeyStore
 import java.security.Principal
 import java.security.PrivateKey
 import java.security.cert.X509Certificate
 import java.util.concurrent.atomic.AtomicBoolean
-import javax.net.ssl.TrustManagerFactory
-import javax.net.ssl.X509TrustManager
 
 /** Manual, origin-scoped aliases only. Key material remains in Android KeyChain. */
 object ClientCertificates {
@@ -39,15 +36,10 @@ object ClientCertificates {
     private val chooserBusy = AtomicBoolean()
     private val main by lazy { Handler(Looper.getMainLooper()) }
     private lateinit var app: Context
-    private val trust: X509TrustManager by lazy {
-        TrustManagerFactory
-            .getInstance(TrustManagerFactory.getDefaultAlgorithm())
-            .apply { init(null as KeyStore?) }
-            .trustManagers
-            .filterIsInstance<X509TrustManager>()
-            .single()
+    private val trust get() = ServerTrust.manager
+    private val sockets by lazy {
+        CertificateSocketFactory(trust, ::keyManager).also(ServerTrust::track)
     }
-    private val sockets by lazy { CertificateSocketFactory(trust, ::keyManager) }
 
     fun initialize(context: Context) {
         app = context.applicationContext
@@ -130,6 +122,7 @@ object ClientCertificates {
         alias: String,
     ) {
         if (!available(alias, null, null)) throw IOException("Client certificate is unavailable")
+        ServerTrust.refresh()
         verifyClientCertificate(
             url,
             trust,
@@ -138,11 +131,14 @@ object ClientCertificates {
                 privateKey = { selected -> if (selected == alias) key(alias) else null },
                 certificateChain = { selected -> if (selected == alias) chain(alias) else null },
             ),
+            track = ServerTrust::track,
+            untrack = ServerTrust::untrack,
+            policyInterceptor = ServerTrust.interceptor,
         )
     }
 
     /** Persistent generation isolates late cache responses from a previous TLS identity. */
-    fun cacheKey(url: HttpUrl): String = registry.cacheKey(url)
+    fun cacheKey(url: HttpUrl): String = "${registry.cacheKey(url)}#trust=${ServerTrust.cacheEpoch()}"
 
     /** UI only. The result is a draft; this function never writes bindings. */
     fun select(

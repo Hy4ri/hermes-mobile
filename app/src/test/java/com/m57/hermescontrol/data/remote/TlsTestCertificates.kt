@@ -12,14 +12,16 @@ import javax.net.ssl.X509TrustManager
 /** Test-only self-signed identities, loaded with standard JSSE; no Android storage or network dependency. */
 internal class TlsTestIdentity(
     alias: String,
+    resource: String = "/tls/client-identities.p12",
 ) {
     private val store =
         KeyStore.getInstance("PKCS12").apply {
-            TlsTestIdentity::class.java.getResourceAsStream("/tls/client-identities.p12").use {
+            TlsTestIdentity::class.java.getResourceAsStream(resource).use {
                 load(requireNotNull(it), PASSWORD)
             }
         }
     val certificate = store.getCertificate(alias) as X509Certificate
+    val chain = store.getCertificateChain(alias).filterIsInstance<X509Certificate>().toTypedArray()
     val keyPair = KeyPair(certificate.publicKey, store.getKey(alias, PASSWORD) as PrivateKey)
 
     companion object {
@@ -55,7 +57,7 @@ internal class TlsTestContext(
                                 "identity",
                                 it.keyPair.private,
                                 TlsTestIdentity.PASSWORD,
-                                arrayOf(it.certificate),
+                                it.chain,
                             )
                         }
                     KeyManagerFactory

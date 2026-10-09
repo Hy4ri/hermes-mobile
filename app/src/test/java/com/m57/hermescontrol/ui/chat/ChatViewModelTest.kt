@@ -1862,6 +1862,23 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun testGatewayReady_doesNotAddConnectionStatusRowsToTranscript() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+
+            // A reconnect re-fires gateway.ready; connection state belongs to the banner, not the transcript.
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            val systemContents =
+                viewModel.uiState.value.messages
+                    .filter { it.role == MessageRole.SYSTEM }
+                    .map { it.content }
+            assertFalse(systemContents.toString(), systemContents.any { it == "Connected to Hermes" })
+            assertFalse(systemContents.toString(), systemContents.any { it == "Session resumed" })
+        }
+
+    @Test
     fun testGatewayReady_withInitialSessionId_switchesToIt() =
         runTest {
             val viewModel = createViewModel()
@@ -2664,11 +2681,11 @@ class ChatViewModelTest {
 
             // Dialog dismissed locally
             assertNull(viewModel.uiState.value.clarifyRequest)
-            // Baseline has 1 "Connected" system message; dismiss adds exactly
+            // Baseline has 1 "Session created" marker; dismiss adds exactly
             // ONE system note and must NOT fake a user bubble.
             val messages = viewModel.uiState.value.messages
             assertEquals(2, messages.size)
-            assertEquals(MessageRole.SYSTEM, messages[0].role) // pre-existing "Connected"
+            assertEquals(MessageRole.SYSTEM, messages[0].role) // pre-existing "Session created"
             assertEquals(MessageRole.SYSTEM, messages[1].role) // dismiss trace
             assertTrue(messages[1].content.contains("dismissed", ignoreCase = true))
 
@@ -11915,6 +11932,77 @@ class ChatViewModelTest {
                 vm.transcriptState.value.messages
                     .count { it.content == "probe-first" },
             )
+        }
+
+    @Test
+    fun deliveredSendFoldsIntoCompactionReissuedRowOnSync() =
+        runTest {
+            val store = ChatSendStore()
+            val (vm, _) = createViewModelWithSession(sendStore = store)
+            val session = "session-456"
+
+            fun page(vararg rows: SessionMessage) =
+                Response.success(
+                    SessionMessagesResponse(
+                        rows.toList(),
+                        pagination = PaginationInfo(limit = 150, offset = 0, order = "latest", returned = rows.size),
+                    ),
+                )
+            val ts0 = JsonPrimitive(1_700_000_000.0)
+            val older = SessionMessage(id = 5, role = "user", content = JsonPrimitive("first"), timestamp = ts0)
+            val olderReply = SessionMessage(id = 6, role = "assistant", content = JsonPrimitive("ok"), timestamp = ts0)
+            coEvery { ApiClient.hermesApi.getSessionMessages(session, any(), any(), any(), any()) } returns
+                page(older, olderReply)
+            vm.switchSession(session)
+            advanceUntilIdle()
+            val resumeId = sentRequestMethods.last { it.first == WsMethods.SESSION_RESUME }.second
+            mockEventsFlow.emit(WsEvent.RpcResult(resumeId, mapOf("session_id" to "runtime-456", "resumed" to session)))
+            advanceUntilIdle()
+            every { HermesWsClient.sendMessage(any(), "hello", any(), any()) } answers {
+                arg<((String) -> Unit)?>(2)?.invoke("hello-submit")
+                "hello-submit"
+            }
+            assertTrue(vm.sendMessage("hello"))
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.RpcResult("hello-submit", mapOf("status" to "streaming", "user_row_id" to 10)))
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.MessageStart(session))
+            mockEventsFlow.emit(WsEvent.MessageComplete("reply", session))
+            advanceUntilIdle()
+            val sentAt =
+                vm.uiState.value.messages
+                    .single { it.content == "hello" }
+                    .timestamp
+            val ts = JsonPrimitive(sentAt / 1000.0)
+            coEvery { ApiClient.hermesApi.getSessionMessages(session, any(), any(), any(), any()) } returns
+                page(
+                    older,
+                    olderReply,
+                    SessionMessage(id = 10, role = "user", content = JsonPrimitive("hello"), timestamp = ts),
+                    SessionMessage(id = 11, role = "assistant", content = JsonPrimitive("reply"), timestamp = ts),
+                )
+            vm.syncCurrentSession()
+            advanceUntilIdle()
+            assertEquals(
+                1,
+                vm.uiState.value.messages
+                    .count { it.content == "hello" },
+            )
+            coEvery { ApiClient.hermesApi.getSessionMessages(session, any(), any(), any(), any()) } returns
+                page(
+                    older,
+                    olderReply,
+                    SessionMessage(id = 20, role = "user", content = JsonPrimitive("hello"), timestamp = ts),
+                    SessionMessage(id = 21, role = "assistant", content = JsonPrimitive("reply"), timestamp = ts),
+                )
+            vm.syncCurrentSession()
+            advanceUntilIdle()
+            // #1520: compaction re-issued the delivered send's row id (10 -> 20) without notice.
+            val hello =
+                vm.uiState.value.messages
+                    .filter { it.content == "hello" }
+            assertEquals(1, hello.size)
+            assertEquals(20L, hello.single().serverRowId)
         }
 
     @Test

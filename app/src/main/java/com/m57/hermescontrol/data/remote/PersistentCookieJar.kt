@@ -128,6 +128,22 @@ class PersistentCookieJar(
         persist(serverId)
     }
 
+    /**
+     * Drop every cookie named in [removeNames] from the active scope, then save [cookies]; persisted
+     * once. A stale `__Host-` variant from an earlier login would otherwise shadow the new cookies,
+     * because the dashboard reads the strictest variant first.
+     */
+    fun replaceCookies(
+        url: HttpUrl,
+        cookies: List<Cookie>,
+        removeNames: Set<String>,
+    ) {
+        cache[currentServerId.get()]?.values?.forEach { bucket ->
+            synchronized(bucket) { bucket.removeAll { it.name in removeNames } }
+        }
+        saveFromResponse(url, cookies)
+    }
+
     override fun loadForRequest(url: HttpUrl): List<Cookie> {
         val serverId = currentServerId.get()
         if (!loadedScopes.contains(serverId)) {

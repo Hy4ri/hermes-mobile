@@ -1031,7 +1031,6 @@ class ChatViewModel(
         // even when the route looks already active).
         _uiState.update { it.copy(isLoading = false, resumeError = null, isResumeRetrying = false) }
         cancelResumeRetry()
-        addSystemMessage("Connected to Hermes")
         loadSessions()
         fetchCommandCatalog()
         modelSwitchDelegate.preloadModelOptions()
@@ -2125,7 +2124,6 @@ class ChatViewModel(
                 modelSwitchDelegate.syncCurrentModelCapabilities()
                 // Mirror the active runtime session id app-wide (issue #532).
                 ActiveSessionHolder.set(runtimeSessionId ?: sessionId, sessionId)
-                addSystemMessage("Session resumed")
                 fetchContextUsage()
                 projectRetainedReplyFailure(resultMap["inflight"] as? Map<String, Any?>, runtimeId)
                 val generation = resumeRequest.generation
@@ -5369,6 +5367,7 @@ class ChatViewModel(
         isCurrent: () -> Boolean,
         cached: Boolean = false,
         prepend: Boolean = false,
+        pageIsNewest: Boolean = false,
         mapPage: (List<ChatMessage>) -> List<ChatMessage>,
     ): List<ChatMessage>? {
         while (isCurrent()) {
@@ -5512,12 +5511,16 @@ class ChatViewModel(
                                 contentMatchExcludedIds = contentMatchExcludedIds,
                             )
                         } else {
+                            val offered = snapshot.messages + receiptCandidates
                             mergeTranscriptWithLive(
                                 page,
-                                snapshot.messages + receiptCandidates,
+                                offered,
                                 chronological = !prepend,
                                 preserveLiveIds = true,
                                 contentMatchExcludedIds = contentMatchExcludedIds,
+                                // #1520: a fresh server page proves which known row ids were re-issued.
+                                supersededRowIds =
+                                    if (prepend) emptySet() else supersededUserRowIds(page, offered, pageIsNewest),
                             ).filterNot { it.id in receiptCandidateIds && it.canonicalRestId == null }
                         }
                     val stableMessages = if (merged == snapshot.messages) snapshot.messages else merged
@@ -5656,7 +5659,10 @@ class ChatViewModel(
                             val serverOffset = result.data.pagination?.offset ?: result.data.offset ?: requestedOffset
                             val raw = result.data.messages
                             val page =
-                                mergeHistoryPage(valid) { current ->
+                                mergeHistoryPage(
+                                    valid,
+                                    pageIsNewest = useLatest && serverOffset == 0,
+                                ) { current ->
                                     mapServerMessages(
                                         sessionId,
                                         raw,
@@ -6320,7 +6326,10 @@ class ChatViewModel(
                     if (result is NetworkResult.Success) {
                         val offset = result.data.pagination?.offset ?: result.data.offset ?: nextOffset
                         val page =
-                            mergeHistoryPage(valid) { current ->
+                            mergeHistoryPage(
+                                valid,
+                                pageIsNewest = useLatest && offset == 0,
+                            ) { current ->
                                 mapServerMessages(
                                     sessionId,
                                     result.data.messages,

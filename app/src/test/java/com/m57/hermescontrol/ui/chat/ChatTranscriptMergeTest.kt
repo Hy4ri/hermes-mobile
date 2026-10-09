@@ -54,6 +54,40 @@ class ChatTranscriptMergeTest {
         assertEquals("rest-s-200", merged[1].canonicalRestId)
     }
 
+    private val delivered = local(restored = false).copy(serverRowId = 150L, restId = "rest-s-150")
+
+    @Test
+    fun deliveredRowFoldsWhenNewestPageProvesItsIdWasReissued() {
+        val page = listOf(before.copy(serverRowId = 100L, timestamp = sent - 600_000L), rest(200), after)
+        val superseded = supersededUserRowIds(page, listOf(delivered), pageIsNewest = true)
+        assertEquals(setOf(150L), superseded)
+        val merged = mergeTranscriptWithLive(page, listOf(delivered), supersededRowIds = superseded)
+        assertEquals(listOf("before", "做 1", "after"), merged.map { it.content })
+        assertEquals(200L, merged[1].serverRowId)
+    }
+
+    @Test
+    fun deliveredRowStaysWithoutReissueProof() {
+        val page = listOf(before.copy(serverRowId = 100L, timestamp = sent - 600_000L), rest(200), after)
+        assertEquals(emptySet<Long>(), supersededUserRowIds(page, listOf(delivered), pageIsNewest = false))
+        assertEquals(4, mergeTranscriptWithLive(page, listOf(delivered)).size)
+    }
+
+    @Test
+    fun rowStillOnThePageOrOlderThanItIsNotSuperseded() {
+        val page = listOf(rest(150, timestamp = sent - 600_000L), rest(200))
+        assertEquals(emptySet<Long>(), supersededUserRowIds(page, listOf(delivered), pageIsNewest = true))
+        val older = delivered.copy(timestamp = sent - 900_000L, serverRowId = 90L)
+        assertEquals(emptySet<Long>(), supersededUserRowIds(page, listOf(older), pageIsNewest = true))
+    }
+
+    @Test
+    fun supersededRowWithRepeatedRestCopiesStaysSeparate() {
+        val page = listOf(before.copy(serverRowId = 100L, timestamp = sent - 600_000L), rest(200), rest(250), after)
+        val merged = mergeTranscriptWithLive(page, listOf(delivered), supersededRowIds = setOf(150L))
+        assertEquals(5, merged.size)
+    }
+
     @Test
     fun repeatedIdenticalRestPromptsDoNotClaimTheLocalRow() {
         val local = local()

@@ -87,6 +87,52 @@ object CookieManager {
         j.saveFromResponse(endpoint.baseUrl, listOf(builder.build()))
     }
 
+    /**
+     * Install the bearer tokens from the dashboard's native (browser) login as the same session
+     * cookies a password login would have set. The dashboard accepts them under their bare names on
+     * any scheme and rotates them itself through `Set-Cookie` when the access token expires.
+     */
+    fun installNativeSession(
+        tokens: NativeTokens,
+        endpoint: ServerEndpoint,
+    ) {
+        val j = jar ?: return
+        val url = endpoint.baseUrl
+        val now = System.currentTimeMillis()
+
+        fun cookie(
+            name: String,
+            value: String,
+            lifetimeMs: Long,
+        ): Cookie =
+            Cookie
+                .Builder()
+                .name(name)
+                .value(value)
+                .expiresAt(now + lifetimeMs)
+                .hostOnlyDomain(url.host)
+                .path(url.encodedPath)
+                .httpOnly()
+                .apply { if (url.isHttps) secure() }
+                .build()
+
+        val cookies =
+            buildList {
+                // Lifetime of the access token is owned server-side, as for password login.
+                add(cookie(SESSION_COOKIE_NAME, tokens.accessToken, SESSION_COOKIE_LIFETIME_MS))
+                if (tokens.refreshToken.isNotBlank()) {
+                    add(cookie(SESSION_RT_COOKIE_NAME, tokens.refreshToken, REFRESH_COOKIE_LIFETIME_MS))
+                }
+                if (tokens.provider.isNotBlank()) {
+                    add(cookie(SESSION_PROVIDER_COOKIE_NAME, tokens.provider, REFRESH_COOKIE_LIFETIME_MS))
+                }
+            }
+        j.replaceCookies(url, cookies, SESSION_FAMILY_COOKIE_NAMES)
+    }
+
+    private const val SESSION_COOKIE_LIFETIME_MS = 10L * 365 * 24 * 60 * 60 * 1000
+    private const val REFRESH_COOKIE_LIFETIME_MS = 30L * 24 * 60 * 60 * 1000
+
     /** Evict expired (non-session) cookies for the active scope. */
     fun pruneServerCache() {
         jar?.pruneServerCache(allScopes = false)

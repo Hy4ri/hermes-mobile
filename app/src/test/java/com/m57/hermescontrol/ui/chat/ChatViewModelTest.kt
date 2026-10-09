@@ -1862,6 +1862,23 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun testGatewayReady_doesNotAddConnectionStatusRowsToTranscript() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+
+            // A reconnect re-fires gateway.ready; connection state belongs to the banner, not the transcript.
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            val systemContents =
+                viewModel.uiState.value.messages
+                    .filter { it.role == MessageRole.SYSTEM }
+                    .map { it.content }
+            assertFalse(systemContents.toString(), systemContents.any { it == "Connected to Hermes" })
+            assertFalse(systemContents.toString(), systemContents.any { it == "Session resumed" })
+        }
+
+    @Test
     fun testGatewayReady_withInitialSessionId_switchesToIt() =
         runTest {
             val viewModel = createViewModel()
@@ -2664,11 +2681,11 @@ class ChatViewModelTest {
 
             // Dialog dismissed locally
             assertNull(viewModel.uiState.value.clarifyRequest)
-            // Baseline has 1 "Connected" system message; dismiss adds exactly
+            // Baseline has 1 "Session created" marker; dismiss adds exactly
             // ONE system note and must NOT fake a user bubble.
             val messages = viewModel.uiState.value.messages
             assertEquals(2, messages.size)
-            assertEquals(MessageRole.SYSTEM, messages[0].role) // pre-existing "Connected"
+            assertEquals(MessageRole.SYSTEM, messages[0].role) // pre-existing "Session created"
             assertEquals(MessageRole.SYSTEM, messages[1].role) // dismiss trace
             assertTrue(messages[1].content.contains("dismissed", ignoreCase = true))
 

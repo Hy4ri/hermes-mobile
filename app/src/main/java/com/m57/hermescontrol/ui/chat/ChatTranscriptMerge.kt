@@ -215,6 +215,7 @@ internal fun matchTranscriptMessages(
     comparison: TranscriptComparison = TranscriptComparison(),
     allowAssistantContentMatches: Boolean = true,
     contentMatchExcludedIds: Set<String> = emptySet(),
+    supersededRowIds: Set<Long> = emptySet(),
 ): List<ChatMessage?> {
     val byId = existing.withIndex().associate { it.value.id to it.index }
     val byRestId =
@@ -293,8 +294,30 @@ internal fun matchTranscriptMessages(
             matches[index] = existing[match]
         }
     }
-    matchRewrittenUserRows(incoming, existing, comparison, used, matches)
+    matchRewrittenUserRows(incoming, existing, comparison, used, matches, supersededRowIds)
     return matches.toList()
+}
+
+/**
+ * #1520: gateway row ids of known USER rows that the newest server page proves were re-issued.
+ * The newest page holds every displayed row from its oldest timestamp onward, and compaction keeps
+ * timestamps. A known row clearly newer than that boundary whose id the page lacks is no longer
+ * displayed under that id. Only the newest page qualifies; an older page proves nothing.
+ */
+internal fun supersededUserRowIds(
+    page: List<ChatMessage>,
+    current: List<ChatMessage>,
+    pageIsNewest: Boolean,
+): Set<Long> {
+    if (!pageIsNewest) return emptySet()
+    val pageRowIds = page.mapNotNullTo(mutableSetOf()) { it.serverRowId }
+    val boundary = page.filter { it.serverRowId != null }.minOfOrNull { it.timestamp } ?: return emptySet()
+    return current
+        .asSequence()
+        .filter { it.role == MessageRole.USER && !it.isPermanentlyLocal() }
+        .filter { it.timestamp - REWRITTEN_ROW_WINDOW_MS > boundary }
+        .mapNotNull { it.serverRowId }
+        .filterTo(mutableSetOf()) { it !in pageRowIds }
 }
 
 /** Clock skew between phone and gateway plus send latency; a rewritten row keeps its original timestamp. */
@@ -311,6 +334,7 @@ private fun matchRewrittenUserRows(
     comparison: TranscriptComparison,
     used: BooleanArray,
     matches: Array<ChatMessage?>,
+    supersededRowIds: Set<Long>,
 ) {
     fun sameText(
         a: ChatMessage,
@@ -321,9 +345,11 @@ private fun matchRewrittenUserRows(
         comparison.same(a.copy(restId = null, serverRowId = null), b.copy(restId = null, serverRowId = null)) &&
         kotlin.math.abs(a.timestamp - b.timestamp) <= REWRITTEN_ROW_WINDOW_MS
 
+    // #1520: a delivered (receipt-backed) row is never "restored", but its proven-superseded id qualifies.
     val restored =
         existing.indices.filter {
-            !used[it] && existing[it].isRestoredUnconfirmed && existing[it].role == MessageRole.USER
+            !used[it] && existing[it].role == MessageRole.USER &&
+                (existing[it].isRestoredUnconfirmed || existing[it].serverRowId in supersededRowIds)
         }
     if (restored.isEmpty()) return
     val open =
@@ -537,6 +563,7 @@ internal fun mergeTranscriptWithLive(
     chronological: Boolean = true,
     preserveLiveIds: Boolean = false,
     contentMatchExcludedIds: Set<String> = emptySet(),
+    supersededRowIds: Set<Long> = emptySet(),
 ): List<ChatMessage> {
     val incoming = restMessages.dedupeById()
     val current = currentMessages.dedupeById()
@@ -546,6 +573,7 @@ internal fun mergeTranscriptWithLive(
             current,
             allowAssistantContentMatches = chronological,
             contentMatchExcludedIds = contentMatchExcludedIds,
+            supersededRowIds = supersededRowIds,
         )
     val consumed = matches.mapNotNull { it?.id }.toSet()
     val merged =

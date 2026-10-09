@@ -1031,7 +1031,6 @@ class ChatViewModel(
         // even when the route looks already active).
         _uiState.update { it.copy(isLoading = false, resumeError = null, isResumeRetrying = false) }
         cancelResumeRetry()
-        addSystemMessage("Connected to Hermes")
         loadSessions()
         fetchCommandCatalog()
         modelSwitchDelegate.preloadModelOptions()
@@ -2125,7 +2124,6 @@ class ChatViewModel(
                 modelSwitchDelegate.syncCurrentModelCapabilities()
                 // Mirror the active runtime session id app-wide (issue #532).
                 ActiveSessionHolder.set(runtimeSessionId ?: sessionId, sessionId)
-                addSystemMessage("Session resumed")
                 fetchContextUsage()
                 projectRetainedReplyFailure(resultMap["inflight"] as? Map<String, Any?>, runtimeId)
                 val generation = resumeRequest.generation

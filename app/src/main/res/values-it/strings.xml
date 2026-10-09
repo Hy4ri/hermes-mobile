@@ -1272,8 +1272,6 @@
     <string name="auth_login_error_username_required">Il nome utente è obbligatorio</string>
     <string name="auth_login_error_password_required">La password è obbligatoria</string>
     <string name="auth_login_error_unreachable">Dashboard irraggiungibile — controlla IP e porta</string>
-    <string name="auth_login_error_oauth_unsupported">L\'accesso OAuth (Nous Portal) non è ancora supportato in questa versione dell\'app. Passa la dashboard all\'autenticazione di base o alla modalità token. (problema #639)</string>
-    <string name="auth_login_oauth_coming_soon">Questa dashboard utilizza l\'accesso OAuth (Nous Portal), che arriverà presto su Hermes Mobile.</string>
     <string name="auth_login_existing_profiles_title">Usa un profilo connesso esistente:</string>
     <string name="auth_login_use_profile">Entra come %1$s</string>
     <string name="landing_title">Hermes Mobile</string>

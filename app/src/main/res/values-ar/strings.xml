@@ -1184,8 +1184,6 @@
 <string name="auth_login_error_username_required">اسم المستخدم مطلوب</string>
 <string name="auth_login_error_password_required">كلمة المرور مطلوبة</string>
 <string name="auth_login_error_unreachable">تعذر الوصول إلى لوحة التحكم — تحقق من عنوان IP والمنفذ</string>
-<string name="auth_login_error_oauth_unsupported">تسجيل الدخول عبر OAuth (بوابة Nous) غير مدعوم في هذا الإصدار من التطبيق بعد. يرجى تبديل لوحة التحكم إلى المصادقة الأساسية (Basic Auth) أو وضع الرمز (Token). (المشكلة رقم 639#)</string>
-<string name="auth_login_oauth_coming_soon">تستخدم لوحة التحكم هذه تسجيل الدخول عبر OAuth (بوابة Nous)، والذي سيتوفر قريباً في Hermes Mobile.</string>
 <string name="auth_login_existing_profiles_title">استخدام ملف تعريف مسجل دخوله مسبقاً:</string>
 <string name="auth_login_use_profile">الدخول باسم %1$s</string>
 <string name="landing_title">Hermes Mobile</string>

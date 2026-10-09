@@ -9,6 +9,7 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -93,6 +94,7 @@ class CertificatePromptDialogTest {
         composeTestRule.setContent {
             CompositionLocalProvider(
                 LocalContext provides localized,
+                LocalResources provides localized.resources,
                 LocalConfiguration provides configuration,
                 LocalDensity provides Density(LocalDensity.current.density, fontScale),
             ) {

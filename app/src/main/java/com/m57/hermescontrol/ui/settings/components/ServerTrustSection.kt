@@ -3,6 +3,7 @@ package com.m57.hermescontrol.ui.settings.components
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -17,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.remote.ServerTrust
@@ -36,7 +38,7 @@ internal fun ServerTrustSection() {
     SectionCard {
         Row(
             modifier =
-                Modifier.fillMaxWidth().toggleable(
+                Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(
                     value = enabled,
                     enabled = !saving,
                     role = Role.Switch,

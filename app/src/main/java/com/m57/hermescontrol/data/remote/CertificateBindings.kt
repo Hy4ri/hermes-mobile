@@ -71,6 +71,15 @@ internal class CertificateBindings(
         }
     }
 
+    /** Keep an origin's selected CA stable for the duration of a handshake validation. */
+    @Synchronized
+    fun checkedBinding(
+        origin: CertificateOrigin,
+        check: (Boolean, String?) -> Unit,
+    ) {
+        check(origin.storageKey in bindings.value, bindings.value[origin.storageKey])
+    }
+
     private companion object {
         const val GLOBAL_CACHE_VERSION = "*"
     }

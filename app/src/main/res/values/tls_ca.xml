@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tls_mtls_title">TLS and mTLS configuration</string>
+    <string name="tls_mtls_help">TLS restricts which CA can authenticate a server. mTLS selects your client identity. Both can be configured for the same hostname and HTTPS port.</string>
+    <string name="tls_mtls_type">Configuration type</string>
+    <string name="tls_mtls_delete_help">Delete the %2$s configuration for %1$s? This does not delete the Android certificate.</string>
+    <string name="tls_restriction_help">The server must chain to the selected CA, which must be allowed by the active global trust setting. Selecting a User CA does not enable Trust user-installed CAs. Without a TLS configuration, global trust applies. Configuration changes apply immediately.</string>
+    <string name="tls_ca_certificate">Server CA restriction</string>
+    <string name="tls_ca_picker">Select Android CA</string>
+    <string name="tls_ca_system">System</string>
+    <string name="tls_ca_user">User</string>
+    <string name="tls_ca_details">CA certificate details</string>
+    <string name="tls_ca_source">Source: %1$s</string>
+    <string name="tls_ca_subject">Subject: %1$s</string>
+    <string name="tls_ca_issuer">Issuer: %1$s</string>
+    <string name="tls_ca_validity">Valid from %1$s to %2$s</string>
+    <string name="tls_ca_fingerprint">SHA-256: %1$s</string>
+    <string name="tls_ca_empty">No CA certificates in this source.</string>
+    <string name="tls_ca_load_error">Could not read the Android CA store. Reopen the picker and try again.</string>
+    <string name="tls_ca_loading">Reading Android CA store…</string>
+    <string name="tls_type_tls">TLS: server CA restriction</string>
+    <string name="tls_type_mtls">mTLS: client identity</string>
+</resources>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tls_mtls_title">TLS 和 mTLS 配置</string>
+    <string name="tls_mtls_help">TLS 限制可验证服务器的 CA，mTLS 选择您的客户端身份。同一域名和 HTTPS 端口可同时配置两者。</string>
+    <string name="tls_mtls_type">配置类型</string>
+    <string name="tls_mtls_delete_help">删除 %1$s 的 %2$s 配置？此操作不会删除 Android 证书。</string>
+    <string name="tls_restriction_help">服务器证书链必须由所选 CA 验证，且当前生效的全局信任设置必须允许该 CA。选择用户 CA 不会开启“信任用户安装的 CA”。未配置 TLS 的服务器继续使用全局信任。配置更改立即生效。</string>
+    <string name="tls_ca_certificate">服务器 CA 限制</string>
+    <string name="tls_ca_picker">选择 Android CA</string>
+    <string name="tls_ca_system">系统</string>
+    <string name="tls_ca_user">用户</string>
+    <string name="tls_ca_details">CA 证书详情</string>
+    <string name="tls_ca_source">来源：%1$s</string>
+    <string name="tls_ca_subject">主体：%1$s</string>
+    <string name="tls_ca_issuer">颁发者：%1$s</string>
+    <string name="tls_ca_validity">有效期：%1$s 至 %2$s</string>
+    <string name="tls_ca_fingerprint">SHA-256：%1$s</string>
+    <string name="tls_ca_empty">此来源中没有 CA 证书。</string>
+    <string name="tls_ca_load_error">无法读取 Android CA 存储，请重新打开选择器后重试。</string>
+    <string name="tls_ca_loading">正在读取 Android CA 存储…</string>
+    <string name="tls_type_tls">TLS：服务器 CA 限制</string>
+    <string name="tls_type_mtls">mTLS：客户端身份</string>
+</resources>

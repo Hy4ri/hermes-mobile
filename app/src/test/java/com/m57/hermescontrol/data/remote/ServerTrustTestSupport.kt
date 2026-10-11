@@ -18,4 +18,8 @@ fun mockSystemServerTrust() {
             .single()
     mockkObject(ServerTrust)
     every { ServerTrust.manager } returns trust
+    mockkObject(ServerCaRestrictions)
+    every { ServerCaRestrictions.manager(any()) } returns trust
+    every { ServerCaRestrictions.checkAvailable(any()) } returns Unit
+    every { ServerCaRestrictions.cacheKey(any()) } answers { firstArg<okhttp3.HttpUrl>().toString() }
 }

@@ -31,6 +31,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -45,12 +46,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.remote.CaReference
 import com.m57.hermescontrol.data.remote.CertificateEditSession
 import com.m57.hermescontrol.data.remote.ClientCertificates
+import com.m57.hermescontrol.data.remote.ServerCaRestrictions
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
@@ -63,6 +68,14 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 @Composable
 internal fun ClientCertificatesPage(onBack: () -> Unit) {
     val bindings by ClientCertificates.state.collectAsStateWithLifecycle()
+    val caBindings by ServerCaRestrictions.state.collectAsStateWithLifecycle()
+    val mixed =
+        (
+            bindings.map { CertificateConfiguration(it.key, false, it.value) } +
+                caBindings.map { CertificateConfiguration(it.key, true, it.value) }
+        ).sortedWith(compareBy({ it.url }, { it.tls }))
+    var editingTls by remember { mutableStateOf(true) }
+    var deletingTls by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf(false) }
     var previous by remember { mutableStateOf<HttpUrl?>(null) }
     var deleting by remember { mutableStateOf<HttpUrl?>(null) }
@@ -73,7 +86,7 @@ internal fun ClientCertificatesPage(onBack: () -> Unit) {
     val spacing = LocalSpacing.current
 
     HermesScaffold(
-        title = { Text(stringResource(R.string.mtls_title)) },
+        title = { Text(stringResource(R.string.tls_mtls_title)) },
         navigationIcon = NavIcon.Back(onBack),
         drawerGesturesEnabled = false,
     ) {
@@ -81,20 +94,20 @@ internal fun ClientCertificatesPage(onBack: () -> Unit) {
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(spacing.md),
             verticalArrangement = Arrangement.spacedBy(spacing.lg),
         ) {
-            Text(stringResource(R.string.mtls_help), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.tls_mtls_help), color = MaterialTheme.colorScheme.onSurfaceVariant)
             SectionCard {
                 Text(
-                    pluralStringResource(R.plurals.mtls_saved_configurations, bindings.size, bindings.size),
+                    pluralStringResource(R.plurals.mtls_saved_configurations, mixed.size, mixed.size),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.size(spacing.sm))
-                if (bindings.isEmpty()) {
+                if (mixed.isEmpty()) {
                     Box(Modifier.fillMaxWidth().heightIn(min = 144.dp), contentAlignment = Alignment.Center) {
                         Text(stringResource(R.string.mtls_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                bindings.entries.sortedBy { it.key }.forEach { entry ->
+                mixed.forEach { entry ->
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(vertical = spacing.xs),
                         colors =
@@ -108,24 +121,34 @@ internal fun ClientCertificatesPage(onBack: () -> Unit) {
                             modifier = Modifier.fillMaxWidth().padding(horizontal = spacing.md, vertical = spacing.sm),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            val url = entry.key.toHttpUrl()
+                            val url = entry.url.toHttpUrl()
                             Column(Modifier.weight(1f)) {
-                                Text(url.certificateAddress(), style = MaterialTheme.typography.bodyMedium)
                                 Text(
-                                    entry.value ?: stringResource(R.string.mtls_none),
+                                    "${url.certificateAddress()} · ${if (entry.tls) "TLS" else "mTLS"}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                                Text(
+                                    if (entry.tls) {
+                                        caLabel(entry.certificate)
+                                    } else {
+                                        entry.certificate
+                                            ?: stringResource(R.string.mtls_none)
+                                    },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                             IconButton(onClick = {
                                 previous = url
+                                editingTls = entry.tls
                                 editing = true
                             }) {
                                 Icon(Icons.Filled.Edit, stringResource(R.string.mtls_edit), Modifier.size(18.dp))
                             }
                             IconButton(onClick = {
                                 deleting = url
-                                deleteExpected = bindings
+                                deletingTls = entry.tls
+                                deleteExpected = if (entry.tls) caBindings else bindings
                                 deleteError = false
                             }) {
                                 Icon(
@@ -141,6 +164,7 @@ internal fun ClientCertificatesPage(onBack: () -> Unit) {
                 OutlinedButton(
                     onClick = {
                         previous = null
+                        editingTls = true
                         editing = true
                     },
                     modifier = Modifier.fillMaxWidth(),
@@ -152,7 +176,7 @@ internal fun ClientCertificatesPage(onBack: () -> Unit) {
             }
         }
     }
-    if (editing) CertificateBindingDialog(previous, bindings) { editing = false }
+    if (editing) CertificateBindingDialog(previous, bindings, caBindings, editingTls) { editing = false }
     deleting?.let { url ->
         AlertDialog(
             onDismissRequest = { if (!deleteSaving) deleting = null },
@@ -162,7 +186,11 @@ internal fun ClientCertificatesPage(onBack: () -> Unit) {
                     if (deleteError) {
                         stringResource(R.string.mtls_save_error)
                     } else {
-                        stringResource(R.string.mtls_delete_help, url.certificateAddress())
+                        stringResource(
+                            R.string.tls_mtls_delete_help,
+                            url.certificateAddress(),
+                            if (deletingTls) "TLS" else "mTLS",
+                        )
                     },
                 )
             },
@@ -175,7 +203,13 @@ internal fun ClientCertificatesPage(onBack: () -> Unit) {
                         scope.launch {
                             val saved =
                                 withContext(Dispatchers.IO) {
-                                    runCatching { ClientCertificates.save(url, null, null, deleteExpected) }.isSuccess
+                                    runCatching {
+                                        if (deletingTls) {
+                                            ServerCaRestrictions.save(url, null, null, deleteExpected)
+                                        } else {
+                                            ClientCertificates.save(url, null, null, deleteExpected)
+                                        }
+                                    }.isSuccess
                                 }
                             deleteSaving = false
                             if (saved) deleting = null else deleteError = true
@@ -196,9 +230,14 @@ internal fun ClientCertificatesPage(onBack: () -> Unit) {
 private fun CertificateBindingDialog(
     previous: HttpUrl?,
     bindings: Map<String, String?>,
+    caBindings: Map<String, String?>,
+    initialTls: Boolean,
     onDismiss: () -> Unit,
 ) {
-    val expected = remember { bindings }
+    var tls by remember { mutableStateOf(initialTls) }
+    val clientExpected = remember { bindings }
+    val caExpected = remember { caBindings }
+    val expected = if (tls) caExpected else clientExpected
     val initial =
         remember {
             CertificateBindingDraft(
@@ -212,6 +251,7 @@ private fun CertificateBindingDialog(
     var draft by remember { mutableStateOf(initial) }
     val session = remember { CertificateEditSession() }
     var choosing by remember { mutableStateOf(false) }
+    var pickingCa by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     var discard by remember { mutableStateOf(false) }
     var hostEdited by remember { mutableStateOf(false) }
@@ -225,7 +265,7 @@ private fun CertificateBindingDialog(
         if (!saving) {
             session.invalidate()
             choosing = false
-            if (draft.changedFrom(initial)) discard = true else onDismiss()
+            if (draft.changedFrom(initial) || tls != initialTls) discard = true else onDismiss()
         }
     }
     DisposableEffect(session) { onDispose { session.close() } }
@@ -238,6 +278,25 @@ private fun CertificateBindingDialog(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(LocalSpacing.current.md),
             ) {
+                Text(stringResource(R.string.tls_mtls_type), style = MaterialTheme.typography.titleSmall)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    listOf(true, false).forEach { value ->
+                        val label = stringResource(if (value) R.string.tls_type_tls else R.string.tls_type_mtls)
+                        RadioButton(
+                            modifier = Modifier.semantics { contentDescription = label },
+                            selected = tls == value,
+                            enabled = previous == null && !saving && !choosing,
+                            onClick = {
+                                tls = value
+                                draft = draft.copy(alias = null)
+                                session.invalidate()
+                                error = null
+                            },
+                        )
+                        Text(if (value) "TLS" else "mTLS")
+                    }
+                }
+                Text(stringResource(if (tls) R.string.tls_restriction_help else R.string.mtls_help))
                 OutlinedTextField(
                     value = draft.host,
                     onValueChange = {
@@ -287,28 +346,38 @@ private fun CertificateBindingDialog(
                         },
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Text(stringResource(R.string.mtls_certificate), style = MaterialTheme.typography.titleSmall)
+                Text(
+                    stringResource(if (tls) R.string.tls_ca_certificate else R.string.mtls_certificate),
+                    style = MaterialTheme.typography.titleSmall,
+                )
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(draft.alias ?: stringResource(R.string.mtls_none), modifier = Modifier.weight(1f))
+                    Text(
+                        if (tls) caLabel(draft.alias) else draft.alias ?: stringResource(R.string.mtls_none),
+                        modifier = Modifier.weight(1f),
+                    )
                     TextButton(
-                        enabled = activity != null && origin != null && !duplicate && !choosing && !saving,
+                        enabled = (tls || activity != null) && origin != null && !duplicate && !choosing && !saving,
                         onClick = {
-                            val token = session.beginSelection()
-                            choosing = true
-                            error = null
-                            ClientCertificates.select(
-                                requireNotNull(activity),
-                                requireNotNull(origin).url,
-                                draft.alias,
-                            ) { value, ok ->
-                                if (session.accept(token)) {
-                                    choosing = false
-                                    if (!ok) {
-                                        error = R.string.mtls_select_error
-                                    } else if (value !=
-                                        null
-                                    ) {
-                                        draft = draft.copy(alias = value, certificateReselected = true)
+                            if (tls) {
+                                pickingCa = true
+                            } else {
+                                val token = session.beginSelection()
+                                choosing = true
+                                error = null
+                                ClientCertificates.select(
+                                    requireNotNull(activity),
+                                    requireNotNull(origin).url,
+                                    draft.alias,
+                                ) { value, ok ->
+                                    if (session.accept(token)) {
+                                        choosing = false
+                                        if (!ok) {
+                                            error = R.string.mtls_select_error
+                                        } else if (value !=
+                                            null
+                                        ) {
+                                            draft = draft.copy(alias = value, certificateReselected = true)
+                                        }
                                     }
                                 }
                             }
@@ -338,12 +407,21 @@ private fun CertificateBindingDialog(
                         val saved =
                             withContext(Dispatchers.IO) {
                                 runCatching {
-                                    ClientCertificates.save(
-                                        previous,
-                                        requireNotNull(origin).url,
-                                        draft.alias,
-                                        expected,
-                                    )
+                                    if (tls) {
+                                        ServerCaRestrictions.save(
+                                            previous,
+                                            requireNotNull(origin).url,
+                                            CaReference.decode(requireNotNull(draft.alias)),
+                                            expected,
+                                        )
+                                    } else {
+                                        ClientCertificates.save(
+                                            previous,
+                                            requireNotNull(origin).url,
+                                            draft.alias,
+                                            expected,
+                                        )
+                                    }
                                 }.isSuccess
                             }
                         saving = false
@@ -356,6 +434,16 @@ private fun CertificateBindingDialog(
             TextButton(onClick = requestDismiss, enabled = !saving) { Text(stringResource(R.string.action_cancel)) }
         },
     )
+    if (pickingCa) {
+        AndroidCaPicker(
+            onDismiss = { pickingCa = false },
+            onSelect = { reference ->
+                pickingCa = false
+                draft = draft.copy(alias = reference.encode(), certificateReselected = true)
+                error = null
+            },
+        )
+    }
     if (discard) {
         AlertDialog(
             onDismissRequest = { discard = false },
@@ -385,3 +473,14 @@ private tailrec fun Context.findActivity(): Activity? =
         is ContextWrapper -> baseContext.findActivity()
         else -> null
     }
+
+@Composable
+private fun caLabel(value: String?): String =
+    value?.let { runCatching { CaReference.decode(it).subject }.getOrNull() }
+        ?: stringResource(R.string.mtls_none)
+
+private data class CertificateConfiguration(
+    val url: String,
+    val tls: Boolean,
+    val certificate: String?,
+)

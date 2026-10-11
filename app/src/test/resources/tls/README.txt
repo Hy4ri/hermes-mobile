@@ -15,3 +15,9 @@ keyCertSign/cRLSign are set; leaves have BasicConstraints CA=false.
 Generated using Python cryptography 50's x509 + PKCS12 serialization, merged
 with JDK 21 keytool -importkeystore; roots added with keytool -importcert.
 All keys are test-only and are never packaged in the app.
+
+Cross-sign PEM fixtures contain public test certificates only, generated with Python
+cryptography 50 (RSA 2048/SHA-256, validity 2020-01-01 to 2120-01-01).
+The leaf is issued by User Root. Its cross-certificate is issued by System Root.
+Both roots independently validate the chain; disabling user roots must still reject
+a selection of User Root. This catches two-check validation in place of intersection.

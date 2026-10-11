@@ -41,6 +41,32 @@ class ServerTrustAndroidTest {
     }
 
     @Test
+    fun androidSelectedAnchorUsesPlatformValidationAndSourceIntersection() {
+        val fixture = fixtures()
+        val installed =
+            KeyStore.getInstance(KeyStore.getDefaultType()).apply {
+                load(null)
+                setCertificateEntry("system:fixture", fixture.getCertificate("system-ca"))
+                setCertificateEntry("user:fixture", fixture.getCertificate("user-ca"))
+            }
+        val catalog = AndroidCaStore { installed }
+        val system = catalog.list().single { it.reference.source == CaSource.SYSTEM }.reference
+        val user = catalog.list().single { it.reference.source == CaSource.USER }.reference
+        val chain =
+            fixture
+                .getCertificateChain("system")
+                .map { it as java.security.cert.X509Certificate }
+                .toTypedArray()
+        catalog.trust(system, false).checkServerTrusted(chain, "RSA")
+        assertThrows(java.security.cert.CertificateException::class.java) {
+            catalog.trust(user, true).checkServerTrusted(chain, "RSA")
+        }
+        assertThrows(java.security.cert.CertificateException::class.java) { catalog.trust(user, false) }
+        installed.deleteEntry(system.alias)
+        assertThrows(java.security.cert.CertificateException::class.java) { catalog.trust(system, false) }
+    }
+
+    @Test
     fun androidClientUsesStartupRootsUntilNewProcessPolicy() {
         val fixture = fixtures()
         var saved = false

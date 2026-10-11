@@ -10,6 +10,8 @@ import javax.net.ssl.X509TrustManager
 /** Separates TLS sessions by origin and retires live sockets when an identity changes. */
 internal class CertificateSocketFactory(
     private val trust: X509TrustManager,
+    private val originTrust: (CertificateOrigin) -> X509TrustManager = { trust },
+    private val checkOrigin: (CertificateOrigin) -> Unit = {},
     private val keys: (CertificateOrigin) -> javax.net.ssl.KeyManager,
 ) : SSLSocketFactory() {
     private class Entry(
@@ -21,16 +23,27 @@ internal class CertificateSocketFactory(
     private val entries = mutableMapOf<CertificateOrigin, Entry>()
     private val defaultFactory = SSLContext.getInstance("TLS").apply { init(null, arrayOf(trust), null) }.socketFactory
 
-    @Synchronized
     private fun socket(
         origin: CertificateOrigin,
         create: (SSLSocketFactory) -> Socket,
     ): Socket {
-        val entry =
-            entries.getOrPut(origin) {
-                Entry(SSLContext.getInstance("TLS").apply { init(arrayOf(keys(origin)), arrayOf(trust), null) })
-            }
-        return create(entry.context.socketFactory).also { entry.sockets[it] = Unit }
+        try {
+            checkOrigin(origin)
+        } catch (e: Exception) {
+            throw javax.net.ssl.SSLException("Selected Android CA is unavailable", e)
+        }
+        return synchronized(this) {
+            val entry =
+                entries.getOrPut(origin) {
+                    Entry(
+                        SSLContext
+                            .getInstance(
+                                "TLS",
+                            ).apply { init(arrayOf(keys(origin)), arrayOf(originTrust(origin)), null) },
+                    )
+                }
+            create(entry.context.socketFactory).also { entry.sockets[it] = Unit }
+        }
     }
 
     fun invalidate(origin: CertificateOrigin) {

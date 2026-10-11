@@ -102,7 +102,7 @@ internal fun SettingsConnectionPage(
                     )
                 },
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text(stringResource(R.string.mtls_title)) }
+            ) { Text(stringResource(R.string.tls_mtls_title)) }
 
             ServerTrustSection()
 

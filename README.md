@@ -116,12 +116,13 @@ Tap **Sign in** on the landing screen and enter the dashboard host and port. The
 
 ### Manual HTTPS client certificates (mTLS)
 
-Open **Settings → Connection → HTTPS mTLS client certificate configuration**, or tap
+Open **Settings → Connection → TLS and mTLS configuration**, or tap
 **Connections** on the first-launch landing page before signing in. Install client certificates
 in Android settings first; the app stores aliases only, never private keys.
 
 Each binding belongs to an HTTPS hostname and port across all paths and connection
-profiles. Use **Add Configuration** or **Edit Configuration**, then **Select Certificate**
+profiles. Choose **mTLS** when adding a client identity. Use **Add Configuration** or
+**Edit Configuration**, then **Select Certificate**
 or **Change Certificate** to open Android KeyChain. A valid address, port and selected
 certificate are required to **Save**. **Delete Configuration** clears the saved binding
 without removing the system certificate. Cancelling the picker keeps the draft alias;
@@ -166,10 +167,34 @@ unbound origins; HTTP/2 within one origin remains enabled. A binding change also
 cache keys for unrelated remote resources because their redirect destinations are unknown
 before fetching. Redirects select the destination origin's saved identity only.
 
+### Per-origin server CA restrictions (TLS)
+
+Open **TLS and mTLS configuration**, add a **TLS** configuration, and select one
+currently installed Android **System** or **User** CA for the HTTPS hostname and port.
+The picker shows full certificate subjects; tap one to review its source, issuer,
+validity and SHA-256 fingerprint before selecting it. TLS and mTLS rows are independent
+and can coexist for the same address. Paths and connection profiles share that origin.
+
+The selected CA narrows the active global trust policy to that installed certificate.
+A **User** selection requires the global user-CA switch to be active for this process;
+saving a selection does not enable the switch. A User selection remains a User selection
+even if the same certificate is also installed as a System CA. Missing, replaced,
+malformed or invalid selections fail closed. Unconfigured origins use global trust.
+The platform still validates the certificate chain, and hostname verification remains enabled.
+
+Adding, editing or deleting a TLS configuration takes effect immediately, using the
+same origin socket/session retirement and remote cache versioning as mTLS edits.
+Deletion restores global trust for that origin. Retained REST clients, WSS, attachments
+and client-certificate candidate verification use the destination origin's restriction;
+redirects are checked against their destination. Retry interrupted requests or reconnect
+as needed; content already displayed or buffered can remain visible. This app does not
+monitor Android CA store changes or close established connections when the OS store changes.
+Restart after changing Android's CA store, as described below.
+
 ### User-installed private certificate authorities
 
 For a server signed by a private CA, install that CA in Android's user certificate
-store, then enable **Trust user-installed CAs** in **Connections**, below the mTLS
+store, then enable **Trust user-installed CAs** in **Connections**, below the TLS and mTLS
 configuration entry. This global switch defaults to off, including when upgrading
 without a saved preference. Off uses the platform-default trust policy; on trusts
 active system and user CA roots for all connections using the shared TLS clients.

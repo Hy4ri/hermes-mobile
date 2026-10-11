@@ -37,6 +37,14 @@ object WsMethods {
 
     /** Named workspaces (id, name, color, folders) used to label history rows. */
     const val PROJECTS_LIST = "projects.list"
+    const val PROJECTS_CREATE = "projects.create"
+    const val PROJECTS_UPDATE = "projects.update"
+    const val PROJECTS_DELETE = "projects.delete"
+    const val PROJECTS_ARCHIVE = "projects.archive"
+    const val PROJECTS_ADD_FOLDER = "projects.add_folder"
+    const val PROJECTS_REMOVE_FOLDER = "projects.remove_folder"
+    const val PROJECTS_SET_PRIMARY = "projects.set_primary"
+    const val PROJECTS_DISCOVER_REPOS = "projects.discover_repos"
 
     // ── Interaction ───────────────────────────────────────────────────────
     const val PROMPT_SUBMIT = "prompt.submit"
@@ -196,6 +204,14 @@ object WsMethods {
             CONFIG_SET, // methods_config_set.py: @method("config.set") + @_profile_scoped
             "verification.status", // line 282
             PROJECTS_LIST, // methods_projects.py: @_registry.profile_scoped
+            PROJECTS_CREATE, // same decorator (_projects_method) for every projects.* RPC
+            PROJECTS_UPDATE,
+            PROJECTS_DELETE,
+            PROJECTS_ARCHIVE,
+            PROJECTS_ADD_FOLDER,
+            PROJECTS_REMOVE_FOLDER,
+            PROJECTS_SET_PRIMARY,
+            PROJECTS_DISCOVER_REPOS,
             PLUGINS_MANAGE, // methods_tools.py: @_scoped_rpc
             "pet.info", // line 1253
             "pet.info.meta", // line 1279

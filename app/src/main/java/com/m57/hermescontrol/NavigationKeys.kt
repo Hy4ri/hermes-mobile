@@ -19,6 +19,8 @@ import kotlinx.serialization.Serializable
 
 @Serializable data object HistoryScreen : NavKey
 
+@Serializable data object ProjectsScreen : NavKey
+
 @Serializable data object ProfilesScreen : NavKey
 
 @Serializable data object BotsScreen : NavKey

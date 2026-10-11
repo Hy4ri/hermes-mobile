@@ -21,6 +21,7 @@ data class ProjectInfo(
     // CSS color string chosen in the desktop app, e.g. "hsl(210 68% 58%)".
     val color: String? = null,
     val icon: String? = null,
+    val description: String? = null,
     val primaryPath: String? = null,
     // Older backends store SQLite 0/1 here.
     @Serializable(with = LenientNullableBooleanSerializer::class)
@@ -36,4 +37,17 @@ data class ProjectFolder(
     val label: String? = null,
     @Serializable(with = LenientNullableBooleanSerializer::class)
     val isPrimary: Boolean? = null,
+)
+
+/** A git root the gateway learned from past sessions (`projects.discover_repos`), not yet a project. */
+@Serializable
+data class DiscoveredRepo(
+    val root: String,
+    val label: String = "",
+    val sessions: Int = 0,
+)
+
+@Serializable
+data class DiscoveredReposResponse(
+    val repos: List<DiscoveredRepo> = emptyList(),
 )

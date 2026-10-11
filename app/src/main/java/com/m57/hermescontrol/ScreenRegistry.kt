@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.ViewKanban
 import androidx.compose.material.icons.filled.Webhook
+import androidx.compose.material.icons.filled.Workspaces
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation3.runtime.NavKey
@@ -51,6 +52,7 @@ import com.m57.hermescontrol.ui.model.ModelScreen as ModelScreenContent
 import com.m57.hermescontrol.ui.pairing.PairingScreen as PairingScreenContent
 import com.m57.hermescontrol.ui.plugins.PluginsScreen as PluginsScreenContent
 import com.m57.hermescontrol.ui.profiles.ProfilesScreen as ProfilesScreenContent
+import com.m57.hermescontrol.ui.projects.ProjectsScreen as ProjectsScreenContent
 import com.m57.hermescontrol.ui.providers.ProvidersScreen as ProvidersScreenContent
 import com.m57.hermescontrol.ui.sessions.SessionsScreen as HistoryScreenContent
 import com.m57.hermescontrol.ui.settings.SettingsScreen as SettingsScreenContent
@@ -91,6 +93,12 @@ object ScreenRegistry {
                 Icons.Filled.History,
                 DrawerSection.CONVERSE,
             ) { sessionId, openDrawer -> HistoryScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                ProjectsScreen,
+                R.string.screen_projects,
+                Icons.Filled.Workspaces,
+                DrawerSection.CONVERSE,
+            ) { sessionId, openDrawer -> ProjectsScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
                 ProfilesScreen,
                 R.string.screen_profiles,

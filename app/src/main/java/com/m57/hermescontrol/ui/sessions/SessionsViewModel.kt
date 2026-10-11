@@ -114,6 +114,10 @@ data class SessionsUiState(
     val showArchived: Boolean = false,
     val sourceFilter: String? = null,
     val pinnedExpanded: Boolean = true,
+    // Project filter (issue #1526): a [sessionProjectKey], or null for all projects.
+    val projectFilter: String? = null,
+    val groupByProject: Boolean = false,
+    val collapsedProjectGroups: Set<String> = emptySet(),
     val liveStatuses: Map<String, SessionLiveStatus> = emptyMap(),
     // Named projects used to label each row with the workspace it belongs to.
     val projects: List<ProjectInfo> = emptyList(),
@@ -144,14 +148,44 @@ data class SessionsUiState(
     private val visibleBySource: List<SessionInfo>
         get() = if (showHidden) sessions else sessions.filter { it.hidden != true }
 
-    val displaySessions: List<SessionInfo>
+    private val sourceFiltered: List<SessionInfo>
         get() =
             activeSourceFilter?.let { f -> visibleBySource.filter { it.source?.lowercase() == f } }
                 ?: visibleBySource
 
+    // Project chips only exist for projects present in the rows currently shown (after the source filter).
+    val availableProjects: List<ProjectChoice>
+        get() {
+            if (isSearchMode) return emptyList()
+            val resolved = sourceFiltered.map { resolveSessionProject(it, projects) }
+            return resolved
+                .groupBy { it?.label ?: NO_PROJECT_KEY }
+                .map { (key, rows) -> ProjectChoice(key, rows.firstNotNullOfOrNull { it?.color }, rows.size) }
+                .sortedWith(
+                    compareBy<ProjectChoice> { it.key == NO_PROJECT_KEY }
+                        .thenByDescending { it.count }
+                        .thenBy { it.key },
+                )
+        }
+
+    val activeProjectFilter: String?
+        get() = projectFilter?.takeIf { f -> availableProjects.any { it.key == f } }
+
+    val displaySessions: List<SessionInfo>
+        get() =
+            activeProjectFilter?.let { f -> sourceFiltered.filter { sessionProjectKey(it, projects) == f } }
+                ?: sourceFiltered
+
     val pinnedSessions: List<SessionInfo>
         get() = displaySessions.filter { it.pinned == true }
 }
+
+/** One project filter chip: its [key] (see [sessionProjectKey]), color and how many rows carry it. */
+data class ProjectChoice(
+    val key: String,
+    val color: String?,
+    val count: Int,
+)
 
 class SessionsViewModel(
     private val liveStatusSource: SessionLiveStatusSource = HermesSessionLiveStatusSource(),
@@ -367,6 +401,7 @@ class SessionsViewModel(
             it.copy(
                 section = section,
                 sourceFilter = null,
+                projectFilter = null,
                 isLoading = false,
                 isLoadingMore = false,
                 sessions = emptyList(),
@@ -733,6 +768,21 @@ class SessionsViewModel(
 
     fun selectSourceFilter(source: String?) {
         _uiState.update { it.copy(sourceFilter = if (it.sourceFilter == source) null else source) }
+    }
+
+    fun selectProjectFilter(key: String?) {
+        _uiState.update { it.copy(projectFilter = if (it.projectFilter == key) null else key) }
+    }
+
+    fun toggleGroupByProject() {
+        _uiState.update { it.copy(groupByProject = !it.groupByProject) }
+    }
+
+    fun toggleProjectGroup(key: String) {
+        _uiState.update {
+            val collapsed = it.collapsedProjectGroups
+            it.copy(collapsedProjectGroups = if (key in collapsed) collapsed - key else collapsed + key)
+        }
     }
 
     fun toggleShowHidden() {

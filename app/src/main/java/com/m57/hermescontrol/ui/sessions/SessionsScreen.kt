@@ -120,6 +120,7 @@ import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listItemSpacing
 import com.m57.hermescontrol.ui.sessions.components.BranchRow
 import com.m57.hermescontrol.ui.sessions.components.PinnedSectionHeader
+import com.m57.hermescontrol.ui.sessions.components.ProjectGroupHeader
 import com.m57.hermescontrol.ui.sessions.components.SearchResultCard
 import com.m57.hermescontrol.ui.sessions.components.SessionCard
 import com.m57.hermescontrol.ui.sessions.components.SessionsBulkActionBar
@@ -222,6 +223,8 @@ fun SessionsScreen(
             state.showHidden,
             state.searchResults,
             state.sourceFilter,
+            state.projectFilter,
+            state.projects,
         ) {
             displayedSessions(state)
         }
@@ -239,6 +242,12 @@ fun SessionsScreen(
             }
         }
 
+    val projectGroups =
+        remember(sessionsToDisplay, state.projects, state.groupByProject) {
+            if (state.groupByProject) groupSessionsByProject(sessionsToDisplay, state.projects) else emptyList()
+        }
+
+    val noProjectLabel = stringResource(R.string.sessions_project_none)
     val hasSelection = state.selectedIds.isNotEmpty()
     val loadedMessageCount = state.sessions.sumOf { it.message_count ?: 0 }
     val automationSessionGroups = remember(sessionsToDisplay) { automationGroups(sessionsToDisplay.map { it.session }) }
@@ -556,6 +565,41 @@ fun SessionsScreen(
                             onClick = { viewModel.selectSourceFilter(source) },
                             label = { Text(sourceLabel(source)) },
                             modifier = Modifier.testTag("history_source_chip_$source"),
+                        )
+                    }
+                }
+            }
+
+            // Project chips (issue #1526): only for projects present in the rows currently shown.
+            val projectChoices = state.availableProjects
+            if (state.section == HistorySection.CONVERSATIONS && projectChoices.size > 1) {
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth().testTag("history_project_chips"),
+                    contentPadding = PaddingValues(horizontal = spacing.md),
+                    horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+                ) {
+                    item(key = "group_toggle") {
+                        FilterChip(
+                            selected = state.groupByProject,
+                            onClick = { viewModel.toggleGroupByProject() },
+                            label = { Text(stringResource(R.string.sessions_group_by_project)) },
+                            modifier = Modifier.testTag("history_group_by_project"),
+                        )
+                    }
+                    items(projectChoices, key = { "project_${it.key}" }) { choice ->
+                        FilterChip(
+                            selected = state.activeProjectFilter == choice.key,
+                            onClick = { viewModel.selectProjectFilter(choice.key) },
+                            label = {
+                                Text(
+                                    if (choice.key == NO_PROJECT_KEY) {
+                                        stringResource(R.string.sessions_project_none)
+                                    } else {
+                                        choice.key
+                                    },
+                                )
+                            },
+                            modifier = Modifier.testTag("history_project_chip_${choice.key}"),
                         )
                     }
                 }
@@ -974,8 +1018,38 @@ fun SessionsScreen(
                                             )
                                         }
                                     }
-                                    items(sessionsToDisplay, key = { it.session.id }) { item ->
-                                        sessionCard(item)
+                                    if (state.groupByProject && !state.isSearchMode) {
+                                        projectGroups.forEach { group ->
+                                            val expanded = group.key !in state.collapsedProjectGroups
+                                            item(key = "project_header_${group.key}") {
+                                                ProjectGroupHeader(
+                                                    label =
+                                                        if (group.key ==
+                                                            NO_PROJECT_KEY
+                                                        ) {
+                                                            noProjectLabel
+                                                        } else {
+                                                            group.key
+                                                        },
+                                                    color = group.color,
+                                                    count = group.items.size,
+                                                    expanded = expanded,
+                                                    onToggle = { viewModel.toggleProjectGroup(group.key) },
+                                                )
+                                            }
+                                            if (expanded) {
+                                                items(
+                                                    group.items,
+                                                    key = { "project_${group.key}_${it.session.id}" },
+                                                ) { item ->
+                                                    sessionCard(item)
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        items(sessionsToDisplay, key = { it.session.id }) { item ->
+                                            sessionCard(item)
+                                        }
                                     }
                                 }
 

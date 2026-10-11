@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.sessions
 
 import com.m57.hermescontrol.data.model.ProjectInfo
 import com.m57.hermescontrol.data.model.SessionInfo
+import com.m57.hermescontrol.data.model.SessionTreeItem
 
 /** The workspace a history row belongs to: a display label plus the project's own color, if any. */
 data class SessionProject(
@@ -49,6 +50,43 @@ fun resolveSessionProject(
             .firstNotNullOfOrNull { path -> path?.let(::pathLeaf)?.takeIf(String::isNotEmpty) }
             ?: return null
     return SessionProject(label = label)
+}
+
+/** Group/filter key for sessions that recorded no workspace. */
+const val NO_PROJECT_KEY = ""
+
+/** A project as it appears in the History filter chips and group headers. */
+data class ProjectGroup(
+    val key: String,
+    val color: String?,
+    val items: List<SessionTreeItem>,
+)
+
+/** The filter/group key for [session]: its resolved project label, or [NO_PROJECT_KEY]. */
+fun sessionProjectKey(
+    session: SessionInfo,
+    projects: List<ProjectInfo>,
+): String = resolveSessionProject(session, projects)?.label ?: NO_PROJECT_KEY
+
+/**
+ * Splits [items] into one group per project, keeping the incoming (recency) order inside each group.
+ * Groups are ordered by their most recent row; the no-project group always comes last.
+ */
+fun groupSessionsByProject(
+    items: List<SessionTreeItem>,
+    projects: List<ProjectInfo>,
+): List<ProjectGroup> {
+    val groups = LinkedHashMap<String, MutableList<SessionTreeItem>>()
+    val colors = HashMap<String, String?>()
+    items.forEach { item ->
+        val project = resolveSessionProject(item.session, projects)
+        val key = project?.label ?: NO_PROJECT_KEY
+        groups.getOrPut(key) { mutableListOf() }.add(item)
+        if (colors[key] == null) colors[key] = project?.color
+    }
+    return groups
+        .map { (key, rows) -> ProjectGroup(key, colors[key], rows) }
+        .sortedBy { it.key == NO_PROJECT_KEY }
 }
 
 /** Path segments, ignoring mixed separators, repeated separators and trailing slashes. */

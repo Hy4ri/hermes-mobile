@@ -903,6 +903,10 @@
     <string name="sessions_hidden_badge">Hidden</string>
     <string name="sessions_all_hidden_desc">All sessions are currently hidden. Tap below to show hidden sessions.</string>
     <string name="sessions_pinned_indicator">Pinned</string>
+    <string name="sessions_project_none">No project</string>
+    <string name="sessions_group_by_project">Group by project</string>
+    <string name="sessions_project_group_collapse">Collapse %1$s</string>
+    <string name="sessions_project_group_expand">Expand %1$s</string>
     <string name="sessions_fork_indicator">Forked session</string>
     <string name="sessions_live_status_running">Running</string>
     <string name="sessions_live_status_waiting">Needs input</string>

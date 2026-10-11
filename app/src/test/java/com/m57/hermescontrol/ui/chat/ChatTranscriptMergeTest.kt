@@ -67,6 +67,24 @@ class ChatTranscriptMergeTest {
     }
 
     @Test
+    fun deliveredFirstSendFoldsWhenCompletePageStartsAtItsTimestamp() {
+        // Brand-new session: the page's oldest row IS the rewritten first send, so no row is 2 min newer.
+        val page = listOf(rest(200), after)
+        assertEquals(emptySet<Long>(), supersededUserRowIds(page, listOf(delivered), pageIsNewest = true))
+        val superseded = supersededUserRowIds(page, listOf(delivered), pageIsNewest = true, pageIsComplete = true)
+        assertEquals(setOf(150L), superseded)
+        val merged = mergeTranscriptWithLive(page, listOf(delivered), supersededRowIds = superseded)
+        assertEquals(listOf("做 1", "after"), merged.map { it.content })
+    }
+
+    @Test
+    fun completePageDoesNotSupersedeRowsItStillContainsOrAnOlderPage() {
+        val page = listOf(rest(150), after)
+        assertEquals(emptySet<Long>(), supersededUserRowIds(page, listOf(delivered), true, pageIsComplete = true))
+        assertEquals(emptySet<Long>(), supersededUserRowIds(listOf(rest(200)), listOf(delivered), false, true))
+    }
+
+    @Test
     fun deliveredRowStaysWithoutReissueProof() {
         val page = listOf(before.copy(serverRowId = 100L, timestamp = sent - 600_000L), rest(200), after)
         assertEquals(emptySet<Long>(), supersededUserRowIds(page, listOf(delivered), pageIsNewest = false))

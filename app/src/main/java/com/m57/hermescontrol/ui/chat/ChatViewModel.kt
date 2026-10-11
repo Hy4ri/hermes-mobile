@@ -5368,6 +5368,7 @@ class ChatViewModel(
         cached: Boolean = false,
         prepend: Boolean = false,
         pageIsNewest: Boolean = false,
+        pageIsComplete: Boolean = false,
         mapPage: (List<ChatMessage>) -> List<ChatMessage>,
     ): List<ChatMessage>? {
         while (isCurrent()) {
@@ -5518,9 +5519,14 @@ class ChatViewModel(
                                 chronological = !prepend,
                                 preserveLiveIds = true,
                                 contentMatchExcludedIds = contentMatchExcludedIds,
-                                // #1520: a fresh server page proves which known row ids were re-issued.
+                                // #1520: a fresh server page proves which displayed row ids were re-issued;
+                                // receipt-only candidates have no bubble, so they cannot duplicate.
                                 supersededRowIds =
-                                    if (prepend) emptySet() else supersededUserRowIds(page, offered, pageIsNewest),
+                                    if (prepend) {
+                                        emptySet()
+                                    } else {
+                                        supersededUserRowIds(page, snapshot.messages, pageIsNewest, pageIsComplete)
+                                    },
                             ).filterNot { it.id in receiptCandidateIds && it.canonicalRestId == null }
                         }
                     val stableMessages = if (merged == snapshot.messages) snapshot.messages else merged
@@ -5662,6 +5668,7 @@ class ChatViewModel(
                                 mergeHistoryPage(
                                     valid,
                                     pageIsNewest = useLatest && serverOffset == 0,
+                                    pageIsComplete = raw.size < MESSAGE_PAGE_SIZE,
                                 ) { current ->
                                     mapServerMessages(
                                         sessionId,
@@ -6329,6 +6336,7 @@ class ChatViewModel(
                             mergeHistoryPage(
                                 valid,
                                 pageIsNewest = useLatest && offset == 0,
+                                pageIsComplete = result.data.messages.size < MESSAGE_PAGE_SIZE,
                             ) { current ->
                                 mapServerMessages(
                                     sessionId,

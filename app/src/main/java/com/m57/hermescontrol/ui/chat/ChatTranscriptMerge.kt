@@ -303,11 +303,14 @@ internal fun matchTranscriptMessages(
  * The newest page holds every displayed row from its oldest timestamp onward, and compaction keeps
  * timestamps. A known row clearly newer than that boundary whose id the page lacks is no longer
  * displayed under that id. Only the newest page qualifies; an older page proves nothing.
+ * A [pageIsComplete] page (short of the page limit) holds the whole transcript, so the timestamp
+ * boundary is moot: it also covers the session's first sends, which sit at the boundary itself.
  */
 internal fun supersededUserRowIds(
     page: List<ChatMessage>,
     current: List<ChatMessage>,
     pageIsNewest: Boolean,
+    pageIsComplete: Boolean = false,
 ): Set<Long> {
     if (!pageIsNewest) return emptySet()
     val pageRowIds = page.mapNotNullTo(mutableSetOf()) { it.serverRowId }
@@ -315,7 +318,7 @@ internal fun supersededUserRowIds(
     return current
         .asSequence()
         .filter { it.role == MessageRole.USER && !it.isPermanentlyLocal() }
-        .filter { it.timestamp - REWRITTEN_ROW_WINDOW_MS > boundary }
+        .filter { pageIsComplete || it.timestamp - REWRITTEN_ROW_WINDOW_MS > boundary }
         .mapNotNull { it.serverRowId }
         .filterTo(mutableSetOf()) { it !in pageRowIds }
 }

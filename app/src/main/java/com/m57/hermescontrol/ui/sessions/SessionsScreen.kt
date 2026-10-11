@@ -105,6 +105,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.model.SessionTreeItem
 import com.m57.hermescontrol.data.model.flattenSessionsWithBranches
+import com.m57.hermescontrol.data.model.startable
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.EmptyState
@@ -1035,6 +1036,13 @@ fun SessionsScreen(
                                                     count = group.items.size,
                                                     expanded = expanded,
                                                     onToggle = { viewModel.toggleProjectGroup(group.key) },
+                                                    onNewChat =
+                                                        state.projects
+                                                            .startable()
+                                                            .firstOrNull { it.id == group.projectId }
+                                                            ?.let { project ->
+                                                                { NavigationController.openNewChat(project) }
+                                                            },
                                                 )
                                             }
                                             if (expanded) {

@@ -109,6 +109,8 @@ import com.m57.hermescontrol.ui.chat.components.ContextDetailSheet
 import com.m57.hermescontrol.ui.chat.components.ContextUsageChip
 import com.m57.hermescontrol.ui.chat.components.MediaViewerDialog
 import com.m57.hermescontrol.ui.chat.components.PendingSendRecovery
+import com.m57.hermescontrol.ui.chat.components.ProjectBadge
+import com.m57.hermescontrol.ui.chat.components.ProjectPickerChip
 import com.m57.hermescontrol.ui.chat.components.ReactionHeartsOverlay
 import com.m57.hermescontrol.ui.chat.components.ReloginDialog
 import com.m57.hermescontrol.ui.chat.components.ReplyErrorCard
@@ -854,6 +856,20 @@ fun ChatScreen(
                         )
                     }
                 }
+            }
+
+            // Workspace: pickable until the first message, then a read-only badge (#1527).
+            LaunchedEffect(state.isConnected, state.hasConversation) {
+                if (state.isConnected && !state.hasConversation) viewModel.loadStartableProjects()
+            }
+            if (!state.hasConversation && !timelineState.isHistorical) {
+                ProjectPickerChip(
+                    projects = state.startableProjects,
+                    selected = state.stagedProject,
+                    onSelect = viewModel::selectStagedProject,
+                )
+            } else {
+                state.stagedProject?.let { ProjectBadge(it) }
             }
 
             // Context-window meter (used / full) — sits above the composer so it

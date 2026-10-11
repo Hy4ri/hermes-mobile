@@ -67,7 +67,7 @@ fun ChatLifecycleEffects(
         val newChatRequest = NavigationController.consumePendingNewChatNavigation()
         val request = NavigationController.consumePendingChatNavigation()
         if (newChatRequest != null) {
-            viewModel.createNewSession()
+            viewModel.startNewChat(newChatRequest.project)
             return@LaunchedEffect
         }
         val target = request?.sessionId ?: sessionId

@@ -16,12 +16,15 @@ import com.m57.hermescontrol.data.model.ModelCapabilities
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.data.model.ProcessInfo
+import com.m57.hermescontrol.data.model.ProjectInfo
 import com.m57.hermescontrol.data.model.SessionCompressResponse
 import com.m57.hermescontrol.data.model.SessionTimelineEntry
 import com.m57.hermescontrol.data.model.UsageSnapshotResponse
+import com.m57.hermescontrol.data.model.launchCwd
 import com.m57.hermescontrol.data.model.parseContextBreakdown
 import com.m57.hermescontrol.data.model.parseUsageSnapshot
 import com.m57.hermescontrol.data.model.reasoningSupport
+import com.m57.hermescontrol.data.model.startable
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.GatewayFileClient
 import com.m57.hermescontrol.data.remote.NetworkResult
@@ -35,8 +38,10 @@ import com.m57.hermescontrol.data.ws.CommandCatalog
 import com.m57.hermescontrol.data.ws.ConnectionOperationParser
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.EventParser
+import com.m57.hermescontrol.data.ws.HermesProjectsSource
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.JsonRpcError
+import com.m57.hermescontrol.data.ws.ProjectsSource
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.data.ws.contract.CommandDispatchParams
@@ -301,6 +306,10 @@ data class ChatUiState(
     val killingProcessId: String? = null,
     // Session resume recovery (desktop parity: bounded auto-retry + error UI)
     val isSessionReady: Boolean = false,
+    /** Project the not-yet-prompted chat will run in (#1527); null = default workspace. */
+    val stagedProject: ProjectInfo? = null,
+    /** Projects a new chat can start in, from `projects.list`; empty hides the picker. */
+    val startableProjects: List<ProjectInfo> = emptyList(),
     val resumeError: String? = null,
     val isResumeRetrying: Boolean = false,
     /** Text staged to prefill the composer (e.g. from /undo). */
@@ -308,6 +317,9 @@ data class ChatUiState(
 ) {
     /** Convenience — derived from [connectionStatus]. */
     val isConnected: Boolean get() = connectionStatus == ConnectionStatus.CONNECTED
+
+    /** False until the user (or agent) says something; the "Session created" marker does not count (#1527). */
+    val hasConversation: Boolean get() = messages.any { !it.isSessionStartMarker() }
 
     /**
      * True only while a generation can actually be interrupted: typing can
@@ -478,6 +490,7 @@ class ChatViewModel(
     private val sendStore: ChatSendStore = ChatSendStore(application),
     private val voiceNoteRepository: VoiceNoteRepository = VoiceNoteRepository(),
     internal val onCompressionHistoryReplacedForTest: (() -> Unit)? = null,
+    private val projectsSource: ProjectsSource = HermesProjectsSource(),
 ) : AndroidViewModel(application) {
     constructor(application: Application) : this(application, startCleanup = true)
 
@@ -1043,7 +1056,7 @@ class ChatViewModel(
                 // ephemeral unpersisted session when the old socket closed.
                 // Re-create the session on the new socket so runtimeSessionId is
                 // refreshed and ready for prompts.
-                createNewSession(setLoading = false)
+                createNewSession(setLoading = false, project = _uiState.value.stagedProject)
             }
         } else {
             val initial = initialSessionId
@@ -4953,14 +4966,47 @@ class ChatViewModel(
         subagentsDelegate.closeSubagentTranscript()
     }
 
-    fun createNewSession(setLoading: Boolean = true) {
+    /** Opens a fresh chat; with a [project] it runs in that project's folder (#1527). */
+    fun startNewChat(project: ProjectInfo?) {
+        createNewSession(project = project?.takeIf { it.launchCwd != null })
+    }
+
+    /** Loads the projects the picker offers; an unreachable or older gateway leaves it empty (no picker). */
+    fun loadStartableProjects() {
+        viewModelScope.launch(ioDispatcher) {
+            val projects = projectsSource.fetchProjects()?.startable() ?: return@launch
+            _uiState.update { it.copy(startableProjects = projects) }
+        }
+    }
+
+    /**
+     * Picks (or clears) the project of a chat that has not been prompted yet. The cwd is bound when the
+     * gateway session is minted, so the unprompted session is re-minted; once a message exists it is locked.
+     */
+    fun selectStagedProject(project: ProjectInfo?) {
+        val state = _uiState.value
+        if (state.hasConversation || sessionHasServerPresence) return
+        if (state.stagedProject?.id == project?.id) return
+        createNewSession(setLoading = false, project = project)
+    }
+
+    fun createNewSession(
+        setLoading: Boolean = true,
+        project: ProjectInfo? = null,
+    ) {
         // A fresh create has no persisted row until the first prompt.
         sessionHasServerPresence = false
         val generation = resetSessionState(sessionId = null, title = "Hermes", isLoading = setLoading)
+        val cwd = project?.launchCwd
+        _uiState.update { it.copy(stagedProject = project.takeIf { cwd != null }) }
         viewModelScope.launch(ioDispatcher) {
             wsClient.send(
                 RpcMethods.SESSION_CREATE,
-                SessionCreateParams(source = DESKTOP_SESSION_SOURCE),
+                SessionCreateParams(
+                    source = DESKTOP_SESSION_SOURCE,
+                    cwd = cwd,
+                    cwdExplicit = if (cwd != null) true else null,
+                ),
                 onSent = { id -> trackSessionRequest(id, WsMethods.SESSION_CREATE, generation) },
             )
         }
@@ -5931,6 +5977,7 @@ class ChatViewModel(
                 resumeError = null,
                 isResumeRetrying = false,
                 pendingPrefillText = null,
+                stagedProject = null,
             )
         }
         publishPendingSends()

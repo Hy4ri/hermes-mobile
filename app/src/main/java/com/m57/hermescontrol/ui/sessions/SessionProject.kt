@@ -8,6 +8,8 @@ import com.m57.hermescontrol.data.model.SessionTreeItem
 data class SessionProject(
     val label: String,
     val color: String? = null,
+    // The matched named project's id; null for auto projects derived from a path.
+    val id: String? = null,
 )
 
 /**
@@ -41,7 +43,7 @@ fun resolveSessionProject(
     if (owner != null) {
         val (project, folder) = owner
         val label = project.name.trim().ifEmpty { pathLeaf(folder) }
-        return SessionProject(label = label, color = project.color)
+        return SessionProject(label = label, color = project.color, id = project.id)
     }
 
     val autoRoot = repoRoot.takeIf { cwd.isEmpty() || isPathUnder(it, cwd) }
@@ -59,6 +61,7 @@ const val NO_PROJECT_KEY = ""
 data class ProjectGroup(
     val key: String,
     val color: String?,
+    val projectId: String?,
     val items: List<SessionTreeItem>,
 )
 
@@ -78,14 +81,16 @@ fun groupSessionsByProject(
 ): List<ProjectGroup> {
     val groups = LinkedHashMap<String, MutableList<SessionTreeItem>>()
     val colors = HashMap<String, String?>()
+    val ids = HashMap<String, String?>()
     items.forEach { item ->
         val project = resolveSessionProject(item.session, projects)
         val key = project?.label ?: NO_PROJECT_KEY
         groups.getOrPut(key) { mutableListOf() }.add(item)
         if (colors[key] == null) colors[key] = project?.color
+        if (ids[key] == null) ids[key] = project?.id
     }
     return groups
-        .map { (key, rows) -> ProjectGroup(key, colors[key], rows) }
+        .map { (key, rows) -> ProjectGroup(key, colors[key], ids[key], rows) }
         .sortedBy { it.key == NO_PROJECT_KEY }
 }
 

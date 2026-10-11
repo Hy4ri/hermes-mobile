@@ -904,6 +904,9 @@
     <string name="sessions_all_hidden_desc">All sessions are currently hidden. Tap below to show hidden sessions.</string>
     <string name="sessions_pinned_indicator">Pinned</string>
     <string name="sessions_project_none">No project</string>
+    <string name="chat_project_default">Default workspace</string>
+    <string name="chat_project_picker_title">Start in project</string>
+    <string name="sessions_project_new_chat">New chat in %1$s</string>
     <string name="sessions_group_by_project">Group by project</string>
     <string name="sessions_project_group_collapse">Collapse %1$s</string>
     <string name="sessions_project_group_expand">Expand %1$s</string>

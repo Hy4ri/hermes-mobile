@@ -38,7 +38,8 @@ jobs:
     name: PR Template Comment
     needs: [label]
     # Comment even if labeling failed; the label is cosmetic, the comment is not.
-    if: ${{ !cancelled() }}
+    # Owner-authored PRs skip the template comment.
+    if: ${{ !cancelled() && github.event.pull_request.user.login != 'Hy4ri' }}
     runs-on: ubuntu-latest
     timeout-minutes: 3
     permissions:

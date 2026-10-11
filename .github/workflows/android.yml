@@ -33,7 +33,8 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   pr-template:
     name: PR Template
-    if: github.event_name == 'pull_request'
+    # Repo owner's PRs skip the template gate (skipped counts as pass downstream).
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'Hy4ri'
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:

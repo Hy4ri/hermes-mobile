@@ -46,9 +46,10 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.ManageableFilterRow
 import com.m57.hermescontrol.ui.common.NavIcon
-import com.m57.hermescontrol.ui.common.SearchBar
 import com.m57.hermescontrol.ui.common.SkeletonListState
+import com.m57.hermescontrol.ui.common.StatusFilter
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
@@ -64,6 +65,7 @@ fun ToolsetsScreen(
     val dataScope by AuthManager.dataScopeFlow.collectAsStateWithLifecycle()
 
     var query by remember { mutableStateOf("") }
+    var statusFilter by remember { mutableStateOf(StatusFilter.ALL) }
 
     LaunchedEffect(dataScope) {
         viewModel.clearScopeOwnedState()
@@ -71,11 +73,14 @@ fun ToolsetsScreen(
     }
 
     val filteredToolsets =
-        remember(query, state.toolsets) {
+        remember(query, statusFilter, state.toolsets) {
             state.toolsets.filter { toolset ->
-                toolset.name.contains(query, ignoreCase = true) ||
-                    toolset.label?.contains(query, ignoreCase = true) == true ||
-                    toolset.description?.contains(query, ignoreCase = true) == true
+                statusFilter.matches(toolset.enabled) &&
+                    (
+                        toolset.name.contains(query, ignoreCase = true) ||
+                            toolset.label?.contains(query, ignoreCase = true) == true ||
+                            toolset.description?.contains(query, ignoreCase = true) == true
+                    )
             }
         }
 
@@ -135,10 +140,12 @@ fun ToolsetsScreen(
                             verticalArrangement = listItemSpacing,
                         ) {
                             item {
-                                SearchBar(
+                                ManageableFilterRow(
                                     query = query,
                                     onQueryChange = { query = it },
                                     placeholder = stringResource(R.string.toolsets_search_placeholder),
+                                    status = statusFilter,
+                                    onStatusChange = { statusFilter = it },
                                 )
                             }
                             items(filteredToolsets, key = { it.name }) { toolset ->

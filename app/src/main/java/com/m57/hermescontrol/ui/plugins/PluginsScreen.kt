@@ -61,9 +61,10 @@ import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.ExposedDropdownField
 import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.ManageableFilterRow
 import com.m57.hermescontrol.ui.common.NavIcon
-import com.m57.hermescontrol.ui.common.SearchBar
 import com.m57.hermescontrol.ui.common.SkeletonListState
+import com.m57.hermescontrol.ui.common.StatusFilter
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
@@ -82,6 +83,7 @@ fun PluginsScreen(
     val dataScope by AuthManager.dataScopeFlow.collectAsStateWithLifecycle()
 
     var query by remember { mutableStateOf("") }
+    var statusFilter by remember { mutableStateOf(StatusFilter.ALL) }
     var showDetail by remember { mutableStateOf<PluginInfo?>(null) }
     var showCatalogDetail by remember { mutableStateOf<PluginCatalogEntry?>(null) }
 
@@ -91,10 +93,13 @@ fun PluginsScreen(
     }
 
     val filteredPlugins =
-        remember(query, state.plugins) {
+        remember(query, statusFilter, state.plugins) {
             state.plugins.filter { plugin ->
-                plugin.name.contains(query, ignoreCase = true) ||
-                    plugin.description?.contains(query, ignoreCase = true) == true
+                statusFilter.matches(plugin.enabled) &&
+                    (
+                        plugin.name.contains(query, ignoreCase = true) ||
+                            plugin.description?.contains(query, ignoreCase = true) == true
+                    )
             }
         }
 
@@ -261,10 +266,12 @@ fun PluginsScreen(
 
                                 // Search bar
                                 item(key = "search") {
-                                    SearchBar(
+                                    ManageableFilterRow(
                                         query = query,
                                         onQueryChange = { query = it },
                                         placeholder = stringResource(R.string.plugins_search_placeholder),
+                                        status = statusFilter,
+                                        onStatusChange = { statusFilter = it },
                                     )
                                 }
 

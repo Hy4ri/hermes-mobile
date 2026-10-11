@@ -23,13 +23,10 @@ import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import java.io.IOException
-import java.security.KeyStore
 import java.security.Principal
 import java.security.PrivateKey
 import java.security.cert.X509Certificate
 import java.util.concurrent.atomic.AtomicBoolean
-import javax.net.ssl.TrustManagerFactory
-import javax.net.ssl.X509TrustManager
 
 /** Manual, origin-scoped aliases only. Key material remains in Android KeyChain. */
 object ClientCertificates {
@@ -39,14 +36,7 @@ object ClientCertificates {
     private val chooserBusy = AtomicBoolean()
     private val main by lazy { Handler(Looper.getMainLooper()) }
     private lateinit var app: Context
-    private val trust: X509TrustManager by lazy {
-        TrustManagerFactory
-            .getInstance(TrustManagerFactory.getDefaultAlgorithm())
-            .apply { init(null as KeyStore?) }
-            .trustManagers
-            .filterIsInstance<X509TrustManager>()
-            .single()
-    }
+    private val trust get() = ServerTrust.manager
     private val sockets by lazy { CertificateSocketFactory(trust, ::keyManager) }
 
     fun initialize(context: Context) {

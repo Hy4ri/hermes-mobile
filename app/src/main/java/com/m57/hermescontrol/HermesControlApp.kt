@@ -15,6 +15,7 @@ import com.m57.hermescontrol.data.remote.CertificateImageInterceptor
 import com.m57.hermescontrol.data.remote.ClientCertificates
 import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.remote.OkHttpProvider
+import com.m57.hermescontrol.data.remote.ServerTrust
 import com.m57.hermescontrol.notification.TurnCorrelationTracker
 import com.m57.hermescontrol.ui.analytics.AnalyticsPreloader
 import com.m57.hermescontrol.ui.chat.cleanStalePastedImages
@@ -35,6 +36,7 @@ class HermesControlApp :
         appScope.launch(Dispatchers.IO) {
             cleanStalePastedImages(cacheDir, startupTimeMs)
         }
+        ServerTrust.initialize(this)
         ClientCertificates.initialize(this)
         AuthManager.init(this)
         NetworkMonitor.init(this)

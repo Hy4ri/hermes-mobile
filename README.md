@@ -150,8 +150,8 @@ manual configuration above. Later login steps, background requests and other scr
 not trigger it. Network requests never open the system picker or wait for selection. Missing,
 expired, revoked or incompatible keys result in no client identity, so servers requiring
 mTLS fail normally until a usable binding is saved. REST, WebSocket, images, attachments
-and audio/video share the TLS configuration. Default Android server trust and hostname
-verification remain enabled; no private CA or permissive trust policy is added.
+and audio/video share the TLS configuration. Server certificate and hostname
+verification remain enabled; client identity selection does not change server trust.
 
 Saving (including selecting the same alias again) or deleting a configuration retires live
 TLS sockets and session contexts for the affected addresses. Retry failed requests or
@@ -165,6 +165,27 @@ HTTP/2 connection coalescing across origins is disabled for the shared clients, 
 unbound origins; HTTP/2 within one origin remains enabled. A binding change also changes
 cache keys for unrelated remote resources because their redirect destinations are unknown
 before fetching. Redirects select the destination origin's saved identity only.
+
+### User-installed private certificate authorities
+
+For a server signed by a private CA, install that CA in Android's user certificate
+store, then enable **Trust user-installed CAs** in **Connections**, below the mTLS
+configuration entry. This global switch defaults to off, including when upgrading
+without a saved preference. Off uses the platform-default trust policy; on trusts
+active system and user CA roots for all connections using the shared TLS clients.
+Only enable it if you trust the installed user CAs. It does not restrict a CA to a
+specific server, accept arbitrary certificates, or bypass certificate validity,
+chain or hostname checks. mTLS client certificate bindings remain independent.
+
+The switch saves your choice for the next app process start. Restart the app process
+(not just the settings page or activity) to apply it. A restart hint appears while
+the saved choice differs from this process's active policy; switching back clears
+the hint. Existing clients and connections keep the startup policy.
+
+Android loads the CA store and validates certificate chains. The app does not
+monitor CA additions or removals or promise that they take effect while running;
+restart the app after changing the Android CA store. To stop trusting user CAs,
+turn the switch off and restart the app. Remove CAs in Android settings.
 
 ### Cloudflare Access and custom headers
 

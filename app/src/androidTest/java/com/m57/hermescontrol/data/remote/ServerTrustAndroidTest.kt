@@ -10,7 +10,6 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 import java.io.IOException
 import java.security.KeyStore
-import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
@@ -42,35 +41,34 @@ class ServerTrustAndroidTest {
     }
 
     @Test
-    fun retainedAndroidClientUsesNewRootsAndRejectsRevokedTrust() {
+    fun androidClientUsesStartupRootsUntilNewProcessPolicy() {
         val fixture = fixtures()
-        var installed = true
-        val policy =
-            ReloadableServerTrust(load = { enabled ->
-                val store =
+        var saved = false
+
+        fun process(): StartupServerTrust =
+            StartupServerTrust(saved, { saved = it }) { enabled ->
+                trust(
                     KeyStore.getInstance(KeyStore.getDefaultType()).apply {
                         load(null)
                         setCertificateEntry("system", fixture.getCertificate("system-ca"))
-                        if (enabled && installed) setCertificateEntry("user", fixture.getCertificate("user-ca"))
-                    }
-                trust(store)
-            }, persist = {}, changed = {})
-        val manager = ServerTrust.AndroidServerTrustManager { policy }
-        val sockets =
-            CertificateSocketFactory(manager) {
-                ClientCertificateKeyManager(choose = {
-                    _,
-                    _,
-                    _,
-                    ->
-                    null
-                }, privateKey = { null }, certificateChain = { null })
-            }.also(policy::track)
-        val client =
+                        if (enabled) setCertificateEntry("user", fixture.getCertificate("user-ca"))
+                    },
+                )
+            }
+
+        fun client(policy: StartupServerTrust): OkHttpClient =
             OkHttpClient
                 .Builder()
-                .sslSocketFactory(sockets, manager)
-                .readTimeout(3, TimeUnit.SECONDS)
+                .sslSocketFactory(
+                    CertificateSocketFactory(policy.manager) {
+                        ClientCertificateKeyManager(
+                            choose = { _, _, _ -> null },
+                            privateKey = { null },
+                            certificateChain = { null },
+                        )
+                    },
+                    policy.manager,
+                ).readTimeout(3, TimeUnit.SECONDS)
                 .retryOnConnectionFailure(false)
                 .build()
         val keys =
@@ -94,22 +92,27 @@ class ServerTrustAndroidTest {
             server.useHttps(context.socketFactory, false)
             server.start()
 
-            fun get() =
+            fun get(client: OkHttpClient) =
                 client.newCall(Request.Builder().url(server.url("/")).build()).execute().use {
                     it.body.string()
                 }
-            assertThrows(IOException::class.java) { get() }
-            policy.setEnabled(true)
-            server.enqueue(MockResponse().setBody("enabled"))
-            assertEquals("enabled", get()) // Same client's Android chain cleaner must discover the new user root.
-            policy.setEnabled(false)
-            assertThrows(IOException::class.java) { get() }
-            policy.setEnabled(true)
-            server.enqueue(MockResponse().setBody("enabled again"))
-            assertEquals("enabled again", get())
-            installed = false
-            policy.reload()
-            assertThrows(IOException::class.java) { get() }
+            val disabled = process()
+            val oldClient = client(disabled)
+            assertThrows(IOException::class.java) { get(oldClient) }
+            disabled.save(true)
+            assertThrows(IOException::class.java) { get(oldClient) }
+            val enabled = process()
+            val enabledClient = client(enabled)
+            server.enqueue(MockResponse().setBody("enabled after restart"))
+            assertEquals("enabled after restart", get(enabledClient))
+            enabled.save(false)
+            server.enqueue(MockResponse().setBody("still active"))
+            assertEquals("still active", get(enabledClient))
+            assertThrows(IOException::class.java) { get(client(process())) }
+            listOf(oldClient, enabledClient).forEach {
+                it.connectionPool.evictAll()
+                it.dispatcher.executorService.shutdown()
+            }
         }
     }
 }

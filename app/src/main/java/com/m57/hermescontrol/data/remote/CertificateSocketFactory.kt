@@ -34,21 +34,11 @@ internal class CertificateSocketFactory(
     }
 
     fun invalidate(origin: CertificateOrigin) {
-        val retired = synchronized(this) { entries.remove(origin)?.snapshot() } ?: return
-        retire(retired)
-    }
-
-    fun invalidateAll() {
         val retired =
             synchronized(this) {
-                entries.values.map { it.snapshot() }.also { entries.clear() }
+                entries.remove(origin)?.let { it.context to it.sockets.keys.toList() }
             }
-        retired.forEach(::retire)
-    }
-
-    private fun Entry.snapshot() = context to sockets.keys.toList()
-
-    private fun retire(retired: Pair<SSLContext, List<Socket>>) {
+                ?: return
         runCatching {
             val sessions = retired.first.clientSessionContext
             val ids = sessions.ids
@@ -56,6 +46,11 @@ internal class CertificateSocketFactory(
         }
         // Dropping the context also prevents session-ticket reuse when providers do not enumerate tickets.
         retired.second.forEach { runCatching { it.close() } }
+    }
+
+    fun invalidateAll() {
+        val origins = synchronized(this) { entries.keys.toList() }
+        origins.forEach { invalidate(it) }
     }
 
     override fun createSocket(

@@ -7,12 +7,12 @@ import okhttp3.Callback
 import okhttp3.ConnectionPool
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
-import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.SSLContext
 import javax.net.ssl.X509ExtendedKeyManager
 import javax.net.ssl.X509TrustManager
 import kotlin.coroutines.resumeWithException
@@ -22,19 +22,14 @@ internal suspend fun verifyClientCertificate(
     url: HttpUrl,
     trust: X509TrustManager,
     keyManager: X509ExtendedKeyManager,
-    track: (CertificateSocketFactory) -> Unit = {},
-    untrack: (CertificateSocketFactory) -> Unit = { it.invalidateAll() },
-    policyInterceptor: Interceptor = Interceptor { it.proceed(it.request()) },
 ) {
     val origin = requireNotNull(CertificateOrigin.from(url))
-    val sockets = CertificateSocketFactory(trust) { keyManager }
-    track(sockets)
+    val context = SSLContext.getInstance("TLS").apply { init(arrayOf(keyManager), arrayOf(trust), null) }
     val pool = ConnectionPool()
     val client =
         OkHttpClient
             .Builder()
-            .sslSocketFactory(sockets, trust)
-            .addInterceptor(policyInterceptor)
+            .sslSocketFactory(context.socketFactory, trust)
             .connectionPool(pool)
             .cookieJar(CookieJar.NO_COOKIES)
             .authenticator(Authenticator.NONE)
@@ -89,7 +84,6 @@ internal suspend fun verifyClientCertificate(
         }
     } finally {
         call.cancel()
-        untrack(sockets)
         pool.evictAll()
         client.dispatcher.executorService.shutdown()
     }

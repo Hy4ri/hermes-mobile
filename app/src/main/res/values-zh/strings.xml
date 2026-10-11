@@ -1717,4 +1717,5 @@
     <string name="trust_user_cas_title">信任用户安装的 CA</string>
     <string name="trust_user_cas_description">为所有连接信任系统 CA 和 Android 用户证书库中的所有 CA。任何用户安装的 CA 都可用于验证本应用连接的服务器。证书和主机名校验保持开启。默认关闭。</string>
     <string name="trust_user_cas_save_failed">无法保存信任设置，请重试。</string>
+    <string name="trust_user_cas_restart_required">请重启应用进程以应用此更改。</string>
 </resources>

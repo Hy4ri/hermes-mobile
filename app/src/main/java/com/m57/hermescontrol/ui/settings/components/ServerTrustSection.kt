@@ -46,7 +46,7 @@ internal fun ServerTrustSection() {
                         saving = true
                         failed = false
                         scope.launch {
-                            // Finish persistence + transport retirement even if this page leaves composition.
+                            // Finish saving the next-start preference even if this page leaves composition.
                             failed =
                                 withContext(Dispatchers.IO + NonCancellable) {
                                     runCatching { ServerTrust.setEnabled(value) }.isFailure
@@ -66,6 +66,13 @@ internal fun ServerTrustSection() {
                 )
             }
             Switch(checked = enabled, onCheckedChange = null, enabled = !saving)
+        }
+        if (enabled != ServerTrust.active) {
+            Text(
+                stringResource(R.string.trust_user_cas_restart_required),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         if (failed) {
             Text(

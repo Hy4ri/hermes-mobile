@@ -1866,4 +1866,5 @@
     <string name="trust_user_cas_title">Trust user-installed CAs</string>
     <string name="trust_user_cas_description">Trust system CAs and any CA installed in Android’s user certificate store for all connections. Any user-installed CA can authenticate servers for this app. Certificate and hostname checks remain enabled. Off by default.</string>
     <string name="trust_user_cas_save_failed">Could not save the trust setting. Please try again.</string>
+    <string name="trust_user_cas_restart_required">Restart the app process to apply this change.</string>
 </resources>

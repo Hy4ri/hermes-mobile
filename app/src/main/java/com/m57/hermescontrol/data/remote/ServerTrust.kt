@@ -1,154 +1,59 @@
 package com.m57.hermescontrol.data.remote
 
-import android.content.BroadcastReceiver
 import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
 import android.content.SharedPreferences
-import android.net.http.X509TrustManagerExtensions
-import android.security.KeyChain
-import androidx.annotation.Keep
-import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import okhttp3.Interceptor
 import java.io.IOException
 import java.security.KeyStore
-import java.security.MessageDigest
-import java.security.cert.X509Certificate
-import java.util.Base64
 import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
 
-/** Global server authentication policy, initialized synchronously before any network consumer. */
+/** Select the platform trust manager once, before any network consumer starts. */
 internal object ServerTrust {
-    private val enabled = MutableStateFlow(false)
-    val state = enabled.asStateFlow()
-    private lateinit var policy: ReloadableServerTrust
-    private var storeVersion: List<String>? = null
-
-    val manager: X509TrustManager = AndroidServerTrustManager { policy }
+    private lateinit var policy: StartupServerTrust
+    val state get() = policy.state
+    val active get() = policy.active
+    val manager get() = policy.manager
 
     fun initialize(context: Context) {
-        val app = context.applicationContext
-        val setting = ServerTrustPreference(app.getSharedPreferences("server_trust", Context.MODE_PRIVATE))
-        val initial = setting.read()
-        policy =
-            ReloadableServerTrust(
-                initial = initial,
-                load = ::loadTrustManager,
-                persist = setting::write,
-                changed = OkHttpProvider::evictConnections,
-            )
-        enabled.value = initial
-        ContextCompat.registerReceiver(
-            app,
-            object : BroadcastReceiver() {
-                override fun onReceive(
-                    context: Context,
-                    intent: Intent,
-                ) {
-                    synchronized(this@ServerTrust) {
-                        storeVersion = null
-                        policy.reload()
-                    }
-                }
-            },
-            IntentFilter(KeyChain.ACTION_TRUST_STORE_CHANGED),
-            ContextCompat.RECEIVER_NOT_EXPORTED,
-        )
+        check(!::policy.isInitialized)
+        val setting = ServerTrustPreference(context.getSharedPreferences("server_trust", Context.MODE_PRIVATE))
+        policy = StartupServerTrust(setting.read(), setting::write) { loadTrustManager(it) }
     }
 
-    @Synchronized
-    fun setEnabled(value: Boolean) {
-        policy.setEnabled(value)
-        enabled.value = policy.isEnabled()
-    }
+    fun setEnabled(value: Boolean) = policy.save(value)
 
-    /** Also catches changes while stopped/backgrounded, before cache hits and pooled requests. */
-    @Synchronized
-    fun refresh() {
-        try {
-            val store = androidStore()
-            val digest = MessageDigest.getInstance("SHA-256")
-            val version =
-                store.aliases().toList().sorted().map { alias ->
-                    val fingerprint =
-                        Base64.getEncoder().encodeToString(
-                            digest.digest(store.getCertificate(alias).encoded),
-                        )
-                    "$alias:$fingerprint"
-                }
-            if (version != storeVersion) {
-                if (!policy.reload()) throw IOException("Could not reload server trust")
-                storeVersion = version
-            }
-        } catch (e: Exception) {
-            storeVersion = null
-            policy.reload()
-            throw IOException("Could not refresh Android CA store", e)
-        }
-    }
-
-    fun cacheEpoch(): String {
-        refresh()
-        return policy.cacheEpoch()
-    }
-
-    fun track(factory: CertificateSocketFactory) = policy.track(factory)
-
-    fun untrack(factory: CertificateSocketFactory) = policy.untrack(factory)
-
-    val interceptor =
-        Interceptor { chain ->
-            val epoch = cacheEpoch()
-            val response = chain.proceed(chain.request())
-            try {
-                policy.requireEpoch(epoch)
-                response
-            } catch (e: IOException) {
-                response.close()
-                throw e
-            }
-        }
-
-    private fun androidStore(): KeyStore = KeyStore.getInstance("AndroidCAStore").apply { load(null) }
-
-    internal fun loadTrustManager(includeUser: Boolean): X509TrustManager =
-        TrustManagerFactory
-            .getInstance(TrustManagerFactory.getDefaultAlgorithm())
+    internal fun loadTrustManager(
+        includeUser: Boolean,
+        androidStore: () -> KeyStore = { KeyStore.getInstance("AndroidCAStore").apply { load(null) } },
+        factory: () -> TrustManagerFactory = {
+            TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
+        },
+    ): X509TrustManager =
+        factory()
             .apply {
-                // null preserves the app's original Android network-security-config system trust rules.
-                // AndroidCAStore exposes currently active system + user roots (including updated system roots).
+                // null preserves platform defaults; AndroidCAStore delegates system + user roots to Android.
                 init(if (includeUser) androidStore() else null as KeyStore?)
             }.trustManagers
             .filterIsInstance<X509TrustManager>()
             .single()
+}
 
-    /** X509TrustManagerExtensions discovers this overload reflectively; keep it in release builds. */
-    @Keep
-    class AndroidServerTrustManager(
-        private val current: () -> ReloadableServerTrust,
-    ) : X509TrustManager {
-        override fun getAcceptedIssuers(): Array<X509Certificate> = current().acceptedIssuers
+/** Saved preference can change; the active policy and platform manager last for this process. */
+internal class StartupServerTrust(
+    val active: Boolean,
+    private val persist: (Boolean) -> Unit,
+    load: (Boolean) -> X509TrustManager,
+) {
+    val manager = load(active)
+    private val saved = MutableStateFlow(active)
+    val state = saved.asStateFlow()
 
-        override fun checkClientTrusted(
-            chain: Array<X509Certificate>,
-            authType: String,
-        ) = current().checkClientTrusted(chain, authType)
-
-        override fun checkServerTrusted(
-            chain: Array<X509Certificate>,
-            authType: String,
-        ) = current().checkServerTrusted(chain, authType)
-
-        @Suppress("unused")
-        fun checkServerTrusted(
-            chain: Array<X509Certificate>,
-            authType: String,
-            host: String,
-        ): List<X509Certificate> =
-            current().checked { X509TrustManagerExtensions(it).checkServerTrusted(chain, authType, host) }
+    @Synchronized
+    fun save(value: Boolean) {
+        persist(value)
+        saved.value = value
     }
 }
 

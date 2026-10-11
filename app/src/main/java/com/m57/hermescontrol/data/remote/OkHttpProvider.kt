@@ -34,7 +34,6 @@ object OkHttpProvider {
             .Builder()
             .let(ClientCertificates::configure)
             .cookieJar(resolveCookieJar())
-            .addInterceptor(ServerTrust.interceptor)
             .addNetworkInterceptor(ServerHeadersInterceptor())
             .connectionPool(connectionPool)
             .connectTimeout(15, TimeUnit.SECONDS)
@@ -43,8 +42,6 @@ object OkHttpProvider {
             .retryOnConnectionFailure(true)
             .build()
     }
-
-    internal fun evictConnections() = connectionPool.evictAll()
 
     // WebSocket-optimized variant (infinite read timeout, ping interval)
     val websocket: OkHttpClient by lazy {

@@ -177,13 +177,15 @@ Only enable it if you trust the installed user CAs. It does not restrict a CA to
 specific server, accept arbitrary certificates, or bypass certificate validity,
 chain or hostname checks. mTLS client certificate bindings remain independent.
 
-The choice is saved across app restarts. Changing it retires tracked TLS sockets,
-sessions and pooled connections and changes remote cache generations. Android CA
-store changes trigger a reload, with another store check before shared requests
-and remote cache lookups. Retry interrupted requests or restart media playback;
-already displayed or buffered content may remain visible. To stop trusting user
-CAs, turn the switch off; removing a CA is done in Android settings.
+The switch saves your choice for the next app process start. Restart the app process
+(not just the settings page or activity) to apply it. A restart hint appears while
+the saved choice differs from this process's active policy; switching back clears
+the hint. Existing clients and connections keep the startup policy.
 
+Android loads the CA store and validates certificate chains. The app does not
+monitor CA additions or removals or promise that they take effect while running;
+restart the app after changing the Android CA store. To stop trusting user CAs,
+turn the switch off and restart the app. Remove CAs in Android settings.
 
 ### Cloudflare Access and custom headers
 

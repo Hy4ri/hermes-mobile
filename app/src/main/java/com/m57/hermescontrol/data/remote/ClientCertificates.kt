@@ -37,9 +37,7 @@ object ClientCertificates {
     private val main by lazy { Handler(Looper.getMainLooper()) }
     private lateinit var app: Context
     private val trust get() = ServerTrust.manager
-    private val sockets by lazy {
-        CertificateSocketFactory(trust, ::keyManager).also(ServerTrust::track)
-    }
+    private val sockets by lazy { CertificateSocketFactory(trust, ::keyManager) }
 
     fun initialize(context: Context) {
         app = context.applicationContext
@@ -122,7 +120,6 @@ object ClientCertificates {
         alias: String,
     ) {
         if (!available(alias, null, null)) throw IOException("Client certificate is unavailable")
-        ServerTrust.refresh()
         verifyClientCertificate(
             url,
             trust,
@@ -131,14 +128,11 @@ object ClientCertificates {
                 privateKey = { selected -> if (selected == alias) key(alias) else null },
                 certificateChain = { selected -> if (selected == alias) chain(alias) else null },
             ),
-            track = ServerTrust::track,
-            untrack = ServerTrust::untrack,
-            policyInterceptor = ServerTrust.interceptor,
         )
     }
 
     /** Persistent generation isolates late cache responses from a previous TLS identity. */
-    fun cacheKey(url: HttpUrl): String = "${registry.cacheKey(url)}#trust=${ServerTrust.cacheEpoch()}"
+    fun cacheKey(url: HttpUrl): String = registry.cacheKey(url)
 
     /** UI only. The result is a draft; this function never writes bindings. */
     fun select(

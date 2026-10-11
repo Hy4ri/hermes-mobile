@@ -2,7 +2,6 @@ package com.m57.hermescontrol.data.remote
 
 import io.mockk.every
 import io.mockk.mockkObject
-import okhttp3.Interceptor
 import java.security.KeyStore
 import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
@@ -19,6 +18,4 @@ fun mockSystemServerTrust() {
             .single()
     mockkObject(ServerTrust)
     every { ServerTrust.manager } returns trust
-    every { ServerTrust.track(any()) } returns Unit
-    every { ServerTrust.interceptor } returns Interceptor { it.proceed(it.request()) }
 }

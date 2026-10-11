@@ -51,6 +51,23 @@ class ServerTrustPreferenceTest {
     }
 
     @Test
+    fun `upgrade with unrelated saved preferences still defaults off`() {
+        memory["existing_setting"] = true
+        disk.putAll(memory)
+        restart()
+        assertFalse(setting.read())
+    }
+
+    @Test
+    fun `failed enabling cannot persist opt in`() {
+        fail = true
+        assertThrows(IOException::class.java) { setting.write(true) }
+        assertFalse(setting.read())
+        restart()
+        assertFalse(setting.read())
+    }
+
+    @Test
     fun `failed disabling restores memory and reports failure without claiming persistence`() {
         setting.write(true)
         fail = true

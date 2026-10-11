@@ -9,7 +9,6 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -19,7 +18,6 @@ import java.security.cert.CertificateException
 import java.security.cert.X509Certificate
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
-import javax.net.ssl.SSLSocket
 
 /** JSSE + injected roots only. AndroidCAStore and Android's chain cleaner need device verification. */
 class ServerTrustPolicyTest {
@@ -37,22 +35,19 @@ class ServerTrustPolicyTest {
 
     private fun root(name: String) = roots.getCertificate("$name-ca") as X509Certificate
 
-    private var userInstalled = true
     private var persisted = false
     private var writesFail = false
-    private val policy =
-        ReloadableServerTrust(
-            load = { enabled ->
+
+    private fun policy(enabled: Boolean = persisted) =
+        StartupServerTrust(
+            active = enabled,
+            load = { includeUser ->
                 TlsTestContext(
-                    trusted =
-                        listOf(root("system")) +
-                            if (enabled && userInstalled) listOf(root("user")) else emptyList(),
+                    trusted = listOf(root("system")) + if (includeUser) listOf(root("user")) else emptyList(),
                 ).trustManager
             },
             persist = { if (writesFail) throw IOException("disk failure") else persisted = it },
-            changed = {},
         )
-    private val sockets = CertificateSocketFactory(policy) { manager(null) }.also(policy::track)
 
     private fun manager(identity: TlsTestIdentity?) =
         ClientCertificateKeyManager(
@@ -61,12 +56,10 @@ class ServerTrustPolicyTest {
             certificateChain = { identity?.chain },
         )
 
-    // JSSE's OkHttp chain cleaner snapshots roots at client construction. Android instead uses
-    // the kept three-argument X509TrustManagerExtensions overload to consult the current delegate.
-    private fun client() =
+    private fun client(policy: StartupServerTrust) =
         OkHttpClient
             .Builder()
-            .sslSocketFactory(sockets, policy)
+            .sslSocketFactory(CertificateSocketFactory(policy.manager) { manager(null) }, policy.manager)
             .retryOnConnectionFailure(false)
             .readTimeout(2, TimeUnit.SECONDS)
             .build()
@@ -85,36 +78,42 @@ class ServerTrustPolicyTest {
     ) = client.newCall(Request.Builder().url(server.url("/")).build()).execute().use { it.body.string() }
 
     @Test
-    fun `fresh and upgraded missing preference default off and failed persistence does not publish`() {
-        assertFalse(policy.isEnabled())
-        assertFalse(persisted)
-        assertThrows(CertificateException::class.java) { policy.checkServerTrusted(user.chain, "RSA") }
-        policy.setEnabled(true)
-        assertTrue(persisted)
+    fun `saved and active remain separate until restart and switching back clears difference`() {
+        val process = policy(false)
+        assertFalse(process.active)
+        process.save(true)
+        assertTrue(process.state.value)
+        assertFalse(process.active)
+        assertThrows(CertificateException::class.java) { process.manager.checkServerTrusted(user.chain, "RSA") }
+        assertTrue(policy().active)
+        process.save(false)
+        assertEquals(process.active, process.state.value)
+        assertFalse(policy().active)
+    }
+
+    @Test
+    fun `failed save leaves saved and active policy unchanged`() {
+        val process = policy(true)
         writesFail = true
-        assertThrows(IOException::class.java) { policy.setEnabled(false) }
-        assertTrue(policy.isEnabled())
-        assertTrue(persisted)
-        writesFail = false
-        policy.setEnabled(false)
-        assertFalse(persisted)
-        assertFalse(policy.isEnabled())
+        assertThrows(IOException::class.java) { process.save(false) }
+        assertTrue(process.state.value)
+        assertTrue(process.active)
     }
 
     @Test
     fun `system CA works in both states and user CA only when enabled`() {
         for (enabled in listOf(false, true)) {
-            policy.setEnabled(enabled)
+            val policy = policy(enabled)
             server(system).use { server ->
                 server.enqueue(MockResponse().setBody("system"))
-                assertEquals("system", get(client(), server))
+                assertEquals("system", get(client(policy), server))
             }
             server(user).use { server ->
                 server.enqueue(MockResponse().setBody("user"))
                 if (enabled) {
-                    assertEquals("user", get(client(), server))
+                    assertEquals("user", get(client(policy), server))
                 } else {
-                    assertThrows(IOException::class.java) { get(client(), server) }
+                    assertThrows(IOException::class.java) { get(client(policy), server) }
                 }
             }
         }
@@ -122,15 +121,15 @@ class ServerTrustPolicyTest {
 
     @Test
     fun `unknown CA expired leaf and incorrect hostname fail even when enabled`() {
-        policy.setEnabled(true)
+        val policy = policy(true)
         for (identity in listOf(unknown, expired)) {
             server(identity).use { server ->
                 server.enqueue(MockResponse())
-                assertThrows(IOException::class.java) { get(client(), server) }
+                assertThrows(IOException::class.java) { get(client(policy), server) }
             }
         }
         server(user).use { server ->
-            val client = client().newBuilder().dns { listOf(java.net.InetAddress.getByName("127.0.0.1")) }.build()
+            val client = client(policy).newBuilder().dns { listOf(java.net.InetAddress.getByName("127.0.0.1")) }.build()
             assertThrows(IOException::class.java) {
                 client
                     .newCall(
@@ -150,45 +149,25 @@ class ServerTrustPolicyTest {
     }
 
     @Test
-    fun `disable or remove CA retires live sockets TLS sessions pools and cache generations`() {
-        for (remove in listOf(false, true)) {
-            userInstalled = true
-            policy.setEnabled(true)
-            policy.reload()
-            server(user).use { server ->
-                val retained = client()
-                server.enqueue(MockResponse().setBody("old"))
-                assertEquals("old", get(retained, server))
-                val epoch = policy.cacheEpoch()
-                val socket = sockets.createSocket("localhost", server.port) as SSLSocket
-                socket.startHandshake()
-                val session = socket.session
-                assertTrue(session.isValid)
-                if (remove) {
-                    userInstalled = false
-                    policy.reload()
-                } else {
-                    policy.setEnabled(false)
-                }
-                assertTrue(socket.isClosed)
-                assertFalse(session.isValid)
-                assertNotEquals(epoch, policy.cacheEpoch())
-                assertThrows(IOException::class.java) { policy.requireEpoch(epoch) }
-                server.enqueue(MockResponse().setBody("must not use old trust"))
-                assertThrows(IOException::class.java) { get(retained, server) }
-            }
-        }
-    }
-
-    @Test
-    fun `user CA supports WSS and an established websocket fails on revocation`() {
-        policy.setEnabled(true)
+    fun `user CA supports WSS and saved preference does not close established websocket`() {
+        val policy = policy(true)
         server(user).use { server ->
-            server.enqueue(MockResponse().withWebSocketUpgrade(object : WebSocketListener() {}))
+            server.enqueue(
+                MockResponse().withWebSocketUpgrade(
+                    object : WebSocketListener() {
+                        override fun onMessage(
+                            webSocket: WebSocket,
+                            text: String,
+                        ) {
+                            webSocket.send(text)
+                        }
+                    },
+                ),
+            )
             val opened = CompletableFuture<Unit>()
-            val failed = CompletableFuture<Unit>()
+            val echoed = CompletableFuture<String>()
             val ws =
-                client().newWebSocket(
+                client(policy).newWebSocket(
                     Request.Builder().url(server.url("/ws")).build(),
                     object : WebSocketListener() {
                         override fun onOpen(
@@ -198,19 +177,28 @@ class ServerTrustPolicyTest {
                             opened.complete(Unit)
                         }
 
+                        override fun onMessage(
+                            webSocket: WebSocket,
+                            text: String,
+                        ) {
+                            echoed.complete(text)
+                        }
+
                         override fun onFailure(
                             webSocket: WebSocket,
                             t: Throwable,
                             response: okhttp3.Response?,
                         ) {
-                            failed.complete(Unit)
+                            echoed.completeExceptionally(t)
                         }
                     },
                 )
             try {
                 opened.get(5, TimeUnit.SECONDS)
-                policy.setEnabled(false)
-                failed.get(5, TimeUnit.SECONDS)
+                policy.save(false)
+                assertTrue(ws.send("after save"))
+                assertEquals("after save", echoed.get(5, TimeUnit.SECONDS))
+                assertTrue(policy.active)
             } finally {
                 ws.cancel()
             }
@@ -221,14 +209,15 @@ class ServerTrustPolicyTest {
     fun `independent mTLS verification keeps client selection and shares server trust`() =
         runBlocking {
             val first = TlsTestIdentity("first")
+            val disabled = policy(false)
             server(user, listOf(first.certificate)).use { server ->
                 server.requireClientAuth()
                 assertThrows(IOException::class.java) {
-                    runBlocking { verifyClientCertificate(server.url("/"), policy, manager(first)) }
+                    runBlocking { verifyClientCertificate(server.url("/"), disabled.manager, manager(first)) }
                 }
-                policy.setEnabled(true)
+                val policy = policy(true)
                 server.enqueue(MockResponse())
-                verifyClientCertificate(server.url("/"), policy, manager(first), policy::track, policy::untrack)
+                verifyClientCertificate(server.url("/"), policy.manager, manager(first))
                 assertEquals(
                     first.certificate,
                     server
@@ -241,23 +230,9 @@ class ServerTrustPolicyTest {
         }
 
     @Test
-    fun `verification racing a trust update fails and reload errors fail closed`() {
-        policy.setEnabled(true)
-        assertThrows(CertificateException::class.java) {
-            policy.checked {
-                it.checkServerTrusted(user.chain, "RSA")
-                policy.setEnabled(false)
-            }
+    fun `startup loader failure is propagated without a permissive fallback`() {
+        assertThrows(IOException::class.java) {
+            StartupServerTrust(true, {}) { throw IOException("CA store unavailable") }
         }
-        var fail = false
-        val failing =
-            ReloadableServerTrust(load = {
-                if (fail) throw IOException("CA store unavailable")
-                TlsTestContext(trusted = listOf(root("system"))).trustManager
-            }, persist = {}, changed = {})
-        failing.checkServerTrusted(system.chain, "RSA")
-        fail = true
-        failing.reload()
-        assertThrows(CertificateException::class.java) { failing.checkServerTrusted(system.chain, "RSA") }
     }
 }

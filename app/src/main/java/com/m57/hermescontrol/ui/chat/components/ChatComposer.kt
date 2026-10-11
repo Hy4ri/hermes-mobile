@@ -458,7 +458,11 @@ fun ChatInputBar(
                                                     modifier = Modifier.fillMaxWidth(),
                                                 )
                                             }
-                                            innerTextField()
+                                            // Full width so the caret/text anchor to the row edge
+                                            // (start in RTL), not a wrap-sized box floating mid-row.
+                                            Box(modifier = Modifier.fillMaxWidth()) {
+                                                innerTextField()
+                                            }
                                         }
                                     }
                                 },

@@ -9,10 +9,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -25,7 +25,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.Spacing
 import com.m57.hermescontrol.ui.mcp.AddServerMode
@@ -40,119 +39,116 @@ fun AddServerSection(
     spacing: Spacing,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier) {
-        AnimatedVisibility(visible = state.showAddForm) {
-            Card(
+    Column(
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(spacing.md),
+    ) {
+        SecondaryTabRow(selectedTabIndex = if (state.addMode == AddServerMode.HTTP) 0 else 1) {
+            Tab(
+                selected = state.addMode == AddServerMode.HTTP,
+                onClick = { viewModel.setAddMode(AddServerMode.HTTP) },
+                text = { Text(stringResource(R.string.mcp_servers_add_http)) },
+            )
+            Tab(
+                selected = state.addMode == AddServerMode.Stdio,
+                onClick = { viewModel.setAddMode(AddServerMode.Stdio) },
+                text = { Text(stringResource(R.string.mcp_servers_add_stdio)) },
+            )
+        }
+
+        Spacer(modifier = Modifier.height(spacing.sm))
+
+        OutlinedTextField(
+            value = state.addServerName,
+            onValueChange = viewModel::updateAddServerName,
+            label = { Text(stringResource(R.string.mcp_servers_field_name)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(modifier = Modifier.height(spacing.sm))
+
+        if (state.addMode == AddServerMode.HTTP) {
+            OutlinedTextField(
+                value = state.addServerUrl,
+                onValueChange = viewModel::updateAddServerUrl,
+                label = { Text(stringResource(R.string.mcp_servers_field_url)) },
+                singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+            )
+            Spacer(modifier = Modifier.height(spacing.sm))
+            Text(
+                text = stringResource(R.string.mcp_servers_auth_mode),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(spacing.xs))
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+                verticalArrangement = Arrangement.spacedBy(spacing.sm),
             ) {
-                Column(modifier = Modifier.padding(spacing.md)) {
-                    SecondaryTabRow(selectedTabIndex = if (state.addMode == AddServerMode.HTTP) 0 else 1) {
-                        Tab(
-                            selected = state.addMode == AddServerMode.HTTP,
-                            onClick = { viewModel.setAddMode(AddServerMode.HTTP) },
-                            text = { Text(stringResource(R.string.mcp_servers_add_http)) },
-                        )
-                        Tab(
-                            selected = state.addMode == AddServerMode.Stdio,
-                            onClick = { viewModel.setAddMode(AddServerMode.Stdio) },
-                            text = { Text(stringResource(R.string.mcp_servers_add_stdio)) },
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(spacing.sm))
-
-                    OutlinedTextField(
-                        value = state.addServerName,
-                        onValueChange = viewModel::updateAddServerName,
-                        label = { Text(stringResource(R.string.mcp_servers_field_name)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Spacer(modifier = Modifier.height(spacing.sm))
-
-                    if (state.addMode == AddServerMode.HTTP) {
-                        OutlinedTextField(
-                            value = state.addServerUrl,
-                            onValueChange = viewModel::updateAddServerUrl,
-                            label = { Text(stringResource(R.string.mcp_servers_field_url)) },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                        )
-                        Spacer(modifier = Modifier.height(spacing.sm))
-                        Text(
-                            text = stringResource(R.string.mcp_servers_auth_mode),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(modifier = Modifier.height(spacing.xs))
-                        FlowRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(spacing.sm),
-                            verticalArrangement = Arrangement.spacedBy(spacing.sm),
-                        ) {
-                            FilterChip(
-                                selected = state.addServerAuth == "none",
-                                onClick = { viewModel.updateAddServerAuth("none") },
-                                label = { Text(stringResource(R.string.mcp_servers_auth_none)) },
-                            )
-                            FilterChip(
-                                selected = state.addServerAuth == "header",
-                                onClick = { viewModel.updateAddServerAuth("header") },
-                                label = { Text(stringResource(R.string.mcp_servers_auth_header)) },
-                            )
-                            FilterChip(
-                                selected = state.addServerAuth == "oauth",
-                                onClick = { viewModel.updateAddServerAuth("oauth") },
-                                label = { Text(stringResource(R.string.mcp_servers_auth_oauth)) },
-                            )
-                        }
-                        if (state.addServerAuth == "header") {
-                            Spacer(modifier = Modifier.height(spacing.sm))
-                            OutlinedTextField(
-                                value = state.addServerBearerToken,
-                                onValueChange = viewModel::updateAddServerBearerToken,
-                                label = { Text(stringResource(R.string.mcp_servers_field_bearer_token)) },
-                                singleLine = true,
-                                visualTransformation = remember { PasswordVisualTransformation() },
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
-                    } else {
-                        OutlinedTextField(
-                            value = state.addServerCommand,
-                            onValueChange = viewModel::updateAddServerCommand,
-                            label = { Text(stringResource(R.string.mcp_servers_field_command)) },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Spacer(modifier = Modifier.height(spacing.sm))
-                        OutlinedTextField(
-                            value = state.addServerArgs,
-                            onValueChange = viewModel::updateAddServerArgs,
-                            label = { Text(stringResource(R.string.mcp_servers_field_args)) },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(spacing.md))
-                    Button(
-                        onClick = { viewModel.submitAddServer() },
-                        enabled = !state.addingServer,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(
-                            if (state.addingServer) {
-                                stringResource(R.string.mcp_servers_action_adding)
-                            } else {
-                                stringResource(R.string.mcp_servers_action_submit)
-                            },
-                        )
-                    }
-                }
+                FilterChip(
+                    selected = state.addServerAuth == "none",
+                    onClick = { viewModel.updateAddServerAuth("none") },
+                    label = { Text(stringResource(R.string.mcp_servers_auth_none)) },
+                )
+                FilterChip(
+                    selected = state.addServerAuth == "header",
+                    onClick = { viewModel.updateAddServerAuth("header") },
+                    label = { Text(stringResource(R.string.mcp_servers_auth_header)) },
+                )
+                FilterChip(
+                    selected = state.addServerAuth == "oauth",
+                    onClick = { viewModel.updateAddServerAuth("oauth") },
+                    label = { Text(stringResource(R.string.mcp_servers_auth_oauth)) },
+                )
             }
+            if (state.addServerAuth == "header") {
+                Spacer(modifier = Modifier.height(spacing.sm))
+                OutlinedTextField(
+                    value = state.addServerBearerToken,
+                    onValueChange = viewModel::updateAddServerBearerToken,
+                    label = { Text(stringResource(R.string.mcp_servers_field_bearer_token)) },
+                    singleLine = true,
+                    visualTransformation = remember { PasswordVisualTransformation() },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        } else {
+            OutlinedTextField(
+                value = state.addServerCommand,
+                onValueChange = viewModel::updateAddServerCommand,
+                label = { Text(stringResource(R.string.mcp_servers_field_command)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(modifier = Modifier.height(spacing.sm))
+            OutlinedTextField(
+                value = state.addServerArgs,
+                onValueChange = viewModel::updateAddServerArgs,
+                label = { Text(stringResource(R.string.mcp_servers_field_args)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
+        Spacer(modifier = Modifier.height(spacing.md))
+        Button(
+            onClick = { viewModel.submitAddServer() },
+            enabled = !state.addingServer,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                if (state.addingServer) {
+                    stringResource(R.string.mcp_servers_action_adding)
+                } else {
+                    stringResource(R.string.mcp_servers_action_submit)
+                },
+            )
         }
     }
 }

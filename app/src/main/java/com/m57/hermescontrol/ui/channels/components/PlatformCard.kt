@@ -2,15 +2,11 @@ package com.m57.hermescontrol.ui.channels.components
 
 import android.content.ClipData
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
@@ -19,19 +15,13 @@ import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.RadioButtonChecked
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -40,7 +30,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
@@ -52,56 +41,57 @@ import com.m57.hermescontrol.data.model.MessagingPlatform
 import com.m57.hermescontrol.data.model.MessagingPlatformUpdate
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.channels.ConfigureForm
+import com.m57.hermescontrol.ui.common.ConfirmDialog
+import com.m57.hermescontrol.ui.common.ManageableItemCard
+import com.m57.hermescontrol.ui.common.ManageableToggle
+import com.m57.hermescontrol.ui.common.StatusBadge
+import com.m57.hermescontrol.ui.common.StatusBadgeType
 import kotlinx.coroutines.launch
 
-private enum class StatusRole { SUCCESS, WARNING, ERROR, NEUTRAL }
-
-private data class StateStyle(
+private data class PlatformStateInfo(
     val label: String,
-    val color: Color,
+    val statusBadgeType: StatusBadgeType,
     val icon: ImageVector,
 )
 
-@Composable
-private fun platformStateStyle(state: String): StateStyle {
-    val statusColors = LocalHermesStatusColors.current
-    val (label, role, icon) =
-        when (state) {
-            "connected" -> Triple("Connected", StatusRole.SUCCESS, Icons.Filled.CheckCircle)
-            "pending_restart" -> Triple("Restart to apply", StatusRole.WARNING, Icons.Filled.Refresh)
-            "gateway_stopped" -> Triple("Gateway stopped", StatusRole.WARNING, Icons.Filled.RadioButtonChecked)
-            "startup_failed" -> Triple("Start failed", StatusRole.ERROR, Icons.Filled.Warning)
-            "disconnected" -> Triple("Disconnected", StatusRole.WARNING, Icons.Filled.RadioButtonChecked)
-            "not_configured" -> Triple("Not configured", StatusRole.NEUTRAL, Icons.Filled.RadioButtonChecked)
-            "disabled" -> Triple("Disabled", StatusRole.NEUTRAL, Icons.Filled.RadioButtonChecked)
-            "fatal" -> Triple("Error", StatusRole.ERROR, Icons.Filled.Warning)
-            else -> Triple(state, StatusRole.NEUTRAL, Icons.Filled.RadioButtonChecked)
+private fun platformStateInfo(state: String): PlatformStateInfo =
+    when (state) {
+        "connected" -> {
+            PlatformStateInfo("Connected", StatusBadgeType.SUCCESS, Icons.Filled.CheckCircle)
         }
-    val color =
-        when (role) {
-            StatusRole.SUCCESS -> statusColors.success
-            StatusRole.WARNING -> statusColors.warning
-            StatusRole.ERROR -> statusColors.error
-            StatusRole.NEUTRAL -> statusColors.neutral
-        }
-    return StateStyle(label, color, icon)
-}
 
-@Composable
-private fun StateBadge(state: String) {
-    val style = platformStateStyle(state)
-    Surface(
-        shape = RoundedCornerShape(4.dp),
-        color = style.color.copy(alpha = 0.15f),
-    ) {
-        Text(
-            text = style.label,
-            color = style.color,
-            style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-        )
+        "pending_restart" -> {
+            PlatformStateInfo("Restart to apply", StatusBadgeType.WARNING, Icons.Filled.Refresh)
+        }
+
+        "gateway_stopped" -> {
+            PlatformStateInfo("Gateway stopped", StatusBadgeType.WARNING, Icons.Filled.RadioButtonChecked)
+        }
+
+        "startup_failed" -> {
+            PlatformStateInfo("Start failed", StatusBadgeType.ERROR, Icons.Filled.Warning)
+        }
+
+        "disconnected" -> {
+            PlatformStateInfo("Disconnected", StatusBadgeType.WARNING, Icons.Filled.RadioButtonChecked)
+        }
+
+        "not_configured" -> {
+            PlatformStateInfo("Not configured", StatusBadgeType.NEUTRAL, Icons.Filled.RadioButtonChecked)
+        }
+
+        "disabled" -> {
+            PlatformStateInfo("Disabled", StatusBadgeType.NEUTRAL, Icons.Filled.RadioButtonChecked)
+        }
+
+        "fatal" -> {
+            PlatformStateInfo("Error", StatusBadgeType.ERROR, Icons.Filled.Warning)
+        }
+
+        else -> {
+            PlatformStateInfo(state, StatusBadgeType.NEUTRAL, Icons.Filled.RadioButtonChecked)
+        }
     }
-}
 
 @Composable
 internal fun PlatformCard(
@@ -119,64 +109,40 @@ internal fun PlatformCard(
     var showRemoveConfirm by remember { mutableStateOf(false) }
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
-    val style = platformStateStyle(platform.state)
+    val stateInfo = platformStateInfo(platform.state)
+    val statusColors = LocalHermesStatusColors.current
+    val iconTint =
+        when (stateInfo.statusBadgeType) {
+            StatusBadgeType.SUCCESS -> statusColors.success
+            StatusBadgeType.WARNING -> statusColors.warning
+            StatusBadgeType.ERROR -> statusColors.error
+            StatusBadgeType.INFO -> statusColors.info
+            StatusBadgeType.NEUTRAL -> statusColors.neutral
+        }
 
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            // ── Top row: icon + name + badge + switch ──
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Icon(
-                        imageVector = style.icon,
-                        contentDescription = null,
-                        tint = style.color,
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column {
-                        Text(
-                            text = platform.name,
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            StateBadge(state = platform.state)
-                        }
-                    }
-                }
-
-                if (isToggling) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
-                    )
-                } else {
-                    Switch(
-                        checked = platform.enabled,
-                        onCheckedChange = onToggle,
-                    )
-                }
-            }
-
-            // ── Description ──
-            if (!platform.description.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = platform.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-
+    ManageableItemCard(
+        title = platform.name,
+        subtitle = platform.description?.takeIf { it.isNotBlank() },
+        badges = {
+            Icon(
+                imageVector = stateInfo.icon,
+                contentDescription = null,
+                tint = iconTint,
+                modifier = Modifier.size(16.dp),
+            )
+            StatusBadge(
+                text = stateInfo.label,
+                status = stateInfo.statusBadgeType,
+            )
+        },
+        toggle =
+            ManageableToggle(
+                checked = platform.enabled,
+                onCheckedChange = onToggle,
+                busy = isToggling,
+            ),
+        body = {
             platform.ingressUrl?.takeIf { it.isNotBlank() }?.let { ingressUrl ->
-                Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = stringResource(R.string.channels_ingress_url),
                     style = MaterialTheme.typography.labelSmall,
@@ -209,9 +175,7 @@ internal fun PlatformCard(
                 }
             }
 
-            // ── Error message ──
             if (!platform.errorMessage.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = platform.errorMessage,
                     style = MaterialTheme.typography.bodySmall,
@@ -219,66 +183,7 @@ internal fun PlatformCard(
                 )
             }
 
-            // ── Action buttons ──
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                OutlinedButton(
-                    onClick = onTest,
-                    enabled = !isTesting,
-                ) {
-                    if (isTesting) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(14.dp),
-                            strokeWidth = 2.dp,
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                    }
-                    Text(
-                        text = stringResource(R.string.channels_action_test),
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                }
-
-                Button(
-                    onClick = { showConfigureForm = !showConfigureForm },
-                ) {
-                    Text(
-                        text =
-                            if (showConfigureForm) {
-                                stringResource(R.string.action_cancel)
-                            } else {
-                                stringResource(R.string.channels_action_configure)
-                            },
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                }
-
-                // Remove button
-                IconButton(
-                    onClick = { showRemoveConfirm = true },
-                    enabled = !isRemoving,
-                ) {
-                    if (isRemoving) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Filled.Delete,
-                            contentDescription = stringResource(R.string.platform_disconnect_desc),
-                            tint = MaterialTheme.colorScheme.error,
-                        )
-                    }
-                }
-            }
-
-            // ── Telegram onboarding (only for unconfigured telegram) ──
             if (platform.id == "telegram" && !platform.configured) {
-                Spacer(modifier = Modifier.height(8.dp))
                 Button(
                     onClick = onStartOnboarding,
                 ) {
@@ -295,7 +200,6 @@ internal fun PlatformCard(
                 }
             }
 
-            // ── Configure form ──
             if (showConfigureForm) {
                 ConfigureForm(
                     platform = platform,
@@ -303,31 +207,71 @@ internal fun PlatformCard(
                     onClose = { showConfigureForm = false },
                 )
             }
-        }
-    }
+        },
+        actions = {
+            OutlinedButton(
+                onClick = onTest,
+                enabled = !isTesting,
+            ) {
+                if (isTesting) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(14.dp),
+                        strokeWidth = 2.dp,
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                }
+                Text(
+                    text = stringResource(R.string.channels_action_test),
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
 
-    // Remove confirmation
+            Button(
+                onClick = { showConfigureForm = !showConfigureForm },
+            ) {
+                Text(
+                    text =
+                        if (showConfigureForm) {
+                            stringResource(R.string.action_cancel)
+                        } else {
+                            stringResource(R.string.channels_action_configure)
+                        },
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+
+            IconButton(
+                onClick = { showRemoveConfirm = true },
+                enabled = !isRemoving,
+            ) {
+                if (isRemoving) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Filled.Delete,
+                        contentDescription = stringResource(R.string.platform_disconnect_desc),
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+        },
+    )
+
     if (showRemoveConfirm) {
-        AlertDialog(
-            onDismissRequest = { showRemoveConfirm = false },
-            title = { Text(stringResource(R.string.platform_disconnect_confirm_title, platform.name)) },
-            text = { Text(stringResource(R.string.platform_disconnect_confirm_text)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showRemoveConfirm = false
-                        onRemove()
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                ) {
-                    Text(stringResource(R.string.providers_action_disconnect))
-                }
+        ConfirmDialog(
+            title = stringResource(R.string.platform_disconnect_confirm_title, platform.name),
+            message = stringResource(R.string.platform_disconnect_confirm_text),
+            onConfirm = {
+                showRemoveConfirm = false
+                onRemove()
             },
-            dismissButton = {
-                TextButton(onClick = { showRemoveConfirm = false }) {
-                    Text(stringResource(R.string.action_cancel))
-                }
-            },
+            onDismiss = { showRemoveConfirm = false },
+            confirmText = stringResource(R.string.providers_action_disconnect),
+            dismissText = stringResource(R.string.action_cancel),
+            isDestructive = true,
         )
     }
 }

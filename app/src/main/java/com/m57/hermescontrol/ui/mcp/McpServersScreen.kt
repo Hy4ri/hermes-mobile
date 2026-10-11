@@ -18,6 +18,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -188,10 +189,6 @@ fun McpServersScreen(
                                 contentPadding = listContentPadding,
                                 verticalArrangement = listItemSpacing,
                             ) {
-                                item(key = "add-form") {
-                                    AddServerSection(state, viewModel, spacing)
-                                }
-
                                 if (state.servers.isNotEmpty()) {
                                     item(key = "search") {
                                         ManageableFilterRow(
@@ -259,6 +256,14 @@ fun McpServersScreen(
                     )
                 }
             }
+        }
+    }
+
+    if (state.showAddForm) {
+        ModalBottomSheet(
+            onDismissRequest = viewModel::toggleAddForm,
+        ) {
+            AddServerSection(state, viewModel, spacing)
         }
     }
 

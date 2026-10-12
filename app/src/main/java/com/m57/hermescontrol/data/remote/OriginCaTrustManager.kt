@@ -10,14 +10,7 @@ internal class OriginCaTrustManager(
     private val bindings: CertificateBindings,
     private val origin: CertificateOrigin,
     private val selected: (String) -> X509TrustManager,
-) : X509TrustManager {
-    override fun getAcceptedIssuers(): Array<X509Certificate> = global.acceptedIssuers
-
-    override fun checkClientTrusted(
-        chain: Array<X509Certificate>,
-        authType: String,
-    ) = global.checkClientTrusted(chain, authType)
-
+) : X509TrustManager by global {
     override fun checkServerTrusted(
         chain: Array<X509Certificate>,
         authType: String,

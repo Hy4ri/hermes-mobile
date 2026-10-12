@@ -56,17 +56,7 @@ object ClientCertificates {
                         (value as? String)?.let { alias -> key to alias.ifEmpty { null } }
                     }
                 }.toMap()
-        val versions =
-            values
-                .mapNotNull { (key, value) ->
-                    if (key.startsWith(CACHE_PREFIX) &&
-                        value is String
-                    ) {
-                        key.removePrefix(CACHE_PREFIX) to value
-                    } else {
-                        null
-                    }
-                }.toMap()
+        val versions = certificateCacheVersions(values, CACHE_PREFIX)
         registry =
             CertificateBindings(initial, versions, persist = { bindings, revisions ->
                 val editor = preferences().edit().clear()

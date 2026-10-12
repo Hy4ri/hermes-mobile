@@ -9,10 +9,14 @@ import io.mockk.unmockkObject
 import io.mockk.verify
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 import java.io.IOException
+import java.security.cert.CertificateException
+import javax.net.ssl.SSLException
+import javax.net.ssl.X509TrustManager
 
 /** In-memory preferences only; verifies upgrade separation and rollback without touching device storage. */
 class ServerCaRestrictionsTest {
@@ -83,5 +87,43 @@ class ServerCaRestrictionsTest {
         ServerCaRestrictions.save(url, null, null, ServerCaRestrictions.state.value)
         verify(exactly = 0) { app.getSharedPreferences("client_certificate_aliases", any()) }
         verify(exactly = 0) { ServerTrust.setEnabled(any()) }
+    }
+
+    @Test
+    fun `availability preserves the original store failure and socket wraps it exactly once`() {
+        val failure = CertificateException("selected CA removed")
+        val store = ServerCaRestrictions.store
+        mockkObject(store)
+        try {
+            every { ServerTrust.active } returns true
+            every { store.resolveAllowed(any(), true) } throws failure
+            val origin = CertificateOrigin.from(url)!!
+            assertSame(
+                failure,
+                assertThrows(CertificateException::class.java) { ServerCaRestrictions.checkAvailable(origin) },
+            )
+            val sockets =
+                CertificateSocketFactory(
+                    mockk<X509TrustManager>(relaxed = true),
+                    checkOrigin = ServerCaRestrictions::checkAvailable,
+                    keys = { error("Rejected selection must not create a socket") },
+                )
+            val rejected = assertThrows(SSLException::class.java) { sockets.createSocket(origin.host, origin.port) }
+            assertEquals("Selected Android CA is unavailable", rejected.message)
+            assertSame(failure, rejected.cause)
+        } finally {
+            unmockkObject(store)
+        }
+    }
+
+    @Test
+    fun `malformed selections fail at availability while unbound origins need no trust store`() {
+        memory[url.toString()] = "invalid-json"
+        ServerCaRestrictions.initialize(app)
+        assertThrows(IllegalArgumentException::class.java) {
+            ServerCaRestrictions.checkAvailable(CertificateOrigin.from(url)!!)
+        }
+        ServerCaRestrictions.checkAvailable(CertificateOrigin("unbound.test", 443))
+        verify(exactly = 0) { ServerTrust.active }
     }
 }

@@ -99,3 +99,16 @@ internal class CertificateBindings(
         }
     }
 }
+
+internal fun certificateCacheVersions(
+    values: Map<String, *>,
+    prefix: String,
+): Map<String, String> =
+    values
+        .mapNotNull { (key, value) ->
+            if (key.startsWith(prefix) && value is String) {
+                key.removePrefix(prefix) to value
+            } else {
+                null
+            }
+        }.toMap()

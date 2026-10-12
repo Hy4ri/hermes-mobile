@@ -24,17 +24,7 @@ internal object ServerCaRestrictions {
                 .mapNotNull { (key, value) ->
                     key.toHttpUrlOrNull()?.takeIf { it.isHttps }?.let { key to (value as? String) }
                 }.toMap()
-        val versions =
-            values
-                .mapNotNull { (key, value) ->
-                    if (key.startsWith(CACHE_PREFIX) &&
-                        value is String
-                    ) {
-                        key.removePrefix(CACHE_PREFIX) to value
-                    } else {
-                        null
-                    }
-                }.toMap()
+        val versions = certificateCacheVersions(values, CACHE_PREFIX)
         registry =
             CertificateBindings(bindings, versions, persist = { updated, revisions ->
                 val previous = preferences.all
@@ -76,12 +66,8 @@ internal object ServerCaRestrictions {
     fun checkAvailable(origin: CertificateOrigin) {
         registry.checkedBinding(origin) { present, reference ->
             if (present) {
-                try {
-                    val selected = CaReference.decode(requireNotNull(reference))
-                    store.resolveAllowed(selected, ServerTrust.active)
-                } catch (e: Exception) {
-                    throw java.security.cert.CertificateException("Selected Android CA is unavailable", e)
-                }
+                val selected = CaReference.decode(requireNotNull(reference))
+                store.resolveAllowed(selected, ServerTrust.active)
             }
         }
     }

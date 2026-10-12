@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.chat.markdown
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -50,11 +51,11 @@ fun MarkdownTable(
     val cellStyle = MaterialTheme.typography.bodySmall
     val textMeasurer = rememberTextMeasurer()
     val density = LocalDensity.current
-    val columnWidths =
+    val intrinsicWidths =
         remember(block, cellStyle, density, textMeasurer) {
-            val padding = with(density) { 12.dp.roundToPx() }
-            val minimum = with(density) { 48.dp.roundToPx() }
-            val maximum = with(density) { 280.dp.roundToPx() }
+            val padding = with(density) { MarkdownTableLayout.CELL_PADDING.roundToPx() }
+            val minimum = with(density) { MarkdownTableLayout.MIN_CELL_WIDTH.roundToPx() }
+            val maximum = with(density) { MarkdownTableLayout.MAX_CELL_WIDTH.roundToPx() }
             val columnCount = maxOf(block.header.size, block.rows.maxOfOrNull { it.size } ?: 0)
             List(columnCount) { column ->
                 val cells =
@@ -67,48 +68,41 @@ fun MarkdownTable(
             }
         }
     CompositionLocalProvider(LocalLayoutDirection provides tableDirection) {
-        Column(
-            modifier =
-                modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(vertical = 4.dp),
-        ) {
-            // Header row
-            Row(modifier = Modifier.background(headerBg), verticalAlignment = Alignment.Top) {
-                block.header.forEachIndexed { idx, cell ->
-                    MarkdownInlineText(
-                        text = cell,
-                        textColor = textColor,
-                        latexMeasurer = latexMeasurer,
-                        style =
-                            MaterialTheme.typography.bodySmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                textAlign = tableTextAlign(alignments.getOrNull(idx)),
-                            ),
-                        searchQuery = searchQuery,
-                        isCurrentMatch = isCurrentMatch,
-                        linkColor = linkColor,
-                        highlights = highlights,
-                        modifier =
-                            Modifier
-                                .width(columnWidths[idx])
-                                .testTag("markdown_table_header_$idx")
-                                .padding(6.dp),
+        BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+            val layoutResult =
+                remember(intrinsicWidths, maxWidth) {
+                    MarkdownTableLayout.computeColumnWidths(
+                        columnCount = intrinsicWidths.size,
+                        contentWidths = intrinsicWidths,
+                        availableWidth = maxWidth,
                     )
                 }
-            }
-            HorizontalDivider(color = textColor.copy(alpha = 0.25f))
-            // Body rows
-            block.rows.forEachIndexed { rowIndex, row ->
-                Row(verticalAlignment = Alignment.Top) {
-                    row.forEachIndexed { idx, cell ->
+            val columnWidths = layoutResult.widths
+            val scrollState = rememberScrollState()
+            val scrollModifier =
+                if (layoutResult.requiresScroll) {
+                    Modifier.horizontalScroll(scrollState)
+                } else {
+                    Modifier
+                }
+
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .then(scrollModifier)
+                        .padding(vertical = 4.dp),
+            ) {
+                // Header row
+                Row(modifier = Modifier.background(headerBg), verticalAlignment = Alignment.Top) {
+                    block.header.forEachIndexed { idx, cell ->
                         MarkdownInlineText(
                             text = cell,
                             textColor = textColor,
                             latexMeasurer = latexMeasurer,
                             style =
                                 MaterialTheme.typography.bodySmall.copy(
+                                    fontWeight = FontWeight.Bold,
                                     textAlign = tableTextAlign(alignments.getOrNull(idx)),
                                 ),
                             searchQuery = searchQuery,
@@ -118,12 +112,38 @@ fun MarkdownTable(
                             modifier =
                                 Modifier
                                     .width(columnWidths[idx])
-                                    .testTag("markdown_table_cell_${rowIndex}_$idx")
+                                    .testTag("markdown_table_header_$idx")
                                     .padding(6.dp),
                         )
                     }
                 }
-                HorizontalDivider(color = textColor.copy(alpha = 0.1f))
+                HorizontalDivider(color = textColor.copy(alpha = 0.25f))
+                // Body rows
+                block.rows.forEachIndexed { rowIndex, row ->
+                    Row(verticalAlignment = Alignment.Top) {
+                        row.forEachIndexed { idx, cell ->
+                            MarkdownInlineText(
+                                text = cell,
+                                textColor = textColor,
+                                latexMeasurer = latexMeasurer,
+                                style =
+                                    MaterialTheme.typography.bodySmall.copy(
+                                        textAlign = tableTextAlign(alignments.getOrNull(idx)),
+                                    ),
+                                searchQuery = searchQuery,
+                                isCurrentMatch = isCurrentMatch,
+                                linkColor = linkColor,
+                                highlights = highlights,
+                                modifier =
+                                    Modifier
+                                        .width(columnWidths[idx])
+                                        .testTag("markdown_table_cell_${rowIndex}_$idx")
+                                        .padding(6.dp),
+                            )
+                        }
+                    }
+                    HorizontalDivider(color = textColor.copy(alpha = 0.1f))
+                }
             }
         }
     }

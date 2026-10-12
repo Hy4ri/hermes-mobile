@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.data.model
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 
 /**
  * Durable record of the most recent `hermes update` run, returned by
@@ -36,6 +37,9 @@ data class UpdateReceipt(
     val skips: List<String>? = null,
     val gatewayRestart: UpdateReceiptGatewayRestart? = null,
     val fleet: List<UpdateReceiptFleetEntry>? = null,
+    val followups: List<UpdateReceiptFollowup>? = null,
+    /** Present when the code committed but only the user can finish a step. Shape is backend-owned. */
+    val userAction: JsonObject? = null,
 )
 
 @Serializable
@@ -58,6 +62,13 @@ data class UpdateReceiptGatewayRestart(
     val ok: Boolean? = null,
 )
 
+/** A post-commit step the update still owes, with the reason it did not complete. */
+@Serializable
+data class UpdateReceiptFollowup(
+    val step: String? = null,
+    val reason: String? = null,
+)
+
 @Serializable
 data class UpdateReceiptFleetEntry(
     val profile: String? = null,
@@ -78,4 +89,6 @@ data class UpdateReceiptSummary(
     val postSha: String? = null,
     val postVersion: String? = null,
     val fleetStates: List<String>? = null,
+    val followups: List<UpdateReceiptFollowup>? = null,
+    val userAction: JsonObject? = null,
 )

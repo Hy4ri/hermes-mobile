@@ -193,7 +193,7 @@ class CronJobsViewModel :
             state.copy(
                 jobs =
                     state.jobs.map {
-                        if (it.id == id) it.copy(state = "active") else it
+                        if (it.id == id) it.copy(state = "scheduled") else it
                     },
             )
         }

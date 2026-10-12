@@ -73,7 +73,7 @@ class SessionCardTest {
                             onSelect = {},
                             onRename = {},
                             onTogglePin = {},
-                            onToggleHide = {},
+                            onToggleArchive = {},
                             onDelete = {},
                         )
                     }

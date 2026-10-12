@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.model.ProcessInfo
 import com.m57.hermescontrol.ui.chat.SubagentIndicator
 import com.m57.hermescontrol.ui.chat.TodoItem
 
@@ -52,6 +53,7 @@ internal fun TaskProgressChip(
     visible: Boolean,
     todos: List<TodoItem>,
     indicators: List<SubagentIndicator>,
+    processes: List<ProcessInfo>,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -60,7 +62,7 @@ internal fun TaskProgressChip(
         enter = expandVertically() + fadeIn(),
         exit = shrinkVertically() + fadeOut(),
     ) {
-        val display = computeChipDisplay(todos, indicators)
+        val display = computeChipDisplay(todos, indicators, processes)
         val label =
             buildString {
                 if (display.hasTodos) {
@@ -85,6 +87,16 @@ internal fun TaskProgressChip(
                             R.plurals.task_progress_agents,
                             display.activeAgents,
                             display.activeAgents,
+                        ),
+                    )
+                }
+                if (display.runningProcesses > 0) {
+                    if (isNotEmpty()) append(" · ")
+                    append(
+                        pluralStringResource(
+                            R.plurals.task_progress_processes,
+                            display.runningProcesses,
+                            display.runningProcesses,
                         ),
                     )
                 }
@@ -143,11 +155,13 @@ internal data class ChipDisplay(
     val total: Int,
     val currentTaskContent: String?,
     val activeAgents: Int,
+    val runningProcesses: Int = 0,
 )
 
 internal fun computeChipDisplay(
     todos: List<TodoItem>,
     indicators: List<SubagentIndicator>,
+    processes: List<ProcessInfo> = emptyList(),
 ): ChipDisplay {
     // Select the task the chip should surface: prefer the in_progress one, then
     // fall back to the first unfinished/non-cancelled todo. Both the number and
@@ -167,6 +181,7 @@ internal fun computeChipDisplay(
         total = todos.size,
         currentTaskContent = selected?.content,
         activeAgents = activeAgents,
+        runningProcesses = processes.count { it.isRunning },
     )
 }
 
@@ -178,4 +193,8 @@ internal fun computeChipDisplay(
 internal fun shouldShowProgressChip(
     todos: List<TodoItem>,
     indicators: List<SubagentIndicator>,
-): Boolean = todos.any { !it.isCompleted && !it.isCancelled } || indicators.any { it.isRunning }
+    processes: List<ProcessInfo> = emptyList(),
+): Boolean =
+    todos.any { !it.isCompleted && !it.isCancelled } ||
+        indicators.any { it.isRunning } ||
+        processes.any { it.isRunning }

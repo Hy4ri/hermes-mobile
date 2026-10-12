@@ -2,16 +2,23 @@ package com.m57.hermescontrol.data.ws
 
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.AccountConnectorResult
+import com.m57.hermescontrol.data.model.ConnectorError
 import com.m57.hermescontrol.data.model.ConnectorTool
 import com.m57.hermescontrol.data.ws.contract.ConnectionAnswer
 import com.m57.hermescontrol.data.ws.contract.ConnectionRespondParams
 import com.m57.hermescontrol.data.ws.contract.ConnectorOwner
 import com.m57.hermescontrol.data.ws.contract.ConnectorsOperationStatusParams
+import com.m57.hermescontrol.data.ws.contract.RpcMethod
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -27,6 +34,27 @@ class AccountConnectorRepositoryTest {
     }
 
     @After fun teardown() = unmockkAll()
+
+    @Test fun `account loading handles entitlement errors without broadcasting raw errors`() =
+        runTest {
+            mockkObject(HermesWsClient)
+            coEvery {
+                HermesWsClient.call(any<RpcMethod<Any?, JsonElement>>(), any(), any(), any())
+            } throws
+                HermesWsClient.HermesRpcException(
+                    "Connectors are not available.",
+                    4031,
+                    JsonObject(mapOf("reason" to JsonPrimitive("CONNECTORS_UNAVAILABLE"))),
+                )
+            val repo = HermesAccountConnectorRepository()
+            assertTrue(repo.listConnectors().errorOrNull() is ConnectorError.Unavailable)
+            assertTrue((repo.catalog() as AccountConnectorResult.Failure).error is ConnectorError.Unavailable)
+            assertTrue((repo.accounts() as AccountConnectorResult.Failure).error is ConnectorError.Unavailable)
+            assertTrue((repo.policy() as AccountConnectorResult.Failure).error is ConnectorError.Unavailable)
+            coVerify(exactly = 4) {
+                HermesWsClient.call(any<RpcMethod<Any?, JsonElement>>(), any(), any(), suppressErrorEvent = true)
+            }
+        }
 
     @Test fun `connect decodes operation snapshot and preserves authorization link without a session`() =
         runTest {

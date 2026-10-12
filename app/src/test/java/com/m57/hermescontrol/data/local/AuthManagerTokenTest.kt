@@ -8,8 +8,8 @@ import org.junit.Test
  * Tests for the per-server token resolution that makes profile switching
  * restart-safe without a re-login.
  *
- * Rule: a profile without its own token inherits the connection (default)
- * token — same dashboard = same auth.
+ * Rule: a profile without its own token remains isolated from the default
+ * profile token.
  */
 class AuthManagerTokenTest {
     @Test
@@ -19,12 +19,12 @@ class AuthManagerTokenTest {
     }
 
     @Test
-    fun `selected profile without own token inherits default token`() {
+    fun `selected profile without own token returns null`() {
         val token =
             AuthManager.resolveConnectionToken("meow") { id ->
                 if (id == AuthManager.DEFAULT_PROFILE_ID) "tok-conn" else null
             }
-        assertEquals("tok-conn", token)
+        assertNull(token)
     }
 
     @Test

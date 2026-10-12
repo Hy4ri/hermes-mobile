@@ -9,6 +9,8 @@ data class SessionCreateParams(
     @SerialName("profile") val profile: String? = null,
     @SerialName("title") val title: String? = null,
     @SerialName("hidden") val hidden: Boolean? = null,
+    @SerialName("cwd") val cwd: String? = null,
+    @SerialName("cwd_explicit") val cwdExplicit: Boolean? = null,
 )
 
 /**

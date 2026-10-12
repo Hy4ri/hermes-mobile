@@ -8,6 +8,16 @@ fun ServerStoreState.addOrUpdate(profile: ConnectionProfile): ServerStoreState {
     return copy(connectionProfiles = updated)
 }
 
+fun ServerStoreState.migrateConnectionAuthParam(): ServerStoreState {
+    if (connectionProfiles.none { it.wsAuthParam == null }) return this
+    return copy(
+        connectionProfiles =
+            connectionProfiles.map { profile ->
+                if (profile.wsAuthParam == null) profile.copy(wsAuthParam = wsAuthParam) else profile
+            },
+    )
+}
+
 fun ServerStoreState.selfHealed(): ServerStoreState {
     val hasActive = connectionProfiles.any { it.id == selectedProfileId }
     val newSelected = if (selectedProfileId != null && !hasActive) null else selectedProfileId

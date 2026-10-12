@@ -36,6 +36,7 @@ object SessionLiveStatusReducer {
             is WsEvent.MessageDone -> reduceMessageDone(state, event)
             is WsEvent.ApprovalRequest -> reduceApprovalRequest(state, event)
             is WsEvent.ClarifyRequest -> reduceClarifyRequest(state, event)
+            is WsEvent.SessionReclaimed -> reduceSessionReclaimed(state, event)
             else -> state
         }
 
@@ -89,6 +90,24 @@ object SessionLiveStatusReducer {
         return state.copy(
             liveStatuses = nextStatuses,
             storedIdByRuntimeId = nextMapping,
+        )
+    }
+
+    /**
+     * Issue #1463: a reclaimed runtime is no longer live. Drop its runtime mapping and stale indicator, but keep the
+     * indicator when another runtime still maps to the same stored conversation.
+     */
+    private fun reduceSessionReclaimed(
+        state: SessionLiveTrackingState,
+        event: WsEvent.SessionReclaimed,
+    ): SessionLiveTrackingState {
+        val runtimeId = event.sessionId?.trim()?.takeIf { it.isNotEmpty() } ?: return state
+        val storedId = state.storedIdByRuntimeId[runtimeId] ?: return state
+        val remaining = state.storedIdByRuntimeId - runtimeId
+        val stillLive = remaining.containsValue(storedId)
+        return state.copy(
+            liveStatuses = if (stillLive) state.liveStatuses else state.liveStatuses - storedId,
+            storedIdByRuntimeId = remaining,
         )
     }
 

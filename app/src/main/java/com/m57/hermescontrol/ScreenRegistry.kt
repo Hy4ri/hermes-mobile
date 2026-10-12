@@ -19,7 +19,6 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.HistoryEdu
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Key
-import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Power
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Schedule
@@ -28,10 +27,12 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.ViewKanban
 import androidx.compose.material.icons.filled.Webhook
+import androidx.compose.material.icons.filled.Workspaces
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation3.runtime.NavKey
 import com.m57.hermescontrol.ui.common.NeurologyIcon
+import com.m57.hermescontrol.ui.settings.ConnectionsPage
 import com.m57.hermescontrol.ui.achievements.AchievementsScreen as AchievementsScreenContent
 import com.m57.hermescontrol.ui.analytics.AnalyticsScreen as AnalyticsScreenContent
 import com.m57.hermescontrol.ui.billing.BillingScreen as BillingScreenContent
@@ -39,7 +40,6 @@ import com.m57.hermescontrol.ui.bots.BotsScreen as BotsScreenContent
 import com.m57.hermescontrol.ui.channels.ChannelsScreen as ChannelsScreenContent
 import com.m57.hermescontrol.ui.chat.ChatScreen as ChatScreenContent
 import com.m57.hermescontrol.ui.config.ConfigScreen as ConfigScreenContent
-import com.m57.hermescontrol.ui.connectors.AccountConnectorsScreen as AccountConnectorsScreenContent
 import com.m57.hermescontrol.ui.cron.CronJobsScreen as CronJobsScreenContent
 import com.m57.hermescontrol.ui.files.FilesScreen as FilesScreenContent
 import com.m57.hermescontrol.ui.gateway.GatewayScreen as GatewayScreenContent
@@ -51,8 +51,8 @@ import com.m57.hermescontrol.ui.memory.MemoryScreen as MemoryScreenContent
 import com.m57.hermescontrol.ui.model.ModelScreen as ModelScreenContent
 import com.m57.hermescontrol.ui.pairing.PairingScreen as PairingScreenContent
 import com.m57.hermescontrol.ui.plugins.PluginsScreen as PluginsScreenContent
-import com.m57.hermescontrol.ui.process.ProcessesScreen as ProcessesScreenContent
 import com.m57.hermescontrol.ui.profiles.ProfilesScreen as ProfilesScreenContent
+import com.m57.hermescontrol.ui.projects.ProjectsScreen as ProjectsScreenContent
 import com.m57.hermescontrol.ui.providers.ProvidersScreen as ProvidersScreenContent
 import com.m57.hermescontrol.ui.sessions.SessionsScreen as HistoryScreenContent
 import com.m57.hermescontrol.ui.settings.SettingsScreen as SettingsScreenContent
@@ -93,6 +93,12 @@ object ScreenRegistry {
                 Icons.Filled.History,
                 DrawerSection.CONVERSE,
             ) { sessionId, openDrawer -> HistoryScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                ProjectsScreen,
+                R.string.screen_projects,
+                Icons.Filled.Workspaces,
+                DrawerSection.CONVERSE,
+            ) { sessionId, openDrawer -> ProjectsScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
                 ProfilesScreen,
                 R.string.screen_profiles,
@@ -208,12 +214,6 @@ object ScreenRegistry {
                 DrawerSection.INSPECT,
             ) { sessionId, openDrawer -> LogsScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
-                ProcessesScreen,
-                R.string.screen_processes,
-                Icons.Filled.Memory,
-                DrawerSection.INSPECT,
-            ) { sessionId, openDrawer -> ProcessesScreenContent(onOpenDrawer = openDrawer) },
-            ScreenDefinition(
                 AnalyticsScreen,
                 R.string.screen_analytics,
                 Icons.Filled.BarChart,
@@ -238,11 +238,11 @@ object ScreenRegistry {
                 DrawerSection.INSPECT,
             ) { sessionId, openDrawer -> AchievementsScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
-                AccountConnectorsScreen,
-                R.string.screen_account_connectors,
-                Icons.Filled.Extension,
-                DrawerSection.CONFIGURE,
-            ) { _, openDrawer -> AccountConnectorsScreenContent(onOpenDrawer = openDrawer) },
+                ConnectionsScreen,
+                R.string.screen_connections,
+                Icons.Filled.Dns,
+                null,
+            ) { _, _ -> ConnectionsPage() },
             ScreenDefinition(
                 SettingsScreen,
                 R.string.screen_settings,

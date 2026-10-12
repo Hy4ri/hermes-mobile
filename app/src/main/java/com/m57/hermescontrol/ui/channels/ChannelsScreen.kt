@@ -50,9 +50,10 @@ import com.m57.hermescontrol.ui.channels.components.TelegramOnboardingDialog
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.ManageableFilterRow
 import com.m57.hermescontrol.ui.common.NavIcon
-import com.m57.hermescontrol.ui.common.SearchBar
 import com.m57.hermescontrol.ui.common.SkeletonListState
+import com.m57.hermescontrol.ui.common.StatusFilter
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
@@ -98,11 +99,13 @@ fun ChannelsScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
+    var statusFilter by remember { mutableStateOf(StatusFilter.ALL) }
 
     val filteredPlatforms =
-        remember(query, state.platforms) {
+        remember(query, statusFilter, state.platforms) {
             state.platforms.filter { platform ->
-                platform.name.contains(query, ignoreCase = true)
+                statusFilter.matches(platform.enabled) &&
+                    platform.name.contains(query, ignoreCase = true)
             }
         }
 
@@ -180,10 +183,12 @@ fun ChannelsScreen(
 
                     // ── Search bar ──
                     item(key = "search") {
-                        SearchBar(
+                        ManageableFilterRow(
                             query = query,
                             onQueryChange = { query = it },
                             placeholder = stringResource(R.string.channels_search_placeholder),
+                            status = statusFilter,
+                            onStatusChange = { statusFilter = it },
                         )
                     }
 

@@ -5,6 +5,7 @@ import com.m57.hermescontrol.data.model.ProjectInfo
 import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.model.SessionListResponse
 import com.m57.hermescontrol.data.model.SessionLiveStatus
+import com.m57.hermescontrol.data.model.SessionRenameRequest
 import com.m57.hermescontrol.data.model.SessionSearchResponse
 import com.m57.hermescontrol.data.model.SessionSearchResult
 import com.m57.hermescontrol.data.remote.ApiClient
@@ -101,7 +102,7 @@ class SessionsViewModelTest {
 
     @Test
     fun `corrupt refresh retains history and recovery replaces it`() {
-        coEvery { mockApi.getSessions(any(), any(), any(), any(), any()) } returnsMany
+        coEvery { mockApi.getSessions(any(), any(), any(), any(), any(), any()) } returnsMany
             listOf(
                 Response.success(SessionListResponse(listOf(SessionInfo("cached")), total = 1)),
                 Response.success(
@@ -140,13 +141,13 @@ class SessionsViewModelTest {
             kotlinx.serialization.json.Json.decodeFromString<SessionListResponse>(
                 """{"sessions":[],"storage":{"work":"corrupt"}}""",
             )
-        coEvery { mockApi.getSessions(any(), any(), any(), any(), any()) } returns Response.success(response)
+        coEvery { mockApi.getSessions(any(), any(), any(), any(), any(), any()) } returns Response.success(response)
         val vm = createViewModel()
         vm.loadSessions()
         testDispatcher.scheduler.advanceUntilIdle()
         assertEquals(setOf("work"), vm.uiState.value.corruptStorageProfiles)
         assertFalse(vm.uiState.value.isLoading)
-        coEvery { mockApi.getSessions(any(), any(), any(), any(), any()) } returns
+        coEvery { mockApi.getSessions(any(), any(), any(), any(), any(), any()) } returns
             Response.success(response.copy(sessions = listOf(SessionInfo("partial"))))
         vm.loadSessions(forceRefresh = true)
         testDispatcher.scheduler.advanceUntilIdle()
@@ -205,7 +206,7 @@ class SessionsViewModelTest {
                 com.m57.hermescontrol.data.model
                     .BulkDeleteResponse(ok = true, deleted = 1),
             )
-        coEvery { mockApi.getSessions(any(), any(), any(), any(), any()) } returns
+        coEvery { mockApi.getSessions(any(), any(), any(), any(), any(), any()) } returns
             Response.success(SessionListResponse(sessions = emptyList(), total = 0))
         val vm = createViewModel()
         vm.setSearchQuery("launch")
@@ -798,40 +799,43 @@ class SessionsViewModelTest {
     }
 
     @Test
-    fun `toggleHide updates hidden status and surfaces toast`() {
+    fun `toggleArchive patches archived flag removes row and surfaces toast`() {
         val vm = createViewModel()
-        coEvery { mockApi.getSessions(any(), any(), any(), null, "cron") } returns
+        coEvery { mockApi.getSessions(any(), any(), any(), null, "cron", any()) } returns
             Response.success(
                 SessionListResponse(
-                    sessions = listOf(SessionInfo("s-1", hidden = false)),
-                    total = 1,
+                    sessions = listOf(SessionInfo("s-1"), SessionInfo("s-2")),
+                    total = 2,
                 ),
             )
         vm.loadSessions()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        coEvery { mockApi.setSessionHidden(any(), any()) } returns Response.success(Unit)
-        vm.toggleHide("s-1")
+        coEvery { mockApi.setSessionArchived(any(), any()) } returns Response.success(Unit)
+        vm.toggleArchive("s-1")
         testDispatcher.scheduler.advanceUntilIdle()
 
+        coVerify { mockApi.setSessionArchived("s-1", SessionRenameRequest(archived = true)) }
         assertEquals(
-            true,
+            listOf("s-2"),
             vm.uiState.value.sessions
-                .first()
-                .hidden,
+                .map { it.id },
         )
-        assertEquals("Session hidden", vm.uiState.value.toastMessage)
+        assertEquals("Session archived", vm.uiState.value.toastMessage)
+    }
 
-        vm.toggleHide("s-1")
+    @Test
+    fun `toggleShowArchived reloads with archived only query`() {
+        val vm = createViewModel()
+        coEvery { mockApi.getSessions(any(), any(), any(), null, "cron", any()) } returns
+            Response.success(SessionListResponse(sessions = emptyList(), total = 0))
+        vm.loadSessions()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(
-            false,
-            vm.uiState.value.sessions
-                .first()
-                .hidden,
-        )
-        assertEquals("Session unhidden", vm.uiState.value.toastMessage)
+        vm.toggleShowArchived()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify { mockApi.getSessions(any(), any(), any(), null, "cron", "only") }
     }
 
     @Test

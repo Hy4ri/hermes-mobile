@@ -110,13 +110,21 @@ data class SessionsUiState(
     val searchNextOffset: Int? = null,
     val searchLoadMoreError: String? = null,
     val showHidden: Boolean = false,
+    // Archived view (issue #1496): lists only archived rows (backend archived=only).
+    val showArchived: Boolean = false,
     val sourceFilter: String? = null,
     val pinnedExpanded: Boolean = true,
+    // Project filter (issue #1526): a [sessionProjectKey], or null for all projects.
+    val projectFilter: String? = null,
+    val groupByProject: Boolean = false,
+    val collapsedProjectGroups: Set<String> = emptySet(),
     val liveStatuses: Map<String, SessionLiveStatus> = emptyMap(),
     // Named projects used to label each row with the workspace it belongs to.
     val projects: List<ProjectInfo> = emptyList(),
 ) {
     val isSearchMode: Boolean get() = searchQuery.isNotBlank()
+
+    val archivedQuery: String? get() = if (showArchived) "only" else null
 
     val hasHiddenSessions: Boolean
         get() = sessions.any { it.hidden == true }
@@ -140,14 +148,44 @@ data class SessionsUiState(
     private val visibleBySource: List<SessionInfo>
         get() = if (showHidden) sessions else sessions.filter { it.hidden != true }
 
-    val displaySessions: List<SessionInfo>
+    private val sourceFiltered: List<SessionInfo>
         get() =
             activeSourceFilter?.let { f -> visibleBySource.filter { it.source?.lowercase() == f } }
                 ?: visibleBySource
 
+    // Project chips only exist for projects present in the rows currently shown (after the source filter).
+    val availableProjects: List<ProjectChoice>
+        get() {
+            if (isSearchMode) return emptyList()
+            val resolved = sourceFiltered.map { resolveSessionProject(it, projects) }
+            return resolved
+                .groupBy { it?.label ?: NO_PROJECT_KEY }
+                .map { (key, rows) -> ProjectChoice(key, rows.firstNotNullOfOrNull { it?.color }, rows.size) }
+                .sortedWith(
+                    compareBy<ProjectChoice> { it.key == NO_PROJECT_KEY }
+                        .thenByDescending { it.count }
+                        .thenBy { it.key },
+                )
+        }
+
+    val activeProjectFilter: String?
+        get() = projectFilter?.takeIf { f -> availableProjects.any { it.key == f } }
+
+    val displaySessions: List<SessionInfo>
+        get() =
+            activeProjectFilter?.let { f -> sourceFiltered.filter { sessionProjectKey(it, projects) == f } }
+                ?: sourceFiltered
+
     val pinnedSessions: List<SessionInfo>
         get() = displaySessions.filter { it.pinned == true }
 }
+
+/** One project filter chip: its [key] (see [sessionProjectKey]), color and how many rows carry it. */
+data class ProjectChoice(
+    val key: String,
+    val color: String?,
+    val count: Int,
+)
 
 class SessionsViewModel(
     private val liveStatusSource: SessionLiveStatusSource = HermesSessionLiveStatusSource(),
@@ -202,6 +240,7 @@ class SessionsViewModel(
                                 order = "recent",
                                 source = capturedSection.source,
                                 excludeSources = capturedSection.excludeSources,
+                                archived = _uiState.value.archivedQuery,
                             )
                         }
                 ) {
@@ -221,7 +260,7 @@ class SessionsViewModel(
                 val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
                 if (requestGeneration == generation && currentScope == requestScope) {
                     if (handleStorageHealth(data)) return@refreshOnChange
-                    val localKey = "${capturedSection.name}:${capturedSection.source}:${capturedSection.excludeSources}"
+                    val localKey = listKey(capturedSection)
                     val inMemoryKey = requestScope?.inMemoryKey(localKey)
                     val persistentKey = requestScope?.persistentKey(localKey)
                     if (inMemoryKey != null) sessionsPageCache.put(inMemoryKey, data)
@@ -362,6 +401,7 @@ class SessionsViewModel(
             it.copy(
                 section = section,
                 sourceFilter = null,
+                projectFilter = null,
                 isLoading = false,
                 isLoadingMore = false,
                 sessions = emptyList(),
@@ -404,7 +444,7 @@ class SessionsViewModel(
         val requestGeneration = generation
         val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
         val section = _uiState.value.section
-        val localKey = "${section.name}:${section.source}:${section.excludeSources}"
+        val localKey = listKey(section)
         val inMemoryKey = requestScope?.inMemoryKey(localKey)
         val persistentKey = requestScope?.persistentKey(localKey)
         // #1286: keep the last good cache until a healthy refresh replaces it.
@@ -451,6 +491,7 @@ class SessionsViewModel(
                             order = "recent",
                             source = section.source,
                             excludeSources = section.excludeSources,
+                            archived = _uiState.value.archivedQuery,
                         )
                     }
                 },
@@ -533,6 +574,7 @@ class SessionsViewModel(
                             order = "recent",
                             source = state.section.source,
                             excludeSources = state.section.excludeSources,
+                            archived = state.archivedQuery,
                         )
                     }
                 val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
@@ -728,6 +770,21 @@ class SessionsViewModel(
         _uiState.update { it.copy(sourceFilter = if (it.sourceFilter == source) null else source) }
     }
 
+    fun selectProjectFilter(key: String?) {
+        _uiState.update { it.copy(projectFilter = if (it.projectFilter == key) null else key) }
+    }
+
+    fun toggleGroupByProject() {
+        _uiState.update { it.copy(groupByProject = !it.groupByProject) }
+    }
+
+    fun toggleProjectGroup(key: String) {
+        _uiState.update {
+            val collapsed = it.collapsedProjectGroups
+            it.copy(collapsedProjectGroups = if (key in collapsed) collapsed - key else collapsed + key)
+        }
+    }
+
     fun toggleShowHidden() {
         _uiState.update { it.copy(showHidden = !it.showHidden) }
     }
@@ -875,46 +932,65 @@ class SessionsViewModel(
         }
     }
 
-    // ── Hide / unhide (issue #1019) ──────────────────────────────────────
+    // ── Archive / unarchive (issue #1496) ────────────────────────────────
 
     /**
-     * Toggle the hidden flag on a session via PATCH /api/sessions/{id} ({hidden}).
+     * Toggle the archived flag on a session via PATCH /api/sessions/{id} ({archived}).
+     * The list is filtered server-side by archived state, so on success the row leaves
+     * the current view (active list on archive, archived list on unarchive).
      */
-    fun toggleHide(sessionId: String) {
+    fun toggleArchive(sessionId: String) {
         val session = _uiState.value.sessions.find { it.id == sessionId } ?: return
-        val targetHidden = session.hidden != true
+        val targetArchived = session.archived != true
         viewModelScope.launch {
             val result =
                 safeApiCall {
-                    ApiClient.hermesApi.setSessionHidden(
+                    ApiClient.hermesApi.setSessionArchived(
                         sessionId = sessionId,
-                        body = SessionRenameRequest(hidden = targetHidden),
+                        body = SessionRenameRequest(archived = targetArchived),
                     )
                 }
             when (result) {
                 is NetworkResult.Success -> {
                     _uiState.update {
                         it.copy(
-                            sessions =
-                                it.sessions
-                                    .map { s -> if (s.id == sessionId) s.copy(hidden = targetHidden) else s },
+                            sessions = it.sessions.filterNot { s -> s.id == sessionId },
+                            total = (it.total - 1).coerceAtLeast(0),
                             toastMessage =
-                                if (targetHidden) {
-                                    "Session hidden"
+                                if (targetArchived) {
+                                    "Session archived"
                                 } else {
-                                    "Session unhidden"
+                                    "Session unarchived"
                                 },
                         )
                     }
+                    invalidateListCache()
                 }
 
                 is NetworkResult.Failure -> {
                     _uiState.update {
-                        it.copy(toastMessage = "Hide failed: ${result.error.message}")
+                        it.copy(toastMessage = "Archive failed: ${result.error.message}")
                     }
                 }
             }
         }
+    }
+
+    /** Switch between the active list and the archived-only list. */
+    fun toggleShowArchived() {
+        _uiState.update { it.copy(showArchived = !it.showArchived, sessions = emptyList(), selectedIds = emptySet()) }
+        loadSessions()
+    }
+
+    private fun listKey(section: HistorySection) =
+        "${section.name}:${section.source}:${section.excludeSources}:${_uiState.value.showArchived}"
+
+    private fun invalidateListCache() {
+        val section = _uiState.value.section
+        val localKey = listKey(section)
+        val scope = runCatching { AuthManager.currentDataScope() }.getOrNull() ?: return
+        sessionsPageCache.remove(scope.inMemoryKey(localKey))
+        SessionListCacheStore.remove(scope.persistentKey(localKey))
     }
 
     // ── Delete (single) ──────────────────────────────────────────────────
@@ -1187,6 +1263,7 @@ class SessionsViewModel(
                     liveStatusSource.events.collect { event ->
                         liveTrackingState = SessionLiveStatusReducer.applyWsEvent(liveTrackingState, event)
                         _uiState.update { it.copy(liveStatuses = liveTrackingState.liveStatuses) }
+                        if (event is WsEvent.SessionTitle) applySessionTitle(event)
                     }
                 }
 
@@ -1207,6 +1284,30 @@ class SessionsViewModel(
                     }
                 }
             }
+    }
+
+    /**
+     * Issue #1463: apply an auto-title push to the loaded rows in place (no spinner, selection or paging reset) and
+     * drop only the current scope+section cache entries so a cache-first reopen can't resurrect the old title.
+     */
+    private fun applySessionTitle(event: WsEvent.SessionTitle) {
+        _uiState.update { state ->
+            if (state.sessions.none { it.id == event.storedSessionId }) {
+                state
+            } else {
+                state.copy(
+                    sessions =
+                        state.sessions.map {
+                            if (it.id == event.storedSessionId) it.copy(title = event.title) else it
+                        },
+                )
+            }
+        }
+        val section = _uiState.value.section
+        val localKey = listKey(section)
+        val scope = runCatching { AuthManager.currentDataScope() }.getOrNull() ?: return
+        sessionsPageCache.remove(scope.inMemoryKey(localKey))
+        SessionListCacheStore.remove(scope.persistentKey(localKey))
     }
 
     fun stopLiveStatusTracking() {

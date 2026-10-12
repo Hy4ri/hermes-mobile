@@ -19,6 +19,8 @@ import kotlinx.serialization.Serializable
 
 @Serializable data object HistoryScreen : NavKey
 
+@Serializable data object ProjectsScreen : NavKey
+
 @Serializable data object ProfilesScreen : NavKey
 
 @Serializable data object BotsScreen : NavKey
@@ -70,8 +72,6 @@ import kotlinx.serialization.Serializable
     val taskId: String,
 ) : NavKey
 
-@Serializable data object ProcessesScreen : NavKey
-
 @Serializable data object ProvidersScreen : NavKey
 
 @Serializable data object AnalyticsScreen : NavKey
@@ -97,3 +97,7 @@ import kotlinx.serialization.Serializable
 @Serializable data object SettingsVault : NavKey
 
 @Serializable data object SettingsAbout : NavKey
+
+@Serializable data object ConnectionsScreen : NavKey
+
+@Serializable data object ClientCertificatesScreen : NavKey

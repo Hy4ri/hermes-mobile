@@ -175,7 +175,7 @@ fun SessionCard(
     isSelected: Boolean,
     isDeleting: Boolean,
     isPinned: Boolean,
-    isHidden: Boolean = false,
+    isArchived: Boolean = false,
     liveStatus: SessionLiveStatus? = null,
     project: SessionProject? = null,
     nowMillis: Long = System.currentTimeMillis(),
@@ -186,7 +186,7 @@ fun SessionCard(
     onSelect: () -> Unit,
     onRename: () -> Unit,
     onTogglePin: () -> Unit,
-    onToggleHide: () -> Unit,
+    onToggleArchive: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val spacing = LocalSpacing.current
@@ -292,10 +292,10 @@ fun SessionCard(
                     menuExpanded = false
                     onTogglePin()
                 },
-                isHidden = isHidden,
-                onToggleHide = {
+                isArchived = isArchived,
+                onToggleArchive = {
                     menuExpanded = false
-                    onToggleHide()
+                    onToggleArchive()
                 },
                 onSelect = {
                     menuExpanded = false

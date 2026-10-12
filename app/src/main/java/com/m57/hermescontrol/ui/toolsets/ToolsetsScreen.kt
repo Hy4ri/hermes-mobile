@@ -1,6 +1,5 @@
 package com.m57.hermescontrol.ui.toolsets
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,15 +15,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SuggestionChip
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -35,7 +31,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -46,9 +41,12 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.ManageableFilterRow
+import com.m57.hermescontrol.ui.common.ManageableItemCard
+import com.m57.hermescontrol.ui.common.ManageableToggle
 import com.m57.hermescontrol.ui.common.NavIcon
-import com.m57.hermescontrol.ui.common.SearchBar
 import com.m57.hermescontrol.ui.common.SkeletonListState
+import com.m57.hermescontrol.ui.common.StatusFilter
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
@@ -64,6 +62,7 @@ fun ToolsetsScreen(
     val dataScope by AuthManager.dataScopeFlow.collectAsStateWithLifecycle()
 
     var query by remember { mutableStateOf("") }
+    var statusFilter by remember { mutableStateOf(StatusFilter.ALL) }
 
     LaunchedEffect(dataScope) {
         viewModel.clearScopeOwnedState()
@@ -71,11 +70,14 @@ fun ToolsetsScreen(
     }
 
     val filteredToolsets =
-        remember(query, state.toolsets) {
+        remember(query, statusFilter, state.toolsets) {
             state.toolsets.filter { toolset ->
-                toolset.name.contains(query, ignoreCase = true) ||
-                    toolset.label?.contains(query, ignoreCase = true) == true ||
-                    toolset.description?.contains(query, ignoreCase = true) == true
+                statusFilter.matches(toolset.enabled) &&
+                    (
+                        toolset.name.contains(query, ignoreCase = true) ||
+                            toolset.label?.contains(query, ignoreCase = true) == true ||
+                            toolset.description?.contains(query, ignoreCase = true) == true
+                    )
             }
         }
 
@@ -135,99 +137,67 @@ fun ToolsetsScreen(
                             verticalArrangement = listItemSpacing,
                         ) {
                             item {
-                                SearchBar(
+                                ManageableFilterRow(
                                     query = query,
                                     onQueryChange = { query = it },
                                     placeholder = stringResource(R.string.toolsets_search_placeholder),
+                                    status = statusFilter,
+                                    onStatusChange = { statusFilter = it },
                                 )
                             }
                             items(filteredToolsets, key = { it.name }) { toolset ->
-                                Card(
-                                    modifier =
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .clickable(
-                                                onClick = {
-                                                    NavigationController.navigateTo(
-                                                        ToolsetDetailKey(
-                                                            name = toolset.name,
-                                                            label = toolset.label,
-                                                        ),
-                                                    )
-                                                },
-                                            ),
-                                    colors =
-                                        CardDefaults.cardColors(
-                                            containerColor =
-                                                if (toolset.enabled) {
-                                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
-                                                } else {
-                                                    MaterialTheme.colorScheme.surfaceVariant
-                                                },
+                                ManageableItemCard(
+                                    title = toolset.label ?: toolset.name.replaceFirstChar { it.uppercase() },
+                                    toggle =
+                                        ManageableToggle(
+                                            checked = toolset.enabled,
+                                            onCheckedChange = { viewModel.toggleToolset(toolset) },
                                         ),
-                                ) {
-                                    Row(
-                                        modifier =
-                                            Modifier
-                                                .fillMaxWidth()
-                                                .padding(16.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
+                                    onClick = {
+                                        NavigationController.navigateTo(
+                                            ToolsetDetailKey(
+                                                name = toolset.name,
+                                                label = toolset.label,
+                                            ),
+                                        )
+                                    },
+                                    body = {
+                                        toolset.description?.let {
                                             Text(
-                                                text =
-                                                    toolset.label
-                                                        ?: toolset.name.replaceFirstChar { it.uppercase() },
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.Bold,
+                                                text = it,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             )
-                                            toolset.description?.let {
-                                                Spacer(modifier = Modifier.height(4.dp))
-                                                Text(
-                                                    text = it,
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                )
-                                            }
-
-                                            toolset.tools?.let { tools ->
-                                                if (tools.isNotEmpty()) {
-                                                    Spacer(modifier = Modifier.height(8.dp))
-                                                    // Single-line chip strip — toolsets can carry a dozen+
-                                                    // tools, and a wrapping FlowRow stacks chips vertically
-                                                    // (huge cards on large font scales). Scroll instead.
-                                                    Row(
-                                                        modifier =
-                                                            Modifier
-                                                                .fillMaxWidth()
-                                                                .horizontalScroll(rememberScrollState()),
-                                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                                    ) {
-                                                        tools.forEach { tool ->
-                                                            SuggestionChip(
-                                                                onClick = {},
-                                                                label = {
-                                                                    Text(
-                                                                        text = tool,
-                                                                        style = MaterialTheme.typography.labelSmall,
-                                                                        maxLines = 1,
-                                                                    )
-                                                                },
-                                                            )
-                                                        }
+                                        }
+                                        toolset.tools?.let { tools ->
+                                            if (tools.isNotEmpty()) {
+                                                // Single-line chip strip — toolsets can carry a dozen+
+                                                // tools, and a wrapping FlowRow stacks chips vertically
+                                                // (huge cards on large font scales). Scroll instead.
+                                                Row(
+                                                    modifier =
+                                                        Modifier
+                                                            .fillMaxWidth()
+                                                            .horizontalScroll(rememberScrollState()),
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                ) {
+                                                    tools.forEach { tool ->
+                                                        SuggestionChip(
+                                                            onClick = {},
+                                                            label = {
+                                                                Text(
+                                                                    text = tool,
+                                                                    style = MaterialTheme.typography.labelSmall,
+                                                                    maxLines = 1,
+                                                                )
+                                                            },
+                                                        )
                                                     }
                                                 }
                                             }
                                         }
-
-                                        Switch(
-                                            checked = toolset.enabled,
-                                            onCheckedChange = { viewModel.toggleToolset(toolset) },
-                                            modifier = Modifier.padding(start = 16.dp),
-                                        )
-                                    }
-                                }
+                                    },
+                                )
                             }
                         }
                     }

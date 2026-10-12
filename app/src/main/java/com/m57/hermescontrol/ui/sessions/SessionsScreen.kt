@@ -35,6 +35,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.CallSplit
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -46,6 +47,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
@@ -103,6 +105,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.model.SessionTreeItem
 import com.m57.hermescontrol.data.model.flattenSessionsWithBranches
+import com.m57.hermescontrol.data.model.startable
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.EmptyState
@@ -118,6 +121,7 @@ import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listItemSpacing
 import com.m57.hermescontrol.ui.sessions.components.BranchRow
 import com.m57.hermescontrol.ui.sessions.components.PinnedSectionHeader
+import com.m57.hermescontrol.ui.sessions.components.ProjectGroupHeader
 import com.m57.hermescontrol.ui.sessions.components.SearchResultCard
 import com.m57.hermescontrol.ui.sessions.components.SessionCard
 import com.m57.hermescontrol.ui.sessions.components.SessionsBulkActionBar
@@ -220,6 +224,8 @@ fun SessionsScreen(
             state.showHidden,
             state.searchResults,
             state.sourceFilter,
+            state.projectFilter,
+            state.projects,
         ) {
             displayedSessions(state)
         }
@@ -237,6 +243,12 @@ fun SessionsScreen(
             }
         }
 
+    val projectGroups =
+        remember(sessionsToDisplay, state.projects, state.groupByProject) {
+            if (state.groupByProject) groupSessionsByProject(sessionsToDisplay, state.projects) else emptyList()
+        }
+
+    val noProjectLabel = stringResource(R.string.sessions_project_none)
     val hasSelection = state.selectedIds.isNotEmpty()
     val loadedMessageCount = state.sessions.sumOf { it.message_count ?: 0 }
     val automationSessionGroups = remember(sessionsToDisplay) { automationGroups(sessionsToDisplay.map { it.session }) }
@@ -459,6 +471,20 @@ fun SessionsScreen(
                     contentDescription = stringResource(R.string.content_desc_new_chat),
                 )
             }
+            IconButton(
+                onClick = { viewModel.toggleShowArchived() },
+                modifier = Modifier.testTag("sessions_action_toggle_archived"),
+            ) {
+                Icon(
+                    imageVector = if (state.showArchived) Icons.Filled.Unarchive else Icons.Filled.Archive,
+                    contentDescription =
+                        if (state.showArchived) {
+                            stringResource(R.string.sessions_hide_archived)
+                        } else {
+                            stringResource(R.string.sessions_show_archived)
+                        },
+                )
+            }
             if (state.hasHiddenSessions) {
                 IconButton(
                     onClick = { viewModel.toggleShowHidden() },
@@ -540,6 +566,41 @@ fun SessionsScreen(
                             onClick = { viewModel.selectSourceFilter(source) },
                             label = { Text(sourceLabel(source)) },
                             modifier = Modifier.testTag("history_source_chip_$source"),
+                        )
+                    }
+                }
+            }
+
+            // Project chips (issue #1526): only for projects present in the rows currently shown.
+            val projectChoices = state.availableProjects
+            if (state.section == HistorySection.CONVERSATIONS && projectChoices.size > 1) {
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth().testTag("history_project_chips"),
+                    contentPadding = PaddingValues(horizontal = spacing.md),
+                    horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+                ) {
+                    item(key = "group_toggle") {
+                        FilterChip(
+                            selected = state.groupByProject,
+                            onClick = { viewModel.toggleGroupByProject() },
+                            label = { Text(stringResource(R.string.sessions_group_by_project)) },
+                            modifier = Modifier.testTag("history_group_by_project"),
+                        )
+                    }
+                    items(projectChoices, key = { "project_${it.key}" }) { choice ->
+                        FilterChip(
+                            selected = state.activeProjectFilter == choice.key,
+                            onClick = { viewModel.selectProjectFilter(choice.key) },
+                            label = {
+                                Text(
+                                    if (choice.key == NO_PROJECT_KEY) {
+                                        stringResource(R.string.sessions_project_none)
+                                    } else {
+                                        choice.key
+                                    },
+                                )
+                            },
+                            modifier = Modifier.testTag("history_project_chip_${choice.key}"),
                         )
                     }
                 }
@@ -739,6 +800,14 @@ fun SessionsScreen(
                         )
                     }
 
+                    state.sessions.isEmpty() && state.showArchived -> {
+                        EmptyState(
+                            title = stringResource(R.string.sessions_archived_empty_title),
+                            subtitle = stringResource(R.string.sessions_archived_empty_desc),
+                            icon = Icons.Filled.Archive,
+                        )
+                    }
+
                     state.sessions.isEmpty() -> {
                         EmptyState(
                             title =
@@ -874,7 +943,7 @@ fun SessionsScreen(
                                         isSelected = session.id in state.selectedIds,
                                         isDeleting = session.id in state.deletingSessionIds,
                                         isPinned = session.pinned == true,
-                                        isHidden = session.hidden == true,
+                                        isArchived = session.archived == true,
                                         liveStatus = state.liveStatuses[session.id],
                                         project = project,
                                         nowMillis = nowMillis,
@@ -899,7 +968,7 @@ fun SessionsScreen(
                                             )
                                         },
                                         onTogglePin = { viewModel.togglePin(session.id) },
-                                        onToggleHide = { viewModel.toggleHide(session.id) },
+                                        onToggleArchive = { viewModel.toggleArchive(session.id) },
                                         onDelete = { viewModel.requestDeleteSession(session.id) },
                                     )
                                 }
@@ -950,8 +1019,45 @@ fun SessionsScreen(
                                             )
                                         }
                                     }
-                                    items(sessionsToDisplay, key = { it.session.id }) { item ->
-                                        sessionCard(item)
+                                    if (state.groupByProject && !state.isSearchMode) {
+                                        projectGroups.forEach { group ->
+                                            val expanded = group.key !in state.collapsedProjectGroups
+                                            item(key = "project_header_${group.key}") {
+                                                ProjectGroupHeader(
+                                                    label =
+                                                        if (group.key ==
+                                                            NO_PROJECT_KEY
+                                                        ) {
+                                                            noProjectLabel
+                                                        } else {
+                                                            group.key
+                                                        },
+                                                    color = group.color,
+                                                    count = group.items.size,
+                                                    expanded = expanded,
+                                                    onToggle = { viewModel.toggleProjectGroup(group.key) },
+                                                    onNewChat =
+                                                        state.projects
+                                                            .startable()
+                                                            .firstOrNull { it.id == group.projectId }
+                                                            ?.let { project ->
+                                                                { NavigationController.openNewChat(project) }
+                                                            },
+                                                )
+                                            }
+                                            if (expanded) {
+                                                items(
+                                                    group.items,
+                                                    key = { "project_${group.key}_${it.session.id}" },
+                                                ) { item ->
+                                                    sessionCard(item)
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        items(sessionsToDisplay, key = { it.session.id }) { item ->
+                                            sessionCard(item)
+                                        }
                                     }
                                 }
 

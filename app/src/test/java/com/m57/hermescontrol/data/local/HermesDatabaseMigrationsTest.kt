@@ -12,6 +12,18 @@ import org.junit.Before
 import org.junit.Test
 
 class HermesDatabaseMigrationsTest {
+    @Test
+    fun migration10to11AddsNullablePlacementWithoutDeletingLegacyHistory() =
+        runBlocking {
+            val connection = mockk<SQLiteConnection>(relaxed = true)
+            HermesDatabase.MIGRATION_10_11.migrate(connection)
+            verify(
+                exactly = 1,
+            ) { connection.execSQL("ALTER TABLE chat_messages ADD COLUMN local_anchor_order INTEGER") }
+            verify(exactly = 1) { connection.execSQL("ALTER TABLE chat_messages ADD COLUMN local_predecessor_id TEXT") }
+            verify(exactly = 2) { connection.execSQL(any()) }
+        }
+
     @Before
     fun setUp() {
         mockkStatic("androidx.sqlite.SQLite")

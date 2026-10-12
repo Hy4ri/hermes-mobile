@@ -71,7 +71,7 @@ class ProfileSwitchCoordinatorTest {
         every { AuthManager.setActiveProfileId(any()) } returns Unit
 
         mockkObject(HermesWsClient)
-        every { HermesWsClient.disconnect() } returns Unit
+        every { HermesWsClient.disconnect(any()) } returns Unit
         every { HermesWsClient.connect() } returns Unit
     }
 
@@ -152,24 +152,34 @@ class ProfileSwitchCoordinatorTest {
 
             ProfileSwitchCoordinator.switchConnectionProfile("prof-2")
 
-            // Load-bearing order: selection persists FIRST (token cache +
-            // cookie scope follow), Retrofit re-points, the cookie store swap
-            // is AWAITED (a racing dial mints the ticket with the previous
-            // server's cookie → 401 → dead socket), then the socket re-dials
-            // — so chat's wipe (via the broadcast) lands before the new
-            // gateway's gateway.ready auto-creates the fresh session.
-            //
-            // ORDERED, not SEQUENCE -- see the sibling test above: SEQUENCE's
-            // exact-count semantics fail under load in the shared test JVM when
-            // leaked background retries interleave foreign AuthManager/ApiClient
-            // calls into the window. ORDER still pins this 5-step sequence.
+            // Disconnect first so no in-flight socket can observe a partially
+            // switched REST/cookie configuration. Selection and cookie sync must
+            // complete before Retrofit is rebuilt and the switch is broadcast.
             coVerify(ordering = Ordering.ORDERED) {
+                HermesWsClient.disconnect(clearPendingMessages = true)
                 AuthManager.setSelectedProfileId("prof-2")
-                ApiClient.rebuild()
                 AuthManager.syncCookieStoreForProfile("prof-2")
-                HermesWsClient.disconnect()
-                HermesWsClient.connect()
+                ApiClient.rebuild()
             }
+            coVerify(exactly = 1) { HermesWsClient.connect() }
+        }
+
+    @Test
+    fun `prepare connection profile rehomes state without dialing socket`() =
+        runTest {
+            every { AuthManager.setSelectedProfileId(any()) } returns Unit
+            every { ApiClient.rebuild() } returns Unit
+            coEvery { AuthManager.syncCookieStoreForProfile(any()) } returns Unit
+
+            ProfileSwitchCoordinator.prepareConnectionProfile("prof-2")
+
+            coVerify(ordering = Ordering.ORDERED) {
+                HermesWsClient.disconnect(clearPendingMessages = true)
+                AuthManager.setSelectedProfileId("prof-2")
+                AuthManager.syncCookieStoreForProfile("prof-2")
+                ApiClient.rebuild()
+            }
+            verify(exactly = 0) { HermesWsClient.connect() }
         }
 
     @Test

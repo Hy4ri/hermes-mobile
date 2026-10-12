@@ -210,6 +210,11 @@ object ChatWsEventReducer {
 
             is WsEvent.SessionUpdated -> onSessionUpdated(state, streamingState)
 
+            is WsEvent.SessionTitle -> onSessionTitle(state, streamingState, event)
+
+            // Runtime invalidation needs ViewModel context (runtime binding, queue, resume path).
+            is WsEvent.SessionReclaimed -> ReducerResult(state = state, streamingState = streamingState)
+
             is WsEvent.StatusUpdate -> onStatusUpdate(state, streamingState, event)
 
             is WsEvent.ConnectionRequest,
@@ -1047,6 +1052,28 @@ object ChatWsEventReducer {
         state: ChatUiState,
         streamingState: StreamingState,
     ): ReducerResult = ReducerResult(state = state, streamingState = streamingState)
+
+    /** Issue #1463: payload id is the STORED key, so match it against the stored `currentSessionId`. */
+    private fun onSessionTitle(
+        state: ChatUiState,
+        streamingState: StreamingState,
+        event: WsEvent.SessionTitle,
+    ): ReducerResult {
+        val isCurrent = state.currentSessionId == event.storedSessionId
+        val rowKnown = state.sessions.any { it.id == event.storedSessionId }
+        if (!isCurrent && !rowKnown) return ReducerResult(state = state, streamingState = streamingState)
+        return ReducerResult(
+            state =
+                state.copy(
+                    chatTitle = if (isCurrent) event.title else state.chatTitle,
+                    sessions =
+                        state.sessions.map {
+                            if (it.id == event.storedSessionId) it.copy(title = event.title) else it
+                        },
+                ),
+            streamingState = streamingState,
+        )
+    }
 
     private fun onStatusUpdate(
         state: ChatUiState,

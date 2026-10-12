@@ -1,12 +1,12 @@
 package com.m57.hermescontrol.ui.sessions.components
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -26,8 +26,8 @@ fun SessionActionMenu(
     isDeleting: Boolean,
     isPinned: Boolean = false,
     onTogglePin: (() -> Unit)? = null,
-    isHidden: Boolean = false,
-    onToggleHide: (() -> Unit)? = null,
+    isArchived: Boolean = false,
+    onToggleArchive: (() -> Unit)? = null,
     onSelect: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
@@ -51,15 +51,15 @@ fun SessionActionMenu(
                 onClick = onTogglePin,
             )
         }
-        if (onToggleHide != null) {
+        if (onToggleArchive != null) {
             DropdownMenuItem(
                 text = {
                     Text(
                         stringResource(
-                            if (isHidden) {
-                                R.string.sessions_action_unhide
+                            if (isArchived) {
+                                R.string.sessions_action_unarchive
                             } else {
-                                R.string.sessions_action_hide
+                                R.string.sessions_action_archive
                             },
                         ),
                     )
@@ -67,15 +67,15 @@ fun SessionActionMenu(
                 leadingIcon = {
                     Icon(
                         imageVector =
-                            if (isHidden) {
-                                Icons.Filled.Visibility
+                            if (isArchived) {
+                                Icons.Filled.Unarchive
                             } else {
-                                Icons.Filled.VisibilityOff
+                                Icons.Filled.Archive
                             },
                         contentDescription = null,
                     )
                 },
-                onClick = onToggleHide,
+                onClick = onToggleArchive,
             )
         }
         DropdownMenuItem(

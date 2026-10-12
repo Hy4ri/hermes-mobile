@@ -148,6 +148,7 @@ fun CronJobsScreen(
                                 ),
                         ) {
                             Column(modifier = Modifier.padding(spacing.md)) {
+                                val displayState = CronJobDisplayState.from(job.state)
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -161,16 +162,29 @@ fun CronJobsScreen(
                                     )
                                     StatusBadge(
                                         text =
-                                            if (job.state == "active") {
-                                                stringResource(R.string.cron_status_active)
-                                            } else {
-                                                stringResource(R.string.cron_status_paused)
+                                            when (displayState) {
+                                                CronJobDisplayState.ACTIVE -> {
+                                                    stringResource(R.string.cron_status_scheduled)
+                                                }
+
+                                                CronJobDisplayState.COMPLETED -> {
+                                                    stringResource(R.string.cron_status_completed)
+                                                }
+
+                                                CronJobDisplayState.ERROR -> {
+                                                    stringResource(R.string.cron_status_error)
+                                                }
+
+                                                CronJobDisplayState.PAUSED -> {
+                                                    stringResource(R.string.cron_status_paused)
+                                                }
                                             },
                                         status =
-                                            if (job.state == "active") {
-                                                StatusBadgeType.SUCCESS
-                                            } else {
-                                                StatusBadgeType.NEUTRAL
+                                            when (displayState) {
+                                                CronJobDisplayState.ACTIVE -> StatusBadgeType.SUCCESS
+                                                CronJobDisplayState.COMPLETED -> StatusBadgeType.INFO
+                                                CronJobDisplayState.ERROR -> StatusBadgeType.ERROR
+                                                CronJobDisplayState.PAUSED -> StatusBadgeType.NEUTRAL
                                             },
                                     )
                                     // Run-status badge: blocked_config looks like a
@@ -233,7 +247,7 @@ fun CronJobsScreen(
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
                                     }
-                                    if (job.state == "active") {
+                                    if (displayState.canPause) {
                                         IconButton(
                                             onClick = { viewModel.pauseCronJob(job.id) },
                                         ) {
@@ -243,7 +257,7 @@ fun CronJobsScreen(
                                                 tint = MaterialTheme.colorScheme.primary,
                                             )
                                         }
-                                    } else {
+                                    } else if (displayState.canResume) {
                                         IconButton(
                                             onClick = { viewModel.resumeCronJob(job.id) },
                                         ) {

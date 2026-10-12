@@ -225,6 +225,54 @@ class SessionLiveStatusReducerTest {
     }
 
     @Test
+    fun `reclaimed runtime drops its mapping and live indicator`() {
+        val initial =
+            SessionLiveTrackingState(
+                liveStatuses = mapOf("stored-1" to SessionLiveStatus.WORKING, "stored-2" to SessionLiveStatus.WAITING),
+                storedIdByRuntimeId = mapOf("rt-1" to "stored-1", "rt-2" to "stored-2"),
+            )
+
+        val state =
+            SessionLiveStatusReducer.applyWsEvent(initial, WsEvent.SessionReclaimed("rt-1", "stored-1", "idle_timeout"))
+
+        assertEquals(mapOf("stored-2" to SessionLiveStatus.WAITING), state.liveStatuses)
+        assertEquals(mapOf("rt-2" to "stored-2"), state.storedIdByRuntimeId)
+    }
+
+    @Test
+    fun `reclaim keeps indicator while another runtime maps to the same stored session`() {
+        val initial =
+            SessionLiveTrackingState(
+                liveStatuses = mapOf("stored-1" to SessionLiveStatus.WORKING),
+                storedIdByRuntimeId = mapOf("rt-old" to "stored-1", "rt-new" to "stored-1"),
+            )
+
+        val state =
+            SessionLiveStatusReducer.applyWsEvent(initial, WsEvent.SessionReclaimed("rt-old", "stored-1", null))
+
+        assertEquals(SessionLiveStatus.WORKING, state.liveStatuses["stored-1"])
+        assertEquals(mapOf("rt-new" to "stored-1"), state.storedIdByRuntimeId)
+    }
+
+    @Test
+    fun `reclaim of unknown or missing runtime never mutates state`() {
+        val initial =
+            SessionLiveTrackingState(
+                liveStatuses = mapOf("stored-1" to SessionLiveStatus.WORKING),
+                storedIdByRuntimeId = mapOf("rt-1" to "stored-1"),
+            )
+
+        assertEquals(
+            initial,
+            SessionLiveStatusReducer.applyWsEvent(initial, WsEvent.SessionReclaimed("other", "stored-1", null)),
+        )
+        assertEquals(
+            initial,
+            SessionLiveStatusReducer.applyWsEvent(initial, WsEvent.SessionReclaimed(null, "stored-1", null)),
+        )
+    }
+
+    @Test
     fun `clear resets state to empty`() {
         val initial =
             SessionLiveTrackingState(

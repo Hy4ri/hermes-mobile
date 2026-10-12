@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_image_paste_loading">Añadiendo imágenes pegadas…</string>
+    <string name="chat_image_paste_failed">No se pudo pegar la imagen. Comprueba el acceso e inténtalo de nuevo.</string>
+    <string name="chat_image_paste_too_large">La imagen supera el límite de archivo adjunto de 10 MB.</string>
+    <string name="chat_image_paste_batch_limit">Pega hasta 8 imágenes con un total no superior a 20 MB.</string>
+    <string name="chat_image_paste_busy">Espera a que las imágenes terminen de cargarse antes de volver a pegar.</string>
+</resources>

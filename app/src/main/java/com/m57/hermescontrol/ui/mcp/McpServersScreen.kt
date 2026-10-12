@@ -18,6 +18,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -42,9 +43,10 @@ import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.ManageableFilterRow
 import com.m57.hermescontrol.ui.common.NavIcon
-import com.m57.hermescontrol.ui.common.SearchBar
 import com.m57.hermescontrol.ui.common.SkeletonListState
+import com.m57.hermescontrol.ui.common.StatusFilter
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
@@ -66,14 +68,18 @@ fun McpServersScreen(
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     var query by remember { mutableStateOf("") }
+    var statusFilter by remember { mutableStateOf(StatusFilter.ALL) }
     var showDetail by remember { mutableStateOf<McpServer?>(null) }
 
     val filteredServers =
-        remember(query, state.servers) {
+        remember(query, statusFilter, state.servers) {
             state.servers.filter { server ->
-                server.name.contains(query, ignoreCase = true) ||
-                    server.command?.contains(query, ignoreCase = true) == true ||
-                    server.transport?.contains(query, ignoreCase = true) == true
+                statusFilter.matches(server.enabled) &&
+                    (
+                        server.name.contains(query, ignoreCase = true) ||
+                            server.command?.contains(query, ignoreCase = true) == true ||
+                            server.transport?.contains(query, ignoreCase = true) == true
+                    )
             }
         }
 
@@ -183,16 +189,14 @@ fun McpServersScreen(
                                 contentPadding = listContentPadding,
                                 verticalArrangement = listItemSpacing,
                             ) {
-                                item(key = "add-form") {
-                                    AddServerSection(state, viewModel, spacing)
-                                }
-
                                 if (state.servers.isNotEmpty()) {
                                     item(key = "search") {
-                                        SearchBar(
+                                        ManageableFilterRow(
                                             query = query,
                                             onQueryChange = { query = it },
                                             placeholder = stringResource(R.string.mcp_search_placeholder),
+                                            status = statusFilter,
+                                            onStatusChange = { statusFilter = it },
                                         )
                                     }
                                 }
@@ -252,6 +256,14 @@ fun McpServersScreen(
                     )
                 }
             }
+        }
+    }
+
+    if (state.showAddForm) {
+        ModalBottomSheet(
+            onDismissRequest = viewModel::toggleAddForm,
+        ) {
+            AddServerSection(state, viewModel, spacing)
         }
     }
 

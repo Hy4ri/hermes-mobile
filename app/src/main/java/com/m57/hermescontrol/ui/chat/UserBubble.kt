@@ -196,6 +196,8 @@ fun UserBubble(
                             // Render inline attachments
                             InlineAttachmentList(
                                 attachments = message.attachments,
+                                diagnosticId = ChatImageDiagnostics.rowKey(message.id),
+                                frameKeyPrefix = message.id,
                                 textColor = userBubbleTextColor,
                                 onOpen = onOpenAttachment,
                                 onSave = onSaveAttachment,

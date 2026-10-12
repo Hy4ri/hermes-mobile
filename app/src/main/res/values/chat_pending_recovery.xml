@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_pending_delivery_unverified">Delivery unverified: this does not mean work is still running. Check delivery before retrying to avoid duplicate messages.</string>
+    <string name="chat_pending_unknown_released">Unverified · acknowledged locally</string>
+    <string name="chat_pending_continue_queue">Acknowledge without resending</string>
+    <string name="chat_pending_continue_title">Acknowledge this unverified send?</string>
+    <string name="chat_pending_continue_warning">This allows optional removal of this local pending entry. It does not confirm delivery, resend this message, or delete the conversation or its attachments. New messages can already proceed without acknowledging this entry.</string>
+    <string name="chat_pending_continue_confirm">Acknowledge entry</string>
+    <string name="chat_pending_remove">Remove from pending</string>
+    <string name="chat_pending_remove_title">Remove this pending message?</string>
+    <string name="chat_pending_remove_warning">This removes only the local pending entry. It does not confirm delivery or delete the conversation or its attachments. This message will not be resent. You will no longer be able to retry it from this panel.</string>
+    <string name="chat_pending_remove_confirm">Remove</string>
+    <string name="chat_pending_remove_failed">Could not remove the pending entry. It has been kept; try again.</string>
+    <string name="chat_pending_acknowledge_failed">Could not acknowledge the pending entry. It has been kept; try again.</string>
+</resources>

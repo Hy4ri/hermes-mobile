@@ -3,6 +3,7 @@ package com.m57.hermescontrol.data.remote
 import android.content.SharedPreferences
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.unmockkObject
 import okhttp3.CookieJar
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
@@ -41,6 +42,7 @@ class ServerHeadersTest {
 
     @Before
     fun setUp() {
+        mockSystemServerTrust()
         every { preferences.getString(any(), null) } answers { saved }
         every { preferences.edit() } returns editor
         every { editor.putString(any(), any()) } answers {
@@ -59,6 +61,7 @@ class ServerHeadersTest {
         saved = null
         ServerHeaders.initialize(preferences)
         server.shutdown()
+        unmockkObject(ServerTrust)
     }
 
     @Test

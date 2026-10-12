@@ -386,6 +386,62 @@ object RpcMethods {
             JsonElement.serializer(),
         )
 
+    val PROJECTS_CREATE: RpcMethod<ProjectsCreateParams, JsonElement> =
+        RpcMethod(
+            WsMethods.PROJECTS_CREATE,
+            ProjectsCreateParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    val PROJECTS_UPDATE: RpcMethod<ProjectsUpdateParams, JsonElement> =
+        RpcMethod(
+            WsMethods.PROJECTS_UPDATE,
+            ProjectsUpdateParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    val PROJECTS_DELETE: RpcMethod<ProjectIdParams, JsonElement> =
+        RpcMethod(
+            WsMethods.PROJECTS_DELETE,
+            ProjectIdParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    val PROJECTS_ARCHIVE: RpcMethod<ProjectsArchiveParams, JsonElement> =
+        RpcMethod(
+            WsMethods.PROJECTS_ARCHIVE,
+            ProjectsArchiveParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    val PROJECTS_ADD_FOLDER: RpcMethod<ProjectsAddFolderParams, JsonElement> =
+        RpcMethod(
+            WsMethods.PROJECTS_ADD_FOLDER,
+            ProjectsAddFolderParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    val PROJECTS_REMOVE_FOLDER: RpcMethod<ProjectFolderParams, JsonElement> =
+        RpcMethod(
+            WsMethods.PROJECTS_REMOVE_FOLDER,
+            ProjectFolderParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    val PROJECTS_SET_PRIMARY: RpcMethod<ProjectFolderParams, JsonElement> =
+        RpcMethod(
+            WsMethods.PROJECTS_SET_PRIMARY,
+            ProjectFolderParams.serializer(),
+            JsonElement.serializer(),
+        )
+
+    val PROJECTS_DISCOVER_REPOS: RpcMethod<ProjectsDiscoverReposParams, JsonElement> =
+        RpcMethod(
+            WsMethods.PROJECTS_DISCOVER_REPOS,
+            ProjectsDiscoverReposParams.serializer(),
+            JsonElement.serializer(),
+        )
+
     // Passthrough JsonElement results: callers keep their existing legacy decoders.
     val PROFILES_LIST: RpcMethod<ProfilesListParams, JsonElement> =
         RpcMethod(
@@ -524,6 +580,14 @@ object RpcMethods {
             PROCESS_STOP,
             PLUGINS_MANAGE,
             PROJECTS_LIST,
+            PROJECTS_CREATE,
+            PROJECTS_UPDATE,
+            PROJECTS_DELETE,
+            PROJECTS_ARCHIVE,
+            PROJECTS_ADD_FOLDER,
+            PROJECTS_REMOVE_FOLDER,
+            PROJECTS_SET_PRIMARY,
+            PROJECTS_DISCOVER_REPOS,
             PROFILES_LIST,
             PROFILES_CONFIGURE,
             CONFIG_SET,

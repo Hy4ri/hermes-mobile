@@ -7,7 +7,9 @@ import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.model.AccountConnectorResult
 import com.m57.hermescontrol.data.model.ConnectorAccount
 import com.m57.hermescontrol.data.model.ConnectorCatalogEntry
+import com.m57.hermescontrol.data.model.ConnectorError
 import com.m57.hermescontrol.data.model.ConnectorItem
+import com.m57.hermescontrol.data.model.ConnectorListResult
 import com.m57.hermescontrol.data.model.ConnectorPolicy
 import com.m57.hermescontrol.data.model.ConnectorTool
 import com.m57.hermescontrol.data.ws.AccountConnectorRepository
@@ -29,6 +31,7 @@ import kotlinx.coroutines.launch
 data class AccountConnectorsState(
     val loading: Boolean = true,
     val error: String? = null,
+    val unavailable: Boolean = false,
     val catalog: List<ConnectorCatalogEntry> = emptyList(),
     val connectorStates: List<ConnectorItem> = emptyList(),
     val accounts: List<ConnectorAccount> = emptyList(),
@@ -115,9 +118,27 @@ class AccountConnectorsViewModel(
                 val accountsResult = accounts.await()
                 val policyResult = policy.await()
                 if (!isCurrent(epoch)) return@launch
+                // #1477: preserve entitlement failures as a capability state, not a generic error.
+                val unavailable =
+                    (listResult as? ConnectorListResult.Success)?.available == false ||
+                        listOfNotNull(
+                            listResult.errorOrNull(),
+                            (catalogResult as? AccountConnectorResult.Failure)?.error,
+                            (accountsResult as? AccountConnectorResult.Failure)?.error,
+                            (policyResult as? AccountConnectorResult.Failure)?.error,
+                        ).any { it is ConnectorError.Unavailable }
+                if (unavailable) {
+                    scopedJobs.forEach(Job::cancel)
+                    scopedJobs.clear()
+                    operation.reset()
+                    _state.value =
+                        AccountConnectorsState(loading = false, unavailable = true, scope = _state.value.scope)
+                    return@launch
+                }
                 _state.update {
                     it.copy(
                         loading = false,
+                        unavailable = false,
                         error =
                             listResult.errorOrNull()?.message ?: catalogResult.errorMessage()
                                 ?: accountsResult.errorMessage() ?: policyResult.errorMessage(),
@@ -132,7 +153,7 @@ class AccountConnectorsViewModel(
 
     fun loadTools(slug: String) {
         scopedJobs.removeAll { it.isCompleted }
-        if (slug in _state.value.toolsLoading || !isCurrent(generation)) return
+        if (_state.value.unavailable || slug in _state.value.toolsLoading || !isCurrent(generation)) return
         val epoch = generation
         _state.update { it.copy(toolsLoading = it.toolsLoading + slug) }
         scopedJobs +=
@@ -211,7 +232,11 @@ class AccountConnectorsViewModel(
     // Reserve synchronously, not inside launch: repeated taps must not start concurrent writes.
     private fun mutate(action: suspend () -> String?) {
         scopedJobs.removeAll { it.isCompleted }
-        if (_state.value.scope == null || _state.value.busy || _state.value.loading || !isCurrent(generation)) return
+        if (_state.value.scope == null || _state.value.busy || _state.value.loading ||
+            _state.value.unavailable || !isCurrent(generation)
+        ) {
+            return
+        }
         val epoch = generation
         _state.update { it.copy(busy = true, error = null) }
         scopedJobs +=

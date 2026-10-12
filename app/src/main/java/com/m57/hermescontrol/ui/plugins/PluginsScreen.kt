@@ -29,6 +29,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
@@ -55,15 +56,19 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.PluginCatalogEntry
 import com.m57.hermescontrol.data.model.PluginInfo
-import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.common.DetailDialog
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.ExposedDropdownField
 import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.ManageableFilterRow
+import com.m57.hermescontrol.ui.common.ManageableItemCard
+import com.m57.hermescontrol.ui.common.ManageableToggle
 import com.m57.hermescontrol.ui.common.NavIcon
-import com.m57.hermescontrol.ui.common.SearchBar
 import com.m57.hermescontrol.ui.common.SkeletonListState
+import com.m57.hermescontrol.ui.common.StatusBadge
+import com.m57.hermescontrol.ui.common.StatusBadgeType
+import com.m57.hermescontrol.ui.common.StatusFilter
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
@@ -82,8 +87,10 @@ fun PluginsScreen(
     val dataScope by AuthManager.dataScopeFlow.collectAsStateWithLifecycle()
 
     var query by remember { mutableStateOf("") }
+    var statusFilter by remember { mutableStateOf(StatusFilter.ALL) }
     var showDetail by remember { mutableStateOf<PluginInfo?>(null) }
     var showCatalogDetail by remember { mutableStateOf<PluginCatalogEntry?>(null) }
+    var showInstallSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(dataScope) {
         viewModel.clearScopeOwnedState()
@@ -91,10 +98,13 @@ fun PluginsScreen(
     }
 
     val filteredPlugins =
-        remember(query, state.plugins) {
+        remember(query, statusFilter, state.plugins) {
             state.plugins.filter { plugin ->
-                plugin.name.contains(query, ignoreCase = true) ||
-                    plugin.description?.contains(query, ignoreCase = true) == true
+                statusFilter.matches(plugin.enabled) &&
+                    (
+                        plugin.name.contains(query, ignoreCase = true) ||
+                            plugin.description?.contains(query, ignoreCase = true) == true
+                    )
             }
         }
 
@@ -194,6 +204,16 @@ fun PluginsScreen(
                 viewModel.loadCatalog(isRefresh = true)
             }
         },
+        actions = {
+            if (state.selectedTab == PluginsTab.INSTALLED) {
+                IconButton(onClick = { showInstallSheet = true }) {
+                    Icon(
+                        imageVector = Icons.Default.InstallDesktop,
+                        contentDescription = stringResource(R.string.plugins_install_heading),
+                    )
+                }
+            }
+        },
     ) { _ ->
         Column(modifier = Modifier.fillMaxSize()) {
             SingleChoiceSegmentedButtonRow(
@@ -254,17 +274,14 @@ fun PluginsScreen(
                                     }
                                 }
 
-                                // Install section
-                                item(key = "install") {
-                                    InstallSection(state, viewModel)
-                                }
-
                                 // Search bar
                                 item(key = "search") {
-                                    SearchBar(
+                                    ManageableFilterRow(
                                         query = query,
                                         onQueryChange = { query = it },
                                         placeholder = stringResource(R.string.plugins_search_placeholder),
+                                        status = statusFilter,
+                                        onStatusChange = { statusFilter = it },
                                     )
                                 }
 
@@ -314,6 +331,17 @@ fun PluginsScreen(
                     )
                 }
             }
+        }
+    }
+
+    if (showInstallSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showInstallSheet = false },
+        ) {
+            InstallSection(
+                state = state,
+                viewModel = viewModel,
+            )
         }
     }
 
@@ -538,74 +566,55 @@ internal fun PluginCard(
     onClick: () -> Unit,
 ) {
     val busy = state.rowBusy == plugin.name
-    val statusColors = LocalHermesStatusColors.current
 
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            // Header row: name + toggle
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(text = plugin.name, style = MaterialTheme.typography.titleMedium)
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        // Version badge
-                        plugin.version?.let {
-                            Text(
-                                text = "v$it",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        // Source badge
-                        plugin.source?.let {
-                            Text(
-                                text = it,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
-                if (plugin.installed) {
-                    Switch(
-                        checked = plugin.enabled,
-                        onCheckedChange = { viewModel.togglePlugin(plugin) },
-                    )
-                }
+    val subtitleParts =
+        buildList {
+            plugin.version?.let { add("v$it") }
+            plugin.source?.let { add(it) }
+        }
+    val subtitleText = subtitleParts.takeIf { it.isNotEmpty() }?.joinToString(" • ")
+
+    ManageableItemCard(
+        title = plugin.name,
+        subtitle = subtitleText,
+        badges = {
+            StatusBadge(
+                text = plugin.runtimeStatus ?: "inactive",
+                status =
+                    if (plugin.enabled) {
+                        StatusBadgeType.SUCCESS
+                    } else {
+                        StatusBadgeType.WARNING
+                    },
+            )
+            if (plugin.authRequired) {
+                StatusBadge(
+                    text = stringResource(R.string.plugins_auth_required),
+                    status = StatusBadgeType.ERROR,
+                )
             }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // Description
+        },
+        toggle =
+            if (plugin.installed) {
+                ManageableToggle(
+                    checked = plugin.enabled,
+                    busy = false,
+                    enabled = state.rowBusy != plugin.name,
+                    onCheckedChange = { viewModel.togglePlugin(plugin) },
+                )
+            } else {
+                null
+            },
+        onClick = onClick,
+        body = {
             Text(
                 text = plugin.description ?: stringResource(R.string.plugins_no_desc),
                 style = MaterialTheme.typography.bodyMedium,
             )
 
-            // Status badges
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                val statusColor = if (plugin.enabled) statusColors.success else statusColors.warning
-                Text(
-                    text = plugin.runtimeStatus ?: "inactive",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = statusColor,
-                )
-                if (plugin.authRequired) {
-                    Text(
-                        text = stringResource(R.string.plugins_auth_required),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = statusColors.error,
-                    )
-                }
-            }
-
             // Dashboard slots
             plugin.dashboardManifest?.slots?.let { slots ->
                 if (slots.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = stringResource(R.string.plugins_dashboard_slots, slots.joinToString(", ")),
                         style = MaterialTheme.typography.bodySmall,
@@ -616,83 +625,74 @@ internal fun PluginCard(
 
             // Auth command hint
             if (plugin.authRequired && plugin.authCommand != null) {
-                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = stringResource(R.string.plugins_auth_command_hint, plugin.authCommand),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Action buttons row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-            ) {
-                // Visibility toggle (only for active plugins with dashboard manifests)
-                if (plugin.installed && plugin.hasDashboardManifest) {
-                    IconButton(
-                        onClick = { viewModel.togglePluginVisibility(plugin) },
-                        enabled = !busy,
-                        modifier = Modifier.size(32.dp),
-                    ) {
-                        Icon(
-                            if (plugin.userHidden) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                            contentDescription =
-                                if (plugin.userHidden) {
-                                    stringResource(R.string.plugins_show_in_sidebar)
-                                } else {
-                                    stringResource(R.string.plugins_hide_from_sidebar)
-                                },
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(4.dp))
-                }
-
-                // Existing update affordance for active Git installs.
-                if (plugin.installed && plugin.canUpdateGit) {
-                    OutlinedButton(
-                        onClick = { viewModel.updatePlugin(plugin.name) },
-                        enabled = !busy,
-                    ) {
-                        Text(stringResource(R.string.plugins_action_update))
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                }
-
-                // Backend-provided removability, independent of runtime enabled state.
-                if (plugin.removable) {
-                    OutlinedButton(
-                        onClick = { viewModel.requestRemovePlugin(plugin.name) },
-                        enabled = !busy,
-                        colors =
-                            ButtonDefaults.outlinedButtonColors(
-                                contentColor = MaterialTheme.colorScheme.error,
-                            ),
-                    ) {
-                        Icon(
-                            Icons.Default.Delete,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(stringResource(R.string.plugins_action_uninstall))
-                    }
-                }
-                if (!plugin.installed) {
-                    Button(
-                        onClick = { viewModel.activatePlugin(plugin) },
-                        enabled = !busy,
-                    ) {
-                        Text(stringResource(R.string.plugins_action_enable))
-                    }
+        },
+        actions = {
+            // Visibility toggle (only for active plugins with dashboard manifests)
+            if (plugin.installed && plugin.hasDashboardManifest) {
+                IconButton(
+                    onClick = { viewModel.togglePluginVisibility(plugin) },
+                    enabled = !busy,
+                    modifier = Modifier.size(32.dp),
+                ) {
+                    Icon(
+                        if (plugin.userHidden) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                        contentDescription =
+                            if (plugin.userHidden) {
+                                stringResource(R.string.plugins_show_in_sidebar)
+                            } else {
+                                stringResource(R.string.plugins_hide_from_sidebar)
+                            },
+                        modifier = Modifier.size(18.dp),
+                    )
                 }
             }
-        }
-    }
+
+            // Existing update affordance for active Git installs.
+            if (plugin.installed && plugin.canUpdateGit) {
+                OutlinedButton(
+                    onClick = { viewModel.updatePlugin(plugin.name) },
+                    enabled = !busy,
+                ) {
+                    Text(stringResource(R.string.plugins_action_update))
+                }
+            }
+
+            // Backend-provided removability, independent of runtime enabled state.
+            if (plugin.removable) {
+                OutlinedButton(
+                    onClick = { viewModel.requestRemovePlugin(plugin.name) },
+                    enabled = !busy,
+                    colors =
+                        ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error,
+                        ),
+                ) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(stringResource(R.string.plugins_action_uninstall))
+                }
+            }
+
+            if (!plugin.installed) {
+                Button(
+                    onClick = { viewModel.activatePlugin(plugin) },
+                    enabled = !busy,
+                ) {
+                    Text(stringResource(R.string.plugins_action_enable))
+                }
+            }
+        },
+    )
 }
 
 @Composable

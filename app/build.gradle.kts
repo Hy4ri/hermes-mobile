@@ -11,6 +11,7 @@ plugins {
 android {
     namespace = "com.m57.hermescontrol"
     sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
+    sourceSets.getByName("androidTest").assets.srcDir("$projectDir/src/test/resources/tls")
 
     lint {
         disable += "MissingTranslation"
@@ -228,6 +229,7 @@ dependencies {
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.espresso.core)
     androidTestImplementation(libs.mockk.android)
+    androidTestImplementation(libs.okhttp.mockwebserver)
 
     // Navigation
     implementation(libs.androidx.navigation3.ui)
@@ -284,7 +286,8 @@ tasks.register("checkColorLiterals") {
     doLast {
         val offenders = mutableListOf<Pair<String, Int>>()
         srcDir.asFile.walkTopDown().filter { it.isFile && it.extension == "kt" }.forEach { file ->
-            if (exemptions.any { file.absolutePath.contains(it) }) return@forEach
+            // Issue #622: normalize Windows separators before checking path exemptions.
+            if (exemptions.any { file.invariantSeparatorsPath.contains(it) }) return@forEach
             file.useLines { lines ->
                 lines.forEachIndexed { idx, raw ->
                     val line = raw.trim()

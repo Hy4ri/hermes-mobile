@@ -4,9 +4,11 @@ import android.app.Application
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.local.HermesDatabase
+import com.m57.hermescontrol.data.model.ModelOptionsResponse
 import com.m57.hermescontrol.data.model.PaginationInfo
 import com.m57.hermescontrol.data.model.SessionMessagesResponse
 import com.m57.hermescontrol.data.remote.ApiClient
+import com.m57.hermescontrol.data.remote.HermesApiService
 import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
@@ -37,12 +39,15 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.putJsonArray
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import retrofit2.Response
 
 /**
  * Issue #549 — Layer 1+2 linkage: a non-hardcoded slash command must be
@@ -95,6 +100,14 @@ class SlashCommandDispatchRpcTest {
         mockkObject(HermesWsClient)
         mockkObject(ApiClient)
         mockkObject(HermesDatabase)
+
+        // Fix #1437 CI: GatewayReady preloads the catalog; isolate both transports
+        // so background model discovery cannot outlive the AuthManager fixture.
+        val api = mockk<HermesApiService>()
+        every { ApiClient.hermesApi } returns api
+        coEvery { api.getModelOptions(any(), any()) } returns Response.success(ModelOptionsResponse(emptyList()))
+        coEvery { HermesWsClient.call(RpcMethods.MODEL_OPTIONS, any(), any(), any()) } returns
+            buildJsonObject { putJsonArray("providers") {} }
 
         // ChatViewModel's init subscribes to ProfileSwitchCoordinator.switched
         // on viewModelScope. Without mocking the singleton, every VM created

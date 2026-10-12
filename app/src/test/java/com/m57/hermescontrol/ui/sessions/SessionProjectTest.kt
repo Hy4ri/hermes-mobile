@@ -31,7 +31,7 @@ class SessionProjectTest {
         val projects = listOf(project("App", "/srv/app", color = "hsl(1 2% 3%)"))
 
         assertEquals(
-            SessionProject(label = "App", color = "hsl(1 2% 3%)"),
+            SessionProject(label = "App", color = "hsl(1 2% 3%)", id = "p_App"),
             resolveSessionProject(session(cwd = "/srv/app/src"), projects),
         )
     }

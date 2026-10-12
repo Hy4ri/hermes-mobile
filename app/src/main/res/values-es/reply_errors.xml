@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_reply_failed_title">Hermes no pudo completar esta respuesta</string>
+    <string name="chat_reply_failed_description">Algo salió mal mientras Hermes respondía. Abre los detalles o los registros para entender qué ocurrió.</string>
+    <string name="chat_reply_failed_details">Detalles</string>
+    <string name="chat_reply_failed_details_collapsed">Contraído</string>
+    <string name="chat_reply_failed_details_expanded">Expandido</string>
+    <string name="chat_reply_failed_copy">Copiar detalles del error</string>
+    <string name="chat_reply_failed_logs">Abrir registros</string>
+    <string name="chat_reply_failed_share">Compartir diagnósticos</string>
+    <string name="chat_reply_failed_share_note">Revisa los detalles antes de compartir. Los diagnósticos incluyen este error y la versión de la aplicación, no tu conversación ni tus adjuntos.</string>
+    <string name="chat_reply_failed_dismiss">Descartar error</string>
+
+    <string name="chat_reply_failed_copied">Detalles del error copiados</string>
+    <string name="chat_reply_failed_share_unavailable">No hay ninguna aplicación disponible para compartir diagnósticos</string>
+</resources>

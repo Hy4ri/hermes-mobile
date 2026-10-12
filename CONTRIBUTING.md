@@ -34,6 +34,30 @@ Every change must go through a pull request (PR) targeting the `dev` staging bra
 5. **Ensure all CI checks pass** (ktlint, Android Lint, unit tests, build).
 6. **Rebase onto `dev` before merge.** Run `git fetch origin dev && git rebase origin/dev`, resolve conflicts carefully, and re-run verification on the rebased result. Maintainers squash-merge; green CI does not by itself authorize a merge.
 
+### Fixing a blocked PR description
+
+If the template bot reports missing information, edit the PR description or title.
+The metadata-only recovery workflow validates the live PR and requests a rerun of
+its failed **PR Template** job and dependent Android jobs, only for the latest run
+on the current head. If the original run is still finishing, its completion event
+checks again. Green runs and unrelated build/test failures are not restarted.
+The bot announces a restart only after GitHub accepts the request; it does not
+mean CI has passed. Fork workflow-approval requirements still apply.
+
+Recovery runs trusted scripts from `dev`, never contributor code or artifacts.
+Its `workflow_run` completion trigger becomes active once the workflow is on the
+repository's default branch (currently `dev`). Repeated events for the same run
+and validated metadata are deduplicated using a bot receipt reserved before the
+restart request, then updated after GitHub accepts it. This prevents retry loops
+even if the final comment update fails. If a receipt stays unconfirmed, inspect
+**PR Template Recovery** and the original Android run in Actions. A maintainer
+can rerun Android CI directly if needed; repeating recovery will not reuse that
+reservation. Older fork runs without the PR-number run name cannot be associated
+safely; a fresh push/reopen is needed to use the newer workflow.
+
+Run the offline automation tests with:
+`python3 -m unittest discover -s .github/scripts -p 'test_*.py' -v`.
+
 ---
 
 ## Commit Messages

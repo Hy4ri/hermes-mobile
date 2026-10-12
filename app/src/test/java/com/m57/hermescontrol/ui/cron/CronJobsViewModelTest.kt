@@ -555,4 +555,60 @@ class CronJobsViewModelTest {
         assertEquals("gateway unreachable", job.last_fire_error?.detail)
         assertEquals("2026-08-18T09:00:00", job.last_fire_error?.at)
     }
+
+    @Test
+    fun `resumeCronJob updates optimistic state to scheduled`() {
+        val vm = createViewModel()
+        val pausedJob = CronJob(id = "j-paused", name = "Test", state = "paused")
+        coEvery { mockApi.getCronJobs() } returns Response.success(listOf(pausedJob))
+        coEvery { mockApi.resumeCronJob("j-paused") } returns Response.success(Unit)
+
+        vm.loadCronJobs()
+        settle()
+        assertEquals(
+            "paused",
+            vm.uiState.value.jobs
+                .first()
+                .state,
+        )
+
+        vm.resumeCronJob("j-paused")
+        assertEquals(
+            "scheduled",
+            vm.uiState.value.jobs
+                .first()
+                .state,
+        )
+
+        settle()
+        coVerify { mockApi.resumeCronJob("j-paused") }
+    }
+
+    @Test
+    fun `pauseCronJob updates optimistic state to paused`() {
+        val vm = createViewModel()
+        val scheduledJob = CronJob(id = "j-sched", name = "Test", state = "scheduled")
+        coEvery { mockApi.getCronJobs() } returns Response.success(listOf(scheduledJob))
+        coEvery { mockApi.pauseCronJob("j-sched") } returns Response.success(Unit)
+
+        vm.loadCronJobs()
+        settle()
+        assertEquals(
+            "scheduled",
+            vm.uiState.value.jobs
+                .first()
+                .state,
+        )
+
+        vm.pauseCronJob("j-sched")
+        assertEquals(
+            "paused",
+            vm.uiState.value.jobs
+                .first()
+                .state,
+        )
+
+        settle()
+        coVerify { mockApi.pauseCronJob("j-sched") }
+    }
 }

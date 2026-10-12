@@ -67,7 +67,7 @@ fun ChatLifecycleEffects(
         val newChatRequest = NavigationController.consumePendingNewChatNavigation()
         val request = NavigationController.consumePendingChatNavigation()
         if (newChatRequest != null) {
-            viewModel.createNewSession()
+            viewModel.startNewChat(newChatRequest.project)
             return@LaunchedEffect
         }
         val target = request?.sessionId ?: sessionId
@@ -159,6 +159,7 @@ fun ChatLifecycleEffects(
                         error,
                         actionLabel = copyLabel,
                         duration = SnackbarDuration.Long,
+                        withDismissAction = true,
                     )
                 if (result == SnackbarResult.ActionPerformed) {
                     clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, error)))

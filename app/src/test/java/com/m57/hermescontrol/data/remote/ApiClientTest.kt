@@ -29,6 +29,7 @@ class ApiClientTest {
 
     @BeforeEach
     fun setUp() {
+        mockSystemServerTrust()
         mockWebServer = MockWebServer()
         mockWebServer.start()
 

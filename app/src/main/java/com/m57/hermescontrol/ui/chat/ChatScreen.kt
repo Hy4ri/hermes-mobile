@@ -109,6 +109,8 @@ import com.m57.hermescontrol.ui.chat.components.ContextDetailSheet
 import com.m57.hermescontrol.ui.chat.components.ContextUsageChip
 import com.m57.hermescontrol.ui.chat.components.MediaViewerDialog
 import com.m57.hermescontrol.ui.chat.components.PendingSendRecovery
+import com.m57.hermescontrol.ui.chat.components.ProjectBadge
+import com.m57.hermescontrol.ui.chat.components.ProjectPickerChip
 import com.m57.hermescontrol.ui.chat.components.ReactionHeartsOverlay
 import com.m57.hermescontrol.ui.chat.components.ReloginDialog
 import com.m57.hermescontrol.ui.chat.components.ReplyErrorCard
@@ -141,6 +143,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private const val SESSION_SYNC_INTERVAL_MS = 30_000L
+
+/** Desktop-parity cadence for `process.list` polling (issue #1503). */
+private const val BACKGROUND_PROCESS_POLL_MS = 5_000L
 
 internal fun acceptedSaveDestination(
     resultCode: Int,
@@ -364,6 +369,16 @@ fun ChatScreen(
             viewModel.hydrateSubagents()
         }
     }
+    // Issue #1503: the gateway has no push event for background process start/exit,
+    // so poll process.list (desktop uses 5s) while the chat is on screen.
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                viewModel.refreshBackgroundProcesses()
+                delay(BACKGROUND_PROCESS_POLL_MS)
+            }
+        }
+    }
     var viewingImage by rememberSaveable { mutableStateOf<ImageViewerModel?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val imagePaste =
@@ -518,7 +533,7 @@ fun ChatScreen(
         },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         snackbarHost = {
-            SnackbarHost(snackbarHostState) { data ->
+            SnackbarHost(snackbarHostState, modifier = Modifier.imePadding()) { data ->
                 val statusColors = LocalHermesStatusColors.current
                 val isDownloadComplete = data.visuals.message.startsWith("Saved ")
                 Snackbar(
@@ -639,11 +654,12 @@ fun ChatScreen(
             // Issue #942: compact glanceable progress strip while work is active.
             // Bound to the same hydrated todos / subagentIndicators state.
             // Auto-hides when all todos complete/cancel and no subagent is running.
-            val workActive = shouldShowProgressChip(state.todos, state.subagentIndicators)
+            val workActive = shouldShowProgressChip(state.todos, state.subagentIndicators, state.backgroundProcesses)
             TaskProgressChip(
                 visible = workActive,
                 todos = state.todos,
                 indicators = state.subagentIndicators,
+                processes = state.backgroundProcesses,
                 onClick = {
                     showSubagentInspectionSheet = true
                     scrollController.resumeFollowing()
@@ -842,6 +858,20 @@ fun ChatScreen(
                 }
             }
 
+            // Workspace: pickable until the first message, then a read-only badge (#1527).
+            LaunchedEffect(state.isConnected, state.hasConversation) {
+                if (state.isConnected && !state.hasConversation) viewModel.loadStartableProjects()
+            }
+            if (!state.hasConversation && !timelineState.isHistorical) {
+                ProjectPickerChip(
+                    projects = state.startableProjects,
+                    selected = state.stagedProject,
+                    onSelect = viewModel::selectStagedProject,
+                )
+            } else {
+                state.stagedProject?.let { ProjectBadge(it) }
+            }
+
             // Context-window meter (used / full) — sits above the composer so it
             // stays visible while the session is active, grouped with the model
             // it belongs to without crowding the title or the control row.
@@ -864,6 +894,8 @@ fun ChatScreen(
                     mainTurnBusy = state.isMainTurnBusy,
                     onSendAgain = viewModel::sendQueuedNow,
                     onDiscard = viewModel::discardPendingSend,
+                    onAcknowledge = viewModel::acknowledgePendingSend,
+                    onRemoveAcknowledged = viewModel::removeAcknowledgedPendingSend,
                     onOpenAttachment = viewModel::openAttachment,
                     onImageClick = { viewingImage = it },
                 )
@@ -1020,6 +1052,9 @@ fun ChatScreen(
             SubagentInspectionSheet(
                 indicators = state.subagentIndicators,
                 todos = state.todos,
+                processes = state.backgroundProcesses,
+                killingProcessId = state.killingProcessId,
+                onKillProcess = { id -> viewModel.killBackgroundProcess(id) },
                 inspectingSubagentId = state.inspectingSubagentId,
                 subagentTranscript = state.subagentTranscript,
                 onToggleTranscript = { subagentId -> viewModel.toggleSubagentTranscript(subagentId) },

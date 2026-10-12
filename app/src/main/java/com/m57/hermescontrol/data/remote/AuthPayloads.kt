@@ -16,10 +16,11 @@ object AuthPayloads {
     fun passwordLogin(
         username: String,
         password: String,
+        provider: String = "basic",
     ): String =
         OkHttpProvider.json.encodeToString(
             PasswordLoginPayload(
-                provider = "basic",
+                provider = provider,
                 username = username,
                 password = password,
                 next = "",

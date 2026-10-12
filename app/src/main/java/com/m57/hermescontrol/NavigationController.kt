@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
+import com.m57.hermescontrol.data.model.ProjectInfo
 
 data class PendingChatNavigation(
     val sessionId: String,
@@ -14,6 +15,8 @@ data class PendingChatNavigation(
 
 data class PendingNewChatNavigation(
     val requestId: Long,
+    // Project to start the chat in; null keeps the default workspace.
+    val project: ProjectInfo? = null,
 )
 
 /**
@@ -82,8 +85,10 @@ object NavigationController {
         }
 
         if (isPrimaryScreen(key)) {
+            // Connection management must return to Landing before the first login.
+            val root = if (stack.firstOrNull() == LandingScreen) LandingScreen else ChatScreen
             stack.clear()
-            stack.add(ChatScreen)
+            stack.add(root)
             stack.add(key)
             return
         }
@@ -105,10 +110,11 @@ object NavigationController {
         queueChatNavigation(sessionId, scrollToBottom = true, returnToList = false)
     }
 
-    fun openNewChat() {
+    fun openNewChat(project: ProjectInfo? = null) {
         pendingNewChatNavigation =
             PendingNewChatNavigation(
                 requestId = ++nextNewChatNavigationRequestId,
+                project = project,
             )
         navigateTo(ChatScreen)
     }

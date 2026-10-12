@@ -316,6 +316,28 @@ object EventParser {
                 WsEvent.SessionUpdated(payload)
             }
 
+            "session.title" -> {
+                // Payload session_id is the stored key; the envelope id (if any) is the runtime id.
+                val storedId = (payload?.get("session_id") as? String)?.trim()?.takeIf { it.isNotEmpty() }
+                val title = (payload?.get("title") as? String)?.trim()?.takeIf { it.isNotEmpty() }
+                if (storedId == null || title == null) {
+                    WsEvent.Unknown(rawJson)
+                } else {
+                    WsEvent.SessionTitle(storedId, title, (params["session_id"] as? String)?.takeIf { it.isNotBlank() })
+                }
+            }
+
+            "session.reclaimed" -> {
+                fun id(key: String) = (payload?.get(key) as? String)?.trim()?.takeIf { it.isNotEmpty() }
+                val runtimeId = id("session_id")
+                val storedId = id("stored_session_id")
+                if (runtimeId == null && storedId == null) {
+                    WsEvent.Unknown(rawJson)
+                } else {
+                    WsEvent.SessionReclaimed(runtimeId, storedId, id("reason"))
+                }
+            }
+
             "session.usage" -> {
                 WsEvent.SessionUsage(payload, sessionId)
             }

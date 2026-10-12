@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.common
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -265,13 +266,14 @@ fun <T> FilterChipRow(
     selectedChip: T?,
     onChipSelected: (T) -> Unit,
     modifier: Modifier = Modifier,
+    contentPadding: PaddingValues? = null,
     chipLabel: @Composable (T) -> Unit = { Text(it.toString()) },
 ) {
     val spacing = LocalSpacing.current
     LazyRow(
         modifier = modifier.fillMaxWidth(),
         contentPadding =
-            PaddingValues(
+            contentPadding ?: PaddingValues(
                 horizontal = spacing.md,
                 vertical = spacing.xs,
             ),
@@ -284,6 +286,46 @@ fun <T> FilterChipRow(
                 label = { chipLabel(chip) },
             )
         }
+    }
+}
+
+// ── ManageableFilterRow — search + status chips for manageable entity lists ──
+
+/** Enabled/disabled status filter shared by Plugins, Toolsets, Channels and MCP lists. */
+enum class StatusFilter(
+    @StringRes val labelRes: Int,
+) {
+    ALL(R.string.skills_status_all),
+    ENABLED(R.string.skills_status_enabled),
+    DISABLED(R.string.skills_status_disabled),
+    ;
+
+    fun matches(enabled: Boolean): Boolean =
+        when (this) {
+            ALL -> true
+            ENABLED -> enabled
+            DISABLED -> !enabled
+        }
+}
+
+@Composable
+fun ManageableFilterRow(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    placeholder: String,
+    status: StatusFilter,
+    onStatusChange: (StatusFilter) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        SearchBar(query = query, onQueryChange = onQueryChange, placeholder = placeholder)
+        FilterChipRow(
+            chips = StatusFilter.entries,
+            selectedChip = status,
+            onChipSelected = onStatusChange,
+            contentPadding = PaddingValues(vertical = LocalSpacing.current.xs),
+            chipLabel = { Text(stringResource(it.labelRes)) },
+        )
     }
 }
 

@@ -1,12 +1,16 @@
 package com.m57.hermescontrol.ui.authlogin
 
 import android.app.Application
+import androidx.activity.compose.LocalActivity
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,10 +28,12 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -47,9 +53,11 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.remote.ClientCertificates
 import com.m57.hermescontrol.ui.common.CustomHeadersButton
 
 @Composable
@@ -67,6 +75,31 @@ fun AuthLoginScreen(
         ),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val certificateState by viewModel.certificatePrompt.state.collectAsStateWithLifecycle()
+    val activity = LocalActivity.current
+    if (certificateState.origin != null) {
+        CertificatePromptDialog(
+            state = certificateState,
+            onSelect = {
+                val host = activity
+                val origin = certificateState.origin
+                if (host != null && origin != null) {
+                    val attempt = viewModel.certificatePrompt.beginSelection()
+                    if (attempt != null) {
+                        ClientCertificates.select(host, origin, certificateState.alias) { alias, valid ->
+                            viewModel.certificatePrompt.selected(attempt, alias, valid)
+                        }
+                    }
+                }
+            },
+            onSave = viewModel::saveCertificate,
+            onDismiss = { viewModel.certificatePrompt.reset() },
+        )
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.refreshForSelectedConnection()
+    }
 
     LaunchedEffect(state.connectionSuccess) {
         if (state.connectionSuccess) {
@@ -205,6 +238,30 @@ fun AuthLoginScreen(
 
             // ── Dynamic fields based on auth mode ──
 
+            // Provider chooser — only when the dashboard offers more than one way to sign in.
+            AnimatedVisibility(
+                visible =
+                    state.providers.size > 1 &&
+                        state.authMode != null &&
+                        state.authMode != DashboardAuthMode.TOKEN_ONLY,
+                enter = fadeIn(),
+                exit = fadeOut(),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    state.providers.forEach { option ->
+                        FilterChip(
+                            selected = option.name == state.selectedProvider,
+                            onClick = { viewModel.onProviderSelected(option.name) },
+                            enabled = !state.isLoading,
+                            label = { Text(option.displayName) },
+                        )
+                    }
+                }
+            }
+
             // Token field — shown for TOKEN_ONLY and ALL
             AnimatedVisibility(
                 visible =
@@ -277,26 +334,46 @@ fun AuthLoginScreen(
                 )
             }
 
-            // OAuth "coming soon" notice — shown for OAUTH mode (issue #639)
+            // Browser sign-in (OIDC, Nous Portal, ...) — the system browser does the credential entry.
             AnimatedVisibility(
-                visible = state.authMode == DashboardAuthMode.OAUTH,
+                visible = state.authMode == DashboardAuthMode.BROWSER,
                 enter = fadeIn(),
                 exit = fadeOut(),
             ) {
+                val provider = state.providers.firstOrNull { it.name == state.selectedProvider }
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Text(
-                        text = stringResource(R.string.auth_login_oauth_coming_soon),
+                        text =
+                            if (state.browserWaiting) {
+                                stringResource(R.string.auth_login_browser_waiting)
+                            } else {
+                                stringResource(
+                                    R.string.auth_login_browser_desc,
+                                    provider?.displayName ?: state.selectedProvider.orEmpty(),
+                                )
+                            },
                         style =
                             MaterialTheme.typography.bodyMedium.copy(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             ),
                         textAlign = TextAlign.Start,
                     )
+                    if (!state.browserSupported) {
+                        Text(
+                            text = stringResource(R.string.auth_login_error_browser_unsupported),
+                            style =
+                                MaterialTheme.typography.bodySmall.copy(
+                                    color = MaterialTheme.colorScheme.error,
+                                ),
+                        )
+                    }
                 }
             }
+
+            certificateState.savedOrigin?.let { CertificateSavedNotice(it) }
 
             // Error message
             AnimatedVisibility(
@@ -318,16 +395,30 @@ fun AuthLoginScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Connect / Probe button
+            val context = LocalContext.current
             Button(
                 onClick = {
-                    if (state.authMode == null) {
-                        viewModel.probe()
-                    } else {
-                        viewModel.connect()
+                    when (state.authMode) {
+                        null -> {
+                            viewModel.probe()
+                        }
+
+                        DashboardAuthMode.BROWSER -> {
+                            viewModel.startBrowserLogin { url ->
+                                CustomTabsIntent.Builder().build().launchUrl(context, url.toUri())
+                            }
+                        }
+
+                        else -> {
+                            viewModel.connect()
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
-                enabled = !state.isLoading && !state.probing && state.authMode != DashboardAuthMode.OAUTH,
+                enabled =
+                    !state.isLoading &&
+                        !state.probing &&
+                        (state.authMode != DashboardAuthMode.BROWSER || state.browserSupported),
             ) {
                 if (state.isLoading) {
                     CircularProgressIndicator(
@@ -338,12 +429,33 @@ fun AuthLoginScreen(
                 } else {
                     Text(
                         text =
-                            if (state.authMode == null) {
-                                stringResource(R.string.auth_login_action_probing)
-                            } else {
-                                stringResource(R.string.auth_login_action_connect)
+                            when (state.authMode) {
+                                null -> {
+                                    stringResource(R.string.auth_login_action_probing)
+                                }
+
+                                DashboardAuthMode.BROWSER -> {
+                                    stringResource(
+                                        R.string.auth_login_action_browser,
+                                        state.providers.firstOrNull { it.name == state.selectedProvider }?.displayName
+                                            ?: state.selectedProvider.orEmpty(),
+                                    )
+                                }
+
+                                else -> {
+                                    stringResource(R.string.auth_login_action_connect)
+                                }
                             },
                     )
+                }
+            }
+
+            if (state.browserWaiting) {
+                OutlinedButton(
+                    onClick = viewModel::cancelBrowserLogin,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.action_cancel))
                 }
             }
         }

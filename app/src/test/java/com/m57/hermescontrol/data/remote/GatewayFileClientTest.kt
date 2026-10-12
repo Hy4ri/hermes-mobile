@@ -38,6 +38,16 @@ class GatewayFileClientTest {
     }
 
     @Test
+    fun `file cache separates origins and certificate generations while preserving display name`() {
+        val first = GatewayFileClient.cacheFileNameFor("/tmp/report.pdf", "https://first.test/#mtls=1")
+        val changed = GatewayFileClient.cacheFileNameFor("/tmp/report.pdf", "https://first.test/#mtls=2")
+        val other = GatewayFileClient.cacheFileNameFor("/tmp/report.pdf", "https://other.test/#mtls=1")
+        org.junit.Assert.assertNotEquals(first, changed)
+        org.junit.Assert.assertNotEquals(first, other)
+        org.junit.Assert.assertTrue(first.endsWith("-report.pdf"))
+    }
+
+    @Test
     fun `buildDownloadUrl encodes path and token`() {
         val url = GatewayFileClient.buildDownloadUrl(base, tok, "/tmp/foo.png")!!
         assertEquals(

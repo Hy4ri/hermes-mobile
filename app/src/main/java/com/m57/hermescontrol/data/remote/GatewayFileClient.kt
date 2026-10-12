@@ -3,6 +3,7 @@ package com.m57.hermescontrol.data.remote
 import com.m57.hermescontrol.data.local.AuthManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ensureActive
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import java.io.File
 import java.io.IOException
@@ -176,13 +177,13 @@ object GatewayFileClient {
         // Cache fast path: a recent download of this path is reused as-is, so
         // repeat opens skip the network entirely. Stale entries fall through
         // to a fresh fetch, which overwrites the cache file.
-        val cacheName = cacheFileNameFor(path)
+        val cacheName = cacheFileNameFor(path, ClientCertificates.cacheKey(url.toHttpUrl()))
         val fresh = File(cacheDir, cacheName).takeIf { isFreshCacheFile(it) }
         if (fresh != null) {
             return GatewayFileResult.Success(
                 GatewayFile(
                     name = fileNameFromPath(path),
-                    mimeType = mimeByPath[path] ?: "application/octet-stream",
+                    mimeType = mimeByPath[cacheName] ?: "application/octet-stream",
                     cacheFile = fresh,
                 ),
             )
@@ -201,7 +202,7 @@ object GatewayFileClient {
             val cacheFile =
                 streamBodyToCache(resp, cacheDir, cacheName)
                     ?: return GatewayFileResult.Failure(IOException("failed to write $name to cache"))
-            mimeByPath[path] = mime
+            mimeByPath[cacheName] = mime
             GatewayFileResult.Success(GatewayFile(name, mime, cacheFile))
         } catch (e: CancellationException) {
             // Never swallow cancellation — the caller's job was cancelled.
@@ -216,8 +217,12 @@ object GatewayFileClient {
     /** Deterministic cache filename for a gateway path: the same path always
      * maps to the same file, so repeat opens reuse the download instead of
      * re-fetching (a random name would orphan every previous copy). */
-    internal fun cacheFileNameFor(path: String): String {
-        val key = UUID.nameUUIDFromBytes(path.toByteArray(StandardCharsets.UTF_8)).toString().take(12)
+    internal fun cacheFileNameFor(
+        path: String,
+        namespace: String = "",
+    ): String {
+        val identity = if (namespace.isEmpty()) path else "$namespace|$path"
+        val key = UUID.nameUUIDFromBytes(identity.toByteArray(StandardCharsets.UTF_8)).toString().take(12)
         val safeName = fileNameFromPath(path).replace(Regex("[/\\\\]"), "_").ifBlank { "file" }
         return "$key-$safeName"
     }

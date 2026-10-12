@@ -22,6 +22,9 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -48,6 +51,7 @@ import org.junit.Before
 import org.junit.Test
 import java.io.IOException
 import java.util.Collections
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -681,42 +685,71 @@ class HermesWsClientTest {
         assertEquals(ConnectionStatus.DISCONNECTED, HermesWsClient.connectionStatus.value)
     }
 
-    @Test
-    fun testDisconnectPreservesQueuedMessagesUnlessExplicitlyCleared() {
-        HermesWsClient.intentionalCloseForTest.set(false)
-
-        HermesWsClient.send(WsMethods.PROMPT_SUBMIT, mapOf("session_id" to "s1", "text" to "hello"))
-
-        val queue = HermesWsClient.messageQueueForTest
-        assertEquals(1, queue.size)
-
-        HermesWsClient.disconnect()
-        assertEquals(1, queue.size)
-
-        HermesWsClient.send(WsMethods.PROMPT_SUBMIT, mapOf("session_id" to "s1", "text" to "during reconnect"))
-        assertEquals(2, queue.size)
-
-        HermesWsClient.disconnect(clearPendingMessages = true)
-        assertTrue(queue.isEmpty())
-
-        HermesWsClient.send(WsMethods.PROMPT_SUBMIT, mapOf("session_id" to "s1", "text" to "after logout"))
-        assertTrue(queue.isEmpty())
+    // PR #1457: queue-only tests still exercise connect(), but own every handshake job so
+    // none can touch AuthManager after tearDown removes its mock. No real socket is needed.
+    private fun withSuspendedHandshakes(
+        expectedCount: Int,
+        assertions: () -> Unit,
+    ) {
+        val started = CountDownLatch(expectedCount)
+        val jobs = ConcurrentLinkedQueue<Job>()
+        coEvery { DashboardSessionTokenRefresher.refreshAsync() } coAnswers {
+            jobs.add(requireNotNull(currentCoroutineContext()[Job]))
+            started.countDown()
+            awaitCancellation()
+        }
+        try {
+            assertions()
+        } finally {
+            try {
+                assertTrue("Expected connection attempts did not start", started.await(5, TimeUnit.SECONDS))
+            } finally {
+                HermesWsClient.disconnect(clearPendingMessages = true)
+                runBlocking { withTimeout(5_000) { jobs.forEach { it.cancelAndJoin() } } }
+            }
+        }
+        assertEquals(expectedCount, jobs.size)
+        assertTrue("Handshake jobs must finish before auth mocks are removed", jobs.all { it.isCompleted })
     }
 
     @Test
-    fun testRejectAllPendingRemovesQueuedAwaitedRpc() {
-        HermesWsClient.intentionalCloseForTest.set(false)
+    fun testDisconnectPreservesQueuedMessagesUnlessExplicitlyCleared() =
+        withSuspendedHandshakes(expectedCount = 2) {
+            HermesWsClient.intentionalCloseForTest.set(false)
 
-        val deferred = HermesWsClient.request(WsMethods.PROCESS_LIST, mapOf("session_id" to "s1"))
+            HermesWsClient.send(WsMethods.PROMPT_SUBMIT, mapOf("session_id" to "s1", "text" to "hello"))
 
-        val queue = HermesWsClient.messageQueueForTest
-        assertEquals(1, queue.size)
+            val queue = HermesWsClient.messageQueueForTest
+            assertEquals(1, queue.size)
 
-        HermesWsClient.rejectAllPending()
+            HermesWsClient.disconnect()
+            assertEquals(1, queue.size)
 
-        assertTrue(deferred.isCompleted)
-        assertTrue(queue.isEmpty())
-    }
+            HermesWsClient.send(WsMethods.PROMPT_SUBMIT, mapOf("session_id" to "s1", "text" to "during reconnect"))
+            assertEquals(2, queue.size)
+
+            HermesWsClient.disconnect(clearPendingMessages = true)
+            assertTrue(queue.isEmpty())
+
+            HermesWsClient.send(WsMethods.PROMPT_SUBMIT, mapOf("session_id" to "s1", "text" to "after logout"))
+            assertTrue(queue.isEmpty())
+        }
+
+    @Test
+    fun testRejectAllPendingRemovesQueuedAwaitedRpc() =
+        withSuspendedHandshakes(expectedCount = 1) {
+            HermesWsClient.intentionalCloseForTest.set(false)
+
+            val deferred = HermesWsClient.request(WsMethods.PROCESS_LIST, mapOf("session_id" to "s1"))
+
+            val queue = HermesWsClient.messageQueueForTest
+            assertEquals(1, queue.size)
+
+            HermesWsClient.rejectAllPending()
+
+            assertTrue(deferred.isCompleted)
+            assertTrue(queue.isEmpty())
+        }
 
     @Test
     fun testAuthClosingCodeSurvivesRejectedSendRecovery() {

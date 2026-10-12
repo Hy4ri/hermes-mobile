@@ -61,7 +61,7 @@ import com.m57.hermescontrol.data.model.McpOAuthFlowResponse
 import com.m57.hermescontrol.data.model.McpServer
 import com.m57.hermescontrol.data.model.McpServerTestResponse
 import com.m57.hermescontrol.data.model.McpServerToggleRequest
-import com.m57.hermescontrol.data.model.McpServerUpdateRequest
+import com.m57.hermescontrol.data.model.McpServersReplaceRequest
 import com.m57.hermescontrol.data.model.McpServersResponse
 import com.m57.hermescontrol.data.model.MemoryProviderConfigResponse
 import com.m57.hermescontrol.data.model.MemoryProviderConfigUpdateRequest
@@ -192,6 +192,8 @@ interface HermesApiService : KanbanApiService {
         @Query("order") order: String = "recent",
         @Query("source") source: String? = null,
         @Query("exclude_sources") excludeSources: String? = null,
+        // exclude (backend default) | include | only (issue #1496)
+        @Query("archived") archived: String? = null,
     ): Response<SessionListResponse>
 
     @GET("api/sessions/search")
@@ -256,10 +258,10 @@ interface HermesApiService : KanbanApiService {
         @Body body: SessionRenameRequest,
     ): Response<Unit>
 
-    // Hide/unhide rides the same PATCH /api/sessions/{id} — body carries only
-    // {hidden} (backend SessionRename model, any subset accepted; issue #1019).
+    // Archive/unarchive rides the same PATCH /api/sessions/{id} — body carries only
+    // {archived} (backend SessionRename model, any subset accepted; issue #1496).
     @PATCH("api/sessions/{id}")
-    suspend fun setSessionHidden(
+    suspend fun setSessionArchived(
         @Path("id", encoded = true) sessionId: String,
         @Body body: SessionRenameRequest,
     ): Response<Unit>
@@ -550,6 +552,12 @@ interface HermesApiService : KanbanApiService {
     @GET("api/config")
     suspend fun getConfig(): Response<Map<String, JsonElement>>
 
+    @GET("api/config")
+    suspend fun getSavedConfig(
+        @Query("profile") profile: String? = null,
+        @Query("include_defaults") includeDefaults: Boolean = false,
+    ): Response<Map<String, JsonElement>>
+
     @GET("api/config/schema")
     suspend fun getConfigSchema(): Response<ConfigSchemaResponse>
 
@@ -585,11 +593,10 @@ interface HermesApiService : KanbanApiService {
         @Body body: AddMcpServerRequest,
     ): Response<McpServer>
 
-    @PUT("api/mcp/servers/{name}")
-    suspend fun updateMcpServer(
-        @Path("name") name: String,
-        @Body body: McpServerUpdateRequest,
-    ): Response<McpServer>
+    @PUT("api/mcp/servers")
+    suspend fun replaceMcpServers(
+        @Body body: McpServersReplaceRequest,
+    ): Response<Unit>
 
     @POST("api/mcp/servers/{name}/auth")
     suspend fun authMcpServer(
@@ -719,11 +726,6 @@ interface HermesApiService : KanbanApiService {
     suspend fun testMessagingPlatform(
         @Path("platform_id") platformId: String,
     ): Response<MessagingPlatformTestResult>
-
-    @DELETE("api/messaging/platforms/{platform_id}")
-    suspend fun removeMessagingPlatform(
-        @Path("platform_id") platformId: String,
-    ): Response<Unit>
 
     @POST("api/messaging/telegram/onboarding/start")
     suspend fun startTelegramOnboarding(

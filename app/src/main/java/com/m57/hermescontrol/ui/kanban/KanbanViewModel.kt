@@ -1006,8 +1006,39 @@ class KanbanViewModel(
             onEvents = { scheduleBoardReload() },
             onStatus = { status ->
                 _uiState.update { it.copy(isLive = status == KanbanLiveStatus.CONNECTED) }
+                if (status == KanbanLiveStatus.BOARD_UNAVAILABLE) reconcileUnavailableBoard(board)
             },
         )
+    }
+
+    /**
+     * The events socket closed because [board] is no longer live (archived or deleted elsewhere). Re-read the
+     * board list: if the board is gone, move to an available one; if it is still listed, leave it alone rather
+     * than reconnecting into the same close.
+     */
+    private fun reconcileUnavailableBoard(board: KanbanBoard) {
+        val endpoint = endpointProvider()
+        viewModelScope.launch {
+            val result = repository.getBoards(includeArchived = false)
+            // Fence: ignore a late answer once the selection or server has moved on.
+            if (_uiState.value.selectedBoard?.id != board.id || endpoint != endpointProvider()) return@launch
+            if (result !is NetworkResult.Success) return@launch
+            val boards = result.data.boards
+            _uiState.update { it.copy(boards = boards) }
+            if (boards.any { it.id == board.id }) return@launch
+
+            eventsBoard = null
+            val fallback =
+                boards.find { it.id == result.data.current }
+                    ?: boards.find { it.id.equals("default", ignoreCase = true) }
+                    ?: boards.firstOrNull()
+            _uiState.update { it.copy(toastMessage = "Board \"${board.name ?: board.id}\" is no longer available") }
+            if (fallback != null) {
+                selectBoard(fallback)
+            } else {
+                _uiState.update { it.copy(selectedBoard = null, columns = emptyList(), tasks = emptyList()) }
+            }
+        }
     }
 
     /** Debounced REST refresh after an events batch — mirrors the desktop pattern. */

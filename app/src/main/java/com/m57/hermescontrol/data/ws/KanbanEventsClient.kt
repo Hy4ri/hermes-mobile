@@ -36,8 +36,15 @@ enum class KanbanLiveStatus {
     /** Stream closed; reconnecting with backoff (or waiting for a board switch). */
     DISCONNECTED,
 
-    /** Stream rejected with 1008 / credential refresh failed; not retrying. */
+    /** Credential (ticket) refresh failed; not retrying. */
     AUTH_FAILED,
+
+    /**
+     * The backend accepted the socket, then closed it with 1008. That is its answer for a board that is
+     * archived or deleted, so it says nothing about the credentials. Not retrying; the owner should
+     * reconcile board availability over REST.
+     */
+    BOARD_UNAVAILABLE,
 }
 
 @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
@@ -229,7 +236,7 @@ class KanbanEventsClient {
                         ) {
                             if (closed || gen != generation) return
                             if (code == WS_1008_POLICY_VIOLATION) {
-                                scope.launch { onStatus(KanbanLiveStatus.AUTH_FAILED) }
+                                scope.launch { onStatus(KanbanLiveStatus.BOARD_UNAVAILABLE) }
                                 return
                             }
                             scheduleReconnect(scope, gen, board, onEvents, onStatus)

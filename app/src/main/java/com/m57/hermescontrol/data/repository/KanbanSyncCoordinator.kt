@@ -19,6 +19,8 @@ sealed interface KanbanSyncStatus {
 
     data object AuthFailed : KanbanSyncStatus
 
+    data object BoardUnavailable : KanbanSyncStatus
+
     data object Disconnected : KanbanSyncStatus
 }
 
@@ -70,6 +72,10 @@ class KanbanSyncCoordinator(
 
                     KanbanLiveStatus.AUTH_FAILED -> {
                         _syncStatus.value = KanbanSyncStatus.AuthFailed
+                    }
+
+                    KanbanLiveStatus.BOARD_UNAVAILABLE -> {
+                        _syncStatus.value = KanbanSyncStatus.BoardUnavailable
                     }
                 }
             },

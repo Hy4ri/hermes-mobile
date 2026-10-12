@@ -57,6 +57,9 @@ class KanbanSyncCoordinatorTest {
 
             statusSlot.captured(KanbanLiveStatus.AUTH_FAILED)
             assertEquals(KanbanSyncStatus.AuthFailed, coordinator.syncStatus.value)
+
+            statusSlot.captured(KanbanLiveStatus.BOARD_UNAVAILABLE)
+            assertEquals(KanbanSyncStatus.BoardUnavailable, coordinator.syncStatus.value)
         }
 
     @Test

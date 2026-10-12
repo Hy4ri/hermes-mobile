@@ -32,6 +32,7 @@ import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -112,6 +113,80 @@ class KanbanViewModelTest {
         assertTrue(vm.uiState.value.isLive)
         statusSlot.captured(KanbanLiveStatus.DISCONNECTED)
         assertFalse(vm.uiState.value.isLive)
+    }
+
+    @Test
+    fun `board unavailable close moves selection to an available board`() {
+        val vm = createViewModel()
+        vm.loadBoards()
+        settle()
+        val statusSlot = slot<(KanbanLiveStatus) -> Unit>()
+        verify { mockEventsClient.connect(any(), eq("work"), any(), any(), capture(statusSlot)) }
+        assertEquals(
+            "work",
+            vm.uiState.value.selectedBoard
+                ?.id,
+        )
+
+        coEvery { mockApi.getBoards(any()) } returns
+            Response.success(
+                KanbanBoardsResponse(boards = listOf(KanbanBoard(id = "ops", name = "Ops")), current = "ops"),
+            )
+        statusSlot.captured(KanbanLiveStatus.BOARD_UNAVAILABLE)
+        settle()
+
+        assertEquals(
+            "ops",
+            vm.uiState.value.selectedBoard
+                ?.id,
+        )
+        assertEquals(
+            listOf("ops"),
+            vm.uiState.value.boards
+                .map { it.id },
+        )
+        assertEquals("Board \"Work\" is no longer available", vm.uiState.value.toastMessage)
+        verify { mockEventsClient.connect(any(), eq("ops"), any(), any(), any()) }
+    }
+
+    @Test
+    fun `board unavailable close keeps a board that is still listed`() {
+        val vm = createViewModel()
+        vm.loadBoards()
+        settle()
+        val statusSlot = slot<(KanbanLiveStatus) -> Unit>()
+        verify { mockEventsClient.connect(any(), eq("work"), any(), any(), capture(statusSlot)) }
+
+        statusSlot.captured(KanbanLiveStatus.BOARD_UNAVAILABLE)
+        settle()
+
+        assertEquals(
+            "work",
+            vm.uiState.value.selectedBoard
+                ?.id,
+        )
+        assertNull(vm.uiState.value.toastMessage)
+        assertFalse(vm.uiState.value.isLive)
+    }
+
+    @Test
+    fun `board unavailable close with no boards left clears the selection`() {
+        val vm = createViewModel()
+        vm.loadBoards()
+        settle()
+        val statusSlot = slot<(KanbanLiveStatus) -> Unit>()
+        verify { mockEventsClient.connect(any(), eq("work"), any(), any(), capture(statusSlot)) }
+
+        coEvery { mockApi.getBoards(any()) } returns
+            Response.success(KanbanBoardsResponse(boards = emptyList(), current = null))
+        statusSlot.captured(KanbanLiveStatus.BOARD_UNAVAILABLE)
+        settle()
+
+        assertNull(vm.uiState.value.selectedBoard)
+        assertTrue(
+            vm.uiState.value.boards
+                .isEmpty(),
+        )
     }
 
     @Test

@@ -2,6 +2,8 @@ package com.m57.hermescontrol.ui.authlogin
 
 import android.app.Application
 import androidx.activity.compose.LocalActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -75,6 +77,16 @@ fun AuthLoginScreen(
         ),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val lanPermissionLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            viewModel.onLanPermissionResult(granted)
+        }
+    LaunchedEffect(state.lanPermissionNeeded) {
+        if (state.lanPermissionNeeded) {
+            lanPermissionLauncher.launch(android.Manifest.permission.ACCESS_LOCAL_NETWORK)
+        }
+    }
     val certificateState by viewModel.certificatePrompt.state.collectAsStateWithLifecycle()
     val activity = LocalActivity.current
     if (certificateState.origin != null) {
@@ -171,7 +183,7 @@ fun AuthLoginScreen(
                 )
                 state.loggedInProfiles.forEach { profile ->
                     androidx.compose.material3.OutlinedButton(
-                        onClick = { viewModel.useExistingProfile(profile.id) },
+                        onClick = { viewModel.requestExistingProfile(context, profile.id) },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Icon(
@@ -202,7 +214,7 @@ fun AuthLoginScreen(
             CustomHeadersButton(
                 baseUrl = state.baseUrl,
                 enabled = !state.probing && !state.isLoading,
-                onSaved = viewModel::probe,
+                onSaved = { viewModel.requestProbe(context) },
             )
 
             // Cleartext transport warning
@@ -395,28 +407,28 @@ fun AuthLoginScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Connect / Probe button
-            val context = LocalContext.current
             Button(
                 onClick = {
                     when (state.authMode) {
                         null -> {
-                            viewModel.probe()
+                            viewModel.requestProbe(context)
                         }
 
                         DashboardAuthMode.BROWSER -> {
-                            viewModel.startBrowserLogin { url ->
+                            viewModel.requestBrowserLogin(context) { url ->
                                 CustomTabsIntent.Builder().build().launchUrl(context, url.toUri())
                             }
                         }
 
                         else -> {
-                            viewModel.connect()
+                            viewModel.requestConnect(context)
                         }
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 enabled =
                     !state.isLoading &&
+                        !state.lanPermissionNeeded &&
                         !state.probing &&
                         (state.authMode != DashboardAuthMode.BROWSER || state.browserSupported),
             ) {

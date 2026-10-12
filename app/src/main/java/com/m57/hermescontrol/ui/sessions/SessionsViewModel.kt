@@ -1077,23 +1077,20 @@ class SessionsViewModel(
                 }
             when (result) {
                 is NetworkResult.Success -> {
+                    // Sessions guarded by an active write survive; only the rest are gone.
+                    val skipped = result.data.skippedActive.toSet()
+                    val removedIds = ids.filterNot { it in skipped }.toSet()
                     val lastOpened = AuthManager.getLastOpenedSessionId()
-                    if (lastOpened != null && ids.contains(lastOpened)) {
+                    if (lastOpened != null && lastOpened in removedIds) {
                         AuthManager.clearLastOpenedSessionId()
                     }
-                    val deletedCount = result.data.deleted
-                    val toastMsg =
-                        if (deletedCount > 0) {
-                            "$deletedCount session(s) deleted"
-                        } else {
-                            "No sessions were deleted"
-                        }
+                    val toastMsg = bulkDeleteToast(result.data.deleted, skipped.size)
                     _uiState.update {
                         it.copy(
                             isDeletingBulk = false,
                             isSelecting = false,
                             selectedIds = emptySet(),
-                            searchResults = it.searchResults.filter { hit -> hit.session_id !in ids },
+                            searchResults = it.searchResults.filter { hit -> hit.session_id !in removedIds },
                             toastMessage = toastMsg,
                         )
                     }
@@ -1111,6 +1108,14 @@ class SessionsViewModel(
                 }
             }
         }
+    }
+
+    private fun bulkDeleteToast(
+        deleted: Int,
+        skipped: Int,
+    ): String {
+        val deletedText = if (deleted > 0) "$deleted session(s) deleted" else "No sessions were deleted"
+        return if (skipped > 0) "$deletedText, $skipped skipped (active)" else deletedText
     }
 
     // ── Prune ────────────────────────────────────────────────────────────

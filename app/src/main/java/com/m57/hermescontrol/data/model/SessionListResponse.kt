@@ -137,6 +137,9 @@ data class BulkDeleteRequest(
 data class BulkDeleteResponse(
     val ok: Boolean = false,
     val deleted: Int = 0,
+    // Sessions the backend kept because an agent turn holds an active write
+    // guard. Absent on older gateways, hence the empty default.
+    @SerialName("skipped_active") val skippedActive: List<String> = emptyList(),
 )
 
 @Serializable

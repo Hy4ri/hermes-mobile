@@ -22,6 +22,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
+import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -224,6 +225,76 @@ class SessionsViewModelTest {
                 .isEmpty(),
         )
         assertFalse(vm.uiState.value.isDeletingBulk)
+    }
+
+    @Test
+    fun `bulk delete keeps skipped active sessions and their resume identity`() {
+        mockkObject(com.m57.hermescontrol.data.local.AuthManager)
+        every {
+            com.m57.hermescontrol.data.local.AuthManager
+                .getLastOpenedSessionId()
+        } returns "a"
+        every {
+            com.m57.hermescontrol.data.local.AuthManager
+                .clearLastOpenedSessionId()
+        } returns Unit
+        coEvery { mockApi.searchSessions("launch", null, null, "cron", 20, 0) } returns
+            Response.success(SessionSearchResponse(listOf(SessionSearchResult("a"), SessionSearchResult("b"))))
+        coEvery { mockApi.bulkDeleteSessions(any()) } returns
+            Response.success(
+                com.m57.hermescontrol.data.model
+                    .BulkDeleteResponse(ok = true, deleted = 1, skippedActive = listOf("a")),
+            )
+        coEvery { mockApi.getSessions(any(), any(), any(), any(), any(), any()) } returns
+            Response.success(SessionListResponse(sessions = emptyList(), total = 0))
+        val vm = createViewModel()
+        vm.setSearchQuery("launch")
+        testDispatcher.scheduler.advanceUntilIdle()
+        vm.toggleSessionSelection("a")
+        vm.toggleSessionSelection("b")
+        vm.confirmBulkDelete()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(
+            listOf("a"),
+            vm.uiState.value.searchResults
+                .map { it.session_id },
+        )
+        verify(exactly = 0) {
+            com.m57.hermescontrol.data.local.AuthManager
+                .clearLastOpenedSessionId()
+        }
+        assertEquals("1 session(s) deleted, 1 skipped (active)", vm.uiState.value.toastMessage)
+    }
+
+    @Test
+    fun `bulk delete with every session skipped removes nothing`() {
+        mockkObject(com.m57.hermescontrol.data.local.AuthManager)
+        every {
+            com.m57.hermescontrol.data.local.AuthManager
+                .getLastOpenedSessionId()
+        } returns "a"
+        coEvery { mockApi.searchSessions("launch", null, null, "cron", 20, 0) } returns
+            Response.success(SessionSearchResponse(listOf(SessionSearchResult("a"), SessionSearchResult("b"))))
+        coEvery { mockApi.bulkDeleteSessions(any()) } returns
+            Response.success(
+                com.m57.hermescontrol.data.model
+                    .BulkDeleteResponse(ok = true, deleted = 0, skippedActive = listOf("a", "b")),
+            )
+        coEvery { mockApi.getSessions(any(), any(), any(), any(), any(), any()) } returns
+            Response.success(SessionListResponse(sessions = emptyList(), total = 0))
+        val vm = createViewModel()
+        vm.setSearchQuery("launch")
+        testDispatcher.scheduler.advanceUntilIdle()
+        vm.toggleSessionSelection("a")
+        vm.toggleSessionSelection("b")
+        vm.confirmBulkDelete()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(
+            listOf("a", "b"),
+            vm.uiState.value.searchResults
+                .map { it.session_id },
+        )
+        assertEquals("No sessions were deleted, 2 skipped (active)", vm.uiState.value.toastMessage)
     }
 
     @Test

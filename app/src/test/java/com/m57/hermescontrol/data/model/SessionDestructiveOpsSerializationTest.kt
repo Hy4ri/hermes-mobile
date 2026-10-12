@@ -47,4 +47,22 @@ class SessionDestructiveOpsSerializationTest {
         assertEquals("work", body["profile"]!!.jsonPrimitive.content)
         assertEquals(listOf("a", "b"), body["ids"]!!.jsonArray.map { it.jsonPrimitive.content })
     }
+
+    @Test
+    fun bulkDeleteResponse_decodesSkippedActive() {
+        val decoded =
+            json.decodeFromString<BulkDeleteResponse>(
+                """{"ok":true,"deleted":1,"skipped_active":["a"]}""",
+            )
+
+        assertEquals(1, decoded.deleted)
+        assertEquals(listOf("a"), decoded.skippedActive)
+    }
+
+    @Test
+    fun bulkDeleteResponse_olderGatewayHasNoSkippedActive() {
+        val decoded = json.decodeFromString<BulkDeleteResponse>("""{"ok":true,"deleted":2}""")
+
+        assertEquals(emptyList<String>(), decoded.skippedActive)
+    }
 }

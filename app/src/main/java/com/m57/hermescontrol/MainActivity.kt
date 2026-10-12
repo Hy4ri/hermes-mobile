@@ -55,20 +55,13 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** New logins request permission in AuthLoginScreen; only saved tokens gate startup. */
+/** New logins request permission in AuthLoginScreen; saved token and ticket modes gate startup. */
 internal fun needsSavedSessionLanGate(
     sdkInt: Int,
     token: String?,
+    gatedMode: Boolean,
     url: String,
-): Boolean = !token.isNullOrBlank() && requiresLocalNetworkPermission(sdkInt, url)
-
-private enum class StartupLanState {
-    Checking,
-    Request,
-    Denied,
-    ChooseConnection,
-    Ready,
-}
+): Boolean = (gatedMode || !token.isNullOrBlank()) && requiresLocalNetworkPermission(sdkInt, url)
 
 class MainActivity : ComponentActivity() {
     companion object {
@@ -110,7 +103,7 @@ class MainActivity : ComponentActivity() {
                     if (state == AuthManager.InitializationState.Ready) {
                         if (AuthManager.isGatedMode() || !AuthManager.getToken().isNullOrBlank()) {
                             // Navigation and its ViewModels must be admitted before dialing.
-                            snapshotFlow { startupLanState }.first { it == StartupLanState.Ready }
+                            awaitStartupLanAdmission(snapshotFlow { startupLanState })
                             HermesWsClient.connect()
                         }
                     }
@@ -153,8 +146,9 @@ class MainActivity : ComponentActivity() {
                                 // Capture the selected, resolved endpoint only at startup. A
                                 // subsequent new login is handled by AuthLoginScreen.
                                 val savedToken = remember { AuthManager.getToken() }
+                                val savedGatedMode = remember { AuthManager.isGatedMode() }
                                 val savedUrl = remember { AuthManager.getBaseUrl() }
-                                SavedSessionLanGate(savedToken, savedUrl)
+                                SavedSessionLanGate(savedToken, savedGatedMode, savedUrl)
                             }
                         }
 
@@ -175,27 +169,24 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun SavedSessionLanGate(
         token: String?,
+        gatedMode: Boolean,
         url: String,
     ) {
         val launcher =
             rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-                startupLanState = if (granted) StartupLanState.Ready else StartupLanState.Denied
+                startupLanState = startupLanState.next(StartupLanEvent.PermissionResult(granted))
             }
-        LaunchedEffect(token, url) {
+        LaunchedEffect(token, gatedMode, url) {
             val required =
                 withContext(Dispatchers.IO) {
-                    needsSavedSessionLanGate(Build.VERSION.SDK_INT, token, url)
+                    needsSavedSessionLanGate(Build.VERSION.SDK_INT, token, gatedMode, url)
                 }
-            startupLanState =
-                if (!required || ContextCompat.checkSelfPermission(
-                        this@MainActivity,
-                        android.Manifest.permission.ACCESS_LOCAL_NETWORK,
-                    ) == PackageManager.PERMISSION_GRANTED
-                ) {
-                    StartupLanState.Ready
-                } else {
-                    StartupLanState.Request
-                }
+            val grantedOrNotRequired =
+                !required || ContextCompat.checkSelfPermission(
+                    this@MainActivity,
+                    android.Manifest.permission.ACCESS_LOCAL_NETWORK,
+                ) == PackageManager.PERMISSION_GRANTED
+            startupLanState = startupLanState.next(StartupLanEvent.PermissionChecked(grantedOrNotRequired))
         }
         // Settings may grant access while paused. Ordinary resumes must not
         // remove already-admitted navigation and recreate the chat ViewModel.
@@ -207,7 +198,7 @@ class MainActivity : ComponentActivity() {
                     android.Manifest.permission.ACCESS_LOCAL_NETWORK,
                 ) == PackageManager.PERMISSION_GRANTED
             ) {
-                startupLanState = StartupLanState.Ready
+                startupLanState = startupLanState.next(StartupLanEvent.Resume(granted = true))
             }
         }
         LaunchedEffect(startupLanState) {
@@ -218,8 +209,8 @@ class MainActivity : ComponentActivity() {
         when (startupLanState) {
             StartupLanState.ChooseConnection -> {
                 AuthLoginScreen(
-                    onConnected = { startupLanState = StartupLanState.Ready },
-                    onBack = { startupLanState = StartupLanState.Denied },
+                    onConnected = { startupLanState = startupLanState.next(StartupLanEvent.Connected) },
+                    onBack = { startupLanState = startupLanState.next(StartupLanEvent.Back) },
                 )
             }
 
@@ -238,10 +229,10 @@ class MainActivity : ComponentActivity() {
                     verticalArrangement = Arrangement.Center,
                 ) {
                     Text(stringResource(R.string.connect_error_lan_permission_denied))
-                    Button(onClick = { startupLanState = StartupLanState.ChooseConnection }) {
+                    Button(onClick = { startupLanState = startupLanState.next(StartupLanEvent.ChooseConnection) }) {
                         Text(stringResource(R.string.auth_login_title))
                     }
-                    Button(onClick = { startupLanState = StartupLanState.Request }) {
+                    Button(onClick = { startupLanState = startupLanState.next(StartupLanEvent.Retry) }) {
                         Text(stringResource(R.string.action_retry))
                     }
                     Button(onClick = {

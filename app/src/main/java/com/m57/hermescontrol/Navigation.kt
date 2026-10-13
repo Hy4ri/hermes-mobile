@@ -384,16 +384,16 @@ fun MainNavigation(sessionId: String? = null) {
                             .padding(paddingValues)
                             .consumeWindowInsets(paddingValues)
                             .fillMaxSize(),
-                    )
-                    }
-                    }
+                )
+            }
+        }
 
-                    WhatsNewNotice.release?.let { release ->
-                    WhatsNewDialog(
-                    tag = release.tagName,
-                    releaseNotes = release.body,
-                    onDismiss = { WhatsNewNotice.dismiss() },
-                    )
-                    }
+        WhatsNewNotice.release?.let { release ->
+            WhatsNewDialog(
+                tag = release.tagName,
+                releaseNotes = release.body,
+                onDismiss = { WhatsNewNotice.dismiss() },
+            )
+        }
     }
 }

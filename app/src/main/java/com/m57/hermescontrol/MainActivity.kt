@@ -2,33 +2,66 @@ package com.m57.hermescontrol
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.remote.requiresLocalNetworkPermission
 import com.m57.hermescontrol.data.update.UpdateNoticeManager
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.notification.NotificationHelper
 import com.m57.hermescontrol.notification.NotificationReplyReceiver
 import com.m57.hermescontrol.theme.HermesControlTheme
+import com.m57.hermescontrol.ui.authlogin.AuthLoginScreen
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.util.LocaleContextWrapper
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+/** New logins request permission in AuthLoginScreen; saved token and ticket modes gate startup. */
+internal fun needsSavedSessionLanGate(
+    sdkInt: Int,
+    token: String?,
+    gatedMode: Boolean,
+    url: String,
+): Boolean = (gatedMode || !token.isNullOrBlank()) && requiresLocalNetworkPermission(sdkInt, url)
 
 class MainActivity : ComponentActivity() {
     companion object {
@@ -44,6 +77,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private var baseContextLanguageCode: String = LocaleContextWrapper.SYSTEM_LANGUAGE
+    private var startupLanState by mutableStateOf(StartupLanState.Checking)
 
     /**
      * Apply the user-selected display language before any view is inflated.
@@ -65,9 +99,11 @@ class MainActivity : ComponentActivity() {
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.RESUMED) {
-                AuthManager.initializationState.collect { state ->
+                AuthManager.initializationState.collectLatest { state ->
                     if (state == AuthManager.InitializationState.Ready) {
                         if (AuthManager.isGatedMode() || !AuthManager.getToken().isNullOrBlank()) {
+                            // Navigation and its ViewModels must be admitted before dialing.
+                            awaitStartupLanAdmission(snapshotFlow { startupLanState })
                             HermesWsClient.connect()
                         }
                     }
@@ -107,7 +143,12 @@ class MainActivity : ComponentActivity() {
                                 }
                                 LoadingState()
                             } else {
-                                MainNavigation()
+                                // Capture the selected, resolved endpoint only at startup. A
+                                // subsequent new login is handled by AuthLoginScreen.
+                                val savedToken = remember { AuthManager.getToken() }
+                                val savedGatedMode = remember { AuthManager.isGatedMode() }
+                                val savedUrl = remember { AuthManager.getBaseUrl() }
+                                SavedSessionLanGate(savedToken, savedGatedMode, savedUrl)
                             }
                         }
 
@@ -119,6 +160,89 @@ class MainActivity : ComponentActivity() {
                                 },
                             )
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun SavedSessionLanGate(
+        token: String?,
+        gatedMode: Boolean,
+        url: String,
+    ) {
+        val launcher =
+            rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+                startupLanState = startupLanState.next(StartupLanEvent.PermissionResult(granted))
+            }
+        LaunchedEffect(token, gatedMode, url) {
+            val required =
+                withContext(Dispatchers.IO) {
+                    needsSavedSessionLanGate(Build.VERSION.SDK_INT, token, gatedMode, url)
+                }
+            val grantedOrNotRequired =
+                !required || ContextCompat.checkSelfPermission(
+                    this@MainActivity,
+                    android.Manifest.permission.ACCESS_LOCAL_NETWORK,
+                ) == PackageManager.PERMISSION_GRANTED
+            startupLanState = startupLanState.next(StartupLanEvent.PermissionChecked(grantedOrNotRequired))
+        }
+        // Settings may grant access while paused. Ordinary resumes must not
+        // remove already-admitted navigation and recreate the chat ViewModel.
+        LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+            if (startupLanState == StartupLanState.Denied &&
+                Build.VERSION.SDK_INT >= 37 &&
+                ContextCompat.checkSelfPermission(
+                    this@MainActivity,
+                    android.Manifest.permission.ACCESS_LOCAL_NETWORK,
+                ) == PackageManager.PERMISSION_GRANTED
+            ) {
+                startupLanState = startupLanState.next(StartupLanEvent.Resume(granted = true))
+            }
+        }
+        LaunchedEffect(startupLanState) {
+            if (startupLanState == StartupLanState.Request) {
+                launcher.launch(android.Manifest.permission.ACCESS_LOCAL_NETWORK)
+            }
+        }
+        when (startupLanState) {
+            StartupLanState.ChooseConnection -> {
+                AuthLoginScreen(
+                    onConnected = { startupLanState = startupLanState.next(StartupLanEvent.Connected) },
+                    onBack = { startupLanState = startupLanState.next(StartupLanEvent.Back) },
+                )
+            }
+
+            StartupLanState.Ready -> {
+                MainNavigation()
+            }
+
+            StartupLanState.Checking, StartupLanState.Request -> {
+                LoadingState()
+            }
+
+            StartupLanState.Denied -> {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text(stringResource(R.string.connect_error_lan_permission_denied))
+                    Button(onClick = { startupLanState = startupLanState.next(StartupLanEvent.ChooseConnection) }) {
+                        Text(stringResource(R.string.auth_login_title))
+                    }
+                    Button(onClick = { startupLanState = startupLanState.next(StartupLanEvent.Retry) }) {
+                        Text(stringResource(R.string.action_retry))
+                    }
+                    Button(onClick = {
+                        startActivity(
+                            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                data = Uri.fromParts("package", packageName, null)
+                            },
+                        )
+                    }) {
+                        Text(stringResource(R.string.settings_about_update_open_settings))
                     }
                 }
             }

@@ -1,12 +1,17 @@
 package com.m57.hermescontrol.ui.authlogin
 
 import android.app.Application
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import android.util.Log
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.config.ConnectionProfile
+import com.m57.hermescontrol.data.config.resolveBaseUrl
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.AuthPayloads
@@ -24,6 +29,7 @@ import com.m57.hermescontrol.data.remote.await
 import com.m57.hermescontrol.data.remote.isClientCertificateAuthenticationFailure
 import com.m57.hermescontrol.data.remote.nativeAuthorizeUrl
 import com.m57.hermescontrol.data.remote.redeemNativeCode
+import com.m57.hermescontrol.data.remote.requiresLocalNetworkPermission
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import kotlinx.coroutines.Dispatchers
@@ -72,6 +78,7 @@ data class AuthLoginUiState(
     val password: String = "",
     val isLoading: Boolean = false,
     val probing: Boolean = false,
+    val lanPermissionNeeded: Boolean = false,
     val authMode: DashboardAuthMode? = null,
     /** Interactive sign-in options the dashboard advertises; empty until a gated probe succeeds. */
     val providers: List<AuthProviderOption> = emptyList(),
@@ -99,6 +106,11 @@ class AuthLoginViewModel(
     private var browserJob: Job? = null
     private var refreshedConnectionId: String? = null
     private var refreshedBaseUrl: String? = null
+    internal var sdkVersion: Int = Build.VERSION.SDK_INT
+    private var permissionAttempt = 0
+    private var pendingLanAction: (() -> Unit)? = null
+    private var pendingLanUrl: String? = null
+    private var pendingLanProfileId: String? = null
 
     init {
         loadLoggedInProfiles()
@@ -115,6 +127,7 @@ class AuthLoginViewModel(
 
         refreshedConnectionId = selectedConnectionId
         refreshedBaseUrl = currentBaseUrl
+        cancelLanPermissionRequest()
         browserJob?.cancel()
         certificatePrompt.reset()
         _uiState.value = AuthLoginUiState(baseUrl = currentBaseUrl)
@@ -132,6 +145,7 @@ class AuthLoginViewModel(
     }
 
     fun useExistingProfile(profileId: String) {
+        cancelLanPermissionRequest()
         viewModelScope.launch {
             ProfileSwitchCoordinator.switchConnectionProfile(profileId)
             _uiState.update { it.copy(connectionSuccess = true) }
@@ -160,6 +174,7 @@ class AuthLoginViewModel(
     }
 
     fun onBaseUrlChange(value: String) {
+        cancelLanPermissionRequest()
         certificatePrompt.reset()
         browserJob?.cancel()
         val trimmed = value.trim()
@@ -183,6 +198,7 @@ class AuthLoginViewModel(
 
     /** Reset ephemeral connection state (called when screen leaves composition). */
     fun clearConnectionState() {
+        cancelLanPermissionRequest()
         certificatePrompt.reset()
         // A browser sign-in keeps running (and keeps its spinner) while the user is away in the browser.
         _uiState.update {
@@ -209,6 +225,97 @@ class AuthLoginViewModel(
 
     fun onPasswordChange(value: String) {
         _uiState.update { it.copy(password = value, errorMessage = null) }
+    }
+
+    /** Resolve LAN hosts off the UI thread before any dashboard network operation. */
+    private fun requestWithLanPermission(
+        context: Context,
+        url: String,
+        profileId: String? = null,
+        action: () -> Unit,
+    ) {
+        val attempt = ++permissionAttempt
+        pendingLanAction = null
+        pendingLanUrl = null
+        pendingLanProfileId = null
+        _uiState.update { it.copy(lanPermissionNeeded = false) }
+        viewModelScope.launch {
+            val required = withContext(Dispatchers.IO) { requiresLocalNetworkPermission(sdkVersion, url) }
+            if (attempt != permissionAttempt || !isCurrentLanTarget(url, profileId)) return@launch
+            if (required &&
+                ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_LOCAL_NETWORK) !=
+                PackageManager.PERMISSION_GRANTED
+            ) {
+                pendingLanUrl = url
+                pendingLanProfileId = profileId
+                pendingLanAction = action
+                _uiState.update { it.copy(lanPermissionNeeded = true, errorMessage = null) }
+            } else {
+                action()
+            }
+        }
+    }
+
+    private fun isCurrentLanTarget(
+        url: String,
+        profileId: String?,
+    ): Boolean =
+        if (profileId == null) {
+            _uiState.value.baseUrl == url
+        } else {
+            AuthManager
+                .getConnectionProfiles()
+                .firstOrNull { it.id == profileId }
+                ?.let { runCatching { it.resolveBaseUrl(AuthManager.getBaseUrl()) }.getOrNull() == url } == true &&
+                !AuthManager.getProfileToken(profileId).isNullOrBlank()
+        }
+
+    private fun cancelLanPermissionRequest() {
+        permissionAttempt++
+        pendingLanAction = null
+        pendingLanUrl = null
+        pendingLanProfileId = null
+        _uiState.update { it.copy(lanPermissionNeeded = false) }
+    }
+
+    fun onLanPermissionResult(granted: Boolean) {
+        val action = pendingLanAction ?: return
+        val url = pendingLanUrl
+        val profileId = pendingLanProfileId
+        cancelLanPermissionRequest()
+        if (url == null || !isCurrentLanTarget(url, profileId)) return
+        if (granted) {
+            action()
+        } else {
+            _uiState.update {
+                it.copy(errorMessage = app.getString(R.string.connect_error_lan_permission_denied))
+            }
+        }
+    }
+
+    fun requestProbe(context: Context) {
+        requestWithLanPermission(context, _uiState.value.baseUrl, action = ::probe)
+    }
+
+    fun requestConnect(context: Context) {
+        requestWithLanPermission(context, _uiState.value.baseUrl, action = ::connect)
+    }
+
+    fun requestBrowserLogin(
+        context: Context,
+        openBrowser: (String) -> Unit,
+    ) {
+        requestWithLanPermission(context, _uiState.value.baseUrl) { startBrowserLogin(openBrowser) }
+    }
+
+    fun requestExistingProfile(
+        context: Context,
+        profileId: String,
+    ) {
+        val profile = AuthManager.getConnectionProfiles().firstOrNull { it.id == profileId } ?: return
+        if (AuthManager.getProfileToken(profileId).isNullOrBlank()) return
+        val url = runCatching { profile.resolveBaseUrl(AuthManager.getBaseUrl()) }.getOrNull() ?: return
+        requestWithLanPermission(context, url, profileId) { useExistingProfile(profileId) }
     }
 
     /**

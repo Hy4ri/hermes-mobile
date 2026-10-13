@@ -1,8 +1,12 @@
 package com.m57.hermescontrol.ui.authlogin
 
 import android.app.Application
+import android.content.Context
+import android.content.pm.PackageManager
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.config.ConnectionProfile
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.CertificateBindings
 import com.m57.hermescontrol.data.remote.ClientCertificates
@@ -41,6 +45,8 @@ class AuthLoginViewModelTest {
     private lateinit var viewModel: AuthLoginViewModel
     private val app = mockk<Application>(relaxed = true)
     private val mockProbeClient = mockk<OkHttpClient>(relaxed = true)
+    private val context = mockk<Context>(relaxed = true)
+    private var permissionGranted = false
 
     @Before
     fun setup() {
@@ -51,6 +57,10 @@ class AuthLoginViewModelTest {
 
         mockkObject(OkHttpProvider)
         every { OkHttpProvider.probe } returns mockProbeClient
+        mockkStatic(ContextCompat::class)
+        every {
+            ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_LOCAL_NETWORK)
+        } answers { if (permissionGranted) PackageManager.PERMISSION_GRANTED else PackageManager.PERMISSION_DENIED }
 
         mockkStatic(Log::class)
         mockkStatic("com.m57.hermescontrol.data.remote.CallExtKt")
@@ -59,6 +69,7 @@ class AuthLoginViewModelTest {
 
         every { app.getString(R.string.auth_login_error_unreachable) } returns "Dashboard unreachable"
         every { app.getString(R.string.mtls_prompt_connection_error) } returns "mTLS client certificate required"
+        every { app.getString(R.string.connect_error_lan_permission_denied) } returns "LAN denied"
 
         viewModel = AuthLoginViewModel(app)
     }
@@ -100,6 +111,131 @@ class AuthLoginViewModelTest {
         assertFalse(state.isLoading)
         assertNull(state.errorMessage)
     }
+
+    @Test
+    fun `LAN probe waits for permission and grant resumes exactly once`() =
+        runBlocking {
+            viewModel.sdkVersion = 37
+            viewModel.onBaseUrlChange("http://10.23.45.67:9119/")
+            val call = mockk<okhttp3.Call>()
+            every { mockProbeClient.newCall(any()) } returns call
+            coEvery { call.await() } throws IOException("offline")
+            viewModel.requestProbe(context)
+            withTimeout(5000) { viewModel.uiState.first { it.lanPermissionNeeded } }
+            verify(exactly = 0) { mockProbeClient.newCall(any()) }
+            viewModel.onLanPermissionResult(true)
+            withTimeout(5000) { viewModel.uiState.first { it.errorMessage == "Dashboard unreachable" } }
+            viewModel.onLanPermissionResult(true)
+            verify(exactly = 1) { mockProbeClient.newCall(any()) }
+            assertFalse(viewModel.uiState.value.lanPermissionNeeded)
+        }
+
+    @Test
+    fun `already granted LAN permission probes without another prompt`() =
+        runBlocking {
+            viewModel.sdkVersion = 37
+            permissionGranted = true
+            viewModel.onBaseUrlChange("http://10.23.45.67:9119/")
+            val call = mockk<okhttp3.Call>()
+            every { mockProbeClient.newCall(any()) } returns call
+            coEvery { call.await() } throws IOException("offline")
+            viewModel.requestProbe(context)
+            withTimeout(5000) { viewModel.uiState.first { it.errorMessage == "Dashboard unreachable" } }
+            assertFalse(viewModel.uiState.value.lanPermissionNeeded)
+            verify(exactly = 1) { mockProbeClient.newCall(any()) }
+        }
+
+    @Test
+    fun `connect and browser login cannot bypass a denied LAN permission`() =
+        runBlocking {
+            viewModel.sdkVersion = 37
+            viewModel.onBaseUrlChange("http://10.23.45.67:9119/")
+            viewModel.requestConnect(context)
+            withTimeout(5000) { viewModel.uiState.first { it.lanPermissionNeeded } }
+            viewModel.onLanPermissionResult(false)
+            assertEquals("LAN denied", viewModel.uiState.value.errorMessage)
+            assertFalse(viewModel.uiState.value.isLoading)
+            var browserOpened = false
+            viewModel.requestBrowserLogin(context) { browserOpened = true }
+            withTimeout(5000) { viewModel.uiState.first { it.lanPermissionNeeded } }
+            viewModel.onLanPermissionResult(false)
+            assertFalse(browserOpened)
+            verify(exactly = 0) { mockProbeClient.newCall(any()) }
+        }
+
+    @Test
+    fun `denial preserves credentials and retry prompts again`() =
+        runBlocking {
+            viewModel.sdkVersion = 37
+            viewModel.onBaseUrlChange("http://10.23.45.67:9119/")
+            viewModel.onPasswordChange("keep me")
+            viewModel.requestProbe(context)
+            withTimeout(5000) { viewModel.uiState.first { it.lanPermissionNeeded } }
+            viewModel.onLanPermissionResult(false)
+            assertEquals("LAN denied", viewModel.uiState.value.errorMessage)
+            assertEquals("keep me", viewModel.uiState.value.password)
+            assertFalse(viewModel.uiState.value.lanPermissionNeeded)
+            verify(exactly = 0) { mockProbeClient.newCall(any()) }
+            viewModel.requestProbe(context)
+            withTimeout(5000) { viewModel.uiState.first { it.lanPermissionNeeded } }
+            assertEquals("keep me", viewModel.uiState.value.password)
+        }
+
+    @Test
+    fun `old Android loopback and public endpoints skip LAN gate`() =
+        runBlocking {
+            val call = mockk<okhttp3.Call>()
+            every { mockProbeClient.newCall(any()) } returns call
+            coEvery { call.await() } throws IOException("offline")
+            viewModel.sdkVersion = 36
+            viewModel.onBaseUrlChange("http://10.23.45.67:9119/")
+            viewModel.requestProbe(context)
+            withTimeout(5000) { viewModel.uiState.first { it.errorMessage == "Dashboard unreachable" } }
+            assertFalse(viewModel.uiState.value.lanPermissionNeeded)
+            viewModel.sdkVersion = 37
+            viewModel.onBaseUrlChange("http://127.0.0.1:9119/")
+            viewModel.requestProbe(context)
+            withTimeout(5000) { viewModel.uiState.first { it.errorMessage == "Dashboard unreachable" } }
+            assertFalse(viewModel.uiState.value.lanPermissionNeeded)
+            viewModel.onBaseUrlChange("http://8.8.8.8:9119/")
+            viewModel.requestProbe(context)
+            withTimeout(5000) { viewModel.uiState.first { it.errorMessage == "Dashboard unreachable" } }
+            assertFalse(viewModel.uiState.value.lanPermissionNeeded)
+            verify(exactly = 3) { mockProbeClient.newCall(any()) }
+        }
+
+    @Test
+    fun `editing URL or leaving cancels stale grant`() =
+        runBlocking {
+            viewModel.sdkVersion = 37
+            viewModel.onBaseUrlChange("http://10.23.45.67:9119/")
+            viewModel.requestProbe(context)
+            withTimeout(5000) { viewModel.uiState.first { it.lanPermissionNeeded } }
+            viewModel.onBaseUrlChange("http://127.0.0.1:9119/")
+            viewModel.onLanPermissionResult(true)
+            assertFalse(viewModel.uiState.value.lanPermissionNeeded)
+            viewModel.onBaseUrlChange("http://10.23.45.67:9119/")
+            viewModel.requestProbe(context)
+            withTimeout(5000) { viewModel.uiState.first { it.lanPermissionNeeded } }
+            viewModel.clearConnectionState()
+            viewModel.onLanPermissionResult(true)
+            verify(exactly = 0) { mockProbeClient.newCall(any()) }
+        }
+
+    @Test
+    fun `saved profile gates its own URL instead of selected URL`() =
+        runBlocking {
+            viewModel.sdkVersion = 37
+            val profile = ConnectionProfile(id = "lan", name = "LAN", baseUrl = "http://10.23.45.67:9119/")
+            every { AuthManager.getConnectionProfiles() } returns listOf(profile)
+            every { AuthManager.getProfileToken("lan") } returns "saved-token"
+            viewModel.loadLoggedInProfiles()
+            viewModel.requestExistingProfile(context, "lan")
+            withTimeout(5000) { viewModel.uiState.first { it.lanPermissionNeeded } }
+            assertFalse(viewModel.uiState.value.connectionSuccess)
+            viewModel.onLanPermissionResult(false)
+            assertEquals("LAN denied", viewModel.uiState.value.errorMessage)
+        }
 
     @Test
     fun `probe when status probe throws IOException updates error state`() {

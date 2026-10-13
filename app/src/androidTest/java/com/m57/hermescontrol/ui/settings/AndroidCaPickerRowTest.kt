@@ -2,9 +2,14 @@ package com.m57.hermescontrol.ui.settings
 
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
@@ -12,10 +17,12 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
@@ -37,6 +44,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.Parameterized
 import java.security.cert.X509Certificate
+import kotlin.math.abs
 
 /** Exercises the production DN list using synthetic certificates; never changes the CA store. */
 @RunWith(Parameterized::class)
@@ -103,6 +111,58 @@ class AndroidCaPickerRowTest(
         compose.onAllNodesWithTag("ca-certificate-divider", useUnmergedTree = true).assertCountEquals(0)
     }
 
+    @Test
+    fun longDnGlyphPixelsSurviveTheButtonShapeClip() {
+        val longDn = "CN=Example Multiline Root,O=Example Trust Services,L=Example City,C=ZZ"
+        val item = certificates.first().copy(reference = certificates.first().reference.copy(subject = longDn))
+        val reference = mutableStateOf(false)
+        val textWidth = mutableStateOf(0.dp)
+        compose.setContent {
+            CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale)) {
+                HermesControlTheme(themePreference = theme) {
+                    Surface(modifier = Modifier.width(280.dp)) {
+                        if (reference.value) {
+                            Text(
+                                longDn,
+                                modifier = Modifier.width(textWidth.value),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        } else {
+                            AndroidCaCertificateList(listOf(item)) {}
+                        }
+                    }
+                }
+            }
+        }
+        val text = compose.onNodeWithText(longDn, useUnmergedTree = true)
+        val width = text.getBoundsInRoot().let { it.right - it.left }
+        val actual = text.captureToImage().toPixelMap()
+        compose.runOnIdle {
+            textWidth.value = width
+            reference.value = true
+        }
+        val expected = compose.onNodeWithText(longDn, useUnmergedTree = true).captureToImage().toPixelMap()
+        assertEquals(expected.width, actual.width)
+        assertEquals(expected.height, actual.height)
+        val scheme = resolveColorScheme(ThemePreset.DEFAULT, theme == ThemePreference.DARK)
+        var inkPixels = 0
+        for (y in 0 until expected.height) {
+            for (x in 0 until expected.width) {
+                if (colorDistance(expected[x, y], scheme.primary) < 0.1f) {
+                    inkPixels++
+                    assertTrue("DN ink clipped at ($x, $y)", colorDistance(actual[x, y], scheme.surface) > 0.05f)
+                }
+            }
+        }
+        assertTrue("Reference must contain foreground ink", inkPixels > 0)
+    }
+
+    private fun colorDistance(
+        a: Color,
+        b: Color,
+    ): Float = maxOf(abs(a.red - b.red), abs(a.green - b.green), abs(a.blue - b.blue))
+
     private fun show(items: List<AndroidCaCertificate>) {
         compose.setContent {
             CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale)) {
@@ -122,6 +182,8 @@ class AndroidCaPickerRowTest(
             listOf(
                 arrayOf<Any>(ThemePreference.LIGHT, 1.25f),
                 arrayOf<Any>(ThemePreference.DARK, 1.25f),
+                arrayOf<Any>(ThemePreference.LIGHT, 1.45f),
+                arrayOf<Any>(ThemePreference.DARK, 1.45f),
                 arrayOf<Any>(ThemePreference.LIGHT, 2f),
                 arrayOf<Any>(ThemePreference.DARK, 2f),
             )

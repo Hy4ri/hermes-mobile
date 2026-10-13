@@ -55,8 +55,26 @@ class SystemViewModelTest {
         every { ApiClient.hermesApi } returns mockApi
     }
 
+    private val viewModelStore = androidx.lifecycle.ViewModelStore()
+
+    private fun newViewModel(): SystemViewModel =
+        androidx.lifecycle.ViewModelProvider(
+            viewModelStore,
+            object : androidx.lifecycle.ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
+                    SystemViewModel(
+                        mockApp,
+                        migrationDispatcher = testDispatcher,
+                        ioDispatcher = testDispatcher,
+                    ) as T
+            },
+        )[SystemViewModel::class.java]
+
     @After
     fun teardown() {
+        viewModelStore.clear()
+        testDispatcher.scheduler.runCurrent()
         Dispatchers.resetMain()
         unmockkAll()
     }
@@ -78,7 +96,7 @@ class SystemViewModelTest {
 
     @Test
     fun `openUpdateConfirm sets updateConfirmOpen to true`() {
-        val viewModel = SystemViewModel(mockApp, ioDispatcher = testDispatcher)
+        val viewModel = newViewModel()
 
         assertFalse(viewModel.uiState.value.updateConfirmOpen)
 
@@ -89,7 +107,7 @@ class SystemViewModelTest {
 
     @Test
     fun `closeUpdateConfirm sets updateConfirmOpen to false`() {
-        val viewModel = SystemViewModel(mockApp, ioDispatcher = testDispatcher)
+        val viewModel = newViewModel()
 
         viewModel.openUpdateConfirm()
         assertTrue(viewModel.uiState.value.updateConfirmOpen)
@@ -102,7 +120,7 @@ class SystemViewModelTest {
     fun `loadAll performs diagnostic reads and never calls runDoctor`() {
         stubDiagnosticReads()
 
-        val viewModel = SystemViewModel(mockApp, ioDispatcher = testDispatcher)
+        val viewModel = newViewModel()
         viewModel.loadAll()
         testDispatcher.scheduler.advanceUntilIdle()
 
@@ -121,7 +139,7 @@ class SystemViewModelTest {
     fun `refreshing via loadAll multiple times never invokes runDoctor`() {
         stubDiagnosticReads()
 
-        val viewModel = SystemViewModel(mockApp, ioDispatcher = testDispatcher)
+        val viewModel = newViewModel()
         viewModel.loadAll()
         testDispatcher.scheduler.advanceUntilIdle()
 
@@ -156,7 +174,7 @@ class SystemViewModelTest {
             )
         stubDiagnosticReads()
 
-        val viewModel = SystemViewModel(mockApp, ioDispatcher = testDispatcher)
+        val viewModel = newViewModel()
         viewModel.runDoctor()
         testDispatcher.scheduler.runCurrent()
 
@@ -189,7 +207,7 @@ class SystemViewModelTest {
         val doctorResponse = DoctorResponse(ok = false, name = "hermes-doctor", pid = null)
         coEvery { mockApi.runDoctor() } returns Response.success(doctorResponse)
 
-        val viewModel = SystemViewModel(mockApp, ioDispatcher = testDispatcher)
+        val viewModel = newViewModel()
         viewModel.runDoctor()
         testDispatcher.scheduler.advanceUntilIdle()
 
@@ -203,7 +221,7 @@ class SystemViewModelTest {
     fun `runDoctor handles HTTP error response as failure`() {
         coEvery { mockApi.runDoctor() } returns Response.error(500, "Internal Server Error".toResponseBody())
 
-        val viewModel = SystemViewModel(mockApp, ioDispatcher = testDispatcher)
+        val viewModel = newViewModel()
         viewModel.runDoctor()
         testDispatcher.scheduler.advanceUntilIdle()
 

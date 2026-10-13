@@ -6,6 +6,7 @@ import com.m57.hermescontrol.data.remote.CookieManager
 import com.m57.hermescontrol.data.remote.DashboardSessionTokenRefresher
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.buildFakePersistentCookieJar
+import com.m57.hermescontrol.data.remote.mockPlatformServerTrust
 import com.m57.hermescontrol.data.ws.contract.PromptBtwParams
 import com.m57.hermescontrol.data.ws.contract.PromptBtwResult
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
@@ -49,6 +50,7 @@ class HermesWsClientSessionMiscTest {
 
     @Before
     fun setUp() {
+        mockPlatformServerTrust()
         mockkStatic(Log::class)
         every { Log.d(any<String>(), any<String>()) } returns 0
         every { Log.i(any<String>(), any<String>()) } returns 0

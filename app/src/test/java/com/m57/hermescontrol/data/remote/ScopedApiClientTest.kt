@@ -44,8 +44,12 @@ class ScopedApiClientTest {
 
     @After
     fun tearDown() {
-        mockServer.shutdown()
-        CookieManager.resetForTest()
+        try {
+            mockServer.shutdown()
+        } finally {
+            CookieManager.resetForTest()
+            unmockSystemServerTrust()
+        }
     }
 
     @Test

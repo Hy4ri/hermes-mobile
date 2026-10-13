@@ -6,6 +6,7 @@ import com.m57.hermescontrol.data.remote.CookieManager
 import com.m57.hermescontrol.data.remote.DashboardSessionTokenRefresher
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.buildFakePersistentCookieJar
+import com.m57.hermescontrol.data.remote.mockPlatformServerTrust
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -48,6 +49,7 @@ class HermesWsClientCharacterizationTest {
 
     @Before
     fun setUp() {
+        mockPlatformServerTrust()
         serverSockets.clear()
         serverClosed = CountDownLatch(1)
         mockkStatic(Log::class)

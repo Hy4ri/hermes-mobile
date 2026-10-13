@@ -126,4 +126,20 @@ class ServerCaRestrictionsTest {
         ServerCaRestrictions.checkAvailable(CertificateOrigin("unbound.test", 443))
         verify(exactly = 0) { ServerTrust.active }
     }
+
+    @Test
+    fun `HTTP fixture teardown restores malformed selection rejection`() {
+        mockSystemServerTrust()
+        unmockSystemServerTrust()
+        mockkObject(ServerTrust)
+        `malformed selections fail at availability while unbound origins need no trust store`()
+    }
+
+    @Test
+    fun `HTTP fixture teardown restores original store failure at socket boundary`() {
+        mockSystemServerTrust()
+        unmockSystemServerTrust()
+        mockkObject(ServerTrust)
+        `availability preserves the original store failure and socket wraps it exactly once`()
+    }
 }

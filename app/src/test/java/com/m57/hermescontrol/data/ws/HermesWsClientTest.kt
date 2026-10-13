@@ -9,6 +9,7 @@ import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.buildFakePersistentCookieJar
+import com.m57.hermescontrol.data.remote.mockPlatformServerTrust
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import io.mockk.coEvery
 import io.mockk.every
@@ -62,6 +63,7 @@ class HermesWsClientTest {
 
     @Before
     fun setUp() {
+        mockPlatformServerTrust()
         mockkStatic(Log::class)
         every { Log.d(any<String>(), any<String>()) } returns 0
         every { Log.i(any<String>(), any<String>()) } returns 0

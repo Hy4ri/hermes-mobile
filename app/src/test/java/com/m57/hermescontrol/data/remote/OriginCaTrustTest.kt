@@ -326,9 +326,9 @@ class OriginCaTrustTest {
                     assertTrue(cacheHit is GatewayFileResult.Success)
                     assertEquals(1, server.requestCount)
                     bind(url, "user")
-                    assertThrows(IOException::class.java) {
-                        runBlocking { GatewayFileClient.fetch("/test/report.pdf", url.toString(), "", directory) }
-                    }
+                    val tightened = GatewayFileClient.fetch("/test/report.pdf", url.toString(), "", directory)
+                    assertTrue(tightened is GatewayFileResult.Failure)
+                    assertTrue((tightened as GatewayFileResult.Failure).throwable is IOException)
                     assertEquals(1, server.requestCount)
                     remove(url)
                     server.enqueue(MockResponse().setBody("fresh"))

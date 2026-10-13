@@ -4,6 +4,7 @@ import android.util.Log
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.CookieManager
 import com.m57.hermescontrol.data.remote.buildFakePersistentCookieJar
+import com.m57.hermescontrol.data.remote.mockPlatformServerTrust
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -40,6 +41,7 @@ class HermesWsClientLoggingSecurityTest {
 
     @Before
     fun setUp() {
+        mockPlatformServerTrust()
         capturedDebugLogs.clear()
         capturedInfoLogs.clear()
         capturedWarnLogs.clear()

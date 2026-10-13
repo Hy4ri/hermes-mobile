@@ -37,6 +37,13 @@ class LocaleContextWrapperTest {
     }
 
     @Test
+    fun germanLanguageCode() {
+        val locale = LocaleContextWrapper.localeForCode("de")
+        assertEquals("de", locale.language)
+        assertEquals("", locale.country)
+    }
+
+    @Test
     fun regionSeparator_r() {
         val locale = LocaleContextWrapper.localeForCode("zh-rCN")
         assertEquals("zh", locale.language)

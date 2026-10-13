@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_reply_failed_title">Hermes konnte diese Antwort nicht abschließen</string>
+    <string name="chat_reply_failed_description">Beim Antworten von Hermes ist etwas schiefgelaufen. Öffne die Details oder Logs, um zu verstehen, was passiert ist.</string>
+    <string name="chat_reply_failed_details">Details</string>
+    <string name="chat_reply_failed_details_collapsed">Eingeklappt</string>
+    <string name="chat_reply_failed_details_expanded">Ausgeklappt</string>
+    <string name="chat_reply_failed_copy">Fehlerdetails kopieren</string>
+    <string name="chat_reply_failed_logs">Logs öffnen</string>
+    <string name="chat_reply_failed_share">Diagnose teilen</string>
+    <string name="chat_reply_failed_share_note">Prüfe die Details vor dem Teilen. Die Diagnose enthält diesen Fehler und die App-Version, nicht deine Unterhaltung oder Anhänge.</string>
+    <string name="chat_reply_failed_dismiss">Fehler ausblenden</string>
+
+    <string name="chat_reply_failed_copied">Fehlerdetails kopiert</string>
+    <string name="chat_reply_failed_share_unavailable">Keine App zum Teilen der Diagnose verfügbar</string>
+</resources>

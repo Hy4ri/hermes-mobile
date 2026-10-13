@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_pending_delivery_unverified">Zustellung nicht bestätigt: Das bedeutet nicht, dass noch etwas läuft. Prüfe die Zustellung, bevor du es erneut versuchst, um doppelte Nachrichten zu vermeiden.</string>
+    <string name="chat_pending_unknown_released">Nicht bestätigt · lokal quittiert</string>
+    <string name="chat_pending_continue_queue">Quittieren ohne erneutes Senden</string>
+    <string name="chat_pending_continue_title">Dieses unbestätigte Senden quittieren?</string>
+    <string name="chat_pending_continue_warning">Dadurch kannst du diesen lokalen ausstehenden Eintrag optional entfernen. Es bestätigt weder die Zustellung, noch wird die Nachricht erneut gesendet oder die Unterhaltung bzw. ihre Anhänge gelöscht. Neue Nachrichten können bereits ohne Quittierung dieses Eintrags gesendet werden.</string>
+    <string name="chat_pending_continue_confirm">Eintrag quittieren</string>
+    <string name="chat_pending_remove">Aus Ausstehend entfernen</string>
+    <string name="chat_pending_remove_title">Diese ausstehende Nachricht entfernen?</string>
+    <string name="chat_pending_remove_warning">Dadurch wird nur der lokale ausstehende Eintrag entfernt. Die Zustellung wird nicht bestätigt, und weder die Unterhaltung noch ihre Anhänge werden gelöscht. Diese Nachricht wird nicht erneut gesendet. Du kannst sie in diesem Bereich nicht mehr erneut versuchen.</string>
+    <string name="chat_pending_remove_confirm">Entfernen</string>
+    <string name="chat_pending_remove_failed">Der ausstehende Eintrag konnte nicht entfernt werden. Er wurde beibehalten; versuche es erneut.</string>
+    <string name="chat_pending_acknowledge_failed">Der ausstehende Eintrag konnte nicht quittiert werden. Er wurde beibehalten; versuche es erneut.</string>
+</resources>

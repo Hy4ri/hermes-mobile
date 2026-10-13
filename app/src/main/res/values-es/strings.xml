@@ -379,6 +379,7 @@
     <string name="language_korean">한국어</string>
     <string name="language_italian">Italiano</string>
     <string name="language_spanish">Español</string>
+    <string name="language_german">Deutsch</string>
 
     <!-- Connect Screen -->
     <string name="connect_selected_profile">Perfil:%1$s</string>

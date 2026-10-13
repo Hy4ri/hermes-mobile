@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_image_paste_loading">Eingefügte Bilder werden hinzugefügt…</string>
+    <string name="chat_image_paste_failed">Das Bild konnte nicht eingefügt werden. Prüfe den Zugriff und versuche es erneut.</string>
+    <string name="chat_image_paste_too_large">Das Bild überschreitet das Anhangslimit von 10 MB.</string>
+    <string name="chat_image_paste_batch_limit">Füge bis zu 8 Bilder mit insgesamt höchstens 20 MB ein.</string>
+    <string name="chat_image_paste_busy">Warte, bis die Bilder geladen sind, bevor du erneut einfügst.</string>
+</resources>

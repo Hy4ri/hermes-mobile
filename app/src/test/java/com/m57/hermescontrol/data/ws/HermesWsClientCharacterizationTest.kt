@@ -335,28 +335,18 @@ class HermesWsClientCharacterizationTest {
         currentListener.onClosed(activeClientSocket, 1000, "Normal closure")
         activeClientSocket.cancel()
 
-        // Deferred remains pending after active onClosed
-        assertFalse("Deferred should still remain pending after onClosed", deferred.isCompleted)
-        assertTrue("Request ID should still be in pendingCalls", HermesWsClient.pendingCallIdsForTest().contains(reqId))
-
-        // Calling disconnect() does NOT invoke rejectAllPending() either
-        HermesWsClient.disconnect()
-
-        assertFalse("Deferred should NOT be completed immediately by disconnect() alone", deferred.isCompleted)
-        assertTrue("Request ID should still be in pendingCalls", HermesWsClient.pendingCallIdsForTest().contains(reqId))
-
-        // Eventually, the per-request timeout triggers and resolves it
+        // #1564: the current-generation close settles the in-flight call instead of stranding it.
+        assertTrue("Deferred should settle on active onClosed", deferred.isCompleted)
+        assertFalse("Settled request must leave pendingCalls", HermesWsClient.pendingCallIdsForTest().contains(reqId))
         try {
-            runBlocking {
-                withTimeout(2000) {
-                    deferred.await()
-                }
-            }
-            fail("Deferred should fail with timeout")
+            runBlocking { deferred.await() }
+            fail("Deferred should fail with connection lost")
         } catch (e: HermesWsClient.HermesRpcException) {
-            assertEquals(-1, e.code)
-            assertEquals("Request timed out: custom.deferred_call", e.message)
+            assertEquals("Connection lost — request cancelled", e.message)
         }
+
+        // disconnect() afterwards has nothing left to reject and must not throw
+        HermesWsClient.disconnect()
     }
 
     @Test

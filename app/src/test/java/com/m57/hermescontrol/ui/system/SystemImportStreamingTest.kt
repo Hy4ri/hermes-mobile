@@ -93,6 +93,8 @@ class SystemImportStreamingTest {
     private var currentScope: DataScope? = null
     private lateinit var currentService: HermesApiService
 
+    private val createdViewModels = mutableListOf<SystemViewModel>()
+
     private fun newViewModel(ioDispatcher: CoroutineDispatcher = testDispatcher): SystemViewModel =
         SystemViewModel(
             mockApp,
@@ -100,11 +102,20 @@ class SystemImportStreamingTest {
             ioDispatcher = ioDispatcher,
             getCurrentScope = { currentScope },
             getApiService = { currentService },
-        )
+        ).also { createdViewModels += it }
 
     @After
     fun tearDown() {
-        Dispatchers.resetMain()
+        // Cancel viewModelScope so no job outlives the test, then park Main on an inert dispatcher:
+        // cancelled continuations resume on worker threads and would throw if Main were reset.
+        createdViewModels.forEach { vm ->
+            androidx.lifecycle.ViewModel::class.java.declaredMethods
+                .firstOrNull { it.name.startsWith("clear") && it.parameterCount == 0 }
+                ?.apply { isAccessible = true }
+                ?.invoke(vm)
+        }
+        createdViewModels.clear()
+        Dispatchers.setMain(kotlinx.coroutines.test.UnconfinedTestDispatcher())
         unmockkAll()
     }
 

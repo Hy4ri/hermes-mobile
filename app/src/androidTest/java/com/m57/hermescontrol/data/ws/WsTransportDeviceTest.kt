@@ -282,13 +282,14 @@ class WsTransportDeviceTest {
                 listener.onClosed(fakeWs, 4401, "AUTH_EXPIRED")
                 assertFalse(fixture.transport.isConnected)
                 assertNull(fixture.transport.reconnectJobForTest)
-                assertTrue(fixture.rpc.hasPendingCalls())
-                assertFalse(pendingDeferred.isCompleted)
-
-                fixture.transport.disconnect(clearPendingMessages = true)
-                assertFalse(pendingDeferred.isCompleted)
-
-                pendingDeferred.cancel()
+                // #1564: the current-generation close settles the in-flight call instead of stranding it.
+                assertTrue(pendingDeferred.isCompleted)
+                try {
+                    pendingDeferred.await()
+                    org.junit.Assert.fail("Expected HermesRpcException")
+                } catch (e: com.m57.hermescontrol.data.ws.HermesWsClient.HermesRpcException) {
+                    assertEquals("Connection lost — request cancelled", e.message)
+                }
             } finally {
                 fixture.close()
             }

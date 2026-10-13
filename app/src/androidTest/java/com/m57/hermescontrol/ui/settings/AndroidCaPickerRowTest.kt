@@ -2,7 +2,9 @@ package com.m57.hermescontrol.ui.settings
 
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -126,7 +128,10 @@ class AndroidCaPickerRowTest(
                     Surface(modifier = Modifier.width(280.dp)) {
                         if (reference.value) {
                             // #1518: do not propagate Surface's 280dp minimum to the reference text.
-                            Box(propagateMinConstraints = false) {
+                            Box(
+                                modifier = Modifier.padding(ButtonDefaults.TextButtonContentPadding),
+                                propagateMinConstraints = false,
+                            ) {
                                 Text(
                                     longDn,
                                     modifier = Modifier.width(textWidth.value),
@@ -142,6 +147,7 @@ class AndroidCaPickerRowTest(
             }
         }
         val text = compose.onNodeWithText(longDn, useUnmergedTree = true)
+        val actualBounds = text.getBoundsInRoot()
         val layouts = mutableListOf<TextLayoutResult>()
         text.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
         val width = text.getBoundsInRoot().let { it.right - it.left }
@@ -152,7 +158,9 @@ class AndroidCaPickerRowTest(
             textStyle.value = layouts.single().layoutInput.style
             reference.value = true
         }
-        val expected = compose.onNodeWithText(longDn, useUnmergedTree = true).captureToImage().toPixelMap()
+        val referenceText = compose.onNodeWithText(longDn, useUnmergedTree = true)
+        val referenceBounds = referenceText.getBoundsInRoot()
+        val expected = referenceText.captureToImage().toPixelMap()
         assertEquals(expected.width, actual.width)
         assertEquals(expected.height, actual.height)
         val scheme = resolveColorScheme(ThemePreset.DEFAULT, theme == ThemePreference.DARK)
@@ -161,7 +169,11 @@ class AndroidCaPickerRowTest(
             for (x in 0 until expected.width) {
                 if (colorDistance(expected[x, y], scheme.primary) < 0.1f) {
                     inkPixels++
-                    assertTrue("DN ink clipped at ($x, $y)", colorDistance(actual[x, y], scheme.surface) > 0.05f)
+                    assertTrue(
+                        "DN ink clipped at ($x, $y): actual=${actual[x, y]}, reference=${expected[x, y]}, " +
+                            "actualBounds=$actualBounds, referenceBounds=$referenceBounds",
+                        colorDistance(actual[x, y], scheme.surface) > 0.05f,
+                    )
                 }
             }
         }

@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.ui.settings
 
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -122,12 +123,15 @@ class AndroidCaPickerRowTest(
                 HermesControlTheme(themePreference = theme) {
                     Surface(modifier = Modifier.width(280.dp)) {
                         if (reference.value) {
-                            Text(
-                                longDn,
-                                modifier = Modifier.width(textWidth.value),
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
+                            // #1518: do not propagate Surface's 280dp minimum to the reference text.
+                            Box(propagateMinConstraints = false) {
+                                Text(
+                                    longDn,
+                                    modifier = Modifier.width(textWidth.value),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
                         } else {
                             AndroidCaCertificateList(listOf(item)) {}
                         }

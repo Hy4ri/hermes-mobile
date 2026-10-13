@@ -27,6 +27,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.data.remote.AndroidCaCertificate
@@ -118,6 +119,7 @@ class AndroidCaPickerRowTest(
         val item = certificates.first().copy(reference = certificates.first().reference.copy(subject = longDn))
         val reference = mutableStateOf(false)
         val textWidth = mutableStateOf(0.dp)
+        val textStyle = mutableStateOf<TextStyle?>(null)
         compose.setContent {
             CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale)) {
                 HermesControlTheme(themePreference = theme) {
@@ -128,7 +130,7 @@ class AndroidCaPickerRowTest(
                                 Text(
                                     longDn,
                                     modifier = Modifier.width(textWidth.value),
-                                    style = MaterialTheme.typography.labelLarge,
+                                    style = checkNotNull(textStyle.value),
                                     color = MaterialTheme.colorScheme.primary,
                                 )
                             }
@@ -140,10 +142,14 @@ class AndroidCaPickerRowTest(
             }
         }
         val text = compose.onNodeWithText(longDn, useUnmergedTree = true)
+        val layouts = mutableListOf<TextLayoutResult>()
+        text.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
         val width = text.getBoundsInRoot().let { it.right - it.left }
         val actual = text.captureToImage().toPixelMap()
         compose.runOnIdle {
             textWidth.value = width
+            // #1518: Button merges inherited paragraph defaults into labelLarge.
+            textStyle.value = layouts.single().layoutInput.style
             reference.value = true
         }
         val expected = compose.onNodeWithText(longDn, useUnmergedTree = true).captureToImage().toPixelMap()

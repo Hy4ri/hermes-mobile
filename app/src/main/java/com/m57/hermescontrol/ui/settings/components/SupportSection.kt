@@ -19,7 +19,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 
-private const val KO_FI_URL = "https://ko-fi.com/m_5_7"
+internal const val KO_FI_URL = "https://ko-fi.com/m_5_7"
 
 @Composable
 internal fun SupportSection() {

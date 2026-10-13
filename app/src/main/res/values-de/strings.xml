@@ -77,6 +77,8 @@
     <string name="press_back_again_to_exit">Zum Beenden erneut zurück drücken</string>
     <string name="nav_drawer_title">Hermes</string>
     <string name="nav_drawer_subtitle">For Hermes Agent</string>
+    <string name="nav_drawer_support">Projekt unterstützen</string>
+    <string name="whats_new_title">Neu in %1$s</string>
     <string name="nav_drawer_section_converse">Unterhalten</string>
     <string name="nav_drawer_section_automate">Automatisieren</string>
     <string name="nav_drawer_section_configure">Konfigurieren</string>
@@ -371,9 +373,9 @@
     <string name="settings_about_update_retry">Erneut versuchen</string>
     <string name="settings_about_rc_updates_title">Nach Release-Candidate-Updates suchen</string>
     <string name="settings_about_rc_updates_desc">Pre-Release-RC-Builds installieren. Sie können weniger stabil sein.</string>
-    <string name="settings_support_title">Hermes Mobile unterstützen (Upstream)</string>
+    <string name="settings_support_title">Hermes Mobile unterstützen</string>
     <string name="settings_support_message">Wenn dir Hermes Mobile Zeit spart, kannst du die Entwicklung gerne unterstützen.</string>
-    <string name="settings_support_action">Hy4ri auf Ko-fi unterstützen</string>
+    <string name="settings_support_action">Unterstütze mich auf Ko-fi</string>
 
     <!-- Settings list summaries (drill-down) -->
     <string name="settings_summary_profiles">%1$d gespeichert</string>

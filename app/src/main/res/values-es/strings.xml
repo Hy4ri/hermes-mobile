@@ -76,6 +76,8 @@
     <string name="press_back_again_to_exit">Presione hacia atrás nuevamente para salir</string>
     <string name="nav_drawer_title">Hermes</string>
     <string name="nav_drawer_subtitle">Control de agentes de IA</string>
+    <string name="nav_drawer_support">Apoya el proyecto</string>
+    <string name="whats_new_title">Novedades de %1$s</string>
     <string name="nav_drawer_section_converse">Conversar</string>
     <string name="nav_drawer_section_automate">Automatizar</string>
     <string name="nav_drawer_section_configure">Configurar</string>

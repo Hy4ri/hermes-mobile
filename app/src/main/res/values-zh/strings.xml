@@ -57,6 +57,8 @@
     <string name="press_back_again_to_exit">再次返回以退出应用</string>
     <string name="nav_drawer_title">Hermes</string>
     <string name="nav_drawer_subtitle">AI Agent 控制台</string>
+    <string name="nav_drawer_support">支持本项目</string>
+    <string name="whats_new_title">%1$s 更新内容</string>
     <string name="nav_drawer_section_converse">对话</string>
     <string name="nav_drawer_section_automate">自动化</string>
     <string name="nav_drawer_section_configure">配置</string>

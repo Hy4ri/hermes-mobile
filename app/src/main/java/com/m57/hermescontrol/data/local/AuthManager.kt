@@ -945,4 +945,11 @@ object AuthManager {
     fun setDismissedUpdateTag(tag: String?) {
         serverStore.update { it.copy(dismissedUpdateTag = tag) }
     }
+
+    /** App version whose post-update "What's new" dialog was already handled. */
+    fun getLastSeenVersion(): String? = serverStore.getLatestState().lastSeenVersion
+
+    fun setLastSeenVersion(version: String) {
+        serverStore.update { it.copy(lastSeenVersion = version) }
+    }
 }

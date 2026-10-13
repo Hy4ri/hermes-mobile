@@ -53,6 +53,8 @@
     <string name="press_back_again_to_exit">종료하려면 뒤로가기를 한 번 더 누르세요</string>
     <string name="nav_drawer_title">헤르메스</string>
     <string name="nav_drawer_subtitle">AI 에이전트 제어</string>
+    <string name="nav_drawer_support">프로젝트 후원하기</string>
+    <string name="whats_new_title">%1$s의 새로운 기능</string>
     <string name="nav_drawer_section_converse">대화</string>
     <string name="nav_drawer_section_automate">자동화</string>
     <string name="nav_drawer_section_configure">설정</string>

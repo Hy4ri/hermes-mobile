@@ -55,4 +55,6 @@ data class ServerStoreState(
     val lastUpdateCheckTimestamp: Long = 0L,
     // Tag the user explicitly dismissed from the update banner / dialog (e.g. "v1.24.2").
     val dismissedUpdateTag: String? = null,
+    // App version whose post-update "What's new" dialog was already handled.
+    val lastSeenVersion: String? = null,
 )

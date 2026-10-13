@@ -41,6 +41,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.requiresLocalNetworkPermission
 import com.m57.hermescontrol.data.update.UpdateNoticeManager
+import com.m57.hermescontrol.data.update.WhatsNewNotice
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.notification.NotificationHelper
 import com.m57.hermescontrol.notification.NotificationReplyReceiver
@@ -96,6 +97,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         consumeNotificationIntent(intent)
+
+        lifecycleScope.launch {
+            AuthManager.initializationState.first { it == AuthManager.InitializationState.Ready }
+            WhatsNewNotice.checkOnLaunch(this@MainActivity)
+        }
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.RESUMED) {

@@ -208,6 +208,10 @@ open class AppUpdateChecker(
             }
         }
 
+    /** Release metadata for an exact [tag] (e.g. "v1.31.0"); null when GitHub has no such release. */
+    open suspend fun fetchReleaseByTag(tag: String): UpdateInfo? =
+        withContext(Dispatchers.IO) { fetchSingleRelease("$apiBaseUrl/releases/tags/$tag") }
+
     private suspend fun executeScan(includeReleaseCandidates: Boolean): UpdateInfo? {
         val latest = fetchSingleRelease("$apiBaseUrl/releases/latest")
         if (!includeReleaseCandidates && latest != null && selectLatestUpdate(listOf(latest)) != null) {

@@ -57,6 +57,8 @@
 <string name="press_back_again_to_exit">اضغط رجوع مرة أخرى للخروج</string>
 <string name="nav_drawer_title">Hermes</string>
 <string name="nav_drawer_subtitle">التحكم في وكيل الذكاء الاصطناعي</string>
+<string name="nav_drawer_support">ادعم المشروع</string>
+<string name="whats_new_title">ما الجديد في %1$s</string>
 <string name="nav_drawer_section_converse">محادثة</string>
 <string name="nav_drawer_section_automate">أتمتة</string>
 <string name="nav_drawer_section_configure">تهيئة</string>

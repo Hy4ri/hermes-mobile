@@ -126,6 +126,40 @@ class ConfigProgressiveLoadTest {
     }
 
     @Test
+    fun `service owner guard uses reference identity instead of Retrofit proxy equality`() =
+        runTest {
+            // Retrofit forwards Object.equals to its invocation handler, so even self-equality is false.
+            // Preserve that real behavior while delegating endpoint calls to the controlled API mock.
+            val retrofitService =
+                retrofit2.Retrofit
+                    .Builder()
+                    .baseUrl("http://127.0.0.1:9119/")
+                    .callFactory { error("This fixture must not send network requests") }
+                    .build()
+                    .create(HermesApiService::class.java)
+            val service =
+                java.lang.reflect.Proxy.newProxyInstance(
+                    HermesApiService::class.java.classLoader,
+                    arrayOf(HermesApiService::class.java),
+                ) { _, method, args ->
+                    val target = if (method.declaringClass == Any::class.java) retrofitService else mockApi
+                    method.invoke(target, *(args ?: emptyArray()))
+                } as HermesApiService
+            assertFalse("Fixture must exercise Retrofit's non-reflexive equals", service.equals(service))
+            every { ApiClient.hermesApi } returns service
+            coEvery { mockApi.getConfig() } returns Response.success(sampleConfig)
+            coEvery { mockApi.getConfigSchema() } returns Response.success(sampleSchema)
+            coEvery { mockApi.getConfigDefaults() } returns Response.success(sampleDefaults)
+
+            val viewModel = ConfigViewModel(ioDispatcher = testDispatcher)
+            advanceUntilIdle()
+
+            assertFalse("A successful response must stop the skeleton loading state", viewModel.uiState.value.isLoading)
+            assertEquals(sampleConfig, viewModel.uiState.value.values)
+            assertEquals(sampleSchema, viewModel.uiState.value.schema)
+        }
+
+    @Test
     fun `getConfig success publishes values and isLoading false immediately while schema and defaults are blocked`() =
         runTest {
             val schemaDeferred = CompletableDeferred<Response<ConfigSchemaResponse>>()

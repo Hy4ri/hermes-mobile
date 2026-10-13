@@ -133,7 +133,7 @@ class ConfigViewModel(
             if (requestScope != null && currentScope != requestScope) return false
             val currentProfile = runCatching { AuthManager.activeProfileId.value }.getOrNull()
             if (requestProfile != currentProfile) return false
-            if (requestService != ApiClient.hermesApi) return false
+            if (requestService !== ApiClient.hermesApi) return false
             return true
         }
 
@@ -368,7 +368,7 @@ class ConfigViewModel(
                 val currentProfile = runCatching { AuthManager.activeProfileId.value }.getOrNull()
                 if (requestScope != null && currentScope != requestScope) return@launch
                 if (requestProfile != currentProfile) return@launch
-                if (requestService != ApiClient.hermesApi) return@launch
+                if (requestService !== ApiClient.hermesApi) return@launch
 
                 when (result) {
                     is NetworkResult.Success -> {
@@ -418,7 +418,7 @@ class ConfigViewModel(
             val currentProfile = runCatching { AuthManager.activeProfileId.value }.getOrNull()
             if (requestScope != null && currentScope != requestScope) return@launch
             if (requestProfile != currentProfile) return@launch
-            if (requestService != ApiClient.hermesApi) return@launch
+            if (requestService !== ApiClient.hermesApi) return@launch
 
             when (result) {
                 is NetworkResult.Success -> {
@@ -431,7 +431,7 @@ class ConfigViewModel(
                     val currentProfileAfterGet = runCatching { AuthManager.activeProfileId.value }.getOrNull()
                     if (requestScope != null && currentScopeAfterGet != requestScope) return@launch
                     if (requestProfile != currentProfileAfterGet) return@launch
-                    if (requestService != ApiClient.hermesApi) return@launch
+                    if (requestService !== ApiClient.hermesApi) return@launch
 
                     _uiState.update {
                         it.copy(
@@ -476,7 +476,7 @@ class ConfigViewModel(
             val currentProfile = runCatching { AuthManager.activeProfileId.value }.getOrNull()
             if (requestScope != null && currentScope != requestScope) return@launch
             if (requestProfile != currentProfile) return@launch
-            if (requestService != ApiClient.hermesApi) return@launch
+            if (requestService !== ApiClient.hermesApi) return@launch
 
             when (result) {
                 is NetworkResult.Success -> {
@@ -488,7 +488,7 @@ class ConfigViewModel(
                     val currentProfileAfterGet = runCatching { AuthManager.activeProfileId.value }.getOrNull()
                     if (requestScope != null && currentScopeAfterGet != requestScope) return@launch
                     if (requestProfile != currentProfileAfterGet) return@launch
-                    if (requestService != ApiClient.hermesApi) return@launch
+                    if (requestService !== ApiClient.hermesApi) return@launch
 
                     _uiState.update {
                         it.copy(

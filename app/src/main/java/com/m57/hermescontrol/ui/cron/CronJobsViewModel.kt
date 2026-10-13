@@ -14,6 +14,7 @@ import com.m57.hermescontrol.data.model.UpdateCronJobRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.remote.safeApiRead
 import com.m57.hermescontrol.data.ws.ChangeEvents
 import com.m57.hermescontrol.data.ws.toJsonElement
 import com.m57.hermescontrol.ui.common.ToastHost
@@ -120,7 +121,7 @@ class CronJobsViewModel :
         // silently on change instead of waiting for a manual pull.
         refreshOnChange(
             eventType = ChangeEvents.CRON,
-            apiCall = { safeApiCall { ApiClient.hermesApi.getCronJobs() } },
+            apiCall = { safeApiRead { ApiClient.hermesApi.getCronJobs() } },
             onSuccess = { data ->
                 val jobs = data.orEmpty()
                 val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
@@ -139,7 +140,7 @@ class CronJobsViewModel :
                 onCacheHit = { cached ->
                     _uiState.update { it.copy(isLoading = false, jobs = cached, errorMessage = null) }
                 },
-                apiCall = { safeApiCall { ApiClient.hermesApi.getCronJobs() } },
+                apiCall = { safeApiRead { ApiClient.hermesApi.getCronJobs() } },
                 onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
                 onSuccess = { data ->
                     _uiState.update { it.copy(isLoading = false, jobs = data.orEmpty()) }
@@ -295,7 +296,7 @@ class CronJobsViewModel :
         viewModelScope.launch {
             val result =
                 withContext(ioDispatcher) {
-                    safeApiCall { ApiClient.hermesApi.getCronBlueprints() }
+                    safeApiRead { ApiClient.hermesApi.getCronBlueprints() }
                 }
             when (result) {
                 is NetworkResult.Success -> {
@@ -322,7 +323,7 @@ class CronJobsViewModel :
         viewModelScope.launch {
             val result =
                 withContext(ioDispatcher) {
-                    safeApiCall { ApiClient.hermesApi.getCronDeliveryTargets() }
+                    safeApiRead { ApiClient.hermesApi.getCronDeliveryTargets() }
                 }
             if (result is NetworkResult.Success) {
                 _uiState.update {
@@ -348,7 +349,7 @@ class CronJobsViewModel :
         viewModelScope.launch {
             val result =
                 withContext(ioDispatcher) {
-                    safeApiCall { ApiClient.hermesApi.getCronJob(id) }
+                    safeApiRead { ApiClient.hermesApi.getCronJob(id) }
                 }
             when (result) {
                 is NetworkResult.Success -> {

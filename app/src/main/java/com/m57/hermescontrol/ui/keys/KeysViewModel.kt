@@ -10,6 +10,7 @@ import com.m57.hermescontrol.data.model.EnvVarUpdate
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.remote.safeApiRead
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
@@ -119,7 +120,7 @@ class KeysViewModel :
                     )
                 }
             },
-            apiCall = { safeApiCall { ApiClient.hermesApi.getEnvVars() } },
+            apiCall = { safeApiRead { ApiClient.hermesApi.getEnvVars() } },
             onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
             onSuccess = { data ->
                 val envVars = data.orEmpty()

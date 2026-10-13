@@ -21,6 +21,7 @@ import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.requiresLocalNetworkPermission
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.remote.safeApiRead
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -93,7 +94,7 @@ class ConnectViewModel(
         if (endpoint == null || state.token.isBlank()) return
         viewModelScope.launch {
             val result =
-                safeApiCall {
+                safeApiRead {
                     ApiClient.createTempService(endpoint.baseUrl.toString(), state.token).getHealth()
                 }
             if (result is NetworkResult.Success) {
@@ -115,7 +116,7 @@ class ConnectViewModel(
         if (endpoint == null || state.token.isBlank()) return
         viewModelScope.launch {
             val result =
-                safeApiCall {
+                safeApiRead {
                     ApiClient.createTempService(endpoint.baseUrl.toString(), state.token).getStatus()
                 }
             if (result is NetworkResult.Success) {

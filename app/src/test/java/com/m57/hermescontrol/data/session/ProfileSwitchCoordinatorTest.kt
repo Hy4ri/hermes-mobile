@@ -14,6 +14,7 @@ import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
@@ -102,9 +103,10 @@ class ProfileSwitchCoordinatorTest {
             // call trace: 1) setActiveProfileId 2) rebuild ... 21) sync 22)
             // disconnect 23) connect). ORDER keeps the order-pinning and ignores
             // foreign traffic.
+            // Preserve local selection/broadcast before re-dial; clear old queue/replay before connecting.
             verify(ordering = Ordering.ORDERED) {
                 AuthManager.setActiveProfileId("meow")
-                HermesWsClient.disconnect()
+                HermesWsClient.disconnect(clearPendingMessages = true)
                 HermesWsClient.connect()
             }
         }
@@ -139,7 +141,7 @@ class ProfileSwitchCoordinatorTest {
             assertTrue(result is NetworkResult.Failure)
             verify(exactly = 0) { AuthManager.setSelectedProfileId(any()) }
             verify(exactly = 0) { AuthManager.setActiveProfileId(any()) }
-            verify(exactly = 0) { HermesWsClient.disconnect() }
+            verify(exactly = 0) { HermesWsClient.disconnect(any()) }
             verify(exactly = 0) { HermesWsClient.connect() }
         }
 
@@ -199,6 +201,38 @@ class ProfileSwitchCoordinatorTest {
             runCurrent()
 
             assertEquals("prof-2", received.tryReceive().getOrNull())
+        }
+
+    @Test
+    fun `concurrent switches serialize and execute sequentially under switch mutex`() =
+        runTest {
+            coEvery { mockApi.setActiveProfile(any()) } returns Response.success(Unit)
+
+            val order = mutableListOf<String>()
+            val firstResponse = CompletableDeferred<Unit>()
+            coEvery { mockApi.setActiveProfile(SetActiveProfileRequest("p1")) } coAnswers {
+                order.add("p1-start")
+                firstResponse.await()
+                order.add("p1-end")
+                Response.success(Unit)
+            }
+            coEvery { mockApi.setActiveProfile(SetActiveProfileRequest("p2")) } coAnswers {
+                order.add("p2-start")
+                order.add("p2-end")
+                Response.success(Unit)
+            }
+
+            val job1 = launch { ProfileSwitchCoordinator.switchProfile("p1") }
+            val job2 = launch { ProfileSwitchCoordinator.switchProfile("p2") }
+
+            runCurrent()
+            assertEquals(listOf("p1-start"), order)
+            firstResponse.complete(Unit)
+            job1.join()
+            job2.join()
+
+            // Verify operations for p1 completely finished before p2 began (mutex serialization)
+            assertEquals(listOf("p1-start", "p1-end", "p2-start", "p2-end"), order)
         }
 
     private fun <T> errorResponse(code: Int): Response<T> = Response.error(code, "{}".toResponseBody(null))

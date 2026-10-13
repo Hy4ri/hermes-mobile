@@ -3,6 +3,7 @@ package com.m57.hermescontrol.ui.kanban
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.local.InMemoryKanbanPreferencesStore
 import com.m57.hermescontrol.data.local.KanbanPreferencesStore
 import com.m57.hermescontrol.data.model.BoardExportResult
@@ -181,12 +182,38 @@ class KanbanViewModel(
 
     private var eventsClient: KanbanEventsClient? = null
     private var eventsBoard: String? = null
+    private var eventsEndpoint: String? = null
+    private var eventsLoadGen: Int = 0
+    private var latestBoardCursor: Long? = null
     private var reloadJob: Job? = null
     private var currentLoadGen: Int = 0
     internal var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 
+    private data class BoardLoadOwner(
+        val endpoint: String,
+        val scope: DataScope?,
+        val loadGen: Int,
+    )
+
+    private fun currentDataScope(): DataScope? = runCatching { AuthManager.currentDataScope() }.getOrNull()
+
+    private fun isCurrentOwner(owner: BoardLoadOwner): Boolean =
+        owner.loadGen == currentLoadGen &&
+            owner.endpoint == endpointProvider() &&
+            owner.scope == currentDataScope()
+
+    private fun captureCurrentOwner(): BoardLoadOwner =
+        BoardLoadOwner(
+            endpoint = endpointProvider(),
+            scope = currentDataScope(),
+            loadGen = currentLoadGen,
+        )
+
     fun loadBoards() {
         val endpoint = endpointProvider()
+        val scope = currentDataScope()
+        val gen = ++currentLoadGen
+        val owner = BoardLoadOwner(endpoint = endpoint, scope = scope, loadGen = gen)
         val savedSlug = preferences.getSelectedBoard(endpoint)
         val previouslySelectedId = _uiState.value.selectedBoard?.id ?: savedSlug
 
@@ -214,6 +241,7 @@ class KanbanViewModel(
 
                 when (val result = repository.getBoards(includeArchived = false)) {
                     is NetworkResult.Success -> {
+                        if (!isCurrentOwner(owner)) return@coroutineScope
                         val boards = result.data.boards
                         val targetBoard =
                             boards.find { it.id == previouslySelectedId }
@@ -226,11 +254,11 @@ class KanbanViewModel(
                         if (targetBoard != null) {
                             if (prefetchedBoardDeferred != null && targetBoard.id == previouslySelectedId) {
                                 preferences.setSelectedBoard(endpoint, targetBoard.id)
-                                val gen = ++currentLoadGen
                                 _uiState.update { it.copy(selectedBoard = targetBoard) }
                                 val prefetchedResult = prefetchedBoardDeferred.await()
-                                applyBoardResult(targetBoard, prefetchedResult, gen)
-                                connectEvents(targetBoard)
+                                if (!isCurrentOwner(owner)) return@coroutineScope
+                                applyBoardResult(targetBoard, prefetchedResult, owner)
+                                connectEvents(targetBoard, owner)
                             } else {
                                 selectBoard(targetBoard)
                             }
@@ -247,6 +275,7 @@ class KanbanViewModel(
                     }
 
                     is NetworkResult.Failure -> {
+                        if (!isCurrentOwner(owner)) return@coroutineScope
                         if (!hasExistingContent) {
                             _uiState.update {
                                 it.copy(
@@ -263,9 +292,11 @@ class KanbanViewModel(
 
     fun selectBoard(board: KanbanBoard) {
         val endpoint = endpointProvider()
+        val scope = currentDataScope()
         preferences.setSelectedBoard(endpoint, board.id)
 
         val gen = ++currentLoadGen
+        val owner = BoardLoadOwner(endpoint = endpoint, scope = scope, loadGen = gen)
         _uiState.update {
             it.copy(
                 selectedBoard = board,
@@ -276,8 +307,8 @@ class KanbanViewModel(
             )
         }
         viewModelScope.launch {
-            loadBoardIntoState(board, gen)
-            connectEvents(board)
+            loadBoardIntoState(board, owner)
+            connectEvents(board, owner)
         }
     }
 
@@ -286,8 +317,9 @@ class KanbanViewModel(
         _uiState.update { it.copy(includeArchived = include) }
         val board = _uiState.value.selectedBoard ?: return
         val gen = ++currentLoadGen
+        val owner = BoardLoadOwner(endpoint = endpointProvider(), scope = currentDataScope(), loadGen = gen)
         viewModelScope.launch {
-            loadBoardIntoState(board, gen)
+            loadBoardIntoState(board, owner)
         }
     }
 
@@ -308,7 +340,8 @@ class KanbanViewModel(
         }
         _uiState.value.selectedBoard?.let { board ->
             val gen = ++currentLoadGen
-            viewModelScope.launch { loadBoardIntoState(board, gen) }
+            val owner = BoardLoadOwner(endpoint = endpointProvider(), scope = currentDataScope(), loadGen = gen)
+            viewModelScope.launch { loadBoardIntoState(board, owner) }
         }
     }
 
@@ -985,6 +1018,10 @@ class KanbanViewModel(
     }
 
     override fun onCleared() {
+        eventsBoard = null
+        eventsEndpoint = null
+        eventsLoadGen = 0
+        latestBoardCursor = null
         eventsClient?.disconnect()
         super.onCleared()
     }
@@ -996,13 +1033,30 @@ class KanbanViewModel(
      * at the WS handshake, so a board switch opens a fresh stream; re-selecting
      * the already-live board is a no-op (the REST load already refreshed it).
      */
-    private fun connectEvents(board: KanbanBoard) {
-        if (eventsBoard == board.id && _uiState.value.isLive) return
-        eventsBoard = board.id
+    private fun connectEvents(
+        board: KanbanBoard,
+        owner: BoardLoadOwner = captureCurrentOwner(),
+    ) {
+        val endpoint = owner.endpoint
+        if (eventsBoard == board.id &&
+            eventsEndpoint == endpoint &&
+            eventsLoadGen == owner.loadGen &&
+            _uiState.value.isLive
+        ) {
+            return
+        }
+        if (!isCurrentOwner(owner)) {
+            return
+        }
+        if (eventsBoard != board.id || eventsEndpoint != endpoint || eventsLoadGen != owner.loadGen) {
+            return
+        }
+        val cursor = latestBoardCursor ?: return
         val client = eventsClient ?: eventsClientProvider().also { eventsClient = it }
         client.connect(
             scope = viewModelScope,
             board = board.id,
+            since = cursor,
             onEvents = { scheduleBoardReload() },
             onStatus = { status ->
                 _uiState.update { it.copy(isLive = status == KanbanLiveStatus.CONNECTED) }
@@ -1028,6 +1082,9 @@ class KanbanViewModel(
             if (boards.any { it.id == board.id }) return@launch
 
             eventsBoard = null
+            eventsEndpoint = null
+            eventsLoadGen = 0
+            latestBoardCursor = null
             val fallback =
                 boards.find { it.id == result.data.current }
                     ?: boards.find { it.id.equals("default", ignoreCase = true) }
@@ -1054,7 +1111,7 @@ class KanbanViewModel(
     /** Re-fetch the current board without touching the loading spinner. */
     private fun reloadBoardSilently() {
         val board = _uiState.value.selectedBoard ?: return
-        val gen = currentLoadGen
+        val owner = captureCurrentOwner()
         viewModelScope.launch {
             val result =
                 repository.getBoard(
@@ -1063,9 +1120,13 @@ class KanbanViewModel(
                     workflowTemplateId = _uiState.value.selectedWorkflowTemplateId,
                     currentStepKey = _uiState.value.selectedCurrentStepKey,
                 )
-            if (gen != currentLoadGen) return@launch
+            if (!isCurrentOwner(owner)) return@launch
             if (result is NetworkResult.Success) {
                 val body = result.data
+                eventsBoard = board.id
+                eventsEndpoint = owner.endpoint
+                eventsLoadGen = owner.loadGen
+                latestBoardCursor = body.latestEventId
                 _uiState.update {
                     if (it.selectedBoard?.id != board.id) {
                         it
@@ -1083,13 +1144,17 @@ class KanbanViewModel(
     private fun applyBoardResult(
         board: KanbanBoard,
         result: NetworkResult<KanbanBoardResponse>,
-        gen: Int,
+        owner: BoardLoadOwner = captureCurrentOwner(),
     ) {
-        if (gen != currentLoadGen) return
+        if (!isCurrentOwner(owner)) return
         when (result) {
             is NetworkResult.Success -> {
                 val body = result.data
                 val allTasks = body.columns.flatMap { it.tasks }
+                eventsBoard = board.id
+                eventsEndpoint = owner.endpoint
+                eventsLoadGen = owner.loadGen
+                latestBoardCursor = body.latestEventId
                 _uiState.update {
                     if (it.selectedBoard?.id != board.id) {
                         it
@@ -1121,7 +1186,7 @@ class KanbanViewModel(
 
     private suspend fun loadBoardIntoState(
         board: KanbanBoard,
-        gen: Int = currentLoadGen,
+        owner: BoardLoadOwner = captureCurrentOwner(),
     ) {
         val result =
             repository.getBoard(
@@ -1130,7 +1195,8 @@ class KanbanViewModel(
                 workflowTemplateId = _uiState.value.selectedWorkflowTemplateId,
                 currentStepKey = _uiState.value.selectedCurrentStepKey,
             )
-        applyBoardResult(board, result, gen)
+        if (!isCurrentOwner(owner)) return
+        applyBoardResult(board, result, owner)
     }
 
     fun showToast(message: String) {

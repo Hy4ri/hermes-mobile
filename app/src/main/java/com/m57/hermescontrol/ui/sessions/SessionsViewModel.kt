@@ -17,6 +17,7 @@ import com.m57.hermescontrol.data.model.SessionSearchResult
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.remote.safeApiRead
 import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.data.ws.ChangeEventHub
 import com.m57.hermescontrol.data.ws.ChangeEvents
@@ -233,7 +234,7 @@ class SessionsViewModel(
                 val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
                 when (
                     val result =
-                        safeApiCall {
+                        safeApiRead {
                             ApiClient.hermesApi.getSessions(
                                 limit = PAGE_SIZE,
                                 offset = 0,
@@ -364,7 +365,7 @@ class SessionsViewModel(
                     missing.mapNotNull { pid ->
                         resolvedParentCache[pid] ?: when (
                             val r =
-                                safeApiCall { ApiClient.hermesApi.getSessionInfo(pid) }
+                                safeApiRead { ApiClient.hermesApi.getSessionInfo(pid) }
                         ) {
                             is NetworkResult.Success -> r.data?.also { resolvedParentCache[pid] = it }
                             is NetworkResult.Failure -> null
@@ -484,7 +485,7 @@ class SessionsViewModel(
             safeLaunchLoad(
                 currentJob = loadJob,
                 apiCall = {
-                    safeApiCall {
+                    safeApiRead {
                         ApiClient.hermesApi.getSessions(
                             limit = PAGE_SIZE,
                             offset = 0,
@@ -567,7 +568,7 @@ class SessionsViewModel(
         pageJob =
             viewModelScope.launch {
                 val result =
-                    safeApiCall {
+                    safeApiRead {
                         ApiClient.hermesApi.getSessions(
                             limit = PAGE_SIZE,
                             offset = offset,
@@ -682,7 +683,7 @@ class SessionsViewModel(
         offset: Int,
     ) {
         val result =
-            safeApiCall {
+            safeApiRead {
                 ApiClient.hermesApi.searchSessions(
                     q = query,
                     profile = null,
@@ -741,7 +742,7 @@ class SessionsViewModel(
             safeLaunchLoad(
                 currentJob = statsJob,
                 apiCall = {
-                    safeApiCall { ApiClient.hermesApi.getSessionStats() }
+                    safeApiRead { ApiClient.hermesApi.getSessionStats() }
                 },
                 onStart = { _uiState.update { it.copy(isLoadingStats = true, statsError = null) } },
                 onSuccess = { data ->
@@ -1180,7 +1181,7 @@ class SessionsViewModel(
         viewModelScope.launch {
             val result =
                 runCatching {
-                    safeApiCall { ApiClient.hermesApi.getEmptySessionCount() }
+                    safeApiRead { ApiClient.hermesApi.getEmptySessionCount() }
                 }.getOrNull()
             val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
             if (requestGeneration != generation || currentScope != requestScope) return@launch

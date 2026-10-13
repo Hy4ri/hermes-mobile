@@ -10,6 +10,7 @@ import com.m57.hermescontrol.data.model.MemoryProviderStatusRow
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.remote.safeApiRead
 import com.m57.hermescontrol.ui.common.ToastHost
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -73,7 +74,7 @@ class MemoryProviderDetailViewModel :
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         viewModelScope.launch {
             // GET /api/memory for the provider's live status row.
-            val statusResult = safeApiCall { ApiClient.hermesApi.getMemory() }
+            val statusResult = safeApiRead { ApiClient.hermesApi.getMemory() }
             val status =
                 when (statusResult) {
                     is NetworkResult.Success -> {
@@ -84,7 +85,7 @@ class MemoryProviderDetailViewModel :
                         null
                     }
                 }
-            val configResult = safeApiCall { ApiClient.hermesApi.getMemoryProviderConfig(name) }
+            val configResult = safeApiRead { ApiClient.hermesApi.getMemoryProviderConfig(name) }
             when (configResult) {
                 is NetworkResult.Success -> {
                     _uiState.update {
@@ -226,7 +227,7 @@ class MemoryProviderDetailViewModel :
 
     private fun refreshStatus(name: String) {
         viewModelScope.launch {
-            val result = safeApiCall { ApiClient.hermesApi.getMemory() }
+            val result = safeApiRead { ApiClient.hermesApi.getMemory() }
             if (result is NetworkResult.Success) {
                 val row = result.data.providers.firstOrNull { it.name == name }
                 if (row != null) {

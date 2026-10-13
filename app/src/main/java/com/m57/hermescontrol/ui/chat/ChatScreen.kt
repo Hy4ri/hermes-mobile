@@ -460,7 +460,7 @@ fun ChatScreen(
             state.modelSwitchConfirmMessage == null &&
             state.sudoPrompt == null &&
             state.secretPrompt == null &&
-            !(showContextSheet && state.contextBreakdown != null) &&
+            !showContextSheet &&
             !showSubagentInspectionSheet &&
             state.btwState == null &&
             viewingImage == null &&
@@ -879,12 +879,10 @@ fun ChatScreen(
                 usedTokens = state.usedContextTokens,
                 fullTokens = state.fullContextTokens,
                 compressionCount = state.compressionCount,
-                onClick =
-                    if (state.contextBreakdown != null) {
-                        { showContextSheet = true }
-                    } else {
-                        null
-                    },
+                onClick = {
+                    showContextSheet = true
+                    viewModel.fetchSessionDetailBreakdown()
+                },
             )
 
             if (!timelineState.isHistorical) {
@@ -1039,11 +1037,14 @@ fun ChatScreen(
             )
         }
 
-        if (showContextSheet && state.contextBreakdown != null) {
+        if (showContextSheet) {
             ContextDetailSheet(
-                breakdown = state.contextBreakdown!!,
+                breakdown = state.contextBreakdown,
+                isLoading = state.isContextDetailLoading,
+                errorMessage = state.contextDetailError,
                 usedTokens = state.usedContextTokens,
                 fullTokens = state.fullContextTokens,
+                onRetry = viewModel::fetchSessionDetailBreakdown,
                 onDismiss = { showContextSheet = false },
             )
         }

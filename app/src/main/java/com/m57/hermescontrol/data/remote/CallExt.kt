@@ -29,7 +29,10 @@ suspend fun Call.await(): Response =
                     response: Response,
                 ) {
                     if (continuation.isActive) {
-                        continuation.resume(response)
+                        // #1553: a response can arrive just before cancellation wins coroutine dispatch.
+                        continuation.resume(response) { _, abandoned, _ -> abandoned.close() }
+                    } else {
+                        response.close()
                     }
                 }
             },

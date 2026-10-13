@@ -6,6 +6,7 @@ import com.m57.hermescontrol.data.remote.CookieManager
 import com.m57.hermescontrol.data.remote.DashboardSessionTokenRefresher
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.buildFakePersistentCookieJar
+import com.m57.hermescontrol.data.remote.mockSystemServerTrust
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -40,11 +41,15 @@ class GatewayContractFramesTest {
     @Before
     fun setUp() {
         mockkStatic(Log::class)
+        every { Log.isLoggable(any(), any()) } returns false
         every { Log.d(any<String>(), any<String>()) } returns 0
         every { Log.i(any<String>(), any<String>()) } returns 0
         every { Log.w(any<String>(), any<String>()) } returns 0
         every { Log.w(any<String>(), any<String>(), any<Throwable>()) } returns 0
+        every { Log.e(any<String>(), any<String>()) } returns 0
         every { Log.e(any<String>(), any<String>(), any()) } returns 0
+
+        mockSystemServerTrust()
 
         mockWebServer = MockWebServer()
         mockWebServer.start()

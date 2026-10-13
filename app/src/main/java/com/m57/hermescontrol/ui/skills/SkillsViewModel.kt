@@ -115,6 +115,10 @@ class SkillsViewModel(
                 previewSkillName = null,
                 previewSkillContent = null,
                 isLoadingPreview = false,
+                hubPreviewIdentifier = null,
+                hubPreviewContent = null,
+                isHubPreviewing = false,
+                hubPreviewError = null,
             )
         }
     }
@@ -299,6 +303,7 @@ class SkillsViewModel(
      */
     fun previewHubSkill(identifier: String) {
         if (identifier.isBlank()) return
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
         _uiState.update {
             it.copy(
                 hubPreviewIdentifier = identifier,
@@ -312,12 +317,15 @@ class SkillsViewModel(
                 withContext(ioDispatcher) {
                     safeApiCall { ApiClient.hermesApi.previewHubSkill(identifier = identifier) }
                 }
+            val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+            if (requestScope != null && currentScope != requestScope) return@launch
+            if (_uiState.value.hubPreviewIdentifier != identifier) return@launch
             when (result) {
                 is NetworkResult.Success -> {
                     _uiState.update {
                         it.copy(
                             isHubPreviewing = false,
-                            hubPreviewContent = result.data.content,
+                            hubPreviewContent = result.data.skillMd,
                         )
                     }
                 }

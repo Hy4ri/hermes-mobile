@@ -57,6 +57,7 @@ import com.m57.hermescontrol.data.model.ManagedFileUpload
 import com.m57.hermescontrol.data.model.ManagedFilesListResponse
 import com.m57.hermescontrol.data.model.McpCatalogInstallRequest
 import com.m57.hermescontrol.data.model.McpCatalogResponse
+import com.m57.hermescontrol.data.model.McpOAuthCancelResponse
 import com.m57.hermescontrol.data.model.McpOAuthFlowResponse
 import com.m57.hermescontrol.data.model.McpServer
 import com.m57.hermescontrol.data.model.McpServerTestResponse
@@ -118,6 +119,7 @@ import com.m57.hermescontrol.data.model.SetActiveProfileRequest
 import com.m57.hermescontrol.data.model.Skill
 import com.m57.hermescontrol.data.model.SkillContentResponse
 import com.m57.hermescontrol.data.model.SkillHubInstallRequest
+import com.m57.hermescontrol.data.model.SkillHubPreviewResponse
 import com.m57.hermescontrol.data.model.SkillHubSearchResponse
 import com.m57.hermescontrol.data.model.SkillHubSourcesResponse
 import com.m57.hermescontrol.data.model.SkillHubUninstallRequest
@@ -342,7 +344,7 @@ interface HermesApiService : KanbanApiService {
     @GET("api/skills/hub/preview")
     suspend fun previewHubSkill(
         @Query("identifier") identifier: String,
-    ): Response<SkillContentResponse>
+    ): Response<SkillHubPreviewResponse>
 
     @GET("api/skills/hub/scan")
     suspend fun scanHubSkill(
@@ -607,6 +609,11 @@ interface HermesApiService : KanbanApiService {
     suspend fun getMcpOAuthFlowStatus(
         @Path("flow_id") flowId: String,
     ): Response<McpOAuthFlowResponse>
+
+    @DELETE("api/mcp/oauth/flows/{flow_id}")
+    suspend fun cancelMcpOAuthFlow(
+        @Path("flow_id") flowId: String,
+    ): Response<McpOAuthCancelResponse>
 
     @GET("api/mcp/catalog")
     suspend fun getMcpCatalog(): Response<McpCatalogResponse>
@@ -970,6 +977,7 @@ interface HermesApiService : KanbanApiService {
     suspend fun importUpload(
         @Part("force") force: okhttp3.RequestBody,
         @Part file: okhttp3.MultipartBody.Part,
+        @Query("profile") profile: String? = null,
     ): Response<ActionResponse>
 
     // ── Admin: Debug share ────────────────────────────────────────────

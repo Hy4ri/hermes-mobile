@@ -264,6 +264,11 @@ object ChatWsEventReducer {
             // Change events (issue #784) are consumed by their screens' ViewModels
             is WsEvent.ChangeEvent -> ReducerResult(state = state, streamingState = streamingState)
 
+            // #1563: ephemeral notifications must never become transcript rows.
+            is WsEvent.NotificationShow,
+            is WsEvent.NotificationClear,
+            -> ReducerResult(state = state, streamingState = streamingState)
+
             // TranscriptResyncRequired is handled by ChatViewModel directly (refetch history on replay gap)
             is WsEvent.TranscriptResyncRequired -> ReducerResult(state = state, streamingState = streamingState)
         }

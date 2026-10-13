@@ -2,6 +2,11 @@ package com.m57.hermescontrol.data.remote
 
 import com.m57.hermescontrol.BuildConfig
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
+import okhttp3.Cookie
+import okhttp3.CookieJar
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -88,6 +93,62 @@ object ApiClient {
     }
 
     /**
+     * A flow-owned client whose endpoint, credentials and profile cannot follow a later selection (#1560).
+     * Captured cookies are read-only; a late OAuth response must not write into the newly selected cookie store.
+     */
+    fun createScopedService(
+        scope: DataScope,
+        token: String?,
+        cookies: List<Cookie>,
+    ): HermesApiService {
+        val endpoint = ServerEndpoint.parseForBuild(scope.baseUrl)
+        val capturedCookies = cookies.toList()
+        val client =
+            OkHttpProvider.base
+                .newBuilder()
+                .cookieJar(
+                    object : CookieJar {
+                        override fun loadForRequest(url: HttpUrl): List<Cookie> =
+                            capturedCookies.filter { it.matches(url) }
+
+                        override fun saveFromResponse(
+                            url: HttpUrl,
+                            cookies: List<Cookie>,
+                        ) = Unit
+                    },
+                ).addInterceptor { chain ->
+                    val request = chain.request()
+                    check(
+                        request.url.scheme == endpoint.baseUrl.scheme &&
+                            request.url.host == endpoint.baseUrl.host &&
+                            request.url.port == endpoint.baseUrl.port,
+                    ) { "Flow request escaped its captured endpoint" }
+                    val url =
+                        if (request.url.queryParameter("profile") == null) {
+                            request.url
+                                .newBuilder()
+                                .addQueryParameter("profile", scope.activeProfileId)
+                                .build()
+                        } else {
+                            request.url
+                        }
+                    val builder = request.newBuilder().url(url)
+                    if (!token.isNullOrBlank()) builder.header("Authorization", "Bearer $token")
+                    chain.proceed(builder.build())
+                }.authenticator(okhttp3.Authenticator.NONE)
+                .followRedirects(false)
+                .followSslRedirects(false)
+                .build()
+        return Retrofit
+            .Builder()
+            .baseUrl(endpoint.baseUrl)
+            .client(client)
+            .addConverterFactory(OkHttpProvider.json.asConverterFactory("application/json".toMediaType()))
+            .build()
+            .create(HermesApiService::class.java)
+    }
+
+    /**
      * Dedicated [HermesApiService] for the blocking voice-note transcription
      * POST (`/api/audio/transcribe`).
      *
@@ -140,11 +201,28 @@ object ApiClient {
      */
     private fun restAuthInterceptor(): Interceptor =
         Interceptor { chain ->
-            val request = chain.request()
+            // #1552: recovery uses the generation which sent this request, not a later profile selection.
+            val scope = AuthManager.currentDataScope()
+            val request =
+                chain
+                    .request()
+                    .newBuilder()
+                    .tag(DataScope::class.java, scope)
+                    .build()
+            scope?.baseUrl?.toHttpUrlOrNull()?.let { endpoint ->
+                if (request.url.scheme != endpoint.scheme || request.url.host != endpoint.host ||
+                    request.url.port != endpoint.port
+                ) {
+                    throw java.io.IOException("Request no longer belongs to the selected connection")
+                }
+            }
             if (AuthManager.isGatedMode()) {
                 return@Interceptor chain.proceed(request)
             }
             val token = AuthManager.getToken()
+            if (scope != null && AuthManager.currentDataScope() != scope) {
+                throw java.io.IOException("Authentication changed while preparing the request")
+            }
             if (!token.isNullOrBlank()) {
                 chain.proceed(
                     request

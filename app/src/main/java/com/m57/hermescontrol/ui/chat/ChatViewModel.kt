@@ -13,6 +13,7 @@ import com.m57.hermescontrol.data.local.SlashUsageStore
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.BusySendMode
 import com.m57.hermescontrol.data.model.ModelCapabilities
+import com.m57.hermescontrol.data.model.ModelInfoResponse
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.data.model.ProcessInfo
@@ -30,9 +31,11 @@ import com.m57.hermescontrol.data.remote.GatewayFileClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.remote.safeApiRead
 import com.m57.hermescontrol.data.repository.VoiceNoteRepository
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
+import com.m57.hermescontrol.data.ws.ChangeEvents
 import com.m57.hermescontrol.data.ws.CommandBlocklist
 import com.m57.hermescontrol.data.ws.CommandCatalog
 import com.m57.hermescontrol.data.ws.ConnectionOperationParser
@@ -272,6 +275,8 @@ data class ChatUiState(
     // Detailed token breakdown for the context meter's detail sheet (null until
     // the first successful session-detail fetch).
     val contextBreakdown: ContextBreakdown? = null,
+    val isContextDetailLoading: Boolean = false,
+    val contextDetailError: String? = null,
     // How many times the current session has been context-compressed (null
     // until the first successful session.usage fetch) — drives the
     // "compressed ×N" badge on the context chip.
@@ -532,6 +537,21 @@ class ChatViewModel(
     /** Maps an in-flight RPC id to its method for UI error labeling. */
     private val idToMethod = ConcurrentHashMap<String, String>()
 
+    /** #1556: identity a catalog result belongs to; results for any other owner are dropped. */
+    private data class CatalogOwner(
+        val scope: DataScope?,
+        val profile: String?,
+        val runtimeSessionId: String?,
+        val cwd: String?,
+        val scopeGeneration: Long,
+    )
+
+    // Declared before init: handleGatewayReady() can run from the constructor.
+    private val catalogRequestOwners = ConcurrentHashMap<String, CatalogOwner>()
+    private var catalogInFlightOwner: CatalogOwner? = null
+    private var catalogLoadedOwner: CatalogOwner? = null
+    private var catalogCwd: String? = null
+
     private data class SessionRequest(
         val generation: Long,
         val resumeSequence: Long = 0L,
@@ -593,7 +613,10 @@ class ChatViewModel(
     private var lastSubmissionKey: String? = null
     private var lastSubmissionAt = 0L
     private var sessionGeneration = 0L
+    private var scopeGeneration = 0L
     private var mainTurnEpoch = 0L
+    private var refreshSessionsJob: Job? = null
+    private var refreshProjectsJob: Job? = null
     private var lastPendingSendCreatedAt = 0L
 
     private var resumeRequestSequence = 0L
@@ -691,6 +714,104 @@ class ChatViewModel(
 
     /** Tracks the latest context-usage poll or refetch job. */
     private var contextUsageJob: Job? = null
+
+    private data class ContextUsageOwner(
+        val sessionId: String,
+        val runtimeId: String?,
+        val scope: DataScope?,
+        val sessionGeneration: Long,
+        val modelGeneration: Long,
+        val model: String?,
+        val profile: String?,
+    )
+
+    private var contextUsageOwner: ContextUsageOwner? = null
+
+    private data class ContextModelKey(
+        val scope: DataScope?,
+        val model: String?,
+        val generation: Long,
+        val profile: String?,
+    )
+
+    private var contextModelInfoCache: Pair<ContextModelKey, ModelInfoResponse>? = null
+
+    private var contextDetailJob: Job? = null
+
+    private data class ContextDetailOwner(
+        val sessionId: String,
+        val scope: DataScope?,
+        val generation: Long,
+        val profile: String?,
+    )
+
+    private var contextDetailOwner: ContextDetailOwner? = null
+
+    /** #1558: cumulative accounting is fetched only when the detail surface explicitly requests it. */
+    fun fetchSessionDetailBreakdown() {
+        val sessionId = _uiState.value.currentSessionId ?: return
+        val scope = AuthManager.currentDataScope()
+        val profile = scope?.activeProfileId ?: AuthManager.activeProfileId.value
+        val owner = ContextDetailOwner(sessionId, scope, sessionGeneration, profile)
+        if (contextDetailJob?.isCompleted == false && contextDetailOwner == owner) return
+        val service = ApiClient.hermesApi
+        contextDetailJob?.cancel()
+        contextDetailOwner = owner
+
+        fun ownsDetail(): Boolean =
+            contextDetailOwner == owner && sessionGeneration == owner.generation &&
+                _uiState.value.currentSessionId == sessionId && AuthManager.currentDataScope() == scope &&
+                (scope != null || AuthManager.activeProfileId.value == profile)
+
+        val job =
+            viewModelScope.launch(start = CoroutineStart.LAZY) {
+                try {
+                    val result =
+                        withContext(ioDispatcher) {
+                            safeApiCall(retries = 0) { service.getSessionDetail(sessionId, profile) }
+                        }
+                    if (!ownsDetail()) return@launch
+                    when (result) {
+                        is NetworkResult.Success -> {
+                            val detail = result.data
+                            val input = detail.input_tokens
+                            if (input == null) {
+                                _uiState.update {
+                                    it.copy(contextDetailError = "Token accounting is not available for this session")
+                                }
+                            } else {
+                                _uiState.update {
+                                    it.copy(
+                                        contextBreakdown =
+                                            ContextBreakdown(
+                                                inputTokens = input,
+                                                outputTokens = detail.output_tokens ?: 0L,
+                                                cacheReadTokens = detail.cache_read_tokens ?: 0L,
+                                                cacheWriteTokens = detail.cache_write_tokens ?: 0L,
+                                                reasoningTokens = detail.reasoning_tokens ?: 0L,
+                                                messageCount = detail.message_count ?: 0,
+                                            ),
+                                    )
+                                }
+                            }
+                        }
+
+                        is NetworkResult.Failure -> {
+                            _uiState.update { it.copy(contextDetailError = result.error.message) }
+                        }
+                    }
+                } finally {
+                    if (contextDetailOwner == owner) {
+                        contextDetailOwner = null
+                        contextDetailJob = null
+                        _uiState.update { it.copy(isContextDetailLoading = false) }
+                    }
+                }
+            }
+        contextDetailJob = job
+        _uiState.update { it.copy(isContextDetailLoading = true, contextDetailError = null) }
+        job.start()
+    }
 
     private val wsClient = HermesWsClient
 
@@ -941,9 +1062,6 @@ class ChatViewModel(
                     _uiState.value.currentSessionId?.let { sessionId ->
                         if (!cacheLoaded) loadCachedMessages(sessionId, sessionGeneration)
                     }
-                    // Fail any in-flight awaited RPCs so callers don't hang
-                    // across the disconnect (delegated to HermesWsClient, issue #526).
-                    wsClient.rejectAllPending()
                 }
             }
         }
@@ -955,6 +1073,12 @@ class ChatViewModel(
         viewModelScope.launch {
             ProfileSwitchCoordinator.switched
                 .collect { _ ->
+                    scopeGeneration++
+                    invalidateCommandCatalog(clearCatalog = true)
+                    refreshSessionsJob?.cancel()
+                    refreshSessionsJob = null
+                    refreshProjectsJob?.cancel()
+                    refreshProjectsJob = null
                     pendingGoneSessionNotice = false
                     sessionHasServerPresence = false
                     resetSessionState(sessionId = null, title = "Hermes", isLoading = true)
@@ -967,6 +1091,12 @@ class ChatViewModel(
         viewModelScope.launch {
             ProfileSwitchCoordinator.connectionSwitched
                 .collect { _ ->
+                    scopeGeneration++
+                    invalidateCommandCatalog(clearCatalog = true)
+                    refreshSessionsJob?.cancel()
+                    refreshSessionsJob = null
+                    refreshProjectsJob?.cancel()
+                    refreshProjectsJob = null
                     pendingGoneSessionNotice = false
                     sessionHasServerPresence = false
                     resetSessionState(sessionId = null, title = "Hermes", isLoading = true)
@@ -1045,6 +1175,8 @@ class ChatViewModel(
         _uiState.update { it.copy(isLoading = false, resumeError = null, isResumeRetrying = false) }
         cancelResumeRetry()
         loadSessions()
+        // A new socket orphans in-flight catalog requests; refetch for the draft owner.
+        invalidateCommandCatalog(clearCatalog = false)
         fetchCommandCatalog()
         modelSwitchDelegate.preloadModelOptions()
         val currentId = _uiState.value.currentSessionId
@@ -1166,6 +1298,12 @@ class ChatViewModel(
                 // Ignore session.info events clearly tagged for a different session
                 if (event.sessionId == null || current == null || event.sessionId == current) {
                     handleSessionInfo(event.data)
+                    // A workspace change alters which skills/commands the catalog exposes.
+                    val cwd = event.data?.get("cwd") as? String
+                    if (cwd != null && cwd != catalogCwd) {
+                        catalogCwd = cwd
+                        fetchCommandCatalog()
+                    }
                 }
             }
 
@@ -1235,6 +1373,14 @@ class ChatViewModel(
 
             is WsEvent.RpcError -> {
                 handleRpcError(event.id, event.error)
+            }
+
+            is WsEvent.ChangeEvent -> {
+                when (event.type) {
+                    ChangeEvents.SESSIONS -> coalescedSilentLoadSessions()
+                    ChangeEvents.PROJECTS -> coalescedSilentLoadStartableProjects()
+                    else -> Unit
+                }
             }
 
             is WsEvent.SessionUpdated -> {
@@ -1466,6 +1612,16 @@ class ChatViewModel(
                         serverRequestId = request.id,
                     ),
                 )
+            }
+
+            "preview.read", "preview.act", "terminal.read", "window.read", "tour" -> {
+                if (wsClient.declinesNotShown) {
+                    wsClient.respondToServerRequestError(
+                        request.id,
+                        4404,
+                        "This chat is not shown in any Hermes Desktop window, so its preview, terminal and tour are out of reach. Ask the user to open this chat in the Desktop app, then retry.",
+                    )
+                }
             }
 
             else -> {
@@ -1937,6 +2093,7 @@ class ChatViewModel(
                 val storageId = resultMap["stored_session_id"] as? String ?: runtimeId
                 runtimeSessionId = runtimeId
                 connectionOperationDelegate.bindSession(runtimeId)
+                fetchCommandCatalog()
                 // The gateway persists the row lazily on the first prompt —
                 // do not resume this key until presence is confirmed.
                 sessionHasServerPresence = false
@@ -1951,6 +2108,8 @@ class ChatViewModel(
                         usedContextTokens = null,
                         fullContextTokens = null,
                         contextBreakdown = null,
+                        isContextDetailLoading = false,
+                        contextDetailError = null,
                         compressionCount = null,
                         sessionUsage = null,
                         isCompressing = false,
@@ -2021,6 +2180,7 @@ class ChatViewModel(
                     )
                 runtimeSessionId = runtimeId
                 connectionOperationDelegate.bindSession(runtimeId)
+                fetchCommandCatalog()
                 resumedGeneration = generation
                 ActiveSessionHolder.set(runtimeId, storageId)
                 sessionHasServerPresence = false
@@ -2068,6 +2228,7 @@ class ChatViewModel(
                 }
                 runtimeSessionId = runtimeId
                 connectionOperationDelegate.bindSession(runtimeId)
+                fetchCommandCatalog()
                 mainTurnBusy = resultMap["running"] as? Boolean ?: false
                 // Resume succeeded — the gateway confirmed the DB row.
                 sessionHasServerPresence = true
@@ -2262,9 +2423,12 @@ class ChatViewModel(
             }
 
             WsMethods.COMMANDS_CATALOG -> {
+                val owner = catalogRequestOwners[id]
+                if (!settleCatalogRequest(id)) return
                 val map = result as? Map<*, *> ?: return
                 val catalog = parseCommandCatalog(map)
                 if (catalog != null) {
+                    catalogLoadedOwner = owner
                     _uiState.update { it.copy(commandCatalog = catalog) }
                 }
             }
@@ -2360,6 +2524,8 @@ class ChatViewModel(
             return
         }
         val method = idToMethod.remove(id) ?: return
+        // A failed catalog fetch releases the coalescing guard so a later trigger can retry.
+        if (method == WsMethods.COMMANDS_CATALOG) settleCatalogRequest(id)
         val request = sessionRequestById.remove(id)
         val pendingBranch = branchWholeRequests.remove(id)
         if (request != null && isStaleSessionRequest(request)) {
@@ -4973,10 +5139,42 @@ class ChatViewModel(
 
     /** Loads the projects the picker offers; an unreachable or older gateway leaves it empty (no picker). */
     fun loadStartableProjects() {
+        val currentScope = AuthManager.currentDataScope()
+        val currentGen = scopeGeneration
         viewModelScope.launch(ioDispatcher) {
             val projects = projectsSource.fetchProjects()?.startable() ?: return@launch
-            _uiState.update { it.copy(startableProjects = projects) }
+            if (scopeGeneration == currentGen && AuthManager.currentDataScope() == currentScope) {
+                _uiState.update { it.copy(startableProjects = projects) }
+            }
         }
+    }
+
+    private fun coalescedSilentLoadStartableProjects() {
+        if (refreshProjectsJob?.isActive == true) return
+        val currentScope = AuthManager.currentDataScope()
+        val currentGen = scopeGeneration
+        refreshProjectsJob =
+            viewModelScope.launch(ioDispatcher) {
+                // #1562: events landing while this job is active fold into this single refresh.
+                delay(CHANGE_COALESCE_MS)
+                val projects = projectsSource.fetchProjects()?.startable() ?: return@launch
+                if (scopeGeneration == currentGen && AuthManager.currentDataScope() == currentScope) {
+                    _uiState.update { it.copy(startableProjects = projects) }
+                }
+            }
+    }
+
+    private fun coalescedSilentLoadSessions() {
+        if (refreshSessionsJob?.isActive == true) return
+        refreshSessionsJob =
+            viewModelScope.launch(ioDispatcher) {
+                delay(CHANGE_COALESCE_MS)
+                wsClient.send(
+                    RpcMethods.SESSION_LIST,
+                    SessionListParams,
+                    onSent = { id -> trackRequest(id, WsMethods.SESSION_LIST) },
+                )
+            }
     }
 
     /**
@@ -5033,14 +5231,47 @@ class ChatViewModel(
         }
     }
 
+    private fun currentCatalogOwner(): CatalogOwner {
+        val scope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+        return CatalogOwner(
+            scope = scope,
+            profile = scope?.activeProfileId ?: AuthManager.activeProfileId.value,
+            runtimeSessionId = runtimeSessionId,
+            cwd = catalogCwd,
+            scopeGeneration = scopeGeneration,
+        )
+    }
+
+    private fun invalidateCommandCatalog(clearCatalog: Boolean) {
+        catalogRequestOwners.clear()
+        catalogInFlightOwner = null
+        catalogLoadedOwner = null
+        if (clearCatalog) _uiState.update { it.copy(commandCatalog = CommandCatalog()) }
+    }
+
     private fun fetchCommandCatalog() {
+        val owner = currentCatalogOwner()
+        // Same owner already loaded or in flight: coalesce instead of resending.
+        if (owner == catalogInFlightOwner || owner == catalogLoadedOwner) return
+        catalogInFlightOwner = owner
         viewModelScope.launch(ioDispatcher) {
             wsClient.send(
                 RpcMethods.COMMANDS_CATALOG,
-                CommandsCatalogParams,
-                onSent = { id -> trackRequest(id, WsMethods.COMMANDS_CATALOG) },
+                // Storage IDs are never sent: only a registered runtime session binds the workspace.
+                CommandsCatalogParams(sessionId = owner.runtimeSessionId, profile = owner.profile),
+                onSent = { id ->
+                    catalogRequestOwners[id] = owner
+                    trackRequest(id, WsMethods.COMMANDS_CATALOG)
+                },
             )
         }
+    }
+
+    /** Returns true when [id]'s result still belongs to the current catalog owner. */
+    private fun settleCatalogRequest(id: String): Boolean {
+        val owner = catalogRequestOwners.remove(id) ?: return false
+        if (catalogInFlightOwner == owner) catalogInFlightOwner = null
+        return owner == currentCatalogOwner()
     }
 
     fun refreshCurrentSession() {
@@ -5207,7 +5438,7 @@ class ChatViewModel(
                 try {
                     val result =
                         withContext(ioDispatcher) {
-                            safeApiCall {
+                            safeApiRead {
                                 ApiClient.hermesApi.getSessionTimeline(
                                     sessionId = sessionId,
                                     profile = profile,
@@ -5285,7 +5516,7 @@ class ChatViewModel(
                 try {
                     val result =
                         withContext(ioDispatcher) {
-                            safeApiCall {
+                            safeApiRead {
                                 ApiClient.hermesApi.getSessionMessagesAround(
                                     sessionId = sessionId,
                                     rowId = rowId,
@@ -5829,7 +6060,7 @@ class ChatViewModel(
                     try {
                         val result =
                             withContext(ioDispatcher) {
-                                safeApiCall {
+                                safeApiRead {
                                     api.getSessionMessagesAround(sessionId, rowId.toInt(), profile, limit = 1)
                                 }
                             }
@@ -5904,11 +6135,15 @@ class ChatViewModel(
         contextUsageJob?.cancel()
         contextUsageJob = null
         modelGeneration++
+        contextDetailJob?.cancel()
+        contextDetailJob = null
+        contextDetailOwner = null
         lastConfirmedSessionModel = null
         modelSwitchDelegate.reset()
         resumedGeneration = -1L
         hydratedGeneration = -1L
         runtimeSessionId = null
+        catalogCwd = null
         pendingInitialPrompt = null
         ActiveSessionHolder.clear()
         cacheJob?.cancel()
@@ -5962,6 +6197,8 @@ class ChatViewModel(
                 usedContextTokens = null,
                 fullContextTokens = null,
                 contextBreakdown = null,
+                isContextDetailLoading = false,
+                contextDetailError = null,
                 compressionCount = null,
                 sessionUsage = null,
                 // #1433: compaction state belongs to the session being left.
@@ -6436,7 +6673,12 @@ class ChatViewModel(
         targetSessionGeneration == sessionGeneration &&
             targetModelGeneration == modelGeneration &&
             targetRequestSequence == contextFetchSequence &&
-            _uiState.value.currentSessionId == sessionId
+            _uiState.value.currentSessionId == sessionId &&
+            contextUsageOwner?.let { owner ->
+                owner.scope == AuthManager.currentDataScope() && owner.runtimeId == runtimeSessionId &&
+                    owner.model == _uiState.value.currentSessionModel &&
+                    (owner.scope != null || owner.profile == AuthManager.activeProfileId.value)
+            } == true
 
     internal fun isMatchingModel(
         currentModel: String?,
@@ -6484,8 +6726,8 @@ class ChatViewModel(
      *
      * The denominator comes from the RPC's `context_max` (the compressor's
      * real context window) when present, else `GET /api/model/info`
-     * `effective_context_length`. The REST session-detail call is kept only to
-     * feed the detail sheet's cumulative token accounting.
+     * `effective_context_length`. Cumulative session-detail accounting is loaded
+     * separately by [fetchSessionDetailBreakdown], only on an explicit request.
      *
      * Both calls are independent and best-effort: a failure on one must not
      * wipe the other's already-shown value, and neither blocks the chat. The
@@ -6495,51 +6737,29 @@ class ChatViewModel(
      */
     fun fetchContextUsage(skipRestFallback: Boolean = false) {
         val sessionId = _uiState.value.currentSessionId ?: return
-        val profile = AuthManager.activeProfileId.value
+        val scope = AuthManager.currentDataScope()
+        val profile = scope?.activeProfileId ?: AuthManager.activeProfileId.value
         val targetSessionGeneration = sessionGeneration
         val targetModelGeneration = modelGeneration
+        val owner =
+            ContextUsageOwner(
+                sessionId,
+                runtimeSessionId,
+                scope,
+                targetSessionGeneration,
+                targetModelGeneration,
+                _uiState.value.currentSessionModel,
+                profile,
+            )
+        if (contextUsageJob?.isActive == true && contextUsageOwner == owner) return
         val targetRequestSequence = ++contextFetchSequence
         val isSwitchPending = modelSwitchDelegate.isSwitchPending()
+        val service = ApiClient.hermesApi
 
         contextUsageJob?.cancel()
+        contextUsageOwner = owner
         contextUsageJob =
-            viewModelScope.launch(ioDispatcher) {
-                // Denominator fallback: full context window (cheap, public, rarely
-                // changes). The RPC's context_max below overrides it when present.
-                // Kept as a local (not a state write) so both sources resolve
-                // before ONE atomic update below (issue #817 — two independent
-                // writes let a stale pre-swap value override a fresh one mid-swap).
-                val fullResult =
-                    safeApiCall { ApiClient.hermesApi.getModelInfo() }
-                coroutineContext.ensureActive()
-                if (!isCurrentContextFetch(
-                        sessionId,
-                        targetSessionGeneration,
-                        targetModelGeneration,
-                        targetRequestSequence,
-                    )
-                ) {
-                    return@launch
-                }
-                val restFull =
-                    if (fullResult is NetworkResult.Success && !isSwitchPending) {
-                        val info = fullResult.data
-                        val currentModel = _uiState.value.currentSessionModel
-                        // Issue #1103: only use profile REST model/info as fallback if it
-                        // matches the current session model identity. If the session was switched to
-                        // another model (e.g. Solar, Gemini), the profile-level model/info describes
-                        // a different model and must never poison the session's context window.
-                        if (isMatchingModel(currentModel, info)) {
-                            modelSwitchDelegate.applyModelInfo(info, AuthManager.currentDataScope())
-                            info.effective_context_length
-                                ?: info.auto_context_length
-                                ?: info.config_context_length
-                        } else {
-                            null
-                        }
-                    } else {
-                        null
-                    }
+            viewModelScope.launch(start = CoroutineStart.LAZY) {
                 // Numerator: live context occupancy from the gateway's live agent,
                 // via the same RPC the desktop meter uses. `context_used` is the
                 // real current prompt size (drops after compression); `context_max`
@@ -6555,16 +6775,55 @@ class ChatViewModel(
                 // storage id).
                 var rpcUsed: Long? = null
                 var rpcMax: Long? = null
-                val rpcSessionId = runtimeSessionId
+                val rpcSessionId = owner.runtimeId
                 if (rpcSessionId != null) {
+                    // #1558: start both live reads before awaiting either; failures are independent.
+                    val breakdownDeferred =
+                        async(ioDispatcher) {
+                            if (!isCurrentContextFetch(
+                                    sessionId,
+                                    targetSessionGeneration,
+                                    targetModelGeneration,
+                                    targetRequestSequence,
+                                )
+                            ) {
+                                return@async null
+                            }
+                            try {
+                                wsClient.call(RpcMethods.SESSION_CONTEXT_BREAKDOWN, SessionIdParams(rpcSessionId))
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (_: Exception) {
+                                null
+                            }
+                        }
+                    val usageDeferred =
+                        async(ioDispatcher) {
+                            if (!isCurrentContextFetch(
+                                    sessionId,
+                                    targetSessionGeneration,
+                                    targetModelGeneration,
+                                    targetRequestSequence,
+                                )
+                            ) {
+                                return@async null
+                            }
+                            if (isSwitchPending) {
+                                null
+                            } else {
+                                try {
+                                    wsClient.call(RpcMethods.SESSION_USAGE, SessionIdParams(rpcSessionId))
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (_: Exception) {
+                                    null
+                                }
+                            }
+                        }
                     try {
-                        val result =
-                            wsClient.call(
-                                RpcMethods.SESSION_CONTEXT_BREAKDOWN,
-                                SessionIdParams(rpcSessionId),
-                            )
+                        val result = breakdownDeferred.await()
                         coroutineContext.ensureActive()
-                        val ctx = parseContextBreakdown(result)
+                        val ctx = result?.let { parseContextBreakdown(it) }
                         if (ctx != null) {
                             val currentModel = _uiState.value.currentSessionModel
                             val modelMatches =
@@ -6574,7 +6833,7 @@ class ChatViewModel(
                                     !isSwitchPending
                                 }
                             if (modelMatches) {
-                                rpcUsed = ctx.contextUsed?.takeIf { it > 0L }
+                                rpcUsed = ctx.contextUsed?.takeIf { it >= 0L }
                                 rpcMax = ctx.contextMax?.takeIf { it > 0L }
                             }
                         }
@@ -6590,6 +6849,7 @@ class ChatViewModel(
                             targetRequestSequence,
                         )
                     ) {
+                        usageDeferred.cancel()
                         return@launch
                     }
                     // Compression count: how many times this session has been compacted
@@ -6597,13 +6857,9 @@ class ChatViewModel(
                     // the same usage snapshot the desktop status bar reads.
                     if (!isSwitchPending) {
                         try {
-                            val usage =
-                                wsClient.call(
-                                    RpcMethods.SESSION_USAGE,
-                                    SessionIdParams(rpcSessionId),
-                                )
+                            val usage = usageDeferred.await()
                             coroutineContext.ensureActive()
-                            val snapshot = parseUsageSnapshot(usage)
+                            val snapshot = usage?.let { parseUsageSnapshot(it) }
                             if (snapshot != null) {
                                 _uiState.update { current ->
                                     if (!isCurrentContextFetch(
@@ -6636,6 +6892,38 @@ class ChatViewModel(
                 ) {
                     return@launch
                 }
+                // REST is a conditional, owner-bound fallback, never a speculative parallel fetch.
+                var restFull: Long? = null
+                if (rpcMax == null && !skipRestFallback && !isSwitchPending) {
+                    val cacheKey = ContextModelKey(scope, owner.model, targetModelGeneration, profile)
+                    val cached = contextModelInfoCache?.takeIf { it.first == cacheKey }?.second
+                    val info =
+                        cached ?: withContext(ioDispatcher) {
+                            when (val result = safeApiRead { service.getModelInfo(profile) }) {
+                                is NetworkResult.Success -> result.data
+                                is NetworkResult.Failure -> null
+                            }
+                        }
+                    if (!isCurrentContextFetch(
+                            sessionId,
+                            targetSessionGeneration,
+                            targetModelGeneration,
+                            targetRequestSequence,
+                        )
+                    ) {
+                        return@launch
+                    }
+                    if (info != null && isMatchingModel(owner.model, info)) {
+                        restFull =
+                            listOfNotNull(
+                                info.effective_context_length,
+                                info.auto_context_length,
+                                info.config_context_length,
+                            ).firstOrNull { it > 0L }
+                        if (restFull != null) contextModelInfoCache = cacheKey to info
+                        modelSwitchDelegate.applyModelInfo(info, scope)
+                    }
+                }
                 // Issue #817 & #1103: single atomic denominator write. The RPC's live
                 // context_max wins, REST model/info is the fallback, and a stale
                 // value from a pre-swap fetch can never overwrite a fresh one —
@@ -6658,50 +6946,15 @@ class ChatViewModel(
                         )
                     }
                 }
-                // Detail-sheet accounting (cumulative REST counters, informational).
-                coroutineContext.ensureActive()
-                if (!isCurrentContextFetch(
-                        sessionId,
-                        targetSessionGeneration,
-                        targetModelGeneration,
-                        targetRequestSequence,
-                    )
-                ) {
-                    return@launch
-                }
-                val usedResult =
-                    safeApiCall { ApiClient.hermesApi.getSessionDetail(sessionId, profile) }
-                coroutineContext.ensureActive()
-                if (usedResult is NetworkResult.Success) {
-                    val d = usedResult.data
-                    val used = d.input_tokens
-                    if (used != null) {
-                        _uiState.update { current ->
-                            if (!isCurrentContextFetch(
-                                    sessionId,
-                                    targetSessionGeneration,
-                                    targetModelGeneration,
-                                    targetRequestSequence,
-                                )
-                            ) {
-                                current
-                            } else {
-                                current.copy(
-                                    contextBreakdown =
-                                        ContextBreakdown(
-                                            inputTokens = used,
-                                            outputTokens = d.output_tokens ?: 0L,
-                                            cacheReadTokens = d.cache_read_tokens ?: 0L,
-                                            cacheWriteTokens = d.cache_write_tokens ?: 0L,
-                                            reasoningTokens = d.reasoning_tokens ?: 0L,
-                                            messageCount = d.message_count ?: 0,
-                                        ),
-                                )
-                            }
-                        }
-                    }
-                }
             }
+        val job = contextUsageJob ?: return
+        job.invokeOnCompletion {
+            if (contextUsageJob === job) {
+                contextUsageJob = null
+                contextUsageOwner = null
+            }
+        }
+        job.start()
     }
 
     private suspend fun fetchServerMessageCount(
@@ -6719,7 +6972,7 @@ class ChatViewModel(
                 // Backend caps limit at 100 (sessions.py Query le=100) — 500
                 // 422'd (seen in device logcat after a branch). Sessions are
                 // ordered "recent", so the target is always in the top page.
-                safeApiCall { ApiClient.hermesApi.getSessions(limit = 100, offset = 0, order = "recent") }
+                safeApiRead { ApiClient.hermesApi.getSessions(limit = 100, offset = 0, order = "recent") }
             }
         if (result is NetworkResult.Success) {
             val sessions = result.data.sessions.orEmpty()
@@ -6759,7 +7012,7 @@ class ChatViewModel(
         order: String? = null,
     ) = historyFetchMutex.withLock {
         withContext(ioDispatcher) {
-            safeApiCall {
+            safeApiRead {
                 ApiClient.hermesApi.getSessionMessages(
                     sessionId = sessionId,
                     limit = limit,
@@ -7074,6 +7327,7 @@ class ChatViewModel(
         const val MAX_RESUME_RETRIES = 4
 
         /** Base backoff for resume retries — doubles per attempt, capped at 8s. */
+        const val CHANGE_COALESCE_MS = 250L
         const val RESUME_RETRY_BASE_MS = 1_000L
 
         /** Upper bound for the resume retry backoff delay. */

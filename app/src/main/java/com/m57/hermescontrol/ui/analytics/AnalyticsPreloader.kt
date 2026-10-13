@@ -5,7 +5,7 @@ import com.m57.hermescontrol.data.local.AnalyticsCacheStore
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
-import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.remote.safeApiRead
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -37,11 +37,11 @@ object AnalyticsPreloader {
                 // Skip windows already cached on disk — don't refetch what we have.
                 if (store.load(days, null) != null) continue
                 val usage =
-                    safeApiCall<com.m57.hermescontrol.data.model.AnalyticsResponse> {
+                    safeApiRead<com.m57.hermescontrol.data.model.AnalyticsResponse> {
                         ApiClient.hermesApi.getAnalytics(days, null)
                     }
                 val models =
-                    safeApiCall<com.m57.hermescontrol.data.model.ModelsAnalyticsResponse> {
+                    safeApiRead<com.m57.hermescontrol.data.model.ModelsAnalyticsResponse> {
                         ApiClient.hermesApi.getModelsAnalytics(days, null)
                     }
                 val usageData = (usage as? NetworkResult.Success)?.data ?: continue

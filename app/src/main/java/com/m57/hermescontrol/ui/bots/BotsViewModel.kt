@@ -14,6 +14,7 @@ import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.remote.safeApiRead
 import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.contract.ProfilesConfigureParams
@@ -242,7 +243,7 @@ class BotsViewModel(
         }
         viewModelScope.launch(ioDispatcher) {
             coroutineScope {
-                val activeDeferred = async(ioDispatcher) { safeApiCall { ApiClient.hermesApi.getActiveProfile() } }
+                val activeDeferred = async(ioDispatcher) { safeApiRead { ApiClient.hermesApi.getActiveProfile() } }
 
                 // First try fetching profiles via WebSocket RPC (profiles.list) which includes ui_meta (groups, custom avatars).
                 var profilesWithMeta: List<ProfileInfo>? = null
@@ -262,7 +263,7 @@ class BotsViewModel(
                     if (profilesWithMeta != null) {
                         null
                     } else {
-                        safeApiCall { ApiClient.hermesApi.getProfiles() }
+                        safeApiRead { ApiClient.hermesApi.getProfiles() }
                     }
                 val activeResult = activeDeferred.await()
 

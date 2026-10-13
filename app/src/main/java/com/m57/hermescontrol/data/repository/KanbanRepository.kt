@@ -46,6 +46,7 @@ import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.KanbanApiService
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.remote.safeApiRead
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -219,7 +220,7 @@ class KanbanRepositoryImpl(
 ) : KanbanRepository {
     override suspend fun getBoards(includeArchived: Boolean): NetworkResult<KanbanBoardsResponse> =
         withContext(ioDispatcher) {
-            safeApiCall { apiProvider().getBoards(includeArchived) }
+            safeApiRead { apiProvider().getBoards(includeArchived) }
         }
 
     override suspend fun getBoard(
@@ -230,7 +231,7 @@ class KanbanRepositoryImpl(
         currentStepKey: String?,
     ): NetworkResult<KanbanBoardResponse> =
         withContext(ioDispatcher) {
-            safeApiCall { apiProvider().getBoard(board, includeArchived, tenant, workflowTemplateId, currentStepKey) }
+            safeApiRead { apiProvider().getBoard(board, includeArchived, tenant, workflowTemplateId, currentStepKey) }
         }
 
     override suspend fun createBoard(body: CreateBoardBody): NetworkResult<CreateBoardResponse> =
@@ -274,7 +275,7 @@ class KanbanRepositoryImpl(
         runStateName: String?,
     ): NetworkResult<KanbanTaskDetailResponse> =
         withContext(ioDispatcher) {
-            safeApiCall { apiProvider().getTask(taskId, board, runStateType, runStateName) }
+            safeApiRead { apiProvider().getTask(taskId, board, runStateType, runStateName) }
         }
 
     override suspend fun createTask(
@@ -388,7 +389,7 @@ class KanbanRepositoryImpl(
         tail: Int,
     ): NetworkResult<WorkerLog> =
         withContext(ioDispatcher) {
-            safeApiCall { apiProvider().getTaskLog(taskId = taskId, tail = tail, board = board) }
+            safeApiRead { apiProvider().getTaskLog(taskId = taskId, tail = tail, board = board) }
         }
 
     override suspend fun estimateTask(
@@ -425,7 +426,7 @@ class KanbanRepositoryImpl(
         taskId: String,
         board: String,
     ): NetworkResult<AttachmentListResponse> =
-        withContext(ioDispatcher) { safeApiCall { apiProvider().listAttachments(taskId, board) } }
+        withContext(ioDispatcher) { safeApiRead { apiProvider().listAttachments(taskId, board) } }
 
     override suspend fun deleteAttachment(
         attachmentId: Long,
@@ -438,23 +439,23 @@ class KanbanRepositoryImpl(
         board: String?,
     ): NetworkResult<ResponseBody> =
         withContext(ioDispatcher) {
-            safeApiCall { apiProvider().downloadAttachment(attachmentId = attachmentId, board = board) }
+            safeApiRead { apiProvider().downloadAttachment(attachmentId = attachmentId, board = board) }
         }
 
     override suspend fun getActiveWorkers(board: String): NetworkResult<ActiveWorkersResponse> =
-        withContext(ioDispatcher) { safeApiCall { apiProvider().getActiveWorkers(board) } }
+        withContext(ioDispatcher) { safeApiRead { apiProvider().getActiveWorkers(board) } }
 
     override suspend fun getRun(
         runId: Long,
         board: String,
     ): NetworkResult<KanbanRunResponse> =
-        withContext(ioDispatcher) { safeApiCall { apiProvider().getRun(runId, board) } }
+        withContext(ioDispatcher) { safeApiRead { apiProvider().getRun(runId, board) } }
 
     override suspend fun inspectRun(
         runId: Long,
         board: String,
     ): NetworkResult<KanbanRunInspection> =
-        withContext(ioDispatcher) { safeApiCall { apiProvider().inspectRun(runId, board) } }
+        withContext(ioDispatcher) { safeApiRead { apiProvider().inspectRun(runId, board) } }
 
     override suspend fun terminateRun(
         runId: Long,
@@ -485,7 +486,7 @@ class KanbanRepositoryImpl(
 
     override suspend fun getProfiles(): NetworkResult<KanbanProfilesResponse> =
         withContext(ioDispatcher) {
-            safeApiCall { apiProvider().getKanbanProfiles() }
+            safeApiRead { apiProvider().getKanbanProfiles() }
         }
 
     override suspend fun updateProfileDescription(
@@ -508,7 +509,7 @@ class KanbanRepositoryImpl(
 
     override suspend fun getOrchestration(): NetworkResult<OrchestrationSettings> =
         withContext(ioDispatcher) {
-            safeApiCall { apiProvider().getOrchestration() }
+            safeApiRead { apiProvider().getOrchestration() }
         }
 
     override suspend fun updateOrchestration(body: OrchestrationSettingsUpdate): NetworkResult<OrchestrationSettings> =
@@ -518,7 +519,7 @@ class KanbanRepositoryImpl(
 
     override suspend fun getProjects(): NetworkResult<KanbanProjectsResponse> =
         withContext(ioDispatcher) {
-            safeApiCall { apiProvider().getProjects() }
+            safeApiRead { apiProvider().getProjects() }
         }
 
     override suspend fun nudgeDispatcher(board: String?): NetworkResult<DispatchResult> =

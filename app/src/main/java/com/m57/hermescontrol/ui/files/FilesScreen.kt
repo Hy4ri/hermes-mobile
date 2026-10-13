@@ -89,17 +89,7 @@ fun FilesScreen(
             contract = ActivityResultContracts.GetContent(),
             onResult = { uri ->
                 if (uri == null) return@rememberLauncherForActivityResult
-                val fileName =
-                    uri.lastPathSegment?.substringAfterLast("/")?.takeIf { it.isNotBlank() }
-                        ?: "upload.bin"
-                val mimeType = context.contentResolver.getType(uri) ?: "application/octet-stream"
-                runCatching {
-                    context.contentResolver.openInputStream(uri)?.use { stream ->
-                        viewModel.uploadFile(fileName, stream.readBytes(), mimeType)
-                    }
-                }.onFailure {
-                    viewModel.showToast("Could not read selected file: ${it.message}")
-                }
+                viewModel.uploadFile(uri, context.contentResolver)
             },
         )
 
@@ -185,11 +175,30 @@ fun FilesScreen(
                     )
                 }
             }
-            IconButton(onClick = { uploadLauncher.launch("*/*") }) {
-                Icon(
-                    imageVector = Icons.Filled.Upload,
-                    contentDescription = stringResource(R.string.files_action_upload),
-                )
+            IconButton(
+                onClick = { uploadLauncher.launch("*/*") },
+                enabled = !state.isUploading,
+            ) {
+                if (state.isUploading) {
+                    val progress = state.uploadProgress
+                    if (progress != null) {
+                        CircularProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    }
+                } else {
+                    Icon(
+                        imageVector = Icons.Filled.Upload,
+                        contentDescription = stringResource(R.string.files_action_upload),
+                    )
+                }
             }
         },
     ) { paddingValues ->

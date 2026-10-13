@@ -185,6 +185,7 @@ object WsMethods {
             SESSION_CREATE, // session.create
             SESSION_LIST, // session.list
             MODEL_OPTIONS, // model.options: @_profile_scoped
+            COMMANDS_CATALOG, // #1556: methods_tools.py resolves profile and optional session workspace.
             CONNECTORS_CATALOG,
             CONNECTORS_ACCOUNTS,
             CONNECTORS_ACCOUNTS_REMOVE,

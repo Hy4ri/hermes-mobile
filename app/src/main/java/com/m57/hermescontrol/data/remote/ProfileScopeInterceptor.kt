@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.data.remote
 
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
 import okhttp3.Interceptor
 import okhttp3.Response
 
@@ -52,13 +53,28 @@ object ProfileScopeInterceptor : Interceptor {
             "/api/model/auxiliary",
             "/api/model/moa",
             "/api/model/options",
+            "/api/pairing",
             "/api/plugins",
+            "/api/providers/oauth",
             "/api/sessions",
             "/api/skills",
             "/api/status",
             "/api/tools/toolsets",
             "/api/webhooks",
         )
+
+    private val PROFILE_SCOPED_EXACT_PATHS =
+        setOf(
+            "/api/logs",
+            "/api/portal",
+            "/api/learning/graph",
+            "/api/dashboard/plugins",
+            "/api/dashboard/plugins/hub",
+            "/api/dashboard/plugin-providers",
+        )
+
+    private val DASHBOARD_PLUGIN_VISIBILITY_REGEX =
+        Regex("^/api/dashboard/plugins/[^/]+/visibility$")
 
     /**
      * Mobile-used Ops handlers that accept `?profile=` in Hermes Agent.
@@ -92,13 +108,16 @@ object ProfileScopeInterceptor : Interceptor {
     ): Boolean = path == prefix || path.startsWith("$prefix/")
 
     private fun isProfileScopedPath(path: String): Boolean =
-        PROFILE_SCOPED_PREFIXES.any { prefix -> matchesPrefix(path, prefix) } ||
+        path in PROFILE_SCOPED_EXACT_PATHS ||
+            DASHBOARD_PLUGIN_VISIBILITY_REGEX.matches(path) ||
+            PROFILE_SCOPED_PREFIXES.any { prefix -> matchesPrefix(path, prefix) } ||
             PROFILE_SCOPED_OPS_PREFIXES.any { prefix -> matchesPrefix(path, prefix) }
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
+        val capturedScope = request.tag(DataScope::class.java)
         val profile =
-            AuthManager.activeProfileId.value
+            capturedScope?.activeProfileId ?: AuthManager.activeProfileId.value
                 ?: return chain.proceed(request)
 
         val url = request.url
@@ -111,8 +130,12 @@ object ProfileScopeInterceptor : Interceptor {
         // (e.g. `/hermes/api/status` → relative `/api/status`). A transient
         // DataStore read failure mid-intercept must not crash every request.
         val relativePath =
-            runCatching { AuthManager.endpoint().relativeRequestPath(url) }
-                .getOrDefault(url.encodedPath)
+            runCatching {
+                val endpoint =
+                    capturedScope?.baseUrl?.takeIf { it.isNotBlank() }?.let(ServerEndpoint::parseForBuild)
+                        ?: AuthManager.endpoint()
+                endpoint.relativeRequestPath(url)
+            }.getOrDefault(url.encodedPath)
 
         if (!isProfileScopedPath(relativePath)) {
             return chain.proceed(request)

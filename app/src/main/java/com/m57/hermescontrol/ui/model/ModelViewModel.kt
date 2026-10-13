@@ -16,6 +16,7 @@ import com.m57.hermescontrol.data.model.withModelInfoCapabilities
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.remote.safeApiRead
 import com.m57.hermescontrol.data.ws.ModelCatalogStore
 import com.m57.hermescontrol.data.ws.ModelOptionsRepository
 import com.m57.hermescontrol.ui.common.ToastHost
@@ -80,7 +81,7 @@ class ModelViewModel(
     private val getCurrentScope: () -> DataScope? = { AuthManager.currentDataScope() },
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val getModelInfoCall: suspend (String?) -> NetworkResult<ModelInfoResponse> = { profile ->
-        safeApiCall { ApiClient.hermesApi.getModelInfo(profile) }
+        safeApiRead { ApiClient.hermesApi.getModelInfo(profile) }
     },
 ) : ViewModel(),
     ToastHost {
@@ -122,20 +123,20 @@ class ModelViewModel(
         viewModelScope.launch {
             // Phase 1: Launch fast lightweight calls first (profiles, aux, moa)
             val activeProfileDeferred =
-                async(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.getActiveProfile() }
+                async(ioDispatcher) {
+                    safeApiRead { ApiClient.hermesApi.getActiveProfile() }
                 }
             val profilesDeferred =
-                async(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.getProfiles() }
+                async(ioDispatcher) {
+                    safeApiRead { ApiClient.hermesApi.getProfiles() }
                 }
             val auxDeferred =
-                async(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.getAuxiliaryModels() }
+                async(ioDispatcher) {
+                    safeApiRead { ApiClient.hermesApi.getAuxiliaryModels() }
                 }
             val moaDeferred =
-                async(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.getMoaModels() }
+                async(ioDispatcher) {
+                    safeApiRead { ApiClient.hermesApi.getMoaModels() }
                 }
 
             // Phase 2: Launch model options concurrently via shared catalog store
@@ -225,16 +226,16 @@ class ModelViewModel(
         loadModelCapabilities(clearExisting = true)
         viewModelScope.launch {
             val activeProfileDeferred =
-                async(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.getActiveProfile() }
+                async(ioDispatcher) {
+                    safeApiRead { ApiClient.hermesApi.getActiveProfile() }
                 }
             val profilesDeferred =
-                async(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.getProfiles() }
+                async(ioDispatcher) {
+                    safeApiRead { ApiClient.hermesApi.getProfiles() }
                 }
             val auxDeferred =
-                async(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.getAuxiliaryModels() }
+                async(ioDispatcher) {
+                    safeApiRead { ApiClient.hermesApi.getAuxiliaryModels() }
                 }
 
             val activeProfileResult = activeProfileDeferred.await()
@@ -601,7 +602,7 @@ class ModelViewModel(
                 } else {
                     val activeProfileNameResResult =
                         withContext(Dispatchers.IO) {
-                            safeApiCall { ApiClient.hermesApi.getActiveProfile() }
+                            safeApiRead { ApiClient.hermesApi.getActiveProfile() }
                         }
                     when (activeProfileNameResResult) {
                         is NetworkResult.Failure -> {

@@ -10,6 +10,7 @@ import com.m57.hermescontrol.data.model.PairingRevokeRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.remote.safeApiRead
 import com.m57.hermescontrol.data.ws.ChangeEvents
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.refreshOnChange
@@ -43,8 +44,10 @@ class PairingViewModel :
     private var launchJob: Job? = null
     internal var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
     private val pairingCache = SwrCache<String, PairingResponse>()
+    private var actionGeneration = 0L
 
     fun clearScopeOwnedState() {
+        actionGeneration++
         _uiState.update { it.copy(isLoading = false, pairing = null, errorMessage = null, actionKey = null) }
     }
 
@@ -53,7 +56,7 @@ class PairingViewModel :
         // (no spinner) instead of waiting for a manual pull.
         refreshOnChange(
             eventType = ChangeEvents.PAIRING,
-            apiCall = { safeApiCall { ApiClient.hermesApi.getPairing() } },
+            apiCall = { safeApiRead { ApiClient.hermesApi.getPairing() } },
             onSuccess = { data ->
                 val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
                 if (requestScope != null) pairingCache.put(requestScope.inMemoryKey("default"), data)
@@ -71,7 +74,7 @@ class PairingViewModel :
                 onCacheHit = { cached ->
                     _uiState.update { it.copy(isLoading = false, pairing = cached, errorMessage = null) }
                 },
-                apiCall = { safeApiCall { ApiClient.hermesApi.getPairing() } },
+                apiCall = { safeApiRead { ApiClient.hermesApi.getPairing() } },
                 onStart = {
                     _uiState.update { it.copy(isLoading = true, errorMessage = null) }
                 },
@@ -94,13 +97,19 @@ class PairingViewModel :
         platform: String,
         requestId: String,
     ) {
+        val capturedProfile = AuthManager.activeProfileId.value
+        val capturedApi = ApiClient.hermesApi
         runAction(
             actionKey = "approve:$requestId",
             onSuccess = { it.copy(toastMessage = "Pairing request approved") },
             apiCall = {
                 safeApiCall {
-                    ApiClient.hermesApi.approvePairing(
-                        PairingApproveRequest(platform = platform, requestId = requestId),
+                    capturedApi.approvePairing(
+                        PairingApproveRequest(
+                            platform = platform,
+                            requestId = requestId,
+                            profile = capturedProfile,
+                        ),
                     )
                 }
             },
@@ -112,13 +121,19 @@ class PairingViewModel :
         platform: String,
         userId: String,
     ) {
+        val capturedProfile = AuthManager.activeProfileId.value
+        val capturedApi = ApiClient.hermesApi
         runAction(
             actionKey = "revoke:$platform:$userId",
             onSuccess = { it.copy(toastMessage = "Access revoked for $userId") },
             apiCall = {
                 safeApiCall {
-                    ApiClient.hermesApi.revokePairing(
-                        PairingRevokeRequest(platform = platform, userId = userId),
+                    capturedApi.revokePairing(
+                        PairingRevokeRequest(
+                            platform = platform,
+                            userId = userId,
+                            profile = capturedProfile,
+                        ),
                     )
                 }
             },
@@ -127,10 +142,11 @@ class PairingViewModel :
 
     /** Clear every pending pairing request. */
     fun clearPending() {
+        val capturedApi = ApiClient.hermesApi
         runAction(
             actionKey = "clear",
             onSuccess = { it.copy(toastMessage = "Pending requests cleared") },
-            apiCall = { safeApiCall { ApiClient.hermesApi.clearPendingPairing() } },
+            apiCall = { safeApiCall { capturedApi.clearPendingPairing() } },
         )
     }
 
@@ -140,22 +156,37 @@ class PairingViewModel :
         apiCall: suspend () -> NetworkResult<Unit>,
     ) {
         if (_uiState.value.actionKey != null) return
+        val actionScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+        val actionProfile = AuthManager.activeProfileId.value
+        val generation = ++actionGeneration
         _uiState.update { it.copy(actionKey = actionKey) }
         viewModelScope.launch {
-            val result = withContext(ioDispatcher) { apiCall() }
-            when (result) {
-                is NetworkResult.Success -> {
-                    _uiState.update { onSuccess(it.copy(actionKey = null)) }
-                    loadPairing(forceRefresh = true)
+            try {
+                val result = withContext(ioDispatcher) { apiCall() }
+                val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+                if (generation != actionGeneration || currentScope != actionScope ||
+                    AuthManager.activeProfileId.value != actionProfile
+                ) {
+                    return@launch
                 }
-
-                is NetworkResult.Failure -> {
-                    _uiState.update {
-                        it.copy(
-                            actionKey = null,
-                            toastMessage = "Action failed: ${result.error.message}",
-                        )
+                when (result) {
+                    is NetworkResult.Success -> {
+                        _uiState.update { onSuccess(it.copy(actionKey = null)) }
+                        loadPairing(forceRefresh = true)
                     }
+
+                    is NetworkResult.Failure -> {
+                        _uiState.update {
+                            it.copy(
+                                actionKey = null,
+                                toastMessage = "Action failed: ${result.error.message}",
+                            )
+                        }
+                    }
+                }
+            } finally {
+                _uiState.update {
+                    if (generation == actionGeneration) it.copy(actionKey = null) else it
                 }
             }
         }

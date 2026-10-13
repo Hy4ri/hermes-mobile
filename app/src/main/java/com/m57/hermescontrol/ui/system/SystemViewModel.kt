@@ -1,12 +1,16 @@
 package com.m57.hermescontrol.ui.system
 
 import android.app.Application
+import android.content.ContentResolver
+import android.net.Uri
 import android.util.Log
 import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.BuildConfig
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.model.ActionResponse
 import com.m57.hermescontrol.data.model.ActionStatusResponse
 import com.m57.hermescontrol.data.model.BackupTriggerRequest
@@ -26,11 +30,15 @@ import com.m57.hermescontrol.data.model.StatusResponse
 import com.m57.hermescontrol.data.model.SystemStatsResponse
 import com.m57.hermescontrol.data.model.UpdateCheckResponse
 import com.m57.hermescontrol.data.remote.ApiClient
+import com.m57.hermescontrol.data.remote.HermesApiService
 import com.m57.hermescontrol.data.remote.NetworkError
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.ui.common.ActionProgressController
 import com.m57.hermescontrol.ui.common.ToastHost
+import com.m57.hermescontrol.util.StreamingUriRequestBody
+import com.m57.hermescontrol.util.uploadMetadata
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -47,6 +55,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.IOException
 
 data class SystemUiState(
     val isLoading: Boolean = false,
@@ -58,7 +67,6 @@ data class SystemUiState(
     val hooks: HookResponse? = null,
     val updateInfo: UpdateCheckResponse? = null,
     val status: StatusResponse? = null,
-    val doctorReport: DoctorResponse? = null,
     val migrationPlan: GatewayMigrationPlan? = null,
     val migrationSupported: Boolean? = null,
     val activeAction: String? = null,
@@ -84,6 +92,7 @@ data class SystemUiState(
     // Import (issue #786): SAF-picked backup archive staged by the screen
     val importFileName: String? = null,
     val isImporting: Boolean = false,
+    val importProgress: Float? = null,
     // True while the async backup-archive retry loop is running
     val isDownloading: Boolean = false,
     // Debug share
@@ -97,6 +106,9 @@ data class SystemUiState(
 class SystemViewModel(
     application: Application,
     private val migrationDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val getCurrentScope: () -> DataScope? = { runCatching { AuthManager.currentDataScope() }.getOrNull() },
+    private val getApiService: () -> HermesApiService = { ApiClient.hermesApi },
 ) : AndroidViewModel(application),
     ToastHost {
     companion object {
@@ -132,6 +144,10 @@ class SystemViewModel(
 
     private var actionPollingJob: Job? = null
     private var downloadJob: Job? = null
+    private var importJob: Job? = null
+
+    @Volatile
+    private var importGeneration: Int = 0
 
     // ── Full parallel data load ────────────────────────────────────────
 
@@ -143,17 +159,16 @@ class SystemViewModel(
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
 
             coroutineScope {
-                val statsDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getSystemStats() } }
-                val statusDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getStatus() } }
-                val portalDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getPortal() } }
-                val curatorDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getCurator() } }
+                val statsDeferred = async(ioDispatcher) { safeApiCall { ApiClient.hermesApi.getSystemStats() } }
+                val statusDeferred = async(ioDispatcher) { safeApiCall { ApiClient.hermesApi.getStatus() } }
+                val portalDeferred = async(ioDispatcher) { safeApiCall { ApiClient.hermesApi.getPortal() } }
+                val curatorDeferred = async(ioDispatcher) { safeApiCall { ApiClient.hermesApi.getCurator() } }
 
-                val credDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getCredentialPool() } }
-                val checkpointsDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getCheckpoints() } }
-                val hooksDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getHooks() } }
+                val credDeferred = async(ioDispatcher) { safeApiCall { ApiClient.hermesApi.getCredentialPool() } }
+                val checkpointsDeferred = async(ioDispatcher) { safeApiCall { ApiClient.hermesApi.getCheckpoints() } }
+                val hooksDeferred = async(ioDispatcher) { safeApiCall { ApiClient.hermesApi.getHooks() } }
                 val updateDeferred =
-                    async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.checkHermesUpdate(false) } }
-                val doctorDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.runDoctor() } }
+                    async(ioDispatcher) { safeApiCall { ApiClient.hermesApi.checkHermesUpdate(false) } }
 
                 val statsResult = statsDeferred.await()
                 val statusResult = statusDeferred.await()
@@ -231,15 +246,6 @@ class SystemViewModel(
                         Log.w(TAG, "update endpoint: ${updateResult.error.message}")
                     }
                 }
-
-                launch {
-                    val doctorResult = doctorDeferred.await()
-                    if (doctorResult is NetworkResult.Success) {
-                        _uiState.update { it.copy(doctorReport = doctorResult.data) }
-                    } else if (BuildConfig.DEBUG && doctorResult is NetworkResult.Failure) {
-                        Log.w(TAG, "doctor endpoint: ${doctorResult.error.message}")
-                    }
-                }
             }
         }
     }
@@ -248,7 +254,7 @@ class SystemViewModel(
 
     fun loadCredentials() {
         viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getCredentialPool() } }
+            val result = withContext(ioDispatcher) { safeApiCall { ApiClient.hermesApi.getCredentialPool() } }
             if (result is NetworkResult.Success) {
                 _uiState.update { it.copy(credentials = result.data.providers ?: emptyList()) }
             }
@@ -257,7 +263,7 @@ class SystemViewModel(
 
     fun loadHooks() {
         viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getHooks() } }
+            val result = withContext(ioDispatcher) { safeApiCall { ApiClient.hermesApi.getHooks() } }
             if (result is NetworkResult.Success) {
                 _uiState.update { it.copy(hooks = result.data) }
             }
@@ -266,7 +272,7 @@ class SystemViewModel(
 
     fun loadCurator() {
         viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getCurator() } }
+            val result = withContext(ioDispatcher) { safeApiCall { ApiClient.hermesApi.getCurator() } }
             if (result is NetworkResult.Success) {
                 _uiState.update { it.copy(curator = result.data) }
             }
@@ -275,7 +281,7 @@ class SystemViewModel(
 
     fun loadStatus() {
         viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getStatus() } }
+            val result = withContext(ioDispatcher) { safeApiCall { ApiClient.hermesApi.getStatus() } }
             if (result is NetworkResult.Success) {
                 _uiState.update { it.copy(status = result.data) }
             }
@@ -373,7 +379,7 @@ class SystemViewModel(
      */
     private suspend fun fetchUpdateReceiptLines(): List<String> {
         val result =
-            withContext(Dispatchers.IO) {
+            withContext(ioDispatcher) {
                 safeApiCall { ApiClient.hermesApi.getUpdateReceipt() }
             }
         val data = (result as? NetworkResult.Success)?.data ?: return emptyList()
@@ -399,7 +405,7 @@ class SystemViewModel(
         apiCall: suspend () -> NetworkResult<Unit>,
     ) {
         viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) { apiCall() }
+            val result = withContext(ioDispatcher) { apiCall() }
             when (result) {
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(toastMessage = "Gateway ${name}ed successfully") }
@@ -419,7 +425,7 @@ class SystemViewModel(
         _uiState.update { it.copy(checkingUpdate = true) }
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     safeApiCall { ApiClient.hermesApi.checkHermesUpdate(force) }
                 }
             when (result) {
@@ -449,7 +455,7 @@ class SystemViewModel(
         actionProgress.open()
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     safeApiCall { ApiClient.hermesApi.updateHermes() }
                 }
             when (result) {
@@ -485,7 +491,7 @@ class SystemViewModel(
         val currentlyPaused = _uiState.value.curator?.paused ?: return
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     safeApiCall { ApiClient.hermesApi.setCuratorPaused(mapOf("paused" to !currentlyPaused)) }
                 }
             when (result) {
@@ -541,7 +547,7 @@ class SystemViewModel(
                     label = state.credLabel.ifBlank { null },
                 )
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     safeApiCall { ApiClient.hermesApi.addCredentialPoolEntry(body) }
                 }
             when (result) {
@@ -572,7 +578,7 @@ class SystemViewModel(
     ) {
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     safeApiCall { ApiClient.hermesApi.removeCredentialPoolEntry(provider, index) }
                 }
             when (result) {
@@ -589,6 +595,40 @@ class SystemViewModel(
     }
 
     // ── Operation actions ──────────────────────────────────────────────
+
+    fun runDoctor() {
+        runOperation(
+            apiCall = {
+                val doctorResult = safeApiCall(retries = 0) { ApiClient.hermesApi.runDoctor() }
+                when (doctorResult) {
+                    is NetworkResult.Success -> {
+                        val report = doctorResult.data
+                        if (report.ok) {
+                            NetworkResult.Success(
+                                ActionResponse(
+                                    ok = true,
+                                    name = report.name,
+                                    pid = report.pid,
+                                ),
+                            )
+                        } else {
+                            NetworkResult.Failure(
+                                NetworkError.Unknown(
+                                    message = "Doctor reported failure",
+                                    cause = IllegalStateException("Doctor reported failure"),
+                                ),
+                            )
+                        }
+                    }
+
+                    is NetworkResult.Failure -> {
+                        doctorResult
+                    }
+                }
+            },
+            labelRes = R.string.system_op_doctor,
+        )
+    }
 
     fun runSecurityAudit() {
         runOperation(
@@ -630,7 +670,7 @@ class SystemViewModel(
     fun triggerBackup() {
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     safeApiCall {
                         ApiClient.hermesApi.triggerBackup(BackupTriggerRequest())
                     }
@@ -677,7 +717,7 @@ class SystemViewModel(
                     var attempt = 0
                     while (attempt < MAX_DOWNLOAD_ATTEMPTS) {
                         val result =
-                            withContext(Dispatchers.IO) {
+                            withContext(ioDispatcher) {
                                 safeApiCall { ApiClient.hermesApi.downloadBackup(archive) }
                             }
                         when (result) {
@@ -720,52 +760,157 @@ class SystemViewModel(
     }
 
     fun clearImportFile() {
-        _uiState.update { it.copy(importFileName = null) }
+        importJob?.cancel()
+        importJob = null
+        importGeneration++
+        _uiState.update {
+            it.copy(
+                importFileName = null,
+                isImporting = false,
+                importProgress = null,
+            )
+        }
+    }
+
+    fun clearScopeOwnedState() {
+        importJob?.cancel()
+        importJob = null
+        importGeneration++
+        _uiState.update {
+            it.copy(
+                importFileName = null,
+                isImporting = false,
+                importProgress = null,
+            )
+        }
     }
 
     fun importArchive(
-        fileName: String,
-        bytes: ByteArray,
-        mimeType: String,
+        uri: Uri,
+        contentResolver: ContentResolver,
     ) {
-        // Mirrors FilesViewModel.uploadFile: multipart file + force (issue #786)
-        val forceBody = "false".toRequestBody("text/plain".toMediaTypeOrNull())
-        val part =
-            MultipartBody.Part.createFormData(
-                "file",
-                fileName,
-                bytes.toRequestBody(mimeType.toMediaTypeOrNull()),
-            )
-        _uiState.update { it.copy(isImporting = true) }
-        viewModelScope.launch {
-            val result =
-                withContext(Dispatchers.IO) {
-                    safeApiCall {
-                        ApiClient.hermesApi.importUpload(forceBody, part)
-                    }
-                }
-            when (result) {
-                is NetworkResult.Success -> {
-                    result.data.name?.let { pollActionStatus(it) }
-                    _uiState.update {
-                        it.copy(
-                            isImporting = false,
-                            importFileName = null,
-                            toastMessage = "Import started",
-                        )
-                    }
-                }
+        if (_uiState.value.isImporting) return
+        val expectedScope = getCurrentScope()
+        val capturedProfile =
+            expectedScope?.activeProfileId
+                ?: AuthManager.activeProfileId.value
+                ?: AuthManager.DEFAULT_PROFILE_ID
+        val service = getApiService()
+        val gen = ++importGeneration
 
-                is NetworkResult.Failure -> {
-                    _uiState.update {
-                        it.copy(
-                            isImporting = false,
-                            toastMessage = "Import failed: ${result.error.message}",
+        _uiState.update {
+            it.copy(
+                isImporting = true,
+                importProgress = null,
+            )
+        }
+
+        importJob?.cancel()
+        importJob =
+            viewModelScope.launch {
+                try {
+                    val metadata =
+                        withContext(ioDispatcher) {
+                            contentResolver.uploadMetadata(uri, fallbackName = "backup.zip", dispatcher = ioDispatcher)
+                        }
+
+                    if (metadata.size > StreamingUriRequestBody.MAX_UPLOAD_BYTES) {
+                        throw IOException("Selected file exceeds the upload size limit")
+                    }
+
+                    val forceBody = "false".toRequestBody("text/plain".toMediaTypeOrNull())
+                    val requestBody =
+                        StreamingUriRequestBody(
+                            contentResolver = contentResolver,
+                            uri = uri,
+                            contentType = metadata.mimeType.toMediaTypeOrNull(),
+                            contentLength = metadata.size,
+                            maxBytes = StreamingUriRequestBody.MAX_UPLOAD_BYTES,
+                            onProgress = { bytesWritten, totalBytes ->
+                                if (gen == importGeneration && getCurrentScope() == expectedScope) {
+                                    val progressFraction =
+                                        if (totalBytes > 0L) {
+                                            (bytesWritten.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
+                                        } else {
+                                            null
+                                        }
+                                    _uiState.update {
+                                        if (gen == importGeneration && getCurrentScope() == expectedScope) {
+                                            it.copy(importProgress = progressFraction)
+                                        } else {
+                                            it
+                                        }
+                                    }
+                                }
+                            },
+                            isCancelled = { !coroutineContext[Job]!!.isActive || gen != importGeneration },
                         )
+                    val part =
+                        MultipartBody.Part.createFormData(
+                            name = "file",
+                            filename = metadata.name,
+                            body = requestBody,
+                        )
+
+                    val result =
+                        withContext(ioDispatcher) {
+                            safeApiCall(retries = 0) {
+                                service.importUpload(forceBody, part, profile = capturedProfile)
+                            }
+                        }
+
+                    if (gen != importGeneration || getCurrentScope() != expectedScope) {
+                        return@launch
+                    }
+
+                    when (result) {
+                        is NetworkResult.Success -> {
+                            if (result.data.ok == true) {
+                                result.data.name?.let { pollActionStatus(it) }
+                                _uiState.update {
+                                    it.copy(
+                                        importFileName = null,
+                                        toastMessage = "Import started",
+                                    )
+                                }
+                            } else {
+                                _uiState.update {
+                                    it.copy(
+                                        toastMessage = "Import failed",
+                                    )
+                                }
+                            }
+                        }
+
+                        is NetworkResult.Failure -> {
+                            _uiState.update {
+                                it.copy(
+                                    toastMessage = "Import failed: ${result.error.message}",
+                                )
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    if (gen == importGeneration && getCurrentScope() == expectedScope) {
+                        _uiState.update {
+                            it.copy(
+                                toastMessage = "Import failed: ${e.message}",
+                            )
+                        }
+                    }
+                } finally {
+                    if (gen == importGeneration) {
+                        importJob = null
+                        _uiState.update {
+                            it.copy(
+                                isImporting = false,
+                                importProgress = null,
+                            )
+                        }
                     }
                 }
             }
-        }
     }
 
     fun showToast(message: String) {
@@ -783,7 +928,7 @@ class SystemViewModel(
         _uiState.update { it.copy(sharing = true) }
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     safeApiCall { ApiClient.hermesApi.runDebugShare(DebugShareRequest(redact = shareRedact)) }
                 }
             when (result) {
@@ -861,7 +1006,7 @@ class SystemViewModel(
                     approve = state.hookApprove,
                 )
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     safeApiCall { ApiClient.hermesApi.createHook(body) }
                 }
             when (result) {
@@ -897,7 +1042,7 @@ class SystemViewModel(
     ) {
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     safeApiCall { ApiClient.hermesApi.deleteHook(HookDeleteRequest(event, command)) }
                 }
             when (result) {
@@ -923,7 +1068,7 @@ class SystemViewModel(
                 while (isActive) {
                     delay(1200)
                     val result =
-                        withContext(Dispatchers.IO) {
+                        withContext(ioDispatcher) {
                             safeApiCall { ApiClient.hermesApi.getActionStatus(name) }
                         }
                     if (result is NetworkResult.Success) {
@@ -949,7 +1094,7 @@ class SystemViewModel(
         @StringRes labelRes: Int,
     ) {
         viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) { apiCall() }
+            val result = withContext(ioDispatcher) { apiCall() }
             when (result) {
                 is NetworkResult.Success -> {
                     result.data.name?.let { pollActionStatus(it) }
@@ -981,6 +1126,14 @@ class SystemViewModel(
     }
 
     // ── Transient state ────────────────────────────────────────────────
+
+    override fun onCleared() {
+        super.onCleared()
+        actionPollingJob?.cancel()
+        downloadJob?.cancel()
+        importJob?.cancel()
+        importJob = null
+    }
 
     override fun clearToast() {
         _uiState.update { it.copy(toastMessage = null) }

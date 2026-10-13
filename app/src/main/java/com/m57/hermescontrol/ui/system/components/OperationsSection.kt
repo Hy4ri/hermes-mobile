@@ -76,7 +76,7 @@ fun LazyListScope.operationsSection(
                     horizontalArrangement = Arrangement.spacedBy(spacing.sm),
                 ) {
                     FilledTonalButton(
-                        onClick = { viewModel.loadAll() },
+                        onClick = { viewModel.runDoctor() },
                         modifier = Modifier.weight(1f),
                         contentPadding = ActionButtonPadding,
                     ) {
@@ -257,11 +257,21 @@ fun LazyListScope.operationsSection(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     if (state.isImporting) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onError,
-                        )
+                        val progress = state.importProgress
+                        if (progress != null) {
+                            CircularProgressIndicator(
+                                progress = { progress },
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onError,
+                            )
+                        } else {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onError,
+                            )
+                        }
                         Spacer(modifier = Modifier.size(spacing.xs))
                     } else {
                         Icon(Icons.Filled.RestartAlt, contentDescription = null, modifier = Modifier.size(18.dp))

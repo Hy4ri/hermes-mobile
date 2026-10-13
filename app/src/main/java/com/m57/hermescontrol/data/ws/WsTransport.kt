@@ -165,6 +165,7 @@ internal class WsTransport(
                     closingSocket = null
                     connected.set(false)
                     connectionHealth.stop()
+                    rpcChannel.rejectAllPending()
                 }
                 if (connected.get()) {
                     Log.d(TAG, "Already connected — skipping")
@@ -183,10 +184,7 @@ internal class WsTransport(
                 reconnectPolicy.reset()
                 true
             }
-        if (socketToCancel != null) {
-            rpcChannel.rejectAllPending()
-            socketToCancel.cancel()
-        }
+        socketToCancel?.cancel()
         if (shouldOpen) openSocket()
     }
 
@@ -213,13 +211,13 @@ internal class WsTransport(
             connected.set(false)
             connectionHealth.stop()
             shouldOpen = networkAvailable && AuthManager.isAutoReconnect()
+            rpcChannel.rejectAllPending()
             _connectionStatus.value =
                 when {
                     !networkAvailable -> ConnectionStatus.NO_NETWORK
                     shouldOpen -> ConnectionStatus.RECONNECTING
                     else -> ConnectionStatus.DISCONNECTED
                 }
-            rpcChannel.rejectAllPending()
         }
         socketToCancel?.cancel()
         if (shouldOpen) openReplacement()
@@ -346,6 +344,7 @@ internal class WsTransport(
     ): Boolean {
         synchronized(outboundLock) {
             if (!isCurrentGeneration(generation)) return false
+            rpcChannel.rejectAllPending()
             _connectionStatus.value = status
             if (status == ConnectionStatus.RECONNECTING) scheduleReconnect()
         }
@@ -368,6 +367,7 @@ internal class WsTransport(
             webSocket = null
             closingSocket = null
             rpcChannel.clearCapabilityRequests()
+            rpcChannel.rejectAllPending()
             if (clearPendingMessages) {
                 backgroundConnectionLease.set(false)
                 messageQueue.clear()
@@ -734,6 +734,7 @@ internal class WsTransport(
                 ActiveSessionHolder.clear()
                 connectionHealth.stop()
                 rpcChannel.clearCapabilityRequests()
+                rpcChannel.rejectAllPending()
                 if (isTerminalAuthClose(code, reason)) {
                     _connectionStatus.value = ConnectionStatus.AUTH_EXPIRED
                 } else if (_connectionStatus.value != ConnectionStatus.AUTH_EXPIRED) {
@@ -763,6 +764,7 @@ internal class WsTransport(
                 ActiveSessionHolder.clear()
                 connectionHealth.stop()
                 rpcChannel.clearCapabilityRequests()
+                rpcChannel.rejectAllPending()
                 val code = response?.code ?: 0
                 if (code == 401 || code == 4401 || code == 4403 ||
                     t.message?.contains("401") == true ||

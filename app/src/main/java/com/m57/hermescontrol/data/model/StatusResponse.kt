@@ -13,6 +13,7 @@ data class StatusResponse(
     val gatewaySharedWith: List<String>? = null,
     val memory: MemoryPressureStatus? = null,
     val disk: DiskPressureStatus? = null,
+    val gateway_pid: Int? = null,
 )
 
 @Serializable

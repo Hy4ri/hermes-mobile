@@ -490,4 +490,55 @@ class ProfilesViewModelTest {
         assertTrue(storedHiddenProfiles.isEmpty())
         assertFalse(vm.uiState.value.hasHiddenProfiles)
     }
+
+    @Test
+    fun `createProfile success invokes onSuccess and reloads profiles`() {
+        coEvery { mockApi.createProfile(any()) } returns Response.success(Unit)
+
+        val vm = createViewModel()
+        var successCallbackCalled = false
+        val request =
+            CreateProfileRequest(
+                name = "test-profile",
+                no_skills = true,
+                keep_skills = null,
+            )
+
+        vm.createProfile(request) {
+            successCallbackCalled = true
+        }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify { mockApi.createProfile(request) }
+        assertTrue(successCallbackCalled)
+        assertEquals("Profile test-profile created successfully", vm.uiState.value.toastMessage)
+        assertFalse(vm.uiState.value.isLoading)
+        coVerify { mockApi.getProfiles() }
+    }
+
+    @Test
+    fun `createProfile failure surfaces error toast and stops loading`() {
+        coEvery { mockApi.createProfile(any()) } returns errorResponse(422)
+
+        val vm = createViewModel()
+        var successCallbackCalled = false
+        val request =
+            CreateProfileRequest(
+                name = "broken-profile",
+                no_skills = true,
+            )
+
+        vm.createProfile(request) {
+            successCallbackCalled = true
+        }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify { mockApi.createProfile(request) }
+        assertFalse(successCallbackCalled)
+        assertTrue(
+            vm.uiState.value.toastMessage!!
+                .contains("Failed to create profile"),
+        )
+        assertFalse(vm.uiState.value.isLoading)
+    }
 }

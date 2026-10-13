@@ -1,8 +1,12 @@
 package com.m57.hermescontrol.ui.files
 
+import android.content.ContentResolver
+import android.net.Uri
 import android.util.Base64
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.ManagedDirectoryCreate
 import com.m57.hermescontrol.data.model.ManagedFileActionResponse
@@ -10,12 +14,18 @@ import com.m57.hermescontrol.data.model.ManagedFileDelete
 import com.m57.hermescontrol.data.model.ManagedFileEntry
 import com.m57.hermescontrol.data.model.ManagedFilesListResponse
 import com.m57.hermescontrol.data.remote.ApiClient
+import com.m57.hermescontrol.data.remote.HermesApiService
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.remote.safeApiRead
 import com.m57.hermescontrol.ui.common.ToastHost
-import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
+import com.m57.hermescontrol.util.StreamingUriRequestBody
+import com.m57.hermescontrol.util.uploadMetadata
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,6 +35,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.IOException
 
 data class FilesUiState(
     val currentPath: String = "",
@@ -39,6 +50,7 @@ data class FilesUiState(
     val isCreatingDir: Boolean = false,
     val newDirName: String = "",
     val isUploading: Boolean = false,
+    val uploadProgress: Float? = null,
     val deleteTarget: ManagedFileEntry? = null,
     val openingPath: String? = null,
     val toastMessage: String? = null,
@@ -73,19 +85,29 @@ inline fun <T, R> NetworkResult<T>.map(transform: (T) -> R): NetworkResult<R> =
         is NetworkResult.Failure -> this
     }
 
-class FilesViewModel :
-    ViewModel(),
+class FilesViewModel(
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val getCurrentScope: () -> DataScope? = { runCatching { AuthManager.currentDataScope() }.getOrNull() },
+    private val getApiService: () -> HermesApiService = { ApiClient.hermesApi },
+) : ViewModel(),
     ToastHost {
     private val _uiState = MutableStateFlow(FilesUiState())
     val uiState: StateFlow<FilesUiState> = _uiState.asStateFlow()
 
     private val filesCache = SwrCache<String, ManagedFilesListResponse>()
 
+    @Volatile
+    private var uploadGeneration: Int = 0
+    private var uploadJob: Job? = null
+
     /**
      * Reset state owned by the previous server/profile context (issue: PR #1192 cache scoping).
      * The current directory path belongs to the old server and must not leak into the new one.
      */
     fun clearScopeOwnedState() {
+        uploadGeneration++
+        uploadJob?.cancel()
+        uploadJob = null
         _uiState.update {
             it.copy(
                 currentPath = "",
@@ -98,6 +120,7 @@ class FilesViewModel :
                 isCreatingDir = false,
                 newDirName = "",
                 isUploading = false,
+                uploadProgress = null,
                 deleteTarget = null,
                 openingPath = null,
             )
@@ -126,7 +149,7 @@ class FilesViewModel :
                 }
             },
             apiCall = {
-                safeApiCall { ApiClient.hermesApi.listManagedFiles(path) }
+                safeApiRead { ApiClient.hermesApi.listManagedFiles(path) }
             },
             onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
             onSuccess = { data ->
@@ -192,7 +215,7 @@ class FilesViewModel :
         _uiState.update { it.copy(isCreatingDir = false, newDirName = "", isLoading = true) }
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     safeApiCall {
                         ApiClient.hermesApi.createManagedDirectory(ManagedDirectoryCreate(target))
                     }
@@ -203,30 +226,135 @@ class FilesViewModel :
 
     // ── Upload (streaming multipart) ──────────────────────────────────────
     fun uploadFile(
-        fileName: String,
-        bytes: ByteArray,
-        mimeType: String,
+        uri: Uri,
+        contentResolver: ContentResolver,
     ) {
-        val base = _uiState.value.currentPath
-        val target = if (base.isBlank()) fileName else "$base/$fileName"
-        val pathBody = target.toRequestBody("text/plain".toMediaTypeOrNull())
-        val overwriteBody = "true".toRequestBody("text/plain".toMediaTypeOrNull())
-        val part =
-            MultipartBody.Part.createFormData(
-                "file",
-                fileName,
-                bytes.toRequestBody(mimeType.toMediaTypeOrNull()),
+        if (_uiState.value.isUploading) return
+        val expectedScope = getCurrentScope()
+        val expectedPath = _uiState.value.currentPath
+        val service = getApiService()
+        val gen = ++uploadGeneration
+
+        _uiState.update {
+            it.copy(
+                isUploading = true,
+                uploadProgress = null,
             )
-        _uiState.update { it.copy(isUploading = true) }
-        viewModelScope.launch {
-            val result =
-                withContext(Dispatchers.IO) {
-                    safeApiCall {
-                        ApiClient.hermesApi.uploadManagedFileStream(pathBody, overwriteBody, part)
+        }
+
+        uploadJob =
+            viewModelScope.launch {
+                val ownerJob = coroutineContext[Job]
+                try {
+                    val metadata =
+                        withContext(ioDispatcher) {
+                            contentResolver.uploadMetadata(uri, fallbackName = "upload.bin", dispatcher = ioDispatcher)
+                        }
+
+                    if (metadata.size > StreamingUriRequestBody.MAX_UPLOAD_BYTES) {
+                        throw IOException("Selected file exceeds the upload size limit")
+                    }
+
+                    val target = if (expectedPath.isBlank()) metadata.name else "$expectedPath/${metadata.name}"
+                    val pathBody = target.toRequestBody("text/plain".toMediaTypeOrNull())
+                    val overwriteBody = "true".toRequestBody("text/plain".toMediaTypeOrNull())
+
+                    val requestBody =
+                        StreamingUriRequestBody(
+                            contentResolver = contentResolver,
+                            uri = uri,
+                            contentType = metadata.mimeType.toMediaTypeOrNull(),
+                            contentLength = metadata.size,
+                            maxBytes = StreamingUriRequestBody.MAX_UPLOAD_BYTES,
+                            onProgress = { bytesWritten, totalBytes ->
+                                if (gen == uploadGeneration &&
+                                    getCurrentScope() == expectedScope &&
+                                    _uiState.value.currentPath == expectedPath
+                                ) {
+                                    val progressFraction =
+                                        if (totalBytes > 0L) {
+                                            (bytesWritten.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
+                                        } else {
+                                            null
+                                        }
+                                    _uiState.update {
+                                        if (gen == uploadGeneration && getCurrentScope() == expectedScope &&
+                                            it.currentPath == expectedPath
+                                        ) {
+                                            it.copy(uploadProgress = progressFraction)
+                                        } else {
+                                            it
+                                        }
+                                    }
+                                }
+                            },
+                            isCancelled = { ownerJob?.isActive != true || gen != uploadGeneration },
+                        )
+
+                    val filePart =
+                        MultipartBody.Part.createFormData(
+                            name = "file",
+                            filename = metadata.name,
+                            body = requestBody,
+                        )
+
+                    val result =
+                        withContext(ioDispatcher) {
+                            safeApiCall(retries = 0) {
+                                service.uploadManagedFileStream(pathBody, overwriteBody, filePart)
+                            }
+                        }
+
+                    if (gen != uploadGeneration ||
+                        getCurrentScope() != expectedScope ||
+                        _uiState.value.currentPath != expectedPath
+                    ) {
+                        return@launch
+                    }
+
+                    when (result) {
+                        is NetworkResult.Success -> {
+                            if (!result.data.ok) throw IOException("Gateway refused the upload")
+                            _uiState.update {
+                                it.copy(
+                                    toastMessage = "File uploaded",
+                                )
+                            }
+                            refresh()
+                        }
+
+                        is NetworkResult.Failure -> {
+                            _uiState.update {
+                                it.copy(
+                                    toastMessage = "Failed to upload file: ${result.error.message}",
+                                )
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    if (gen == uploadGeneration &&
+                        getCurrentScope() == expectedScope &&
+                        _uiState.value.currentPath == expectedPath
+                    ) {
+                        _uiState.update {
+                            it.copy(
+                                toastMessage = "Failed to upload file: ${e.message}",
+                            )
+                        }
+                    }
+                } finally {
+                    if (gen == uploadGeneration) {
+                        uploadJob = null
+                        _uiState.update {
+                            it.copy(
+                                isUploading = false,
+                                uploadProgress = null,
+                            )
+                        }
                     }
                 }
-            handleActionResult(result, "File uploaded", "Failed to upload file")
-        }
+            }
     }
 
     // ── Delete ────────────────────────────────────────────────────────────
@@ -248,7 +376,7 @@ class FilesViewModel :
         }
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     safeApiCall {
                         ApiClient.hermesApi.deleteManagedFile(
                             ManagedFileDelete(target.path, recursive = target.isDirectory),
@@ -292,8 +420,8 @@ class FilesViewModel :
         _uiState.update { it.copy(openingPath = entry.path) }
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.readManagedFile(entry.path) }
+                withContext(ioDispatcher) {
+                    safeApiRead { ApiClient.hermesApi.readManagedFile(entry.path) }
                         .map { read ->
                             val bytes = decodeDataUrl(read.dataUrl)
                             DownloadedFile(
@@ -325,7 +453,6 @@ class FilesViewModel :
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        isUploading = false,
                         toastMessage = successMsg,
                     )
                 }
@@ -336,7 +463,6 @@ class FilesViewModel :
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        isUploading = false,
                         toastMessage = "$errorMsg: ${result.error.message}",
                     )
                 }
@@ -354,6 +480,10 @@ class FilesViewModel :
 
     /** Reset transient state on screen re-entry (issue #619 pattern). */
     fun clearTransientState() {
+        // #1554: leaving/re-entering cannot leave an old upload writing or publishing into the new screen.
+        uploadGeneration++
+        uploadJob?.cancel()
+        uploadJob = null
         _uiState.update {
             it.copy(
                 errorMessage = null,
@@ -361,6 +491,7 @@ class FilesViewModel :
                 isCreatingDir = false,
                 newDirName = "",
                 isUploading = false,
+                uploadProgress = null,
                 deleteTarget = null,
             )
         }

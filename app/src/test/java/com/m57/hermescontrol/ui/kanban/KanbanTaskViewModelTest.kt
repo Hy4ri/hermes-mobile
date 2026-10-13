@@ -1,8 +1,10 @@
 package com.m57.hermescontrol.ui.kanban
 
 import com.m57.hermescontrol.data.model.AttachmentListResponse
+import com.m57.hermescontrol.data.model.AttachmentUploadResponse
 import com.m57.hermescontrol.data.model.DeleteAttachmentResponse
 import com.m57.hermescontrol.data.model.KanbanAttachment
+import com.m57.hermescontrol.data.model.KanbanBoardResponse
 import com.m57.hermescontrol.data.model.KanbanRun
 import com.m57.hermescontrol.data.model.KanbanRunInspection
 import com.m57.hermescontrol.data.model.KanbanRunResponse
@@ -11,6 +13,7 @@ import com.m57.hermescontrol.data.model.KanbanTaskFull
 import com.m57.hermescontrol.data.model.ReassignTaskResponse
 import com.m57.hermescontrol.data.model.ReclaimTaskResponse
 import com.m57.hermescontrol.data.model.SpecifyTaskResponse
+import com.m57.hermescontrol.data.model.TaskEstimate
 import com.m57.hermescontrol.data.model.TaskLinkResponse
 import com.m57.hermescontrol.data.model.TerminateRunResponse
 import com.m57.hermescontrol.data.model.UpdateTaskResponse
@@ -18,10 +21,18 @@ import com.m57.hermescontrol.data.model.WorkerLog
 import com.m57.hermescontrol.data.remote.NetworkError
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.repository.KanbanRepository
+import com.m57.hermescontrol.data.ws.KanbanEvent
 import com.m57.hermescontrol.data.ws.KanbanEventsClient
+import com.m57.hermescontrol.data.ws.KanbanEventsEnvelope
+import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
+import io.mockk.slot
+import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -44,16 +55,22 @@ class KanbanTaskViewModelTest {
     private val mockRepository = mockk<KanbanRepository>(relaxed = true)
     private val mockEventsClient = mockk<KanbanEventsClient>(relaxed = true)
 
-    private fun createViewModel(enableFallbackPolling: Boolean = false): KanbanTaskViewModel =
+    private fun createViewModel(
+        enableFallbackPolling: Boolean = false,
+        nowMs: () -> Long = { 0L },
+    ): KanbanTaskViewModel =
         KanbanTaskViewModel(
             repository = mockRepository,
             eventsClientProvider = { mockEventsClient },
             enableFallbackPolling = enableFallbackPolling,
+            nowMs = nowMs,
         )
 
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
+        coEvery { mockRepository.getBoard(any(), any(), any(), any(), any()) } returns
+            NetworkResult.Success(KanbanBoardResponse(latestEventId = 42L))
     }
 
     @After
@@ -79,6 +96,7 @@ class KanbanTaskViewModelTest {
                     ?.task
                     ?.title,
             )
+            vm.onCleared()
         }
 
     @Test
@@ -126,6 +144,7 @@ class KanbanTaskViewModelTest {
                     ?.body,
             )
             assertEquals("Description saved", vm.uiState.value.toastMessage)
+            vm.onCleared()
         }
 
     @Test
@@ -146,6 +165,7 @@ class KanbanTaskViewModelTest {
 
             coVerify { mockRepository.addComment("t_1", "dev", "Steering note") }
             assertEquals("Comment added", vm.uiState.value.toastMessage)
+            vm.onCleared()
         }
 
     @Test
@@ -172,6 +192,7 @@ class KanbanTaskViewModelTest {
                 vm.uiState.value.toastMessage
                     ?.contains("requeued") == true,
             )
+            vm.onCleared()
         }
 
     @Test
@@ -189,6 +210,7 @@ class KanbanTaskViewModelTest {
                 vm.uiState.value.toastMessage
                     ?.contains("coder") == true,
             )
+            vm.onCleared()
         }
 
     @Test
@@ -199,9 +221,9 @@ class KanbanTaskViewModelTest {
                 NetworkResult.Success(KanbanTaskDetailResponse(task = task))
             coEvery { mockRepository.uploadAttachment("t_1", "dev", any()) } returns
                 NetworkResult.Success(
-                    com.m57.hermescontrol.data.model.AttachmentUploadResponse(
+                    AttachmentUploadResponse(
                         attachment =
-                            com.m57.hermescontrol.data.model.KanbanAttachment(
+                            KanbanAttachment(
                                 id = 101L,
                                 filename = "test.png",
                             ),
@@ -218,6 +240,7 @@ class KanbanTaskViewModelTest {
 
             coVerify { mockRepository.uploadAttachment("t_1", "dev", any()) }
             assertEquals("Attachment uploaded", vm.uiState.value.toastMessage)
+            vm.onCleared()
         }
 
     @Test
@@ -250,6 +273,7 @@ class KanbanTaskViewModelTest {
                 )
             }
             assertEquals("Model override updated", vm.uiState.value.toastMessage)
+            vm.onCleared()
         }
 
     @Test
@@ -260,7 +284,7 @@ class KanbanTaskViewModelTest {
                 NetworkResult.Success(KanbanTaskDetailResponse(task = task))
             coEvery { mockRepository.estimateTask("t_1", "dev") } returns
                 NetworkResult.Success(
-                    com.m57.hermescontrol.data.model.TaskEstimate(
+                    TaskEstimate(
                         ok = true,
                         estTokens = 1500,
                         complexity = "medium",
@@ -285,6 +309,7 @@ class KanbanTaskViewModelTest {
                 vm.uiState.value.estimate
                     ?.complexity,
             )
+            vm.onCleared()
         }
 
     @Test
@@ -302,6 +327,7 @@ class KanbanTaskViewModelTest {
             coVerify { mockRepository.deleteTask("t_1", "dev") }
             assertTrue(deleted)
             assertEquals("Task deleted", vm.uiState.value.toastMessage)
+            vm.onCleared()
         }
 
     @Test
@@ -397,6 +423,7 @@ class KanbanTaskViewModelTest {
                 vm.uiState.value.selectedRun
                     ?.id,
             )
+            vm.onCleared()
         }
 
     @Test
@@ -414,6 +441,7 @@ class KanbanTaskViewModelTest {
                     ?.contains("Not configured") == true,
             )
             coVerify(exactly = 0) { mockRepository.getTask("t_1", "dev", any(), any()) }
+            vm.onCleared()
         }
 
     @Test
@@ -435,6 +463,7 @@ class KanbanTaskViewModelTest {
                     ?.contains("gated") == true,
             )
             coVerify { mockRepository.getTask("t_1", "dev", any(), any()) }
+            vm.onCleared()
         }
 
     @Test
@@ -462,6 +491,7 @@ class KanbanTaskViewModelTest {
                     ?.isEmpty() == true,
             )
             coVerify { mockRepository.listAttachments("t_1", "dev") }
+            vm.onCleared()
         }
 
     @Test
@@ -478,6 +508,7 @@ class KanbanTaskViewModelTest {
 
             coVerify { mockRepository.getTask("t_1", "dev", "status", "reclaimed") }
             assertEquals("reclaimed", vm.uiState.value.runStateName)
+            vm.onCleared()
         }
 
     @Test
@@ -492,5 +523,356 @@ class KanbanTaskViewModelTest {
             assertEquals("run 7 already ended", vm.uiState.value.toastMessage)
             assertTrue(!vm.uiState.value.isTerminatingRun)
             coVerify(exactly = 0) { mockRepository.getRun(7L, "dev") }
+            vm.onCleared()
+        }
+
+    @Test
+    fun testUploadAttachmentPerformsExactlyOneGetTaskAuthoritativeReconciliationAndNoExtraAttachmentList() =
+        runTest(testDispatcher) {
+            val task = KanbanTaskFull(id = "t_1", title = "Task with file", status = "todo")
+            val attachment = KanbanAttachment(id = 101L, filename = "test.png")
+            val detailResponse = KanbanTaskDetailResponse(task = task, attachments = listOf(attachment))
+            coEvery { mockRepository.getTask("t_1", "dev") } returns NetworkResult.Success(detailResponse)
+            coEvery { mockRepository.uploadAttachment("t_1", "dev", any()) } returns
+                NetworkResult.Success(AttachmentUploadResponse(attachment = attachment))
+
+            val vm = createViewModel()
+            // Uploads come from the open task; reconciliation only targets the active task.
+            vm.loadTask("dev", "t_1")
+            testDispatcher.scheduler.advanceUntilIdle()
+            coVerify(exactly = 1) { mockRepository.getTask("t_1", "dev") }
+
+            vm.uploadAttachment(
+                "dev",
+                "t_1",
+                MultipartBody.Part.createFormData("file", "test.png", byteArrayOf(1, 2, 3).toRequestBody()),
+            )
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            // Exactly one authoritative reconciliation read after the upload.
+            coVerify(exactly = 2) { mockRepository.getTask("t_1", "dev") }
+            coVerify(exactly = 0) { mockRepository.listAttachments(any(), any()) }
+            assertEquals("Attachment uploaded", vm.uiState.value.toastMessage)
+            vm.onCleared()
+        }
+
+    @Test
+    fun testFreshTabDoesNotGetWithinTtlAndTtlExpiryTriggersGet() =
+        runTest(testDispatcher) {
+            var fakeTime = 1_000L
+            val task = KanbanTaskFull(id = "t_1", title = "Task 1", status = "todo")
+            val detailResponse =
+                KanbanTaskDetailResponse(
+                    task = task,
+                    attachments = listOf(KanbanAttachment(id = 1L, filename = "a.txt")),
+                )
+            coEvery { mockRepository.getTask("t_1", "dev") } returns NetworkResult.Success(detailResponse)
+
+            val vm = createViewModel(nowMs = { fakeTime })
+            vm.loadTask("dev", "t_1")
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            coVerify(exactly = 1) { mockRepository.getTask("t_1", "dev") }
+
+            // Fresh tab entry within maxAgeMs (default 10,000ms): advance 5,000ms
+            fakeTime = 6_000L
+            vm.refreshAttachmentsIfNeeded("dev", "t_1", maxAgeMs = 10_000L)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            coVerify(exactly = 1) { mockRepository.getTask("t_1", "dev") }
+            coVerify(exactly = 0) { mockRepository.listAttachments(any(), any()) }
+
+            // TTL expiry: advance beyond 10,000ms
+            fakeTime = 12_000L
+            vm.refreshAttachmentsIfNeeded("dev", "t_1", maxAgeMs = 10_000L)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            coVerify(atLeast = 2) {
+                mockRepository.getTask("t_1", "dev")
+            }
+            coVerify(exactly = 0) { mockRepository.listAttachments(any(), any()) }
+            vm.onCleared()
+        }
+
+    @Test
+    fun testNullAttachmentSnapshotDoesNotStampFreshness() =
+        runTest(testDispatcher) {
+            var fakeTime = 1_000L
+            val task = KanbanTaskFull(id = "t_1", title = "Task 1", status = "todo")
+            val detailWithoutAttachments = KanbanTaskDetailResponse(task = task, attachments = null)
+            val detailWithAttachments =
+                KanbanTaskDetailResponse(
+                    task = task,
+                    attachments = listOf(KanbanAttachment(id = 1L, filename = "doc.pdf")),
+                )
+
+            coEvery { mockRepository.getTask("t_1", "dev") } returnsMany
+                listOf(
+                    NetworkResult.Success(detailWithoutAttachments),
+                    NetworkResult.Success(detailWithAttachments),
+                )
+
+            val vm = createViewModel(nowMs = { fakeTime })
+            vm.loadTask("dev", "t_1")
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            coVerify(exactly = 1) { mockRepository.getTask("t_1", "dev") }
+
+            // Because attachments field was null, freshness was NOT stamped even within TTL
+            fakeTime = 2_000L
+            vm.refreshAttachmentsIfNeeded("dev", "t_1", maxAgeMs = 10_000L)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            coVerify(atLeast = 2) {
+                mockRepository.getTask("t_1", "dev")
+            }
+            vm.onCleared()
+        }
+
+    @Test
+    fun testFailedAttachmentReconciliationLeavesStateStaleAndRetries() =
+        runTest(testDispatcher) {
+            var fakeTime = 1_000L
+            val task = KanbanTaskFull(id = "t_1", title = "Task 1", status = "todo")
+            val initialDetail = KanbanTaskDetailResponse(task = task, attachments = emptyList())
+            val recoveredDetail =
+                KanbanTaskDetailResponse(
+                    task = task,
+                    attachments = listOf(KanbanAttachment(id = 5L, filename = "file.txt")),
+                )
+
+            coEvery { mockRepository.getTask("t_1", "dev") } returnsMany
+                listOf(
+                    NetworkResult.Success(initialDetail),
+                    NetworkResult.Failure(NetworkError.Http(500, "Internal Server Error")),
+                    NetworkResult.Success(recoveredDetail),
+                )
+
+            val vm = createViewModel(nowMs = { fakeTime })
+            vm.loadTask("dev", "t_1")
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            coVerify(exactly = 1) {
+                mockRepository.getTask("t_1", "dev")
+            }
+            assertEquals(
+                emptyList<KanbanAttachment>(),
+                vm.uiState.value.detail
+                    ?.attachments,
+            )
+
+            // Expire TTL to trigger refresh; this call fails in getTask and leaves state stale
+            fakeTime = 15_000L
+            vm.refreshAttachmentsIfNeeded("dev", "t_1", maxAgeMs = 10_000L)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            coVerify(exactly = 2) {
+                mockRepository.getTask("t_1", "dev")
+            }
+            assertEquals(
+                emptyList<KanbanAttachment>(),
+                vm.uiState.value.detail
+                    ?.attachments,
+            )
+
+            // Failed reconciliation leaves attachments stale so immediate reopening/retry can fetch again
+            fakeTime = 16_000L
+            vm.refreshAttachmentsIfNeeded("dev", "t_1", maxAgeMs = 10_000L)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            // Verify the retry reached getTask and recovered attachment state
+            coVerify(exactly = 3) {
+                mockRepository.getTask("t_1", "dev")
+            }
+            coVerify(exactly = 0) {
+                mockRepository.listAttachments(any(), any())
+            }
+            assertEquals(
+                listOf(KanbanAttachment(id = 5L, filename = "file.txt")),
+                vm.uiState.value.detail
+                    ?.attachments,
+            )
+            vm.onCleared()
+        }
+
+    @Test
+    fun testInFlightAttachmentRefreshCoalescesConcurrentCalls() =
+        runTest(testDispatcher) {
+            val deferredTask = CompletableDeferred<NetworkResult<KanbanTaskDetailResponse>>()
+            val deferredList = CompletableDeferred<NetworkResult<AttachmentListResponse>>()
+            val task = KanbanTaskFull(id = "t_1", title = "Task 1", status = "todo")
+
+            val initialCalls =
+                java.util.concurrent.atomic
+                    .AtomicInteger(0)
+            coEvery { mockRepository.getTask("t_1", "dev") } coAnswers {
+                if (initialCalls.getAndIncrement() == 0) {
+                    NetworkResult.Success(KanbanTaskDetailResponse(task = task, attachments = emptyList()))
+                } else {
+                    deferredTask.await()
+                }
+            }
+            coEvery { mockRepository.listAttachments("t_1", "dev") } coAnswers { deferredList.await() }
+
+            val vm = createViewModel()
+            vm.loadTask("dev", "t_1")
+            testDispatcher.scheduler.advanceUntilIdle()
+            coVerify(exactly = 1) { mockRepository.getTask("t_1", "dev") }
+
+            vm.refreshAttachmentsIfNeeded("dev", "t_1", maxAgeMs = 0L)
+            vm.refreshAttachmentsIfNeeded("dev", "t_1", maxAgeMs = 0L)
+            testDispatcher.scheduler.runCurrent()
+
+            // Complete in-flight calls
+            deferredTask.complete(
+                NetworkResult.Success(
+                    KanbanTaskDetailResponse(
+                        task = task,
+                        attachments = listOf(KanbanAttachment(id = 1L, filename = "a.txt")),
+                    ),
+                ),
+            )
+            deferredList.complete(
+                NetworkResult.Success(
+                    AttachmentListResponse(listOf(KanbanAttachment(id = 1L, filename = "a.txt"))),
+                ),
+            )
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            // Two concurrent triggers coalesce into exactly one reconciliation read.
+            coVerify(exactly = 2) { mockRepository.getTask("t_1", "dev") }
+            coVerify(exactly = 0) { mockRepository.listAttachments("t_1", "dev") }
+            vm.onCleared()
+        }
+
+    @Test
+    fun testTaskAndScopeReplacementFencesLateResults() =
+        runTest(testDispatcher) {
+            val deferredOldTask = CompletableDeferred<NetworkResult<KanbanTaskDetailResponse>>()
+            val taskOld = KanbanTaskFull(id = "t_1", title = "Old Task", status = "todo")
+            val taskNew = KanbanTaskFull(id = "t_2", title = "New Task", status = "todo")
+
+            coEvery { mockRepository.getTask("t_1", "dev") } coAnswers { deferredOldTask.await() }
+            coEvery { mockRepository.getTask("t_2", "dev") } returns
+                NetworkResult.Success(KanbanTaskDetailResponse(task = taskNew))
+
+            val vm = createViewModel()
+            vm.loadTask("dev", "t_1")
+            testDispatcher.scheduler.runCurrent()
+
+            // Switch task/scope before old completes
+            vm.loadTask("dev", "t_2")
+            testDispatcher.scheduler.runCurrent()
+
+            // Complete old deferred late
+            deferredOldTask.complete(NetworkResult.Success(KanbanTaskDetailResponse(task = taskOld)))
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            // UI state must retain taskNew, not overwritten by stale taskOld
+            assertEquals(
+                "New Task",
+                vm.uiState.value.detail
+                    ?.task
+                    ?.title,
+            )
+            vm.onCleared()
+        }
+
+    @Test
+    fun testTaskInitialSubscribesUsingBoardCursorBeforeGetTaskAndExactSince() =
+        runTest(testDispatcher) {
+            val callOrder = mutableListOf<String>()
+            val task = KanbanTaskFull(id = "t_1", title = "Task 1", status = "todo")
+
+            coEvery { mockRepository.getBoard("dev", any(), any(), any(), any()) } coAnswers {
+                callOrder.add("getBoard")
+                NetworkResult.Success(KanbanBoardResponse(latestEventId = 777L))
+            }
+            coEvery { mockRepository.getTask("t_1", "dev") } coAnswers {
+                callOrder.add("getTask")
+                NetworkResult.Success(KanbanTaskDetailResponse(task = task))
+            }
+
+            val vm = createViewModel()
+            vm.loadTask("dev", "t_1")
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            assertEquals("getBoard must be invoked before getTask", listOf("getBoard", "getTask"), callOrder)
+            verify {
+                mockEventsClient.connect(
+                    scope = any(),
+                    board = eq("dev"),
+                    since = eq(777L),
+                    onEvents = any(),
+                    onStatus = any(),
+                )
+            }
+            vm.onCleared()
+        }
+
+    @Test
+    fun testExternalEventInvalidatesAttachmentFreshnessAndTriggersRefresh() =
+        runTest(testDispatcher) {
+            var fakeTime = 1_000L
+            val task = KanbanTaskFull(id = "t_1", title = "Task 1", status = "todo")
+            val detailResponse =
+                KanbanTaskDetailResponse(
+                    task = task,
+                    attachments = listOf(KanbanAttachment(id = 1L, filename = "a.txt")),
+                )
+            coEvery { mockRepository.getTask("t_1", "dev") } returns NetworkResult.Success(detailResponse)
+
+            val eventsSlot = slot<(KanbanEventsEnvelope) -> Unit>()
+            every {
+                mockEventsClient.connect(
+                    scope = any(),
+                    board = any(),
+                    since = any(),
+                    onEvents = capture(eventsSlot),
+                    onStatus = any(),
+                )
+            } just Runs
+
+            val vm = createViewModel(nowMs = { fakeTime })
+            vm.loadTask("dev", "t_1")
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            verify {
+                mockEventsClient.connect(
+                    scope = any(),
+                    board = any(),
+                    since = any(),
+                    onEvents = capture(eventsSlot),
+                    onStatus = any(),
+                )
+            }
+            assertTrue("Expected onEvents callback to be captured", eventsSlot.isCaptured)
+            coVerify(exactly = 1) { mockRepository.getTask("t_1", "dev") }
+
+            // Trigger an external event for this board/task
+            eventsSlot.captured(
+                KanbanEventsEnvelope(
+                    events =
+                        listOf(
+                            KanbanEvent(
+                                id = 778L,
+                                taskId = "t_1",
+                                kind = "attachment_created",
+                            ),
+                        ),
+                    cursor = 778L,
+                ),
+            )
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            // Within nominal TTL, refreshAttachmentsIfNeeded should now refresh because external event invalidated freshness
+            fakeTime = 2_000L
+            vm.refreshAttachmentsIfNeeded("dev", "t_1", maxAgeMs = 10_000L)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            coVerify(atLeast = 2) {
+                mockRepository.getTask("t_1", "dev")
+            }
+            vm.onCleared()
         }
 }

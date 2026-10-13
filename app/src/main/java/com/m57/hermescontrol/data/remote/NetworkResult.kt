@@ -89,8 +89,14 @@ fun jitteredBackoff(baseMs: Long): Long {
     return baseMs + jitter
 }
 
-suspend inline fun <reified T> safeApiCall(
+/** #1555: callers opt into replay only for producer-confirmed safe reads or explicit idempotence. */
+suspend inline fun <reified T> safeApiRead(
     retries: Int = 2,
+    crossinline call: suspend () -> Response<T>,
+): NetworkResult<T> = safeApiCall(retries, call)
+
+suspend inline fun <reified T> safeApiCall(
+    retries: Int = 0,
     crossinline call: suspend () -> Response<T>,
 ): NetworkResult<T> {
     var lastException: IOException? = null
@@ -101,6 +107,9 @@ suspend inline fun <reified T> safeApiCall(
                 val body = response.body()
                 return if (body != null) {
                     NetworkResult.Success(body)
+                } else if (T::class == Unit::class) {
+                    // Empty 2xx for a Unit endpoint is success; the reified cast of null would throw.
+                    NetworkResult.Success(Unit as T)
                 } else {
                     @Suppress("UNCHECKED_CAST")
                     NetworkResult.Success(null as T)

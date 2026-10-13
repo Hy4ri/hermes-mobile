@@ -3,7 +3,9 @@ package com.m57.hermescontrol.data.ws
 import android.util.Log
 import com.m57.hermescontrol.BuildConfig
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.remote.OkHttpProvider
+import com.m57.hermescontrol.data.remote.ServerEndpoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -122,12 +124,17 @@ class KanbanEventsClient {
     // client is only built when a stream is actually opened.
     private val httpClient by lazy { OkHttpProvider.websocket }
 
+    private val lock = Any()
     private var webSocket: WebSocket? = null
     private var reconnectJob: Job? = null
     private var generation = 0
+    private var socketAttempt = 0
     private var closed = true
     private var backoffMs = INITIAL_BACKOFF_MS
-    private var cursor: Long = 0
+    private var cursor: Long? = null
+    private var streamEndpoint: ServerEndpoint? = null
+    private var streamDataScope: DataScope? = null
+    private var streamBoard: String? = null
 
     /**
      * Open (or re-open) the events stream for [board]. A previous connection is
@@ -139,27 +146,94 @@ class KanbanEventsClient {
     fun connect(
         scope: CoroutineScope,
         board: String,
-        since: Long = 0,
+        since: Long? = null,
         onEvents: (KanbanEventsEnvelope) -> Unit,
         onStatus: (KanbanLiveStatus) -> Unit,
     ) {
-        val gen = ++generation
-        reconnectJob?.cancel()
-        webSocket?.cancel()
-        closed = false
-        backoffMs = INITIAL_BACKOFF_MS
-        cursor = since
+        val capturedEndpoint = runCatching { AuthManager.endpointForBuild() }.getOrNull()
+        val capturedScope = AuthManager.currentDataScope()
+
+        val oldSocket: WebSocket?
+        val oldJob: Job?
+        val gen: Int
+
+        synchronized(lock) {
+            gen = ++generation
+            socketAttempt = 0
+            oldJob = reconnectJob
+            reconnectJob = null
+            oldSocket = webSocket
+            webSocket = null
+            closed = false
+            backoffMs = INITIAL_BACKOFF_MS
+            streamEndpoint = capturedEndpoint
+            streamDataScope = capturedScope
+            streamBoard = board
+            cursor = since
+        }
+
+        oldJob?.cancel()
+        oldSocket?.cancel()
+
         openSocket(scope, gen, board, onEvents, onStatus)
     }
 
     /** Close the stream and cancel any pending reconnect. */
     fun disconnect() {
-        closed = true
-        generation++
-        reconnectJob?.cancel()
-        reconnectJob = null
-        webSocket?.cancel()
-        webSocket = null
+        val oldSocket: WebSocket?
+        val oldJob: Job?
+
+        synchronized(lock) {
+            closed = true
+            generation++
+            socketAttempt = 0
+            oldJob = reconnectJob
+            reconnectJob = null
+            oldSocket = webSocket
+            webSocket = null
+            streamBoard = null
+            cursor = null
+            streamEndpoint = null
+            streamDataScope = null
+        }
+
+        oldJob?.cancel()
+        oldSocket?.cancel()
+    }
+
+    private fun isCurrentLocked(
+        gen: Int,
+        board: String,
+    ): Boolean {
+        if (closed || gen != generation || board != streamBoard) return false
+        val currentEndpoint = runCatching { AuthManager.endpointForBuild() }.getOrNull()
+        if (currentEndpoint != streamEndpoint) return false
+        val currentScope = AuthManager.currentDataScope()
+        if (currentScope != streamDataScope) return false
+        return true
+    }
+
+    private fun isCurrent(
+        gen: Int,
+        board: String,
+    ): Boolean {
+        synchronized(lock) {
+            return isCurrentLocked(gen, board)
+        }
+    }
+
+    private fun isAttemptCurrent(
+        gen: Int,
+        attempt: Int,
+        board: String,
+        socket: WebSocket? = null,
+    ): Boolean {
+        synchronized(lock) {
+            if (!isCurrentLocked(gen, board)) return false
+            if (attempt != socketAttempt) return false
+            if (socket != null && webSocket !== socket) return false
+            return true
+        }
     }
 
     private fun openSocket(
@@ -169,30 +243,51 @@ class KanbanEventsClient {
         onEvents: (KanbanEventsEnvelope) -> Unit,
         onStatus: (KanbanLiveStatus) -> Unit,
     ) {
-        if (closed || gen != generation) return
+        val endpoint: ServerEndpoint
+        val queryCursor: Long?
+        val attempt: Int
+
+        synchronized(lock) {
+            if (!isCurrentLocked(gen, board)) return
+            endpoint = streamEndpoint ?: return
+            queryCursor = cursor
+            attempt = ++socketAttempt
+        }
 
         scope.launch(Dispatchers.IO) {
             val credential = HermesWsClient.mintWsTicket()
-            if (closed || gen != generation) return@launch
+            synchronized(lock) {
+                if (!isCurrentLocked(gen, board) || attempt != socketAttempt) return@launch
+            }
+
             if (credential.isNullOrBlank()) {
-                scope.launch { onStatus(KanbanLiveStatus.AUTH_FAILED) }
+                scope.launch {
+                    if (isAttemptCurrent(gen, attempt, board)) {
+                        onStatus(KanbanLiveStatus.AUTH_FAILED)
+                    }
+                }
                 return@launch
             }
 
             val rawAuthParam = AuthManager.serverStore.getLatestState().wsAuthParam
             val authParam = if (rawAuthParam.isBlank()) "token" else rawAuthParam
+            val extraParams =
+                buildMap {
+                    put("board", board)
+                    queryCursor?.let { put("since", it.toString()) }
+                }
             val url =
-                AuthManager.endpointForBuild().webSocketUrl(
+                endpoint.webSocketUrl(
                     path = KANBAN_EVENTS_PATH,
                     authParameter = authParam,
                     credential = credential,
-                    extraParams = mapOf("since" to cursor.toString(), "board" to board),
+                    extraParams = extraParams,
                 )
             val safeUrl = url.replace(Regex("(token|ticket)=[^&]+"), "$1=REDACTED")
             if (BuildConfig.DEBUG) Log.d(TAG, "Connecting to $safeUrl")
 
             val request = Request.Builder().url(url).build()
-            webSocket =
+            val socket =
                 httpClient.newWebSocket(
                     request,
                     object : WebSocketListener() {
@@ -200,20 +295,51 @@ class KanbanEventsClient {
                             webSocket: WebSocket,
                             response: Response,
                         ) {
-                            if (closed || gen != generation) return
-                            backoffMs = INITIAL_BACKOFF_MS
-                            scope.launch { onStatus(KanbanLiveStatus.CONNECTED) }
+                            val notify =
+                                synchronized(lock) {
+                                    if (!isCurrentLocked(gen, board) ||
+                                        attempt != socketAttempt ||
+                                        this@KanbanEventsClient.webSocket !== webSocket
+                                    ) {
+                                        return@synchronized false
+                                    }
+                                    backoffMs = INITIAL_BACKOFF_MS
+                                    true
+                                }
+                            if (notify) {
+                                scope.launch {
+                                    if (isAttemptCurrent(gen, attempt, board, webSocket)) {
+                                        onStatus(KanbanLiveStatus.CONNECTED)
+                                    }
+                                }
+                            }
                         }
 
                         override fun onMessage(
                             webSocket: WebSocket,
                             text: String,
                         ) {
-                            if (closed || gen != generation) return
                             val envelope = parseKanbanEventsFrame(text) ?: return
-                            if (envelope.events.isEmpty()) return
-                            envelope.cursor?.let { cursor = it }
-                            scope.launch { onEvents(envelope) }
+                            val shouldDispatch =
+                                synchronized(lock) {
+                                    if (!isCurrentLocked(gen, board) ||
+                                        attempt != socketAttempt ||
+                                        this@KanbanEventsClient.webSocket !== webSocket
+                                    ) {
+                                        return@synchronized false
+                                    }
+                                    envelope.cursor?.let { newCursor ->
+                                        cursor = maxOf(cursor ?: 0L, newCursor)
+                                    }
+                                    envelope.events.isNotEmpty()
+                                }
+                            if (shouldDispatch) {
+                                scope.launch {
+                                    if (isAttemptCurrent(gen, attempt, board, webSocket)) {
+                                        onEvents(envelope)
+                                    }
+                                }
+                            }
                         }
 
                         override fun onMessage(
@@ -234,12 +360,37 @@ class KanbanEventsClient {
                             code: Int,
                             reason: String,
                         ) {
-                            if (closed || gen != generation) return
-                            if (code == WS_1008_POLICY_VIOLATION) {
-                                scope.launch { onStatus(KanbanLiveStatus.BOARD_UNAVAILABLE) }
+                            val isUnavailable: Boolean
+                            val shouldReconnect: Boolean
+                            synchronized(lock) {
+                                if (!isCurrentLocked(gen, board) ||
+                                    attempt != socketAttempt ||
+                                    this@KanbanEventsClient.webSocket !== webSocket
+                                ) {
+                                    return
+                                }
+                                if (this@KanbanEventsClient.webSocket === webSocket) {
+                                    this@KanbanEventsClient.webSocket = null
+                                }
+                                if (code == WS_1008_POLICY_VIOLATION) {
+                                    isUnavailable = true
+                                    shouldReconnect = false
+                                } else {
+                                    isUnavailable = false
+                                    shouldReconnect = true
+                                }
+                            }
+                            if (isUnavailable) {
+                                scope.launch {
+                                    if (isCurrent(gen, board)) {
+                                        onStatus(KanbanLiveStatus.BOARD_UNAVAILABLE)
+                                    }
+                                }
                                 return
                             }
-                            scheduleReconnect(scope, gen, board, onEvents, onStatus)
+                            if (shouldReconnect) {
+                                scheduleReconnect(scope, gen, board, onEvents, onStatus)
+                            }
                         }
 
                         override fun onFailure(
@@ -247,12 +398,37 @@ class KanbanEventsClient {
                             t: Throwable,
                             response: Response?,
                         ) {
-                            if (closed || gen != generation) return
+                            val shouldReconnect: Boolean
+                            synchronized(lock) {
+                                if (!isCurrentLocked(gen, board) ||
+                                    attempt != socketAttempt ||
+                                    this@KanbanEventsClient.webSocket !== webSocket
+                                ) {
+                                    return
+                                }
+                                if (this@KanbanEventsClient.webSocket === webSocket) {
+                                    this@KanbanEventsClient.webSocket = null
+                                }
+                                shouldReconnect = true
+                            }
                             if (BuildConfig.DEBUG) Log.d(TAG, "Stream failure: ${t.javaClass.simpleName}")
-                            scheduleReconnect(scope, gen, board, onEvents, onStatus)
+                            if (shouldReconnect) {
+                                scheduleReconnect(scope, gen, board, onEvents, onStatus)
+                            }
                         }
                     },
                 )
+
+            val oldToCancel: WebSocket?
+            synchronized(lock) {
+                if (isCurrentLocked(gen, board) && attempt == socketAttempt) {
+                    oldToCancel = webSocket
+                    webSocket = socket
+                } else {
+                    oldToCancel = socket
+                }
+            }
+            oldToCancel?.cancel()
         }
     }
 
@@ -263,15 +439,42 @@ class KanbanEventsClient {
         onEvents: (KanbanEventsEnvelope) -> Unit,
         onStatus: (KanbanLiveStatus) -> Unit,
     ) {
-        if (closed || gen != generation) return
-        scope.launch { onStatus(KanbanLiveStatus.DISCONNECTED) }
-        reconnectJob?.cancel()
-        reconnectJob =
+        val delayTime: Long
+        val oldJob: Job?
+
+        synchronized(lock) {
+            if (!isCurrentLocked(gen, board)) return
+            delayTime = backoffMs
+            backoffMs = (backoffMs * 2).coerceAtMost(MAX_BACKOFF_MS)
+            oldJob = reconnectJob
+            reconnectJob = null
+        }
+
+        oldJob?.cancel()
+
+        scope.launch {
+            if (isCurrent(gen, board)) {
+                onStatus(KanbanLiveStatus.DISCONNECTED)
+            }
+        }
+
+        val job =
             scope.launch {
-                delay(backoffMs)
-                backoffMs = (backoffMs * 2).coerceAtMost(MAX_BACKOFF_MS)
+                delay(delayTime)
                 openSocket(scope, gen, board, onEvents, onStatus)
             }
+
+        var cancelNewJob = false
+        synchronized(lock) {
+            if (isCurrentLocked(gen, board)) {
+                reconnectJob = job
+            } else {
+                cancelNewJob = true
+            }
+        }
+        if (cancelNewJob) {
+            job.cancel()
+        }
     }
 
     private companion object {

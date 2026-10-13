@@ -7,6 +7,7 @@ import com.m57.hermescontrol.data.model.StatusResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.remote.safeApiRead
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
@@ -43,7 +44,7 @@ class GatewayViewModel :
             onCacheHit = { data ->
                 _uiState.update { it.copy(isLoading = false, status = data, errorMessage = null) }
             },
-            apiCall = { safeApiCall { ApiClient.hermesApi.getStatus() } },
+            apiCall = { safeApiRead { ApiClient.hermesApi.getStatus() } },
             onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
             onSuccess = { data ->
                 _uiState.update { it.copy(isLoading = false, status = data) }

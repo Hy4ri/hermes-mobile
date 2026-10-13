@@ -6,7 +6,7 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.SessionMessage
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
-import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.remote.safeApiRead
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.atomic.AtomicLong
@@ -323,7 +323,7 @@ internal suspend fun captureTurnBoundary(
  */
 private suspend fun fetchBoundaryTailId(sessionId: String): Int? {
     val result =
-        safeApiCall {
+        safeApiRead {
             ApiClient.hermesApi.getSessionMessages(
                 sessionId = sessionId,
                 limit = 1,
@@ -345,7 +345,7 @@ private suspend fun fetchBoundaryTailId(sessionId: String): Int? {
 /** Newest-first REST page used to correlate a completed turn. */
 internal suspend fun fetchTurnRows(sessionId: String): List<SessionMessage>? {
     val result =
-        safeApiCall {
+        safeApiRead {
             ApiClient.hermesApi.getSessionMessages(
                 sessionId = sessionId,
                 limit = TURN_ROW_SCAN_LIMIT,

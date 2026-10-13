@@ -26,6 +26,9 @@ import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.chat.ContextBreakdown
+import com.m57.hermescontrol.ui.common.EmptyState
+import com.m57.hermescontrol.ui.common.ErrorState
+import com.m57.hermescontrol.ui.common.LoadingState
 import kotlin.math.min
 
 /**
@@ -40,23 +43,31 @@ import kotlin.math.min
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ContextDetailSheet(
-    breakdown: ContextBreakdown,
+    breakdown: ContextBreakdown?,
     usedTokens: Long?,
     fullTokens: Long?,
     onDismiss: () -> Unit,
+    isLoading: Boolean = false,
+    errorMessage: String? = null,
+    onRetry: (() -> Unit)? = null,
     sheetState: SheetState = rememberModalBottomSheetState(),
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
     ) {
-        val full = fullTokens ?: 0L
-        val fraction = if (full > 0L && usedTokens != null) min(1f, usedTokens.toFloat() / full.toFloat()) else 0f
-        val pct = (fraction * 100).toInt()
+        val full = fullTokens?.takeIf { it > 0L }
+        val fraction =
+            if (full != null && usedTokens != null) {
+                min(1f, usedTokens.toFloat() / full.toFloat())
+            } else {
+                null
+            }
+        val pct = fraction?.let { (it * 100).toInt() }
         val statusColors = LocalHermesStatusColors.current
         val barColor =
             when {
-                usedTokens == null -> MaterialTheme.colorScheme.primary
+                pct == null -> MaterialTheme.colorScheme.primary
                 pct >= 90 -> statusColors.error
                 pct >= 70 -> statusColors.warning
                 else -> MaterialTheme.colorScheme.primary
@@ -89,7 +100,7 @@ fun ContextDetailSheet(
                     color = barColor,
                 )
                 Text(
-                    text = "of ${formatTokens(full)}",
+                    text = "of ${full?.let { formatTokens(it) } ?: "—"}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -106,17 +117,19 @@ fun ContextDetailSheet(
                             shape = RoundedCornerShape(4.dp),
                         ),
             ) {
-                Box(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth(fraction)
-                            .height(8.dp)
-                            .background(color = barColor, shape = RoundedCornerShape(4.dp)),
-                )
+                if (fraction != null) {
+                    Box(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth(fraction)
+                                .height(8.dp)
+                                .background(color = barColor, shape = RoundedCornerShape(4.dp)),
+                    )
+                }
             }
             Text(
                 text =
-                    if (usedTokens != null) {
+                    if (pct != null) {
                         "$pct% of context window used"
                     } else {
                         stringResource(R.string.context_window_usage_unavailable)
@@ -125,20 +138,57 @@ fun ContextDetailSheet(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            // Breakdown rows
-            ContextRow(label = stringResource(R.string.context_prompt_input), value = breakdown.inputTokens)
-            ContextRow(label = stringResource(R.string.context_completion_output), value = breakdown.outputTokens)
-            ContextRow(label = stringResource(R.string.context_cache_read), value = breakdown.cacheReadTokens)
-            ContextRow(label = stringResource(R.string.context_cache_write), value = breakdown.cacheWriteTokens)
-            ContextRow(label = "Reasoning", value = breakdown.reasoningTokens)
-            ContextRow(label = "Messages", value = breakdown.messageCount.toLong(), isCount = true)
+            when {
+                isLoading -> {
+                    LoadingState(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 24.dp),
+                    )
+                }
 
-            Text(
-                text = stringResource(R.string.context_tokens_note),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 16.dp),
-            )
+                errorMessage != null -> {
+                    ErrorState(
+                        message = errorMessage,
+                        onRetry = onRetry,
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 16.dp),
+                    )
+                }
+
+                breakdown != null -> {
+                    // Breakdown rows
+                    ContextRow(label = stringResource(R.string.context_prompt_input), value = breakdown.inputTokens)
+                    ContextRow(
+                        label = stringResource(R.string.context_completion_output),
+                        value = breakdown.outputTokens,
+                    )
+                    ContextRow(label = stringResource(R.string.context_cache_read), value = breakdown.cacheReadTokens)
+                    ContextRow(label = stringResource(R.string.context_cache_write), value = breakdown.cacheWriteTokens)
+                    ContextRow(label = "Reasoning", value = breakdown.reasoningTokens)
+                    ContextRow(label = "Messages", value = breakdown.messageCount.toLong(), isCount = true)
+
+                    Text(
+                        text = stringResource(R.string.context_tokens_note),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 16.dp),
+                    )
+                }
+
+                else -> {
+                    EmptyState(
+                        title = stringResource(R.string.context_window_usage_unavailable),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 16.dp),
+                    )
+                }
+            }
         }
     }
 }

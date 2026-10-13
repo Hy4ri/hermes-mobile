@@ -193,4 +193,6 @@ data class SubscriptionUpgradeResponse(
     /** Backend-issued idempotency key (present on the live gateway response). */
     val idempotency_key: String? = null,
     val message: String? = null,
+    val reason: String? = null,
+    val target_tier_name: String? = null,
 )

@@ -46,7 +46,10 @@ class McpOwnershipTest {
         mockkObject(ApiClient, AuthManager)
         every { ApiClient.hermesApi } returns api
         every { AuthManager.activeProfileId } returns MutableStateFlow("work")
-        every { AuthManager.currentDataScope() } returns null
+        every { AuthManager.currentDataScope() } returns DataScope("server-default", "https://default.example", "work")
+        // OAuth capture reads the real auth mode/token; AuthManager is never init()ed in unit tests.
+        every { AuthManager.isGatedMode() } returns false
+        every { AuthManager.getToken() } returns "test-token"
     }
 
     @After
@@ -269,7 +272,7 @@ class McpOwnershipTest {
     @Test
     fun `add collision surfaces plugin conflict verbatim`() {
         coEvery { api.addMcpServer(any()) } returns conflictResponse()
-        val vm = McpServersViewModel(ioDispatcher = dispatcher)
+        val vm = McpServersViewModel(ioDispatcher = dispatcher, scopedServiceFactory = { _, _, _ -> api })
         vm.toggleAddForm()
         vm.updateAddServerName(owned.name)
         vm.updateAddServerUrl("https://example.com/mcp")
@@ -292,7 +295,7 @@ class McpOwnershipTest {
                         ),
                 ),
             )
-        return McpServersViewModel(ioDispatcher = dispatcher).also {
+        return McpServersViewModel(ioDispatcher = dispatcher, scopedServiceFactory = { _, _, _ -> api }).also {
             it.loadServers()
             dispatcher.scheduler.advanceUntilIdle()
             assertEquals(listOf(server), it.uiState.value.servers)

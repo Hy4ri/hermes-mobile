@@ -478,6 +478,32 @@ sealed class WsEvent {
         val sessionId: String?,
     ) : WsEvent()
 
+    // ── Notifications (issue #1563) ──────────────────────────────────────────
+
+    /**
+     * Show or replace a keyed out-of-band notice (`notification.show`).
+     *
+     * Text, level, and kind are required by the gateway contract; ttlMs, key, id,
+     * and sessionId are optional contextual metadata.
+     */
+    data class NotificationShow(
+        val text: String,
+        val level: String,
+        val kind: String,
+        val ttlMs: Long? = null,
+        val key: String? = null,
+        val id: String? = null,
+        val sessionId: String? = null,
+    ) : WsEvent()
+
+    /**
+     * Withdraw a previously emitted keyed notice (`notification.clear`).
+     */
+    data class NotificationClear(
+        val key: String,
+        val sessionId: String? = null,
+    ) : WsEvent()
+
     // ── Replay resync (internal) ──────────────────────────────────────────
 
     /** Internal: replay could not cover the reconnect gap (truncated or epoch change) — UI must refetch history. */

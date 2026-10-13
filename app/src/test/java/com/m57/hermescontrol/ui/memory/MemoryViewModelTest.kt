@@ -115,12 +115,13 @@ class MemoryViewModelTest {
         val graph =
             com.m57.hermescontrol.data.model
                 .LearningGraphResponse(nodes = emptyList())
-        coEvery { mockApi.getLearningGraph() } returns Response.success(graph)
+        // R1547: the graph read always carries the captured profile explicitly.
+        coEvery { mockApi.getLearningGraph(profile = any()) } returns Response.success(graph)
         val vm = MemoryViewModel()
         vm.load()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        coVerify { mockApi.getLearningGraph() }
+        coVerify(exactly = 1) { mockApi.getLearningGraph(profile = any()) }
         assertEquals(graph, vm.uiState.value.learningGraph)
     }
 

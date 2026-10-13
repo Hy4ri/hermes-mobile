@@ -63,6 +63,7 @@ class KanbanTaskViewModel(
     private val repository: KanbanRepository = KanbanRepositoryImpl(),
     private val eventsClientProvider: () -> KanbanEventsClient = { KanbanEventsClient() },
     private val enableFallbackPolling: Boolean = true,
+    private val nowMs: () -> Long = { System.nanoTime() / 1_000_000L },
 ) : ViewModel(),
     ToastHost {
     private val _uiState = MutableStateFlow(KanbanTaskUiState())
@@ -76,6 +77,10 @@ class KanbanTaskViewModel(
     private var reloadJob: Job? = null
     private var logPollJob: Job? = null
     private var detailPollJob: Job? = null
+    private var boardCursor: Long? = null
+    private var boardCursorFetched: Boolean = false
+    private var attachmentsLastFreshMs: Long? = null
+    private var attachmentRefreshJob: Job? = null
 
     fun loadTask(
         board: String,
@@ -108,10 +113,10 @@ class KanbanTaskViewModel(
         }
         loadProfiles()
         loadModelOptions()
-        connectEvents(board)
         startDetailPolling(board, taskId)
 
         viewModelScope.launch {
+            ensureBoardEventsConnected(board, gen)
             when (
                 val result =
                     repository.getTask(
@@ -124,6 +129,9 @@ class KanbanTaskViewModel(
                 is NetworkResult.Success -> {
                     if (gen != currentLoadGen) return@launch
                     val taskData = result.data
+                    if (taskData.attachments != null) {
+                        attachmentsLastFreshMs = nowMs()
+                    }
                     _uiState.update {
                         it.copy(
                             isLoading = false,
@@ -249,17 +257,41 @@ class KanbanTaskViewModel(
             }
     }
 
-    private fun connectEvents(board: String) {
-        if (eventsBoard == board) return
-        eventsClient?.disconnect()
-        eventsBoard = board
+    private suspend fun ensureBoardEventsConnected(
+        board: String,
+        loadGen: Int,
+    ) {
+        if (eventsBoard != board) {
+            eventsClient?.disconnect()
+            eventsBoard = board
+            boardCursor = null
+            boardCursorFetched = false
+        }
+        if (!boardCursorFetched) {
+            when (val boardRes = repository.getBoard(board)) {
+                is NetworkResult.Success -> {
+                    if (loadGen != currentLoadGen || activeBoard != board) return
+                    boardCursor = boardRes.data.latestEventId
+                    boardCursorFetched = true
+                }
+
+                is NetworkResult.Failure -> {
+                    // Failed cursor read preserves visible detail/polling, retries later without marking reliable live
+                    return
+                }
+            }
+        }
+        val cursor = boardCursor
         val client = eventsClient ?: eventsClientProvider().also { eventsClient = it }
         client.connect(
             scope = viewModelScope,
             board = board,
+            since = cursor,
             onEvents = { envelope ->
+                envelope.cursor?.let { boardCursor = it }
                 val current = activeTaskId
                 if (current != null && envelope.events.any { it.taskId == current }) {
+                    attachmentsLastFreshMs = null
                     scheduleTaskReload(board, current)
                 }
             },
@@ -288,6 +320,9 @@ class KanbanTaskViewModel(
         if (gen != currentLoadGen || taskId != activeTaskId || board != activeBoard) return
         if (result is NetworkResult.Success) {
             val taskData = result.data
+            if (taskData.attachments != null) {
+                attachmentsLastFreshMs = nowMs()
+            }
             _uiState.update { state ->
                 state.copy(detail = taskData.copy(attachments = taskData.attachments ?: state.detail?.attachments))
             }
@@ -296,6 +331,8 @@ class KanbanTaskViewModel(
             } else {
                 stopLogPolling()
             }
+        } else {
+            attachmentsLastFreshMs = null
         }
     }
 
@@ -570,7 +607,6 @@ class KanbanTaskViewModel(
                     }
                     if (activeTaskId == taskId && activeBoard == board) {
                         loadTaskSilently(board, taskId)
-                        refreshAttachments(board, taskId)
                     }
                 }
 
@@ -586,6 +622,24 @@ class KanbanTaskViewModel(
         }
     }
 
+    fun refreshAttachmentsIfNeeded(
+        board: String,
+        taskId: String,
+        maxAgeMs: Long = 10000L,
+    ) {
+        if (activeTaskId != taskId || activeBoard != board) return
+        val currentAttachments = _uiState.value.detail?.attachments
+        val lastFresh = attachmentsLastFreshMs
+        val isFresh = currentAttachments != null && lastFresh != null && (nowMs() - lastFresh < maxAgeMs)
+        if (isFresh) return
+
+        if (attachmentRefreshJob?.isActive == true) return
+        attachmentRefreshJob =
+            viewModelScope.launch {
+                loadTaskSilently(board, taskId)
+            }
+    }
+
     fun refreshAttachments(
         board: String,
         taskId: String,
@@ -593,6 +647,7 @@ class KanbanTaskViewModel(
         viewModelScope.launch {
             when (val result = repository.listAttachments(taskId, board)) {
                 is NetworkResult.Success -> {
+                    attachmentsLastFreshMs = nowMs()
                     _uiState.update { state ->
                         if (activeTaskId != taskId || activeBoard != board) {
                             state
@@ -603,6 +658,7 @@ class KanbanTaskViewModel(
                 }
 
                 is NetworkResult.Failure -> {
+                    attachmentsLastFreshMs = null
                     _uiState.update { it.copy(toastMessage = result.error.message) }
                 }
             }
@@ -801,6 +857,10 @@ class KanbanTaskViewModel(
         stopLogPolling()
         detailPollJob?.cancel()
         reloadJob?.cancel()
+        attachmentRefreshJob?.cancel()
+        boardCursor = null
+        boardCursorFetched = false
+        eventsBoard = null
         eventsClient?.disconnect()
         super.onCleared()
     }

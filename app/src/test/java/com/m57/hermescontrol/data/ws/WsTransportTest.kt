@@ -311,10 +311,19 @@ class WsTransportTest {
             assertFalse(fixture.transport.isConnected)
             assertEquals(ConnectionStatus.AUTH_EXPIRED, fixture.transport.connectionStatus.value)
             assertNull(fixture.transport.reconnectJobForTest)
-            assertFalse(pendingDeferred.isCompleted)
-
-            pendingDeferred.cancel()
+            // #1564: the current-generation close settles the in-flight call instead of stranding it.
+            assertConnectionLost(pendingDeferred)
         }
+
+    private suspend fun assertConnectionLost(deferred: CompletableDeferred<Any?>) {
+        assertTrue(deferred.isCompleted)
+        try {
+            deferred.await()
+            fail("Expected HermesRpcException")
+        } catch (exception: HermesWsClient.HermesRpcException) {
+            assertEquals("Connection lost — request cancelled", exception.message)
+        }
+    }
 
     @Test
     fun disconnectPreservesPendingCallsWhileClearFlagControlsQueueAndLeaseCleanup() =
@@ -334,22 +343,19 @@ class WsTransportTest {
             // Populate retryable message queue
             fixture.transport.messageQueueForTest.add("{\"jsonrpc\":\"2.0\",\"id\":\"call-1\"}")
 
-            // Ordinary disconnect preserves queued messages and does NOT reject pending calls
+            // #1564: ordinary disconnect keeps queued fire-and-forget frames but settles in-flight calls.
             fixture.transport.disconnect(clearPendingMessages = false)
             assertEquals(1, fixture.transport.messageQueueForTest.size)
             assertFalse(fixture.transport.isConnected)
-            assertFalse(pendingDeferred.isCompleted)
+            assertConnectionLost(pendingDeferred)
 
-            // Disconnect with clearPendingMessages = true clears queue and resets leases, still not rejecting pending calls
+            // Disconnect with clearPendingMessages = true clears queue and resets leases.
             fixture.transport.acquireBackgroundConnectionLease()
             assertTrue(fixture.transport.hasBackgroundConnectionLease())
 
             fixture.transport.disconnect(clearPendingMessages = true)
             assertTrue(fixture.transport.messageQueueForTest.isEmpty())
             assertFalse(fixture.transport.hasBackgroundConnectionLease())
-            assertFalse(pendingDeferred.isCompleted)
-
-            pendingDeferred.cancel()
         }
 
     @Test

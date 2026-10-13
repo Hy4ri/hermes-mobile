@@ -11,6 +11,7 @@ import com.m57.hermescontrol.data.model.MemoryResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.remote.safeApiRead
 import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.ui.common.ToastHost
 import kotlinx.coroutines.Job
@@ -86,6 +87,10 @@ class MemoryViewModel :
     ) {
         if (_uiState.value.isLoading) return
         val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+        val explicitProfile =
+            requestScope?.activeProfileId ?: AuthManager.activeProfileId.value
+                ?: AuthManager.DEFAULT_PROFILE_ID
+        val capturedApi = ApiClient.hermesApi
         val scopedKey = requestScope?.inMemoryKey("default")
         if (forceRefresh && scopedKey != null) memoryCache.remove(scopedKey)
         val cached = if (!forceRefresh && scopedKey != null) memoryCache.get(scopedKey) else null
@@ -97,12 +102,14 @@ class MemoryViewModel :
         loadJob =
             viewModelScope.launch {
                 coroutineScope {
-                    val memoryDeferred = async { safeApiCall { ApiClient.hermesApi.getMemory() } }
-                    val graphDeferred = async { safeApiCall { ApiClient.hermesApi.getLearningGraph() } }
+                    val memoryDeferred = async { safeApiRead { capturedApi.getMemory() } }
+                    val graphDeferred =
+                        async {
+                            safeApiRead { capturedApi.getLearningGraph(profile = explicitProfile) }
+                        }
 
                     val memoryResult = memoryDeferred.await()
-                    val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
-                    if (currentScope != requestScope) return@coroutineScope
+                    if (!ownsLoad(requestScope, explicitProfile)) return@coroutineScope
 
                     when (memoryResult) {
                         is NetworkResult.Success -> {
@@ -123,11 +130,23 @@ class MemoryViewModel :
                     }
 
                     val graphResult = graphDeferred.await()
+                    if (!ownsLoad(requestScope, explicitProfile)) return@coroutineScope
                     if (graphResult is NetworkResult.Success) {
                         _uiState.update { it.copy(learningGraph = graphResult.data) }
                     }
                 }
             }
+    }
+
+    /** Fences on the captured scope AND profile: a null scope (no endpoint yet) must not disable the fence. */
+    private fun ownsLoad(
+        requestScope: DataScope?,
+        requestProfile: String,
+    ): Boolean {
+        val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+        val currentProfile =
+            currentScope?.activeProfileId ?: AuthManager.activeProfileId.value ?: AuthManager.DEFAULT_PROFILE_ID
+        return currentScope == requestScope && currentProfile == requestProfile
     }
 
     fun resetMemory(target: String) {

@@ -141,53 +141,124 @@ class BillingViewModel : ViewModel() {
     }
 
     fun upgrade(subscriptionTypeId: String) {
+        if (_uiState.value.isActionInFlight) return
+        _uiState.update { it.copy(isActionInFlight = true, errorMessage = null, actionMessage = null) }
         viewModelScope.launch {
-            _uiState.update { it.copy(isActionInFlight = true, errorMessage = null, actionMessage = null) }
-            runCatching { BillingRepository.upgradeSubscription(subscriptionTypeId) }
-                .onSuccess { resp ->
-                    if (resp == null) {
-                        _uiState.update {
-                            it.copy(isActionInFlight = false, errorMessage = "No billing data returned")
-                        }
-                        return@onSuccess
-                    }
-                    if (resp.ok == false) {
+            try {
+                val resp =
+                    try {
+                        BillingRepository.upgradeSubscription(subscriptionTypeId)
+                    } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         _uiState.update {
                             it.copy(
                                 isActionInFlight = false,
-                                errorMessage = resp.error ?: resp.message ?: "Upgrade unavailable",
+                                errorMessage = (e as? HermesWsClient.HermesRpcException)?.message ?: e.message,
                             )
                         }
-                        return@onSuccess
+                        return@launch
                     }
-                    val msg =
+
+                if (resp == null) {
+                    _uiState.update {
+                        it.copy(isActionInFlight = false, errorMessage = "No billing data returned")
+                    }
+                    return@launch
+                }
+                val hasScaReason =
+                    resp.reason == "authentication_required" ||
+                        resp.reason == "subscription_payment_intent_requires_action"
+                if (resp.ok == false) {
+                    // B1551: a refusal is never success, but a known SCA reason still owes the user the
+                    // verify-card recovery path instead of a generic dead end.
+                    val refusal =
                         when {
-                            resp.requires_action == true && resp.recovery_url != null -> {
-                                "Action required — open: ${resp.recovery_url}"
+                            hasScaReason && resp.recovery_url != null -> {
+                                "Card verification required — open: ${resp.recovery_url}"
                             }
 
-                            resp.payment_failed == true -> {
-                                resp.message ?: "Payment failed"
-                            }
-
-                            resp.ok == true -> {
-                                "Upgrade successful"
+                            hasScaReason -> {
+                                "Card verification required on the portal"
                             }
 
                             else -> {
-                                resp.message ?: "Upgrade requested"
+                                resp.error ?: resp.message ?: "Upgrade unavailable"
                             }
                         }
-                    _uiState.update { it.copy(isActionInFlight = false, actionMessage = msg) }
-                    load()
-                }.onFailure { e ->
-                    _uiState.update {
-                        it.copy(
-                            isActionInFlight = false,
-                            errorMessage = (e as? HermesWsClient.HermesRpcException)?.message ?: e.message,
-                        )
-                    }
+                    _uiState.update { it.copy(isActionInFlight = false, errorMessage = refusal) }
+                    return@launch
                 }
+
+                val targetName = resp.target_tier_name ?: "your new plan"
+                val effectiveRequiresAction =
+                    resp.status == "requires_action" ||
+                        (resp.status == null && resp.requires_action == true) ||
+                        hasScaReason
+                val effectivePaymentFailed =
+                    resp.status == "payment_failed" ||
+                        (resp.status == null && resp.payment_failed == true)
+
+                val msg =
+                    when {
+                        hasScaReason || effectiveRequiresAction -> {
+                            when {
+                                resp.recovery_url != null -> {
+                                    "Action required — open: ${resp.recovery_url}"
+                                }
+
+                                resp.reason != null -> {
+                                    "Action required: ${resp.reason}"
+                                }
+
+                                else -> {
+                                    resp.message ?: "Action required on the portal"
+                                }
+                            }
+                        }
+
+                        effectivePaymentFailed -> {
+                            when {
+                                resp.recovery_url != null && resp.reason != null -> {
+                                    "Payment failed (${resp.reason}) — open: ${resp.recovery_url}"
+                                }
+
+                                resp.recovery_url != null -> {
+                                    "Payment failed — open: ${resp.recovery_url}"
+                                }
+
+                                resp.reason != null -> {
+                                    "Payment failed: ${resp.reason}"
+                                }
+
+                                else -> {
+                                    resp.message ?: "Payment failed"
+                                }
+                            }
+                        }
+
+                        resp.status == "upgraded" && resp.ok == true -> {
+                            if (resp.target_tier_name != null) {
+                                "Upgraded to $targetName"
+                            } else {
+                                "Upgrade successful"
+                            }
+                        }
+
+                        resp.status == "already_on_tier" && resp.ok == true -> {
+                            "You are already on $targetName"
+                        }
+
+                        else -> {
+                            "Upgrade unconfirmed — please check your subscription status"
+                        }
+                    }
+                _uiState.update { it.copy(isActionInFlight = false, actionMessage = msg) }
+                load()
+            } finally {
+                _uiState.update {
+                    if (it.isActionInFlight) it.copy(isActionInFlight = false) else it
+                }
+            }
         }
     }
 

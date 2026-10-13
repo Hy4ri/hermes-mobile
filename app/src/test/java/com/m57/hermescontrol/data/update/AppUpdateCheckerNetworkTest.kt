@@ -36,10 +36,15 @@ class AppUpdateCheckerNetworkTest {
         server.shutdown()
     }
 
-    private fun checker(): AppUpdateChecker =
+    private fun checker(
+        nowMs: () -> Long = { System.currentTimeMillis() },
+        metadataTtlMs: Long = 60_000L,
+    ): AppUpdateChecker =
         AppUpdateChecker(
             client = OkHttpClient(),
             apiBaseUrl = server.url("/repos/Hy4ri/hermes-mobile").toString(),
+            nowMs = nowMs,
+            metadataTtlMs = metadataTtlMs,
         )
 
     private fun enqueue(
@@ -143,8 +148,12 @@ class AppUpdateCheckerNetworkTest {
             enqueue("", code = 404)
             enqueue("", code = 404)
 
-            assertNull(checker().fetchLatestRelease())
-            assertNull(checker().fetchLatestRelease(includeReleaseCandidates = true))
+            var now = 1_000L
+            val testChecker = checker(nowMs = { now })
+            assertNull(testChecker.fetchLatestRelease())
+            // Advance clock beyond metadata TTL so candidate check doesn't coalesce or skip re-checking
+            now += 60_001L
+            assertNull(testChecker.fetchLatestRelease(includeReleaseCandidates = true))
         }
 
     @Test

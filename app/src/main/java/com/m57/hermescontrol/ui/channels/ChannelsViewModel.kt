@@ -11,6 +11,7 @@ import com.m57.hermescontrol.data.model.TelegramOnboardingStartRequest
 import com.m57.hermescontrol.data.model.TelegramOnboardingStartResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.remote.safeApiRead
 import com.m57.hermescontrol.data.ws.ChangeEvents
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.refreshOnChange
@@ -70,7 +71,7 @@ class ChannelsViewModel :
         // (no spinner) instead of waiting for a manual pull.
         refreshOnChange(
             eventType = ChangeEvents.PLATFORMS,
-            apiCall = { safeApiCall { ApiClient.hermesApi.getMessagingPlatforms() } },
+            apiCall = { safeApiRead { ApiClient.hermesApi.getMessagingPlatforms() } },
             onSuccess = { data ->
                 _uiState.update {
                     it.copy(
@@ -85,7 +86,7 @@ class ChannelsViewModel :
 
     fun loadPlatforms() {
         safeLaunchLoad(
-            apiCall = { safeApiCall { ApiClient.hermesApi.getMessagingPlatforms() } },
+            apiCall = { safeApiRead { ApiClient.hermesApi.getMessagingPlatforms() } },
             onStart = {
                 _uiState.update {
                     it.copy(isLoading = true, errorMessage = null)

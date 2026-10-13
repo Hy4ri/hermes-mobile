@@ -17,4 +17,5 @@ object ChangeEvents {
     const val SESSIONS = "sessions.changed"
     const val PLATFORMS = "platforms.changed"
     const val PAIRING = "pairing.changed"
+    const val PROJECTS = "projects.changed"
 }

@@ -87,10 +87,9 @@ fun LazyListScope.gatewaySection(
                     status.version?.let { ver ->
                         val parts = mutableListOf(ver)
                         status.active_sessions?.let { parts.add("$it session(s)") }
-                        state.doctorReport?.let { report ->
-                            if (report.ok && report.pid != null) {
-                                parts.add("pid ${report.pid}")
-                            }
+                        val pid = status.gateway_pid
+                        if (pid != null && pid > 0) {
+                            parts.add("pid $pid")
                         }
                         InfoRow(
                             label = stringResource(R.string.system_label_hermes_version),

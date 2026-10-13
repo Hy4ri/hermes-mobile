@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.skills
 
 import android.app.Application
 import com.m57.hermescontrol.data.model.HubSkill
+import com.m57.hermescontrol.data.model.SkillHubPreviewResponse
 import com.m57.hermescontrol.data.model.SkillHubSource
 import com.m57.hermescontrol.data.model.SkillHubSourcesResponse
 import com.m57.hermescontrol.data.model.SkillScanFinding
@@ -14,6 +15,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -193,5 +195,129 @@ class SkillsViewModelTest {
         assertNull(vm.uiState.value.hubScanResult)
         assertNull(vm.uiState.value.hubScanError)
         assertEquals(false, vm.uiState.value.isHubScanning)
+    }
+
+    @Test
+    fun `previewHubSkill populates hubPreviewContent on success`() {
+        val previewResponse =
+            SkillHubPreviewResponse(
+                name = "web-research",
+                skillMd = "# Web Research\nInstructions for research.",
+                description = "Find and verify web facts",
+                identifier = "hermes-index:web-research",
+            )
+        coEvery { mockApi.previewHubSkill("hermes-index:web-research") } returns
+            Response.success(previewResponse)
+
+        val vm = createViewModel()
+        vm.previewHubSkill("hermes-index:web-research")
+        settle()
+
+        assertEquals("hermes-index:web-research", vm.uiState.value.hubPreviewIdentifier)
+        assertEquals("# Web Research\nInstructions for research.", vm.uiState.value.hubPreviewContent)
+        assertEquals(false, vm.uiState.value.isHubPreviewing)
+        assertNull(vm.uiState.value.hubPreviewError)
+    }
+
+    @Test
+    fun `previewHubSkill surfaces error on failure`() {
+        coEvery { mockApi.previewHubSkill("missing:skill") } returns
+            Response.error(
+                404,
+                """{"detail":"Hub skill not found"}""".toResponseBody("application/json".toMediaTypeOrNull()),
+            )
+
+        val vm = createViewModel()
+        vm.previewHubSkill("missing:skill")
+        settle()
+
+        assertEquals("missing:skill", vm.uiState.value.hubPreviewIdentifier)
+        assertNull(vm.uiState.value.hubPreviewContent)
+        assertEquals(false, vm.uiState.value.isHubPreviewing)
+        assertEquals(
+            true,
+            vm.uiState.value.hubPreviewError
+                ?.contains("Hub skill not found"),
+        )
+    }
+
+    @Test
+    fun `previewHubSkill fences late preview response when identifier replaced`() {
+        val firstDeferred = CompletableDeferred<Response<SkillHubPreviewResponse>>()
+        val secondResponse =
+            SkillHubPreviewResponse(
+                name = "second-skill",
+                skillMd = "# Second Skill\nContent 2",
+                identifier = "hub:second",
+            )
+
+        coEvery { mockApi.previewHubSkill("hub:first") } coAnswers { firstDeferred.await() }
+        coEvery { mockApi.previewHubSkill("hub:second") } returns Response.success(secondResponse)
+
+        val vm = createViewModel()
+        // Trigger first preview
+        vm.previewHubSkill("hub:first")
+        testDispatcher.scheduler.runCurrent()
+
+        assertEquals("hub:first", vm.uiState.value.hubPreviewIdentifier)
+        assertEquals(true, vm.uiState.value.isHubPreviewing)
+
+        // Trigger second preview before first completes
+        vm.previewHubSkill("hub:second")
+        settle()
+
+        assertEquals("hub:second", vm.uiState.value.hubPreviewIdentifier)
+        assertEquals("# Second Skill\nContent 2", vm.uiState.value.hubPreviewContent)
+        assertEquals(false, vm.uiState.value.isHubPreviewing)
+
+        // Now first preview completes late
+        firstDeferred.complete(
+            Response.success(
+                SkillHubPreviewResponse(
+                    name = "first-skill",
+                    skillMd = "# First Skill\nContent 1",
+                    identifier = "hub:first",
+                ),
+            ),
+        )
+        settle()
+
+        // State must retain the second skill and not be overwritten by late first response
+        assertEquals("hub:second", vm.uiState.value.hubPreviewIdentifier)
+        assertEquals("# Second Skill\nContent 2", vm.uiState.value.hubPreviewContent)
+    }
+
+    @Test
+    fun `clearScopeOwnedState fences late preview response`() {
+        val deferred = CompletableDeferred<Response<SkillHubPreviewResponse>>()
+        val previewResponse =
+            SkillHubPreviewResponse(
+                name = "web-research",
+                skillMd = "# Web Research\nContent",
+                identifier = "hermes-index:web-research",
+            )
+        coEvery { mockApi.previewHubSkill("hermes-index:web-research") } coAnswers { deferred.await() }
+
+        val vm = createViewModel()
+        vm.previewHubSkill("hermes-index:web-research")
+        testDispatcher.scheduler.runCurrent()
+
+        assertEquals("hermes-index:web-research", vm.uiState.value.hubPreviewIdentifier)
+        assertEquals(true, vm.uiState.value.isHubPreviewing)
+
+        // Clear scope-owned state (e.g. profile/scope transition)
+        vm.clearScopeOwnedState()
+        assertNull(vm.uiState.value.hubPreviewIdentifier)
+        assertNull(vm.uiState.value.hubPreviewContent)
+        assertEquals(false, vm.uiState.value.isHubPreviewing)
+
+        // Delayed response resolves
+        deferred.complete(Response.success(previewResponse))
+        settle()
+
+        // Late response must not populate preview content
+        assertNull(vm.uiState.value.hubPreviewIdentifier)
+        assertNull(vm.uiState.value.hubPreviewContent)
+        assertEquals(false, vm.uiState.value.isHubPreviewing)
     }
 }

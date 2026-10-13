@@ -10,6 +10,7 @@ import com.m57.hermescontrol.data.model.ToolsetToggleRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.remote.safeApiRead
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
@@ -47,7 +48,7 @@ class ToolsetsViewModel :
             onCacheHit = { cached ->
                 _uiState.update { it.copy(isLoading = false, toolsets = cached, errorMessage = null) }
             },
-            apiCall = { safeApiCall { ApiClient.hermesApi.getToolsets() } },
+            apiCall = { safeApiRead { ApiClient.hermesApi.getToolsets() } },
             onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
             onSuccess = { data ->
                 _uiState.update { it.copy(isLoading = false, toolsets = data.orEmpty()) }

@@ -167,13 +167,13 @@ class WsProfileParamsTest {
     }
 
     @Test
-    fun `commands_catalog is not profile scoped`() {
+    fun `commands_catalog is profile scoped`() {
+        // #1556: methods_tools.py binds a session-less draft catalog to params['profile'].
         AuthManager.setActiveProfileId("meow")
 
-        val original = emptyMap<String, Any>()
-        val result = WsProfileParams.decorate(WsMethods.COMMANDS_CATALOG, original)
+        val result = WsProfileParams.decorate(WsMethods.COMMANDS_CATALOG, emptyMap())
 
-        assertSame(original, result)
+        assertEquals(mapOf("profile" to "meow"), result)
     }
 
     @Test

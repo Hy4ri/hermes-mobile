@@ -2,9 +2,16 @@ package com.m57.hermescontrol.data.remote
 
 import com.m57.hermescontrol.data.local.AuthManager
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
+import okhttp3.Call
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
+import okhttp3.Response
 import java.io.File
 import java.io.IOException
 import java.net.URLDecoder
@@ -14,6 +21,7 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.regex.Pattern
 import kotlin.coroutines.coroutineContext
+import kotlin.coroutines.resume
 
 /**
  * Client for the gateway's managed-files download endpoint
@@ -170,49 +178,96 @@ object GatewayFileClient {
         baseUrl: String,
         token: String,
         cacheDir: File,
-    ): GatewayFileResult {
-        val url =
-            buildDownloadUrl(baseUrl, token, path)
-                ?: return GatewayFileResult.Failure(IllegalArgumentException("not an absolute gateway path: $path"))
-        // Cache fast path: a recent download of this path is reused as-is, so
-        // repeat opens skip the network entirely. Stale entries fall through
-        // to a fresh fetch, which overwrites the cache file.
-        val cacheName = cacheFileNameFor(path, ClientCertificates.cacheKey(url.toHttpUrl()))
-        val fresh = File(cacheDir, cacheName).takeIf { isFreshCacheFile(it) }
-        if (fresh != null) {
-            return GatewayFileResult.Success(
-                GatewayFile(
-                    name = fileNameFromPath(path),
-                    mimeType = mimeByPath[cacheName] ?: "application/octet-stream",
-                    cacheFile = fresh,
-                ),
-            )
-        }
-        val call = OkHttpProvider.base.newCall(Request.Builder().url(url).build())
-        val resp = call.execute()
-        return try {
-            classifyStatus(resp.code)?.let { return it }
-            if (!resp.isSuccessful) {
-                return GatewayFileResult.Failure(IOException("HTTP ${resp.code}"))
+    ): GatewayFileResult =
+        withContext(Dispatchers.IO) {
+            val url =
+                try {
+                    buildDownloadUrl(baseUrl, token, path)
+                        ?: return@withContext GatewayFileResult.Failure(
+                            IllegalArgumentException("not an absolute gateway path: $path"),
+                        )
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    return@withContext GatewayFileResult.Failure(e)
+                }
+
+            // Cache fast path: a recent download of this path is reused as-is, so
+            // repeat opens skip the network entirely. Stale entries fall through
+            // to a fresh fetch, which overwrites the cache file.
+            val cacheName =
+                try {
+                    val key = ClientCertificates.cacheKey(url.toHttpUrl())
+                    val name = cacheFileNameFor(path, key)
+                    val fresh = File(cacheDir, name).takeIf { isFreshCacheFile(it) }
+                    if (fresh != null) {
+                        return@withContext GatewayFileResult.Success(
+                            GatewayFile(
+                                name = fileNameFromPath(path),
+                                mimeType = mimeByPath[name] ?: "application/octet-stream",
+                                cacheFile = fresh,
+                            ),
+                        )
+                    }
+                    name
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    return@withContext GatewayFileResult.Failure(e)
+                }
+
+            val call =
+                try {
+                    OkHttpProvider.base.newCall(Request.Builder().url(url).build())
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    return@withContext GatewayFileResult.Failure(e)
+                }
+
+            executeCancellable(call) { resp ->
+                classifyStatus(resp.code)?.let { return@executeCancellable it }
+                if (!resp.isSuccessful) {
+                    return@executeCancellable GatewayFileResult.Failure(IOException("HTTP ${resp.code}"))
+                }
+                val name =
+                    resp.header("Content-Disposition")?.let { parseFilename(it) }
+                        ?: fileNameFromPath(path)
+                val mime = resp.header("Content-Type") ?: "application/octet-stream"
+                val cacheFile =
+                    streamBodyToCache(resp, cacheDir, cacheName)
+                        ?: return@executeCancellable GatewayFileResult.Failure(
+                            IOException("failed to write $name to cache"),
+                        )
+                mimeByPath[cacheName] = mime
+                GatewayFileResult.Success(GatewayFile(name, mime, cacheFile))
             }
-            val name =
-                resp.header("Content-Disposition")?.let { parseFilename(it) }
-                    ?: fileNameFromPath(path)
-            val mime = resp.header("Content-Type") ?: "application/octet-stream"
-            val cacheFile =
-                streamBodyToCache(resp, cacheDir, cacheName)
-                    ?: return GatewayFileResult.Failure(IOException("failed to write $name to cache"))
-            mimeByPath[cacheName] = mime
-            GatewayFileResult.Success(GatewayFile(name, mime, cacheFile))
-        } catch (e: CancellationException) {
-            // Never swallow cancellation — the caller's job was cancelled.
-            throw e
-        } catch (e: Throwable) {
-            GatewayFileResult.Failure(e)
-        } finally {
-            resp.close()
         }
-    }
+
+    private suspend fun executeCancellable(
+        call: Call,
+        block: suspend (Response) -> GatewayFileResult,
+    ): GatewayFileResult =
+        coroutineScope {
+            suspendCancellableCoroutine { continuation ->
+                val worker =
+                    launch {
+                        try {
+                            val result = call.await().use { response -> block(response) }
+                            continuation.resume(result)
+                        } catch (e: CancellationException) {
+                            continuation.cancel(e)
+                        } catch (e: Throwable) {
+                            continuation.resume(GatewayFileResult.Failure(e))
+                        }
+                    }
+                // #1553: cancellation must close a stalled body read, not wait for its catch block.
+                continuation.invokeOnCancellation {
+                    call.cancel()
+                    worker.cancel()
+                }
+            }
+        }
 
     /** Deterministic cache filename for a gateway path: the same path always
      * maps to the same file, so repeat opens reuse the download instead of

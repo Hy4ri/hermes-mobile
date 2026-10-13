@@ -296,7 +296,7 @@ object EventParser {
             // Change events (issue #784): gateway watches on-disk signatures
             // and broadcasts these so screens can refresh on change. pet.changed
             // intentionally absent — mobile has no pet feature.
-            "cron.changed", "sessions.changed", "platforms.changed", "pairing.changed" -> {
+            "cron.changed", "sessions.changed", "platforms.changed", "pairing.changed", "projects.changed" -> {
                 WsEvent.ChangeEvent(eventType, payload)
             }
 
@@ -469,6 +469,42 @@ object EventParser {
             "vault.code.expire" -> {
                 val requestId = payload?.get("request_id") as? String
                 WsEvent.VaultCodeExpire(requestId, sessionId)
+            }
+
+            "notification.show" -> {
+                val text = payload?.get("text") as? String
+                val level = payload?.get("level") as? String
+                val kind = payload?.get("kind") as? String
+                val ttlValue = payload?.get("ttl_ms")
+                val validTtl = ttlValue == null || ttlValue is Int || ttlValue is Long
+                if (text.isNullOrBlank() || level.isNullOrBlank() || kind.isNullOrBlank() || !validTtl) {
+                    WsEvent.Unknown(rawJson)
+                } else {
+                    val ttlMs = (ttlValue as? Number)?.toLong()
+                    val key = payload?.get("key") as? String
+                    val id = payload?.get("id") as? String
+                    WsEvent.NotificationShow(
+                        text = text,
+                        level = level,
+                        kind = kind,
+                        ttlMs = ttlMs,
+                        key = key,
+                        id = id,
+                        sessionId = sessionId,
+                    )
+                }
+            }
+
+            "notification.clear" -> {
+                val key = payload?.get("key") as? String
+                if (key == null || key.isBlank()) {
+                    WsEvent.Unknown(rawJson)
+                } else {
+                    WsEvent.NotificationClear(
+                        key = key,
+                        sessionId = sessionId,
+                    )
+                }
             }
 
             else -> {

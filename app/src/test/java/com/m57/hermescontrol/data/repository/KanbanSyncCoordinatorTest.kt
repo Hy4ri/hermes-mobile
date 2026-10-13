@@ -1,9 +1,12 @@
 package com.m57.hermescontrol.data.repository
 
+import com.m57.hermescontrol.data.model.KanbanBoardResponse
+import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.ws.KanbanEvent
 import com.m57.hermescontrol.data.ws.KanbanEventsClient
 import com.m57.hermescontrol.data.ws.KanbanEventsEnvelope
 import com.m57.hermescontrol.data.ws.KanbanLiveStatus
+import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.slot
@@ -30,6 +33,9 @@ class KanbanSyncCoordinatorTest {
 
     @Before
     fun setUp() {
+        // K1557: without an explicit cursor the coordinator samples the board snapshot cursor first.
+        coEvery { mockRepository.getBoard("dev", any(), any(), any(), any()) } returns
+            NetworkResult.Success(KanbanBoardResponse(latestEventId = 7L))
         coordinator =
             KanbanSyncCoordinator(
                 repository = mockRepository,
@@ -47,7 +53,8 @@ class KanbanSyncCoordinatorTest {
             verify(exactly = 0) { mockEventsClient.connect(any(), any(), any(), any(), any()) }
 
             coordinator.connect(testScope, "dev", onReload = {})
-            verify { mockEventsClient.connect(any(), eq("dev"), any(), any(), capture(statusSlot)) }
+            testDispatcher.scheduler.runCurrent()
+            verify { mockEventsClient.connect(any(), eq("dev"), eq(7L), any(), capture(statusSlot)) }
 
             statusSlot.captured(KanbanLiveStatus.CONNECTED)
             assertEquals(KanbanSyncStatus.Live, coordinator.syncStatus.value)
@@ -69,7 +76,11 @@ class KanbanSyncCoordinatorTest {
             var reloadCount = 0
 
             coordinator.connect(testScope, "dev", onReload = { reloadCount++ })
-            verify { mockEventsClient.connect(any(), eq("dev"), any(), capture(eventsSlot), any()) }
+            testDispatcher.scheduler.runCurrent()
+            // The snapshot reconciliation itself reloads once before the tail subscription opens.
+            assertEquals(1, reloadCount)
+            reloadCount = 0
+            verify { mockEventsClient.connect(any(), eq("dev"), eq(7L), capture(eventsSlot), any()) }
 
             eventsSlot.captured(KanbanEventsEnvelope(events = listOf(KanbanEvent(id = 1, kind = "status"))))
 
@@ -99,6 +110,7 @@ class KanbanSyncCoordinatorTest {
     fun testDisconnectCancelsEverything() =
         runTest(testDispatcher) {
             coordinator.connect(testScope, "dev", onReload = {})
+            testDispatcher.scheduler.runCurrent()
             coordinator.disconnect()
 
             verify { mockEventsClient.disconnect() }

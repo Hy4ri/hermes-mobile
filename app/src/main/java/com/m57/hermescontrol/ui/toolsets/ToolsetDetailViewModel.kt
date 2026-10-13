@@ -12,6 +12,7 @@ import com.m57.hermescontrol.data.model.ToolsetProviderSelectRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.remote.safeApiRead
 import com.m57.hermescontrol.ui.common.ToastHost
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -83,7 +84,7 @@ class ToolsetDetailViewModel :
     fun loadConfig() {
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         viewModelScope.launch {
-            val result = safeApiCall { ApiClient.hermesApi.getToolsetConfig(toolsetName) }
+            val result = safeApiRead { ApiClient.hermesApi.getToolsetConfig(toolsetName) }
             _uiState.update { state ->
                 when (result) {
                     is NetworkResult.Success -> {
@@ -290,7 +291,7 @@ class ToolsetDetailViewModel :
                         val actionName = spawn.data.name ?: "tools-post-setup"
                         while (isActive) {
                             delay(1200)
-                            val status = safeApiCall { ApiClient.hermesApi.getActionStatus(actionName) }
+                            val status = safeApiRead { ApiClient.hermesApi.getActionStatus(actionName) }
                             if (status is NetworkResult.Success) {
                                 val data = status.data
                                 val done = data.running != true

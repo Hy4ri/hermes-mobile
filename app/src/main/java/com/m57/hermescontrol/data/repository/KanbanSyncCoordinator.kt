@@ -1,5 +1,8 @@
 package com.m57.hermescontrol.data.repository
 
+import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
+import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.ws.KanbanEventsClient
 import com.m57.hermescontrol.data.ws.KanbanLiveStatus
 import kotlinx.coroutines.CoroutineScope
@@ -33,6 +36,9 @@ class KanbanSyncCoordinator(
 ) {
     private var eventsClient: KanbanEventsClient? = null
     private var activeBoard: String? = null
+    private var activeScope: DataScope? = null
+    private var connectionGeneration = 0L
+    private var connectJob: Job? = null
     private var reloadJob: Job? = null
     private var pollJob: Job? = null
     private var nudgeJob: Job? = null
@@ -43,24 +49,68 @@ class KanbanSyncCoordinator(
     fun connect(
         scope: CoroutineScope,
         board: String,
+        since: Long? = null,
         onReload: () -> Unit,
     ) {
-        if (activeBoard == board && _syncStatus.value == KanbanSyncStatus.Live) return
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+        if (activeBoard == board && activeScope == requestScope && _syncStatus.value == KanbanSyncStatus.Live) return
+        val generation = ++connectionGeneration
+        connectJob?.cancel()
+        reloadJob?.cancel()
+        eventsClient?.disconnect()
         activeBoard = board
+        activeScope = requestScope
+        _syncStatus.value = KanbanSyncStatus.Disconnected
+        val isCurrent = {
+            generation == connectionGeneration && activeBoard == board &&
+                requestScope == runCatching { AuthManager.currentDataScope() }.getOrNull()
+        }
 
+        if (since != null) {
+            subscribeWithCursor(scope, board, since, onReload, isCurrent)
+        } else {
+            connectJob =
+                scope.launch {
+                    val result = repository.getBoard(board = board)
+                    if (!isCurrent()) return@launch
+                    val cursor = (result as? NetworkResult.Success)?.data?.latestEventId
+                    // #1557: a failed snapshot cannot establish a reliable tail subscription.
+                    if (cursor == null) {
+                        _syncStatus.value = KanbanSyncStatus.Polling()
+                        onReload()
+                        return@launch
+                    }
+                    onReload()
+                    if (!isCurrent()) return@launch
+                    subscribeWithCursor(scope, board, cursor, onReload, isCurrent)
+                }
+        }
+    }
+
+    private fun subscribeWithCursor(
+        scope: CoroutineScope,
+        board: String,
+        cursor: Long,
+        onReload: () -> Unit,
+        isCurrent: () -> Boolean,
+    ) {
+        if (!isCurrent()) return
         val client = eventsClient ?: eventsClientProvider().also { eventsClient = it }
         client.connect(
             scope = scope,
             board = board,
+            since = cursor,
             onEvents = {
+                if (!isCurrent()) return@connect
                 reloadJob?.cancel()
                 reloadJob =
                     scope.launch {
                         delay(reloadDebounceMs)
-                        onReload()
+                        if (isCurrent()) onReload()
                     }
             },
             onStatus = { status ->
+                if (!isCurrent()) return@connect
                 when (status) {
                     KanbanLiveStatus.CONNECTED -> {
                         _syncStatus.value = KanbanSyncStatus.Live
@@ -118,7 +168,11 @@ class KanbanSyncCoordinator(
     }
 
     fun disconnect() {
+        connectionGeneration++
+        connectJob?.cancel()
+        connectJob = null
         activeBoard = null
+        activeScope = null
         reloadJob?.cancel()
         reloadJob = null
         pollJob?.cancel()

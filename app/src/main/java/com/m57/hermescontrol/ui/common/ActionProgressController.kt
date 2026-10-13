@@ -3,7 +3,7 @@ package com.m57.hermescontrol.ui.common
 import com.m57.hermescontrol.data.model.ActionStatusResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
-import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.remote.safeApiRead
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -105,7 +105,7 @@ class ActionProgressController(
                     delay(pollIntervalMs)
                     when (
                         val result =
-                            safeApiCall { ApiClient.hermesApi.getActionStatus(actionName) }
+                            safeApiRead { ApiClient.hermesApi.getActionStatus(actionName) }
                     ) {
                         is NetworkResult.Success -> {
                             consecutiveFailures = 0

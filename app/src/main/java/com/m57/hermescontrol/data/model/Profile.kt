@@ -327,11 +327,12 @@ data class CreateProfileRequest(
     val provider: String? = null,
     val model: String? = null,
     val mcp_servers: List<McpServerConfigInput>? = null,
-    val keep_skills: Boolean? = null,
+    val keep_skills: List<String>? = null,
     val hub_skills: List<String>? = null,
     val clone_from: String? = null,
     val clone_all: Boolean? = null,
     val clone_from_default: Boolean? = null,
+    val no_skills: Boolean? = null,
 )
 
 @Serializable

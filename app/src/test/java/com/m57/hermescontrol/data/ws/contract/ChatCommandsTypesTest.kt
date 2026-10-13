@@ -1,6 +1,12 @@
 package com.m57.hermescontrol.data.ws.contract
 
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.OkHttpProvider
+import com.m57.hermescontrol.data.ws.WsMethods
+import com.m57.hermescontrol.data.ws.WsProfileParams
+import io.mockk.every
+import io.mockk.mockkObject
+import io.mockk.unmockkAll
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
@@ -14,7 +20,65 @@ class ChatCommandsTypesTest {
     fun commandsCatalogEncodesAsEmptyObject() {
         assertEquals(
             buildJsonObject { },
-            json.encodeToJsonElement(CommandsCatalogParams.serializer(), CommandsCatalogParams),
+            json.encodeToJsonElement(CommandsCatalogParams.serializer(), CommandsCatalogParams()),
+        )
+    }
+
+    @Test
+    fun commandsCatalogNullOmittedAndExplicitValuesFaithfullyEncoded() {
+        // null / default omits fields
+        assertEquals(
+            buildJsonObject { },
+            json.encodeToJsonElement(
+                CommandsCatalogParams.serializer(),
+                CommandsCatalogParams(sessionId = null, profile = null),
+            ),
+        )
+
+        // explicit session_id encoded, null profile omitted
+        assertEquals(
+            buildJsonObject {
+                put("session_id", "s-123")
+            },
+            json.encodeToJsonElement(
+                CommandsCatalogParams.serializer(),
+                CommandsCatalogParams(sessionId = "s-123"),
+            ),
+        )
+
+        // explicit profile encoded, null session_id omitted
+        assertEquals(
+            buildJsonObject {
+                put("profile", "work")
+            },
+            json.encodeToJsonElement(
+                CommandsCatalogParams.serializer(),
+                CommandsCatalogParams(profile = "work"),
+            ),
+        )
+
+        // both explicit session_id and profile faithfully encoded
+        assertEquals(
+            buildJsonObject {
+                put("session_id", "s-123")
+                put("profile", "work")
+            },
+            json.encodeToJsonElement(
+                CommandsCatalogParams.serializer(),
+                CommandsCatalogParams(sessionId = "s-123", profile = "work"),
+            ),
+        )
+
+        // explicit empty strings are preserved faithfully
+        assertEquals(
+            buildJsonObject {
+                put("session_id", "")
+                put("profile", "")
+            },
+            json.encodeToJsonElement(
+                CommandsCatalogParams.serializer(),
+                CommandsCatalogParams(sessionId = "", profile = ""),
+            ),
         )
     }
 
@@ -85,6 +149,31 @@ class ChatCommandsTypesTest {
                 ),
             ),
         )
+    }
+
+    @Test
+    fun commandsCatalogExplicitProfileWinsOverDecorator() {
+        // decorate() reads AuthManager.activeProfileId (Hermes profile), not the connection profile.
+        AuthManager.setActiveProfileId("active-profile")
+        try {
+            // 1. Without explicit profile, WsProfileParams.decorate injects the active profile
+            val emptyMapParams = emptyMap<String, Any>()
+            val decorated = WsProfileParams.decorate(WsMethods.COMMANDS_CATALOG, emptyMapParams)
+            assertEquals("active-profile", decorated["profile"])
+
+            // 2. With explicit profile in map, explicit captured profile wins
+            val explicitProfileParams = mapOf("profile" to "explicit-custom", "session_id" to "s1")
+            val preserved = WsProfileParams.decorate(WsMethods.COMMANDS_CATALOG, explicitProfileParams)
+            assertEquals("explicit-custom", preserved["profile"])
+            assertEquals("s1", preserved["session_id"])
+
+            // 3. With explicit empty string profile, explicit wins over decorator
+            val emptyStringProfileParams = mapOf("profile" to "")
+            val preservedEmpty = WsProfileParams.decorate(WsMethods.COMMANDS_CATALOG, emptyStringProfileParams)
+            assertEquals("", preservedEmpty["profile"])
+        } finally {
+            AuthManager.setActiveProfileId(null)
+        }
     }
 
     @Test

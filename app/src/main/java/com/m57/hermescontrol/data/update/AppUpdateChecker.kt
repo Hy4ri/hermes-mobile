@@ -3,6 +3,8 @@ package com.m57.hermescontrol.data.update
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import okhttp3.Call
@@ -13,6 +15,7 @@ import okhttp3.Request
 import okhttp3.Response
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Latest release metadata from the GitHub releases API (issue #867) — the
@@ -163,7 +166,11 @@ fun isReleaseCandidateVersion(tag: String): Boolean =
 open class AppUpdateChecker(
     private val client: OkHttpClient = OkHttpProvider.base,
     private val apiBaseUrl: String = "https://api.github.com/repos/Hy4ri/hermes-mobile",
+    private val nowMs: () -> Long = { System.nanoTime() / 1_000_000L },
+    private val metadataTtlMs: Long = 60_000L,
 ) {
+    private val scanMutex = Mutex()
+
     /**
      * Fetch the newest installable release metadata.
      *
@@ -177,45 +184,247 @@ open class AppUpdateChecker(
      */
     open suspend fun fetchLatestRelease(includeReleaseCandidates: Boolean = false): UpdateInfo? =
         withContext(Dispatchers.IO) {
-            val latest = get("$apiBaseUrl/releases/latest")?.let(::parseRelease)
-            if (!includeReleaseCandidates && latest != null && selectLatestUpdate(listOf(latest)) != null) {
-                return@withContext latest
+            val channel = if (includeReleaseCandidates) Channel.RC else Channel.STABLE
+            val cacheKey = CacheKey(apiBaseUrl, channel)
+            val currentTime = nowMs()
+
+            cachedEntries[cacheKey]?.let { entry ->
+                if (currentTime < entry.timestampMs + metadataTtlMs) {
+                    return@withContext entry.result
+                }
             }
-            val releases = fetchReleasePages() ?: return@withContext null
-            selectLatestUpdate(releases + listOfNotNull(latest), includeReleaseCandidates)
+
+            scanMutex.withLock {
+                val lockedTime = nowMs()
+                cachedEntries[cacheKey]?.let { entry ->
+                    if (lockedTime < entry.timestampMs + metadataTtlMs) {
+                        return@withContext entry.result
+                    }
+                }
+
+                val result = executeScan(includeReleaseCandidates)
+                cachedEntries[cacheKey] = CachedResult(result, lockedTime)
+                result
+            }
         }
 
-    /** GET a GitHub URL. 404 means absent; other HTTP/network failures stay visible. */
-    private fun get(url: String): ReleasePage? {
-        val request =
-            Request
-                .Builder()
-                .url(url)
-                .header("Accept", "application/vnd.github+json")
-                .build()
-        client.newCall(request).execute().use { response ->
-            if (response.code == HTTP_NOT_FOUND) return null
-            if (!response.isSuccessful) throw IOException("GitHub releases request failed (${response.code})")
-            return ReleasePage(response.body.string().orEmpty(), response.nextPageUrl())
+    private suspend fun executeScan(includeReleaseCandidates: Boolean): UpdateInfo? {
+        val latest = fetchSingleRelease("$apiBaseUrl/releases/latest")
+        if (!includeReleaseCandidates && latest != null && selectLatestUpdate(listOf(latest)) != null) {
+            return latest
+        }
+        val releases = fetchReleasePages() ?: return null
+        return selectLatestUpdate(releases + listOfNotNull(latest), includeReleaseCandidates)
+    }
+
+    private suspend fun fetchSingleRelease(url: String): UpdateInfo? {
+        val cached = pageCache[url]
+        val (page, status) = getConditional(url, cached)
+        return when (status) {
+            PageFetchStatus.NOT_FOUND -> {
+                pageCache.remove(url)
+                null
+            }
+
+            PageFetchStatus.NOT_MODIFIED -> {
+                val parsed =
+                    cached?.metadata as? UpdateInfo
+                        ?: throw IOException("GitHub returned 304 without cached release metadata")
+                if (page?.etag != null || page?.lastModified != null) {
+                    pageCache[url] =
+                        cached.copy(
+                            etag = page.etag ?: cached.etag,
+                            lastModified = page.lastModified ?: cached.lastModified,
+                        )
+                }
+                parsed
+            }
+
+            PageFetchStatus.OK -> {
+                val nonNullPage = page ?: throw IOException("Empty response from GitHub")
+                val parsed =
+                    parseUpdateInfo(nonNullPage.body)
+                        ?: throw IOException("GitHub returned malformed release metadata")
+                pageCache[url] =
+                    CachedPage(
+                        etag = nonNullPage.etag,
+                        lastModified = nonNullPage.lastModified,
+                        body = nonNullPage.body,
+                        nextUrl = nonNullPage.nextUrl,
+                        metadata = parsed,
+                    )
+                parsed
+            }
         }
     }
 
-    private fun fetchReleasePages(): List<UpdateInfo>? {
+    private suspend fun fetchReleasePages(): List<UpdateInfo>? {
         var nextUrl: String? = "$apiBaseUrl/releases?per_page=$RELEASE_LIST_PAGE_SIZE&page=1"
         val releases = mutableListOf<UpdateInfo>()
+        val visited = mutableSetOf<String>()
+
         while (nextUrl != null) {
-            val page =
-                get(nextUrl)
-                    ?: return if (releases.isEmpty()) null else throw IOException("Incomplete GitHub releases list")
-            val parsed = parseReleaseList(page.body) ?: throw IOException("GitHub returned malformed release metadata")
-            releases += parsed
-            nextUrl = page.nextUrl
+            if (!visited.add(nextUrl)) {
+                throw IOException("Detected pagination cycle in GitHub releases at $nextUrl")
+            }
+
+            val cached = pageCache[nextUrl]
+            val (page, status) = getConditional(nextUrl, cached)
+
+            when (status) {
+                PageFetchStatus.NOT_FOUND -> {
+                    pageCache.remove(nextUrl)
+                    if (releases.isEmpty()) {
+                        return null
+                    } else {
+                        throw IOException("Incomplete GitHub releases list")
+                    }
+                }
+
+                PageFetchStatus.NOT_MODIFIED -> {
+                    @Suppress("UNCHECKED_CAST")
+                    val parsed =
+                        cached?.metadata as? List<UpdateInfo>
+                            ?: throw IOException("GitHub returned 304 without cached releases list")
+                    releases += parsed
+                    val resolvedNextUrl = if (page?.nextUrl != null) page.nextUrl else cached.nextUrl
+                    if (page?.etag != null || page?.lastModified != null || page?.nextUrl != null) {
+                        pageCache[nextUrl] =
+                            cached.copy(
+                                etag = page?.etag ?: cached.etag,
+                                lastModified = page?.lastModified ?: cached.lastModified,
+                                nextUrl = resolvedNextUrl,
+                            )
+                    }
+                    nextUrl = resolvedNextUrl
+                }
+
+                PageFetchStatus.OK -> {
+                    val nonNullPage = page ?: throw IOException("Empty response from GitHub")
+                    val parsed =
+                        parseReleaseList(nonNullPage.body)
+                            ?: throw IOException("GitHub returned malformed release metadata")
+                    pageCache[nextUrl] =
+                        CachedPage(
+                            etag = nonNullPage.etag,
+                            lastModified = nonNullPage.lastModified,
+                            body = nonNullPage.body,
+                            nextUrl = nonNullPage.nextUrl,
+                            metadata = parsed,
+                        )
+                    releases += parsed
+                    nextUrl = nonNullPage.nextUrl
+                }
+            }
         }
         return releases
     }
 
-    private fun parseRelease(page: ReleasePage): UpdateInfo =
-        parseUpdateInfo(page.body) ?: throw IOException("GitHub returned malformed release metadata")
+    private enum class PageFetchStatus {
+        OK,
+        NOT_MODIFIED,
+        NOT_FOUND,
+    }
+
+    private data class FetchResult(
+        val page: ReleasePage?,
+        val status: PageFetchStatus,
+    )
+
+    private suspend fun getConditional(
+        url: String,
+        cached: CachedPage?,
+    ): FetchResult =
+        suspendCancellableCoroutine { continuation ->
+            val builder =
+                Request
+                    .Builder()
+                    .url(url)
+                    .header("Accept", "application/vnd.github+json")
+
+            if (cached != null) {
+                if (cached.etag != null) {
+                    builder.header("If-None-Match", cached.etag)
+                } else if (cached.lastModified != null) {
+                    builder.header("If-Modified-Since", cached.lastModified)
+                }
+            }
+
+            val request = builder.build()
+            val call = client.newCall(request)
+            continuation.invokeOnCancellation {
+                call.cancel()
+            }
+
+            call.enqueue(
+                object : Callback {
+                    override fun onFailure(
+                        call: Call,
+                        e: IOException,
+                    ) {
+                        if (continuation.isActive) {
+                            continuation.resumeWith(Result.failure(e))
+                        }
+                    }
+
+                    override fun onResponse(
+                        call: Call,
+                        response: Response,
+                    ) {
+                        try {
+                            response.use { res ->
+                                when (res.code) {
+                                    HTTP_NOT_FOUND -> {
+                                        if (continuation.isActive) {
+                                            continuation.resume(
+                                                FetchResult(null, PageFetchStatus.NOT_FOUND),
+                                            ) { _, _, _ -> }
+                                        }
+                                    }
+
+                                    HTTP_NOT_MODIFIED -> {
+                                        val nextUrl = res.nextPageUrl()
+                                        val page = if (nextUrl != null) ReleasePage("", nextUrl, null, null) else null
+                                        if (continuation.isActive) {
+                                            continuation.resume(
+                                                FetchResult(page, PageFetchStatus.NOT_MODIFIED),
+                                            ) { _, _, _ -> }
+                                        }
+                                    }
+
+                                    else -> {
+                                        if (!res.isSuccessful) {
+                                            if (continuation.isActive) {
+                                                continuation.resumeWith(
+                                                    Result.failure(
+                                                        IOException("GitHub releases request failed (${res.code})"),
+                                                    ),
+                                                )
+                                            }
+                                        } else {
+                                            val body = res.body.string()
+                                            val nextUrl = res.nextPageUrl()
+                                            val etag = res.header("ETag")
+                                            val lastModified = res.header("Last-Modified")
+                                            val releasePage = ReleasePage(body, nextUrl, etag, lastModified)
+                                            if (continuation.isActive) {
+                                                continuation.resume(
+                                                    FetchResult(releasePage, PageFetchStatus.OK),
+                                                ) { _, _, _ -> }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (e: Throwable) {
+                            if (continuation.isActive) {
+                                continuation.resumeWith(Result.failure(e))
+                            }
+                        }
+                    }
+                },
+            )
+        }
 
     private fun Response.nextPageUrl(): String? {
         val link = header("Link") ?: return null
@@ -225,7 +434,8 @@ open class AppUpdateChecker(
         val expectedReposPath = base.encodedPath.trimEnd('/') + "/releases"
         val isReposPath = next.encodedPath == expectedReposPath
         val isRepositoriesPath = REPOSITORIES_RELEASES_PATH.matches(next.encodedPath)
-        if (next.host != base.host || (!isReposPath && !isRepositoriesPath)) {
+        val isTrustedOrigin = next.scheme == base.scheme && next.host == base.host && next.port == base.port
+        if (!isTrustedOrigin || (!isReposPath && !isRepositoriesPath)) {
             throw IOException("GitHub returned an untrusted pagination URL")
         }
         return next.toString()
@@ -234,7 +444,40 @@ open class AppUpdateChecker(
     private data class ReleasePage(
         val body: String,
         val nextUrl: String?,
+        val etag: String?,
+        val lastModified: String?,
     )
+
+    private data class CachedPage(
+        val etag: String?,
+        val lastModified: String?,
+        val body: String,
+        val nextUrl: String?,
+        val metadata: Any,
+    )
+
+    private data class CachedResult(
+        val result: UpdateInfo?,
+        val timestampMs: Long,
+    )
+
+    private enum class Channel {
+        STABLE,
+        RC,
+    }
+
+    private data class CacheKey(
+        val apiBaseUrl: String,
+        val channel: Channel,
+    )
+
+    private val cachedEntries = ConcurrentHashMap<CacheKey, CachedResult>()
+    private val pageCache = ConcurrentHashMap<String, CachedPage>()
+
+    internal fun clearCache() {
+        cachedEntries.clear()
+        pageCache.clear()
+    }
 
     /**
      * Stream a release APK asset to [dest], reporting progress 0..1 via
@@ -340,6 +583,7 @@ open class AppUpdateChecker(
     private companion object {
         const val DEFAULT_BUFFER_SIZE = 8192
         const val HTTP_NOT_FOUND = 404
+        const val HTTP_NOT_MODIFIED = 304
 
         const val RELEASE_LIST_PAGE_SIZE = 100
         val NEXT_LINK = Regex("<([^>]+)>;\\s*rel=\"next\"")

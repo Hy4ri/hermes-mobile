@@ -15,16 +15,28 @@ import com.m57.hermescontrol.data.model.McpServerToggleRequest
 import com.m57.hermescontrol.data.model.McpServersResponse
 import com.m57.hermescontrol.data.model.replaceMcpEnvValue
 import com.m57.hermescontrol.data.remote.ApiClient
+import com.m57.hermescontrol.data.remote.CookieManager
+import com.m57.hermescontrol.data.remote.HermesApiService
 import com.m57.hermescontrol.data.remote.NetworkError
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.remote.safeApiRead
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,6 +45,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
+import okhttp3.Cookie
 import retrofit2.Response
 
 enum class AddServerMode { HTTP, Stdio }
@@ -79,6 +94,13 @@ data class McpServersUiState(
 
 class McpServersViewModel(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val scopedServiceFactory: (
+        scope: DataScope,
+        token: String?,
+        cookies: List<Cookie>,
+    ) -> HermesApiService = { scope, token, cookies ->
+        ApiClient.createScopedService(scope, token, cookies)
+    },
 ) : ViewModel(),
     ToastHost {
     private val _uiState = MutableStateFlow(McpServersUiState())
@@ -87,6 +109,7 @@ class McpServersViewModel(
     private val mcpCache = SwrCache<String, McpServersResponse>()
 
     fun clearScopeOwnedState() {
+        cancelCurrentOAuthFlowInternal()
         _uiState.update {
             it.copy(
                 isLoading = false,
@@ -117,7 +140,7 @@ class McpServersViewModel(
                     )
                 }
             },
-            apiCall = { safeApiCall { ApiClient.hermesApi.getMcpServers() } },
+            apiCall = { safeApiRead { ApiClient.hermesApi.getMcpServers() } },
             onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
             onSuccess = { data ->
                 _uiState.update {
@@ -637,62 +660,252 @@ class McpServersViewModel(
 
     // ── OAuth ─────────────────────────────────────────────────
 
-    private var oauthPollJob: kotlinx.coroutines.Job? = null
+    private data class OAuthFlowSession(
+        val generation: Long,
+        val service: HermesApiService,
+        val scope: DataScope?,
+        val flowIdDeferred: CompletableDeferred<String?> = CompletableDeferred(),
+        var terminal: Boolean = false,
+    )
+
+    // #1560: starts survive presentation dismissal long enough to recover and cancel their returned ID.
+    // State transitions stay on Main; only HTTP work moves to the injected IO dispatcher.
+    private val oauthScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var currentOAuthGeneration: Long = 0L
+    private var currentOAuthSession: OAuthFlowSession? = null
+    private var oauthPollJob: Job? = null
+    private var oauthCleanupTail: Deferred<Boolean>? = null
+    private var failedCleanupSession: OAuthFlowSession? = null
+    private var oauthCleared = false
+
+    private fun ownsOAuthSession(session: OAuthFlowSession): Boolean =
+        !oauthCleared && currentOAuthSession === session && session.generation == currentOAuthGeneration &&
+            AuthManager.currentDataScope() == session.scope
+
+    private fun captureCurrentOAuthService(): Pair<HermesApiService, DataScope?> {
+        val scope = AuthManager.currentDataScope()
+        val token = if (AuthManager.isGatedMode()) null else AuthManager.getToken()
+        val cookies =
+            if (CookieManager.isInitialized()) {
+                val url = runCatching { AuthManager.endpointForBuild().baseUrl }.getOrNull()
+                if (url != null) CookieManager.cookieJar.loadForRequest(url) else emptyList()
+            } else {
+                emptyList()
+            }
+        val effectiveScope =
+            scope ?: DataScope(
+                connectionProfileId = AuthManager.getSelectedProfileId() ?: AuthManager.DEFAULT_PROFILE_ID,
+                baseUrl =
+                    AuthManager
+                        .endpointForBuild()
+                        .baseUrl
+                        .toString()
+                        .trimEnd('/'),
+                activeProfileId = AuthManager.activeProfileId.value ?: AuthManager.DEFAULT_PROFILE_ID,
+                inMemoryAuthGeneration = 0,
+            )
+        check(AuthManager.currentDataScope() == scope) { "Connection changed while preparing OAuth" }
+        val service = scopedServiceFactory(effectiveScope, token, cookies)
+        return Pair(service, scope)
+    }
+
+    private fun cancelCurrentOAuthFlowInternal(): Deferred<Boolean>? {
+        val generation = ++currentOAuthGeneration
+        oauthPollJob?.cancel()
+        oauthPollJob = null
+        val session = currentOAuthSession ?: failedCleanupSession
+        val previous = oauthCleanupTail
+        currentOAuthSession = null
+        _uiState.update { it.copy(activeOAuthFlow = null) }
+
+        if (session == null || session.terminal) return previous
+        val retryingFailedCleanup = failedCleanupSession === session
+        val cleanup =
+            oauthScope.async {
+                try {
+                    withTimeout(OAUTH_CLEANUP_TIMEOUT_MS) {
+                        if (previous?.await() == false && !retryingFailedCleanup) return@withTimeout false
+                        val flowId = session.flowIdDeferred.await()
+                        if (flowId.isNullOrBlank()) return@withTimeout true
+                        val result =
+                            withContext(ioDispatcher) {
+                                safeApiCall(retries = 0) { session.service.cancelMcpOAuthFlow(flowId) }
+                            }
+                        val released = result is NetworkResult.Success && result.data.ok
+                        if (released) {
+                            if (failedCleanupSession === session) failedCleanupSession = null
+                        } else {
+                            failedCleanupSession = session
+                            if (!oauthCleared && generation == currentOAuthGeneration &&
+                                AuthManager.currentDataScope() == session.scope
+                            ) {
+                                val message =
+                                    when (result) {
+                                        is NetworkResult.Failure -> {
+                                            mutationError(
+                                                result.error,
+                                                "Failed to cancel OAuth",
+                                            )
+                                        }
+
+                                        is NetworkResult.Success -> {
+                                            "Failed to cancel OAuth: Gateway refused cancellation"
+                                        }
+                                    }
+                                _uiState.update { it.copy(toastMessage = message) }
+                            }
+                        }
+                        released
+                    }
+                } catch (e: Exception) {
+                    failedCleanupSession = session
+                    if (!oauthCleared && generation == currentOAuthGeneration &&
+                        AuthManager.currentDataScope() == session.scope
+                    ) {
+                        _uiState.update {
+                            it.copy(
+                                toastMessage = "Failed to cancel OAuth: ${e.message ?: "Unknown error"}",
+                            )
+                        }
+                    }
+                    if (e is CancellationException && e !is TimeoutCancellationException) throw e
+                    false
+                }
+            }
+        oauthCleanupTail = cleanup
+        return cleanup
+    }
 
     fun startMcpOAuthFlow(
         server: McpServer,
         onOpenBrowser: (String) -> Unit,
     ) {
-        if (server.isPluginOwned || isPluginOwned(server.name)) return
-        oauthPollJob?.cancel()
+        if (oauthCleared || server.isPluginOwned || isPluginOwned(server.name)) return
+        val captured =
+            try {
+                captureCurrentOAuthService()
+            } catch (e: Exception) {
+                _uiState.update { it.copy(toastMessage = "Failed to start OAuth: ${e.message}") }
+                return
+            }
+        val priorCleanup = cancelCurrentOAuthFlowInternal()
+        val session = OAuthFlowSession(currentOAuthGeneration, captured.first, captured.second)
+        currentOAuthSession = session
         _uiState.update { it.copy(toastMessage = "Starting OAuth authorization…") }
-        viewModelScope.launch {
-            val result =
-                withContext(ioDispatcher) {
-                    safeApiCall { ApiClient.hermesApi.authMcpServer(server.name) }
+        oauthScope.launch {
+            try {
+                if (priorCleanup?.await() == false) {
+                    if (ownsOAuthSession(session)) {
+                        _uiState.update { it.copy(toastMessage = "Failed to cancel previous OAuth authorization") }
+                    }
+                    if (currentOAuthSession === session) currentOAuthSession = null
+                    return@launch
                 }
-            when (result) {
-                is NetworkResult.Success -> {
-                    val flow = result.data
-                    _uiState.update { it.copy(activeOAuthFlow = flow) }
-                    flow.authorizationUrl?.let { url ->
-                        onOpenBrowser(url)
-                        startPollingOAuthFlow(flow.flowId)
-                    } ?: run {
-                        _uiState.update {
-                            it.copy(
-                                toastMessage = "Failed to start OAuth: No authorization URL returned",
-                            )
+                if (oauthCleared || currentOAuthSession !== session || session.generation != currentOAuthGeneration) {
+                    return@launch
+                }
+                val result =
+                    withTimeout(OAUTH_START_TIMEOUT_MS) {
+                        withContext(
+                            ioDispatcher,
+                        ) { safeApiCall(retries = 0) { session.service.authMcpServer(server.name) } }
+                    }
+                when (result) {
+                    is NetworkResult.Success -> {
+                        val flow = result.data
+                        session.terminal =
+                            flow.status in setOf("approved", "completed", "error", "cancelled", "expired")
+                        session.flowIdDeferred.complete(flow.flowId)
+                        if (!ownsOAuthSession(session)) {
+                            if (currentOAuthSession === session) cancelCurrentOAuthFlowInternal()
+                            return@launch
                         }
+                        if (session.terminal) {
+                            currentOAuthSession = null
+                            _uiState.update {
+                                it.copy(
+                                    activeOAuthFlow = null,
+                                    toastMessage = flow.error ?: flow.status,
+                                )
+                            }
+                            if (flow.status == "approved" ||
+                                flow.status == "completed"
+                            ) {
+                                loadServers(forceRefresh = true)
+                            }
+                            return@launch
+                        }
+                        val url = flow.authorizationUrl
+                        if (url.isNullOrBlank() || flow.flowId.isBlank()) {
+                            _uiState.update {
+                                it.copy(
+                                    toastMessage = "Failed to start OAuth: No authorization URL returned",
+                                )
+                            }
+                            cancelCurrentOAuthFlowInternal()
+                            return@launch
+                        }
+                        _uiState.update { it.copy(activeOAuthFlow = flow) }
+                        onOpenBrowser(url)
+                        if (ownsOAuthSession(session)) startPollingOAuthFlow(flow.flowId, session)
+                    }
+
+                    is NetworkResult.Failure -> {
+                        if (ownsOAuthSession(session)) {
+                            _uiState.update {
+                                it.copy(
+                                    toastMessage = mutationError(result.error, "Failed to start OAuth"),
+                                )
+                            }
+                        }
+                        if (currentOAuthSession === session) currentOAuthSession = null
                     }
                 }
-
-                is NetworkResult.Failure -> {
-                    _uiState.update { it.copy(toastMessage = mutationError(result.error, "Failed to start OAuth")) }
+            } catch (e: Exception) {
+                if (ownsOAuthSession(session)) {
+                    _uiState.update { it.copy(toastMessage = "Failed to start OAuth: ${e.message ?: "Unknown error"}") }
                 }
+                if (currentOAuthSession === session) cancelCurrentOAuthFlowInternal()
+                if (e is CancellationException && e !is TimeoutCancellationException) throw e
+            } finally {
+                session.flowIdDeferred.complete(null)
             }
         }
     }
 
-    private fun startPollingOAuthFlow(flowId: String) {
+    private fun startPollingOAuthFlow(
+        flowId: String,
+        session: OAuthFlowSession,
+    ) {
         oauthPollJob?.cancel()
         oauthPollJob =
             viewModelScope.launch {
                 var polling = true
                 var consecutiveFailures = 0
                 while (polling) {
-                    kotlinx.coroutines.delay(2000)
+                    delay(2000)
+                    if (!ownsOAuthSession(session)) {
+                        if (currentOAuthSession === session) cancelCurrentOAuthFlowInternal()
+                        return@launch
+                    }
                     val result =
                         withContext(ioDispatcher) {
-                            safeApiCall { ApiClient.hermesApi.getMcpOAuthFlowStatus(flowId) }
+                            safeApiCall { session.service.getMcpOAuthFlowStatus(flowId) }
                         }
+                    if (!ownsOAuthSession(session)) {
+                        if (currentOAuthSession === session) cancelCurrentOAuthFlowInternal()
+                        return@launch
+                    }
                     when (result) {
                         is NetworkResult.Success -> {
                             val flow = result.data
+                            consecutiveFailures = 0
                             _uiState.update { it.copy(activeOAuthFlow = flow) }
                             when (flow.status) {
                                 "approved", "completed" -> {
                                     polling = false
+                                    session.terminal = true
+                                    currentOAuthSession = null
                                     _uiState.update {
                                         it.copy(
                                             activeOAuthFlow = null,
@@ -702,8 +915,10 @@ class McpServersViewModel(
                                     loadServers(forceRefresh = true)
                                 }
 
-                                "error" -> {
+                                "error", "cancelled", "expired" -> {
                                     polling = false
+                                    session.terminal = true
+                                    currentOAuthSession = null
                                     _uiState.update {
                                         it.copy(
                                             activeOAuthFlow = null,
@@ -717,7 +932,6 @@ class McpServersViewModel(
                                 }
 
                                 else -> {
-                                    // Check if worker is done or expired
                                     // Continue polling until status transitions
                                 }
                             }
@@ -741,9 +955,25 @@ class McpServersViewModel(
     }
 
     fun dismissOAuthFlow() {
-        oauthPollJob?.cancel()
-        oauthPollJob = null
-        _uiState.update { it.copy(activeOAuthFlow = null) }
+        cancelCurrentOAuthFlowInternal()
+    }
+
+    override fun onCleared() {
+        oauthCleared = true
+        val cleanup = cancelCurrentOAuthFlowInternal()
+        oauthScope.launch {
+            try {
+                withTimeoutOrNull(OAUTH_CLEANUP_TIMEOUT_MS) { cleanup?.await() }
+            } finally {
+                oauthScope.cancel()
+            }
+        }
+        super.onCleared()
+    }
+
+    private companion object {
+        const val OAUTH_START_TIMEOUT_MS = 30_000L
+        const val OAUTH_CLEANUP_TIMEOUT_MS = 65_000L
     }
 
     // ── Helpers ──────────────────────────────────────────────

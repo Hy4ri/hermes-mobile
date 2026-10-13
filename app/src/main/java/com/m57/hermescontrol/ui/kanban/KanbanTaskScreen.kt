@@ -1310,7 +1310,7 @@ private fun TaskFilesTab(
             }
         }
 
-    LaunchedEffect(board, taskId) { viewModel.refreshAttachments(board, taskId) }
+    LaunchedEffect(board, taskId) { viewModel.refreshAttachmentsIfNeeded(board, taskId) }
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         Row(

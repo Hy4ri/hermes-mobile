@@ -114,7 +114,7 @@ class NetworkResultTest {
         runBlocking {
             var callCount = 0
             val result =
-                safeApiCall<String> {
+                safeApiRead<String> {
                     callCount++
                     if (callCount == 1) {
                         Response.error(500, "Server Error".toResponseBody("text/plain".toMediaTypeOrNull()))
@@ -148,7 +148,7 @@ class NetworkResultTest {
         runBlocking {
             var callCount = 0
             val result =
-                safeApiCall<String> {
+                safeApiRead<String> {
                     callCount++
                     if (callCount == 1) {
                         throw IOException("Network error")

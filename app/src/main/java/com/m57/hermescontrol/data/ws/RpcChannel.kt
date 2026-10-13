@@ -66,7 +66,13 @@ internal class RpcChannel(
 
     fun clearCapabilityRequests() {
         capabilityRequestIds.clear()
+        declinesNotShown = false
     }
+
+    /** Backend advertised (in the `client.capabilities` result) that a 4404 counts as a decline. */
+    @Volatile
+    var declinesNotShown: Boolean = false
+        private set
 
     fun consumeCapabilityResponse(event: WsEvent): Boolean {
         val id =
@@ -81,6 +87,9 @@ internal class RpcChannel(
             }
         if (!isCapabilityResponse) return false
 
+        if (event is WsEvent.RpcResult) {
+            declinesNotShown = (event.result as? Map<*, *>)?.get("declines_not_shown") == true
+        }
         removeQueuedMessage(id)
         return true
     }
@@ -108,29 +117,31 @@ internal class RpcChannel(
         params: Map<String, Any> = emptyMap(),
         timeoutMs: Long = HermesWsClient.REQUEST_TIMEOUT_MS,
         suppressErrorEvent: Boolean = false,
-    ): CompletableDeferred<Any?> {
-        val deferred = CompletableDeferred<Any?>()
-        val id =
-            sendRequest(method, params) { reqId ->
-                pendingCalls[reqId] = PendingCall(method, deferred, suppressErrorEvent = suppressErrorEvent)
-            }
-        deferred.invokeOnCompletion { cause ->
-            if (cause is CancellationException) {
-                pendingCalls.remove(id)?.let { call ->
-                    call.timeoutJob?.cancel()
-                    removeQueuedMessage(id)
-                    onIdleCheck()
+    ): CompletableDeferred<Any?> =
+        synchronized(outboundLock) {
+            // #1564: arm the timeout within the same registration/teardown transaction.
+            val deferred = CompletableDeferred<Any?>()
+            val id =
+                sendRequest(method, params) { reqId ->
+                    pendingCalls[reqId] = PendingCall(method, deferred, suppressErrorEvent = suppressErrorEvent)
+                }
+            deferred.invokeOnCompletion { cause ->
+                if (cause is CancellationException) {
+                    pendingCalls.remove(id)?.let { call ->
+                        call.timeoutJob?.cancel()
+                        removeQueuedMessage(id)
+                        onIdleCheck()
+                    }
                 }
             }
+            // Arm the per-request timeout (fires if the server never answers).
+            pendingCalls[id]?.timeoutJob =
+                scope.launch {
+                    delay(timeoutMs)
+                    resolvePending(id, null, JsonRpcError(-1, "Request timed out: $method"))
+                }
+            deferred
         }
-        // Arm the per-request timeout (fires if the server never answers).
-        pendingCalls[id]?.timeoutJob =
-            scope.launch {
-                delay(timeoutMs)
-                resolvePending(id, null, JsonRpcError(-1, "Request timed out: $method"))
-            }
-        return deferred
-    }
 
     /**
      * Non-suspending typed twin of [request] for callers that must enqueue inside a
@@ -209,9 +220,13 @@ internal class RpcChannel(
         error: HermesWsClient.HermesRpcException =
             HermesWsClient.HermesRpcException("Connection lost — request cancelled"),
     ) {
-        if (pendingCalls.isEmpty()) return
-        val snapshot = pendingCalls.toList()
-        pendingCalls.clear()
+        val snapshot =
+            synchronized(outboundLock) {
+                if (pendingCalls.isEmpty()) return
+                val list = pendingCalls.toList()
+                pendingCalls.clear()
+                list
+            }
         for ((id, call) in snapshot) {
             removeQueuedMessage(id)
             logRejected(call.method, id)

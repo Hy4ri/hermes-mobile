@@ -37,10 +37,12 @@ data class PairingApproveRequest(
     val platform: String,
     @SerialName("request_id") val requestId: String? = null,
     val code: String? = null,
+    val profile: String? = null,
 )
 
 @Serializable
 data class PairingRevokeRequest(
     val platform: String,
     @SerialName("user_id") val userId: String,
+    val profile: String? = null,
 )

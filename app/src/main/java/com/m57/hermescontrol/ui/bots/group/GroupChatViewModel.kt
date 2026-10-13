@@ -12,7 +12,7 @@ import com.m57.hermescontrol.data.model.ProfileInfo
 import com.m57.hermescontrol.data.model.ProfilesResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
-import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.remote.safeApiRead
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsEvent
@@ -341,7 +341,7 @@ class GroupChatViewModel(
         } catch (_: Exception) {
             // Fallback to REST API below
         }
-        val result = safeApiCall { ApiClient.hermesApi.getProfiles() }
+        val result = safeApiRead { ApiClient.hermesApi.getProfiles() }
         return (result as? NetworkResult.Success)?.data?.profiles.orEmpty()
     }
 
@@ -787,7 +787,7 @@ class GroupChatViewModel(
                 for (tid in targetIds) {
                     try {
                         val res =
-                            safeApiCall {
+                            safeApiRead {
                                 ApiClient.hermesApi.getSessionMessages(
                                     sessionId = tid,
                                     limit = 10,

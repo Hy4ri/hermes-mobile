@@ -2,19 +2,23 @@ package com.m57.hermescontrol.ui.webhooks
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.CreateWebhookRequest
+import com.m57.hermescontrol.data.model.MessagingPlatformUpdate
 import com.m57.hermescontrol.data.model.WebhookSubscription
 import com.m57.hermescontrol.data.model.WebhookToggleSubscriptionRequest
 import com.m57.hermescontrol.data.model.WebhooksResponse
-import com.m57.hermescontrol.data.model.WebhooksToggleRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.remote.safeApiRead
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -45,18 +49,27 @@ data class WebhooksUiState(
     val togglingName: String? = null,
 )
 
-class WebhooksViewModel :
-    ViewModel(),
+class WebhooksViewModel(
+    // Injectable so tests drive IO on the virtual clock; the default keeps `WebhooksViewModel()` callers unchanged.
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+) : ViewModel(),
     ToastHost {
     private val _uiState = MutableStateFlow(WebhooksUiState())
     val uiState: StateFlow<WebhooksUiState> = _uiState.asStateFlow()
 
     private val webhooksCache = SwrCache<String, WebhooksResponse>()
+    private var toggleGeneration = 0L
+    private var toggleJob: Job? = null
 
     fun clearScopeOwnedState() {
+        // #1550: a stale toggle must neither lock nor roll back a newly selected profile.
+        toggleGeneration++
+        toggleJob?.cancel()
+        toggleJob = null
         _uiState.update {
             it.copy(
                 isLoading = false,
+                isActionRunning = false,
                 enabled = false,
                 baseUrl = null,
                 subscriptions = emptyList(),
@@ -82,7 +95,7 @@ class WebhooksViewModel :
                     )
                 }
             },
-            apiCall = { safeApiCall { ApiClient.hermesApi.getWebhooks() } },
+            apiCall = { safeApiRead { ApiClient.hermesApi.getWebhooks() } },
             onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
             onSuccess = { data ->
                 val body = data
@@ -107,34 +120,82 @@ class WebhooksViewModel :
     }
 
     fun toggleWebhooks(targetEnabled: Boolean) {
+        if (_uiState.value.isActionRunning) return
+
         val originalEnabled = _uiState.value.enabled
-        _uiState.update { it.copy(enabled = targetEnabled) }
+        val capturedScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+        val capturedProfile = AuthManager.activeProfileId.value ?: AuthManager.DEFAULT_PROFILE_ID
+        val capturedApi = ApiClient.hermesApi
+        val generation = ++toggleGeneration
 
-        viewModelScope.launch {
-            val result =
-                withContext(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.toggleWebhooks(WebhooksToggleRequest(targetEnabled)) }
-                }
-            when (result) {
-                is NetworkResult.Success -> {
-                    _uiState.update {
-                        it.copy(
-                            toastMessage = "Webhooks global status ${if (targetEnabled) "enabled" else "disabled"}",
-                        )
+        _uiState.update {
+            it.copy(
+                isActionRunning = true,
+                enabled = targetEnabled,
+            )
+        }
+
+        toggleJob =
+            viewModelScope.launch {
+                try {
+                    val result =
+                        withContext(ioDispatcher) {
+                            safeApiCall(retries = 0) {
+                                capturedApi.configurePlatform(
+                                    platformId = "webhook",
+                                    config =
+                                        MessagingPlatformUpdate(
+                                            enabled = targetEnabled,
+                                            profile = capturedProfile,
+                                        ),
+                                )
+                            }
+                        }
+
+                    val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+                    val currentProfile = AuthManager.activeProfileId.value ?: AuthManager.DEFAULT_PROFILE_ID
+                    if (generation != toggleGeneration || currentScope != capturedScope ||
+                        currentProfile != capturedProfile
+                    ) {
+                        return@launch
                     }
-                    loadWebhooks(forceRefresh = true)
-                }
 
-                is NetworkResult.Failure -> {
-                    _uiState.update {
-                        it.copy(
-                            enabled = originalEnabled,
-                            toastMessage = "Failed to toggle webhooks: ${result.error.message}",
-                        )
+                    when (result) {
+                        is NetworkResult.Success -> {
+                            if (result.data.ok) {
+                                _uiState.update {
+                                    it.copy(
+                                        toastMessage =
+                                            "Webhooks global status ${if (targetEnabled) "enabled" else "disabled"}",
+                                    )
+                                }
+                                loadWebhooks(forceRefresh = true)
+                            } else {
+                                _uiState.update {
+                                    it.copy(
+                                        enabled = originalEnabled,
+                                        toastMessage = "Failed to toggle webhooks: Gateway refused update",
+                                    )
+                                }
+                            }
+                        }
+
+                        is NetworkResult.Failure -> {
+                            _uiState.update {
+                                it.copy(
+                                    enabled = originalEnabled,
+                                    toastMessage = "Failed to toggle webhooks: ${result.error.message}",
+                                )
+                            }
+                        }
+                    }
+                } finally {
+                    if (generation == toggleGeneration) {
+                        _uiState.update { it.copy(isActionRunning = false) }
+                        toggleJob = null
                     }
                 }
             }
-        }
     }
 
     // ── Create dialog ────────────────────────────────────────────────
@@ -195,7 +256,7 @@ class WebhooksViewModel :
 
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     safeApiCall {
                         ApiClient.hermesApi.createWebhook(
                             CreateWebhookRequest(
@@ -242,7 +303,7 @@ class WebhooksViewModel :
 
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     safeApiCall {
                         ApiClient.hermesApi.setWebhookEnabled(
                             name = name,
@@ -286,7 +347,7 @@ class WebhooksViewModel :
 
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     safeApiCall { ApiClient.hermesApi.deleteWebhook(target.name) }
                 }
             _uiState.update { it.copy(isDeleting = false, deleteTarget = null) }

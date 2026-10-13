@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.data.remote
 
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
 import okhttp3.HttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -85,6 +86,42 @@ class ProfileScopeInterceptorTest {
     }
 
     @Test
+    fun taggedRequestKeepsItsProfileAndProxyPrefixAfterAmbientSelectionChanges() {
+        val client = clientFor("replacement")
+        val scope = DataScope("original", server.url("/proxy/").toString(), "captured", 1L)
+        server.enqueue(MockResponse().setBody("{}"))
+        val request =
+            Request
+                .Builder()
+                .url(server.url("/proxy/api/learning/graph"))
+                .tag(DataScope::class.java, scope)
+                .build()
+
+        client.newCall(request).execute().close()
+
+        val url = server.takeRequest().requestUrl!!
+        assertEquals("/proxy/api/learning/graph", url.encodedPath)
+        assertEquals("captured", url.queryParameter("profile"))
+    }
+
+    @Test
+    fun taggedDefaultProfileIsExplicitEvenWhenAmbientProfileIsMissing() {
+        val client = clientFor(null)
+        val scope = DataScope("original", server.url("/").toString(), "default", 1L)
+        server.enqueue(MockResponse().setBody("{}"))
+        val request =
+            Request
+                .Builder()
+                .url(server.url("/api/config"))
+                .tag(DataScope::class.java, scope)
+                .build()
+
+        client.newCall(request).execute().close()
+
+        assertEquals("default", server.takeRequest().requestUrl!!.queryParameter("profile"))
+    }
+
+    @Test
     fun explicitProfileParam_wins() {
         AuthManager.setActiveProfileId("work")
         val client = OkHttpClient.Builder().addInterceptor(ProfileScopeInterceptor).build()
@@ -100,16 +137,136 @@ class ProfileScopeInterceptorTest {
     }
 
     @Test
-    fun nonScopedEndpoint_untouched() {
-        // Pairing is machine-global (not profile-scoped on the backend).
-        AuthManager.setActiveProfileId("work")
-        val client = OkHttpClient.Builder().addInterceptor(ProfileScopeInterceptor).build()
+    fun pairingEndpoints_areScoped() {
+        val client = clientFor("work")
+        for (path in listOf("api/pairing", "api/pairing/approve", "api/pairing/revoke", "api/pairing/clear-pending")) {
+            server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+            val req = Request.Builder().url(server.url(path)).build()
+            client.newCall(req).execute().close()
+            val url = server.takeRequest().requestUrl!!
+            assertEquals("work", url.queryParameter("profile"))
+            assertEquals("/$path", url.encodedPath)
+        }
+    }
+
+    @Test
+    fun providersOAuthEndpoints_areScoped() {
+        val client = clientFor("work")
+        for (path in listOf(
+            "api/providers/oauth",
+            "api/providers/oauth/google",
+            "api/providers/oauth/google/start",
+            "api/providers/oauth/google/submit",
+            "api/providers/oauth/google/poll/s123",
+            "api/providers/oauth/sessions/s123",
+        )) {
+            server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+            val req = Request.Builder().url(server.url(path)).build()
+            client.newCall(req).execute().close()
+            val url = server.takeRequest().requestUrl!!
+            assertEquals("work", url.queryParameter("profile"))
+            assertEquals("/$path", url.encodedPath)
+        }
+    }
+
+    @Test
+    fun confirmedExactEndpoints_areScoped() {
+        val client = clientFor("work")
+        val exactPaths =
+            listOf(
+                "api/logs",
+                "api/portal",
+                "api/learning/graph",
+                "api/dashboard/plugins",
+                "api/dashboard/plugins/hub",
+                "api/dashboard/plugins/spotify/visibility",
+                "api/dashboard/plugin-providers",
+            )
+        for (path in exactPaths) {
+            server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+            val req = Request.Builder().url(server.url(path)).build()
+            client.newCall(req).execute().close()
+            val url = server.takeRequest().requestUrl!!
+            assertEquals("work", url.queryParameter("profile"))
+            assertEquals("/$path", url.encodedPath)
+        }
+    }
+
+    @Test
+    fun unconfirmedOrGlobalDashboardEndpoints_areNotScoped() {
+        val client = clientFor("work")
+        val unscopedPaths =
+            listOf(
+                "api/dashboard",
+                "api/dashboard/overview",
+                "api/dashboard/plugins/catalog",
+                "api/dashboard/plugins/rescan",
+                "api/dashboard/agent-plugins/install",
+                "api/dashboard/agent-plugins/my-plugin/update",
+                "api/dashboard/agent-plugins/my-plugin/enable",
+                "api/dashboard/agent-plugins/my-plugin/disable",
+                "api/learning/graph/extra",
+                "api/portal/settings",
+                "api/logs/download",
+                "api/dashboard/plugin-providers/all",
+            )
+        for (path in unscopedPaths) {
+            server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+            val req = Request.Builder().url(server.url(path)).build()
+            client.newCall(req).execute().close()
+            val url = server.takeRequest().requestUrl!!
+            assertNull("Expected $path not to have profile query parameter", url.queryParameter("profile"))
+            assertEquals("/$path", url.encodedPath)
+        }
+    }
+
+    @Test
+    fun reverseProxyPrefix_scopesConfirmedRoutesCorrectly() {
+        // Scoped services tag requests with the captured DataScope; its baseUrl carries the proxy prefix.
+        val scope = DataScope("default", server.url("/custom-prefix/").toString(), "work")
+        val client = clientFor(null)
+
         server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
-        val req = Request.Builder().url(server.url("api/pairing")).build()
+        val req =
+            Request
+                .Builder()
+                .url(server.url("custom-prefix/api/pairing/approve"))
+                .tag(DataScope::class.java, scope)
+                .build()
         client.newCall(req).execute().close()
         val url = server.takeRequest().requestUrl!!
-        assertNull(url.queryParameter("profile"))
-        assertEquals("/api/pairing", url.encodedPath)
+        assertEquals("work", url.queryParameter("profile"))
+        assertEquals("/custom-prefix/api/pairing/approve", url.encodedPath)
+
+        server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+        val unscopedReq =
+            Request
+                .Builder()
+                .url(server.url("custom-prefix/api/dashboard/agent-plugins/install"))
+                .tag(DataScope::class.java, scope)
+                .build()
+        client.newCall(unscopedReq).execute().close()
+        val unscopedUrl = server.takeRequest().requestUrl!!
+        assertNull(unscopedUrl.queryParameter("profile"))
+        assertEquals("/custom-prefix/api/dashboard/agent-plugins/install", unscopedUrl.encodedPath)
+    }
+
+    @Test
+    fun explicitProfileQuery_winsOverActiveProfileAcrossNewRoutes() {
+        AuthManager.setActiveProfileId("work")
+        val client = OkHttpClient.Builder().addInterceptor(ProfileScopeInterceptor).build()
+
+        server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+        val req = Request.Builder().url(server.url("api/learning/graph?profile=other")).build()
+        client.newCall(req).execute().close()
+        val url = server.takeRequest().requestUrl!!
+        assertEquals("other", url.queryParameter("profile"))
+
+        server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+        val req2 = Request.Builder().url(server.url("api/pairing?profile=manual")).build()
+        client.newCall(req2).execute().close()
+        val url2 = server.takeRequest().requestUrl!!
+        assertEquals("manual", url2.queryParameter("profile"))
     }
 
     @Test

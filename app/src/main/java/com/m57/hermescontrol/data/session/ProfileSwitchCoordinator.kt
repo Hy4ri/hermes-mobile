@@ -53,25 +53,26 @@ object ProfileSwitchCoordinator {
     val connectionSwitched: SharedFlow<String> = _connectionSwitched.asSharedFlow()
     private val switchMutex = Mutex()
 
-    suspend fun switchProfile(name: String): NetworkResult<Unit> {
-        val result =
-            withContext(ioDispatcher) {
-                safeApiCall { ApiClient.hermesApi.setActiveProfile(SetActiveProfileRequest(name)) }
-            }
-        if (result !is NetworkResult.Success) return result
+    suspend fun switchProfile(name: String): NetworkResult<Unit> =
+        switchMutex.withLock {
+            val result =
+                withContext(ioDispatcher) {
+                    safeApiCall { ApiClient.hermesApi.setActiveProfile(SetActiveProfileRequest(name)) }
+                }
+            if (result !is NetworkResult.Success) return@withLock result
 
-        AuthManager.setActiveProfileId(name)
-        _switched.emit(name)
-        // The ticket mint inside connect() does blocking network I/O — it must
-        // run off the main thread or the dial crashes with
-        // NetworkOnMainThreadException and falls back to the 1s reconnect
-        // retry (visible in the 2026-08-06 live logcat).
-        withContext(ioDispatcher) {
-            HermesWsClient.disconnect()
-            HermesWsClient.connect()
+            AuthManager.setActiveProfileId(name)
+            _switched.emit(name)
+            // The ticket mint inside connect() does blocking network I/O — it must
+            // run off the main thread or the dial crashes with
+            // NetworkOnMainThreadException and falls back to the 1s reconnect
+            // retry (visible in the 2026-08-06 live logcat).
+            withContext(ioDispatcher) {
+                HermesWsClient.disconnect(clearPendingMessages = true)
+                HermesWsClient.connect()
+            }
+            result
         }
-        return result
-    }
 
     /**
      * Switches the CONNECTION profile — which server the app talks to (e.g.

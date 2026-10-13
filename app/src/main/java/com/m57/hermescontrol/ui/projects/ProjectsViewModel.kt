@@ -6,6 +6,7 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.model.DiscoveredRepo
 import com.m57.hermescontrol.data.model.ProjectInfo
+import com.m57.hermescontrol.data.ws.ChangeEvents
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.ProjectsRepository
 import com.m57.hermescontrol.data.ws.ProjectsResult
@@ -13,6 +14,7 @@ import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.ui.common.ToastHost
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -66,40 +68,92 @@ data class ProjectsUiState(
 
 class ProjectsViewModel(
     private val repository: ProjectsRepository = ProjectsRepository(),
-    scopes: StateFlow<DataScope?> = AuthManager.dataScopeFlow,
+    private val scopes: StateFlow<DataScope?> = AuthManager.dataScopeFlow,
     events: Flow<WsEvent> = HermesWsClient.events,
 ) : ViewModel(),
     ToastHost {
     private val _uiState = MutableStateFlow(ProjectsUiState())
     val uiState: StateFlow<ProjectsUiState> = _uiState.asStateFlow()
     private var loadJob: Job? = null
+    private var refreshJob: Job? = null
+    private var scopeGeneration: Long = 0L
 
     init {
         viewModelScope.launch {
             // Projects are per profile: a profile/server switch starts from a clean list.
             scopes.collect {
+                scopeGeneration++
+                refreshJob?.cancel()
+                refreshJob = null
+                loadJob?.cancel()
+                loadJob = null
                 _uiState.value = ProjectsUiState()
                 load()
             }
         }
         viewModelScope.launch {
-            events.collect { if (it is WsEvent.GatewayReady) load() }
+            events.collect { event ->
+                when (event) {
+                    is WsEvent.GatewayReady -> {
+                        load()
+                    }
+
+                    is WsEvent.ChangeEvent -> {
+                        if (event.type == ChangeEvents.PROJECTS) {
+                            coalescedSilentRefresh(scopes.value)
+                        }
+                    }
+
+                    else -> {
+                        Unit
+                    }
+                }
+            }
         }
     }
 
+    private fun coalescedSilentRefresh(expectedScope: DataScope?) {
+        val currentGeneration = scopeGeneration
+        refreshJob?.cancel()
+        refreshJob =
+            viewModelScope.launch {
+                delay(BURST_DEBOUNCE_MS)
+                val reposDeferred = async { repository.discoveredRepos() }
+                val result = repository.list()
+                val repos = reposDeferred.await()
+                if (currentGeneration == scopeGeneration && scopes.value == expectedScope) {
+                    when (result) {
+                        is ProjectsResult.Ok -> {
+                            applyProjects(result.value, repos)
+                        }
+
+                        is ProjectsResult.Failed -> {
+                            // Silent refresh: retain existing data, do not surface error
+                        }
+                    }
+                }
+            }
+    }
+
     fun load() {
+        val currentGeneration = scopeGeneration
+        val currentScope = scopes.value
         loadJob?.cancel()
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         loadJob =
             viewModelScope.launch {
-                val repos = async { repository.discoveredRepos() }
-                when (val result = repository.list()) {
-                    is ProjectsResult.Ok -> {
-                        applyProjects(result.value, repos.await())
-                    }
+                val reposDeferred = async { repository.discoveredRepos() }
+                val result = repository.list()
+                val repos = reposDeferred.await()
+                if (currentGeneration == scopeGeneration && scopes.value == currentScope) {
+                    when (result) {
+                        is ProjectsResult.Ok -> {
+                            applyProjects(result.value, repos)
+                        }
 
-                    is ProjectsResult.Failed -> {
-                        _uiState.update { it.copy(isLoading = false, errorMessage = result.message) }
+                        is ProjectsResult.Failed -> {
+                            _uiState.update { it.copy(isLoading = false, errorMessage = result.message) }
+                        }
                     }
                 }
             }
@@ -232,6 +286,8 @@ class ProjectsViewModel(
     override fun clearToast() = _uiState.update { it.copy(toastMessage = null) }
 
     companion object {
+        private const val BURST_DEBOUNCE_MS = 250L
+
         /** Sentinel the screen maps to a localized "name is required" message. */
         const val NAME_REQUIRED = "name_required"
     }

@@ -4,7 +4,7 @@ import com.m57.hermescontrol.data.model.ModelOptionsResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.OkHttpProvider
-import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.remote.safeApiRead
 import com.m57.hermescontrol.data.ws.contract.ModelOptionsParams
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
 import kotlinx.coroutines.CancellationException
@@ -22,7 +22,7 @@ class ModelOptionsRepository(
         HermesWsClient.call(RpcMethods.MODEL_OPTIONS, params)
     },
     private val rest: suspend (Boolean) -> NetworkResult<ModelOptionsResponse> = { refresh ->
-        safeApiCall { ApiClient.hermesApi.getModelOptions(refresh = refresh, includeUnconfigured = false) }
+        safeApiRead { ApiClient.hermesApi.getModelOptions(refresh = refresh, includeUnconfigured = false) }
     },
 ) {
     suspend fun load(refresh: Boolean = false): NetworkResult<ModelOptionsResponse> {

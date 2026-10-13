@@ -5,7 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.LogResponse
 import com.m57.hermescontrol.data.remote.ApiClient
-import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.remote.safeApiRead
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
 import kotlinx.coroutines.Job
@@ -64,7 +64,7 @@ class LogsViewModel :
                     _uiState.update { it.copy(isLoading = false, logs = logsList, errorMessage = null) }
                 },
                 apiCall = {
-                    safeApiCall {
+                    safeApiRead {
                         ApiClient.hermesApi.getLogs(
                             file = filters.file,
                             lines = filters.lines,

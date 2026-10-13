@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.pairing
 
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.PairingApproveRequest
 import com.m57.hermescontrol.data.model.PairingItem
 import com.m57.hermescontrol.data.model.PairingResponse
@@ -55,6 +56,7 @@ class PairingViewModelTest {
 
     @Before
     fun setUp() {
+        AuthManager.resetAuthStateForTest()
         Dispatchers.setMain(testDispatcher)
         mockkObject(ApiClient)
         every { ApiClient.hermesApi } returns mockApi
@@ -62,6 +64,7 @@ class PairingViewModelTest {
 
     @After
     fun tearDown() {
+        AuthManager.resetAuthStateForTest()
         Dispatchers.resetMain()
         unmockkAll()
     }
@@ -124,7 +127,8 @@ class PairingViewModelTest {
     }
 
     @Test
-    fun `approvePairing sends request id and reloads the list`() {
+    fun `approvePairing sends request id and captures active profile`() {
+        AuthManager.setActiveProfileId("work")
         val requestSlot = slot<PairingApproveRequest>()
         coEvery { mockApi.approvePairing(capture(requestSlot)) } returns Response.success(Unit)
         stubPairing()
@@ -135,13 +139,15 @@ class PairingViewModelTest {
 
         assertEquals("telegram", requestSlot.captured.platform)
         assertEquals("req-1", requestSlot.captured.requestId)
+        assertEquals("work", requestSlot.captured.profile)
         assertNull(requestSlot.captured.code)
         coVerify(exactly = 1) { mockApi.getPairing() }
         assertEquals("Pairing request approved", vm.uiState.value.toastMessage)
     }
 
     @Test
-    fun `revokePairing sends platform and user id then reloads`() {
+    fun `revokePairing sends platform and user id and captures active profile`() {
+        AuthManager.setActiveProfileId("work")
         val requestSlot = slot<PairingRevokeRequest>()
         coEvery { mockApi.revokePairing(capture(requestSlot)) } returns Response.success(Unit)
         stubPairing()
@@ -152,11 +158,34 @@ class PairingViewModelTest {
 
         assertEquals("discord", requestSlot.captured.platform)
         assertEquals("u2", requestSlot.captured.userId)
+        assertEquals("work", requestSlot.captured.profile)
         coVerify(exactly = 1) { mockApi.getPairing() }
         assertTrue(
             vm.uiState.value.toastMessage
                 ?.contains("u2") == true,
         )
+    }
+
+    @Test
+    fun `switch scope before async action completes uses captured profile not new ambient and guards reload`() {
+        AuthManager.setActiveProfileId("profile-initial")
+        val requestSlot = slot<PairingApproveRequest>()
+        coEvery { mockApi.approvePairing(capture(requestSlot)) } returns Response.success(Unit)
+        stubPairing()
+        val vm = createViewModel()
+
+        // Set up custom test dispatcher behavior or switch profile before action finishes
+        vm.approvePairing("telegram", "req-99")
+        // Switch profile in AuthManager while action is queued / before settle
+        AuthManager.setActiveProfileId("profile-switched")
+        settle()
+
+        // Request must have used captured profile
+        assertEquals("profile-initial", requestSlot.captured.profile)
+        // Since profile/scope switched, old-scope completion must NOT contaminate state or reload pairing
+        coVerify(exactly = 0) { mockApi.getPairing() }
+        assertNull(vm.uiState.value.toastMessage)
+        assertNull(vm.uiState.value.actionKey)
     }
 
     @Test

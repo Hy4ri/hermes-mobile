@@ -104,6 +104,12 @@ data class McpCatalogInstallRequest(
 )
 
 @Serializable
+data class McpOAuthCancelResponse(
+    val ok: Boolean,
+    val status: String,
+)
+
+@Serializable
 data class McpOAuthFlowResponse(
     val flowId: String,
     val serverName: String,

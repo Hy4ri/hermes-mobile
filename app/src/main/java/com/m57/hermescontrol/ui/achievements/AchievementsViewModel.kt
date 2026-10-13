@@ -8,6 +8,7 @@ import com.m57.hermescontrol.data.model.AchievementsResponse
 import com.m57.hermescontrol.data.model.RecentUnlock
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.remote.safeApiRead
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
@@ -97,7 +98,7 @@ class AchievementsViewModel :
                     )
                 }
             },
-            apiCall = { safeApiCall { api.getAchievements() } },
+            apiCall = { safeApiRead { api.getAchievements() } },
             onStart = {
                 _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             },
@@ -138,7 +139,7 @@ class AchievementsViewModel :
 
     fun loadRecentUnlocks() {
         safeLaunchLoad(
-            apiCall = { safeApiCall { api.getRecentUnlocks() } },
+            apiCall = { safeApiRead { api.getRecentUnlocks() } },
             onStart = { /* silent background refresh */ },
             onSuccess = { unlocks ->
                 _uiState.update { it.copy(recentUnlocks = unlocks) }

@@ -3,9 +3,12 @@ package com.m57.hermescontrol.data.ws.contract
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-/** `commands.catalog` is sent without explicit params; the active profile is injected by WsProfileParams. */
+/** #1556: session workspace and profile jointly own the available completion catalog. */
 @Serializable
-data object CommandsCatalogParams
+data class CommandsCatalogParams(
+    @SerialName("session_id") val sessionId: String? = null,
+    val profile: String? = null,
+)
 
 /** `arg` is sent whenever non-null, including an empty string, exactly like the old map payload. */
 @Serializable

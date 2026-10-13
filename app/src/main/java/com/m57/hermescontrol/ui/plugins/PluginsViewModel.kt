@@ -17,6 +17,7 @@ import com.m57.hermescontrol.data.model.ProviderOption
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.remote.safeApiRead
 import com.m57.hermescontrol.data.ws.AgentPluginRow
 import com.m57.hermescontrol.data.ws.PluginManageRepository
 import com.m57.hermescontrol.data.ws.PluginRemovalRepository
@@ -164,7 +165,7 @@ class PluginsViewModel(
                     )
                 }
             },
-            apiCall = { safeApiCall { ApiClient.hermesApi.getPlugins() } },
+            apiCall = { safeApiRead { ApiClient.hermesApi.getPlugins() } },
             onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
             onSuccess = { data ->
                 val plugins = data.plugins.orEmpty()
@@ -421,7 +422,7 @@ class PluginsViewModel(
                     }
                     return@launch
                 }
-                val refreshed = safeApiCall { ApiClient.hermesApi.getPlugins() }
+                val refreshed = safeApiRead { ApiClient.hermesApi.getPlugins() }
                 if (generation != scopeGeneration ||
                     (requestScope != null && AuthManager.currentDataScope() != requestScope)
                 ) {
@@ -627,7 +628,7 @@ class PluginsViewModel(
 
     fun loadCatalog(isRefresh: Boolean = false) {
         safeLaunchLoad(
-            apiCall = { safeApiCall { ApiClient.hermesApi.getPluginCatalog() } },
+            apiCall = { safeApiRead { ApiClient.hermesApi.getPluginCatalog() } },
             onStart = {
                 _uiState.update {
                     it.copy(

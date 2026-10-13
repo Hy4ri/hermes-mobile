@@ -176,6 +176,9 @@ object HermesWsClient {
         }
     }
 
+    /** True once this connection's `client.capabilities` reply advertised `declines_not_shown`. */
+    val declinesNotShown: Boolean get() = rpcChannel.declinesNotShown
+
     @VisibleForTesting
     val isConnected: Boolean get() = transport.isConnected
 

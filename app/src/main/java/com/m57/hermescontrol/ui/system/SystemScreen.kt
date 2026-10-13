@@ -47,6 +47,7 @@ import com.m57.hermescontrol.ui.system.components.hostSection
 import com.m57.hermescontrol.ui.system.components.operationsSection
 import com.m57.hermescontrol.ui.system.components.portalSection
 import com.m57.hermescontrol.ui.system.components.shellHooksSection
+import com.m57.hermescontrol.util.uploadMetadata
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -87,18 +88,12 @@ fun SystemScreen(
             if (uri == null) return@rememberLauncherForActivityResult
             importScope.launch {
                 val meta =
-                    withContext(Dispatchers.IO) {
-                        runCatching {
-                            val name =
-                                uri.lastPathSegment?.substringAfterLast("/")?.takeIf { it.isNotBlank() }
-                                    ?: "backup.zip"
-                            val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
-                            PendingImport(uri, name, mime)
-                        }
+                    runCatching {
+                        context.contentResolver.uploadMetadata(uri, fallbackName = "backup.zip")
                     }
                 meta.fold(
                     onSuccess = {
-                        pendingImport = it
+                        pendingImport = PendingImport(uri = uri, name = it.name, mime = it.mimeType)
                         resolvedViewModel.setImportFile(it.name)
                     },
                     onFailure = { resolvedViewModel.showToast("Could not read selected file: ${it.message}") },
@@ -182,26 +177,7 @@ fun SystemScreen(
                 val pending = pendingImport
                 pendingImport = null
                 if (pending != null) {
-                    importScope.launch {
-                        val read =
-                            withContext(Dispatchers.IO) {
-                                runCatching {
-                                    context.contentResolver.openInputStream(pending.uri)?.use { it.readBytes() }
-                                }
-                            }
-                        read.fold(
-                            onSuccess = { bytes ->
-                                if (bytes != null) {
-                                    resolvedViewModel.importArchive(pending.name, bytes, pending.mime)
-                                } else {
-                                    resolvedViewModel.showToast("Could not read selected file")
-                                }
-                            },
-                            onFailure = {
-                                resolvedViewModel.showToast("Could not read selected file: ${it.message}")
-                            },
-                        )
-                    }
+                    resolvedViewModel.importArchive(pending.uri, context.contentResolver)
                 }
             },
             onDismiss = { importConfirm = false },
@@ -236,8 +212,7 @@ fun SystemScreen(
         onRefresh = { resolvedViewModel.loadAll() },
     ) { padding ->
         when {
-            state.isLoading && state.stats == null && state.doctorReport == null &&
-                state.status == null -> {
+            state.isLoading && state.stats == null && state.status == null -> {
                 SkeletonListState()
             }
 
@@ -248,7 +223,7 @@ fun SystemScreen(
                 )
             }
 
-            state.stats == null && state.doctorReport == null && state.status == null -> {
+            state.stats == null && state.status == null -> {
                 EmptyState(
                     title = stringResource(R.string.system_empty_title),
                     subtitle = stringResource(R.string.system_empty_desc),

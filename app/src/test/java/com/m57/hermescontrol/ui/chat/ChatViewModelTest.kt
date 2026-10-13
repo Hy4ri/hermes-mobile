@@ -11893,7 +11893,9 @@ class ChatViewModelTest {
                                 SessionMessage(id = 20, role = "user", content = JsonPrimitive("probe-first")),
                                 SessionMessage(id = 21, role = "assistant", content = JsonPrimitive("probe-reply")),
                             ),
-                        pagination = PaginationInfo(order = "latest"),
+                        // Absolute-position backend: this case pins the legacy identity rules. With order=latest the
+                        // complete newest page proves row 10 was re-issued (#1520) and folds it by design.
+                        pagination = PaginationInfo(),
                     ),
                 )
             mockEventsFlow.emit(WsEvent.MessageStart(session))
@@ -11933,6 +11935,159 @@ class ChatViewModelTest {
                     .count { it.content == "probe-first" },
             )
         }
+
+    // #1568: an app-created chat is never hydrated, so its first sync used absolute-position ids
+    // (rest-<sid>-0). A cold start hydrates with real row ids and must not render the turn twice.
+    @Test
+    fun coldStartAfterUnhydratedSyncDoesNotDuplicateTurn() =
+        runTest {
+            val store = ChatSendStore()
+            val (vm, session) = createViewModelWithSession(sendStore = store)
+            val ts = JsonPrimitive(1_700_000_000.0)
+
+            fun page(order: String?) =
+                Response.success(
+                    SessionMessagesResponse(
+                        listOf(
+                            SessionMessage(id = 5932, role = "user", content = JsonPrimitive("pong?"), timestamp = ts),
+                            SessionMessage(
+                                id = 5933,
+                                role = "assistant",
+                                content = JsonPrimitive("pong"),
+                                timestamp = ts,
+                            ),
+                        ),
+                        pagination = PaginationInfo(limit = 150, offset = 0, order = order, returned = 2),
+                    ),
+                )
+            coEvery { ApiClient.hermesApi.getSessionMessages(session, any(), any(), "latest", any()) } returns
+                page("latest")
+            coEvery { ApiClient.hermesApi.getSessionMessages(session, any(), any(), null, any()) } returns page(null)
+            every { HermesWsClient.sendMessage(any(), "pong?", any(), any()) } answers {
+                arg<((String) -> Unit)?>(2)?.invoke("pong-submit")
+                "pong-submit"
+            }
+            assertTrue(vm.sendMessage("pong?"))
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.RpcResult("pong-submit", mapOf("status" to "streaming", "user_row_id" to 5932)))
+            mockEventsFlow.emit(WsEvent.MessageStart(session))
+            mockEventsFlow.emit(WsEvent.MessageComplete("pong", session))
+            advanceUntilIdle()
+            vm.syncCurrentSession()
+            advanceUntilIdle()
+
+            // Process death: new view model, same Room cache and receipts.
+            val cold = createViewModel(sendStore = store)
+            advanceUntilIdle()
+            cold.switchSession(session)
+            advanceUntilIdle()
+            val resumeId = sentRequestMethods.last { it.first == WsMethods.SESSION_RESUME }.second
+            mockEventsFlow.emit(WsEvent.RpcResult(resumeId, mapOf("session_id" to "runtime-x", "resumed" to session)))
+            advanceUntilIdle()
+
+            val turn =
+                cold.uiState.value.messages
+                    .filter { it.role != MessageRole.SYSTEM }
+            assertEquals(
+                "One user and one assistant row, got ${turn.map { it.id to it.content }}",
+                listOf(MessageRole.USER, MessageRole.ASSISTANT),
+                turn.map { it.role },
+            )
+        }
+
+    // #1568: the first sync of a never-hydrated chat asks for order=latest and persists stable row ids.
+    @Test
+    fun firstSyncOfUnhydratedChatProbesLatestAndKeepsStableRowIds() =
+        runTest {
+            val (vm, session) = createViewModelWithSession()
+            sendAndComplete(vm, session, "hello", "hi", userRowId = 7)
+            val orders = mutableListOf<String?>()
+            coEvery { ApiClient.hermesApi.getSessionMessages(session, any(), any(), any(), any()) } coAnswers {
+                orders += arg<String?>(3)
+                turnPage(7, "hello", 8, "hi", order = "latest")
+            }
+
+            vm.syncCurrentSession()
+            advanceUntilIdle()
+
+            assertEquals("first transcript request $orders", "latest", orders.firstOrNull())
+            assertEquals(
+                setOf("rest-$session-7", "rest-$session-8"),
+                vm.uiState.value.messages
+                    .mapNotNull { it.canonicalRestId }
+                    .toSet(),
+            )
+            assertEquals(
+                1,
+                vm.uiState.value.messages
+                    .count { it.role == MessageRole.USER && it.content == "hello" },
+            )
+        }
+
+    // #1568: a gateway without order=latest keeps the absolute-position protocol and is probed once.
+    @Test
+    fun firstSyncOfUnhydratedChatFallsBackWhenBackendIgnoresLatest() =
+        runTest {
+            val (vm, session) = createViewModelWithSession()
+            sendAndComplete(vm, session, "hello", "hi", userRowId = 7)
+            val orders = mutableListOf<String?>()
+            coEvery { ApiClient.hermesApi.getSessionMessages(session, any(), any(), any(), any()) } coAnswers {
+                orders += arg<String?>(3)
+                turnPage(7, "hello", 8, "hi", order = null)
+            }
+
+            vm.syncCurrentSession()
+            advanceUntilIdle()
+            assertEquals(listOf<String?>("latest", null), orders)
+            assertEquals(
+                1,
+                vm.uiState.value.messages
+                    .count { it.role == MessageRole.USER && it.content == "hello" },
+            )
+
+            vm.syncCurrentSession()
+            advanceUntilIdle()
+            assertEquals(
+                "the protocol is probed once, not on every sync",
+                listOf<String?>("latest", null, null),
+                orders,
+            )
+        }
+
+    private suspend fun TestScope.sendAndComplete(
+        vm: ChatViewModel,
+        session: String,
+        text: String,
+        reply: String,
+        userRowId: Int,
+    ) {
+        every { HermesWsClient.sendMessage(session, text, any(), any()) } answers {
+            arg<((String) -> Unit)?>(2)?.invoke("$text-submit")
+            "$text-submit"
+        }
+        assertTrue(vm.sendMessage(text))
+        advanceUntilIdle()
+        mockEventsFlow.emit(WsEvent.RpcResult("$text-submit", mapOf("status" to "ok", "user_row_id" to userRowId)))
+        mockEventsFlow.emit(WsEvent.MessageStart(session))
+        mockEventsFlow.emit(WsEvent.MessageComplete(reply, session))
+        advanceUntilIdle()
+    }
+
+    private fun turnPage(
+        userId: Int,
+        user: String,
+        replyId: Int,
+        reply: String,
+        order: String?,
+    ) = Response.success(
+        SessionMessagesResponse(
+            listOf(
+                SessionMessage(id = userId, role = "user", content = JsonPrimitive(user)),
+                SessionMessage(id = replyId, role = "assistant", content = JsonPrimitive(reply)),
+            ),
+            pagination = PaginationInfo(limit = 150, offset = 0, order = order, returned = 2),
+        ),
+    )
 
     @Test
     fun deliveredSendFoldsIntoCompactionReissuedRowOnSync() =

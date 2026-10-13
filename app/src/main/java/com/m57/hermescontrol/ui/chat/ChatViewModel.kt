@@ -19,6 +19,7 @@ import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.data.model.ProcessInfo
 import com.m57.hermescontrol.data.model.ProjectInfo
 import com.m57.hermescontrol.data.model.SessionCompressResponse
+import com.m57.hermescontrol.data.model.SessionMessagesResponse
 import com.m57.hermescontrol.data.model.SessionTimelineEntry
 import com.m57.hermescontrol.data.model.UsageSnapshotResponse
 import com.m57.hermescontrol.data.model.launchCwd
@@ -669,6 +670,9 @@ class ChatViewModel(
      * offsets stay absolute and decrease toward 0 (issue #859).
      */
     private var latestPaging = false
+
+    /** #1568: true once this session's REST paging protocol is known (hydration or a sync probe). */
+    private var pagingProtocolProbed = false
     private var isSyncingMessages = false
     private var cacheCursor: ChatPersistenceRepository.Cursor? = null
     private var cacheHasOlder = false
@@ -5960,6 +5964,7 @@ class ChatViewModel(
                             persistHistoryPage(page, sessionId)
                             if (!valid()) return@launch
                             latestPaging = useLatest
+                            pagingProtocolProbed = true
                             // Cursor counts RAW rows, including hidden reasoning/placeholder rows.
                             loadedMessageOffset = if (useLatest) serverOffset + raw.size else serverOffset
                             serverHasOlder = raw.isNotEmpty() &&
@@ -6158,6 +6163,7 @@ class ChatViewModel(
         serverHasOlder = false
         loadedMessageOffset = 0
         latestPaging = false
+        pagingProtocolProbed = false
         isSyncingMessages = false
         streamingController.resetStreaming()
         _streamingState.value = StreamingState()
@@ -6583,7 +6589,6 @@ class ChatViewModel(
         val generation = sessionGeneration
         val requestSequence = activeHydrationRequestSequence
         val valid = { isCurrentHydration(sessionId, generation, requestSequence) }
-        val useLatest = latestPaging
         // #1427: acceptance alone is normal live UX. Only a completed turn followed by
         // successful history verification can move its still-unmatched receipts into recovery.
         // Capture the rows before suspending so a later prompt/retry cannot be quarantined.
@@ -6598,7 +6603,7 @@ class ChatViewModel(
                     acceptedTurnEpochById[it.id]?.let { epoch -> epoch <= completedTurnEpoch } == true
             }
         val nextOffset =
-            if (useLatest) {
+            if (latestPaging) {
                 0
             } else {
                 state.messages
@@ -6611,8 +6616,31 @@ class ChatViewModel(
         syncJob =
             viewModelScope.launch {
                 try {
+                    var useLatest = latestPaging
+                    var switchedToLatest = false
+                    // #1568: a chat created in-app is never hydrated, so its first sync would persist
+                    // absolute-position ids that a cold start (order=latest row ids) cannot match.
+                    var probed: NetworkResult<SessionMessagesResponse>? = null
+                    if (!useLatest && !pagingProtocolProbed) {
+                        val probe = fetchMessagePage(sessionId, 0, MESSAGE_PAGE_SIZE, "latest")
+                        if (!valid()) return@launch
+                        if (probe is NetworkResult.Success) {
+                            if (probe.data.pagination?.order == "latest" && probe.data.messages.all { it.id != null }) {
+                                useLatest = true
+                                switchedToLatest = true
+                                probed = probe
+                            } else {
+                                pagingProtocolProbed = true
+                            }
+                        }
+                    }
                     val result =
-                        fetchMessagePage(sessionId, nextOffset, MESSAGE_PAGE_SIZE, if (useLatest) "latest" else null)
+                        probed ?: fetchMessagePage(
+                            sessionId,
+                            if (useLatest) 0 else nextOffset,
+                            MESSAGE_PAGE_SIZE,
+                            if (useLatest) "latest" else null,
+                        )
                     if (!valid()) return@launch
                     if (result is NetworkResult.Success) {
                         val offset = result.data.pagination?.offset ?: result.data.offset ?: nextOffset
@@ -6635,6 +6663,14 @@ class ChatViewModel(
                                 )
                             } ?: return@launch
                         persistHistoryPage(page, sessionId)
+                        if (switchedToLatest && valid()) {
+                            latestPaging = true
+                            pagingProtocolProbed = true
+                            // Same cursor bookkeeping as hydration: counts RAW rows from the end.
+                            loadedMessageOffset = offset + result.data.messages.size
+                            serverHasOlder = result.data.messages.size >= MESSAGE_PAGE_SIZE
+                            publishHistoryAvailability()
+                        }
                         if (valid() && !mainTurnBusy && mainTurnEpoch == completedTurnEpoch) {
                             unverifiedAccepted.forEach { receipt ->
                                 // A gateway-issued user_row_id means the row is stored: never walk back to UNKNOWN.

@@ -279,23 +279,16 @@ private fun CertificateBindingDialog(
                 verticalArrangement = Arrangement.spacedBy(LocalSpacing.current.md),
             ) {
                 Text(stringResource(R.string.tls_mtls_type), style = MaterialTheme.typography.titleSmall)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    listOf(true, false).forEach { value ->
-                        val label = stringResource(if (value) R.string.tls_type_tls else R.string.tls_type_mtls)
-                        RadioButton(
-                            modifier = Modifier.semantics { contentDescription = label },
-                            selected = tls == value,
-                            enabled = previous == null && !saving && !choosing,
-                            onClick = {
-                                tls = value
-                                draft = draft.copy(alias = null)
-                                session.invalidate()
-                                error = null
-                            },
-                        )
-                        Text(if (value) "TLS" else "mTLS")
-                    }
-                }
+                CertificateBindingTypeOptions(
+                    tls = tls,
+                    enabled = previous == null && !saving && !choosing,
+                    onTypeChange = { value ->
+                        tls = value
+                        draft = draft.copy(alias = null)
+                        session.invalidate()
+                        error = null
+                    },
+                )
                 Text(stringResource(if (tls) R.string.tls_restriction_help else R.string.mtls_help))
                 OutlinedTextField(
                     value = draft.host,
@@ -462,6 +455,27 @@ private fun CertificateBindingDialog(
                 TextButton(onClick = { discard = false }) { Text(stringResource(R.string.mtls_continue_editing)) }
             },
         )
+    }
+}
+
+/** #1518: reselecting a type must not discard its chosen certificate or invalidate the editor. */
+@Composable
+internal fun CertificateBindingTypeOptions(
+    tls: Boolean,
+    enabled: Boolean,
+    onTypeChange: (Boolean) -> Unit,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        listOf(true, false).forEach { value ->
+            val label = stringResource(if (value) R.string.tls_type_tls else R.string.tls_type_mtls)
+            RadioButton(
+                modifier = Modifier.semantics { contentDescription = label },
+                selected = tls == value,
+                enabled = enabled,
+                onClick = { if (tls != value) onTypeChange(value) },
+            )
+            Text(if (value) "TLS" else "mTLS")
+        }
     }
 }
 

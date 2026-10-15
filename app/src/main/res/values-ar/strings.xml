@@ -1748,6 +1748,10 @@
         <item quantity="many">%d رسالة معلقة</item>
         <item quantity="other">%d رسالة معلقة</item>
     </plurals>
+    <string name="model_provider_limited">تم بلوغ حد المعدل</string>
+    <string name="model_provider_limited_until">محدود حتى %1$s</string>
+    <string name="model_provider_quota_left">متبقي %1$d%%</string>
+    <string name="model_provider_quota_left_resets">متبقي %1$d%% · يُعاد الضبط %2$s</string>
     <plurals name="mtls_saved_configurations">
         <item quantity="zero">لا توجد تهيئات محفوظة</item>
         <item quantity="one">تهيئة محفوظة واحدة (%1$d)</item>

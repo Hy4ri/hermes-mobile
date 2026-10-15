@@ -69,6 +69,7 @@ import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.model.components.MoaConfigDialog
 import com.m57.hermescontrol.ui.model.components.ModelCapabilitySummary
 import com.m57.hermescontrol.ui.model.components.ModelPickerDialog
+import com.m57.hermescontrol.ui.model.components.ProviderUsageChip
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -754,6 +755,7 @@ private fun ProviderCard(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    ProviderUsageChip(provider, modifier = Modifier.padding(top = 4.dp))
                 }
 
                 Row(

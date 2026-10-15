@@ -684,6 +684,10 @@
         <item quantity="one">%1$d 个模型</item>
         <item quantity="other">%1$d 个模型</item>
     </plurals>
+    <string name="model_provider_limited">已达速率限制</string>
+    <string name="model_provider_limited_until">受限至 %1$s</string>
+    <string name="model_provider_quota_left">剩余 %1$d%%</string>
+    <string name="model_provider_quota_left_resets">剩余 %1$d%% · %2$s 重置</string>
     <string name="history_empty_title">暂无历史</string>
     <string name="history_empty_desc">之前的 Hermes 对话会话将显示在这里。</string>
     <string name="history_untitled">未命名</string>

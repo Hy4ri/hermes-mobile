@@ -865,6 +865,10 @@
         <item quantity="one">%1$d Modell</item>
         <item quantity="other">%1$d Modelle</item>
     </plurals>
+    <string name="model_provider_limited">Ratenlimit erreicht</string>
+    <string name="model_provider_limited_until">Limitiert bis %1$s</string>
+    <string name="model_provider_quota_left">%1$d%% übrig</string>
+    <string name="model_provider_quota_left_resets">%1$d%% übrig · Reset %2$s</string>
 
     <!-- Sessions (History) Screen -->
     <string name="history_empty_title">Kein Verlauf</string>

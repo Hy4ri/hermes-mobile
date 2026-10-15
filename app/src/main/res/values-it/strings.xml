@@ -759,6 +759,10 @@
         <item quantity="one">%1$d modello</item>
         <item quantity="other">%1$d modelli</item>
     </plurals>
+    <string name="model_provider_limited">Limite raggiunto</string>
+    <string name="model_provider_limited_until">Limitato fino a %1$s</string>
+    <string name="model_provider_quota_left">%1$d%% rimasto</string>
+    <string name="model_provider_quota_left_resets">%1$d%% rimasto · reset %2$s</string>
     <string name="history_empty_title">Nessuna cronologia</string>
     <string name="history_empty_desc">Le sessioni di chat precedenti di Hermes appariranno qui.</string>
     <string name="history_untitled">Senza titolo</string>

@@ -604,6 +604,10 @@
         <item quantity="one">%1$d개 모델</item>
         <item quantity="other">%1$d개 모델</item>
     </plurals>
+    <string name="model_provider_limited">사용 한도 도달</string>
+    <string name="model_provider_limited_until">%1$s까지 제한됨</string>
+    <string name="model_provider_quota_left">%1$d%% 남음</string>
+    <string name="model_provider_quota_left_resets">%1$d%% 남음 · %2$s 초기화</string>
 
     <!-- Sessions (History) Screen -->
     <string name="history_empty_title">히스토리 없음</string>

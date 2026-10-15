@@ -826,6 +826,10 @@
         <item quantity="one">%1$d modelo</item>
         <item quantity="other">%1$d modelos</item>
     </plurals>
+    <string name="model_provider_limited">Límite de uso alcanzado</string>
+    <string name="model_provider_limited_until">Limitado hasta %1$s</string>
+    <string name="model_provider_quota_left">%1$d%% restante</string>
+    <string name="model_provider_quota_left_resets">%1$d%% restante · se restablece %2$s</string>
 
     <!-- Sessions (History) Screen -->
     <string name="history_empty_title">Sin historial</string>

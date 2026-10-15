@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.HistoryEdu
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Power
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Schedule
@@ -46,6 +47,7 @@ import com.m57.hermescontrol.ui.files.FilesScreen as FilesScreenContent
 import com.m57.hermescontrol.ui.gateway.GatewayScreen as GatewayScreenContent
 import com.m57.hermescontrol.ui.kanban.KanbanScreen as KanbanScreenContent
 import com.m57.hermescontrol.ui.keys.KeysScreen as KeysScreenContent
+import com.m57.hermescontrol.ui.localmodels.LocalModelsScreen as LocalModelsScreenContent
 import com.m57.hermescontrol.ui.logs.LogsScreen as LogsScreenContent
 import com.m57.hermescontrol.ui.memory.MemoryScreen as MemoryScreenContent
 import com.m57.hermescontrol.ui.model.ModelScreen as ModelScreenContent
@@ -171,6 +173,12 @@ object ScreenRegistry {
                 Icons.Filled.Psychology,
                 DrawerSection.CONFIGURE,
             ) { sessionId, openDrawer -> ModelScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                LocalModelsScreen,
+                R.string.screen_local_models,
+                Icons.Filled.Memory,
+                DrawerSection.CONFIGURE,
+            ) { sessionId, openDrawer -> LocalModelsScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
                 PairingScreen,
                 R.string.screen_pairing,

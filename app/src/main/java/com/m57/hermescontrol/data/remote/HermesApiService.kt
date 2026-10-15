@@ -48,6 +48,11 @@ import com.m57.hermescontrol.data.model.KanbanBoardResponse
 import com.m57.hermescontrol.data.model.KanbanBoardsResponse
 import com.m57.hermescontrol.data.model.LatestDescendantResponse
 import com.m57.hermescontrol.data.model.LearningGraphResponse
+import com.m57.hermescontrol.data.model.LocalModelJobActionResponse
+import com.m57.hermescontrol.data.model.LocalModelJobIdBody
+import com.m57.hermescontrol.data.model.LocalModelJobsResponse
+import com.m57.hermescontrol.data.model.LocalModelsHardware
+import com.m57.hermescontrol.data.model.LocalModelsStatus
 import com.m57.hermescontrol.data.model.LogResponse
 import com.m57.hermescontrol.data.model.ManagedDirectoryCreate
 import com.m57.hermescontrol.data.model.ManagedFileActionResponse
@@ -668,6 +673,25 @@ interface HermesApiService : KanbanApiService {
     suspend fun setModelAssignment(
         @Body body: ModelAssignmentRequest,
     ): Response<ModelAssignmentResponse>
+
+    @GET("api/local-models/status")
+    suspend fun getLocalModelsStatus(): Response<LocalModelsStatus>
+
+    @GET("api/local-models/hardware")
+    suspend fun getLocalModelsHardware(): Response<LocalModelsHardware>
+
+    @GET("api/local-models/jobs")
+    suspend fun getLocalModelJobs(): Response<LocalModelJobsResponse>
+
+    @POST("api/local-models/download/pause")
+    suspend fun pauseLocalModelDownload(
+        @Body body: LocalModelJobIdBody,
+    ): Response<LocalModelJobActionResponse>
+
+    @POST("api/local-models/download/resume")
+    suspend fun resumeLocalModelDownload(
+        @Body body: LocalModelJobIdBody,
+    ): Response<LocalModelJobActionResponse>
 
     @GET("api/logs")
     suspend fun getLogs(

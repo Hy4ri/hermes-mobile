@@ -292,4 +292,40 @@ class SessionMiscTypesTest {
         assertEquals(arbitraryPayload, decodedBreakdown)
         assertEquals(arbitraryPayload, decodedUsage)
     }
+
+    @Test
+    fun workspaceMoveParamsEncodeSessionKeyAndCwdOnly() {
+        val encoded =
+            OkHttpProvider.json.encodeToJsonElement(
+                SessionWorkspaceMoveParams.serializer(),
+                SessionWorkspaceMoveParams(sessionKey = "s1", cwd = "/home/user/Projects/my-project"),
+            )
+
+        assertEquals(
+            buildJsonObject {
+                put("session_key", "s1")
+                put("cwd", "/home/user/Projects/my-project")
+            },
+            encoded,
+        )
+    }
+
+    @Test
+    fun workspaceMoveResultDecodesFullAndMinimalPayloads() {
+        val full =
+            OkHttpProvider.json.decodeFromString(
+                SessionWorkspaceMoveResult.serializer(),
+                """{"cwd":"/p","branch":"main","git_repo_root":"/p"}""",
+            )
+        assertEquals(SessionWorkspaceMoveResult(cwd = "/p", branch = "main", gitRepoRoot = "/p"), full)
+
+        val minimal =
+            OkHttpProvider.json.decodeFromString(
+                SessionWorkspaceMoveResult.serializer(),
+                """{"cwd":"/p","branch":null,"future_key":1}""",
+            )
+        assertEquals("/p", minimal.cwd)
+        assertNull(minimal.branch)
+        assertNull(minimal.gitRepoRoot)
+    }
 }

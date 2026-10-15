@@ -29,6 +29,9 @@ object WsMethods {
 
     /** Lifetime usage snapshot (calls, token totals, compression count). */
     const val SESSION_USAGE = "session.usage"
+
+    /** Re-home a stored session into another workspace folder (replaces cwd + git identity). */
+    const val SESSION_WORKSPACE_MOVE = "session.workspace.move"
     const val PROFILES_CONFIGURE = "profiles.configure"
     const val PROFILES_LIST = "profiles.list"
     const val MODEL_OPTIONS = "model.options"
@@ -195,6 +198,7 @@ object WsMethods {
             SESSION_RESUME, // session.resume
             SESSION_DELETE, // session.delete
             SESSION_STATUS, // session.status
+            SESSION_WORKSPACE_MOVE, // methods_session.py: _profile_home(params) + _profile_db(params, writer=True)
             // session.most_recent uses _profile_db(params) too, but
             // mobile doesn't call it; documented for completeness.
             // Category (a): @_profile_scoped decorator

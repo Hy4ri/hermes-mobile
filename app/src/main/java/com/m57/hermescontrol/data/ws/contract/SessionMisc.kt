@@ -39,3 +39,17 @@ data class PromptBtwParams(
 data class PromptBtwResult(
     @SerialName("task_id") val taskId: String? = null,
 )
+
+/** `session.workspace.move`: [sessionKey] is the STORED session id; [cwd] the target folder. */
+@Serializable
+data class SessionWorkspaceMoveParams(
+    @SerialName("session_key") val sessionKey: String,
+    @SerialName("cwd") val cwd: String,
+)
+
+@Serializable
+data class SessionWorkspaceMoveResult(
+    @SerialName("cwd") val cwd: String,
+    @SerialName("branch") val branch: String? = null,
+    @SerialName("git_repo_root") val gitRepoRoot: String? = null,
+)

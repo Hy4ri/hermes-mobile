@@ -126,6 +126,13 @@ object RpcMethods {
             JsonElement.serializer(),
         )
 
+    val SESSION_WORKSPACE_MOVE: RpcMethod<SessionWorkspaceMoveParams, SessionWorkspaceMoveResult> =
+        RpcMethod(
+            WsMethods.SESSION_WORKSPACE_MOVE,
+            SessionWorkspaceMoveParams.serializer(),
+            SessionWorkspaceMoveResult.serializer(),
+        )
+
     val PROMPT_BTW: RpcMethod<PromptBtwParams, PromptBtwResult> =
         RpcMethod(
             WsMethods.PROMPT_BTW,
@@ -546,6 +553,7 @@ object RpcMethods {
             SESSION_COMPRESS,
             SESSION_CONTEXT_BREAKDOWN,
             SESSION_USAGE,
+            SESSION_WORKSPACE_MOVE,
             PROMPT_BTW,
             APPROVAL_PENDING,
             APPROVAL_RECEIVED,

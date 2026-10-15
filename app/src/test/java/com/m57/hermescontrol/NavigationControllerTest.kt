@@ -394,4 +394,18 @@ class NavigationControllerTest {
         assertFalse("GroupChatKey should NOT be primary", NavigationController.isPrimaryScreen(GroupChatKey("room")))
         assertFalse("AuthLoginScreen should NOT be primary", NavigationController.isPrimaryScreen(AuthLoginScreen))
     }
+
+    @Test
+    fun `kanban notification deep link queues a valid task and rejects forged ids`() {
+        NavigationController.consumePendingKanbanNavigation()
+        NavigationController.openKanbanTaskFromNotification("../evil", "t_1234abcd")
+        assertNull(NavigationController.pendingKanbanNavigation)
+        NavigationController.openKanbanTaskFromNotification("default", "nope")
+        assertNull(NavigationController.pendingKanbanNavigation)
+
+        NavigationController.openKanbanTaskFromNotification("default", "t_1234abcd")
+        assertEquals(PendingKanbanNavigation("default", "t_1234abcd"), NavigationController.pendingKanbanNavigation)
+        NavigationController.consumePendingKanbanNavigation()
+        assertNull(NavigationController.pendingKanbanNavigation)
+    }
 }

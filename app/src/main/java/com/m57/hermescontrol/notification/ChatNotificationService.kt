@@ -225,6 +225,7 @@ class ChatNotificationService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var eventCollector: Job? = null
     private var statusCollector: Job? = null
+    private val kanbanAlertMonitor by lazy { KanbanBackgroundAlertMonitor(this) }
 
     override fun onCreate() {
         super.onCreate()
@@ -232,6 +233,7 @@ class ChatNotificationService : Service() {
         createNotificationChannels()
         startEventCollection()
         startStatusCollection()
+        kanbanAlertMonitor.start(serviceScope)
     }
 
     private fun startEventCollection() {
@@ -659,6 +661,7 @@ class ChatNotificationService : Service() {
         lifecycle.onDestroyed(this)
         eventCollector?.cancel()
         statusCollector?.cancel()
+        kanbanAlertMonitor.stop()
         serviceScope.cancel()
         super.onDestroy()
     }

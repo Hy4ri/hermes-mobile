@@ -75,6 +75,10 @@ class MainActivity : ComponentActivity() {
          */
         const val ACTION_OPEN_CHAT_FROM_NOTIFICATION =
             "com.m57.hermescontrol.ACTION_OPEN_CHAT_FROM_NOTIFICATION"
+        const val ACTION_OPEN_KANBAN_TASK_FROM_NOTIFICATION =
+            "com.m57.hermescontrol.ACTION_OPEN_KANBAN_TASK_FROM_NOTIFICATION"
+        const val EXTRA_KANBAN_BOARD = "com.m57.hermescontrol.EXTRA_KANBAN_BOARD"
+        const val EXTRA_KANBAN_TASK = "com.m57.hermescontrol.EXTRA_KANBAN_TASK"
     }
 
     private var baseContextLanguageCode: String = LocaleContextWrapper.SYSTEM_LANGUAGE
@@ -291,9 +295,22 @@ class MainActivity : ComponentActivity() {
     private fun consumeNotificationIntent(intent: Intent?) {
         // Issue #832: MainActivity is exported (launcher requirement) — only
         // honor intents stamped with our own notification action.
-        if (intent?.action != ACTION_OPEN_CHAT_FROM_NOTIFICATION) return
-        val sessionId = intent.getStringExtra(NotificationReplyReceiver.EXTRA_SESSION_ID)
-        intent.removeExtra(NotificationReplyReceiver.EXTRA_SESSION_ID)
-        sessionId?.takeIf { it.isNotBlank() }?.let(NavigationController::openChatSessionFromNotification)
+        when (intent?.action) {
+            ACTION_OPEN_CHAT_FROM_NOTIFICATION -> {
+                val sessionId = intent.getStringExtra(NotificationReplyReceiver.EXTRA_SESSION_ID)
+                intent.removeExtra(NotificationReplyReceiver.EXTRA_SESSION_ID)
+                sessionId?.takeIf { it.isNotBlank() }?.let(NavigationController::openChatSessionFromNotification)
+            }
+
+            ACTION_OPEN_KANBAN_TASK_FROM_NOTIFICATION -> {
+                val board = intent.getStringExtra(EXTRA_KANBAN_BOARD)
+                val taskId = intent.getStringExtra(EXTRA_KANBAN_TASK)
+                intent.removeExtra(EXTRA_KANBAN_BOARD)
+                intent.removeExtra(EXTRA_KANBAN_TASK)
+                if (board != null && taskId != null) {
+                    NavigationController.openKanbanTaskFromNotification(board, taskId)
+                }
+            }
+        }
     }
 }

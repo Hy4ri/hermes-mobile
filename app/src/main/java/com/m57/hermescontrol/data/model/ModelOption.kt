@@ -19,6 +19,28 @@ data class ModelProvider(
     val auth_type: String? = null,
     val warning: String? = null,
     val capabilities: Map<String, ModelCapabilities>? = null,
+    val usage: ProviderUsage? = null,
+    val limit: ProviderLimit? = null,
+)
+
+@Serializable
+data class ProviderUsage(
+    val windows: List<UsageWindow>? = null,
+)
+
+@Serializable
+data class UsageWindow(
+    val label: String? = null,
+    val used_percent: Double? = null,
+    val resets_at: String? = null,
+    val scope: String? = null,
+)
+
+@Serializable
+data class ProviderLimit(
+    val resets_at: String? = null,
+    val scope: String? = null,
+    val models: Map<String, String>? = null,
 )
 
 @Serializable

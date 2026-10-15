@@ -254,6 +254,8 @@ data class ChatUiState(
     val modelPickerPinned: List<PinnedModel> = emptyList(),
     val modelPickerLoading: Boolean = false,
     val modelSwitchConfirmMessage: String? = null,
+    // #1588: multi-turn /undo N waits here for confirmation before command.dispatch.
+    val undoConfirmCount: Int? = null,
     // Current session's active model label (provider/model), shown in the chip
     val currentSessionModel: String? = null,
     // Per-model reasoning capabilities for the current session's model
@@ -4790,6 +4792,30 @@ class ChatViewModel(
     }
 
     private fun handleUndoCommand(count: String) {
+        if (runtimeSessionId == null) {
+            addAssistantMessage("No active session to undo.")
+            return
+        }
+        // #1588: rewinding more than one turn archives history, so ask first.
+        val turns = count.substringBefore(' ').toIntOrNull()
+        if (turns != null && turns > 1) {
+            _uiState.update { it.copy(undoConfirmCount = turns) }
+            return
+        }
+        performUndo(count)
+    }
+
+    fun confirmUndo() {
+        val turns = _uiState.value.undoConfirmCount ?: return
+        _uiState.update { it.copy(undoConfirmCount = null) }
+        performUndo(turns.toString())
+    }
+
+    fun dismissUndoConfirm() {
+        _uiState.update { it.copy(undoConfirmCount = null) }
+    }
+
+    private fun performUndo(count: String) {
         val sessionId = runtimeSessionId
         if (sessionId == null) {
             addAssistantMessage("No active session to undo.")
@@ -6246,6 +6272,7 @@ class ChatViewModel(
                 showModelPicker = false,
                 modelPickerLoading = false,
                 modelSwitchConfirmMessage = null,
+                undoConfirmCount = null,
                 currentSessionModel = null,
                 currentModelCapabilities = null,
                 reasoningLevel = null,

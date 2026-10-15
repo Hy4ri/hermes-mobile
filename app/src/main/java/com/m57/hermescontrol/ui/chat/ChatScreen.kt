@@ -1061,6 +1061,25 @@ fun ChatScreen(
             )
         }
 
+        // #1588: multi-turn /undo N archives history; confirm before dispatching.
+        state.undoConfirmCount?.let { turns ->
+            AlertDialog(
+                onDismissRequest = viewModel::dismissUndoConfirm,
+                title = { Text(stringResource(R.string.chat_undo_confirm_title, turns)) },
+                text = { Text(stringResource(R.string.chat_undo_confirm_desc)) },
+                confirmButton = {
+                    Button(onClick = viewModel::confirmUndo) {
+                        Text(stringResource(R.string.chat_undo_confirm_action))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = viewModel::dismissUndoConfirm) {
+                        Text(stringResource(R.string.common_cancel))
+                    }
+                },
+            )
+        }
+
         if (showContextSheet) {
             ContextDetailSheet(
                 breakdown = state.contextBreakdown,

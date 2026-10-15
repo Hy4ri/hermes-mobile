@@ -1805,6 +1805,13 @@ class ChatViewModelTest {
             viewModel.sendMessage("/undo 2")
             advanceUntilIdle()
 
+            // #1588: multi-turn undo waits for confirmation, nothing dispatched yet
+            assertEquals(2, viewModel.uiState.value.undoConfirmCount)
+            assertNull(viewModel.uiState.value.pendingPrefillText)
+            viewModel.confirmUndo()
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.undoConfirmCount)
+
             // Prefill text is staged in UI state
             assertEquals("undone user message", viewModel.uiState.value.pendingPrefillText)
             // Notice is displayed as system message with rewind target feedback
@@ -1819,6 +1826,48 @@ class ChatViewModelTest {
             viewModel.consumePendingPrefill()
             advanceUntilIdle()
             assertNull(viewModel.uiState.value.pendingPrefillText)
+        }
+
+    @Test
+    fun testUndoCommand_multiTurnCancelDoesNotDispatch() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+
+            viewModel.sendMessage("/undo 3")
+            advanceUntilIdle()
+            assertEquals(3, viewModel.uiState.value.undoConfirmCount)
+
+            viewModel.dismissUndoConfirm()
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.undoConfirmCount)
+            assertNull(viewModel.uiState.value.pendingPrefillText)
+        }
+
+    @Test
+    fun testUndoCommand_singleTurnSkipsConfirmation() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            every {
+                HermesWsClient.request(
+                    WsMethods.COMMAND_DISPATCH,
+                    buildJsonObject {
+                        put("name", "undo")
+                        put("arg", "")
+                        put("session_id", sessionId)
+                    },
+                    any(),
+                )
+            } returns
+                CompletableDeferred(
+                    mapOf("type" to "prefill", "message" to "m", "notice" to "↶ Undid 1 turn"),
+                )
+
+            viewModel.sendMessage("/undo")
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.undoConfirmCount)
+            assertEquals("m", viewModel.uiState.value.pendingPrefillText)
         }
 
     // ── Connection / init tests ──────────────────────────────────────────────

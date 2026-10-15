@@ -951,6 +951,10 @@
     <string name="sessions_project_none">No project</string>
     <string name="chat_project_default">Default workspace</string>
     <string name="chat_project_picker_title">Start in project</string>
+    <string name="chat_project_move_title">Move chat to project</string>
+    <string name="chat_project_move_action_label">Change project</string>
+    <string name="chat_project_move_failed">Could not move chat: %1$s</string>
+    <string name="chat_project_move_busy">Wait for the current turn to finish before moving this chat.</string>
     <string name="sessions_project_new_chat">New chat in %1$s</string>
     <string name="sessions_group_by_project">Group by project</string>
     <string name="sessions_project_group_collapse">Collapse %1$s</string>

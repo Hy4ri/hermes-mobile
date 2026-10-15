@@ -952,6 +952,10 @@
     <string name="sessions_project_none">Kein Projekt</string>
     <string name="chat_project_default">Standard-Workspace</string>
     <string name="chat_project_picker_title">In Projekt starten</string>
+    <string name="chat_project_move_title">Chat in Projekt verschieben</string>
+    <string name="chat_project_move_action_label">Projekt ändern</string>
+    <string name="chat_project_move_failed">Chat konnte nicht verschoben werden: %1$s</string>
+    <string name="chat_project_move_busy">Warte, bis der aktuelle Durchlauf beendet ist, bevor du diesen Chat verschiebst.</string>
     <string name="sessions_project_new_chat">Neuer Chat in %1$s</string>
     <string name="sessions_group_by_project">Nach Projekt gruppieren</string>
     <string name="sessions_project_group_collapse">%1$s einklappen</string>

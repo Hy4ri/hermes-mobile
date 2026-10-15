@@ -111,6 +111,7 @@ import com.m57.hermescontrol.ui.chat.components.MediaViewerDialog
 import com.m57.hermescontrol.ui.chat.components.PendingSendRecovery
 import com.m57.hermescontrol.ui.chat.components.ProjectBadge
 import com.m57.hermescontrol.ui.chat.components.ProjectPickerChip
+import com.m57.hermescontrol.ui.chat.components.ProjectPickerSheet
 import com.m57.hermescontrol.ui.chat.components.ReactionHeartsOverlay
 import com.m57.hermescontrol.ui.chat.components.ReloginDialog
 import com.m57.hermescontrol.ui.chat.components.ReplyErrorCard
@@ -869,7 +870,30 @@ fun ChatScreen(
                     onSelect = viewModel::selectStagedProject,
                 )
             } else {
-                state.stagedProject?.let { ProjectBadge(it) }
+                val sessionProject =
+                    remember(state.sessionProjectId, state.stagedProject, state.startableProjects) {
+                        state.startableProjects.firstOrNull { it.id == state.sessionProjectId }
+                            ?: state.stagedProject
+                    }
+                var showMoveSheet by remember { mutableStateOf(false) }
+                if (state.startableProjects.isNotEmpty() && !timelineState.isHistorical) {
+                    ProjectBadge(
+                        project = sessionProject,
+                        onLongClick = { showMoveSheet = true },
+                    )
+                } else {
+                    sessionProject?.let { ProjectBadge(it) }
+                }
+                if (showMoveSheet) {
+                    ProjectPickerSheet(
+                        title = stringResource(R.string.chat_project_move_title),
+                        projects = state.startableProjects,
+                        selected = sessionProject,
+                        allowDefault = false,
+                        onSelect = { it?.let(viewModel::moveSessionToProject) },
+                        onDismiss = { showMoveSheet = false },
+                    )
+                }
             }
 
             // Context-window meter (used / full) — sits above the composer so it

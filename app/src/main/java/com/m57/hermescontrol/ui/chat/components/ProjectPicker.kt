@@ -1,7 +1,9 @@
 package com.m57.hermescontrol.ui.chat.components
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -76,22 +78,46 @@ fun ProjectPickerChip(
         modifier = modifier.padding(horizontal = spacing.md).testTag("chat_project_chip"),
     )
     if (open) {
-        ModalBottomSheet(onDismissRequest = { open = false }) {
-            Column(modifier = Modifier.fillMaxWidth().padding(bottom = spacing.lg)) {
-                Text(
-                    stringResource(R.string.chat_project_picker_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(horizontal = spacing.md, vertical = spacing.sm),
-                )
+        ProjectPickerSheet(
+            title = stringResource(R.string.chat_project_picker_title),
+            projects = projects,
+            selected = selected,
+            allowDefault = true,
+            onSelect = onSelect,
+            onDismiss = { open = false },
+        )
+    }
+}
+
+/** Bottom sheet listing [projects]; [allowDefault] adds the "no project" row (invalid for a move: it needs a folder). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProjectPickerSheet(
+    title: String,
+    projects: List<ProjectInfo>,
+    selected: ProjectInfo?,
+    allowDefault: Boolean,
+    onSelect: (ProjectInfo?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val spacing = LocalSpacing.current
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.fillMaxWidth().padding(bottom = spacing.lg)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(horizontal = spacing.md, vertical = spacing.sm),
+            )
+            if (allowDefault) {
                 ProjectRow(stringResource(R.string.chat_project_default), null, selected == null) {
-                    open = false
+                    onDismiss()
                     onSelect(null)
                 }
-                projects.forEach { project ->
-                    ProjectRow(project.displayName(), project.color, selected?.id == project.id) {
-                        open = false
-                        onSelect(project)
-                    }
+            }
+            projects.forEach { project ->
+                ProjectRow(project.displayName(), project.color, selected?.id == project.id) {
+                    onDismiss()
+                    onSelect(project)
                 }
             }
         }
@@ -115,21 +141,37 @@ private fun ProjectRow(
     )
 }
 
-/** Read-only project marker once the first message has locked the chat's workspace. */
+/**
+ * Project marker once the first message has locked the chat's workspace. [project] null is the default workspace.
+ * With [onLongClick] the badge is the entry point for moving the chat to another project (long-press, also
+ * exposed to accessibility services under [R.string.chat_project_move_action_label]).
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ProjectBadge(
-    project: ProjectInfo,
+    project: ProjectInfo?,
     modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
 ) {
     val spacing = LocalSpacing.current
+    val gesture =
+        if (onLongClick != null) {
+            Modifier.combinedClickable(
+                onClick = {},
+                onLongClick = onLongClick,
+                onLongClickLabel = stringResource(R.string.chat_project_move_action_label),
+            )
+        } else {
+            Modifier
+        }
     Row(
-        modifier = modifier.padding(horizontal = spacing.md, vertical = spacing.xs),
+        modifier = modifier.then(gesture).padding(horizontal = spacing.md, vertical = spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ProjectDot(project.color)
-        Spacer(modifier = Modifier.width(spacing.sm))
+        ProjectDot(project?.color)
+        if (project?.color != null) Spacer(modifier = Modifier.width(spacing.sm))
         Text(
-            project.displayName(),
+            project?.displayName() ?: stringResource(R.string.chat_project_default),
             style = MaterialTheme.typography.labelMedium.copy(textDirection = TextDirection.Content),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

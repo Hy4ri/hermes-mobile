@@ -78,7 +78,6 @@ import com.m57.hermescontrol.ui.settings.components.KO_FI_URL
 import com.m57.hermescontrol.ui.toolsets.ToolsetDetailScreen
 import kotlinx.coroutines.launch
 import com.m57.hermescontrol.ui.authlogin.AuthLoginScreen as AuthLoginScreenContent
-import com.m57.hermescontrol.ui.connectors.AccountConnectorsScreen as AccountConnectorsScreenContent
 import com.m57.hermescontrol.ui.landing.LandingScreen as LandingScreenContent
 
 private fun appEntryProvider(
@@ -129,9 +128,6 @@ private fun appEntryProvider(
             onLogout = { /* handled by caller via goBack fallback */ },
             viewModel = viewModel { SettingsViewModel() },
         )
-    }
-    entry<AccountConnectorsScreen> {
-        AccountConnectorsScreenContent(onBack = { NavigationController.goBack() })
     }
     entry<SettingsAppearance> {
         SettingsAppearancePage(

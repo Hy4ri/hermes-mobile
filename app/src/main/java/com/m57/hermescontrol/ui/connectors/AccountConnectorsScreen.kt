@@ -3,6 +3,7 @@ package com.m57.hermescontrol.ui.connectors
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -47,15 +48,13 @@ import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.chat.components.ConnectionSetupSheet
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
-import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
-import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.util.ConnectorUrlValidator
 
 @Composable
-fun AccountConnectorsScreen(
-    onBack: () -> Unit,
-    vm: AccountConnectorsViewModel = viewModel { AccountConnectorsViewModel() },
+fun AccountConnectorsBody(
+    vm: AccountConnectorsViewModel,
+    modifier: Modifier = Modifier,
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val connection by vm.connectionState.collectAsStateWithLifecycle()
@@ -83,12 +82,7 @@ fun AccountConnectorsScreen(
             if (browserOperation != null) ExternalActivityLifecycleGuard.externalActivityReturned()
         }
     }
-    HermesScaffold(
-        title = { Text(stringResource(R.string.account_connectors_title)) },
-        navigationIcon = NavIcon.Back(onBack),
-        drawerGesturesEnabled = false,
-        onRefresh = vm::refresh,
-    ) {
+    Box(modifier) {
         when {
             state.loading -> {
                 LoadingState()

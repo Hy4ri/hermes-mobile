@@ -55,12 +55,46 @@ import com.m57.hermescontrol.ui.mcp.components.CatalogView
 import com.m57.hermescontrol.ui.mcp.components.McpDialogs
 import com.m57.hermescontrol.ui.mcp.components.ServerCard
 
+@Composable
+fun McpServersActions(viewModel: McpServersViewModel) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    if (state.selectedTab == McpTab.INSTALLED) {
+        IconButton(onClick = { viewModel.toggleAddForm() }) {
+            Icon(
+                imageVector = if (state.showAddForm) Icons.Filled.Close else Icons.Filled.Add,
+                contentDescription = stringResource(R.string.mcp_servers_add_server),
+            )
+        }
+        IconButton(onClick = { viewModel.toggleImportDialog() }) {
+            Icon(
+                imageVector = Icons.Filled.UploadFile,
+                contentDescription = stringResource(R.string.mcp_servers_action_import_json),
+            )
+        }
+        IconButton(
+            onClick = { viewModel.testAllServers() },
+            enabled = !state.isTestingAll && state.servers.any { it.enabled },
+        ) {
+            if (state.isTestingAll) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Filled.Science,
+                    contentDescription = stringResource(R.string.mcp_servers_action_test_all),
+                )
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun McpServersScreen(
+fun McpServersBody(
+    viewModel: McpServersViewModel,
     modifier: Modifier = Modifier,
-    onOpenDrawer: (() -> Unit)? = null,
-    viewModel: McpServersViewModel = viewModel { McpServersViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val dataScope by AuthManager.dataScopeFlow.collectAsStateWithLifecycle()
@@ -102,159 +136,114 @@ fun McpServersScreen(
     }
     ToastEffect(toastMessage = state.toastMessage, onClearToast = viewModel::clearToast)
 
-    HermesScaffold(
-        title = { Text(stringResource(R.string.screen_mcp_servers)) },
-        navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
-        isRefreshing = if (state.selectedTab == McpTab.INSTALLED) state.isLoading else state.catalogLoading,
-        onRefresh = {
-            if (state.selectedTab == McpTab.INSTALLED) {
-                viewModel.loadServers(forceRefresh = true)
-            } else {
-                viewModel.loadCatalog()
+    Column(modifier = modifier.fillMaxSize()) {
+        SingleChoiceSegmentedButtonRow(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+        ) {
+            SegmentedButton(
+                selected = state.selectedTab == McpTab.INSTALLED,
+                onClick = { viewModel.setTab(McpTab.INSTALLED) },
+                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+            ) {
+                Text(stringResource(R.string.mcp_tab_installed))
             }
-        },
-        actions = {
-            if (state.selectedTab == McpTab.INSTALLED) {
-                IconButton(onClick = { viewModel.toggleAddForm() }) {
-                    Icon(
-                        imageVector = if (state.showAddForm) Icons.Filled.Close else Icons.Filled.Add,
-                        contentDescription = stringResource(R.string.mcp_servers_add_server),
-                    )
-                }
-                IconButton(onClick = { viewModel.toggleImportDialog() }) {
-                    Icon(
-                        imageVector = Icons.Filled.UploadFile,
-                        contentDescription = stringResource(R.string.mcp_servers_action_import_json),
-                    )
-                }
-                IconButton(
-                    onClick = { viewModel.testAllServers() },
-                    enabled = !state.isTestingAll && state.servers.any { it.enabled },
-                ) {
-                    if (state.isTestingAll) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Filled.Science,
-                            contentDescription = stringResource(R.string.mcp_servers_action_test_all),
+            SegmentedButton(
+                selected = state.selectedTab == McpTab.CATALOG,
+                onClick = { viewModel.setTab(McpTab.CATALOG) },
+                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+            ) {
+                Text(stringResource(R.string.mcp_tab_catalog))
+            }
+        }
+
+        when (state.selectedTab) {
+            McpTab.INSTALLED -> {
+                when {
+                    state.isLoading && state.servers.isEmpty() -> {
+                        SkeletonListState()
+                    }
+
+                    state.errorMessage != null && state.servers.isEmpty() -> {
+                        ErrorState(
+                            message = state.errorMessage ?: "",
+                            onRetry = { viewModel.loadServers() },
                         )
                     }
-                }
-            }
-        },
-    ) { _ ->
-        Column(modifier = Modifier.fillMaxSize()) {
-            SingleChoiceSegmentedButtonRow(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-            ) {
-                SegmentedButton(
-                    selected = state.selectedTab == McpTab.INSTALLED,
-                    onClick = { viewModel.setTab(McpTab.INSTALLED) },
-                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
-                ) {
-                    Text(stringResource(R.string.mcp_tab_installed))
-                }
-                SegmentedButton(
-                    selected = state.selectedTab == McpTab.CATALOG,
-                    onClick = { viewModel.setTab(McpTab.CATALOG) },
-                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
-                ) {
-                    Text(stringResource(R.string.mcp_tab_catalog))
-                }
-            }
 
-            when (state.selectedTab) {
-                McpTab.INSTALLED -> {
-                    when {
-                        state.isLoading && state.servers.isEmpty() -> {
-                            SkeletonListState()
-                        }
-
-                        state.errorMessage != null && state.servers.isEmpty() -> {
-                            ErrorState(
-                                message = state.errorMessage ?: "",
-                                onRetry = { viewModel.loadServers() },
-                            )
-                        }
-
-                        else -> {
-                            LazyColumn(
-                                modifier = Modifier.fillMaxSize(),
-                                contentPadding = listContentPadding,
-                                verticalArrangement = listItemSpacing,
-                            ) {
-                                if (state.servers.isNotEmpty()) {
-                                    item(key = "search") {
-                                        ManageableFilterRow(
-                                            query = query,
-                                            onQueryChange = { query = it },
-                                            placeholder = stringResource(R.string.mcp_search_placeholder),
-                                            status = statusFilter,
-                                            onStatusChange = { statusFilter = it },
-                                        )
-                                    }
-                                }
-
-                                if (state.servers.isEmpty()) {
-                                    item(key = "empty") {
-                                        EmptyState(
-                                            title = stringResource(R.string.mcp_servers_empty_title),
-                                            subtitle = stringResource(R.string.mcp_servers_empty_desc),
-                                            actionLabel = stringResource(R.string.mcp_tab_catalog),
-                                            onAction = { viewModel.setTab(McpTab.CATALOG) },
-                                            modifier = Modifier.height(320.dp),
-                                        )
-                                    }
-                                } else if (filteredServers.isEmpty()) {
-                                    item(key = "no-match") {
-                                        Text(
-                                            text = stringResource(R.string.mcp_no_match, query),
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.padding(spacing.md),
-                                        )
-                                    }
-                                }
-
-                                items(filteredServers, key = { "server:${it.name}" }) { server ->
-                                    ServerCard(
-                                        server = server,
-                                        state = state,
-                                        viewModel = viewModel,
-                                        spacing = spacing,
-                                        onClick = { showDetail = server },
-                                        onOpenBrowser = { url ->
-                                            try {
-                                                context.startActivity(
-                                                    android.content.Intent(
-                                                        android.content.Intent.ACTION_VIEW,
-                                                        android.net.Uri.parse(url),
-                                                    ),
-                                                )
-                                            } catch (_: Exception) {
-                                            }
-                                        },
+                    else -> {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = listContentPadding,
+                            verticalArrangement = listItemSpacing,
+                        ) {
+                            if (state.servers.isNotEmpty()) {
+                                item(key = "search") {
+                                    ManageableFilterRow(
+                                        query = query,
+                                        onQueryChange = { query = it },
+                                        placeholder = stringResource(R.string.mcp_search_placeholder),
+                                        status = statusFilter,
+                                        onStatusChange = { statusFilter = it },
                                     )
                                 }
+                            }
+
+                            if (state.servers.isEmpty()) {
+                                item(key = "empty") {
+                                    EmptyState(
+                                        title = stringResource(R.string.mcp_servers_empty_title),
+                                        subtitle = stringResource(R.string.mcp_servers_empty_desc),
+                                        actionLabel = stringResource(R.string.mcp_tab_catalog),
+                                        onAction = { viewModel.setTab(McpTab.CATALOG) },
+                                        modifier = Modifier.height(320.dp),
+                                    )
+                                }
+                            } else if (filteredServers.isEmpty()) {
+                                item(key = "no-match") {
+                                    Text(
+                                        text = stringResource(R.string.mcp_no_match, query),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(spacing.md),
+                                    )
+                                }
+                            }
+
+                            items(filteredServers, key = { "server:${it.name}" }) { server ->
+                                ServerCard(
+                                    server = server,
+                                    state = state,
+                                    viewModel = viewModel,
+                                    spacing = spacing,
+                                    onClick = { showDetail = server },
+                                    onOpenBrowser = { url ->
+                                        try {
+                                            context.startActivity(
+                                                android.content.Intent(
+                                                    android.content.Intent.ACTION_VIEW,
+                                                    android.net.Uri.parse(url),
+                                                ),
+                                            )
+                                        } catch (_: Exception) {
+                                        }
+                                    },
+                                )
                             }
                         }
                     }
                 }
+            }
 
-                McpTab.CATALOG -> {
-                    CatalogView(
-                        state = state,
-                        viewModel = viewModel,
-                        spacing = spacing,
-                        filteredCatalog = filteredCatalog,
-                    )
-                }
+            McpTab.CATALOG -> {
+                CatalogView(
+                    state = state,
+                    viewModel = viewModel,
+                    spacing = spacing,
+                    filteredCatalog = filteredCatalog,
+                )
             }
         }
     }

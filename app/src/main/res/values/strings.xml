@@ -135,6 +135,8 @@
     <string name="screen_plugins">Plugins</string>
     <string name="screen_config">Config</string>
     <string name="screen_mcp_servers">MCP Servers</string>
+    <string name="connectors_tab_hosted">Hosted apps</string>
+    <string name="connectors_tab_mcp">MCP servers</string>
     <string name="screen_memory">Memory</string>
     <string name="screen_models">Models</string>
     <string name="screen_pairing">Pairing</string>

@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.ui.connectors
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
@@ -107,7 +108,7 @@ class AccountConnectorsScreenTest {
                     themePreference = if (largeTextRtl) ThemePreference.DARK else ThemePreference.LIGHT,
                 ) {
                     Box(Modifier.size(width = 320.dp, height = 480.dp)) {
-                        AccountConnectorsScreen(onBack = {}, vm = vm)
+                        AccountConnectorsBody(vm = vm, modifier = Modifier.fillMaxSize())
                     }
                 }
             }

@@ -58,6 +58,7 @@ class SlashCommandDispatcher {
 
             "/queue", "/q" -> {
                 val arg = command.split(" ", limit = 2).getOrElse(1) { "" }.trim()
+                queueManagementVerb(arg)?.let { return SlashResult.QueueManage(it) }
                 // Bubble shows the queued TEXT (prefix stripped) so the
                 // optimistic user message matches the server echo exactly —
                 // otherwise the transcript sync keeps both copies (logical
@@ -90,6 +91,27 @@ class SlashCommandDispatcher {
                 SlashResult.RpcDispatch
             }
         }
+    }
+
+    /**
+     * CLI-only `/queue list|edit|move|remove|clear` management verbs (hermes-agent
+     * `cli_loops_mixin._QUEUE_VERBS`). The gateway has no queue-management RPC, so these must not be
+     * submitted as prompt text. Same disambiguation as the CLI: list-style verbs only count when alone,
+     * index verbs when alone or followed by a number, so `/queue list the files` still queues a prompt.
+     */
+    private fun queueManagementVerb(arg: String): String? {
+        val tokens = arg.lowercase().split(Regex("\\s+")).filter { it.isNotEmpty() }
+        val verb = tokens.firstOrNull() ?: return null
+        return when {
+            verb in QUEUE_STANDALONE_VERBS && tokens.size == 1 -> verb
+            verb in QUEUE_INDEX_VERBS && (tokens.size == 1 || tokens[1].toIntOrNull() != null) -> verb
+            else -> null
+        }
+    }
+
+    private companion object {
+        val QUEUE_STANDALONE_VERBS = setOf("list", "ls", "show", "clear")
+        val QUEUE_INDEX_VERBS = setOf("edit", "set", "rm", "remove", "delete", "del", "pop", "move")
     }
 }
 
@@ -166,6 +188,14 @@ sealed class SlashResult {
      */
     data class QueuePrompt(
         val displayContent: String,
+    ) : SlashResult()
+
+    /**
+     * A `/queue` management verb (list/edit/move/remove/clear). Not supported on mobile: the gateway
+     * exposes no queue-management RPC, so the ViewModel answers locally instead of queueing the text.
+     */
+    data class QueueManage(
+        val verb: String,
     ) : SlashResult()
 
     /**

@@ -160,4 +160,25 @@ class SlashCommandDispatcherTest {
     fun `unknown slash command forwards to RpcDispatch`() {
         assertEquals(SlashResult.RpcDispatch, dispatcher.dispatch("/definitely-not-real"))
     }
+
+    @Test
+    fun `queue management verbs route to QueueManage`() {
+        assertEquals(SlashResult.QueueManage("list"), dispatcher.dispatch("/queue list"))
+        assertEquals(SlashResult.QueueManage("clear"), dispatcher.dispatch("/q CLEAR"))
+        assertEquals(SlashResult.QueueManage("rm"), dispatcher.dispatch("/queue rm 2"))
+        assertEquals(SlashResult.QueueManage("move"), dispatcher.dispatch("/queue move 1 3"))
+        assertEquals(SlashResult.QueueManage("edit"), dispatcher.dispatch("/queue edit"))
+    }
+
+    @Test
+    fun `queue prompts that merely start with a verb still queue`() {
+        assertEquals(SlashResult.QueuePrompt("list the files"), dispatcher.dispatch("/queue list the files"))
+        assertEquals(
+            SlashResult.QueuePrompt("remove the dead code"),
+            dispatcher.dispatch("/queue remove the dead code"),
+        )
+        // Index verb followed by a number is management, matching the CLI rule.
+        assertEquals(SlashResult.QueueManage("edit"), dispatcher.dispatch("/queue edit 2 files"))
+        assertEquals(SlashResult.QueuePrompt("rewrite it"), dispatcher.dispatch("/queue rewrite it"))
+    }
 }

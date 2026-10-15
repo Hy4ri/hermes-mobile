@@ -4311,6 +4311,10 @@ class ChatViewModel(
                 handleQueueCommand(command, userMsg)
             }
 
+            is SlashResult.QueueManage -> {
+                addAssistantMessage("/queue ${result.verb} is not supported on mobile; use /queue <prompt> to add one")
+            }
+
             is SlashResult.SideQuestion -> {
                 handleSideQuestionCommand(result.question)
             }

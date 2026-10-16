@@ -502,6 +502,13 @@ fun ChatScreen(
         snackbarHostState = snackbarHostState,
         viewModel = viewModel,
         isOverlayActive = !isChatContentReadable,
+        hasUnsentWork =
+            inputState.text.isNotEmpty() || state.pendingAttachments.isNotEmpty() ||
+                state.pendingSends.isNotEmpty() || state.pendingPrefillText != null ||
+                state.pendingSharedText != null || state.composerTextToRestore != null || parkedShare != null,
+        deferTileNavigation =
+            state.isLoading || mediaLaunchers.isListening || state.isTranscribingVoiceNote,
+        onClearDraft = { inputState.replaceComposerDraft("") },
     )
 
     HermesScaffold(

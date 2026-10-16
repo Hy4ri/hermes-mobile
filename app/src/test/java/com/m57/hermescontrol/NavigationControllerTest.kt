@@ -162,6 +162,42 @@ class NavigationControllerTest {
     }
 
     @Test
+    fun `tile request waits through login without navigating around authentication`() {
+        val stack = NavBackStack<NavKey>(LandingScreen, AuthLoginScreen)
+        NavigationController.backStack = stack
+        NavigationController.queueNewChatFromTile()
+        assertEquals(listOf(LandingScreen, AuthLoginScreen), stack.toList())
+        assertTrue(NavigationController.pendingNewChatNavigation?.fromTile == true)
+        NavigationController.resetTo(ChatScreen)
+        assertTrue(NavigationController.consumePendingNewChatNavigation()?.fromTile == true)
+        assertNull(NavigationController.consumePendingNewChatNavigation())
+    }
+
+    @Test
+    fun `repeated tile taps coalesce until consumed and cancellation leaves the stack alone`() {
+        val stack = NavBackStack<NavKey>(ChatScreen, SettingsScreen)
+        NavigationController.backStack = stack
+        NavigationController.queueNewChatFromTile()
+        val first = NavigationController.pendingNewChatNavigation
+        NavigationController.queueNewChatFromTile()
+        assertEquals(first, NavigationController.pendingNewChatNavigation)
+        NavigationController.consumePendingNewChatNavigation()
+        assertEquals(listOf(ChatScreen, SettingsScreen), stack.toList())
+        NavigationController.queueNewChatFromTile()
+        assertTrue(first?.requestId != NavigationController.pendingNewChatNavigation?.requestId)
+    }
+
+    @Test
+    fun `cold tile request survives missing navigation and supersedes an old session link`() {
+        NavigationController.openChatSessionFromNotification("old-session")
+        NavigationController.queueNewChatFromTile()
+        assertNull(NavigationController.pendingChatNavigation)
+        assertTrue(NavigationController.pendingNewChatNavigation?.fromTile == true)
+        NavigationController.backStack = NavBackStack<NavKey>(ChatScreen)
+        assertNotNull(NavigationController.consumePendingNewChatNavigation())
+    }
+
+    @Test
     fun `notification chat request asks for bottom even when chat is already active`() {
         val backStack = NavBackStack<NavKey>(ChatScreen)
         NavigationController.backStack = backStack

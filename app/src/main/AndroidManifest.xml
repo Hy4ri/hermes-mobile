@@ -63,6 +63,18 @@
             </intent-filter>
         </activity>
 
+        <!-- User-added action tile; no background connection or microphone (#1603). -->
+        <service
+            android:name=".tile.NewChatTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_new_chat_tile"
+            android:label="@string/content_desc_new_chat"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
         <service
             android:name=".assistant.AssistantService"
             android:permission="android.permission.BIND_VOICE_INTERACTION"

@@ -26,6 +26,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import com.m57.hermescontrol.NavigationController
+import com.m57.hermescontrol.PendingNewChatNavigation
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.ws.ConnectionStatus
@@ -36,6 +37,7 @@ import com.m57.hermescontrol.ui.chat.ChatViewModel
 import com.m57.hermescontrol.ui.chat.ClarifyUi
 import com.m57.hermescontrol.ui.chat.SecretPromptUi
 import com.m57.hermescontrol.ui.chat.SudoPromptUi
+import com.m57.hermescontrol.ui.common.ConfirmDialog
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
@@ -56,6 +58,9 @@ fun ChatLifecycleEffects(
     snackbarHostState: SnackbarHostState,
     viewModel: ChatViewModel,
     isOverlayActive: Boolean = false,
+    hasUnsentWork: Boolean = false,
+    deferTileNavigation: Boolean = false,
+    onClearDraft: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -63,11 +68,34 @@ fun ChatLifecycleEffects(
     // Switch to session from notification/history
     val pendingNavigation = NavigationController.pendingChatNavigation
     val pendingNewChatNavigation = NavigationController.pendingNewChatNavigation
-    LaunchedEffect(sessionId, pendingNavigation, pendingNewChatNavigation, connectionStatus) {
+    val tileNavigationAllowed =
+        TileNavigationGuard(
+            request = pendingNewChatNavigation,
+            hasUnsentWork = hasUnsentWork,
+            deferred = deferTileNavigation || connectionStatus != ConnectionStatus.CONNECTED,
+            onConfirm = {
+                // Consume and start in the click itself: consent must not be banked while offline,
+                // where the user could add more work before a later reconnect (#1603).
+                NavigationController.consumePendingNewChatNavigation()?.let { request ->
+                    onClearDraft()
+                    viewModel.startNewChat(request.project)
+                }
+            },
+            onCancel = { NavigationController.consumePendingNewChatNavigation() },
+        )
+    LaunchedEffect(
+        sessionId,
+        pendingNavigation,
+        pendingNewChatNavigation,
+        connectionStatus,
+        tileNavigationAllowed,
+    ) {
         if (connectionStatus != ConnectionStatus.CONNECTED) return@LaunchedEffect
+        if (!tileNavigationAllowed) return@LaunchedEffect
         val newChatRequest = NavigationController.consumePendingNewChatNavigation()
         val request = NavigationController.consumePendingChatNavigation()
         if (newChatRequest != null) {
+            if (newChatRequest.fromTile) onClearDraft()
             viewModel.startNewChat(newChatRequest.project)
             return@LaunchedEffect
         }
@@ -203,4 +231,28 @@ fun ChatLifecycleEffects(
             prompt = prompt.prompt,
         )
     }
+}
+
+/** #1603: require explicit consent before a system action can replace unsent work. */
+@Composable
+internal fun TileNavigationGuard(
+    request: PendingNewChatNavigation?,
+    hasUnsentWork: Boolean,
+    deferred: Boolean,
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit,
+): Boolean {
+    if (request?.fromTile != true) return true
+    if (deferred) return false
+    if (hasUnsentWork) {
+        ConfirmDialog(
+            title = stringResource(R.string.skills_discard_title),
+            message = stringResource(R.string.skills_discard_message),
+            confirmText = stringResource(R.string.action_discard),
+            isDestructive = true,
+            onConfirm = onConfirm,
+            onDismiss = onCancel,
+        )
+    }
+    return !hasUnsentWork
 }

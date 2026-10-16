@@ -212,6 +212,13 @@ fun MainNavigation(sessionId: String? = null) {
     NavigationController.backStack = backStack
     LauncherShortcutNavigationEffect(hasToken)
 
+    val pendingNewChat = NavigationController.pendingNewChatNavigation
+    LaunchedEffect(pendingNewChat, hasToken) {
+        if (pendingNewChat?.fromTile == true) {
+            NavigationController.navigateTo(if (hasToken) ChatScreen else AuthLoginScreen)
+        }
+    }
+
     val pendingKanban = NavigationController.pendingKanbanNavigation
     LaunchedEffect(pendingKanban, hasToken) {
         if (hasToken && pendingKanban != null) {

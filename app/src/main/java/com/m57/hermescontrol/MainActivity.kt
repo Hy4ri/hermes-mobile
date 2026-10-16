@@ -82,6 +82,8 @@ class MainActivity : ComponentActivity() {
             "com.m57.hermescontrol.ACTION_OPEN_KANBAN_TASK_FROM_NOTIFICATION"
         const val EXTRA_KANBAN_BOARD = "com.m57.hermescontrol.EXTRA_KANBAN_BOARD"
         const val EXTRA_KANBAN_TASK = "com.m57.hermescontrol.EXTRA_KANBAN_TASK"
+        const val ACTION_NEW_CHAT_FROM_TILE = "com.m57.hermescontrol.ACTION_NEW_CHAT_FROM_TILE"
+        private const val STATE_PENDING_TILE = "pending_new_chat_tile"
     }
 
     private var baseContextLanguageCode: String = LocaleContextWrapper.SYSTEM_LANGUAGE
@@ -103,6 +105,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        if (savedInstanceState?.getBoolean(STATE_PENDING_TILE) == true) {
+            NavigationController.queueNewChatFromTile()
+        }
+        consumeTileIntent(intent)
         consumeNotificationIntent(intent)
         // A recreated activity (rotation, process restore) still holds the original intent.
         if (savedInstanceState == null) consumeShareIntent(intent)
@@ -267,8 +273,21 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        consumeTileIntent(intent)
         consumeNotificationIntent(intent)
         consumeShareIntent(intent)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean(STATE_PENDING_TILE, NavigationController.pendingNewChatNavigation?.fromTile == true)
+        super.onSaveInstanceState(outState)
+    }
+
+    private fun consumeTileIntent(intent: Intent?) {
+        if (intent?.action != ACTION_NEW_CHAT_FROM_TILE) return
+        intent.action = null
+        if (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return
+        NavigationController.queueNewChatFromTile()
     }
 
     override fun onResume() {

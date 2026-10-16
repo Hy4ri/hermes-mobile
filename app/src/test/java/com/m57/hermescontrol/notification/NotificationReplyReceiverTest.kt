@@ -139,6 +139,16 @@ class NotificationReplyReceiverTest {
     // ── Happy path: valid reply ────────────────────────────────────────────
 
     @Test
+    fun `enabled app lock rejects even a stale notification action before reading reply input`() {
+        every { mockContext.getSharedPreferences(any(), any()).getBoolean("enabled", false) } returns true
+        receiver.onReceive(mockContext, mockIntent)
+        verify(exactly = 0) { RemoteInput.getResultsFromIntent(any()) }
+        verify(exactly = 0) { HermesWsClient.request(any(), any(), any()) }
+        verify(exactly = 0) { mockPendingResult.finish() }
+        assertEquals(0, upsertCallCount)
+    }
+
+    @Test
     fun `valid reply sends message via WebSocket`() {
         givenValidReply("session-abc", "Hello")
 

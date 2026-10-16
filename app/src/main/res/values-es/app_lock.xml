@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_lock_title">Bloqueo de la app</string>
+    <string name="app_lock_prompt">Verifica tu identidad para continuar</string>
+    <string name="app_lock_locked">Hermes está bloqueado. Se conservan la pantalla actual y el contenido sin enviar.</string>
+    <string name="app_lock_unlock">Desbloquear</string>
+    <string name="app_lock_unavailable">Se requiere un PIN, patrón o contraseña del dispositivo. Restablece la seguridad del dispositivo para desbloquear Hermes.</string>
+    <string name="app_lock_security_settings">Abrir ajustes de seguridad de Android</string>
+    <string name="app_lock_auth_cancelled">La autenticación se canceló o falló. Inténtalo de nuevo.</string>
+    <string name="app_lock_storage_error">No se pudieron guardar los ajustes. El bloqueo no se ha desactivado. Inténtalo de nuevo.</string>
+    <string name="app_lock_description">Bloquea al iniciar en frío y tras el tiempo en segundo plano. Apagar la pantalla siempre bloquea. Se ocultan capturas y vistas de apps recientes.</string>
+    <string name="app_lock_notifications">Las vistas previas de notificaciones son un ajuste de privacidad independiente. Las respuestas directas se desactivan con el bloqueo; abre y desbloquea Hermes para responder.</string>
+    <string name="app_lock_timeout">Bloquear tras pasar a segundo plano: %1$s</string>
+    <string name="app_lock_immediately">Inmediatamente</string>
+    <string name="app_lock_30_seconds">30 segundos</string>
+    <string name="app_lock_1_minute">1 minuto</string>
+    <string name="app_lock_5_minutes">5 minutos</string>
+</resources>

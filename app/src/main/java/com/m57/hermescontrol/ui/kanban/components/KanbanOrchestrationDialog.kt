@@ -14,7 +14,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Save
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
@@ -42,6 +41,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.applock.AlertDialog
+import com.m57.hermescontrol.applock.PrivateExposedDropdownMenu
 import com.m57.hermescontrol.data.model.KanbanProfile
 import com.m57.hermescontrol.data.model.OrchestrationSettings
 import com.m57.hermescontrol.data.model.OrchestrationSettingsUpdate
@@ -105,7 +106,7 @@ fun KanbanOrchestrationDialog(
                                     ExposedDropdownMenuAnchorType.PrimaryNotEditable,
                                 ).fillMaxWidth(),
                     )
-                    ExposedDropdownMenu(
+                    PrivateExposedDropdownMenu(
                         expanded = orchestratorExpanded,
                         onDismissRequest = { orchestratorExpanded = false },
                     ) {
@@ -151,7 +152,7 @@ fun KanbanOrchestrationDialog(
                                     ExposedDropdownMenuAnchorType.PrimaryNotEditable,
                                 ).fillMaxWidth(),
                     )
-                    ExposedDropdownMenu(
+                    PrivateExposedDropdownMenu(
                         expanded = defaultAssigneeExpanded,
                         onDismissRequest = { defaultAssigneeExpanded = false },
                     ) {

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_lock_title">앱 잠금</string>
+    <string name="app_lock_prompt">계속하려면 본인 인증을 해 주세요</string>
+    <string name="app_lock_locked">Hermes가 잠겼습니다. 현재 화면과 보내지 않은 내용은 유지됩니다.</string>
+    <string name="app_lock_unlock">잠금 해제</string>
+    <string name="app_lock_unavailable">기기 PIN, 패턴 또는 비밀번호가 필요합니다. 기기 보안을 복원한 후 Hermes 잠금을 해제하세요.</string>
+    <string name="app_lock_security_settings">Android 보안 설정 열기</string>
+    <string name="app_lock_auth_cancelled">인증이 취소되었거나 실패했습니다. 다시 시도하세요.</string>
+    <string name="app_lock_storage_error">잠금 설정을 저장하지 못했습니다. 잠금은 해제되지 않았습니다. 다시 시도하세요.</string>
+    <string name="app_lock_description">앱을 새로 시작하거나 백그라운드 제한 시간이 지나면 잠급니다. 화면을 끄면 항상 잠깁니다. 스크린샷과 최근 앱 미리보기를 숨깁니다.</string>
+    <string name="app_lock_notifications">알림 미리보기는 별도의 개인정보 설정입니다. 앱 잠금이 켜져 있으면 바로 답장할 수 없습니다. Hermes를 열고 잠금을 해제한 후 답장하세요.</string>
+    <string name="app_lock_timeout">백그라운드 전환 후 잠금: %1$s</string>
+    <string name="app_lock_immediately">즉시</string>
+    <string name="app_lock_30_seconds">30초</string>
+    <string name="app_lock_1_minute">1분</string>
+    <string name="app_lock_5_minutes">5분</string>
+</resources>

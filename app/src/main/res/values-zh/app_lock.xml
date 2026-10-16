@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_lock_title">应用锁</string>
+    <string name="app_lock_prompt">请验证身份以继续</string>
+    <string name="app_lock_locked">Hermes 已锁定。当前页面和未发送的内容会保留。</string>
+    <string name="app_lock_unlock">解锁</string>
+    <string name="app_lock_unavailable">需要设备 PIN 码、图案或密码。请恢复设备安全设置后解锁 Hermes。</string>
+    <string name="app_lock_security_settings">打开 Android 安全设置</string>
+    <string name="app_lock_auth_cancelled">身份验证已取消或未成功。请重试。</string>
+    <string name="app_lock_storage_error">无法保存应用锁设置。应用锁未被关闭。请重试。</string>
+    <string name="app_lock_description">冷启动时以及后台超时后锁定。关闭屏幕时始终锁定。屏幕截图和最近应用预览将被隐藏。</string>
+    <string name="app_lock_notifications">通知预览是独立的隐私设置。启用应用锁时禁用直接回复；请打开并解锁 Hermes 后回复。</string>
+    <string name="app_lock_timeout">转入后台后锁定：%1$s</string>
+    <string name="app_lock_immediately">立即</string>
+    <string name="app_lock_30_seconds">30 秒</string>
+    <string name="app_lock_1_minute">1 分钟</string>
+    <string name="app_lock_5_minutes">5 分钟</string>
+</resources>

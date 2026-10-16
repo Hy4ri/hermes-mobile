@@ -33,13 +33,11 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -71,6 +69,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.KanbanTaskDetailKey
 import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.applock.AlertDialog
+import com.m57.hermescontrol.applock.DropdownMenu
+import com.m57.hermescontrol.applock.PrivateExposedDropdownMenu
 import com.m57.hermescontrol.data.model.KanbanTask
 import com.m57.hermescontrol.data.model.ManagedFileDelete
 import com.m57.hermescontrol.data.remote.ApiClient
@@ -1252,7 +1253,7 @@ fun KanbanScreen(
                                                     .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                                                     .fillMaxWidth(),
                                         )
-                                        ExposedDropdownMenu(
+                                        PrivateExposedDropdownMenu(
                                             expanded = projectDropdownExpanded,
                                             onDismissRequest = { projectDropdownExpanded = false },
                                         ) {
@@ -1439,7 +1440,7 @@ private fun TaskActionSheet(
     onAction: (KanbanTaskAction) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    androidx.compose.material3.ModalBottomSheet(
+    com.m57.hermescontrol.applock.ModalBottomSheet(
         onDismissRequest = onDismiss,
     ) {
         Column(

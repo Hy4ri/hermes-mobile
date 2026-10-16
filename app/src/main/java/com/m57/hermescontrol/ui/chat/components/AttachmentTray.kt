@@ -46,10 +46,10 @@ import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.applock.Popup
 
 /**
  * Compact attachment tray that extends the composer without looking like a

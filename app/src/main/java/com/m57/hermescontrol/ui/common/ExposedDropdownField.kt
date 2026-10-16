@@ -16,6 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.m57.hermescontrol.applock.PrivateExposedDropdownMenu
 
 /**
  * Shared dropdown field used by [com.m57.hermescontrol.ui.config.ConfigScreen]
@@ -53,7 +54,7 @@ fun ExposedDropdownField(
             shape = RoundedCornerShape(8.dp),
         )
 
-        ExposedDropdownMenu(
+        PrivateExposedDropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
         ) {

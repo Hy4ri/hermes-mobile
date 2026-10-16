@@ -18,7 +18,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
@@ -47,6 +46,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.applock.AlertDialog
+import com.m57.hermescontrol.applock.PrivateExposedDropdownMenu
 import com.m57.hermescontrol.data.model.CreateTaskBody
 import com.m57.hermescontrol.data.model.KanbanColumn
 import com.m57.hermescontrol.data.model.KanbanProfile
@@ -164,7 +165,7 @@ fun KanbanCreateTaskDialog(
                                     ).fillMaxWidth(),
                             enabled = !isCreating,
                         )
-                        ExposedDropdownMenu(
+                        PrivateExposedDropdownMenu(
                             expanded = columnExpanded,
                             onDismissRequest = { columnExpanded = false },
                         ) {
@@ -214,7 +215,7 @@ fun KanbanCreateTaskDialog(
                         modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                         enabled = !isCreating,
                     )
-                    ExposedDropdownMenu(
+                    PrivateExposedDropdownMenu(
                         expanded = assigneeExpanded,
                         onDismissRequest = { assigneeExpanded = false },
                     ) {
@@ -364,7 +365,7 @@ fun KanbanCreateTaskDialog(
                                             ).fillMaxWidth(),
                                     enabled = !isCreating,
                                 )
-                                ExposedDropdownMenu(
+                                PrivateExposedDropdownMenu(
                                     expanded = parentExpanded,
                                     onDismissRequest = { parentExpanded = false },
                                 ) {

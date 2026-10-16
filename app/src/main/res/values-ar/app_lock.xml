@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_lock_title">قفل التطبيق</string>
+    <string name="app_lock_prompt">أكّد هويتك للمتابعة</string>
+    <string name="app_lock_locked">هيرميس مقفل. شاشتك الحالية والعمل غير المرسل محفوظان.</string>
+    <string name="app_lock_unlock">فتح القفل</string>
+    <string name="app_lock_unavailable">يلزم رمز PIN أو نمط أو كلمة مرور للجهاز. أعد تفعيل أمان الجهاز لفتح هيرميس.</string>
+    <string name="app_lock_security_settings">فتح إعدادات أمان أندرويد</string>
+    <string name="app_lock_auth_cancelled">أُلغيت المصادقة أو لم تنجح. حاول مجددًا.</string>
+    <string name="app_lock_storage_error">تعذّر حفظ إعدادات القفل. لم يُعطّل القفل. حاول مجددًا.</string>
+    <string name="app_lock_description">يُقفل عند بدء التطبيق وبعد مهلة الخلفية. إطفاء الشاشة يقفل دائمًا. تُحجب لقطات الشاشة ومعاينات التطبيقات الأخيرة.</string>
+    <string name="app_lock_notifications">معاينات الإشعارات إعداد خصوصية مستقل. تُعطّل الردود المباشرة عند تفعيل قفل التطبيق؛ افتح هيرميس وافتح قفله للرد.</string>
+    <string name="app_lock_timeout">القفل بعد الانتقال للخلفية: %1$s</string>
+    <string name="app_lock_immediately">فورًا</string>
+    <string name="app_lock_30_seconds">30 ثانية</string>
+    <string name="app_lock_1_minute">دقيقة واحدة</string>
+    <string name="app_lock_5_minutes">5 دقائق</string>
+</resources>

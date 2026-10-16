@@ -98,6 +98,31 @@ The app detects which auth mode your dashboard uses and shows only the fields yo
 
 > **Security:** Use HTTPS for remote connections. Plain HTTP/WS is for trusted local networks only, because authentication does not encrypt the transport.
 
+### Optional app lock
+
+**Settings → Behavior → App lock** adds a local UI privacy gate, off by default.
+Enabling or disabling it requires successful system authentication. Android 10+
+offers strong biometrics or the device credential; Android 8–9 uses the system
+PIN/pattern/password confirmation activity.
+
+Enabled cold starts always require authentication. Background returns lock after
+the selected timeout: immediately, 30 seconds (default), 1 minute, or 5 minutes.
+Screen off always locks, independently of that timeout. Tap **Unlock** to authenticate;
+cancelled/failed prompts stay locked and do not automatically reopen. Authorization
+survives activity rotation, but is never saved across process death. The current
+navigation, unsent drafts, dialog forms, and live ViewModel work are retained behind
+the gate. Screenshots and recent-app previews are blocked while the setting is enabled.
+
+If device security is removed or unavailable, the app stays locked. Use **Open Android
+Security settings** to restore a device PIN, pattern, or password, then return and
+authenticate. The app does not silently switch the setting off.
+
+Notification previews and launcher conversation labels are separate privacy boundaries.
+Inline notification replies are disabled whenever app lock is enabled, including stale
+reply actions: open and unlock the app to reply. This is not encryption of decrypted
+memory, protection against a rooted device, or a server-side permission change;
+already-running agent work and opted-in background connections can continue.
+
 ### 1. Start the dashboard
 
 On the host machine:

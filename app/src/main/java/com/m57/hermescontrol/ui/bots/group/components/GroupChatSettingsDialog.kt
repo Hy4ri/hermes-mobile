@@ -21,7 +21,6 @@ import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -44,6 +43,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.applock.AlertDialog
 import com.m57.hermescontrol.ui.bots.group.DEFAULT_MAX_BOT_MESSAGES
 import com.m57.hermescontrol.ui.bots.group.DEFAULT_MAX_CONTINUATION_PASSES
 import com.m57.hermescontrol.ui.bots.group.MAX_ALLOWED_BOT_MESSAGES

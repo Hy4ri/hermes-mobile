@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -26,6 +25,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.applock.AlertDialog
+import com.m57.hermescontrol.applock.PrivateExposedDropdownMenu
 import com.m57.hermescontrol.data.model.KanbanBoard
 import com.m57.hermescontrol.data.model.KanbanProject
 import com.m57.hermescontrol.data.model.RenameBoardBody
@@ -95,7 +96,7 @@ fun KanbanBoardSettingsDialog(
                                     ExposedDropdownMenuAnchorType.PrimaryNotEditable,
                                 ).fillMaxWidth(),
                     )
-                    ExposedDropdownMenu(
+                    PrivateExposedDropdownMenu(
                         expanded = projectExpanded,
                         onDismissRequest = { projectExpanded = false },
                     ) {

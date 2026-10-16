@@ -34,8 +34,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.applock.Dialog
 import com.m57.hermescontrol.ui.settings.components.KO_FI_URL
 
 /** Post-update "What's new" dialog: release notes plus a Ko-fi support button. */

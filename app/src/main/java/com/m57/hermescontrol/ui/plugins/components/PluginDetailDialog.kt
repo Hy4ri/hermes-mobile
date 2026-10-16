@@ -30,8 +30,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.applock.Dialog
 import com.m57.hermescontrol.data.model.PluginInfo
 import com.m57.hermescontrol.data.ws.AgentPluginRow
 import com.m57.hermescontrol.data.ws.PluginServerRow

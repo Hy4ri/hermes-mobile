@@ -1,5 +1,6 @@
 package com.m57.hermescontrol
 
+import com.m57.hermescontrol.applock.AppLockController
 import com.m57.hermescontrol.notification.NotificationHelper
 import io.mockk.every
 import io.mockk.mockk
@@ -22,7 +23,7 @@ class MainActivityLifecycleTest {
         mockkObject(NotificationHelper)
         every { NotificationHelper.start(any()) } returns Unit
         every { NotificationHelper.setAppForeground(any(), any()) } returns Unit
-        val activity = mockk<MainActivity>(relaxed = true)
+        val activity = createActivity()
         every { activity invoke "onPause" withArguments emptyList() } answers { callOriginal() }
 
         invokeLifecycle(activity, "onPause")
@@ -35,7 +36,7 @@ class MainActivityLifecycleTest {
     fun `configuration stop keeps the shared connection foregrounded`() {
         mockkObject(NotificationHelper)
         every { NotificationHelper.setAppForeground(any(), any()) } returns Unit
-        val activity = mockk<MainActivity>(relaxed = true)
+        val activity = createActivity()
         every { activity.isChangingConfigurations } returns true
         every { activity invoke "onStop" withArguments emptyList() } answers { callOriginal() }
 
@@ -48,7 +49,7 @@ class MainActivityLifecycleTest {
     fun `real background stop still enables idle socket cleanup`() {
         mockkObject(NotificationHelper)
         every { NotificationHelper.setAppForeground(any(), any()) } returns Unit
-        val activity = mockk<MainActivity>(relaxed = true)
+        val activity = createActivity()
         every { activity.isChangingConfigurations } returns false
         every { activity invoke "onStop" withArguments emptyList() } answers { callOriginal() }
 
@@ -56,6 +57,15 @@ class MainActivityLifecycleTest {
 
         verify(exactly = 1) { NotificationHelper.setAppForeground(activity, false) }
     }
+
+    private fun createActivity(): MainActivity =
+        mockk<MainActivity>(relaxed = true).also { activity ->
+            // These tests skip onCreate. Supply its activity-owned collaborator without running Android setup.
+            MainActivity::class.java.getDeclaredField("appLockController").apply {
+                isAccessible = true
+                set(activity, mockk<AppLockController>(relaxed = true))
+            }
+        }
 
     private fun invokeLifecycle(
         activity: MainActivity,

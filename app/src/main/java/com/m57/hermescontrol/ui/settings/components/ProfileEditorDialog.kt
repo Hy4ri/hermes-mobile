@@ -43,7 +43,7 @@ internal fun ProfileEditorDialog(
             stringResource(R.string.settings_title_add_profile)
         }
 
-    androidx.compose.material3.AlertDialog(
+    com.m57.hermescontrol.applock.AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
@@ -109,7 +109,7 @@ internal fun DeleteProfileConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    androidx.compose.material3.AlertDialog(
+    com.m57.hermescontrol.applock.AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.settings_delete_confirm_title)) },
         text = {

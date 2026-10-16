@@ -460,7 +460,10 @@ class ChatNotificationService : Service() {
             )
         }
 
-        if (allowInlineReply && !sessionId.isNullOrBlank()) {
+        if (allowInlineReply && !sessionId.isNullOrBlank() &&
+            !com.m57.hermescontrol.applock.AppLockStore
+                .blocksNotificationReplies(this)
+        ) {
             val replyLabel = getString(R.string.notif_reply_placeholder)
             val remoteInput =
                 RemoteInput

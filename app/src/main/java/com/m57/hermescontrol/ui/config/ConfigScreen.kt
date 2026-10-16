@@ -66,6 +66,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.applock.PrivateExposedDropdownMenu
 import com.m57.hermescontrol.data.model.ConfigSchemaResponse
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.ExposedDropdownField
@@ -850,7 +851,7 @@ private fun SearchableSelectField(
             shape = RoundedCornerShape(8.dp),
         )
 
-        ExposedDropdownMenu(
+        PrivateExposedDropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
         ) {

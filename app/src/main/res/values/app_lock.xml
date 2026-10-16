@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_lock_title">App lock</string>
+    <string name="app_lock_prompt">Verify your identity to continue</string>
+    <string name="app_lock_locked">Hermes is locked. Your current screen and unsent work are kept.</string>
+    <string name="app_lock_unlock">Unlock</string>
+    <string name="app_lock_unavailable">A device PIN, pattern, or password is required. Restore device security to unlock Hermes.</string>
+    <string name="app_lock_security_settings">Open Android Security settings</string>
+    <string name="app_lock_auth_cancelled">Authentication was cancelled or unsuccessful. Try again.</string>
+    <string name="app_lock_storage_error">Could not save app-lock settings. The lock has not been disabled. Try again.</string>
+    <string name="app_lock_description">Lock on cold start and after the background timeout. Screen off always locks. Screenshots and recent-app previews are hidden.</string>
+    <string name="app_lock_notifications">Notification previews are a separate privacy setting. Inline replies are disabled while app lock is enabled; open and unlock Hermes to reply.</string>
+    <string name="app_lock_timeout">Lock after background: %1$s</string>
+    <string name="app_lock_immediately">Immediately</string>
+    <string name="app_lock_30_seconds">30 seconds</string>
+    <string name="app_lock_1_minute">1 minute</string>
+    <string name="app_lock_5_minutes">5 minutes</string>
+</resources>

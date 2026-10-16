@@ -8,6 +8,7 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.applock.AppLockStore
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.HermesWsClient
@@ -76,6 +77,8 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
         context: Context,
         intent: Intent,
     ) {
+        // #1604: block stale RemoteInput actions too; UI authorization is never a background send lease.
+        if (AppLockStore.blocksNotificationReplies(context)) return
         val remoteInput = RemoteInput.getResultsFromIntent(intent)
         val replyText = remoteInput?.getCharSequence(KEY_TEXT_REPLY)?.toString()
         val sessionId = intent.getStringExtra(EXTRA_SESSION_ID)
@@ -109,9 +112,11 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
                                 timeoutMs = BOUNDARY_TIMEOUT_MS,
                             )
 
+                            if (AppLockStore.blocksNotificationReplies(context)) return@withContext
                             val runtimeSessionId =
                                 ActiveSessionHolder.resolveRuntimeSessionId(sessionId)
                                     ?: resumeSession(sessionId)
+                            if (AppLockStore.blocksNotificationReplies(context)) return@withContext
                             HermesWsClient.call(
                                 method = RpcMethods.PROMPT_SUBMIT,
                                 params = PromptSubmitParams(sessionId = runtimeSessionId, text = replyText),

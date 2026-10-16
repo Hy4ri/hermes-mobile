@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_lock_title">App-Sperre</string>
+    <string name="app_lock_prompt">Identität bestätigen, um fortzufahren</string>
+    <string name="app_lock_locked">Hermes ist gesperrt. Der aktuelle Bildschirm und ungesendete Inhalte bleiben erhalten.</string>
+    <string name="app_lock_unlock">Entsperren</string>
+    <string name="app_lock_unavailable">Eine Geräte-PIN, ein Muster oder ein Passwort ist erforderlich. Stelle die Gerätesicherheit wieder her, um Hermes zu entsperren.</string>
+    <string name="app_lock_security_settings">Android-Sicherheitseinstellungen öffnen</string>
+    <string name="app_lock_auth_cancelled">Authentifizierung abgebrochen oder fehlgeschlagen. Erneut versuchen.</string>
+    <string name="app_lock_storage_error">Sperreinstellungen konnten nicht gespeichert werden. Die Sperre wurde nicht deaktiviert. Erneut versuchen.</string>
+    <string name="app_lock_description">Sperrt beim Kaltstart und nach der Hintergrundwartezeit. Beim Ausschalten des Bildschirms wird immer gesperrt. Screenshots und Vorschauen zuletzt verwendeter Apps werden ausgeblendet.</string>
+    <string name="app_lock_notifications">Benachrichtigungsvorschauen sind eine separate Datenschutzeinstellung. Direktantworten sind bei aktivierter App-Sperre deaktiviert; öffne und entsperre Hermes zum Antworten.</string>
+    <string name="app_lock_timeout">Sperren nach Hintergrundwechsel: %1$s</string>
+    <string name="app_lock_immediately">Sofort</string>
+    <string name="app_lock_30_seconds">30 Sekunden</string>
+    <string name="app_lock_1_minute">1 Minute</string>
+    <string name="app_lock_5_minutes">5 Minuten</string>
+</resources>

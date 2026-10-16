@@ -1927,4 +1927,5 @@
     <string name="trust_user_cas_restart_required">Starte den App-Prozess neu, um diese Änderung zu übernehmen.</string>
 
     <string name="language_german">Deutsch</string>
+    <string name="shortcut_unavailable">Diese Gesprächsverknüpfung ist nicht mehr verfügbar. Wähle einen Chat im Verlauf.</string>
 </resources>

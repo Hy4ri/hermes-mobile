@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="new_chat"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_chat"
+        android:shortcutShortLabel="@string/content_desc_new_chat"
+        android:shortcutLongLabel="@string/content_desc_new_chat">
+        <intent
+            android:action="com.m57.hermescontrol.shortcut.NEW_CHAT"
+            android:targetPackage="com.m57.hermescontrol.dev"
+            android:targetClass="com.m57.hermescontrol.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="history"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_history"
+        android:shortcutShortLabel="@string/screen_history"
+        android:shortcutLongLabel="@string/screen_history">
+        <intent
+            android:action="com.m57.hermescontrol.shortcut.HISTORY"
+            android:targetPackage="com.m57.hermescontrol.dev"
+            android:targetClass="com.m57.hermescontrol.MainActivity" />
+    </shortcut>
+</shortcuts>

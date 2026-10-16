@@ -60,6 +60,7 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.update.WhatsNewNotice
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
+import com.m57.hermescontrol.shortcuts.LauncherShortcutNavigationEffect
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.common.DisableDrawerGestures
 import com.m57.hermescontrol.ui.common.DrawerGestureController
@@ -209,6 +210,7 @@ fun MainNavigation(sessionId: String? = null) {
 
     val backStack = remember(startScreen) { NavBackStack(startScreen) }
     NavigationController.backStack = backStack
+    LauncherShortcutNavigationEffect(hasToken)
 
     val pendingKanban = NavigationController.pendingKanbanNavigation
     LaunchedEffect(pendingKanban, hasToken) {

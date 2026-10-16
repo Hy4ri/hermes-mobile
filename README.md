@@ -62,11 +62,27 @@ It connects to the Hermes dashboard (REST API and WebSocket gateway), so you nee
 - **Operations:** Stream and filter live logs, manage cron jobs, edit environment keys, test webhooks, and monitor processes.
 - **Gateway status:** Check the WebSocket connection, MCP servers, messaging channels, and OAuth providers.
 - **Productivity:** Manage tasks on Kanban boards, track agent milestones, and browse session history.
+- **Launcher shortcuts:** Long-press the app icon for New Chat, History, and recent conversations (launcher support required).
 - **Analytics and billing:** See usage analytics and manage billing or subscriptions.
 - **Theming:** Seven built-in presets (Default, Monochrome, Gruvbox, Catppuccin, AMOLED, Nord, Garnet), plus Material You dynamic colors on supported devices.
 - **Material 3 design:** Pull-to-refresh, a scroll-aware top bar, and customizable bottom navigation.
 
 ---
+
+### Launcher conversation privacy
+
+Conversation shortcuts expose their titles to your Android launcher. They are selected
+from the first recent-history page (up to 50 rows, including server-backfilled pins),
+with pinned conversations first and the remaining slots filled by recency. The launcher
+quota includes the two static actions. Hidden, archived, cron, bot-room, subagent, and
+child sessions are excluded. Only the current connection and agent profile are published;
+scope changes and logout retire their shortcuts. Home-screen copies pinned by a launcher
+cannot be deleted by the app; they are disabled and their labels/targets are scrubbed.
+
+Opening a conversation shortcut requires a live metadata check in its original scope.
+Unavailable, no-longer-recent, or deleted targets fall back to History rather than opening
+a same-id conversation on another server/profile. New Chat and History remain available
+without recent-conversation publishing. Share-sheet targets and voice shortcuts are not included.
 
 ## Quick Start
 

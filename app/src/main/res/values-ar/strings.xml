@@ -1760,4 +1760,5 @@
         <item quantity="many">%1$d تهيئة محفوظة</item>
         <item quantity="other">%1$d تهيئة محفوظة</item>
     </plurals>
+    <string name="shortcut_unavailable">اختصار المحادثة لم يعد متاحًا. افتح السجل لاختيار محادثة.</string>
 </resources>

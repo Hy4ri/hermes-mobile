@@ -1843,4 +1843,5 @@
         <item quantity="one">Configuración guardada (%1$d)</item>
         <item quantity="other">Configuraciones guardadas (%1$d)</item>
     </plurals>
+    <string name="shortcut_unavailable">Este acceso directo a la conversación ya no está disponible. Abre el historial para elegir un chat.</string>
 </resources>

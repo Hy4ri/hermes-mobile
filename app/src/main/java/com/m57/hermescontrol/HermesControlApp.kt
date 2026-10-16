@@ -19,6 +19,7 @@ import com.m57.hermescontrol.data.remote.ServerCaRestrictions
 import com.m57.hermescontrol.data.remote.ServerTrust
 import com.m57.hermescontrol.notification.TurnCorrelationTracker
 import com.m57.hermescontrol.share.SHARE_INBOX_DIRECTORY
+import com.m57.hermescontrol.shortcuts.LauncherShortcuts
 import com.m57.hermescontrol.ui.analytics.AnalyticsPreloader
 import com.m57.hermescontrol.ui.chat.cleanStalePastedImages
 import kotlinx.coroutines.CoroutineScope
@@ -43,6 +44,7 @@ class HermesControlApp :
         ServerCaRestrictions.initialize(this)
         ClientCertificates.initialize(this)
         AuthManager.init(this)
+        LauncherShortcuts.initialize(this, appScope)
         NetworkMonitor.init(this)
         SessionListCacheStore.init(this)
         // Reply-notification turn boundaries survive process death (armed before

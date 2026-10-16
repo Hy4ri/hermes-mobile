@@ -1708,4 +1708,5 @@
         <item quantity="one">Configurazione salvata (%1$d)</item>
         <item quantity="other">Configurazioni salvate (%1$d)</item>
     </plurals>
+    <string name="shortcut_unavailable">Questa scorciatoia alla conversazione non è più disponibile. Apri la cronologia per scegliere una chat.</string>
 </resources>

@@ -27,6 +27,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.notification.ReplyNotificationTracker
 import com.m57.hermescontrol.notification.correlationScopeId
@@ -70,6 +71,8 @@ fun ChatLifecycleEffects(
             viewModel.startNewChat(newChatRequest.project)
             return@LaunchedEffect
         }
+        // A shortcut may have waited for the socket while its server/profile was switched (#1602).
+        if (request?.scope != null && request.scope != AuthManager.currentDataScope()) return@LaunchedEffect
         val target = request?.sessionId ?: sessionId
         if (!target.isNullOrBlank()) {
             viewModel.switchSession(target)

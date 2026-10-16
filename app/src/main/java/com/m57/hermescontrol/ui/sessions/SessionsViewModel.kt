@@ -27,6 +27,7 @@ import com.m57.hermescontrol.data.ws.HermesSessionLiveStatusSource
 import com.m57.hermescontrol.data.ws.ProjectsSource
 import com.m57.hermescontrol.data.ws.SessionLiveStatusSource
 import com.m57.hermescontrol.data.ws.WsEvent
+import com.m57.hermescontrol.shortcuts.ShortcutRefreshEvents
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.refreshOnChange
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
@@ -873,6 +874,7 @@ class SessionsViewModel(
                             toastMessage = "Session renamed",
                         )
                     }
+                    ShortcutRefreshEvents.refresh()
                 }
 
                 is NetworkResult.Failure -> {
@@ -922,6 +924,7 @@ class SessionsViewModel(
                                 },
                         )
                     }
+                    ShortcutRefreshEvents.refresh()
                 }
 
                 is NetworkResult.Failure -> {
@@ -965,6 +968,7 @@ class SessionsViewModel(
                                 },
                         )
                     }
+                    ShortcutRefreshEvents.refresh()
                     invalidateListCache()
                 }
 
@@ -1034,6 +1038,7 @@ class SessionsViewModel(
                             toastMessage = "Session deleted",
                         )
                     }
+                    ShortcutRefreshEvents.refresh()
                 }
 
                 is NetworkResult.Failure -> {
@@ -1079,6 +1084,7 @@ class SessionsViewModel(
             when (result) {
                 is NetworkResult.Success -> {
                     // Sessions guarded by an active write survive; only the rest are gone.
+                    ShortcutRefreshEvents.refresh()
                     val skipped = result.data.skippedActive.toSet()
                     val removedIds = ids.filterNot { it in skipped }.toSet()
                     val lastOpened = AuthManager.getLastOpenedSessionId()
@@ -1156,6 +1162,7 @@ class SessionsViewModel(
                             toastMessage = "Old sessions pruned",
                         )
                     }
+                    ShortcutRefreshEvents.refresh()
                     loadSessions()
                     loadStats()
                 }
@@ -1209,6 +1216,7 @@ class SessionsViewModel(
                 }.getOrNull()
             when (result) {
                 is NetworkResult.Success -> {
+                    ShortcutRefreshEvents.refresh()
                     val deleted = result.data.deleted
                     _uiState.update {
                         it.copy(

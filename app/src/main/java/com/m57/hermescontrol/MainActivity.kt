@@ -46,6 +46,8 @@ import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.notification.NotificationHelper
 import com.m57.hermescontrol.notification.NotificationReplyReceiver
 import com.m57.hermescontrol.share.ShareInbox
+import com.m57.hermescontrol.shortcuts.LauncherShortcuts
+import com.m57.hermescontrol.shortcuts.ShortcutRefreshEvents
 import com.m57.hermescontrol.theme.HermesControlTheme
 import com.m57.hermescontrol.ui.authlogin.AuthLoginScreen
 import com.m57.hermescontrol.ui.common.ErrorState
@@ -275,6 +277,7 @@ class MainActivity : ComponentActivity() {
             AuthManager.initializationState.first { it == AuthManager.InitializationState.Ready }
             UpdateNoticeManager.checkOnLaunch()
         }
+        ShortcutRefreshEvents.refresh()
         NotificationHelper.setAppForeground(this, true)
         ExternalActivityLifecycleGuard.onHostResumed()
         NotificationHelper.stop(this)
@@ -309,6 +312,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun consumeNotificationIntent(intent: Intent?) {
+        LauncherShortcuts.accept(intent)
         // Issue #832: MainActivity is exported (launcher requirement) — only
         // honor intents stamped with our own notification action.
         when (intent?.action) {

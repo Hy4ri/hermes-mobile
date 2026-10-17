@@ -40,15 +40,15 @@ class ChatKeepScreenAwakeTest {
             }
         }
         compose.onNodeWithTag("chat_menu_keep_awake").assertIsDisplayed().performClick()
-        compose.onNodeWithTag("chat_menu_keep_awake_checkbox", useUnmergedTree = true).assertIsOn()
+        compose.onNodeWithTag("chat_menu_keep_awake").assertIsOn()
         compose.runOnIdle { assertEquals(1, calls) }
         compose.onNodeWithTag("chat_menu_keep_awake").performClick()
-        compose.onNodeWithTag("chat_menu_keep_awake_checkbox", useUnmergedTree = true).assertIsOff()
+        compose.onNodeWithTag("chat_menu_keep_awake").assertIsOff()
         compose.runOnIdle {
             assertEquals(2, calls)
             enabled = true
         }
-        compose.onNodeWithTag("chat_menu_keep_awake_checkbox", useUnmergedTree = true).assertIsOn()
+        compose.onNodeWithTag("chat_menu_keep_awake").assertIsOn()
     }
 
     @Test

@@ -9,6 +9,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -52,6 +57,12 @@ internal fun ChatKeepScreenAwakeMenuItem(
             )
         },
         onClick = { onToggle(!checked) },
-        modifier = Modifier.testTag("chat_menu_keep_awake"),
+        modifier =
+            Modifier
+                .testTag("chat_menu_keep_awake")
+                .semantics {
+                    role = Role.Checkbox
+                    toggleableState = ToggleableState(checked)
+                },
     )
 }

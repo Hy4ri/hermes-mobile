@@ -61,6 +61,58 @@ class ChatSubagentsDelegateTest {
     }
 
     @Test
+    fun snapshotPreservesPendingControlsUntilTerminalState() {
+        val pending =
+            SubagentIndicator(
+                type = "subagent.start",
+                subagentId = "child-1",
+                status = "running",
+                controlState = SubagentControlState.STOPPING,
+            )
+        val running =
+            delegate
+                .mergeSubagentList(
+                    listOf(pending),
+                    listOf(SubagentListItem(subagentId = "child-1", status = "running")),
+                    requestTime = 100L,
+                ).single()
+        assertEquals(SubagentControlState.STOPPING, running.controlState)
+        assertEquals("running", running.status)
+
+        val completed =
+            delegate
+                .mergeSubagentList(
+                    listOf(running),
+                    listOf(SubagentListItem(subagentId = "child-1", status = "completed")),
+                    requestTime = 200L,
+                ).single()
+        assertTrue(completed.isComplete)
+        assertFalse(completed.isControlPending)
+        assertNull(completed.controlState)
+    }
+
+    @Test
+    fun snapshotDoesNotClearControlsWhenNewerPushEventWins() {
+        val pending =
+            SubagentIndicator(
+                type = "subagent.progress",
+                subagentId = "child-1",
+                status = "running",
+                controlState = SubagentControlState.STEERING,
+                lastEventTimestamp = 300L,
+            )
+        val merged =
+            delegate
+                .mergeSubagentList(
+                    listOf(pending),
+                    listOf(SubagentListItem(subagentId = "child-1", status = "completed")),
+                    requestTime = 200L,
+                ).single()
+        assertTrue(merged.isRunning)
+        assertTrue(merged.isControlPending)
+    }
+
+    @Test
     fun testHydrateSubagents_whenNoPriorEvents_addsNewIndicators() =
         testScope.runTest {
             coEvery { mockRepository.listSubagents("session-123") } returns

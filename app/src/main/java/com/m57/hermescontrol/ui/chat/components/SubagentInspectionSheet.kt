@@ -75,6 +75,7 @@ import com.m57.hermescontrol.applock.AlertDialog
 import com.m57.hermescontrol.applock.ModalBottomSheet
 import com.m57.hermescontrol.data.model.ProcessInfo
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
+import com.m57.hermescontrol.ui.chat.SubagentControlState
 import com.m57.hermescontrol.ui.chat.SubagentIndicator
 import com.m57.hermescontrol.ui.chat.SubagentTranscriptUiState
 import com.m57.hermescontrol.ui.chat.TodoItem
@@ -610,6 +611,8 @@ private fun InspectionItemCard(
     var showSteerInput by remember { mutableStateOf(false) }
     var steerText by remember { mutableStateOf("") }
     val statusColors = LocalHermesStatusColors.current
+    val controlsEnabled =
+        !indicator.subagentId.isNullOrBlank() && !indicator.isControlPending && !indicator.controlsUnavailable
 
     val (statusIcon, statusTint, statusLabel) =
         when {
@@ -813,6 +816,23 @@ private fun InspectionItemCard(
                 }
             }
 
+            indicator.controlState?.let { control ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (indicator.isControlPending) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    }
+                    Text(
+                        text = stringResource(control.messageResource()),
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.testTag("subagent_control_${indicator.subagentId}"),
+                    )
+                }
+            }
+
             // Interactive Controls for active subagent (issue #1030)
             if (indicator.isRunning || indicator.isSteered) {
                 Spacer(modifier = Modifier.height(10.dp))
@@ -824,7 +844,9 @@ private fun InspectionItemCard(
                     if (onSteer != null) {
                         FilledTonalButton(
                             onClick = { showSteerInput = !showSteerInput },
-                            modifier = Modifier.weight(1f),
+                            enabled = controlsEnabled,
+                            modifier =
+                                Modifier.weight(1f).testTag("subagent_steer_${indicator.subagentId ?: indicator.goal}"),
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.AltRoute,
@@ -839,6 +861,8 @@ private fun InspectionItemCard(
                     if (onStop != null) {
                         OutlinedButton(
                             onClick = onStop,
+                            enabled = controlsEnabled,
+                            modifier = Modifier.testTag("subagent_stop_${indicator.subagentId ?: indicator.goal}"),
                             colors =
                                 ButtonDefaults.outlinedButtonColors(
                                     contentColor = statusColors.error,
@@ -864,6 +888,7 @@ private fun InspectionItemCard(
                         ) {
                             OutlinedTextField(
                                 value = steerText,
+                                enabled = controlsEnabled,
                                 onValueChange = { steerText = it },
                                 placeholder = {
                                     Text(
@@ -876,7 +901,7 @@ private fun InspectionItemCard(
                                 keyboardActions =
                                     KeyboardActions(
                                         onSend = {
-                                            if (steerText.isNotBlank()) {
+                                            if (controlsEnabled && steerText.isNotBlank()) {
                                                 onSteer?.invoke(steerText)
                                                 steerText = ""
                                                 showSteerInput = false
@@ -889,19 +914,19 @@ private fun InspectionItemCard(
                             Spacer(modifier = Modifier.width(6.dp))
                             IconButton(
                                 onClick = {
-                                    if (steerText.isNotBlank()) {
+                                    if (controlsEnabled && steerText.isNotBlank()) {
                                         onSteer?.invoke(steerText)
                                         steerText = ""
                                         showSteerInput = false
                                     }
                                 },
-                                enabled = steerText.isNotBlank(),
+                                enabled = controlsEnabled && steerText.isNotBlank(),
                             ) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.Send,
                                     contentDescription = stringResource(R.string.subagent_action_steer),
                                     tint =
-                                        if (steerText.isNotBlank()) {
+                                        if (controlsEnabled && steerText.isNotBlank()) {
                                             MaterialTheme.colorScheme.primary
                                         } else {
                                             MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
@@ -915,6 +940,18 @@ private fun InspectionItemCard(
         }
     }
 }
+
+private fun SubagentControlState.messageResource(): Int =
+    when (this) {
+        SubagentControlState.STEERING -> R.string.subagent_control_steering
+        SubagentControlState.STOPPING -> R.string.subagent_control_stopping
+        SubagentControlState.STEER_QUEUED -> R.string.subagent_control_queued
+        SubagentControlState.STEER_REJECTED -> R.string.subagent_control_rejected
+        SubagentControlState.STOP_REQUESTED -> R.string.subagent_control_stop_requested
+        SubagentControlState.NOT_FOUND -> R.string.subagent_control_not_found
+        SubagentControlState.UNSUPPORTED -> R.string.subagent_control_unsupported
+        SubagentControlState.ERROR -> R.string.subagent_control_error
+    }
 
 @Composable
 private fun SubagentTranscriptView(

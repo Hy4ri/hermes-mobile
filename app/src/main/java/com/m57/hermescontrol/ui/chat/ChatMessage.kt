@@ -174,13 +174,30 @@ data class SubagentIndicator(
     val durationSeconds: Double? = null,
     val model: String? = null,
     val lastEventTimestamp: Long = 0L,
+    val controlState: SubagentControlState? = null,
 ) {
+    val isControlPending: Boolean
+        get() = controlState == SubagentControlState.STEERING || controlState == SubagentControlState.STOPPING
+    val controlsUnavailable: Boolean
+        get() = controlState == SubagentControlState.NOT_FOUND || controlState == SubagentControlState.UNSUPPORTED
     val isComplete: Boolean get() = type == "subagent.complete" || status == "completed" || status == "done"
     val isFailed: Boolean get() = status == "failed" || status == "interrupted"
     val isCancelled: Boolean get() = status == "cancelled" || status == "stopped" || status == "canceled"
     val isSteered: Boolean get() = status == "steered"
     val isQueued: Boolean get() = status == "queued"
     val isRunning: Boolean get() = !isComplete && !isFailed && !isCancelled && !isQueued
+}
+
+/** Child-control acknowledgements are separate from the live execution status (issue #1618). */
+enum class SubagentControlState {
+    STEERING,
+    STOPPING,
+    STEER_QUEUED,
+    STEER_REJECTED,
+    STOP_REQUESTED,
+    NOT_FOUND,
+    UNSUPPORTED,
+    ERROR,
 }
 
 /**

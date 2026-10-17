@@ -1328,6 +1328,15 @@ object ChatWsEventReducer {
                 durationSeconds = durationSeconds ?: (if (idx >= 0) indicators[idx].durationSeconds else null),
                 model = model ?: (if (idx >= 0) indicators[idx].model else null),
                 lastEventTimestamp = System.currentTimeMillis(),
+                controlState =
+                    if (event.type == "subagent.complete" ||
+                        finalStatus in
+                        setOf("completed", "done", "failed", "interrupted", "cancelled", "stopped", "canceled")
+                    ) {
+                        null
+                    } else {
+                        indicators.getOrNull(idx)?.controlState
+                    },
             )
 
         if (idx >= 0) {

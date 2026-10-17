@@ -276,6 +276,23 @@ class ChatSubagentsDelegate(
                         type = finalType,
                         goal = item.goal ?: existing.goal,
                         status = finalStatus,
+                        controlState =
+                            if (finalType == "subagent.complete" ||
+                                finalStatus in
+                                setOf(
+                                    "completed",
+                                    "done",
+                                    "failed",
+                                    "interrupted",
+                                    "cancelled",
+                                    "stopped",
+                                    "canceled",
+                                )
+                            ) {
+                                null
+                            } else {
+                                existing.controlState
+                            },
                         subagentId = if (subagentId.isNotEmpty()) subagentId else existing.subagentId,
                         durationSeconds =
                             if (isPushEventNewer) {

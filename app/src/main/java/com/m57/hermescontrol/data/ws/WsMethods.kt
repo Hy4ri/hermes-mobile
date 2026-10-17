@@ -116,6 +116,9 @@ object WsMethods {
     /** Rolling tail snapshot of a subagent's live execution transcript. */
     const val SUBAGENT_TAIL = "subagent.tail"
 
+    const val SUBAGENT_INTERRUPT = "subagent.interrupt"
+    const val SUBAGENT_STEER = "subagent.steer"
+
     // ── Connectors (issue #1091) ───────────────────────────────────────────
 
     const val CONNECTION_RESPOND = "connection.respond"

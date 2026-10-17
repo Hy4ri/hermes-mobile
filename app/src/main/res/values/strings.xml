@@ -1679,6 +1679,14 @@
     <string name="subagent_task_plan_inspection">Task &amp; Plan Inspection</string>
     <string name="subagent_action_steer">Steer</string>
     <string name="subagent_action_stop">Stop</string>
+    <string name="subagent_control_steering">Sending guidance…</string>
+    <string name="subagent_control_stopping">Requesting stop…</string>
+    <string name="subagent_control_queued">Guidance queued. Delivery is not confirmed.</string>
+    <string name="subagent_control_rejected">Guidance rejected. The child may no longer accept messages.</string>
+    <string name="subagent_control_stop_requested">Stop requested. Waiting for the child to finish.</string>
+    <string name="subagent_control_not_found">The child has already finished or is unavailable.</string>
+    <string name="subagent_control_unsupported">Child controls are not supported by this gateway.</string>
+    <string name="subagent_control_error">Could not confirm the action. Check the connection and try again.</string>
     <string name="subagent_steer_placeholder">Course-correction guidance for subagent…</string>
     <string name="subagent_status_running">Running</string>
     <string name="subagent_status_completed">Completed</string>

@@ -70,6 +70,8 @@ import com.m57.hermescontrol.data.ws.contract.SessionListParams
 import com.m57.hermescontrol.data.ws.contract.SessionResumeParams
 import com.m57.hermescontrol.data.ws.contract.SessionWorkspaceMoveParams
 import com.m57.hermescontrol.data.ws.contract.SlashExecParams
+import com.m57.hermescontrol.data.ws.contract.SubagentInterruptParams
+import com.m57.hermescontrol.data.ws.contract.SubagentSteerParams
 import com.m57.hermescontrol.data.ws.contract.TypedRpcSender
 import com.m57.hermescontrol.data.ws.toAny
 import com.m57.hermescontrol.data.ws.toJsonElement
@@ -5119,82 +5121,102 @@ class ChatViewModel(
         }
     }
 
-    /**
-     * Send course-correction guidance to a live subagent child session (issue #1030).
-     */
+    /** Queue guidance for one exact child, never slash-command text on the parent (issue #1618). */
     fun steerSubagent(
         indicator: SubagentIndicator,
         message: String,
     ) {
-        val trimmed = message.trim()
-        if (trimmed.isBlank()) return
-        val sessionId = runtimeSessionId ?: return
-        val subagentId = indicator.subagentId
-        val steerCommand =
-            if (!subagentId.isNullOrBlank()) {
-                "/steer $subagentId $trimmed"
-            } else {
-                "/steer $trimmed"
+        val text = message.trim()
+        if (text.isBlank()) return
+        controlSubagent(indicator, SubagentControlState.STEERING) { sessionId, childId ->
+            val result =
+                wsClient.call(
+                    RpcMethods.SUBAGENT_STEER,
+                    SubagentSteerParams(sessionId, childId, text),
+                    suppressErrorEvent = true,
+                )
+            require(result.subagentId == childId) { "Unexpected child control response" }
+            when (result.status) {
+                "queued" -> SubagentControlState.STEER_QUEUED
+                "rejected" -> SubagentControlState.STEER_REJECTED
+                else -> SubagentControlState.ERROR
             }
-        viewModelScope.launch(ioDispatcher) {
-            wsClient.sendRedirect(
-                sessionId,
-                steerCommand,
-                onSent = { id -> trackRequest(id, WsMethods.SESSION_REDIRECT) },
-            )
-        }
-        _uiState.update { current ->
-            val updated =
-                current.subagentIndicators.map { ind ->
-                    if (ind.subagentId == indicator.subagentId &&
-                        (ind.goal == indicator.goal || indicator.subagentId != null)
-                    ) {
-                        val newLogs =
-                            (ind.logs + SubagentLogLine(text = "Course correction: \"$trimmed\"", isSummary = true))
-                                .takeLast(30)
-                        ind.copy(status = "steered", logs = newLogs)
-                    } else {
-                        ind
-                    }
-                }
-            current.copy(subagentIndicators = updated)
         }
     }
 
-    /**
-     * Stop / interrupt a single live subagent early (issue #1030).
-     */
+    /** Acknowledgement means interruption requested; live events own terminal status (issue #1618). */
     fun stopSubagent(indicator: SubagentIndicator) {
-        val sessionId = runtimeSessionId ?: return
-        val subagentId = indicator.subagentId
-        val stopCommand =
-            if (!subagentId.isNullOrBlank()) {
-                "/stop $subagentId"
-            } else {
-                "/stop"
+        controlSubagent(indicator, SubagentControlState.STOPPING) { sessionId, childId ->
+            val result =
+                wsClient.call(
+                    RpcMethods.SUBAGENT_INTERRUPT,
+                    SubagentInterruptParams(sessionId, childId),
+                    suppressErrorEvent = true,
+                )
+            require(result.subagentId == childId) { "Unexpected child control response" }
+            when (result.found) {
+                true -> SubagentControlState.STOP_REQUESTED
+                false -> SubagentControlState.NOT_FOUND
+                null -> SubagentControlState.ERROR
             }
-        viewModelScope.launch(ioDispatcher) {
-            wsClient.sendRedirect(
-                sessionId,
-                stopCommand,
-                onSent = { id -> trackRequest(id, WsMethods.SESSION_REDIRECT) },
-            )
         }
-        _uiState.update { current ->
-            val updated =
-                current.subagentIndicators.map { ind ->
-                    if (ind.subagentId == indicator.subagentId &&
-                        (ind.goal == indicator.goal || indicator.subagentId != null)
-                    ) {
-                        val newLogs =
-                            (ind.logs + SubagentLogLine(text = "Stopped subagent", isError = true))
-                                .takeLast(30)
-                        ind.copy(status = "cancelled", logs = newLogs)
+    }
+
+    private fun controlSubagent(
+        indicator: SubagentIndicator,
+        pending: SubagentControlState,
+        request: suspend (String, String) -> SubagentControlState,
+    ) {
+        val childId = indicator.subagentId?.takeIf { it.isNotBlank() } ?: return
+        val storageId = _uiState.value.currentSessionId ?: return
+        val runtimeId = runtimeSessionId ?: return
+        val owner = captureSendOwner(storageId, runtimeId)
+        val dataScope = AuthManager.currentDataScope()
+        val child = _uiState.value.subagentIndicators.firstOrNull { it.subagentId == childId } ?: return
+        if (!child.isRunning || child.isControlPending || child.controlsUnavailable) return
+
+        fun isOwner(): Boolean = isCurrentSendContext(owner) && AuthManager.currentDataScope() == dataScope
+
+        fun publish(state: SubagentControlState?) {
+            if (!isOwner()) return
+            _uiState.update { current ->
+                current.copy(
+                    subagentIndicators =
+                        current.subagentIndicators.map { item ->
+                            if (item.subagentId == childId && item.isRunning) {
+                                item.copy(controlState = state)
+                            } else {
+                                item
+                            }
+                        },
+                )
+            }
+        }
+
+        publish(pending)
+        // Main serializes ownership validation with the synchronous RPC enqueue (issue #1618).
+        viewModelScope.launch {
+            if (!isOwner()) return@launch
+            if (wsClient.connectionStatus.value != ConnectionStatus.CONNECTED) {
+                publish(SubagentControlState.ERROR)
+                return@launch
+            }
+            val current = _uiState.value.subagentIndicators.firstOrNull { it.subagentId == childId }
+            if (current?.isRunning != true || current.controlState != pending) return@launch
+            try {
+                publish(request(runtimeId, childId))
+            } catch (e: CancellationException) {
+                publish(null)
+                throw e
+            } catch (e: Exception) {
+                publish(
+                    if (e is HermesWsClient.HermesRpcException && e.code == -32601) {
+                        SubagentControlState.UNSUPPORTED
                     } else {
-                        ind
-                    }
-                }
-            current.copy(subagentIndicators = updated)
+                        SubagentControlState.ERROR
+                    },
+                )
+            }
         }
     }
 

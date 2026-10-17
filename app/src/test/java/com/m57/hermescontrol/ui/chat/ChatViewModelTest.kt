@@ -39,6 +39,10 @@ import com.m57.hermescontrol.data.ws.contract.ConfigSetParams
 import com.m57.hermescontrol.data.ws.contract.ProcessStopParams
 import com.m57.hermescontrol.data.ws.contract.ProcessStopResult
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
+import com.m57.hermescontrol.data.ws.contract.SubagentInterruptParams
+import com.m57.hermescontrol.data.ws.contract.SubagentInterruptResult
+import com.m57.hermescontrol.data.ws.contract.SubagentSteerParams
+import com.m57.hermescontrol.data.ws.contract.SubagentSteerResult
 import com.m57.hermescontrol.notification.TurnCorrelationTracker
 import com.m57.hermescontrol.ui.chat.fakes.FakeChatPersistenceRepository
 import com.m57.hermescontrol.ui.chat.fakes.FakeSlashUsageStore
@@ -10922,8 +10926,292 @@ class ChatViewModelTest {
 
     // ── Subagent steering & cancellation (issue #1030) ───────────────────
 
+    private suspend fun TestScope.startControlChild(
+        vm: ChatViewModel,
+        sessionId: String,
+        childId: String = "child-1",
+    ): SubagentIndicator {
+        mockEventsFlow.emit(
+            WsEvent.SubagentEvent(
+                type = "subagent.start",
+                payload = mapOf("subagent_id" to childId, "goal" to childId),
+                sessionId = sessionId,
+            ),
+        )
+        runCurrent()
+        return vm.uiState.value.subagentIndicators
+            .first { it.subagentId == childId }
+    }
+
     @Test
-    fun testSteerSubagent_sendsRedirectAndUpdatesStatus() =
+    fun childControl_rejectedGuidanceLeavesChildAndSiblingRunning() =
+        runTest {
+            val (vm, sessionId) = createViewModelWithSession()
+            val child = startControlChild(vm, sessionId)
+            val sibling = startControlChild(vm, sessionId, "child-2")
+            val parentMessages = vm.uiState.value.messages
+            coEvery { HermesWsClient.call(RpcMethods.SUBAGENT_STEER, any(), any(), true) } returns
+                SubagentSteerResult(status = "rejected", subagentId = "child-1")
+            vm.steerSubagent(child, "guidance")
+            runCurrent()
+            val current = vm.uiState.value.subagentIndicators
+            assertEquals(SubagentControlState.STEER_REJECTED, current.first { it.subagentId == "child-1" }.controlState)
+            assertTrue(current.first { it.subagentId == "child-1" }.isRunning)
+            assertEquals(sibling, current.first { it.subagentId == "child-2" })
+            assertEquals(parentMessages, vm.uiState.value.messages)
+            verify(exactly = 0) { HermesWsClient.sendRedirect(any(), any(), any()) }
+            verify(exactly = 0) { HermesWsClient.send(WsMethods.PROMPT_SUBMIT, any(), any()) }
+        }
+
+    @Test
+    fun childControl_notFoundDisablesRetryWithoutClaimingCancelled() =
+        runTest {
+            val (vm, sessionId) = createViewModelWithSession()
+            val child = startControlChild(vm, sessionId)
+            coEvery { HermesWsClient.call(RpcMethods.SUBAGENT_INTERRUPT, any(), any(), true) } returns
+                SubagentInterruptResult(found = false, subagentId = "child-1")
+            vm.stopSubagent(child)
+            runCurrent()
+            val current =
+                vm.uiState.value.subagentIndicators
+                    .single()
+            assertEquals(SubagentControlState.NOT_FOUND, current.controlState)
+            assertTrue(current.controlsUnavailable)
+            assertFalse(current.isCancelled)
+            vm.stopSubagent(child)
+            runCurrent()
+            coVerify(exactly = 1) { HermesWsClient.call(RpcMethods.SUBAGENT_INTERRUPT, any(), any(), true) }
+        }
+
+    @Test
+    fun childControl_missingBlankOrUnknownIdNeverCallsParentOrChildRpc() =
+        runTest {
+            val (vm, sessionId) = createViewModelWithSession()
+            val child = startControlChild(vm, sessionId)
+            for (id in listOf(null, "", " ", "unknown-child")) {
+                vm.stopSubagent(child.copy(subagentId = id))
+                vm.steerSubagent(child.copy(subagentId = id), "guidance")
+            }
+            vm.steerSubagent(child, " ")
+            runCurrent()
+            coVerify(exactly = 0) { HermesWsClient.call(RpcMethods.SUBAGENT_STEER, any(), any(), any()) }
+            coVerify(exactly = 0) { HermesWsClient.call(RpcMethods.SUBAGENT_INTERRUPT, any(), any(), any()) }
+            verify(exactly = 0) { HermesWsClient.sendRedirect(any(), any(), any()) }
+            assertNull(
+                vm.uiState.value.subagentIndicators
+                    .single()
+                    .controlState,
+            )
+        }
+
+    @Test
+    fun childControl_duplicateActionsBlockedWhilePendingAndLiveProgressPreservesPending() =
+        runTest {
+            val (vm, sessionId) = createViewModelWithSession()
+            val child = startControlChild(vm, sessionId)
+            val reply = CompletableDeferred<SubagentSteerResult>()
+            coEvery { HermesWsClient.call(RpcMethods.SUBAGENT_STEER, any(), any(), true) } coAnswers { reply.await() }
+            vm.steerSubagent(child, "first")
+            vm.steerSubagent(child, "second")
+            vm.stopSubagent(child)
+            runCurrent()
+            mockEventsFlow.emit(
+                WsEvent.SubagentEvent("subagent.progress", mapOf("subagent_id" to "child-1"), sessionId),
+            )
+            runCurrent()
+            assertTrue(
+                vm.uiState.value.subagentIndicators
+                    .single()
+                    .isControlPending,
+            )
+            coVerify(exactly = 1) {
+                HermesWsClient.call(
+                    RpcMethods.SUBAGENT_STEER,
+                    SubagentSteerParams(sessionId, "child-1", "first"),
+                    any(),
+                    true,
+                )
+            }
+            coVerify(exactly = 0) { HermesWsClient.call(RpcMethods.SUBAGENT_INTERRUPT, any(), any(), any()) }
+            reply.complete(SubagentSteerResult(status = "queued", subagentId = "child-1"))
+            runCurrent()
+            assertFalse(
+                vm.uiState.value.subagentIndicators
+                    .single()
+                    .isControlPending,
+            )
+        }
+
+    @Test
+    fun childControl_terminalEventWinsLateAcknowledgementAndBlocksNewActions() =
+        runTest {
+            val (vm, sessionId) = createViewModelWithSession()
+            val child = startControlChild(vm, sessionId)
+            val reply = CompletableDeferred<SubagentInterruptResult>()
+            coEvery { HermesWsClient.call(RpcMethods.SUBAGENT_INTERRUPT, any(), any(), true) } coAnswers
+                { reply.await() }
+            vm.stopSubagent(child)
+            runCurrent()
+            mockEventsFlow.emit(
+                WsEvent.SubagentEvent(
+                    "subagent.complete",
+                    mapOf("subagent_id" to "child-1", "status" to "completed"),
+                    sessionId,
+                ),
+            )
+            runCurrent()
+            reply.complete(SubagentInterruptResult(found = true, subagentId = "child-1"))
+            runCurrent()
+            val completed =
+                vm.uiState.value.subagentIndicators
+                    .single()
+            assertTrue(completed.isComplete)
+            assertNull(completed.controlState)
+            vm.stopSubagent(child)
+            vm.steerSubagent(child, "too late")
+            runCurrent()
+            coVerify(exactly = 1) { HermesWsClient.call(RpcMethods.SUBAGENT_INTERRUPT, any(), any(), true) }
+            coVerify(exactly = 0) { HermesWsClient.call(RpcMethods.SUBAGENT_STEER, any(), any(), any()) }
+        }
+
+    @Test
+    fun childControl_timeoutAndDisconnectErrorsNeverReportSuccess() =
+        runTest {
+            val (vm, sessionId) = createViewModelWithSession()
+            val child = startControlChild(vm, sessionId)
+            for (error in listOf(
+                HermesWsClient.HermesRpcException("Request timed out", -1),
+                HermesWsClient.HermesRpcException("Connection lost — request cancelled"),
+            )) {
+                coEvery { HermesWsClient.call(RpcMethods.SUBAGENT_INTERRUPT, any(), any(), true) } throws error
+                vm.stopSubagent(child)
+                runCurrent()
+                val current =
+                    vm.uiState.value.subagentIndicators
+                        .single()
+                assertEquals(SubagentControlState.ERROR, current.controlState)
+                assertFalse(current.isControlPending)
+                assertFalse(current.isCancelled)
+            }
+        }
+
+    @Test
+    fun childControl_unsupportedDisablesControlsWithoutRedirectFallback() =
+        runTest {
+            val (vm, sessionId) = createViewModelWithSession()
+            val child = startControlChild(vm, sessionId)
+            coEvery { HermesWsClient.call(RpcMethods.SUBAGENT_STEER, any(), any(), true) } throws
+                HermesWsClient.HermesRpcException("Method not found", -32601)
+            vm.steerSubagent(child, "guidance")
+            runCurrent()
+            val current =
+                vm.uiState.value.subagentIndicators
+                    .single()
+            assertEquals(SubagentControlState.UNSUPPORTED, current.controlState)
+            assertTrue(current.controlsUnavailable)
+            vm.stopSubagent(child)
+            runCurrent()
+            coVerify(exactly = 0) { HermesWsClient.call(RpcMethods.SUBAGENT_INTERRUPT, any(), any(), any()) }
+            verify(exactly = 0) { HermesWsClient.sendRedirect(any(), any(), any()) }
+        }
+
+    @Test
+    fun childControl_mismatchedOrMalformedAcknowledgementIsNotSuccess() =
+        runTest {
+            val (vm, sessionId) = createViewModelWithSession()
+            val child = startControlChild(vm, sessionId)
+            for (reply in listOf(
+                SubagentInterruptResult(found = true, subagentId = "other-child"),
+                SubagentInterruptResult(subagentId = "child-1"),
+                SubagentInterruptResult(),
+            )) {
+                coEvery { HermesWsClient.call(RpcMethods.SUBAGENT_INTERRUPT, any(), any(), true) } returns reply
+                vm.stopSubagent(child)
+                runCurrent()
+                assertEquals(
+                    SubagentControlState.ERROR,
+                    vm.uiState.value.subagentIndicators
+                        .single()
+                        .controlState,
+                )
+            }
+        }
+
+    @Test
+    fun childControl_sessionSwitchBeforeDispatchDoesNotSend() =
+        runTest {
+            val (vm, sessionId) = createViewModelWithSession()
+            val child = startControlChild(vm, sessionId)
+            vm.stopSubagent(child)
+            vm.createNewSession()
+            runCurrent()
+            coVerify(exactly = 0) { HermesWsClient.call(RpcMethods.SUBAGENT_INTERRUPT, any(), any(), any()) }
+            assertTrue(
+                vm.uiState.value.subagentIndicators
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun childControl_sessionSwitchDuringAwaitDiscardsOldResult() =
+        runTest {
+            val (vm, sessionId) = createViewModelWithSession()
+            val child = startControlChild(vm, sessionId)
+            val reply = CompletableDeferred<SubagentInterruptResult>()
+            coEvery { HermesWsClient.call(RpcMethods.SUBAGENT_INTERRUPT, any(), any(), true) } coAnswers
+                { reply.await() }
+            vm.stopSubagent(child)
+            runCurrent()
+            vm.createNewSession()
+            runCurrent()
+            reply.complete(SubagentInterruptResult(found = true, subagentId = "child-1"))
+            runCurrent()
+            assertTrue(
+                vm.uiState.value.subagentIndicators
+                    .isEmpty(),
+            )
+            coVerify(exactly = 1) {
+                HermesWsClient.call(
+                    RpcMethods.SUBAGENT_INTERRUPT,
+                    SubagentInterruptParams(sessionId, "child-1"),
+                    any(),
+                    true,
+                )
+            }
+        }
+
+    @Test
+    fun childControl_profileSwitchBeforeDispatchDoesNotSend() =
+        runTest {
+            val (vm, sessionId) = createViewModelWithSession()
+            val child = startControlChild(vm, sessionId)
+            vm.steerSubagent(child, "guidance")
+            every { AuthManager.activeProfileId } returns MutableStateFlow("other-profile")
+            runCurrent()
+            coVerify(exactly = 0) { HermesWsClient.call(RpcMethods.SUBAGENT_STEER, any(), any(), any()) }
+        }
+
+    @Test
+    fun childControl_authScopeChangeDuringAwaitDiscardsOldResult() =
+        runTest {
+            val (vm, sessionId) = createViewModelWithSession()
+            val child = startControlChild(vm, sessionId)
+            val reply = CompletableDeferred<SubagentSteerResult>()
+            coEvery { HermesWsClient.call(RpcMethods.SUBAGENT_STEER, any(), any(), true) } coAnswers { reply.await() }
+            vm.steerSubagent(child, "guidance")
+            runCurrent()
+            every { AuthManager.currentDataScope() } returns DataScope("other", "http://other.test/", "other", 2L)
+            reply.complete(SubagentSteerResult(status = "queued", subagentId = "child-1"))
+            runCurrent()
+            assertFalse(
+                vm.uiState.value.subagentIndicators
+                    .single()
+                    .controlState == SubagentControlState.STEER_QUEUED,
+            )
+        }
+
+    @Test
+    fun steerSubagent_updatesControlStateAndSendsTypedRpc() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()
             val indicator =
@@ -10942,19 +11230,38 @@ class ChatViewModelTest {
             )
             advanceUntilIdle()
 
-            viewModel.steerSubagent(indicator, "Use index scan instead")
-            advanceUntilIdle()
+            val deferred = CompletableDeferred<SubagentSteerResult>()
+            coEvery {
+                HermesWsClient.call(
+                    RpcMethods.SUBAGENT_STEER,
+                    SubagentSteerParams(sessionId, "sub-123", "Use index scan instead"),
+                    suppressErrorEvent = true,
+                )
+            } coAnswers { deferred.await() }
 
-            val updated =
+            viewModel.steerSubagent(indicator, "Use index scan instead")
+            runCurrent()
+
+            val pendingIndicator =
                 viewModel.uiState.value.subagentIndicators
                     .first { it.subagentId == "sub-123" }
-            assertEquals("steered", updated.status)
-            assertTrue(updated.logs.any { it.text.contains("Use index scan instead") })
-            io.mockk.verify { HermesWsClient.sendRedirect(sessionId, "/steer sub-123 Use index scan instead", any()) }
+            assertEquals(SubagentControlState.STEERING, pendingIndicator.controlState)
+            assertTrue(pendingIndicator.isControlPending)
+            assertEquals("running", pendingIndicator.status)
+
+            deferred.complete(SubagentSteerResult(status = "queued", subagentId = "sub-123"))
+            advanceUntilIdle()
+
+            val finalIndicator =
+                viewModel.uiState.value.subagentIndicators
+                    .first { it.subagentId == "sub-123" }
+            assertEquals(SubagentControlState.STEER_QUEUED, finalIndicator.controlState)
+            assertEquals("running", finalIndicator.status)
+            io.mockk.verify(exactly = 0) { HermesWsClient.sendRedirect(any(), any(), any()) }
         }
 
     @Test
-    fun testStopSubagent_sendsRedirectAndMarksCancelled() =
+    fun stopSubagent_updatesControlStateAndSendsTypedRpc() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()
             val indicator =
@@ -10973,15 +11280,34 @@ class ChatViewModelTest {
             )
             advanceUntilIdle()
 
-            viewModel.stopSubagent(indicator)
-            advanceUntilIdle()
+            val deferred = CompletableDeferred<SubagentInterruptResult>()
+            coEvery {
+                HermesWsClient.call(
+                    RpcMethods.SUBAGENT_INTERRUPT,
+                    SubagentInterruptParams(sessionId, "sub-123"),
+                    suppressErrorEvent = true,
+                )
+            } coAnswers { deferred.await() }
 
-            val updated =
+            viewModel.stopSubagent(indicator)
+            runCurrent()
+
+            val pendingIndicator =
                 viewModel.uiState.value.subagentIndicators
                     .first { it.subagentId == "sub-123" }
-            assertEquals("cancelled", updated.status)
-            assertTrue(updated.logs.any { it.text.contains("Stopped subagent") })
-            io.mockk.verify { HermesWsClient.sendRedirect(sessionId, "/stop sub-123", any()) }
+            assertEquals(SubagentControlState.STOPPING, pendingIndicator.controlState)
+            assertTrue(pendingIndicator.isControlPending)
+            assertEquals("running", pendingIndicator.status)
+
+            deferred.complete(SubagentInterruptResult(found = true, subagentId = "sub-123"))
+            advanceUntilIdle()
+
+            val finalIndicator =
+                viewModel.uiState.value.subagentIndicators
+                    .first { it.subagentId == "sub-123" }
+            assertEquals(SubagentControlState.STOP_REQUESTED, finalIndicator.controlState)
+            assertEquals("running", finalIndicator.status)
+            io.mockk.verify(exactly = 0) { HermesWsClient.sendRedirect(any(), any(), any()) }
         }
 
     @Test

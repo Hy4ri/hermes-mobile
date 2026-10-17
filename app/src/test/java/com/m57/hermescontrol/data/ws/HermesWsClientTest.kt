@@ -11,6 +11,9 @@ import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.buildFakePersistentCookieJar
 import com.m57.hermescontrol.data.remote.mockPlatformServerTrust
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
+import com.m57.hermescontrol.data.ws.contract.RpcMethods
+import com.m57.hermescontrol.data.ws.contract.SubagentInterruptParams
+import com.m57.hermescontrol.data.ws.contract.SubagentSteerParams
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -122,6 +125,85 @@ class HermesWsClientTest {
             }
         }
     }
+
+    @Test
+    fun childControlsSendExactDedicatedWireRequests() =
+        runBlocking {
+            val frames = ConcurrentLinkedQueue<JsonObject>()
+            mockWebServer.enqueue(
+                MockResponse().withClosingWebSocketUpgrade(
+                    object : WebSocketListener() {
+                        override fun onMessage(
+                            webSocket: WebSocket,
+                            text: String,
+                        ) {
+                            val frame = Json.parseToJsonElement(text).jsonObject
+                            frames.add(frame)
+                            val method = frame.getValue("method").jsonPrimitive.content
+                            val result =
+                                buildJsonObject {
+                                    put("subagent_id", "child-1")
+                                    if (method == "subagent.steer") {
+                                        put("status", "queued")
+                                        put("text", "Use the index")
+                                    } else {
+                                        put("found", true)
+                                    }
+                                }
+                            webSocket.send(
+                                buildJsonObject {
+                                    put("jsonrpc", "2.0")
+                                    put("id", frame.getValue("id"))
+                                    put("result", result)
+                                }.toString(),
+                            )
+                        }
+                    },
+                ),
+            )
+            HermesWsClient.connect()
+            withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED } }
+            val steer =
+                HermesWsClient.call(
+                    RpcMethods.SUBAGENT_STEER,
+                    SubagentSteerParams("parent-1", "child-1", "Use the index"),
+                    timeoutMs = 5000,
+                    suppressErrorEvent = true,
+                )
+            val stop =
+                HermesWsClient.call(
+                    RpcMethods.SUBAGENT_INTERRUPT,
+                    SubagentInterruptParams("parent-1", "child-1"),
+                    timeoutMs = 5000,
+                    suppressErrorEvent = true,
+                )
+            assertEquals("queued", steer.status)
+            assertEquals(true, stop.found)
+            assertEquals(
+                listOf("subagent.steer", "subagent.interrupt"),
+                frames.map {
+                    it.getValue("method").jsonPrimitive.content
+                },
+            )
+            assertEquals(
+                buildJsonObject {
+                    put("session_id", "parent-1")
+                    put("subagent_id", "child-1")
+                    put("text", "Use the index")
+                },
+                frames.first().getValue("params"),
+            )
+            assertEquals(
+                buildJsonObject {
+                    put("session_id", "parent-1")
+                    put("subagent_id", "child-1")
+                },
+                frames.last().getValue("params"),
+            )
+            HermesWsClient.disconnect(clearPendingMessages = true)
+            withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.DISCONNECTED } }
+            assertEquals(ConnectionStatus.DISCONNECTED, HermesWsClient.connectionStatus.value)
+        }
 
     @Test
     fun testConnectAndSend() {

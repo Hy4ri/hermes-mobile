@@ -36,6 +36,8 @@ class PersistentCookieJar(
     private val store: CookieStore,
     private val storeScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
     initialServerId: String = DEFAULT_SERVER_ID,
+    /** Extra hosts (e.g. the active base URL host) allowed to receive wildcard session cookies. */
+    private val trustedHosts: () -> Set<String> = { emptySet() },
 ) : CookieJar {
     // serverId -> (host -> cookies)
     private val cache = ConcurrentHashMap<String, MutableMap<String, MutableList<Cookie>>>()
@@ -157,14 +159,18 @@ class PersistentCookieJar(
         // several IPs). They are exempted from the host-only domain match —
         // OkHttp would reject them for a different host — but never sent to
         // other servers because the scope itself is per-server.
-        val buckets = listOfNotNull(hosts[hostKey], hosts[WILDCARD_HOST])
+        // GHSA-jwpq-cqr7-4xf2: the wildcard bucket is only for hosts that belong to
+        // this server (a host it already has cookies for, or the active base URL).
+        // Any other host (GitHub, image CDNs, ...) must never receive the session.
+        val trusted = hosts.containsKey(hostKey) || hostKey in trustedHosts()
+        val buckets = listOfNotNull(hosts[hostKey], if (trusted) hosts[WILDCARD_HOST] else null)
         val seen = mutableSetOf<Pair<String, String>>()
         synchronized(buckets) {
             return buckets.flatMap { bucket ->
                 synchronized(bucket) {
                     bucket.filter { cookie ->
                         val alive = cookie.expiresAt > now || isSessionCookie(cookie)
-                        val usable = isSessionCookie(cookie) || cookie.matches(url)
+                        val usable = (trusted && isSessionCookie(cookie)) || cookie.matches(url)
                         val key = cookie.name to cookie.path
                         alive && usable && seen.add(key)
                     }

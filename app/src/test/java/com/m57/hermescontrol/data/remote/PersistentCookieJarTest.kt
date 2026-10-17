@@ -58,21 +58,44 @@ class PersistentCookieJarTest {
         }
 
     @Test
-    fun sessionCookie_isUsableAcrossHostsWithinServer() =
+    fun sessionCookie_isUsableOnTrustedAlternateHostOfSameServer() =
         runTest {
-            val jar = makeJar()
+            val jar =
+                PersistentCookieJar(
+                    store = FakeEncryptedCookieStore(),
+                    storeScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined),
+                    trustedHosts = { setOf("192.168.1.10") },
+                )
+            jar.useStore("server-a")
+            jar.saveFromResponse(
+                "http://100.64.0.5/".toHttpUrl(),
+                listOf(sessionCookie("100.64.0.5", "abc123")),
+            )
+
+            // Session survives a host switch (Tailscale -> LAN) for the active server's own host.
+            val loaded = jar.loadForRequest("http://192.168.1.10/api/status".toHttpUrl())
+            assertEquals(1, loaded.size)
+            assertEquals("abc123", loaded[0].value)
+        }
+
+    @Test
+    fun sessionCookie_isNeverSentToUnrelatedHosts() =
+        runTest {
+            val jar =
+                PersistentCookieJar(
+                    store = FakeEncryptedCookieStore(),
+                    storeScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined),
+                    trustedHosts = { setOf("dashboard.local") },
+                )
             jar.useStore("server-a")
             jar.saveFromResponse(
                 "http://dashboard.local/".toHttpUrl(),
                 listOf(sessionCookie("dashboard.local", "abc123")),
             )
 
-            // Session cookies mirror to the WILDCARD bucket (host-agnostic)
-            // so the authenticated session survives WiFi/Tailscale host
-            // switches — but only within the same server scope.
-            val loaded = jar.loadForRequest("http://evil.local/".toHttpUrl())
-            assertEquals(1, loaded.size)
-            assertEquals("abc123", loaded[0].value)
+            // GHSA-jwpq-cqr7-4xf2: GitHub / image hosts must not receive the dashboard session.
+            assertTrue(jar.loadForRequest("https://api.github.com/repos/x/y".toHttpUrl()).isEmpty())
+            assertTrue(jar.loadForRequest("http://evil.local/".toHttpUrl()).isEmpty())
         }
 
     @Test

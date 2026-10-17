@@ -164,7 +164,7 @@ fun isReleaseCandidateVersion(tag: String): Boolean =
  * tests.
  */
 open class AppUpdateChecker(
-    private val client: OkHttpClient = OkHttpProvider.base,
+    private val client: OkHttpClient = OkHttpProvider.external,
     private val apiBaseUrl: String = "https://api.github.com/repos/Hy4ri/hermes-mobile",
     private val nowMs: () -> Long = { System.nanoTime() / 1_000_000L },
     private val metadataTtlMs: Long = 60_000L,

@@ -2,12 +2,14 @@ package com.m57.hermescontrol.data.remote
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.m57.hermescontrol.data.local.AuthManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import okhttp3.Cookie
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 /**
  * Coordinator for the issue #470 cookie stack.
@@ -43,7 +45,15 @@ object CookieManager {
         synchronized(this) {
             if (jar != null) return
             val store = EncryptedCookieStore(context.applicationContext, legacyPrefsDeferred)
-            jar = PersistentCookieJar(store, scope, initialServerId)
+            jar =
+                PersistentCookieJar(store, scope, initialServerId) {
+                    // Wildcard session cookies may only go to the active server's host.
+                    setOfNotNull(
+                        AuthManager.baseUrlFlow.value
+                            .toHttpUrlOrNull()
+                            ?.host,
+                    )
+                }
             // Eagerly load the initial scope off the caller thread so the
             // first REST call is instant without blocking app startup.
             scope.launch { jar!!.useStore(initialServerId) }

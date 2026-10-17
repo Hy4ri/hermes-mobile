@@ -43,6 +43,17 @@ object OkHttpProvider {
             .build()
     }
 
+    // Third-party hosts (GitHub update check): never carries the dashboard session or its headers.
+    val external: OkHttpClient by lazy {
+        OkHttpClient
+            .Builder()
+            .connectionPool(connectionPool)
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(15, TimeUnit.SECONDS)
+            .build()
+    }
+
     // WebSocket-optimized variant (infinite read timeout, ping interval)
     val websocket: OkHttpClient by lazy {
         base

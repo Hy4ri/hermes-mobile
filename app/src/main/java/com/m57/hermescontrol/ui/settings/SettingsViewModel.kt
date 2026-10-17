@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.config.ConnectionProfile
 import com.m57.hermescontrol.data.config.resolveBaseUrl
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.ComposerDraftStore
 import com.m57.hermescontrol.data.local.SessionListCacheStore
 import com.m57.hermescontrol.data.model.BusySendMode
 import com.m57.hermescontrol.data.remote.ApiClient
@@ -147,6 +148,7 @@ class SettingsViewModel(
     }
 
     fun deleteProfile(profileId: String) {
+        ComposerDraftStore.initialized()?.clearConnection(profileId)
         val updatedProfiles = AuthManager.getConnectionProfiles().filter { it.id != profileId }
         AuthManager.saveConnectionProfiles(updatedProfiles)
         AuthManager.setProfileToken(profileId, null)

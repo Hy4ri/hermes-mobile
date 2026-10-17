@@ -1048,6 +1048,25 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun gatewayReadyRefreshesComposerOwnerAfterRelogin() =
+        runTest {
+            val previous = DataScope("connection", "https://one.local", "main", 1L)
+            every { AuthManager.currentDataScope() } returns previous
+            val (viewModel, _) = createViewModelWithSession()
+            viewModel.switchSession("existing")
+            advanceUntilIdle()
+            assertEquals(previous, viewModel.uiState.value.composerScope)
+
+            val relogged = previous.copy(inMemoryAuthGeneration = 2L)
+            every { AuthManager.currentDataScope() } returns relogged
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            assertEquals(relogged, viewModel.uiState.value.composerScope)
+            assertEquals("existing", viewModel.uiState.value.composerDraftSessionId)
+        }
+
+    @Test
     fun profileSwitch_wipesOpenSessionForFreshStart() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()

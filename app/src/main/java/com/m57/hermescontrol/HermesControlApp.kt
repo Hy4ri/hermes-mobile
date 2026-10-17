@@ -10,6 +10,7 @@ import coil3.gif.GifDecoder
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.ComposerDraftStore
 import com.m57.hermescontrol.data.local.SessionListCacheStore
 import com.m57.hermescontrol.data.remote.CertificateImageInterceptor
 import com.m57.hermescontrol.data.remote.ClientCertificates
@@ -44,6 +45,7 @@ class HermesControlApp :
         ServerCaRestrictions.initialize(this)
         ClientCertificates.initialize(this)
         AuthManager.init(this)
+        ComposerDraftStore.get(this)
         LauncherShortcuts.initialize(this, appScope)
         NetworkMonitor.init(this)
         SessionListCacheStore.init(this)

@@ -28,8 +28,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.input.clearText
-import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -128,6 +126,7 @@ import com.m57.hermescontrol.ui.chat.components.rememberChatImagePaste
 import com.m57.hermescontrol.ui.chat.components.rememberChatMediaLaunchers
 import com.m57.hermescontrol.ui.chat.components.rememberChatScrollController
 import com.m57.hermescontrol.ui.chat.components.rememberChatSpeech
+import com.m57.hermescontrol.ui.chat.components.rememberPersistentComposerDraft
 import com.m57.hermescontrol.ui.chat.components.replaceComposerDraft
 import com.m57.hermescontrol.ui.chat.components.restoreRejectedComposerDraft
 import com.m57.hermescontrol.ui.chat.components.shouldShowProgressChip
@@ -350,9 +349,17 @@ fun ChatScreen(
             !timelineState.isHistorical && scrollController.showFab(displayedMessages.isNotEmpty())
         }
     }
-    val inputState = rememberTextFieldState()
+    val composerDraft =
+        rememberPersistentComposerDraft(
+            scope = state.composerScope,
+            generation = state.composerGeneration,
+            // Unsaved gateway sessions disappear on restart; retain the new-chat slot until a send.
+            sessionId = state.composerDraftSessionId,
+            onFailure = viewModel::reportComposerDraftFailure,
+        )
+    val inputState = composerDraft.input
 
-    LaunchedEffect(state.pendingPrefillText) {
+    LaunchedEffect(inputState, state.pendingPrefillText) {
         val prefill = state.pendingPrefillText
         if (prefill != null) {
             inputState.replaceComposerDraft(prefill)
@@ -367,13 +374,13 @@ fun ChatScreen(
             ShareInbox.take()?.let(viewModel::stageSharedContent)
         }
     }
-    LaunchedEffect(state.pendingSharedText) {
+    LaunchedEffect(inputState, state.pendingSharedText) {
         state.pendingSharedText?.let { shared ->
             inputState.appendSharedComposerDraft(shared)
             viewModel.consumePendingSharedText()
         }
     }
-    LaunchedEffect(state.composerTextToRestore) {
+    LaunchedEffect(inputState, state.composerTextToRestore) {
         state.composerTextToRestore?.let { text ->
             inputState.restoreRejectedComposerDraft(text)
             viewModel.consumeComposerTextRestore()
@@ -952,7 +959,7 @@ fun ChatScreen(
                 isReceivingContent = imagePaste.isReceiving,
                 onSend = {
                     if (!imagePaste.isReceiving && viewModel.sendMessage(inputState.text.toString())) {
-                        inputState.clearText()
+                        composerDraft.accepted()
                         // Jump only after an accepted send. A readiness race keeps the draft intact.
                         scrollController.jumpToBottom(animated = true)
                     }

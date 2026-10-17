@@ -69,6 +69,19 @@ It connects to the Hermes dashboard (REST API and WebSocket gateway), so you nee
 
 ---
 
+### Unsent text drafts
+
+Unsent text is saved separately for each conversation, connection, and agent profile.
+A new conversation has its own draft slot until its first prompt. Drafts use encrypted
+local storage and are excluded from backups. Attachments are not saved as drafts.
+
+Normal typing is saved after a short pause. Leaving the chat or backgrounding the app
+also requests a save. A force-stop before a write finishes can lose recent edits.
+The existing send acceptance clears the saved draft; failed-send recovery remains available.
+Blank text removes its draft. Logout, connection removal, and individual or bulk conversation
+deletion remove the relevant drafts. At most 100 drafts per connection are retained for
+30 days; older drafts are removed first. Individual prompts are never truncated.
+
 ### Launcher conversation privacy
 
 Conversation shortcuts expose their titles to your Android launcher. They are selected

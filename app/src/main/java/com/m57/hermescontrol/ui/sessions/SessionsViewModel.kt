@@ -3,6 +3,8 @@ package com.m57.hermescontrol.ui.sessions
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.ComposerDraftKey
+import com.m57.hermescontrol.data.local.ComposerDraftStore
 import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.local.SessionListCacheStore
 import com.m57.hermescontrol.data.local.SwrCache
@@ -1010,6 +1012,7 @@ class SessionsViewModel(
 
     fun confirmDeleteSession() {
         val sessionId = _uiState.value.sessionToDeleteConfirm ?: return
+        val draftScope = AuthManager.currentDataScope()
         _uiState.update {
             it.copy(
                 sessionToDeleteConfirm = null,
@@ -1023,6 +1026,7 @@ class SessionsViewModel(
                 }
             when (result) {
                 is NetworkResult.Success -> {
+                    draftScope?.let { ComposerDraftStore.initialized()?.remove(ComposerDraftKey(it, sessionId)) }
                     if (AuthManager.getLastOpenedSessionId() == sessionId) {
                         AuthManager.clearLastOpenedSessionId()
                     }
@@ -1066,6 +1070,7 @@ class SessionsViewModel(
     fun confirmBulkDelete() {
         val ids = _uiState.value.selectedIds.toList()
         if (ids.isEmpty()) return
+        val draftScope = AuthManager.currentDataScope()
 
         _uiState.update { it.copy(showBulkDeleteConfirm = false, isDeletingBulk = true) }
         viewModelScope.launch {
@@ -1087,6 +1092,10 @@ class SessionsViewModel(
                     ShortcutRefreshEvents.refresh()
                     val skipped = result.data.skippedActive.toSet()
                     val removedIds = ids.filterNot { it in skipped }.toSet()
+                    draftScope?.let { owner ->
+                        val draftStore = ComposerDraftStore.initialized()
+                        removedIds.forEach { draftStore?.remove(ComposerDraftKey(owner, it)) }
+                    }
                     val lastOpened = AuthManager.getLastOpenedSessionId()
                     if (lastOpened != null && lastOpened in removedIds) {
                         AuthManager.clearLastOpenedSessionId()

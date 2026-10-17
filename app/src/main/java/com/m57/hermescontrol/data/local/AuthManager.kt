@@ -654,6 +654,8 @@ object AuthManager {
 
     fun setToken(token: String?) {
         if (token == null) {
+            // #1605: revoke the old draft owner before auth advances or navigation flushes it.
+            currentDataScope()?.let { ComposerDraftStore.initialized()?.clearConnection(it.connectionProfileId) }
             invalidateAuthGeneration()
         }
         val selectedId =

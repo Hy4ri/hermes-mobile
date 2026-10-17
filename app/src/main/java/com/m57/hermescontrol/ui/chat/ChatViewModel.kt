@@ -184,6 +184,9 @@ private sealed interface PrepareAttachmentResult {
 data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
     val currentSessionId: String? = null,
+    val composerScope: DataScope? = null,
+    val composerSessionId: String? = null,
+    val composerGeneration: Long = 0L,
     val sessions: List<SessionUi> = emptyList(),
     val chatTitle: String = "Hermes",
     val connectionStatus: ConnectionStatus = ConnectionStatus.DISCONNECTED,
@@ -339,6 +342,10 @@ data class ChatUiState(
 
     /** False until the user (or agent) says something; the "Session created" marker does not count (#1527). */
     val hasConversation: Boolean get() = messages.any { !it.isSessionStartMarker() }
+
+    // #1605: an unprompted gateway session disappears on restart; keep its draft in the new-chat slot.
+    val composerDraftSessionId: String?
+        get() = composerSessionId ?: currentSessionId.takeIf { messages.any { it.role == MessageRole.USER } }
 
     /**
      * True only while a generation can actually be interrupted: typing can
@@ -527,7 +534,8 @@ class ChatViewModel(
         }
 
     // ── Internal state ───────────────────────────────────────────────────
-    private val _uiState = MutableStateFlow(ChatUiState())
+    private val _uiState =
+        MutableStateFlow(ChatUiState(composerScope = runCatching { AuthManager.currentDataScope() }.getOrNull()))
     private val localTranscriptAppendLock = Any()
     private var localTranscriptPersistenceTail: Job? = null
 
@@ -1192,7 +1200,16 @@ class ChatViewModel(
         // cancel a pending retry — the re-resume below rebinds the session
         // on the new socket (desktop parity: gatewayBecameOpen re-resumes
         // even when the route looks already active).
-        _uiState.update { it.copy(isLoading = false, resumeError = null, isResumeRetrying = false) }
+        // #1605: an activity-scoped VM can survive logout/login. Never retain its revoked draft owner.
+        val composerScope = AuthManager.currentDataScope()
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                resumeError = null,
+                isResumeRetrying = false,
+                composerScope = composerScope,
+            )
+        }
         cancelResumeRetry()
         loadSessions()
         // A new socket orphans in-flight catalog requests; refetch for the draft owner.
@@ -3410,6 +3427,12 @@ class ChatViewModel(
             }
         } else {
             drainPendingQueue()
+        }
+    }
+
+    fun reportComposerDraftFailure() {
+        _uiState.update {
+            it.copy(errorMessage = getApplication<Application>().getString(R.string.chat_draft_storage_error))
         }
     }
 
@@ -6279,6 +6302,7 @@ class ChatViewModel(
         isLoading: Boolean,
     ): Long {
         val generation = ++sessionGeneration
+        val composerScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
         // A slow drain belongs to the old session and must not block the resumed queue.
         queueDrainJob?.cancel()
         queueDrainJob = null
@@ -6321,6 +6345,9 @@ class ChatViewModel(
                 messages = emptyList(),
                 isSessionReady = false,
                 currentSessionId = sessionId,
+                composerScope = composerScope,
+                composerSessionId = sessionId,
+                composerGeneration = generation,
                 chatTitle = title,
                 isAgentTyping = false,
                 isSending = false,

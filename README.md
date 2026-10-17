@@ -92,6 +92,44 @@ without recent-conversation publishing. Share-sheet targets and voice shortcuts 
 
 ---
 
+## Verify a GitHub release APK
+
+Releases produced by the updated release workflow include `SHA256SUMS` and GitHub build provenance.
+Older releases may not include them. Select an explicit release tag, then run:
+
+```bash
+TAG=vX.Y.Z # Replace with the release tag to verify.
+gh release download "$TAG" --repo Hy4ri/hermes-mobile \
+  --pattern "hermes-mobile-${TAG}.apk" --pattern SHA256SUMS --pattern version.txt
+sha256sum --check SHA256SUMS
+gh attestation verify "hermes-mobile-${TAG}.apk" --repo Hy4ri/hermes-mobile \
+  --signer-workflow Hy4ri/hermes-mobile/.github/workflows/release.yml
+apksigner verify --print-certs "hermes-mobile-${TAG}.apk"
+```
+
+`gh` requires authentication and a version that supports `attestation verify`.
+`apksigner` is part of Android SDK Build Tools.
+
+These checks answer different questions:
+
+- **Checksum:** the downloaded bytes match the checksum file. This does not authenticate a compromised download source.
+- **Provenance:** GitHub recorded those exact bytes as output of this repository's release workflow.
+  Review the reported source commit and tag against the release you selected.
+- **Signing identity:** compare the signer SHA-256 digest with an independently trusted previous APK or maintainer-provided fingerprint.
+  A valid APK signature alone does not establish that the signer is trusted.
+
+Maintainers must configure the repository variable `RELEASE_CERTIFICATE_SHA256` with the existing release certificate's SHA-256 digest.
+Obtain it from an independently trusted release certificate, not from the APK currently being built.
+The workflow fails before publication if this variable is missing or the signer, package, or version differs.
+This change does not rotate the signing key or change F-Droid's signing identity.
+
+Release retries do not replace assets on an existing GitHub release. Inspect a failed run before retrying;
+an existing release, including an incomplete draft, requires a separate maintainer decision.
+Uploads stay in a draft until downloaded assets pass checksum verification.
+For manual dispatch, select the same tag as the input tag; branch-based dispatch fails to prevent misleading provenance.
+The selected tag must include the updated workflow and verification helper.
+End-to-end verification requires an explicitly authorized test release.
+
 ## Authentication
 
 The app detects which auth mode your dashboard uses and shows only the fields you need.

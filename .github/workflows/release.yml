@@ -11,21 +11,89 @@ on:
         required: true
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 permissions:
-  contents: write
-  packages: write
+  contents: read
 
 jobs:
-  # ── Build release APK ─────────────────────────────────────────────────
   build-release:
-    name: Build Release APK
+    name: Build and Verify Release APK
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+      code: ${{ steps.version.outputs.code }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+      sha: ${{ steps.source.outputs.sha }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate selected tag and version
+        id: version
+        env:
+          SELECTED_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="$SELECTED_TAG"
+          if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$ ]]; then
+            echo 'Invalid release tag' >&2
+            exit 1
+          fi
+          VERSION="${TAG#v}"
+          BASE_VERSION="${VERSION%%-*}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
+          # Keep SemVer versionCode within Android's supported range.
+          if (( ${#MAJOR} > 6 || ${#MINOR} > 2 || ${#PATCH} > 2 )); then
+            echo 'Version components exceed versionCode limits' >&2
+            exit 1
+          fi
+          CODE=$(( MAJOR * 10000 + MINOR * 100 + PATCH ))
+          if (( CODE < 1 || CODE > 2100000000 )); then
+            echo 'Invalid Android versionCode' >&2
+            exit 1
+          fi
+          PRERELEASE=false
+          if [[ "$VERSION" == *-* ]]; then PRERELEASE=true; fi
+          printf 'tag=%s\nversion=%s\ncode=%s\nprerelease=%s\n' \
+            "$TAG" "$VERSION" "$CODE" "$PRERELEASE" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve release source on main
+        id: source
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          RUN_REF: ${{ github.ref }}
+          RUN_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          SHA=$(git rev-parse --verify "refs/tags/$TAG^{commit}")
+          # Provenance must identify the same source that produces the APK.
+          [[ "$RUN_REF" == "refs/tags/$TAG" && "$RUN_SHA" == "$SHA" ]] || {
+            echo 'Run this workflow from the selected release tag, not a branch' >&2
+            exit 1
+          }
+          git merge-base --is-ancestor "$SHA" refs/remotes/origin/main
+          git checkout --detach "$SHA"
+          printf 'sha=%s\n' "$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Require certificate trust anchor
+        env:
+          RELEASE_CERTIFICATE_SHA256: ${{ vars.RELEASE_CERTIFICATE_SHA256 }}
+        run: |
+          set -euo pipefail
+          CERT="${RELEASE_CERTIFICATE_SHA256//:/}"
+          [[ "$CERT" =~ ^[0-9A-Fa-f]{64}$ ]] || {
+            echo 'RELEASE_CERTIFICATE_SHA256 must contain the trusted SHA256 certificate fingerprint' >&2
+            exit 1
+          }
 
       - name: Set up JDK 21
         uses: actions/setup-java@v6
@@ -39,85 +107,133 @@ jobs:
           validate-wrappers: true
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTED_KEY }}
 
-      - name: Grant Execute Permission for Gradlew
-        run: chmod +x gradlew
-
-      - name: Determine version
-        id: version
+      - name: Require signing secrets
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            TAG="${{ github.event.inputs.tag }}"
-          else
-            TAG="${GITHUB_REF#refs/tags/}"
-          fi
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          # Strip leading 'v' for versionName
-          VERSION="${TAG#v}"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          # versionCode: SemVer MAJOR * 10000 + MINOR * 100 + PATCH (e.g. 2.0.0 -> 20000, > 1.31.0's 1310)
-          BASE_VERSION="${VERSION%%-*}"
-          IFS='.' read -r MAJOR MINOR PATCH _ <<< "$BASE_VERSION"
-          MAJOR="${MAJOR:-0}"
-          MINOR="${MINOR:-0}"
-          PATCH="${PATCH:-0}"
-          CODE=$(( MAJOR * 10000 + MINOR * 100 + PATCH ))
-          echo "code=$CODE" >> "$GITHUB_OUTPUT"
-          if [[ "$VERSION" == *"-"* ]]; then
-            PRERELEASE="true"
-          else
-            PRERELEASE="false"
-          fi
-          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
-          echo "Release: tag=$TAG version=$VERSION code=$CODE prerelease=$PRERELEASE"
+          set -euo pipefail
+          for NAME in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            [[ -n "${!NAME}" ]] || { echo "Missing signing secret: $NAME" >&2; exit 1; }
+          done
 
       - name: Decode release keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          echo "$KEYSTORE_BASE64" | base64 -d > hermes-mobile-release.keystore.jks
-          ls -lh hermes-mobile-release.keystore.jks
+          set -euo pipefail
+          umask 077
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore.jks"
 
       - name: Build Release APK
         env:
           VERSION_NAME: ${{ steps.version.outputs.version }}
           VERSION_CODE: ${{ steps.version.outputs.code }}
-          KEYSTORE_PATH: ${{ github.workspace }}/hermes-mobile-release.keystore.jks
+          KEYSTORE_PATH: ${{ runner.temp }}/release.keystore.jks
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
+          set -euo pipefail
+          chmod +x gradlew
           ./gradlew assembleRelease \
             -PversionName="$VERSION_NAME" \
             -PversionCode="$VERSION_CODE"
 
-      - name: Rename APK and generate version file
-        run: |
-          mkdir -p release
-          cp app/build/outputs/apk/release/app-release.apk \
-            release/hermes-mobile-${{ steps.version.outputs.tag }}.apk
-          # Write version.txt for F-Droid to extract version info
-          cat > release/version.txt <<EOF
-          versionName=${{ steps.version.outputs.version }}
-          versionCode=${{ steps.version.outputs.code }}
-          EOF
-          ls -lh release/
+      - name: Remove release keystore
+        if: always()
+        run: rm -f -- "$RUNNER_TEMP/release.keystore.jks"
 
-      - name: Upload Release Artifacts
+      - name: Verify and prepare release files
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          CODE: ${{ steps.version.outputs.code }}
+          RELEASE_CERTIFICATE_SHA256: ${{ vars.RELEASE_CERTIFICATE_SHA256 }}
+        run: |
+          set -euo pipefail
+          BUILD_TOOLS=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
+          mkdir -p release
+          cp app/build/outputs/apk/release/app-release.apk "release/hermes-mobile-$TAG.apk"
+          python3 .github/scripts/verify_release_apk.py \
+            --apk "release/hermes-mobile-$TAG.apk" \
+            --certificate "$RELEASE_CERTIFICATE_SHA256" \
+            --version-name "$VERSION" --version-code "$CODE" \
+            --apksigner "$BUILD_TOOLS/apksigner" --aapt "$BUILD_TOOLS/aapt"
+          printf 'versionName=%s\nversionCode=%s\n' "$VERSION" "$CODE" > release/version.txt
+          (cd release && sha256sum "hermes-mobile-$TAG.apk" version.txt > SHA256SUMS)
+
+      - name: Transfer verified release files
         uses: actions/upload-artifact@v7
         with:
           name: hermes-mobile-release
-          path: release/*.apk
+          path: release/
+          if-no-files-found: error
           retention-days: 90
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
+  publish:
+    name: Attest and Publish Release
+    needs: build-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Download verified release files
+        uses: actions/download-artifact@v8
         with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: ${{ steps.version.outputs.tag }}
-          generate_release_notes: true
-          files: |
-            release/hermes-mobile-${{ steps.version.outputs.tag }}.apk
-            release/version.txt
-          prerelease: ${{ steps.version.outputs.prerelease == 'true' }}
+          name: hermes-mobile-release
+          path: release
+
+      - name: Verify transferred bytes
+        working-directory: release
+        run: sha256sum --check --strict SHA256SUMS
+
+      - name: Reject an existing release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.build-release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # Only a confirmed 404 permits creation. Authentication/network errors fail closed.
+          RESPONSE=$(gh api --include "repos/$GH_REPO/releases/tags/$TAG" 2>&1) && {
+            echo 'Release already exists; replacement is forbidden' >&2
+            exit 1
+          }
+          if ! grep -q '^HTTP/[^ ]* 404' <<< "$RESPONSE"; then
+            printf '%s\n' "$RESPONSE" >&2
+            exit 1
+          fi
+
+      - name: Attest verified APK
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: release/*.apk
+
+      - name: Stage, verify, and publish release without replacing assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.build-release.outputs.tag }}
+          PRERELEASE: ${{ needs.build-release.outputs.prerelease }}
+          SOURCE_SHA: ${{ needs.build-release.outputs.sha }}
+        run: |
+          set -euo pipefail
+          FLAGS=()
+          if [[ "$PRERELEASE" == true ]]; then FLAGS+=(--prerelease); fi
+          # Keep incomplete uploads private. Existing drafts also require manual recovery.
+          gh release create "$TAG" --draft \
+            --verify-tag --target "$SOURCE_SHA" --title "$TAG" --generate-notes \
+            "${FLAGS[@]}" \
+            "release/hermes-mobile-$TAG.apk" release/version.txt release/SHA256SUMS
+          mkdir downloaded
+          gh release download "$TAG" --dir downloaded \
+            --pattern "hermes-mobile-$TAG.apk" --pattern version.txt --pattern SHA256SUMS
+          cmp release/SHA256SUMS downloaded/SHA256SUMS
+          (cd downloaded && sha256sum --check --strict SHA256SUMS)
+          gh release edit "$TAG" --draft=false

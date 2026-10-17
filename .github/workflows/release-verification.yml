@@ -1,0 +1,29 @@
+name: Release Verification Tests
+
+on:
+  pull_request:
+    branches: [dev, main]
+    paths:
+      - '.github/scripts/verify_release_apk.py'
+      - '.github/scripts/test_verify_release_apk.py'
+      - '.github/workflows/release*.yml'
+  push:
+    branches: [dev, main]
+    paths:
+      - '.github/scripts/verify_release_apk.py'
+      - '.github/scripts/test_verify_release_apk.py'
+      - '.github/workflows/release*.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Test release APK identity checks
+        run: python3 -m unittest discover -s .github/scripts -p 'test_verify_release_apk.py' -v

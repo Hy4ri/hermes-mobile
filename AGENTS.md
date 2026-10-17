@@ -65,7 +65,12 @@ Every Gradle job validates `gradle-wrapper.jar` and uses the remote build cache
 ### Releasing (`.github/workflows/release.yml`)
 
 Triggers on `git push tag v*`. Release APK uses R8 minification + resource shrinking.
-Requires `permissions: contents: write` on the `build-release` job.
+The `build-release` job has read-only contents permission. The separate `publish`
+job has contents/attestations write and OIDC permission, but no signing secrets.
+`RELEASE_CERTIFICATE_SHA256` must contain the independently trusted release signer
+fingerprint. The workflow verifies APK identity, attests its bytes, and checks
+uploaded draft assets before publication. Manual dispatch must run from the
+selected tag. Existing releases, including drafts, require manual recovery.
 
 ## Code Style
 

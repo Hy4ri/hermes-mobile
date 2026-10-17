@@ -103,7 +103,7 @@ class CookieManagerTest {
     }
 
     @Test
-    fun setSessionCookie_isUsableAcrossHosts() =
+    fun setSessionCookie_isRestrictedToServerHost() =
         runTest {
             val jar = fakeJar()
             CookieManager.setSessionCookie("sess-xyz", ep("dashboard.local"))
@@ -115,11 +115,9 @@ class CookieManagerTest {
             assertEquals(1, onHost.size)
             assertEquals("sess-xyz", onHost[0].value)
 
-            // Session cookie mirrors to the WILDCARD bucket — usable on any
-            // host within the same server scope (WiFi/Tailscale switch-safe).
+            // #1628: the wildcard mirror must not authenticate an unrelated attachment host.
             val offHost = jar.loadForRequest("http://other.local/".toHttpUrl())
-            assertEquals(1, offHost.size)
-            assertEquals("sess-xyz", offHost[0].value)
+            assertTrue("Session cookies must not leak to unrelated hosts", offHost.isEmpty())
         }
 
     @Test

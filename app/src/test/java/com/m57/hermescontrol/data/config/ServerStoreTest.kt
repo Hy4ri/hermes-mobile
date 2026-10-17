@@ -10,6 +10,15 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class ServerStoreTest {
     @Test
+    fun keepScreenAwakeDefaultsOffAndRoundTrips() {
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        assertFalse(json.decodeFromString<ServerStoreState>("{}").keepScreenAwake)
+        val enabled = ServerStoreState(keepScreenAwake = true)
+        val encoded = json.encodeToString(ServerStoreState.serializer(), enabled)
+        assertTrue(json.decodeFromString<ServerStoreState>(encoded).keepScreenAwake)
+    }
+
+    @Test
     fun testDefaultValues() {
         val state = ServerStoreState()
         assertEquals("127.0.0.1", state.host)

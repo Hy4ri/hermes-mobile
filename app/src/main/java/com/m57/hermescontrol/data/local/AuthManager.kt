@@ -887,6 +887,12 @@ object AuthManager {
         serverStore.update { it.copy(showModelProvider = shown) }
     }
 
+    fun isKeepScreenAwake(): Boolean = serverStore.getLatestState().keepScreenAwake
+
+    fun setKeepScreenAwake(enabled: Boolean) {
+        serverStore.update { it.copy(keepScreenAwake = enabled) }
+    }
+
     fun isKeepConnectedInBackground(): Boolean = serverStore.getLatestState().keepConnectedInBackground
 
     fun setKeepConnectedInBackground(enabled: Boolean) {

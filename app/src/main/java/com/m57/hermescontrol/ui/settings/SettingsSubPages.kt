@@ -238,6 +238,10 @@ internal fun SettingsBehaviorPage(
     viewModel: SettingsViewModel = viewModel { SettingsViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    androidx.lifecycle.compose.LifecycleResumeEffect(viewModel) {
+        viewModel.refreshKeepScreenAwake()
+        onPauseOrDispose { }
+    }
 
     HermesScaffold(
         title = { Text(stringResource(R.string.settings_sec_behavior)) },
@@ -253,6 +257,8 @@ internal fun SettingsBehaviorPage(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             BehaviorSection(
+                keepScreenAwake = state.keepScreenAwake,
+                onKeepScreenAwakeChange = viewModel::onKeepScreenAwakeChange,
                 autoReconnect = state.autoReconnect,
                 onAutoReconnectChange = viewModel::onAutoReconnectChange,
                 keepConnectedInBackground = state.keepConnectedInBackground,

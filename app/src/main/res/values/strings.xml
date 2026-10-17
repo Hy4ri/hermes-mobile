@@ -1974,4 +1974,6 @@
     <string name="trust_user_cas_restart_required">Restart the app process to apply this change.</string>
     <string name="shortcut_unavailable">This conversation shortcut is no longer available. Open History to choose a chat.</string>
     <string name="chat_draft_storage_error">Could not access saved drafts. Keep a copy of your unfinished message.</string>
+    <string name="settings_keep_screen_awake_title">Keep screen awake</string>
+    <string name="settings_keep_screen_awake_desc">Prevent screen timeout while chat is visible. Uses more battery.</string>
 </resources>

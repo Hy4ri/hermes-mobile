@@ -60,6 +60,24 @@ class SettingsViewModelTest {
         verify(exactly = 1) { AuthManager.setBusySendMode(BusySendMode.QUEUE) }
     }
 
+    @Test
+    fun keepScreenAwakeLoadsTogglesAndRefreshes() {
+        var persisted = true
+        every { AuthManager.isKeepScreenAwake() } answers { persisted }
+        every { AuthManager.setKeepScreenAwake(any()) } answers { persisted = firstArg() }
+        val viewModel = createViewModel()
+        assertEquals(true, viewModel.uiState.value.keepScreenAwake)
+
+        viewModel.onKeepScreenAwakeChange(false)
+        assertEquals(false, persisted)
+        assertEquals(false, viewModel.uiState.value.keepScreenAwake)
+        viewModel.onKeepScreenAwakeChange(true)
+        assertEquals(true, persisted)
+        persisted = false
+        viewModel.refreshKeepScreenAwake()
+        assertEquals(false, viewModel.uiState.value.keepScreenAwake)
+    }
+
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
@@ -93,6 +111,8 @@ class SettingsViewModelTest {
         every { AuthManager.isAssistantMessageTokensEnabled() } returns true
         every { AuthManager.isTokensPerSecondEnabled() } returns true
         every { AuthManager.isModelProviderShown() } returns false
+        every { AuthManager.isKeepScreenAwake() } returns false
+        every { AuthManager.setKeepScreenAwake(any()) } returns Unit
         every { AuthManager.isKeepConnectedInBackground() } returns false
         every { AuthManager.isNotifySessionCompletions() } returns false
         every { AuthManager.setNotifySessionCompletions(any()) } returns Unit

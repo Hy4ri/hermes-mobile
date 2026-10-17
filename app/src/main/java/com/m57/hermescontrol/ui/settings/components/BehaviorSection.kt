@@ -20,6 +20,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.m57.hermescontrol.R
@@ -27,6 +29,8 @@ import com.m57.hermescontrol.ui.settings.SectionCard
 
 @Composable
 internal fun BehaviorSection(
+    keepScreenAwake: Boolean,
+    onKeepScreenAwakeChange: (Boolean) -> Unit,
     autoReconnect: Boolean,
     onAutoReconnectChange: (Boolean) -> Unit,
     keepConnectedInBackground: Boolean,
@@ -37,6 +41,7 @@ internal fun BehaviorSection(
     onRestoreLastSessionChange: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
+    val keepAwakeLabel = stringResource(R.string.settings_keep_screen_awake_title)
     // Turning session-complete alerts on needs POST_NOTIFICATIONS (Android
     // 13+). The chat screen requests it on open, but the toggle lives in
     // Settings — gate here so enabling never lands in a state where the OS
@@ -46,6 +51,35 @@ internal fun BehaviorSection(
             if (granted) onNotifySessionCompletionsChange(true)
         }
     SectionCard {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.settings_keep_screen_awake_title),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    text = stringResource(R.string.settings_keep_screen_awake_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(
+                checked = keepScreenAwake,
+                onCheckedChange = onKeepScreenAwakeChange,
+                modifier =
+                    Modifier.semantics {
+                        contentDescription = keepAwakeLabel
+                    },
+            )
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Spacer(modifier = Modifier.height(12.dp))
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,

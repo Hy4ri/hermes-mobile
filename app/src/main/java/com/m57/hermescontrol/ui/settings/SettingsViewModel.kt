@@ -48,6 +48,7 @@ data class SettingsUiState(
     val showAssistantMessageTokens: Boolean = true,
     val showTokensPerSecond: Boolean = true,
     val showModelProvider: Boolean = false,
+    val keepScreenAwake: Boolean = false,
     val keepConnectedInBackground: Boolean = false,
     val notifySessionCompletions: Boolean = false,
     val profiles: List<ConnectionProfile> = emptyList(),
@@ -98,6 +99,7 @@ class SettingsViewModel(
         val showAssistantMessageTokens = AuthManager.isAssistantMessageTokensEnabled()
         val showTokensPerSecond = AuthManager.isTokensPerSecondEnabled()
         val showModelProvider = AuthManager.isModelProviderShown()
+        val keepScreenAwake = AuthManager.isKeepScreenAwake()
         val keepConnectedInBackground = AuthManager.isKeepConnectedInBackground()
         val notifySessionCompletions = AuthManager.isNotifySessionCompletions()
         val profiles = AuthManager.getConnectionProfiles()
@@ -127,6 +129,7 @@ class SettingsViewModel(
                 showAssistantMessageTokens = showAssistantMessageTokens,
                 showTokensPerSecond = showTokensPerSecond,
                 showModelProvider = showModelProvider,
+                keepScreenAwake = keepScreenAwake,
                 keepConnectedInBackground = keepConnectedInBackground,
                 notifySessionCompletions = notifySessionCompletions,
                 profiles = profiles,
@@ -409,6 +412,17 @@ class SettingsViewModel(
     fun onShowModelProviderChange(enabled: Boolean) {
         _uiState.update { it.copy(showModelProvider = enabled, isSaved = false) }
         AuthManager.setModelProviderShown(enabled)
+    }
+
+    fun onKeepScreenAwakeChange(enabled: Boolean) {
+        AuthManager.setKeepScreenAwake(enabled)
+        _uiState.update { it.copy(keepScreenAwake = enabled) }
+    }
+
+    /** Reconcile changes made through the other settings entry point. */
+    fun refreshKeepScreenAwake() {
+        val enabled = AuthManager.isKeepScreenAwake()
+        _uiState.update { it.copy(keepScreenAwake = enabled) }
     }
 
     fun onKeepConnectedInBackgroundChange(enabled: Boolean) {

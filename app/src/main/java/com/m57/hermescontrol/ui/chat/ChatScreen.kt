@@ -189,6 +189,11 @@ fun ChatScreen(
     val connectionOperationState by viewModel.connectionOperationState.collectAsStateWithLifecycle()
     val settingsViewModel: SettingsViewModel = viewModel()
     val settingsState by settingsViewModel.uiState.collectAsStateWithLifecycle()
+    ChatKeepScreenAwakeEffect(enabled = settingsState.keepScreenAwake)
+    androidx.lifecycle.compose.LifecycleResumeEffect(settingsViewModel) {
+        settingsViewModel.refreshKeepScreenAwake()
+        onPauseOrDispose { }
+    }
     // Snapshot-backed search state — read directly so only the scopes that
     // read its fields recompose on search changes (bar, matched bubbles).
     val searchState = viewModel.searchState
@@ -589,6 +594,7 @@ fun ChatScreen(
             Box {
                 IconButton(
                     onClick = {
+                        settingsViewModel.refreshKeepScreenAwake()
                         settingsViewModel.refreshKeepConnectedInBackground()
                         showSessionMenu = true
                     },
@@ -660,6 +666,10 @@ fun ChatScreen(
                             connectorsViewModel.show()
                         },
                         modifier = Modifier.testTag("chat_menu_session_integrations"),
+                    )
+                    ChatKeepScreenAwakeMenuItem(
+                        checked = settingsState.keepScreenAwake,
+                        onToggle = settingsViewModel::onKeepScreenAwakeChange,
                     )
                     ChatBackgroundConnectionMenuItem(
                         checked = settingsState.keepConnectedInBackground,

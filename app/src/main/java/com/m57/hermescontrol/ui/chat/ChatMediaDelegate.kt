@@ -244,7 +244,8 @@ class ChatMediaDelegate(
     ) {
         val viewIntent =
             android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, mimeType.ifBlank { "*/*" })
+                // #1623: HTTP charset parameters prevent Android MIME matching (including browsers).
+                setDataAndType(uri, normalizeFrameworkMime(mimeType.ifBlank { "*/*" }))
                 addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
             }

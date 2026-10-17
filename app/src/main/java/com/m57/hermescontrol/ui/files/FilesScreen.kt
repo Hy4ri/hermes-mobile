@@ -60,6 +60,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.applock.AlertDialog
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.ManagedFileEntry
+import com.m57.hermescontrol.ui.chat.normalizeFrameworkMime
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
@@ -525,7 +526,8 @@ private fun openManagedFile(
                         )
                     val intent =
                         Intent(Intent.ACTION_VIEW).apply {
-                            setDataAndType(uri, data.mimeType)
+                            // #1623: Intent MIME types must not contain HTTP parameters.
+                            setDataAndType(uri, normalizeFrameworkMime(data.mimeType))
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }
                     context.startActivity(intent)

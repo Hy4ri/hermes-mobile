@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.sessions
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.ComposerDraftKey
 import com.m57.hermescontrol.data.local.ComposerDraftStore
@@ -17,6 +18,7 @@ import com.m57.hermescontrol.data.model.SessionLiveStatus
 import com.m57.hermescontrol.data.model.SessionRenameRequest
 import com.m57.hermescontrol.data.model.SessionSearchResult
 import com.m57.hermescontrol.data.remote.ApiClient
+import com.m57.hermescontrol.data.remote.HermesApiService
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.remote.safeApiRead
@@ -33,6 +35,7 @@ import com.m57.hermescontrol.shortcuts.ShortcutRefreshEvents
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.refreshOnChange
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -103,6 +106,8 @@ data class SessionsUiState(
     val isCleaningEmpty: Boolean = false,
     val isDeletingBulk: Boolean = false,
     val toastMessage: String? = null,
+    val historyFeedback: HistoryActionFeedback? = null,
+    val isChangingHistory: Boolean = false,
     val sessionToDeleteConfirm: String? = null,
     val showBulkDeleteConfirm: Boolean = false,
     val searchQuery: String = "",
@@ -194,10 +199,29 @@ data class ProjectChoice(
 class SessionsViewModel(
     private val liveStatusSource: SessionLiveStatusSource = HermesSessionLiveStatusSource(),
     private val projectsSource: ProjectsSource = HermesProjectsSource(),
+    private val currentActionScope: () -> DataScope? = { AuthManager.currentDataScope() },
+    private val actionServiceFactory: (DataScope) -> HermesApiService = ::createHistoryActionService,
 ) : ViewModel(),
     ToastHost {
     private val _uiState = MutableStateFlow(SessionsUiState())
     val uiState: StateFlow<SessionsUiState> = _uiState.asStateFlow()
+
+    private enum class HistoryFlag { PIN, ARCHIVE }
+
+    private data class HistoryUndo(
+        val id: Long,
+        val owner: DataScope,
+        val api: HermesApiService,
+        val sessionId: String,
+        val flag: HistoryFlag,
+        val expected: Boolean,
+        val expectedHidden: Boolean?,
+        val inverse: SessionRenameRequest,
+    )
+
+    private var historySequence = 0L
+    private var historyUndo: HistoryUndo? = null
+    private var historyMutationJob: Job? = null
 
     private var loadJob: Job? = null
     private var pageJob: Job? = null
@@ -292,6 +316,9 @@ class SessionsViewModel(
     }
 
     private fun onDataScopeChanged(newScope: DataScope? = AuthManager.currentDataScope()) {
+        clearHistoryFeedback()
+        historyMutationJob?.cancel()
+        historyMutationJob = null
         generation++
         searchGeneration++
         trackingGeneration++
@@ -306,6 +333,7 @@ class SessionsViewModel(
         _uiState.update {
             it.copy(
                 sessions = emptyList(),
+                isChangingHistory = false,
                 total = 0,
                 hasMore = false,
                 selectedIds = emptySet(),
@@ -892,93 +920,236 @@ class SessionsViewModel(
         }
     }
 
-    // ── Pin / unpin (durable "keep" flag, exempts from auto-archive) ──────
+    // Single-session pin/archive changes and their captured, one-use inverse (#1615).
+    fun togglePin(sessionId: String) = changeHistoryFlag(sessionId, HistoryFlag.PIN)
 
-    /**
-     * Toggle the pinned flag on a session via PATCH /api/sessions/{id}
-     * ({pinned}). On success the session is flagged and re-sorted to the top
-     * of the history list immediately; the backend back-fills pins into
-     * page 1 on every load, so the pinned-first sort stays consistent.
-     */
-    fun togglePin(sessionId: String) {
-        val session = _uiState.value.sessions.find { it.id == sessionId } ?: return
-        val targetPinned = session.pinned != true
-        viewModelScope.launch {
+    fun toggleArchive(sessionId: String) = changeHistoryFlag(sessionId, HistoryFlag.ARCHIVE)
+
+    private fun changeHistoryFlag(
+        sessionId: String,
+        flag: HistoryFlag,
+    ) {
+        if (historyMutationJob?.isActive == true) return
+        val observed = _uiState.value.sessions.find { it.id == sessionId } ?: return
+        val owningList = listKey(_uiState.value.section)
+        val owner = runCatching { currentActionScope() }.getOrNull() ?: return
+        clearHistoryFeedback()
+        val id = historySequence
+        launchHistoryMutation {
             val result =
                 safeApiCall {
-                    ApiClient.hermesApi.setSessionPinned(
-                        sessionId = sessionId,
-                        body = SessionRenameRequest(pinned = targetPinned),
+                    val api = actionServiceFactory(owner)
+                    check(currentActionScope() == owner) { "History owner changed" }
+                    val previous = api.getSessionInfo(sessionId, owner.activeProfileId)
+                    if (!previous.isSuccessful) {
+                        return@safeApiCall retrofit2.Response.error<HistoryUndo>(
+                            previous.code(),
+                            requireNotNull(previous.errorBody()),
+                        )
+                    }
+                    val session = requireNotNull(previous.body())
+                    check(session.id == sessionId && currentActionScope() == owner) { "History owner changed" }
+                    val oldValue = if (flag == HistoryFlag.PIN) session.pinned == true else session.archived == true
+                    val observedValue =
+                        if (flag ==
+                            HistoryFlag.PIN
+                        ) {
+                            observed.pinned == true
+                        } else {
+                            observed.archived == true
+                        }
+                    check(oldValue == observedValue) { "Session changed; refresh history before trying again" }
+                    val target = !oldValue
+                    val body =
+                        if (flag == HistoryFlag.PIN) {
+                            SessionRenameRequest(pinned = target)
+                        } else {
+                            SessionRenameRequest(archived = target)
+                        }
+                    val response =
+                        if (flag == HistoryFlag.PIN) {
+                            api.setSessionPinned(sessionId, body)
+                        } else {
+                            api.setSessionArchived(sessionId, body)
+                        }
+                    if (!response.isSuccessful) {
+                        return@safeApiCall retrofit2.Response.error<HistoryUndo>(
+                            response.code(),
+                            requireNotNull(response.errorBody()),
+                        )
+                    }
+                    // Pinning unhides a row. Undo restores that previous hidden value without touching archived.
+                    val inverse =
+                        if (flag == HistoryFlag.PIN) {
+                            SessionRenameRequest(
+                                pinned = oldValue,
+                                hidden = if (target) session.hidden == true else null,
+                            )
+                        } else {
+                            SessionRenameRequest(archived = oldValue)
+                        }
+                    val expectedHidden = if (flag == HistoryFlag.PIN) !target && session.hidden == true else null
+                    retrofit2.Response.success(
+                        HistoryUndo(id, owner, api, sessionId, flag, target, expectedHidden, inverse),
                     )
                 }
             when (result) {
                 is NetworkResult.Success -> {
-                    _uiState.update {
-                        it.copy(
-                            sessions =
-                                it.sessions
-                                    .map { s -> if (s.id == sessionId) s.copy(pinned = targetPinned) else s },
-                            toastMessage =
-                                if (targetPinned) {
-                                    "Session pinned"
-                                } else {
-                                    "Session unpinned"
-                                },
-                        )
-                    }
+                    val undo = result.data
+                    invalidateHistoryCaches(owner)
+                    if (currentActionScope() != owner) return@launchHistoryMutation
                     ShortcutRefreshEvents.refresh()
+                    val sameList = listKey(_uiState.value.section) == owningList
+                    val reload = !sameList || _uiState.value.isLoading || _uiState.value.isLoadingMore
+                    fenceHistoryReads()
+                    loadEmptyCount()
+                    if (sameList) {
+                        _uiState.update { state ->
+                            val leavesList = flag == HistoryFlag.ARCHIVE && state.showArchived != undo.expected
+                            state.copy(
+                                sessions =
+                                    if (leavesList) {
+                                        state.sessions.filterNot { it.id == sessionId }
+                                    } else {
+                                        state.sessions.map { row ->
+                                            if (row.id != sessionId) {
+                                                row
+                                            } else if (flag == HistoryFlag.PIN) {
+                                                row.copy(
+                                                    pinned = undo.expected,
+                                                    hidden = if (undo.expected) false else row.hidden,
+                                                )
+                                            } else {
+                                                row.copy(archived = undo.expected)
+                                            }
+                                        }
+                                    },
+                                total = if (leavesList) (state.total - 1).coerceAtLeast(0) else state.total,
+                            )
+                        }
+                    }
+                    if (reload) loadSessions(forceRefresh = true)
+                    if (historySequence == id) {
+                        historyUndo = undo
+                        val message =
+                            if (flag == HistoryFlag.PIN) {
+                                if (undo.expected) {
+                                    R.string.sessions_feedback_pinned
+                                } else {
+                                    R.string.sessions_feedback_unpinned
+                                }
+                            } else {
+                                if (undo.expected) {
+                                    R.string.sessions_feedback_archived
+                                } else {
+                                    R.string.sessions_feedback_unarchived
+                                }
+                            }
+                        _uiState.update {
+                            it.copy(
+                                historyFeedback = HistoryActionFeedback(id, message, canUndo = true),
+                            )
+                        }
+                    }
                 }
 
                 is NetworkResult.Failure -> {
-                    _uiState.update {
-                        it.copy(toastMessage = "Pin failed: ${result.error.message}")
+                    if (currentActionScope() == owner && historySequence == id) {
+                        val label = if (flag == HistoryFlag.PIN) "Pin" else "Archive"
+                        _uiState.update { it.copy(toastMessage = "$label failed: ${result.error.message}") }
+                        invalidateHistoryCaches(owner)
+                        fenceHistoryReads()
+                        loadSessions(forceRefresh = true)
                     }
                 }
             }
         }
     }
 
-    // ── Archive / unarchive (issue #1496) ────────────────────────────────
-
-    /**
-     * Toggle the archived flag on a session via PATCH /api/sessions/{id} ({archived}).
-     * The list is filtered server-side by archived state, so on success the row leaves
-     * the current view (active list on archive, archived list on unarchive).
-     */
-    fun toggleArchive(sessionId: String) {
-        val session = _uiState.value.sessions.find { it.id == sessionId } ?: return
-        val targetArchived = session.archived != true
-        viewModelScope.launch {
+    fun undoHistoryChange(id: Long) {
+        val undo = historyUndo?.takeIf { it.id == id } ?: return
+        if (historyMutationJob?.isActive == true) return
+        clearHistoryFeedback() // Consume before any suspension: a repeated tap can never submit twice.
+        if (currentActionScope() != undo.owner) return
+        val resultId = historySequence
+        launchHistoryMutation {
+            if (currentActionScope() != undo.owner || historySequence != resultId) return@launchHistoryMutation
+            val fresh = safeApiRead { undo.api.getSessionInfo(undo.sessionId, undo.owner.activeProfileId) }
+            if (currentActionScope() != undo.owner || historySequence != resultId) return@launchHistoryMutation
+            val session = (fresh as? NetworkResult.Success)?.data
+            val value = if (undo.flag == HistoryFlag.PIN) session?.pinned == true else session?.archived == true
+            val hiddenChanged = undo.expectedHidden != null && (session?.hidden == true) != undo.expectedHidden
+            val unchanged = session?.id == undo.sessionId && value == undo.expected && !hiddenChanged
             val result =
-                safeApiCall {
-                    ApiClient.hermesApi.setSessionArchived(
-                        sessionId = sessionId,
-                        body = SessionRenameRequest(archived = targetArchived),
-                    )
-                }
-            when (result) {
-                is NetworkResult.Success -> {
-                    _uiState.update {
-                        it.copy(
-                            sessions = it.sessions.filterNot { s -> s.id == sessionId },
-                            total = (it.total - 1).coerceAtLeast(0),
-                            toastMessage =
-                                if (targetArchived) {
-                                    "Session archived"
-                                } else {
-                                    "Session unarchived"
-                                },
-                        )
+                if (unchanged) {
+                    safeApiCall {
+                        if (undo.flag == HistoryFlag.PIN) {
+                            undo.api.setSessionPinned(undo.sessionId, undo.inverse)
+                        } else {
+                            undo.api.setSessionArchived(undo.sessionId, undo.inverse)
+                        }
                     }
-                    ShortcutRefreshEvents.refresh()
-                    invalidateListCache()
+                } else {
+                    null
                 }
+            invalidateHistoryCaches(undo.owner)
+            if (currentActionScope() != undo.owner) return@launchHistoryMutation
+            val message =
+                when {
+                    fresh is NetworkResult.Failure -> R.string.sessions_undo_failed
+                    !unchanged -> R.string.sessions_undo_changed
+                    result is NetworkResult.Success -> R.string.sessions_undo_done
+                    else -> R.string.sessions_undo_failed
+                }
+            if (historySequence == resultId) {
+                _uiState.update { it.copy(historyFeedback = HistoryActionFeedback(resultId, message)) }
+            }
+            ShortcutRefreshEvents.refresh()
+            // Reconcile list placement, totals, empty count, and caches from server truth, even after failure.
+            fenceHistoryReads()
+            loadSessions(forceRefresh = true)
+        }
+    }
 
-                is NetworkResult.Failure -> {
-                    _uiState.update {
-                        it.copy(toastMessage = "Archive failed: ${result.error.message}")
+    private fun launchHistoryMutation(block: suspend () -> Unit) {
+        val job =
+            viewModelScope.launch(start = CoroutineStart.LAZY) {
+                try {
+                    block()
+                } finally {
+                    if (historyMutationJob === coroutineContext[Job]) {
+                        _uiState.update { it.copy(isChangingHistory = false) }
                     }
                 }
+            }
+        historyMutationJob = job
+        _uiState.update { it.copy(isChangingHistory = true) }
+        job.start()
+    }
+
+    private fun fenceHistoryReads() {
+        generation++
+        loadJob?.cancel()
+        pageJob?.cancel()
+        _uiState.update { it.copy(isLoading = false, isLoadingMore = false) }
+    }
+
+    fun dismissHistoryFeedback(id: Long) {
+        if (_uiState.value.historyFeedback?.id == id) clearHistoryFeedback()
+    }
+
+    fun clearHistoryFeedback() {
+        historySequence++
+        historyUndo = null
+        _uiState.update { it.copy(historyFeedback = null) }
+    }
+
+    private fun invalidateHistoryCaches(owner: DataScope) {
+        for (section in HistorySection.entries) {
+            for (archived in listOf(false, true)) {
+                val key = "${section.name}:${section.source}:${section.excludeSources}:$archived"
+                sessionsPageCache.remove(owner.inMemoryKey(key))
+                SessionListCacheStore.remove(owner.persistentKey(key))
             }
         }
     }

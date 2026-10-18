@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.ui.sessions
 
+import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.model.LiveSessionSnapshot
 import com.m57.hermescontrol.data.model.ProjectInfo
 import com.m57.hermescontrol.data.model.SessionInfo
@@ -83,7 +85,13 @@ class SessionsViewModelTest {
         source: SessionLiveStatusSource = FakeSessionLiveStatusSource(),
         projectsSource: ProjectsSource = FakeProjectsSource(),
     ): SessionsViewModel {
-        val vm = SessionsViewModel(liveStatusSource = source, projectsSource = projectsSource)
+        val vm =
+            SessionsViewModel(
+                liveStatusSource = source,
+                projectsSource = projectsSource,
+                currentActionScope = { DataScope("test", "http://example.test/", "default") },
+                actionServiceFactory = { mockApi },
+            )
         testDispatcher.scheduler.advanceUntilIdle()
         return vm
     }
@@ -93,6 +101,7 @@ class SessionsViewModelTest {
         Dispatchers.setMain(testDispatcher)
         mockkObject(ApiClient)
         every { ApiClient.hermesApi } returns mockApi
+        coEvery { mockApi.getSessionInfo(any(), any()) } answers { Response.success(SessionInfo(firstArg())) }
     }
 
     @After
@@ -789,7 +798,16 @@ class SessionsViewModelTest {
             vm.uiState.value.pinnedSessions
                 .map { it.id },
         )
-        assertEquals("Session pinned", vm.uiState.value.toastMessage)
+        assertEquals(
+            R.string.sessions_feedback_pinned,
+            vm.uiState.value.historyFeedback
+                ?.messageRes,
+        )
+        assertTrue(
+            vm.uiState.value.historyFeedback
+                ?.canUndo == true,
+        )
+        assertNull(vm.uiState.value.toastMessage)
     }
 
     @Test
@@ -870,7 +888,7 @@ class SessionsViewModelTest {
     }
 
     @Test
-    fun `toggleArchive patches archived flag removes row and surfaces toast`() {
+    fun `toggleArchive patches archived flag removes row and offers Undo`() {
         val vm = createViewModel()
         coEvery { mockApi.getSessions(any(), any(), any(), null, "cron", any()) } returns
             Response.success(
@@ -892,7 +910,16 @@ class SessionsViewModelTest {
             vm.uiState.value.sessions
                 .map { it.id },
         )
-        assertEquals("Session archived", vm.uiState.value.toastMessage)
+        assertEquals(
+            R.string.sessions_feedback_archived,
+            vm.uiState.value.historyFeedback
+                ?.messageRes,
+        )
+        assertTrue(
+            vm.uiState.value.historyFeedback
+                ?.canUndo == true,
+        )
+        assertNull(vm.uiState.value.toastMessage)
     }
 
     @Test

@@ -95,6 +95,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.ChatScreen
@@ -275,8 +277,11 @@ fun SessionsScreen(
         viewModel.startLiveStatusTracking()
         onDispose {
             viewModel.stopLiveStatusTracking()
+            viewModel.clearHistoryFeedback()
         }
     }
+
+    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { viewModel.clearHistoryFeedback() }
 
     // Toast effect
     ToastEffect(
@@ -458,6 +463,13 @@ fun SessionsScreen(
 
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_history)) },
+        snackbarHost = {
+            HistoryActionSnackbarHost(
+                feedback = state.historyFeedback,
+                onUndo = viewModel::undoHistoryChange,
+                onDismiss = viewModel::dismissHistoryFeedback,
+            )
+        },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadSessions(forceRefresh = true) },
@@ -944,6 +956,7 @@ fun SessionsScreen(
                                         isDeleting = session.id in state.deletingSessionIds,
                                         isPinned = session.pinned == true,
                                         isArchived = session.archived == true,
+                                        historyActionsEnabled = !state.isChangingHistory,
                                         liveStatus = state.liveStatuses[session.id],
                                         project = project,
                                         nowMillis = nowMillis,

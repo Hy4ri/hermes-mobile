@@ -27,6 +27,7 @@ fun SessionActionMenu(
     isPinned: Boolean = false,
     onTogglePin: (() -> Unit)? = null,
     isArchived: Boolean = false,
+    historyActionsEnabled: Boolean = true,
     onToggleArchive: (() -> Unit)? = null,
     onSelect: () -> Unit,
     onRename: () -> Unit,
@@ -48,6 +49,7 @@ fun SessionActionMenu(
                     )
                 },
                 leadingIcon = { Icon(Icons.Filled.PushPin, contentDescription = null) },
+                enabled = historyActionsEnabled && !isDeleting,
                 onClick = onTogglePin,
             )
         }
@@ -75,6 +77,7 @@ fun SessionActionMenu(
                         contentDescription = null,
                     )
                 },
+                enabled = historyActionsEnabled && !isDeleting,
                 onClick = onToggleArchive,
             )
         }

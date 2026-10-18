@@ -1976,4 +1976,12 @@
     <string name="chat_draft_storage_error">Could not access saved drafts. Keep a copy of your unfinished message.</string>
     <string name="settings_keep_screen_awake_title">Keep screen awake</string>
     <string name="settings_keep_screen_awake_desc">Prevent screen timeout while chat is visible. Uses more battery.</string>
+    <string name="sessions_undo_action">Undo</string>
+    <string name="sessions_feedback_pinned">Session pinned</string>
+    <string name="sessions_feedback_unpinned">Session unpinned</string>
+    <string name="sessions_feedback_archived">Session archived</string>
+    <string name="sessions_feedback_unarchived">Session unarchived</string>
+    <string name="sessions_undo_done">Change undone</string>
+    <string name="sessions_undo_failed">Undo failed. Refresh history to check the current state.</string>
+    <string name="sessions_undo_changed">Session changed. Undo is no longer available.</string>
 </resources>

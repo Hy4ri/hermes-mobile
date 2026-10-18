@@ -176,6 +176,7 @@ fun SessionCard(
     isDeleting: Boolean,
     isPinned: Boolean,
     isArchived: Boolean = false,
+    historyActionsEnabled: Boolean = true,
     liveStatus: SessionLiveStatus? = null,
     project: SessionProject? = null,
     nowMillis: Long = System.currentTimeMillis(),
@@ -287,6 +288,7 @@ fun SessionCard(
                 expanded = menuExpanded,
                 onDismiss = { menuExpanded = false },
                 isDeleting = isDeleting,
+                historyActionsEnabled = historyActionsEnabled,
                 isPinned = isPinned,
                 onTogglePin = {
                     menuExpanded = false

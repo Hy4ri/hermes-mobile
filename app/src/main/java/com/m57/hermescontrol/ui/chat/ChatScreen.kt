@@ -25,6 +25,8 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -138,6 +140,7 @@ import com.m57.hermescontrol.ui.common.AutoScrollingTitleText
 import com.m57.hermescontrol.ui.common.CredentialWarningBanner
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
+import com.m57.hermescontrol.ui.common.ReadableContentMaxWidth
 import com.m57.hermescontrol.ui.model.components.ModelPickerDialog
 import com.m57.hermescontrol.ui.settings.SettingsViewModel
 import com.m57.hermescontrol.util.ConnectorUrlValidator
@@ -684,7 +687,9 @@ fun ChatScreen(
                 Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.background)
-                    .imePadding(),
+                    .imePadding()
+                    .wrapContentWidth(Alignment.CenterHorizontally)
+                    .widthIn(max = ReadableContentMaxWidth),
         ) {
             ChatConnectionBanner(
                 connectionStatus = state.connectionStatus,

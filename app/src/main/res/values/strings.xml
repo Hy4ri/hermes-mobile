@@ -233,6 +233,11 @@
     <string name="notif_new_message">New message</string>
     <string name="notif_clarification_needed">Hermes needs a clarification</string>
     <string name="notif_input_needed">Hermes needs your input</string>
+    <string name="notif_action_approve_once">Approve once</string>
+    <string name="notif_action_deny">Deny</string>
+    <string name="notif_approval_sent_once">Approve once sent to Hermes</string>
+    <string name="notif_approval_sent_deny">Deny sent to Hermes</string>
+    <string name="notif_approval_open_app">Could not answer from here. Open Hermes to respond.</string>
     <string name="notif_reply_placeholder">Type your reply\u2026</string>
     <string name="kanban_alert_title">Hermes Kanban</string>
     <string name="kanban_alert_completed">completed</string>

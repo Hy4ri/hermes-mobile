@@ -108,6 +108,10 @@
             android:exported="false" />
 
         <receiver
+            android:name=".notification.ApprovalActionReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".notification.StopKeepConnectedReceiver"
             android:exported="false" />
 

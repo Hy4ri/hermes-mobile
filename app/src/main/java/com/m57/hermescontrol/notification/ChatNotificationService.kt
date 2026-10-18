@@ -215,6 +215,11 @@ class ChatNotificationService : Service() {
             isAppInForeground.set(foreground)
         }
 
+        /** The chat shows open requests itself, so retire their shade alerts on return. */
+        internal fun retireRequestNotifications(context: Context) {
+            RequestNoticeCoordinator.notices.clearOpen().forEach { RequestNotifications.cancel(context, it.key) }
+        }
+
         fun isAppInForeground(): Boolean = isAppInForeground.get()
 
         fun updateForegroundNotification(state: BackgroundNotificationState) {
@@ -342,6 +347,23 @@ class ChatNotificationService : Service() {
                                         }
                                     }
 
+                                    is WsEvent.ServerRequest -> {
+                                        // Modern requests: classified, deduplicated, and posted per
+                                        // request identity. Replays do not alert again.
+                                        requestNoticeFor(event, correlationScopeId())?.let(::alertRequest)
+                                    }
+
+                                    is WsEvent.ServerRequestCancelled -> {
+                                        RequestNoticeCoordinator.notices
+                                            .closeServerRequest(event.id)
+                                            ?.let { RequestNotifications.cancel(this@ChatNotificationService, it.key) }
+                                    }
+
+                                    is WsEvent.ApprovalRequest -> {
+                                        alertRequest(requestNoticeFor(event, correlationScopeId()))
+                                    }
+
+                                    // Legacy credential/clarify events (not wrapped in a server request).
                                     is WsEvent.ClarifyRequest -> {
                                         showReplyNotification(getString(R.string.notif_clarification_needed), null)
                                     }
@@ -358,14 +380,6 @@ class ChatNotificationService : Service() {
                                         showReplyNotification(body, null)
                                     }
 
-                                    is WsEvent.ApprovalRequest -> {
-                                        val preview =
-                                            event.description?.takeIf { it.isNotBlank() }
-                                                ?: event.command?.takeIf { it.isNotBlank() }
-                                                ?: getString(R.string.notif_input_needed)
-                                        showReplyNotification(preview.take(100), null)
-                                    }
-
                                     is WsEvent.VaultUnlockRequest,
                                     is WsEvent.VaultSaveLoginRequest,
                                     is WsEvent.VaultCodeRequest,
@@ -380,6 +394,12 @@ class ChatNotificationService : Service() {
                     }
                 }
             }
+    }
+
+    private fun alertRequest(notice: RequestNotice) {
+        if (RequestNoticeCoordinator.notices.register(notice, HermesWsClient.connectionGeneration)) {
+            RequestNotifications.post(this, notice)
+        }
     }
 
     /**
@@ -731,6 +751,7 @@ object NotificationHelper {
         foreground: Boolean,
     ) {
         ChatNotificationService.setAppForeground(foreground)
+        if (foreground) ChatNotificationService.retireRequestNotifications(context)
         HermesWsClient.setAppForeground(foreground)
         if (!foreground) {
             BackgroundConnectionController.default.reconcileState()

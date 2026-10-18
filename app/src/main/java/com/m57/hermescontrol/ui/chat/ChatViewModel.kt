@@ -76,6 +76,7 @@ import com.m57.hermescontrol.data.ws.contract.TypedRpcSender
 import com.m57.hermescontrol.data.ws.toAny
 import com.m57.hermescontrol.data.ws.toJsonElement
 import com.m57.hermescontrol.notification.ReplyNotificationTracker
+import com.m57.hermescontrol.notification.RequestNoticeCoordinator
 import com.m57.hermescontrol.notification.captureTurnBoundary
 import com.m57.hermescontrol.notification.correlationScopeId
 import com.m57.hermescontrol.share.IncomingShare
@@ -1031,6 +1032,12 @@ class ChatViewModel(
                     android.util.Log.e("ChatVM", "Uncaught in event loop", e)
                     _uiState.update { it.copy(isLoading = false) }
                 }
+            }
+        }
+        // An approval answered from the notification shade: retire its chat card.
+        viewModelScope.launch {
+            RequestNoticeCoordinator.answeredServerRequests.collect { id ->
+                approvalsDelegate.cancelServerRequest(id)
             }
         }
         // B7 (Jun 30 2026, kanban t_connection_loading): clear loading state on connection failure or status change

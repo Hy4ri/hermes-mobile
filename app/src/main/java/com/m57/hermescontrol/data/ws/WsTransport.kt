@@ -58,6 +58,8 @@ internal class WsTransport(
     }
 
     private val connectionGeneration = AtomicInteger(0)
+
+    internal val currentGeneration: Int get() = connectionGeneration.get()
     private val connected = AtomicBoolean(false)
     private val intentionalClose = AtomicBoolean(false)
     private val acceptQueuedMessages = AtomicBoolean(true)

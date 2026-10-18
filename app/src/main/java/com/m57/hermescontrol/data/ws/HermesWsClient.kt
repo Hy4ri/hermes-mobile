@@ -182,6 +182,9 @@ object HermesWsClient {
     @VisibleForTesting
     val isConnected: Boolean get() = transport.isConnected
 
+    /** Socket generation; server-request ids are only valid on the socket that delivered them. */
+    internal val connectionGeneration: Int get() = transport.currentGeneration
+
     fun setAppForeground(foreground: Boolean) = transport.setAppForeground(foreground)
 
     fun acquireExternalActivityConnectionLease() = transport.acquireExternalActivityConnectionLease()

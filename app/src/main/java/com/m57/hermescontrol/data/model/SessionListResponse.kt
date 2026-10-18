@@ -10,6 +10,7 @@ import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
@@ -148,9 +149,52 @@ data class PruneRequest(
     // The old `days` key was unknown to the backend, so the user's choice was
     // silently dropped and the server pruned its own 90-day default.
     @SerialName("older_than_days") val olderThanDays: Int,
+    // Archiving is a visibility flag, not a keep flag: an auto-archiving server
+    // hides every chat idle for a few days, and a prune that skipped archived
+    // rows matched nothing there. The backend defaults this to false, so the app
+    // asks for archived rows too unless the user clears the option. No Kotlin
+    // default on purpose: Json omits defaults, and an omitted key would silently
+    // fall back to the backend's archived-skipping behaviour.
+    @SerialName("include_archived") val includeArchived: Boolean,
+    // Preview only: the server counts the matches and deletes nothing.
+    @SerialName("dry_run") val dryRun: Boolean = false,
     // Destructive POSTs read the profile off the BODY (not the ?profile= query
     // rewrite): on a multi-profile backend an unnamed prune is refused with
     // 400 (web_routers/_common.py destructive_profile). Null stays valid for
     // single-profile hosts.
     val profile: String? = null,
+)
+
+@Serializable
+data class PruneResponse(
+    val ok: Boolean = false,
+    // Rows deleted by a real prune.
+    val removed: Int = 0,
+    // Rows the same request would delete; sent by a dry run.
+    val matched: Int = 0,
+    // Open sessions the backend keeps alive during a prune.
+    @SerialName("skipped_open") val skippedOpen: Int = 0,
+    // Dry-run only: the exact rows a prune deletes, oldest first. The app needs
+    // their ids to prune row by row when the bulk endpoint is refused.
+    val sessions: List<PruneCandidate> = emptyList(),
+)
+
+@Serializable
+data class PruneCandidate(
+    val id: String,
+    val title: String? = null,
+    val source: String? = null,
+)
+
+/**
+ * Owner counters a destructive write must quote (GET api/sessions/{id}/mutation-snapshot).
+ * Current backends refuse an unfenced write with 409, so the app reads these first.
+ * Kept as [JsonElement] because old rows carry the counters as either an int or a string.
+ */
+@Serializable
+data class SessionMutationSnapshot(
+    @SerialName("session_id") val sessionId: String = "",
+    val exists: Boolean = false,
+    @SerialName("runtime_revision") val runtimeRevision: JsonElement? = null,
+    @SerialName("runtime_generation") val runtimeGeneration: JsonElement? = null,
 )

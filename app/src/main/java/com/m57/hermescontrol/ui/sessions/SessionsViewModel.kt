@@ -1267,7 +1267,7 @@ class SessionsViewModel(
                                 ids = ids,
                                 // Destructive POSTs scope by BODY profile; the
                                 // ?profile= query rewrite never reaches them.
-                                profile = AuthManager.activeProfileId.value,
+                                profile = AuthManager.destructiveProfileId(),
                             ),
                     )
                 }
@@ -1370,7 +1370,7 @@ class SessionsViewModel(
                                     olderThanDays = days,
                                     includeArchived = includeArchived,
                                     dryRun = true,
-                                    profile = AuthManager.activeProfileId.value,
+                                    profile = AuthManager.destructiveProfileId(),
                                 ),
                         )
                     }
@@ -1382,7 +1382,7 @@ class SessionsViewModel(
     fun pruneSessions(days: Int) {
         if (days < 1 || _uiState.value.isPruning) return
         val includeArchived = _uiState.value.pruneIncludeArchived
-        val profile = AuthManager.activeProfileId.value
+        val profile = AuthManager.destructiveProfileId()
         // Keep the dialog open: it turns into the progress surface while rows go.
         _uiState.update {
             it.copy(isPruning = true, prunePreview = null, pruneProgress = null)

@@ -996,6 +996,7 @@ fun ChatScreen(
                 onImageTap = mediaLaunchers.onImageTap,
                 onFileTap = mediaLaunchers.onFileTap,
                 onRemoveAttachment = viewModel::removeAttachment,
+                onSendOriginalChange = viewModel::setAttachmentSendOriginal,
                 onPreviewAttachment = { attachment ->
                     if (attachment.isImage) {
                         viewingImage =

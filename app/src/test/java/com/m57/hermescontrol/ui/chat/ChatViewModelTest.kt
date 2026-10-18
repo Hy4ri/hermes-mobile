@@ -2974,6 +2974,28 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun sendOriginalRejectsAnOversizedPhotoBeforeReadingAndKeepsTheChoice() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            val resolver = mockk<ContentResolver>()
+            every { app.contentResolver } returns resolver
+            viewModel.addAttachment("content://photo", "camera.jpg", "image/jpeg", MAX_CHAT_ATTACHMENT_BYTES + 1)
+            viewModel.setAttachmentSendOriginal(0, true)
+            assertFalse(viewModel.sendMessage("Original details"))
+            advanceUntilIdle()
+            assertTrue(
+                viewModel.uiState.value.pendingAttachments
+                    .single()
+                    .sendOriginal,
+            )
+            assertTrue(
+                viewModel.uiState.value.errorMessage
+                    ?.contains("too large") == true,
+            )
+            verify(exactly = 0) { resolver.openInputStream(any()) }
+        }
+
+    @Test
     fun sendMessage_mixedAttachmentsWithOversizedFileAreRejectedBeforeReading() =
         runTest {
             val (viewModel, _) = createViewModelWithSession()
@@ -3762,6 +3784,7 @@ class ChatViewModelTest {
             mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
             advanceUntilIdle()
             viewModel.addAttachment("content://queued/photo", "photo.png", "image/png", 3)
+            viewModel.setAttachmentSendOriginal(0, true)
             viewModel.sendMessage("See photo")
             assertTrue("The receipt must not exist before the private snapshot completes", store.all().isEmpty())
             advanceUntilIdle()
@@ -3772,6 +3795,18 @@ class ChatViewModelTest {
                     .state,
             )
             assertTrue(snapshotFile.exists())
+            assertTrue(
+                store
+                    .all()
+                    .single()
+                    .attachments
+                    .single()
+                    .sendOriginal,
+            )
+            assertTrue(
+                viewModel.uiState.value.pendingAttachments
+                    .isEmpty(),
+            )
             assertEquals(
                 "file://queued-copy",
                 store

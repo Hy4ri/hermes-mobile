@@ -30,6 +30,8 @@ data class Attachment(
     val gatewayUrl: String? = null,
     val source: AttachmentSource = AttachmentSource.LOCAL,
     val contentOffset: Int? = null,
+    /** Per-image choice captured in queued sends and retries; never changes the source URI. */
+    val sendOriginal: Boolean = false,
 ) {
     val mediaKind: MediaKind
         get() = classifyMedia(mimeType = mimeType, name = name, uri = gatewayUrl ?: uri)

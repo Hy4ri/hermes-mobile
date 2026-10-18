@@ -51,6 +51,26 @@ class ChatAttachmentsDelegate(
         }
     }
 
+    fun setSendOriginal(
+        index: Int,
+        sendOriginal: Boolean,
+    ) {
+        uiState.update { state ->
+            state.copy(
+                pendingAttachments =
+                    state.pendingAttachments.mapIndexed { i, attachment ->
+                        if (i == index &&
+                            attachment.canOptimizePhoto()
+                        ) {
+                            attachment.copy(sendOriginal = sendOriginal)
+                        } else {
+                            attachment
+                        }
+                    },
+            )
+        }
+    }
+
     fun clearAttachments() {
         uiState.update { it.copy(pendingAttachments = emptyList()) }
     }

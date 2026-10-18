@@ -116,9 +116,13 @@ object ProfileScopeInterceptor : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
         val capturedScope = request.tag(DataScope::class.java)
+        // Never proceed unscoped on a profile-scoped path: a multi-profile backend
+        // rejects an unnamed destructive request (400 "requires an explicit
+        // profile"), so an unset selection resolves to the default profile the
+        // reads already use.
         val profile =
-            capturedScope?.activeProfileId ?: AuthManager.activeProfileId.value
-                ?: return chain.proceed(request)
+            capturedScope?.activeProfileId?.takeIf { it.isNotBlank() }
+                ?: AuthManager.destructiveProfileId()
 
         val url = request.url
         if (url.queryParameter("profile") != null) {

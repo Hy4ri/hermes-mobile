@@ -106,6 +106,7 @@ import com.m57.hermescontrol.data.model.ProfileSetupCommandResponse
 import com.m57.hermescontrol.data.model.ProfileSoulResponse
 import com.m57.hermescontrol.data.model.ProfilesResponse
 import com.m57.hermescontrol.data.model.PruneRequest
+import com.m57.hermescontrol.data.model.PruneResponse
 import com.m57.hermescontrol.data.model.RawConfigResponse
 import com.m57.hermescontrol.data.model.RecentUnlock
 import com.m57.hermescontrol.data.model.RenameProfileRequest
@@ -116,6 +117,7 @@ import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.model.SessionListResponse
 import com.m57.hermescontrol.data.model.SessionMessagesAroundResponse
 import com.m57.hermescontrol.data.model.SessionMessagesResponse
+import com.m57.hermescontrol.data.model.SessionMutationSnapshot
 import com.m57.hermescontrol.data.model.SessionRenameRequest
 import com.m57.hermescontrol.data.model.SessionSearchResponse
 import com.m57.hermescontrol.data.model.SessionStatsResponse
@@ -283,12 +285,23 @@ interface HermesApiService : KanbanApiService {
         // Preserve slashes in session IDs — backend generates IDs containing '/' characters (issue #468).
         // Contract: The server-generated sessionId must only contain URL-safe characters (no ?, #, or spaces).
         @Path("id", encoded = true) sessionId: String,
+        // Mutation identity. Current backends commit no unfenced destructive write
+        // (409 client_upgrade_required), so callers quote the snapshot counters.
+        // Omitted on older backends, which is what those accept.
+        @Query("request_id") requestId: String? = null,
+        @Query("expected_revision") expectedRevision: Int? = null,
+        @Query("expected_generation") expectedGeneration: Int? = null,
     ): Response<Unit>
+
+    @GET("api/sessions/{id}/mutation-snapshot")
+    suspend fun getSessionMutationSnapshot(
+        @Path("id", encoded = true) sessionId: String,
+    ): Response<SessionMutationSnapshot>
 
     @POST("api/sessions/prune")
     suspend fun pruneSessions(
         @Body body: PruneRequest,
-    ): Response<Unit>
+    ): Response<PruneResponse>
 
     // ── Admin: Empty-session cleanup + branch resolution (issue #787) ──
     @GET("api/sessions/empty/count")

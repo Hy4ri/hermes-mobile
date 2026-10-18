@@ -19,6 +19,7 @@ import com.m57.hermescontrol.data.model.SessionRenameRequest
 import com.m57.hermescontrol.data.model.SessionSearchResult
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.HermesApiService
+import com.m57.hermescontrol.data.remote.NetworkError
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.remote.safeApiRead
@@ -44,7 +45,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
 import java.util.Locale
+import java.util.UUID
 
 data class SessionStats(
     val total: Int = 0,
@@ -99,6 +103,17 @@ data class SessionsUiState(
     val deletingSessionIds: Set<String> = emptySet(),
     val showPruneDialog: Boolean = false,
     val isPruning: Boolean = false,
+    // Days threshold typed into the prune dialog (lives here so the preview and
+    // the delete call read the same value across configuration changes).
+    val pruneDays: String = "7",
+    // Archive is a visibility flag: an auto-archiving server hides almost every
+    // chat, so a prune that skipped archived rows matched nothing.
+    val pruneIncludeArchived: Boolean = true,
+    // Sessions the same request would delete (dry run); null until known.
+    val prunePreview: Int? = null,
+    val isPrunePreviewLoading: Boolean = false,
+    // Live-prune progress as done/total while sessions are deleted one by one.
+    val pruneProgress: Pair<Int, Int>? = null,
     // Empty-session cleanup (issue #787): count of empty, ended, non-archived
     // sessions — button is disabled/grey when 0.
     val emptyCount: Int = 0,
@@ -228,6 +243,7 @@ class SessionsViewModel(
     private var statsJob: Job? = null
     private var trackingJob: Job? = null
     private var projectsJob: Job? = null
+    private var prunePreviewJob: Job? = null
     private var trackingGeneration: Long = 0
     private var liveTrackingState = SessionLiveTrackingState()
     private var liveStatusRefreshInFlight = false
@@ -362,6 +378,7 @@ class SessionsViewModel(
     private companion object {
         const val PAGE_SIZE = 50
         const val SEARCH_DEBOUNCE_MS = 300L
+        const val PRUNE_PREVIEW_DEBOUNCE_MS = 350L
         const val MAX_STITCH_PER_PAGE = 8
         const val MAX_STITCH_ROUNDS = 3
         const val LIVE_STATUS_POLL_INTERVAL_MS = 30_000L
@@ -1191,10 +1208,7 @@ class SessionsViewModel(
             )
         }
         viewModelScope.launch {
-            val result =
-                safeApiCall {
-                    ApiClient.hermesApi.deleteSession(sessionId)
-                }
+            val result = deleteSessionFenced(sessionId)
             when (result) {
                 is NetworkResult.Success -> {
                     draftScope?.let { ComposerDraftStore.initialized()?.remove(ComposerDraftKey(it, sessionId)) }
@@ -1253,7 +1267,7 @@ class SessionsViewModel(
                                 ids = ids,
                                 // Destructive POSTs scope by BODY profile; the
                                 // ?profile= query rewrite never reaches them.
-                                profile = AuthManager.activeProfileId.value,
+                                profile = AuthManager.destructiveProfileId(),
                             ),
                     )
                 }
@@ -1308,54 +1322,212 @@ class SessionsViewModel(
     // ── Prune ────────────────────────────────────────────────────────────
 
     fun showPruneDialog() {
-        _uiState.update { it.copy(showPruneDialog = true) }
+        _uiState.update {
+            it.copy(showPruneDialog = true, prunePreview = null, pruneProgress = null)
+        }
+        schedulePrunePreview()
     }
 
     fun hidePruneDialog() {
-        _uiState.update { it.copy(showPruneDialog = false) }
+        if (_uiState.value.isPruning) return
+        prunePreviewJob?.cancel()
+        _uiState.update {
+            it.copy(showPruneDialog = false, prunePreview = null, isPrunePreviewLoading = false)
+        }
+    }
+
+    fun setPruneDays(value: String) {
+        val digits = value.filter { it.isDigit() }.take(4)
+        if (digits == _uiState.value.pruneDays) return
+        _uiState.update { it.copy(pruneDays = digits, prunePreview = null) }
+        schedulePrunePreview()
+    }
+
+    fun setPruneIncludeArchived(includeArchived: Boolean) {
+        if (includeArchived == _uiState.value.pruneIncludeArchived) return
+        _uiState.update { it.copy(pruneIncludeArchived = includeArchived, prunePreview = null) }
+        schedulePrunePreview()
+    }
+
+    /** Dry run: how many sessions the current filters would delete. Deletes nothing. */
+    private fun schedulePrunePreview() {
+        prunePreviewJob?.cancel()
+        val days = _uiState.value.pruneDays.toIntOrNull()
+        if (days == null || days < 1) {
+            _uiState.update { it.copy(prunePreview = null, isPrunePreviewLoading = false) }
+            return
+        }
+        val includeArchived = _uiState.value.pruneIncludeArchived
+        prunePreviewJob =
+            viewModelScope.launch {
+                delay(PRUNE_PREVIEW_DEBOUNCE_MS)
+                _uiState.update { it.copy(isPrunePreviewLoading = true) }
+                val result =
+                    safeApiCall {
+                        ApiClient.hermesApi.pruneSessions(
+                            body =
+                                PruneRequest(
+                                    olderThanDays = days,
+                                    includeArchived = includeArchived,
+                                    dryRun = true,
+                                    profile = AuthManager.destructiveProfileId(),
+                                ),
+                        )
+                    }
+                val matched = (result as? NetworkResult.Success)?.data?.matched
+                _uiState.update { it.copy(isPrunePreviewLoading = false, prunePreview = matched) }
+            }
     }
 
     fun pruneSessions(days: Int) {
-        if (days < 1) return
-        _uiState.update { it.copy(isPruning = true, showPruneDialog = false) }
+        if (days < 1 || _uiState.value.isPruning) return
+        val includeArchived = _uiState.value.pruneIncludeArchived
+        val profile = AuthManager.destructiveProfileId()
+        // Keep the dialog open: it turns into the progress surface while rows go.
+        _uiState.update {
+            it.copy(isPruning = true, prunePreview = null, pruneProgress = null)
+        }
         viewModelScope.launch {
-            val result =
+            val bulk =
                 safeApiCall {
                     ApiClient.hermesApi.pruneSessions(
+                        // The server model is `older_than_days`; the old `days`
+                        // key was silently ignored and the backend pruned its
+                        // own 90-day default. Destructive POSTs scope by BODY
+                        // profile; the ?profile= query rewrite never reaches them.
                         body =
                             PruneRequest(
-                                // The server model is `older_than_days`; the
-                                // old `days` key was silently ignored and the
-                                // backend pruned its own 90-day default.
                                 olderThanDays = days,
-                                // Destructive POSTs scope by BODY profile; the
-                                // ?profile= query rewrite never reaches them.
-                                profile = AuthManager.activeProfileId.value,
+                                includeArchived = includeArchived,
+                                profile = profile,
                             ),
                     )
                 }
-            when (result) {
-                is NetworkResult.Success -> {
-                    _uiState.update {
-                        it.copy(
-                            isPruning = false,
-                            toastMessage = "Old sessions pruned",
-                        )
-                    }
-                    ShortcutRefreshEvents.refresh()
-                    loadSessions()
-                    loadStats()
-                }
+            if (bulk is NetworkResult.Success) {
+                finishPrune(deleted = bulk.data.removed, skipped = bulk.data.skippedOpen)
+                return@launch
+            }
+            val error = (bulk as NetworkResult.Failure).error
+            // The offline bulk prune needs exclusive maintenance on the session
+            // store, so it is refused with 409 for as long as a gateway owns the
+            // profile — which is always on a live server. The live delete endpoint
+            // stays available, so delete the same candidate set row by row.
+            if (error !is NetworkError.Http || error.code != 409) {
+                finishPrune(deleted = 0, skipped = 0, failure = error.message)
+                return@launch
+            }
+            pruneLive(days = days, includeArchived = includeArchived, profile = profile)
+        }
+    }
 
-                is NetworkResult.Failure -> {
-                    _uiState.update {
-                        it.copy(
-                            isPruning = false,
-                            toastMessage = "Prune failed: ${result.error.message}",
-                        )
-                    }
+    private suspend fun pruneLive(
+        days: Int,
+        includeArchived: Boolean,
+        profile: String?,
+    ) {
+        // The dry run returns the exact rows a prune deletes (the server picks
+        // whole lineages), so the per-row fallback cannot cut a live chat.
+        val preview =
+            safeApiCall {
+                ApiClient.hermesApi.pruneSessions(
+                    body =
+                        PruneRequest(
+                            olderThanDays = days,
+                            includeArchived = includeArchived,
+                            dryRun = true,
+                            profile = profile,
+                        ),
+                )
+            }
+        val candidates: List<String>
+        var skippedOpen = 0
+        when (preview) {
+            is NetworkResult.Success -> {
+                candidates = preview.data.sessions.map { it.id }
+                skippedOpen = preview.data.skippedOpen
+            }
+
+            is NetworkResult.Failure -> {
+                finishPrune(deleted = 0, skipped = 0, failure = preview.error.message)
+                return
+            }
+        }
+        if (candidates.isEmpty()) {
+            finishPrune(deleted = 0, skipped = skippedOpen)
+            return
+        }
+        var deleted = 0
+        var failed = 0
+        _uiState.update { it.copy(pruneProgress = 0 to candidates.size) }
+        for ((index, id) in candidates.withIndex()) {
+            if (deleteSessionFenced(id) is NetworkResult.Success) deleted++ else failed++
+            _uiState.update { it.copy(pruneProgress = (index + 1) to candidates.size) }
+        }
+        finishPrune(deleted = deleted, skipped = skippedOpen, failed = failed)
+    }
+
+    /**
+     * Delete one session the way the backend requires it. A live gateway owns the
+     * store, so bulk maintenance is refused (409); the owner still commits fenced
+     * single-session writes. Current backends refuse an UNfenced destructive write
+     * with 409 client_upgrade_required, so read the row's mutation snapshot and
+     * quote request_id + expected_revision. Older backends have no snapshot
+     * endpoint: there they take the plain DELETE.
+     */
+    private suspend fun deleteSessionFenced(sessionId: String): NetworkResult<Unit> {
+        val snapshot =
+            (safeApiCall { ApiClient.hermesApi.getSessionMutationSnapshot(sessionId) } as? NetworkResult.Success)?.data
+        val revision =
+            snapshot
+                ?.runtimeRevision
+                ?.jsonPrimitive
+                ?.contentOrNull
+                ?.toIntOrNull()
+        if (snapshot == null || revision == null) {
+            return safeApiCall { ApiClient.hermesApi.deleteSession(sessionId) }
+        }
+        return safeApiCall {
+            ApiClient.hermesApi.deleteSession(
+                sessionId = sessionId,
+                requestId = UUID.randomUUID().toString(),
+                expectedRevision = revision,
+                expectedGeneration =
+                    snapshot.runtimeGeneration
+                        ?.jsonPrimitive
+                        ?.contentOrNull
+                        ?.toIntOrNull(),
+            )
+        }
+    }
+
+    private fun finishPrune(
+        deleted: Int,
+        skipped: Int,
+        failed: Int = 0,
+        failure: String? = null,
+    ) {
+        val toast =
+            failure?.let { "Prune failed: $it" } ?: run {
+                val base = if (deleted > 0) "$deleted session(s) pruned" else "No sessions matched"
+                buildString {
+                    append(base)
+                    if (skipped > 0) append(", $skipped skipped (active)")
+                    if (failed > 0) append(", $failed failed")
                 }
             }
+        _uiState.update {
+            it.copy(
+                isPruning = false,
+                showPruneDialog = false,
+                pruneProgress = null,
+                prunePreview = null,
+                toastMessage = toast,
+            )
+        }
+        if (deleted > 0) {
+            ShortcutRefreshEvents.refresh()
+            loadSessions()
+            loadStats()
         }
     }
 

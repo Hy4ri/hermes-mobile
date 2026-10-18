@@ -547,6 +547,17 @@ object AuthManager {
         }
     }
 
+    /**
+     * Server profile a DESTRUCTIVE route must name — in the BODY for POSTs and in
+     * the `?profile=` query for everything the interceptor scopes.
+     *
+     * A backend that hosts several profiles rejects an unnamed destructive request
+     * with 400 "requires an explicit profile" instead of guessing, so an unset
+     * selection has to read as [DEFAULT_PROFILE_ID] — the same fallback
+     * [currentDataScope] and [ProfileScopeInterceptor] apply to reads.
+     */
+    fun destructiveProfileId(): String = _activeProfileId.value?.takeIf { it.isNotBlank() } ?: DEFAULT_PROFILE_ID
+
     private fun normalizedProfileId(profileId: String?): String =
         profileId?.takeIf { it.isNotBlank() } ?: DEFAULT_PROFILE_ID
 

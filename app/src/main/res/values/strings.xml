@@ -959,6 +959,12 @@
     <string name="sessions_prune_desc">Delete sessions older than the specified number of days.</string>
     <string name="sessions_prune_days_label">Days threshold</string>
     <string name="sessions_prune_confirm">Prune</string>
+    <string name="sessions_prune_include_archived">Include archived sessions</string>
+    <string name="sessions_prune_include_archived_help">Archived chats are hidden from the list but still stored.</string>
+    <string name="sessions_prune_preview">%1$d session(s) will be deleted</string>
+    <string name="sessions_prune_preview_none">No sessions match these filters</string>
+    <string name="sessions_prune_preview_loading">Counting matches…</string>
+    <string name="sessions_prune_progress">Deleting %1$d of %2$d…</string>
     <string name="sessions_pruning">Pruning old sessions…</string>
     <string name="sessions_empty_cleanup_desc">Empty</string>
     <string name="sessions_empty_cleanup_title">Delete empty sessions?</string>

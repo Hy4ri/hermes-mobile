@@ -79,10 +79,13 @@ class ProfileScopeInterceptorTest {
     }
 
     @Test
-    fun noActiveProfile_passesThrough() {
+    fun noActiveProfile_scopesToDefault() {
+        // A multi-profile backend rejects an unnamed destructive request with 400
+        // "requires an explicit profile", so a scoped path must always name one.
+        // An unset selection reads as the default profile, exactly like reads do.
         val client = clientFor(null)
         val url = lastRequestedPath(client)
-        assertNull(url.queryParameter("profile"))
+        assertEquals(AuthManager.DEFAULT_PROFILE_ID, url.queryParameter("profile"))
     }
 
     @Test
@@ -368,7 +371,7 @@ class ProfileScopeInterceptorTest {
     }
 
     @Test
-    fun destructiveWebhookDelete_avoidsMultiplexUnnamedProfile400() {
+    fun destructiveWebhookDelete_namesDefaultWhenNoProfileSelected() {
         server.dispatcher =
             object : Dispatcher() {
                 override fun dispatch(request: RecordedRequest): MockResponse =
@@ -379,6 +382,9 @@ class ProfileScopeInterceptorTest {
                     }
             }
 
+        // Before: an unset selection sent the delete unnamed and the multiplex
+        // backend answered 400 "requires an explicit profile". Now the request
+        // names the default profile, the same one reads already use.
         val unscopedClient = clientFor(null)
         val unscopedRequest =
             Request
@@ -387,7 +393,7 @@ class ProfileScopeInterceptorTest {
                 .delete()
                 .build()
         unscopedClient.newCall(unscopedRequest).execute().use { response ->
-            assertEquals(400, response.code)
+            assertEquals(200, response.code)
         }
 
         val scopedClient = clientFor("beta")

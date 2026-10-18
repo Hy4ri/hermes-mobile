@@ -3212,7 +3212,7 @@ class ChatViewModel(
                                     val count = source.read(buffer)
                                     if (count < 0) break
                                     copied += count
-                                    if (copied > MAX_CHAT_ATTACHMENT_BYTES) {
+                                    if (copied > attachment.sourceByteLimit()) {
                                         throw QueuedAttachmentTooLargeException(attachment)
                                     }
                                     output.write(buffer, 0, count)
@@ -3472,7 +3472,7 @@ class ChatViewModel(
 
         val oversizedAttachment =
             _uiState.value.pendingAttachments.firstOrNull {
-                it.size > MAX_CHAT_ATTACHMENT_BYTES
+                it.size > it.sourceByteLimit()
             }
         if (oversizedAttachment != null) {
             _uiState.update {
@@ -4126,12 +4126,20 @@ class ChatViewModel(
     /** Snapshot one URI to private cache while enforcing the outbound frame limit. */
     private suspend fun prepareAttachment(attachment: Attachment): PrepareAttachmentResult {
         var encodedFile: File? = null
+        var photo: PreparedPhoto? = null
         return try {
             val context = getApplication<Application>()
             val uri = Uri.parse(attachment.uri)
+            if (!attachment.sendOriginal && attachment.canOptimizePhoto()) {
+                photo =
+                    preparePhotoUpload(attachment, context.cacheDir) { context.contentResolver.openInputStream(uri) }
+                        ?: return PrepareAttachmentResult.Unreadable
+            }
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
             encodedFile = File.createTempFile("chat-attachment-", ".b64", context.cacheDir)
+            val inputStream = photo?.file?.inputStream() ?: context.contentResolver.openInputStream(uri)
             val result =
-                context.contentResolver.openInputStream(uri)?.use { input ->
+                inputStream?.use { input ->
                     encodedFile.outputStream().buffered().use { output ->
                         encodeAttachmentBase64(input, output)
                     }
@@ -4139,7 +4147,7 @@ class ChatViewModel(
 
             when (result) {
                 AttachmentSizeResult.WITHIN_LIMIT -> {
-                    PrepareAttachmentResult.Success(PreparedAttachment(attachment, encodedFile))
+                    PrepareAttachmentResult.Success(PreparedAttachment(photo?.attachment ?: attachment, encodedFile))
                 }
 
                 AttachmentSizeResult.TOO_LARGE -> {
@@ -4149,8 +4157,11 @@ class ChatViewModel(
         } catch (e: Exception) {
             encodedFile?.delete()
             if (e is kotlinx.coroutines.CancellationException) throw e
+            if (e is PhotoSourceTooLarge) return PrepareAttachmentResult.TooLarge
             Log.e(TAG, "Failed to prepare attachment: ${e.message}", e)
             PrepareAttachmentResult.Unreadable
+        } finally {
+            photo?.file?.delete()
         }
     }
 
@@ -4176,7 +4187,11 @@ class ChatViewModel(
     }
 
     private fun attachmentTooLargeMessage(attachment: Attachment): String =
-        "Attachment too large: ${attachment.name} (maximum 10 MB)"
+        if (!attachment.sendOriginal && attachment.canOptimizePhoto()) {
+            "Attachment too large: ${attachment.name} (photo source maximum 50 MB; upload maximum 10 MB)"
+        } else {
+            "Attachment too large: ${attachment.name} (maximum 10 MB)"
+        }
 
     // ── Attachment management ─────────────────────────────────────────────
 
@@ -4193,6 +4208,11 @@ class ChatViewModel(
     ) = attachmentsDelegate.addAttachment(uri, name, mimeType, size)
 
     fun addAttachments(attachments: List<Attachment>) = attachmentsDelegate.addAttachments(attachments)
+
+    fun setAttachmentSendOriginal(
+        index: Int,
+        sendOriginal: Boolean,
+    ) = attachmentsDelegate.setSendOriginal(index, sendOriginal)
 
     /** Clipboard reads are asynchronous: bind them to this exact session generation and server. */
     internal fun captureAttachmentTarget(): ChatAttachmentTarget? {

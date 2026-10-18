@@ -43,6 +43,7 @@ import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -86,6 +87,7 @@ import com.m57.hermescontrol.data.model.ProfileInfo
 import com.m57.hermescontrol.data.ws.CommandBlocklist
 import com.m57.hermescontrol.data.ws.CommandCatalog
 import com.m57.hermescontrol.ui.chat.ChatInputPolicy
+import com.m57.hermescontrol.ui.chat.canOptimizePhoto
 import com.m57.hermescontrol.ui.common.BotAvatar
 import com.m57.hermescontrol.util.BidiUtils
 
@@ -112,6 +114,7 @@ fun ChatInputBar(
     onImageTap: () -> Unit = {},
     onFileTap: () -> Unit = {},
     onRemoveAttachment: (Int) -> Unit = {},
+    onSendOriginalChange: (Int, Boolean) -> Unit = { _, _ -> },
     onPreviewAttachment: (Attachment) -> Unit = {},
     // NEW: composer toolbar wiring
     currentSessionModel: String? = null,
@@ -327,6 +330,7 @@ fun ChatInputBar(
                                     attachment = attachment,
                                     onPreview = { onPreviewAttachment(attachment) },
                                     onRemove = { onRemoveAttachment(index) },
+                                    onSendOriginalChange = { onSendOriginalChange(index, it) },
                                 )
                             }
                         }
@@ -625,6 +629,7 @@ fun AttachmentChip(
     onPreview: () -> Unit,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
+    onSendOriginalChange: (Boolean) -> Unit = {},
 ) {
     val thumbnail = attachment.uri
     Surface(
@@ -642,7 +647,7 @@ fun AttachmentChip(
                     contentDescription = attachment.name,
                     modifier =
                         Modifier
-                            .size(40.dp)
+                            .size(48.dp)
                             .clip(RoundedCornerShape(4.dp))
                             .clickable(onClick = onPreview)
                             .testTag("attachment_preview"),
@@ -665,8 +670,16 @@ fun AttachmentChip(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.widthIn(max = 120.dp),
             )
+            if (attachment.canOptimizePhoto()) {
+                FilterChip(
+                    selected = attachment.sendOriginal,
+                    onClick = { onSendOriginalChange(!attachment.sendOriginal) },
+                    label = { Text(stringResource(R.string.chat_attachment_send_original)) },
+                    modifier = Modifier.padding(start = 4.dp).heightIn(min = 48.dp).testTag("attachment_send_original"),
+                )
+            }
             Spacer(modifier = Modifier.width(4.dp))
-            IconButton(onClick = onRemove, modifier = Modifier.size(18.dp)) {
+            IconButton(onClick = onRemove, modifier = Modifier.size(48.dp)) {
                 Icon(
                     imageVector = Icons.Default.Close,
                     contentDescription = stringResource(R.string.chat_attach_remove_desc),

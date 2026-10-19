@@ -94,7 +94,11 @@ fun ConfigScreen(
         viewModel.loadAll()
     }
 
-    ToastEffect(toastMessage = state.toastMessage, onClearToast = viewModel::clearToast)
+    ToastEffect(
+        toastMessage = state.toastMessage,
+        onClearToast = viewModel::clearToast,
+        isError = state.toastIsError,
+    )
 
     HermesScaffold(
         title = { Text(stringResource(R.string.config_screen_title)) },

@@ -34,6 +34,7 @@ data class WebhooksUiState(
     val subscriptions: List<WebhookSubscription> = emptyList(),
     val errorMessage: String? = null,
     val toastMessage: String? = null,
+    val toastIsError: Boolean = false,
     // Create form state
     val showCreateDialog: Boolean = false,
     val createFormName: String = "",
@@ -174,6 +175,7 @@ class WebhooksViewModel(
                                 _uiState.update {
                                     it.copy(
                                         enabled = originalEnabled,
+                                        toastIsError = true,
                                         toastMessage = "Failed to toggle webhooks: Gateway refused update",
                                     )
                                 }
@@ -184,6 +186,7 @@ class WebhooksViewModel(
                             _uiState.update {
                                 it.copy(
                                     enabled = originalEnabled,
+                                    toastIsError = true,
                                     toastMessage = "Failed to toggle webhooks: ${result.error.message}",
                                 )
                             }
@@ -324,7 +327,10 @@ class WebhooksViewModel(
 
                 is NetworkResult.Failure -> {
                     _uiState.update {
-                        it.copy(toastMessage = "Failed to toggle \"$name\": ${result.error.message}")
+                        it.copy(
+                            toastIsError = true,
+                            toastMessage = "Failed to toggle \"$name\": ${result.error.message}",
+                        )
                     }
                 }
             }
@@ -361,7 +367,10 @@ class WebhooksViewModel(
 
                 is NetworkResult.Failure -> {
                     _uiState.update {
-                        it.copy(toastMessage = "Failed to delete \"${target.name}\": ${result.error.message}")
+                        it.copy(
+                            toastIsError = true,
+                            toastMessage = "Failed to delete \"${target.name}\": ${result.error.message}",
+                        )
                     }
                 }
             }
@@ -369,6 +378,6 @@ class WebhooksViewModel(
     }
 
     override fun clearToast() {
-        _uiState.update { it.copy(toastMessage = null) }
+        _uiState.update { it.copy(toastMessage = null, toastIsError = false) }
     }
 }

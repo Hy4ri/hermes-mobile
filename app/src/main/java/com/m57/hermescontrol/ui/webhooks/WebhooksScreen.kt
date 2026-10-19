@@ -91,7 +91,11 @@ fun WebhooksScreen(
         viewModel.loadWebhooks()
     }
 
-    ToastEffect(toastMessage = state.toastMessage, onClearToast = viewModel::clearToast)
+    ToastEffect(
+        toastMessage = state.toastMessage,
+        onClearToast = viewModel::clearToast,
+        isError = state.toastIsError,
+    )
 
     // ── Delete Confirmation Dialog ──
     state.deleteTarget?.let { target ->

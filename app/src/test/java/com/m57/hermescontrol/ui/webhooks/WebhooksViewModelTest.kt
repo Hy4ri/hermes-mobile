@@ -124,6 +124,7 @@ class WebhooksViewModelTest {
         assertFalse(vm.uiState.value.isActionRunning)
         assertTrue(vm.uiState.value.enabled)
         assertEquals("Webhooks global status enabled", vm.uiState.value.toastMessage)
+        assertFalse(vm.uiState.value.toastIsError)
 
         coVerify(exactly = 1) {
             mockApi.configurePlatform(
@@ -225,6 +226,11 @@ class WebhooksViewModelTest {
         // Rolled back to original state
         assertFalse(vm.uiState.value.enabled)
         assertEquals("Failed to toggle webhooks: Gateway refused update", vm.uiState.value.toastMessage)
+        assertTrue(vm.uiState.value.toastIsError)
+
+        vm.clearToast()
+        assertNull(vm.uiState.value.toastMessage)
+        assertFalse(vm.uiState.value.toastIsError)
     }
 
     @Test
@@ -260,6 +266,7 @@ class WebhooksViewModelTest {
             vm.uiState.value.toastMessage
                 ?.startsWith("Failed to toggle webhooks:") == true,
         )
+        assertTrue(vm.uiState.value.toastIsError)
     }
 
     @Test

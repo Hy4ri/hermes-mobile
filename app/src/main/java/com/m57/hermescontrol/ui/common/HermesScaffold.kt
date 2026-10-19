@@ -18,15 +18,18 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -159,88 +162,95 @@ fun HermesScaffold(
             TopAppBarDefaults.enterAlwaysScrollBehavior()
         }
 
-    Scaffold(
-        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        contentWindowInsets = WindowInsets.navigationBars,
-        snackbarHost = { snackbarHost() },
-        topBar = {
-            TopAppBar(
-                title = title,
-                navigationIcon = {
-                    when (val icon = navigationIcon) {
-                        is NavIcon.Back -> {
-                            IconButton(onClick = icon.onBack) {
+    val feedbackHostState = remember { SnackbarHostState() }
+
+    CompositionLocalProvider(LocalActionFeedbackHost provides feedbackHostState) {
+        Scaffold(
+            modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+            contentWindowInsets = WindowInsets.navigationBars,
+            snackbarHost = {
+                snackbarHost()
+                ActionFeedbackSnackbarHost(feedbackHostState)
+            },
+            topBar = {
+                TopAppBar(
+                    title = title,
+                    navigationIcon = {
+                        when (val icon = navigationIcon) {
+                            is NavIcon.Back -> {
+                                IconButton(onClick = icon.onBack) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = stringResource(R.string.content_desc_back),
+                                        modifier = Modifier.testTag("back_button"),
+                                    )
+                                }
+                            }
+
+                            is NavIcon.Menu -> {
+                                IconButton(onClick = icon.onOpen) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Menu,
+                                        contentDescription = stringResource(R.string.content_desc_open_drawer),
+                                        modifier = Modifier.testTag("menu_button"),
+                                    )
+                                }
+                            }
+
+                            null -> { /* no navigation icon */ }
+                        }
+                    },
+                    actions = {
+                        if (onRefresh != null) {
+                            IconButton(onClick = onRefresh) {
                                 Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = stringResource(R.string.content_desc_back),
-                                    modifier = Modifier.testTag("back_button"),
+                                    imageVector = Icons.Filled.Refresh,
+                                    contentDescription = stringResource(R.string.content_desc_refresh),
+                                    modifier = Modifier.testTag("refresh_button"),
                                 )
                             }
                         }
-
-                        is NavIcon.Menu -> {
-                            IconButton(onClick = icon.onOpen) {
-                                Icon(
-                                    imageVector = Icons.Filled.Menu,
-                                    contentDescription = stringResource(R.string.content_desc_open_drawer),
-                                    modifier = Modifier.testTag("menu_button"),
-                                )
-                            }
-                        }
-
-                        null -> { /* no navigation icon */ }
-                    }
-                },
-                actions = {
-                    if (onRefresh != null) {
-                        IconButton(onClick = onRefresh) {
-                            Icon(
-                                imageVector = Icons.Filled.Refresh,
-                                contentDescription = stringResource(R.string.content_desc_refresh),
-                                modifier = Modifier.testTag("refresh_button"),
-                            )
-                        }
-                    }
-                    actions()
-                },
-                colors =
-                    TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        titleContentColor = MaterialTheme.colorScheme.onSurface,
-                        navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
-                        actionIconContentColor = MaterialTheme.colorScheme.onSurface,
-                    ),
-                scrollBehavior = scrollBehavior,
-            )
-        },
-        containerColor = MaterialTheme.colorScheme.background,
-    ) { paddingValues ->
-        val layoutDirection = LocalLayoutDirection.current
-        val refreshContent: @Composable () -> Unit = {
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxSize()
-                        .padding(
-                            start = paddingValues.calculateStartPadding(layoutDirection),
-                            end = paddingValues.calculateEndPadding(layoutDirection),
-                            bottom = paddingValues.calculateBottomPadding(),
-                        ).dynamicTopBarPadding(scrollBehavior, paddingValues.calculateTopPadding()),
-            ) {
-                content(paddingValues)
+                        actions()
+                    },
+                    colors =
+                        TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            titleContentColor = MaterialTheme.colorScheme.onSurface,
+                            navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+                            actionIconContentColor = MaterialTheme.colorScheme.onSurface,
+                        ),
+                    scrollBehavior = scrollBehavior,
+                )
+            },
+            containerColor = MaterialTheme.colorScheme.background,
+        ) { paddingValues ->
+            val layoutDirection = LocalLayoutDirection.current
+            val refreshContent: @Composable () -> Unit = {
+                Box(
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .padding(
+                                start = paddingValues.calculateStartPadding(layoutDirection),
+                                end = paddingValues.calculateEndPadding(layoutDirection),
+                                bottom = paddingValues.calculateBottomPadding(),
+                            ).dynamicTopBarPadding(scrollBehavior, paddingValues.calculateTopPadding()),
+                ) {
+                    content(paddingValues)
+                }
             }
-        }
 
-        if (onRefresh != null) {
-            PullToRefreshBox(
-                isRefreshing = isRefreshing,
-                onRefresh = onRefresh,
-                modifier = Modifier.fillMaxSize(),
-            ) {
+            if (onRefresh != null) {
+                PullToRefreshBox(
+                    isRefreshing = isRefreshing,
+                    onRefresh = onRefresh,
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    refreshContent()
+                }
+            } else {
                 refreshContent()
             }
-        } else {
-            refreshContent()
         }
     }
 }

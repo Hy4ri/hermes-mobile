@@ -411,11 +411,22 @@ fun InfoRow(
 
 // ── ToastEffect — helper for one-shot toast messages ───────────────────
 
+/**
+ * One-shot screen feedback. Plain messages stay a short toast. When [isError] is
+ * true (explicit severity from the ViewModel, never guessed from the text) the
+ * message goes to the screen's snackbar with a Copy action and a long lifetime;
+ * see [ActionFeedbackEffect].
+ */
 @Composable
 fun ToastEffect(
     toastMessage: String?,
     onClearToast: () -> Unit,
+    isError: Boolean = false,
 ) {
+    if (isError) {
+        ActionFeedbackEffect(message = toastMessage, onConsumed = onClearToast)
+        return
+    }
     val context = androidx.compose.ui.platform.LocalContext.current
     androidx.compose.runtime.LaunchedEffect(toastMessage) {
         toastMessage?.let { msg ->

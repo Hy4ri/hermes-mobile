@@ -49,6 +49,7 @@ data class ConfigUiState(
     val yamlIsSaving: Boolean = false,
     val errorMessage: String? = null,
     val toastMessage: String? = null,
+    val toastIsError: Boolean = false,
 )
 
 class ConfigViewModel(
@@ -226,6 +227,7 @@ class ConfigViewModel(
                                     it.copy(
                                         isLoading = false,
                                         errorMessage = "Failed to refresh config: $errorMsg",
+                                        toastIsError = true,
                                         toastMessage = "Failed to refresh config: $errorMsg",
                                     )
                                 }
@@ -385,6 +387,7 @@ class ConfigViewModel(
                         _uiState.update {
                             it.copy(
                                 yamlIsLoading = false,
+                                toastIsError = true,
                                 toastMessage = "Failed to load YAML: ${result.error.message}",
                             )
                         }
@@ -449,6 +452,7 @@ class ConfigViewModel(
                     _uiState.update {
                         it.copy(
                             isSaving = false,
+                            toastIsError = true,
                             toastMessage = "Failed to save: ${result.error.message}",
                         )
                     }
@@ -505,6 +509,7 @@ class ConfigViewModel(
                     _uiState.update {
                         it.copy(
                             yamlIsSaving = false,
+                            toastIsError = true,
                             toastMessage = "Failed to save YAML: ${result.error.message}",
                         )
                     }
@@ -548,7 +553,7 @@ class ConfigViewModel(
     }
 
     override fun clearToast() {
-        _uiState.update { it.copy(toastMessage = null) }
+        _uiState.update { it.copy(toastMessage = null, toastIsError = false) }
     }
 
     /** Build a nested JSON changeset from dot-path pending changes. */

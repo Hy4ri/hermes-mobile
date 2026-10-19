@@ -37,6 +37,7 @@ import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.refreshOnChange
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,6 +46,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import java.util.Locale
@@ -122,6 +124,11 @@ data class SessionsUiState(
     val isDeletingBulk: Boolean = false,
     val toastMessage: String? = null,
     val historyFeedback: HistoryActionFeedback? = null,
+    // Transcript share / JSON export (issue #1610).
+    val pendingTransfer: PendingTransfer? = null,
+    val exportPicker: ExportPickerRequest? = null,
+    val shareRequest: ShareTranscriptRequest? = null,
+    val isTransferring: Boolean = false,
     val isChangingHistory: Boolean = false,
     val sessionToDeleteConfirm: String? = null,
     val showBulkDeleteConfirm: Boolean = false,
@@ -333,6 +340,7 @@ class SessionsViewModel(
 
     private fun onDataScopeChanged(newScope: DataScope? = AuthManager.currentDataScope()) {
         clearHistoryFeedback()
+        resetTransfer()
         historyMutationJob?.cancel()
         historyMutationJob = null
         generation++
@@ -1125,6 +1133,181 @@ class SessionsViewModel(
             // Reconcile list placement, totals, empty count, and caches from server truth, even after failure.
             fenceHistoryReads()
             loadSessions(forceRefresh = true)
+        }
+    }
+
+    // Transcript share and JSON export (#1610). The owner (server + profile) is captured when the
+    // user picks the action; the API client for it is frozen before any picker or network wait.
+    private var transferJob: Job? = null
+    private var transferApi: HermesApiService? = null
+    private var transferSequence = 0L
+
+    fun requestTransfer(
+        sessionId: String,
+        kind: TransferKind,
+    ) {
+        if (_uiState.value.isTransferring) return
+        val owner = runCatching { currentActionScope() }.getOrNull() ?: return
+        val title =
+            _uiState.value.sessions
+                .firstOrNull { it.id == sessionId }
+                ?.title
+                ?: _uiState.value.searchResults
+                    .firstOrNull { it.session_id == sessionId }
+                    ?.title
+        _uiState.update { it.copy(pendingTransfer = PendingTransfer(sessionId, title, kind, owner)) }
+    }
+
+    fun dismissTransfer() {
+        resetTransfer()
+    }
+
+    /** The privacy warning was accepted. */
+    fun confirmTransfer() {
+        val transfer = _uiState.value.pendingTransfer ?: return
+        if (_uiState.value.isTransferring) return
+        val api =
+            runCatching {
+                check(currentActionScope() == transfer.owner) { "History owner changed" }
+                actionServiceFactory(transfer.owner)
+            }.getOrElse {
+                resetTransfer()
+                _uiState.update { state -> state.copy(toastMessage = "Export failed: ${it.message}") }
+                return
+            }
+        transferApi = api
+        when (transfer.kind) {
+            TransferKind.EXPORT_JSON -> {
+                _uiState.update {
+                    it.copy(
+                        pendingTransfer = null,
+                        exportPicker =
+                            ExportPickerRequest(
+                                transfer,
+                                exportFileName(transfer.title, transfer.sessionId),
+                            ),
+                    )
+                }
+            }
+
+            TransferKind.SHARE_TEXT -> {
+                shareTranscript(transfer, api)
+            }
+        }
+    }
+
+    /** The picker returned without a file. Nothing was requested from the server. */
+    fun cancelExportPicker() {
+        resetTransfer()
+    }
+
+    /** Streams the export into the file the user picked. [open] is null when the picker gave no stream. */
+    fun writeExport(open: () -> java.io.OutputStream?) {
+        val request = _uiState.value.exportPicker ?: return
+        val api = transferApi ?: return resetTransfer()
+        val id = ++transferSequence
+        _uiState.update { it.copy(exportPicker = null, isTransferring = true) }
+        transferJob =
+            viewModelScope.launch {
+                val outcome =
+                    runTransfer {
+                        withContext(Dispatchers.IO) {
+                            val response =
+                                api.exportSession(
+                                    request.transfer.sessionId,
+                                    request.transfer.owner.activeProfileId,
+                                )
+                            val body = response.body()
+                            if (!response.isSuccessful || body == null) {
+                                throw java.io.IOException("Server returned ${response.code()}")
+                            }
+                            val out = open() ?: throw java.io.IOException("Could not open the selected file")
+                            body.use { b -> out.use { copyBounded(b.byteStream(), it) } }
+                        }
+                    }
+                finishTransfer(id, outcome.exceptionOrNull(), R.string.sessions_transfer_exported)
+            }
+    }
+
+    private fun shareTranscript(
+        transfer: PendingTransfer,
+        api: HermesApiService,
+    ) {
+        val id = ++transferSequence
+        _uiState.update { it.copy(pendingTransfer = null, isTransferring = true) }
+        transferJob =
+            viewModelScope.launch {
+                val outcome =
+                    runTransfer {
+                        withContext(Dispatchers.IO) {
+                            val response = api.exportSession(transfer.sessionId, transfer.owner.activeProfileId)
+                            val body = response.body()
+                            if (!response.isSuccessful || body == null) {
+                                throw java.io.IOException("Server returned ${response.code()}")
+                            }
+                            val bytes = java.io.ByteArrayOutputStream()
+                            body.use { b -> copyBounded(b.byteStream(), bytes) }
+                            bytes.toString(Charsets.UTF_8.name())
+                        }
+                    }
+                val text = outcome.getOrNull()?.let { renderTranscript(it, transfer.title) }
+                if (outcome.isSuccess && text == null) {
+                    finishTransfer(id, java.io.IOException("No readable messages in this session"), 0)
+                } else if (text != null && id == transferSequence && currentActionScope() == transfer.owner) {
+                    transferApi = null
+                    _uiState.update {
+                        it.copy(
+                            isTransferring = false,
+                            shareRequest = ShareTranscriptRequest(id, transfer.title ?: transfer.sessionId, text),
+                        )
+                    }
+                } else {
+                    finishTransfer(id, outcome.exceptionOrNull(), 0)
+                }
+            }
+    }
+
+    private suspend fun <T> runTransfer(block: suspend () -> T): Result<T> =
+        try {
+            Result.success(block())
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+
+    private fun finishTransfer(
+        id: Long,
+        error: Throwable?,
+        @androidx.annotation.StringRes successRes: Int,
+    ) {
+        if (id != transferSequence) return
+        transferApi = null
+        _uiState.update { state ->
+            state.copy(
+                isTransferring = false,
+                toastMessage = error?.let { "Export failed: ${it.message}" } ?: state.toastMessage,
+                historyFeedback =
+                    if (error == null && successRes != 0) {
+                        HistoryActionFeedback(historySequence, successRes)
+                    } else {
+                        state.historyFeedback
+                    },
+            )
+        }
+    }
+
+    fun consumeShareRequest(id: Long) {
+        if (_uiState.value.shareRequest?.id == id) _uiState.update { it.copy(shareRequest = null) }
+    }
+
+    private fun resetTransfer() {
+        transferSequence++
+        transferJob?.cancel()
+        transferJob = null
+        transferApi = null
+        _uiState.update {
+            it.copy(pendingTransfer = null, exportPicker = null, isTransferring = false)
         }
     }
 

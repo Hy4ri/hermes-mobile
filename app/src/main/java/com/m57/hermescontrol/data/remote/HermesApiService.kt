@@ -275,6 +275,15 @@ interface HermesApiService : KanbanApiService {
         @Body body: SessionRenameRequest,
     ): Response<Unit>
 
+    // Streams one session (metadata + every message row) as JSON. Read it as a
+    // stream: a long transcript can be tens of MB (issue #1610).
+    @Streaming
+    @GET("api/sessions/{id}/export")
+    suspend fun exportSession(
+        @Path("id", encoded = true) sessionId: String,
+        @Query("profile") profile: String? = null,
+    ): Response<ResponseBody>
+
     @POST("api/sessions/bulk-delete")
     suspend fun bulkDeleteSessions(
         @Body body: BulkDeleteRequest,

@@ -5,7 +5,9 @@ import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -32,6 +34,9 @@ fun SessionActionMenu(
     onSelect: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
+    onShareTranscript: (() -> Unit)? = null,
+    onExportJson: (() -> Unit)? = null,
+    transferEnabled: Boolean = true,
 ) {
     val statusColors = LocalHermesStatusColors.current
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
@@ -79,6 +84,22 @@ fun SessionActionMenu(
                 },
                 enabled = historyActionsEnabled && !isDeleting,
                 onClick = onToggleArchive,
+            )
+        }
+        if (onShareTranscript != null) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.sessions_action_share_transcript)) },
+                leadingIcon = { Icon(Icons.Filled.Share, contentDescription = null) },
+                enabled = transferEnabled && !isDeleting,
+                onClick = onShareTranscript,
+            )
+        }
+        if (onExportJson != null) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.sessions_action_export_json)) },
+                leadingIcon = { Icon(Icons.Filled.FileDownload, contentDescription = null) },
+                enabled = transferEnabled && !isDeleting,
+                onClick = onExportJson,
             )
         }
         DropdownMenuItem(

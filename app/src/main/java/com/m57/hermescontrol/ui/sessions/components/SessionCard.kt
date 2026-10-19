@@ -189,6 +189,9 @@ fun SessionCard(
     onTogglePin: () -> Unit,
     onToggleArchive: () -> Unit,
     onDelete: () -> Unit,
+    onShareTranscript: (() -> Unit)? = null,
+    onExportJson: (() -> Unit)? = null,
+    transferEnabled: Boolean = true,
 ) {
     val spacing = LocalSpacing.current
     val statusColors = LocalHermesStatusColors.current
@@ -299,6 +302,21 @@ fun SessionCard(
                     menuExpanded = false
                     onToggleArchive()
                 },
+                transferEnabled = transferEnabled,
+                onShareTranscript =
+                    onShareTranscript?.let {
+                        {
+                            menuExpanded = false
+                            it()
+                        }
+                    },
+                onExportJson =
+                    onExportJson?.let {
+                        {
+                            menuExpanded = false
+                            it()
+                        }
+                    },
                 onSelect = {
                     menuExpanded = false
                     onSelect()

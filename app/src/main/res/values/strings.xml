@@ -987,6 +987,14 @@
     <string name="sessions_action_pin">Pin</string>
     <string name="sessions_action_unpin">Unpin</string>
     <string name="sessions_action_archive">Archive</string>
+    <string name="sessions_action_share_transcript">Share transcript</string>
+    <string name="sessions_action_export_json">Export JSON</string>
+    <string name="sessions_transfer_privacy_title">Sensitive content</string>
+    <string name="sessions_transfer_privacy_share">The transcript can contain private messages, file paths, or secrets. It is sent as plain text to the app you pick. Tool output and images are not included.</string>
+    <string name="sessions_transfer_privacy_export">The file can contain private messages, tool output, file paths, or secrets. Store it in a place you trust. Images are saved as server paths, so they do not open on another server.</string>
+    <string name="sessions_transfer_continue">Continue</string>
+    <string name="sessions_transfer_chooser_title">Share transcript</string>
+    <string name="sessions_transfer_exported">Session exported</string>
     <string name="sessions_action_unarchive">Unarchive</string>
     <string name="sessions_archived_empty_title">No archived sessions</string>
     <string name="sessions_archived_empty_desc">Sessions you archive will show up here.</string>

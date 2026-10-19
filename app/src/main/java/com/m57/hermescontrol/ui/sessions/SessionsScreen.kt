@@ -126,6 +126,7 @@ import com.m57.hermescontrol.ui.sessions.components.PinnedSectionHeader
 import com.m57.hermescontrol.ui.sessions.components.ProjectGroupHeader
 import com.m57.hermescontrol.ui.sessions.components.SearchResultCard
 import com.m57.hermescontrol.ui.sessions.components.SessionCard
+import com.m57.hermescontrol.ui.sessions.components.SessionTransferHost
 import com.m57.hermescontrol.ui.sessions.components.SessionsBulkActionBar
 import com.m57.hermescontrol.ui.sessions.components.SessionsDialogs
 import com.m57.hermescontrol.ui.sessions.components.SessionsStatsRow
@@ -281,6 +282,8 @@ fun SessionsScreen(
     }
 
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { viewModel.clearHistoryFeedback() }
+
+    SessionTransferHost(state = state, viewModel = viewModel)
 
     // Toast effect
     ToastEffect(
@@ -1043,6 +1046,13 @@ fun SessionsScreen(
                                         },
                                         onTogglePin = { viewModel.togglePin(session.id) },
                                         onToggleArchive = { viewModel.toggleArchive(session.id) },
+                                        onShareTranscript = {
+                                            viewModel.requestTransfer(session.id, TransferKind.SHARE_TEXT)
+                                        },
+                                        onExportJson = {
+                                            viewModel.requestTransfer(session.id, TransferKind.EXPORT_JSON)
+                                        },
+                                        transferEnabled = !state.isTransferring,
                                         onDelete = { viewModel.requestDeleteSession(session.id) },
                                     )
                                 }

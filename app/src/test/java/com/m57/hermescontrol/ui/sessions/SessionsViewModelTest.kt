@@ -1188,4 +1188,159 @@ class SessionsViewModelTest {
         assertEquals(2, source.fetchCallCount)
         vm.stopLiveStatusTracking()
     }
+
+    // ── Transcript share / JSON export (#1610) ─────────────────────────────
+
+    private val exportBody =
+        """{"id":"s-1","title":"T","messages":[{"role":"user","content":"hi"},{"role":"assistant","content":"yo"}]}"""
+
+    private fun createTransferViewModel(scope: () -> DataScope?): SessionsViewModel {
+        val vm =
+            SessionsViewModel(
+                liveStatusSource = FakeSessionLiveStatusSource(),
+                projectsSource = FakeProjectsSource(),
+                currentActionScope = scope,
+                actionServiceFactory = { mockApi },
+            )
+        testDispatcher.scheduler.advanceUntilIdle()
+        return vm
+    }
+
+    /** The transfer reads the body on Dispatchers.IO, so wait in real time for the state to settle. */
+    private fun SessionsViewModel.awaitTransfer() {
+        val deadline = System.currentTimeMillis() + 5_000
+        do {
+            testDispatcher.scheduler.advanceUntilIdle()
+            if (!uiState.value.isTransferring) return
+            Thread.sleep(10)
+        } while (System.currentTimeMillis() < deadline)
+        error("transfer did not finish")
+    }
+
+    private val transferScope = DataScope("test", "http://example.test/", "work")
+
+    @Test
+    fun `share transcript fetches for the captured profile and renders readable text`() {
+        val vm = createTransferViewModel { transferScope }
+        coEvery { mockApi.exportSession("s-1", "work") } returns
+            Response.success(exportBody.toResponseBody())
+        vm.requestTransfer("s-1", TransferKind.SHARE_TEXT)
+        assertEquals(
+            transferScope,
+            vm.uiState.value.pendingTransfer
+                ?.owner,
+        )
+        coVerify(exactly = 0) { mockApi.exportSession(any(), any()) }
+
+        vm.confirmTransfer()
+        vm.awaitTransfer()
+
+        assertNull(vm.uiState.value.pendingTransfer)
+        assertEquals(
+            "You:\nhi\n\nHermes:\nyo\n",
+            vm.uiState.value.shareRequest
+                ?.text
+                ?.substringAfter("\n\n"),
+        )
+    }
+
+    @Test
+    fun `export streams the body into the picked file`() {
+        val vm = createTransferViewModel { transferScope }
+        coEvery { mockApi.exportSession("s-1", "work") } returns
+            Response.success(exportBody.toResponseBody())
+        vm.requestTransfer("s-1", TransferKind.EXPORT_JSON)
+        vm.confirmTransfer()
+        assertNotNull(vm.uiState.value.exportPicker)
+        assertTrue(
+            vm.uiState.value.exportPicker!!
+                .suggestedName
+                .endsWith(".json"),
+        )
+        coVerify(exactly = 0) { mockApi.exportSession(any(), any()) }
+
+        val out = java.io.ByteArrayOutputStream()
+        vm.writeExport { out }
+        vm.awaitTransfer()
+
+        assertEquals(exportBody, out.toString(Charsets.UTF_8.name()))
+        assertNull(vm.uiState.value.exportPicker)
+        assertEquals(
+            R.string.sessions_transfer_exported,
+            vm.uiState.value.historyFeedback
+                ?.messageRes,
+        )
+    }
+
+    @Test
+    fun `cancelling the picker never calls the server`() {
+        val vm = createTransferViewModel { transferScope }
+        vm.requestTransfer("s-1", TransferKind.EXPORT_JSON)
+        vm.confirmTransfer()
+        vm.cancelExportPicker()
+
+        assertNull(vm.uiState.value.exportPicker)
+        assertFalse(vm.uiState.value.isTransferring)
+        coVerify(exactly = 0) { mockApi.exportSession(any(), any()) }
+    }
+
+    @Test
+    fun `scope change before confirm blocks the export`() {
+        var scope = transferScope
+        val vm = createTransferViewModel { scope }
+        vm.requestTransfer("s-1", TransferKind.EXPORT_JSON)
+        scope = DataScope("other", "http://other.test/", "default")
+        vm.confirmTransfer()
+
+        assertNull(vm.uiState.value.exportPicker)
+        assertNull(vm.uiState.value.pendingTransfer)
+        assertTrue(
+            vm.uiState.value.toastMessage!!
+                .startsWith("Export failed"),
+        )
+        coVerify(exactly = 0) { mockApi.exportSession(any(), any()) }
+    }
+
+    @Test
+    fun `server error is reported and writes nothing`() {
+        val vm = createTransferViewModel { transferScope }
+        coEvery { mockApi.exportSession("s-1", "work") } returns
+            Response.error(500, "boom".toResponseBody())
+        vm.requestTransfer("s-1", TransferKind.EXPORT_JSON)
+        vm.confirmTransfer()
+        val out = java.io.ByteArrayOutputStream()
+        vm.writeExport { out }
+        vm.awaitTransfer()
+
+        assertEquals(0, out.size())
+        assertTrue(
+            vm.uiState.value.toastMessage!!
+                .contains("500"),
+        )
+    }
+
+    @Test
+    fun `share of a session with no readable turns reports an error`() {
+        val vm = createTransferViewModel { transferScope }
+        coEvery { mockApi.exportSession("s-1", "work") } returns
+            Response.success("""{"messages":[{"role":"tool","content":"x"}]}""".toResponseBody())
+        vm.requestTransfer("s-1", TransferKind.SHARE_TEXT)
+        vm.confirmTransfer()
+        vm.awaitTransfer()
+
+        assertNull(vm.uiState.value.shareRequest)
+        assertTrue(
+            vm.uiState.value.toastMessage!!
+                .contains("No readable messages"),
+        )
+    }
+
+    @Test
+    fun `dismissing the privacy warning clears the pending transfer`() {
+        val vm = createTransferViewModel { transferScope }
+        vm.requestTransfer("s-1", TransferKind.SHARE_TEXT)
+        vm.dismissTransfer()
+        assertNull(vm.uiState.value.pendingTransfer)
+        coVerify(exactly = 0) { mockApi.exportSession(any(), any()) }
+    }
 }

@@ -138,6 +138,15 @@ class VerifyReleaseApkCliTest(unittest.TestCase):
         )
         self.assert_rejected(self.invoke())
 
+    def test_build_tools_37_output_format_is_accepted(self):
+        self.write_tool(
+            self.apksigner,
+            "Verifies\n"
+            f"V2 Signer: certificate SHA-256 digest: {CERTIFICATE}\n"
+            f"V3 Signer: certificate SHA-256 digest: {CERTIFICATE}\n",
+        )
+        self.assertEqual(self.invoke().returncode, 0)
+
     def test_unsigned_apk_is_rejected(self):
         self.write_tool(self.apksigner, stderr="DOES NOT VERIFY: No signatures found\n", exit_code=1)
         self.assert_rejected(self.invoke())

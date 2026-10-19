@@ -29,11 +29,19 @@ def main():
     try:
         expected = certificate(args.certificate)
         output = run_tool([args.apksigner, "verify", "--print-certs", args.apk])
-        fingerprints = re.findall(
-            r"^Signer #\d+ certificate SHA-256 digest:\s*(\S+)\s*$",
-            output, re.MULTILINE,
+        # build-tools 36 prints "Signer #1 ..."; 37 prints one "V2 Signer: ..."
+        # line per signature scheme. Each scheme may list only one signer.
+        pattern = (
+            r"^(Signer #\d+|V\d+ Signer):? certificate SHA-256 digest:\s*(\S+)\s*$"
         )
-        if len(fingerprints) != 1:
+        found = re.findall(pattern, output, re.MULTILINE)
+        labels = [label for label, _ in found]
+        fingerprints = [value for _, value in found]
+        if (
+            len(set(labels)) != len(labels)
+            or sum(label.startswith("Signer #") for label in labels) > 1
+            or len({certificate(value) for value in fingerprints}) != 1
+        ):
             raise ValueError("APK must have exactly one signing certificate")
         if certificate(fingerprints[0]) != expected:
             raise ValueError("APK signing certificate does not match the trust anchor")

@@ -1688,9 +1688,13 @@ class HermesWsClientTest {
         HermesWsClient.forceHealthCheckForTest(staleMillis = 200_000L)
 
         // Cancel fires onFailure on an OkHttp thread; with auto-reconnect off
-        // (setUp default) the terminal state settles at DISCONNECTED.
+        // (setUp default) the terminal state settles away from CONNECTED. onFailure clears
+        // `connected` before it publishes the status, so wait for both, not the flag alone.
         val deadline = System.currentTimeMillis() + 5000
-        while (HermesWsClient.isConnected && System.currentTimeMillis() < deadline) {
+        while (
+            (HermesWsClient.isConnected || HermesWsClient.connectionStatus.value == ConnectionStatus.CONNECTED) &&
+            System.currentTimeMillis() < deadline
+        ) {
             Thread.sleep(25)
         }
         assertFalse("Stale socket was not cancelled", HermesWsClient.isConnected)

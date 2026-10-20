@@ -25,6 +25,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
@@ -51,6 +52,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -299,50 +301,34 @@ fun MainNavigation(sessionId: String? = null) {
     }
 
     CompositionLocalProvider(LocalDrawerGestureController provides gestureController) {
-        Row(modifier = Modifier.fillMaxSize()) {
-            if (wideWindow && sidebarVisible) {
-                PermanentDrawerSheet(
-                    modifier = Modifier.width(SidebarWidth).fillMaxHeight().verticalScroll(rememberScrollState()),
-                ) {
-                    NavigationDrawerBody(
-                        currentScreen = currentScreen,
-                        hasToken = hasToken,
-                        onItemClick = {},
-                    )
-                }
-            }
-            Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                ModalNavigationDrawer(
-                    drawerState = drawerState,
-                    gesturesEnabled = gestureController.enabled && !wideWindow,
-                    drawerContent = {
-                        ModalDrawerSheet(
-                            modifier = Modifier.verticalScroll(rememberScrollState()),
-                        ) {
-                            NavigationDrawerBody(
-                                currentScreen = currentScreen,
-                                hasToken = hasToken,
-                                onItemClick = { scope.launch { drawerState.close() } },
-                            )
-                        }
-                    },
-                ) {
-                    Scaffold(
-                        contentWindowInsets = WindowInsets.navigationBars,
-                    ) { paddingValues ->
-                        NavDisplay(
-                            backStack = backStack,
-                            onBack = { NavigationController.goBack() },
-                            entryProvider =
-                                appEntryProvider(sessionId, openDrawer),
-                            modifier =
-                                Modifier
-                                    .padding(paddingValues)
-                                    .consumeWindowInsets(paddingValues)
-                                    .fillMaxSize(),
-                        )
-                    }
-                }
+        AdaptiveNavigationShell(
+            wideWindow = wideWindow,
+            sidebarVisible = sidebarVisible,
+            drawerState = drawerState,
+            gesturesEnabled = gestureController.enabled,
+            drawerBody = { onItemClick ->
+                NavigationDrawerBody(
+                    currentScreen = currentScreen,
+                    hasToken = hasToken,
+                    onItemClick = onItemClick,
+                )
+            },
+            onModalItemClick = { scope.launch { drawerState.close() } },
+        ) {
+            Scaffold(
+                contentWindowInsets = WindowInsets.navigationBars,
+            ) { paddingValues ->
+                NavDisplay(
+                    backStack = backStack,
+                    onBack = { NavigationController.goBack() },
+                    entryProvider =
+                        appEntryProvider(sessionId, openDrawer),
+                    modifier =
+                        Modifier
+                            .padding(paddingValues)
+                            .consumeWindowInsets(paddingValues)
+                            .fillMaxSize(),
+                )
             }
         }
 
@@ -351,6 +337,47 @@ fun MainNavigation(sessionId: String? = null) {
                 tag = release.tagName,
                 releaseNotes = release.body,
                 onDismiss = { WhatsNewNotice.dismiss() },
+            )
+        }
+    }
+}
+
+/**
+ * Wide windows show [drawerBody] in a permanent sidebar; narrow windows show it in a modal
+ * drawer. The modal drawer stays composed in both modes so resizing never recreates [content].
+ */
+@Composable
+internal fun AdaptiveNavigationShell(
+    wideWindow: Boolean,
+    sidebarVisible: Boolean,
+    drawerState: DrawerState,
+    gesturesEnabled: Boolean,
+    drawerBody: @Composable (onItemClick: () -> Unit) -> Unit,
+    onModalItemClick: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    Row(modifier = Modifier.fillMaxSize()) {
+        if (wideWindow && sidebarVisible) {
+            PermanentDrawerSheet(
+                modifier = Modifier.width(SidebarWidth).fillMaxHeight().verticalScroll(rememberScrollState()),
+            ) {
+                drawerBody {}
+            }
+        }
+        // A closed modal sheet sits at -sheetWidth inside this Box. Without the clip it draws
+        // over the permanent sidebar and pushes its labels off-screen (issues #1639, #1640).
+        Box(modifier = Modifier.weight(1f).fillMaxHeight().clipToBounds()) {
+            ModalNavigationDrawer(
+                drawerState = drawerState,
+                gesturesEnabled = gesturesEnabled && !wideWindow,
+                drawerContent = {
+                    ModalDrawerSheet(
+                        modifier = Modifier.verticalScroll(rememberScrollState()),
+                    ) {
+                        drawerBody(onModalItemClick)
+                    }
+                },
+                content = content,
             )
         }
     }

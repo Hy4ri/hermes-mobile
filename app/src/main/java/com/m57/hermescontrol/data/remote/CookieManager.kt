@@ -70,6 +70,17 @@ object CookieManager {
     fun getSessionCookie(): String? = jar?.getSessionCookieValue()
 
     /**
+     * The provider the active scope's last dashboard session signed in with (the gateway's
+     * `hermes_session_provider` routing hint), or null. May block briefly while the scope loads.
+     */
+    fun getSessionProvider(): String? {
+        val j = jar ?: return null
+        return listOf("__Host-", "__Secure-", "")
+            .firstNotNullOfOrNull { prefix -> j.getCookie(prefix + SESSION_PROVIDER_COOKIE_NAME)?.value }
+            ?.takeIf { it.isNotBlank() }
+    }
+
+    /**
      * Set the session cookie for the active scope and canonical endpoint.
      * HTTPS endpoints produce Secure cookies that cannot be sent over HTTP.
      */

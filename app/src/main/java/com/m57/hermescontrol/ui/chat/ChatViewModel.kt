@@ -876,10 +876,18 @@ class ChatViewModel(
             ioDispatcher = ioDispatcher,
         )
 
-    private val reloginAuthenticator =
-        com.m57.hermescontrol.data.remote.ChatReloginAuthenticator(
-            ioDispatcher = ioDispatcher,
-            mainDispatcher = Dispatchers.Main,
+    /** In-chat re-login dialog: matches the gateway's sign-in providers (issue #1641). */
+    val relogin =
+        ChatReloginController(
+            scope = viewModelScope,
+            backend =
+                com.m57.hermescontrol.data.remote
+                    .ChatReloginAuthenticator(ioDispatcher = ioDispatcher),
+            browserErrorText = { result ->
+                com.m57.hermescontrol.ui.authlogin
+                    .browserLoginErrorText(getApplication(), result)
+            },
+            onAuthenticated = { reconnect() },
         )
 
     private val modelSwitchDelegate =
@@ -7413,26 +7421,6 @@ class ChatViewModel(
         viewModelScope.launch {
             delay(500)
             connectWebSocket(setLoading = true)
-        }
-    }
-
-    fun relogin(
-        username: String,
-        password: String,
-        onResult: (Boolean, String?) -> Unit,
-    ) {
-        viewModelScope.launch {
-            reloginAuthenticator.relogin(
-                username = username,
-                password = password,
-                onSuccess = {
-                    onResult(true, null)
-                    reconnect()
-                },
-                onFailure = { msg ->
-                    onResult(false, msg)
-                },
-            )
         }
     }
 

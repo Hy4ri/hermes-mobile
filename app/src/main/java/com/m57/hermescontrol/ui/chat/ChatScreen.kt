@@ -394,7 +394,7 @@ fun ChatScreen(
             viewModel.consumeComposerTextRestore()
         }
     }
-    var showReloginDialog by rememberSaveable { mutableStateOf(false) }
+    val reloginState by viewModel.relogin.state.collectAsStateWithLifecycle()
     var showSubagentInspectionSheet by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(showSubagentInspectionSheet) {
         if (showSubagentInspectionSheet) {
@@ -485,7 +485,7 @@ fun ChatScreen(
         )
 
     val isChatContentReadable =
-        !showReloginDialog &&
+        !reloginState.visible &&
             !state.updateConfirmOpen &&
             !actionProgressState.visible &&
             !state.showModelPicker &&
@@ -694,7 +694,7 @@ fun ChatScreen(
             ChatConnectionBanner(
                 connectionStatus = state.connectionStatus,
                 onReconnect = viewModel::reconnect,
-                onReloginClick = { showReloginDialog = true },
+                onReloginClick = viewModel.relogin::open,
             )
 
             // Issue #942: compact glanceable progress strip while work is active.
@@ -1037,12 +1037,14 @@ fun ChatScreen(
             onRetry = viewModel::retryTimeline,
         )
 
-        if (showReloginDialog) {
+        if (reloginState.visible) {
             ReloginDialog(
-                onDismiss = { showReloginDialog = false },
-                onRelogin = { username, password, onResult ->
-                    viewModel.relogin(username, password, onResult)
-                },
+                state = reloginState,
+                onDismiss = viewModel.relogin::dismiss,
+                onRetry = viewModel.relogin::retry,
+                onSelectProvider = viewModel.relogin::selectProvider,
+                onSubmitPassword = viewModel.relogin::submitPassword,
+                onStartBrowser = viewModel.relogin::startBrowser,
             )
         }
 

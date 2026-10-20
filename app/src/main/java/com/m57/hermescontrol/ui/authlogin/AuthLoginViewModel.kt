@@ -18,17 +18,10 @@ import com.m57.hermescontrol.data.remote.AuthPayloads
 import com.m57.hermescontrol.data.remote.CertificateOrigin
 import com.m57.hermescontrol.data.remote.CleartextPolicy
 import com.m57.hermescontrol.data.remote.ClientCertificates
-import com.m57.hermescontrol.data.remote.CookieManager
-import com.m57.hermescontrol.data.remote.LoopbackCallbackServer
-import com.m57.hermescontrol.data.remote.NativeCallback
-import com.m57.hermescontrol.data.remote.NativePkce
-import com.m57.hermescontrol.data.remote.NativeTokenResult
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.await
 import com.m57.hermescontrol.data.remote.isClientCertificateAuthenticationFailure
-import com.m57.hermescontrol.data.remote.nativeAuthorizeUrl
-import com.m57.hermescontrol.data.remote.redeemNativeCode
 import com.m57.hermescontrol.data.remote.requiresLocalNetworkPermission
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
@@ -40,13 +33,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.io.IOException
 
 /**
  * What auth the dashboard requires. Derived authoritatively from
@@ -154,9 +143,6 @@ class AuthLoginViewModel(
 
     companion object {
         private const val TAG = "AuthLoginVM"
-
-        /** The gateway keeps a pending native login for 10 minutes. */
-        private const val BROWSER_LOGIN_TIMEOUT_MS = 10 * 60 * 1000L
     }
 
     private val probeClient: OkHttpClient =
@@ -422,45 +408,20 @@ class AuthLoginViewModel(
         endpoint: ServerEndpoint,
         onCertificateFailure: () -> Unit,
     ): ProbeResult? {
-        // Step 1: reachability + auth mode from the public status endpoint.
-        val statusJson =
+        // Step 1: reachability + sign-in options from the public status endpoint.
+        val info =
             try {
-                val req =
-                    Request
-                        .Builder()
-                        .url(endpoint.resolve("api/status").toString())
-                        .get()
-                        .build()
-                val resp = probeClient.newCall(req).await()
-                if (!resp.isSuccessful) return null
-                resp.body.string()
+                probeGatewayAuth(probeClient, endpoint)
             } catch (e: Exception) {
                 if (isClientCertificateAuthenticationFailure(endpoint.baseUrl, e)) {
                     onCertificateFailure()
                 }
                 Log.w(TAG, "Status probe failed: ${e.message}")
-                return null // Dashboard unreachable
-            }
-
-        val authRequired: Boolean
-        val providerNames: List<String>
-        val authFlows: Set<String>
-        try {
-            val node = OkHttpProvider.json.parseToJsonElement(statusJson).jsonObject
-            authRequired = node["auth_required"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
-            providerNames =
-                node["auth_providers"]
-                    ?.jsonArray
-                    ?.mapNotNull { it.jsonPrimitive.content }
-                    .orEmpty()
-            authFlows = parseAuthFlows(node["auth_flows"]?.jsonArray)
-        } catch (e: Exception) {
-            Log.w(TAG, "Status parse failed: ${e.message}")
-            return null
-        }
+                null
+            } ?: return null // Dashboard unreachable or status unreadable
 
         // No gate (loopback / --insecure): token mode. Try to grab the embedded token.
-        if (!authRequired) {
+        if (!info.authRequired) {
             var extractedToken: String? = null
             try {
                 val spaReq =
@@ -485,33 +446,15 @@ class AuthLoginViewModel(
             return ProbeResult(authMode = mode, extractedToken = extractedToken)
         }
 
-        // Gate engaged (non-loopback bind). The dedicated endpoint says which providers take a
-        // password; the bare status names are only a fallback for gateways that lack it.
-        val providers = fetchAuthProviders(endpoint) ?: providersFromStatusNames(providerNames)
-        val selected = providers.firstOrNull()
+        // Gate engaged (non-loopback bind): each advertised provider maps to a sign-in mode.
+        val selected = info.providers.firstOrNull()
         return ProbeResult(
-            authMode = deriveAuthMode(authRequired, providers),
-            providers = providers,
+            authMode = deriveAuthMode(true, info.providers),
+            providers = info.providers,
             selectedProvider = selected?.name,
-            browserSupported = "native_pkce" in authFlows,
+            browserSupported = info.browserSupported,
         )
     }
-
-    private suspend fun fetchAuthProviders(endpoint: ServerEndpoint): List<AuthProviderOption>? =
-        try {
-            val req =
-                Request
-                    .Builder()
-                    .url(endpoint.resolve("api/auth/providers").toString())
-                    .get()
-                    .build()
-            probeClient.newCall(req).await().use { resp ->
-                if (resp.isSuccessful) parseAuthProviders(resp.body.string()) else null
-            }
-        } catch (e: IOException) {
-            Log.w(TAG, "Provider list fetch failed: ${e.message}")
-            null
-        }
 
     /**
      * Result of a successful connect attempt.
@@ -700,34 +643,27 @@ class AuthLoginViewModel(
     }
 
     /** Mint a WebSocket ticket from the session cookie already in the shared jar. */
-    private suspend fun mintTicket(endpoint: ServerEndpoint): ConnectResult? {
-        val ticketReq =
-            Request
-                .Builder()
-                .url(endpoint.resolve("api/auth/ws-ticket").toString())
-                .post("{}".toRequestBody())
-                .build()
-        OkHttpProvider.probe.newCall(ticketReq).await().use { ticketResp ->
-            if (!ticketResp.isSuccessful) {
+    private suspend fun mintTicket(endpoint: ServerEndpoint): ConnectResult? =
+        when (val result = mintWsTicket(OkHttpProvider.probe, endpoint)) {
+            is WsTicketResult.Success -> {
+                ConnectResult(wsCredential = result.ticket)
+            }
+
+            is WsTicketResult.HttpError -> {
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        errorMessage = app.getString(R.string.connect_error_http_code, ticketResp.code),
+                        errorMessage = app.getString(R.string.connect_error_http_code, result.code),
                     )
                 }
-                return null
+                null
             }
-            val ticketMatch = Regex(""""ticket":"([^"]+)"""").find(ticketResp.body.string())
-            val ticket = ticketMatch?.groupValues?.getOrNull(1)
-            if (ticket.isNullOrBlank()) {
-                _uiState.update {
-                    it.copy(isLoading = false, errorMessage = "Failed to obtain WebSocket ticket")
-                }
-                return null
+
+            WsTicketResult.Missing -> {
+                _uiState.update { it.copy(isLoading = false, errorMessage = "Failed to obtain WebSocket ticket") }
+                null
             }
-            return ConnectResult(wsCredential = ticket)
         }
-    }
 
     /**
      * Sign in through the system browser (RFC 8252: loopback redirect + PKCE) against the selected
@@ -750,8 +686,11 @@ class AuthLoginViewModel(
         browserJob =
             viewModelScope.launch {
                 val outcome =
-                    withContext(Dispatchers.IO) { runBrowserLogin(endpoint, provider, openBrowser) }
-                if (outcome.connected) {
+                    withContext(Dispatchers.IO) {
+                        runNativeBrowserLogin(OkHttpProvider.probe, endpoint, provider, openBrowser)
+                    }
+                val connected = outcome is BrowserLoginResult.Success
+                if (outcome is BrowserLoginResult.Success) {
                     AuthManager.setBaseUrl(state.baseUrl)
                     AuthManager.setToken(outcome.wsTicket)
                     AuthManager.setWsAuthParam("ticket")
@@ -761,8 +700,8 @@ class AuthLoginViewModel(
                     it.copy(
                         isLoading = false,
                         browserWaiting = false,
-                        connectionSuccess = outcome.connected,
-                        errorMessage = outcome.error ?: it.errorMessage,
+                        connectionSuccess = connected,
+                        errorMessage = browserLoginErrorText(app, outcome) ?: it.errorMessage,
                     )
                 }
             }
@@ -773,110 +712,6 @@ class AuthLoginViewModel(
         browserJob?.cancel()
         browserJob = null
         _uiState.update { it.copy(isLoading = false, browserWaiting = false, errorMessage = null) }
-    }
-
-    private class BrowserOutcome(
-        val wsTicket: String? = null,
-        val error: String? = null,
-    ) {
-        val connected: Boolean get() = wsTicket != null
-    }
-
-    private suspend fun runBrowserLogin(
-        endpoint: ServerEndpoint,
-        provider: String,
-        openBrowser: (String) -> Unit,
-    ): BrowserOutcome {
-        val verifier = NativePkce.randomUrlSafe()
-        val clientState = NativePkce.randomUrlSafe()
-        val server =
-            try {
-                LoopbackCallbackServer.open()
-            } catch (e: IOException) {
-                return BrowserOutcome(error = app.getString(R.string.connect_error_connection_failed, e.message ?: ""))
-            }
-        return server.use {
-            val authorizeUrl =
-                nativeAuthorizeUrl(
-                    endpoint = endpoint,
-                    provider = provider,
-                    codeChallenge = NativePkce.challengeFor(verifier),
-                    redirectUri = server.redirectUri,
-                    state = clientState,
-                )
-            try {
-                openBrowser(authorizeUrl.toString())
-            } catch (e: Exception) {
-                Log.w(TAG, "Could not open browser: ${e.javaClass.simpleName}")
-                return@use BrowserOutcome(error = app.getString(R.string.auth_login_error_browser_no_browser))
-            }
-            when (val callback = server.awaitCallback(clientState, BROWSER_LOGIN_TIMEOUT_MS)) {
-                is NativeCallback.Code -> {
-                    redeemBrowserCode(endpoint, callback.code, verifier)
-                }
-
-                is NativeCallback.Denied -> {
-                    BrowserOutcome(error = app.getString(R.string.auth_login_error_browser_denied, callback.error))
-                }
-
-                NativeCallback.TimedOut -> {
-                    BrowserOutcome(error = app.getString(R.string.auth_login_error_browser_timeout))
-                }
-
-                NativeCallback.Closed -> {
-                    BrowserOutcome()
-                }
-            }
-        }
-    }
-
-    private suspend fun redeemBrowserCode(
-        endpoint: ServerEndpoint,
-        code: String,
-        verifier: String,
-    ): BrowserOutcome {
-        val result =
-            try {
-                redeemNativeCode(OkHttpProvider.probe, endpoint, code, verifier)
-            } catch (e: IOException) {
-                return BrowserOutcome(
-                    error = app.getString(R.string.connect_error_connection_failed, e.message ?: ""),
-                )
-            }
-        return when (result) {
-            is NativeTokenResult.Success -> {
-                CookieManager.installNativeSession(result.tokens, endpoint)
-                val ticket =
-                    try {
-                        mintTicket(endpoint)
-                    } catch (e: IOException) {
-                        _uiState.update {
-                            it.copy(
-                                errorMessage =
-                                    app.getString(
-                                        R.string.connect_error_connection_failed,
-                                        e.message ?: "",
-                                    ),
-                            )
-                        }
-                        null
-                    }
-                if (ticket == null) {
-                    CookieManager.setSessionCookie(null, endpoint)
-                    BrowserOutcome()
-                } else {
-                    BrowserOutcome(wsTicket = ticket.wsCredential)
-                }
-            }
-
-            is NativeTokenResult.HttpError -> {
-                BrowserOutcome(error = app.getString(R.string.connect_error_http_code, result.code))
-            }
-
-            NativeTokenResult.Malformed -> {
-                BrowserOutcome(error = app.getString(R.string.auth_login_error_browser_bad_response))
-            }
-        }
     }
 }
 

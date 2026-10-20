@@ -13,8 +13,10 @@ import com.m57.hermescontrol.data.remote.ClientCertificates
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.await
+import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.mockkStatic
@@ -332,6 +334,7 @@ class AuthLoginViewModelTest {
         val response = mockk<Response>()
         every { response.isSuccessful } returns true
         every { response.body.string() } returns """{"auth_required":false}"""
+        every { response.close() } just Runs
         coEvery { statusCall.await() } returns response
         coEvery { homepageCall.await() } throws javax.net.ssl.SSLProtocolException("TLSV1_ALERT_CERTIFICATE_REQUIRED")
         viewModel.probe()

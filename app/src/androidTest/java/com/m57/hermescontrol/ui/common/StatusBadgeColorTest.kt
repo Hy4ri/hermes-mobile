@@ -54,12 +54,16 @@ class StatusBadgeColorTest {
                 Column {
                     SessionLiveStatusIndicator(SessionLiveStatus.WORKING, "working")
                     SessionLiveStatusIndicator(SessionLiveStatus.WAITING, "waiting")
+                    SessionLiveStatusIndicator(SessionLiveStatus.DONE, "done")
+                    SessionLiveStatusIndicator(SessionLiveStatus.FAILED, "failed")
                 }
             }
         }
         val colors = resolveStatusColors(ThemePreset.NORD, darkTheme = false)
         assertRenderedPair("session_live_status_working", colors.success.toArgb(), colors.onSuccess.toArgb())
         assertRenderedPair("session_live_status_waiting", colors.warning.toArgb(), colors.onWarning.toArgb())
+        assertRenderedPair("session_live_status_done", colors.info.toArgb(), colors.onInfo.toArgb())
+        assertRenderedPair("session_live_status_failed", colors.error.toArgb(), colors.onError.toArgb())
     }
 
     private fun assertRenderedPair(

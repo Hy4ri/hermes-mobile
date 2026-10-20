@@ -169,7 +169,7 @@ class SessionLiveStatusReducerTest {
     }
 
     @Test
-    fun `approval request and clarify request mark WAITING for known runtime`() {
+    fun `approval and clarify requests mark their specific waiting reason for known runtime`() {
         val initial =
             SessionLiveTrackingState(
                 liveStatuses = mapOf("stored-1" to SessionLiveStatus.WORKING),
@@ -189,7 +189,7 @@ class SessionLiveStatusReducerTest {
             )
 
         val state = SessionLiveStatusReducer.applyWsEvent(initial, approvalEvent)
-        assertEquals(SessionLiveStatus.WAITING, state.liveStatuses["stored-1"])
+        assertEquals(SessionLiveStatus.WAITING_APPROVAL, state.liveStatuses["stored-1"])
 
         val clarifyEvent =
             WsEvent.ClarifyRequest(
@@ -199,7 +199,7 @@ class SessionLiveStatusReducerTest {
             )
 
         val state2 = SessionLiveStatusReducer.applyWsEvent(initial, clarifyEvent)
-        assertEquals(SessionLiveStatus.WAITING, state2.liveStatuses["stored-1"])
+        assertEquals(SessionLiveStatus.WAITING_CLARIFY, state2.liveStatuses["stored-1"])
     }
 
     @Test
@@ -283,5 +283,96 @@ class SessionLiveStatusReducerTest {
         val cleared = SessionLiveStatusReducer.clear()
         assertTrue(cleared.liveStatuses.isEmpty())
         assertTrue(cleared.storedIdByRuntimeId.isEmpty())
+    }
+
+    // ── Issue #1642 ────────────────────────────────────────────────────
+
+    private val mapped = mapOf("rt-1" to "stored-1")
+
+    @Test
+    fun `sudo request marks the generic waiting reason`() {
+        val state =
+            SessionLiveStatusReducer.applyWsEvent(
+                SessionLiveTrackingState(mapOf("stored-1" to SessionLiveStatus.WORKING), mapped),
+                WsEvent.SudoRequest(requestId = "r1", sessionId = "rt-1"),
+            )
+        assertEquals(SessionLiveStatus.WAITING, state.liveStatuses["stored-1"])
+    }
+
+    @Test
+    fun `snapshot waiting keeps the specific reason an event already gave`() {
+        val initial = SessionLiveTrackingState(mapOf("stored-1" to SessionLiveStatus.WAITING_APPROVAL), mapped)
+        val state =
+            SessionLiveStatusReducer.applySnapshot(
+                initial,
+                LiveSessionSnapshot(mapOf("stored-1" to SessionLiveStatus.WAITING), mapped),
+            )
+        assertEquals(SessionLiveStatus.WAITING_APPROVAL, state.liveStatuses["stored-1"])
+    }
+
+    @Test
+    fun `snapshot waiting without a known reason stays generic`() {
+        val initial = SessionLiveTrackingState(mapOf("stored-1" to SessionLiveStatus.WORKING), mapped)
+        val state =
+            SessionLiveStatusReducer.applySnapshot(
+                initial,
+                LiveSessionSnapshot(mapOf("stored-1" to SessionLiveStatus.WAITING), mapped),
+            )
+        assertEquals(SessionLiveStatus.WAITING, state.liveStatuses["stored-1"])
+    }
+
+    @Test
+    fun `snapshot working replaces a stale waiting reason`() {
+        val initial = SessionLiveTrackingState(mapOf("stored-1" to SessionLiveStatus.WAITING_CLARIFY), mapped)
+        val state =
+            SessionLiveStatusReducer.applySnapshot(
+                initial,
+                LiveSessionSnapshot(mapOf("stored-1" to SessionLiveStatus.WORKING), mapped),
+            )
+        assertEquals(SessionLiveStatus.WORKING, state.liveStatuses["stored-1"])
+    }
+
+    @Test
+    fun `expired prompt or new output returns a waiting session to WORKING`() {
+        val waiting = SessionLiveTrackingState(mapOf("stored-1" to SessionLiveStatus.WAITING_APPROVAL), mapped)
+        val events =
+            listOf(
+                WsEvent.ClarifyExpire(sessionId = "rt-1"),
+                WsEvent.ServerRequestCancelled(
+                    id = "srq-1",
+                    method = "approval.request",
+                    reason = "timeout",
+                    sessionId = "rt-1",
+                ),
+                WsEvent.MessageToken(token = "x", sessionId = "rt-1"),
+                WsEvent.ToolStart(name = "terminal", data = null, sessionId = "rt-1"),
+            )
+        for (event in events) {
+            assertEquals(
+                event.toString(),
+                SessionLiveStatus.WORKING,
+                SessionLiveStatusReducer.applyWsEvent(waiting, event).liveStatuses["stored-1"],
+            )
+        }
+    }
+
+    @Test
+    fun `progress events do not create a status for an idle session`() {
+        val idle = SessionLiveTrackingState(emptyMap(), mapped)
+        assertEquals(idle, SessionLiveStatusReducer.applyWsEvent(idle, WsEvent.MessageToken("x", "rt-1")))
+    }
+
+    @Test
+    fun `finishedBetween lists sessions that stopped being live`() {
+        val before =
+            SessionLiveTrackingState(
+                mapOf(
+                    "working" to SessionLiveStatus.WORKING,
+                    "waiting" to SessionLiveStatus.WAITING_CLARIFY,
+                    "still" to SessionLiveStatus.WORKING,
+                ),
+            )
+        val after = SessionLiveTrackingState(mapOf("still" to SessionLiveStatus.WAITING))
+        assertEquals(setOf("working", "waiting"), SessionLiveStatusReducer.finishedBetween(before, after))
     }
 }

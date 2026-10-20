@@ -837,6 +837,14 @@
     <string name="sessions_live_status_waiting">Richiede input</string>
     <string name="sessions_live_status_running_desc">La sessione è in esecuzione</string>
     <string name="sessions_live_status_waiting_desc">La sessione richiede l\'intervento dell\'utente</string>
+    <string name="sessions_live_status_approval">Serve approvazione</string>
+    <string name="sessions_live_status_approval_desc">La sessione attende l\'approvazione di un comando</string>
+    <string name="sessions_live_status_clarify">Serve risposta</string>
+    <string name="sessions_live_status_clarify_desc">La sessione ha fatto una domanda</string>
+    <string name="sessions_live_status_done">Completata</string>
+    <string name="sessions_live_status_done_desc">La sessione è terminata e non l\'hai ancora aperta</string>
+    <string name="sessions_live_status_failed">Non riuscita</string>
+    <string name="sessions_live_status_failed_desc">La sessione è terminata con un errore e non l\'hai ancora aperta</string>
     <string name="sessions_rename_title">Rinomina sessione</string>
     <string name="sessions_rename_hint">Titolo sessione</string>
     <string name="toolsets_empty_title">Nessun set di strumenti trovato</string>

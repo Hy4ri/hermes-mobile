@@ -12,6 +12,8 @@ import com.m57.hermescontrol.data.model.SessionSearchResponse
 import com.m57.hermescontrol.data.model.SessionSearchResult
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.HermesApiService
+import com.m57.hermescontrol.data.session.SessionAttentionStore
+import com.m57.hermescontrol.data.session.sessionAttentionScopeKey
 import com.m57.hermescontrol.data.ws.ChangeEventHub
 import com.m57.hermescontrol.data.ws.ChangeEvents
 import com.m57.hermescontrol.data.ws.ConnectionStatus
@@ -1086,6 +1088,51 @@ class SessionsViewModelTest {
 
         assertEquals(SessionLiveStatus.WAITING, vm.uiState.value.liveStatuses["stored-1"])
         vm.stopLiveStatusTracking()
+    }
+
+    @Test
+    fun `snapshot stop marks Done, opening the chat clears it, and a new turn clears a stale mark`() {
+        SessionAttentionStore.resetForTesting(null)
+        val scopeKey = sessionAttentionScopeKey(DataScope("test", "http://example.test/", "default"))!!
+        val source = FakeSessionLiveStatusSource()
+        source.snapshotToReturn =
+            LiveSessionSnapshot(
+                statusByStoredId = mapOf("stored-1" to SessionLiveStatus.WORKING),
+                storedIdByRuntimeId = mapOf("rt-1" to "stored-1"),
+            )
+        val vm = createViewModel(source)
+        vm.startLiveStatusTracking()
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(SessionLiveStatus.WORKING, vm.uiState.value.statusFor("stored-1"))
+
+        // The session ran on another client: no message.complete, only a snapshot without it.
+        source.snapshotToReturn = LiveSessionSnapshot(emptyMap(), emptyMap())
+        vm.refreshLiveStatuses()
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(SessionLiveStatus.DONE, vm.uiState.value.statusFor("stored-1"))
+
+        // Opening it in Chat returns it to a normal row.
+        SessionAttentionStore.setViewing(scopeKey, "stored-1")
+        SessionAttentionStore.setViewing(null, null)
+        testDispatcher.scheduler.runCurrent()
+        assertNull(vm.uiState.value.statusFor("stored-1"))
+
+        // A new turn makes an earlier mark stale: the row shows Running, then a normal row.
+        SessionAttentionStore.markFinished(scopeKey, "stored-2", failed = true)
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(SessionLiveStatus.FAILED, vm.uiState.value.statusFor("stored-2"))
+        source.snapshotToReturn =
+            LiveSessionSnapshot(
+                statusByStoredId = mapOf("stored-2" to SessionLiveStatus.WORKING),
+                storedIdByRuntimeId = mapOf("rt-2" to "stored-2"),
+            )
+        vm.refreshLiveStatuses()
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(SessionLiveStatus.WORKING, vm.uiState.value.statusFor("stored-2"))
+        vm.stopLiveStatusTracking()
+        testDispatcher.scheduler.runCurrent()
+        assertNull(vm.uiState.value.statusFor("stored-2"))
+        SessionAttentionStore.resetForTesting(null)
     }
 
     @Test

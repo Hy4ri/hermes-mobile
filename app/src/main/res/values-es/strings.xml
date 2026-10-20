@@ -909,6 +909,14 @@
     <string name="sessions_live_status_waiting">Necesita entrada</string>
     <string name="sessions_live_status_running_desc">La sesión se está ejecutando</string>
     <string name="sessions_live_status_waiting_desc">La sesión necesita entrada del usuario</string>
+    <string name="sessions_live_status_approval">Requiere aprobación</string>
+    <string name="sessions_live_status_approval_desc">La sesión espera la aprobación de un comando</string>
+    <string name="sessions_live_status_clarify">Requiere respuesta</string>
+    <string name="sessions_live_status_clarify_desc">La sesión hizo una pregunta</string>
+    <string name="sessions_live_status_done">Terminada</string>
+    <string name="sessions_live_status_done_desc">La sesión terminó y aún no la has abierto</string>
+    <string name="sessions_live_status_failed">Falló</string>
+    <string name="sessions_live_status_failed_desc">La sesión terminó con un error y aún no la has abierto</string>
     <string name="sessions_rename_title">Cambiar nombre de la sesión</string>
     <string name="sessions_rename_hint">Título de la sesión</string>
 

@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.sessions
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -51,6 +52,31 @@ class SessionLiveStatusIndicatorTest {
 
         composeTestRule.onNodeWithTag("session_live_status_sess-waiting").assertIsDisplayed()
         composeTestRule.onNodeWithText("Needs input").assertIsDisplayed()
+    }
+
+    @Test
+    fun specificStatuses_displayTheirLabels() {
+        // Issue #1642: the label names the reason; Done/Failed mark finished, unopened sessions.
+        val cases =
+            listOf(
+                SessionLiveStatus.WAITING_APPROVAL to "Needs approval",
+                SessionLiveStatus.WAITING_CLARIFY to "Needs answer",
+                SessionLiveStatus.DONE to "Done",
+                SessionLiveStatus.FAILED to "Failed",
+            )
+        composeTestRule.setContent {
+            HermesControlTheme {
+                Column {
+                    cases.forEach { (status, _) ->
+                        SessionLiveStatusIndicator(liveStatus = status, sessionId = status.name)
+                    }
+                }
+            }
+        }
+        cases.forEach { (status, label) ->
+            composeTestRule.onNodeWithTag("session_live_status_${status.name}").assertIsDisplayed()
+            composeTestRule.onNodeWithText(label).assertIsDisplayed()
+        }
     }
 
     @Test

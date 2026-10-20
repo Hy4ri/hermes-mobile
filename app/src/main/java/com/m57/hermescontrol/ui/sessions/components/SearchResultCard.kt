@@ -42,6 +42,7 @@ import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.StatusBadge
 import com.m57.hermescontrol.ui.common.StatusBadgeType
+import com.m57.hermescontrol.ui.common.statusBadgeColors
 import com.m57.hermescontrol.ui.sessions.cleanSearchSnippet
 import com.m57.hermescontrol.ui.sessions.formatPlayedAt
 import com.m57.hermescontrol.ui.sessions.highlightSearchText
@@ -90,10 +91,8 @@ fun SearchResultCard(
         border =
             if (isSelected) {
                 BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
-            } else if (!isSelecting && liveStatus == SessionLiveStatus.WORKING) {
-                BorderStroke(2.dp, statusColors.success)
-            } else if (!isSelecting && liveStatus == SessionLiveStatus.WAITING) {
-                BorderStroke(2.dp, statusColors.warning)
+            } else if (!isSelecting && liveStatus != null) {
+                statusBadgeColors(liveStatus.badgeType(), statusColors)?.let { (fill, _) -> BorderStroke(2.dp, fill) }
             } else {
                 null
             },

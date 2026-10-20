@@ -1013,6 +1013,14 @@
     <string name="sessions_live_status_waiting">Needs input</string>
     <string name="sessions_live_status_running_desc">Session is running</string>
     <string name="sessions_live_status_waiting_desc">Session needs user input</string>
+    <string name="sessions_live_status_approval">Needs approval</string>
+    <string name="sessions_live_status_approval_desc">Session needs a command approval</string>
+    <string name="sessions_live_status_clarify">Needs answer</string>
+    <string name="sessions_live_status_clarify_desc">Session asked a question</string>
+    <string name="sessions_live_status_done">Done</string>
+    <string name="sessions_live_status_done_desc">Session finished. You have not opened it yet</string>
+    <string name="sessions_live_status_failed">Failed</string>
+    <string name="sessions_live_status_failed_desc">Session ended with an error. You have not opened it yet</string>
     <string name="sessions_rename_title">Rename Session</string>
     <string name="sessions_rename_hint">Session title</string>
 

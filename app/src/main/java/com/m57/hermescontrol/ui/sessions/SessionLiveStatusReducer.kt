@@ -21,9 +21,30 @@ object SessionLiveStatusReducer {
         snapshot: LiveSessionSnapshot,
     ): SessionLiveTrackingState =
         SessionLiveTrackingState(
-            liveStatuses = snapshot.statusByStoredId,
+            // Issue #1642: `session.active_list` only says "waiting". Keep the reason an event already gave us
+            // (approval / clarify) instead of downgrading it to the generic label on every poll.
+            liveStatuses =
+                snapshot.statusByStoredId.mapValues { (storedId, status) ->
+                    val previous = state.liveStatuses[storedId]
+                    if (status == SessionLiveStatus.WAITING && previous?.isWaiting == true) previous else status
+                },
             storedIdByRuntimeId = snapshot.storedIdByRuntimeId,
         )
+
+    /**
+     * Stored ids that were live (working or waiting) in [before] and are no longer live in [after]: the turn
+     * ended. Used to mark sessions finished when no `message.complete` reached this client (issue #1642).
+     */
+    fun finishedBetween(
+        before: SessionLiveTrackingState,
+        after: SessionLiveTrackingState,
+    ): Set<String> =
+        before.liveStatuses
+            .filter { (id, status) -> isLive(status) && !isLive(after.liveStatuses[id]) }
+            .keys
+
+    private fun isLive(status: SessionLiveStatus?): Boolean =
+        status == SessionLiveStatus.WORKING || status?.isWaiting == true
 
     fun applyWsEvent(
         state: SessionLiveTrackingState,
@@ -31,12 +52,52 @@ object SessionLiveStatusReducer {
     ): SessionLiveTrackingState =
         when (event) {
             is WsEvent.SessionInfo -> reduceSessionInfo(state, event)
+
             is WsEvent.MessageStart -> reduceMessageStart(state, event)
+
             is WsEvent.MessageComplete -> reduceMessageComplete(state, event)
+
             is WsEvent.MessageDone -> reduceMessageDone(state, event)
-            is WsEvent.ApprovalRequest -> reduceApprovalRequest(state, event)
-            is WsEvent.ClarifyRequest -> reduceClarifyRequest(state, event)
+
+            is WsEvent.ApprovalRequest -> markWaiting(state, event.sessionId, SessionLiveStatus.WAITING_APPROVAL)
+
+            is WsEvent.ClarifyRequest -> markWaiting(state, event.sessionId, SessionLiveStatus.WAITING_CLARIFY)
+
+            is WsEvent.SudoRequest -> markWaiting(state, event.sessionId, SessionLiveStatus.WAITING)
+
+            is WsEvent.SecretRequest -> markWaiting(state, event.sessionId, SessionLiveStatus.WAITING)
+
+            is WsEvent.VaultUnlockRequest -> markWaiting(state, event.sessionId, SessionLiveStatus.WAITING)
+
+            is WsEvent.VaultSaveLoginRequest -> markWaiting(state, event.sessionId, SessionLiveStatus.WAITING)
+
+            is WsEvent.VaultCodeRequest -> markWaiting(state, event.sessionId, SessionLiveStatus.WAITING)
+
+            // Issue #1642: the prompt is gone or the agent moved on, so the session is running again.
+            is WsEvent.ClarifyExpire -> resumeWorking(state, event.sessionId)
+
+            is WsEvent.SudoExpire -> resumeWorking(state, event.sessionId)
+
+            is WsEvent.SecretExpire -> resumeWorking(state, event.sessionId)
+
+            is WsEvent.VaultUnlockExpire -> resumeWorking(state, event.sessionId)
+
+            is WsEvent.VaultSaveLoginExpire -> resumeWorking(state, event.sessionId)
+
+            is WsEvent.VaultCodeExpire -> resumeWorking(state, event.sessionId)
+
+            is WsEvent.ServerRequestCancelled -> resumeWorking(state, event.sessionId)
+
+            is WsEvent.MessageToken -> resumeWorking(state, event.sessionId)
+
+            is WsEvent.ReasoningDelta -> resumeWorking(state, event.sessionId)
+
+            is WsEvent.ThinkingDelta -> resumeWorking(state, event.sessionId)
+
+            is WsEvent.ToolStart -> resumeWorking(state, event.sessionId)
+
             is WsEvent.SessionReclaimed -> reduceSessionReclaimed(state, event)
+
             else -> state
         }
 
@@ -151,25 +212,28 @@ object SessionLiveStatusReducer {
         )
     }
 
-    private fun reduceApprovalRequest(
+    private fun markWaiting(
         state: SessionLiveTrackingState,
-        event: WsEvent.ApprovalRequest,
+        sessionId: String?,
+        status: SessionLiveStatus,
     ): SessionLiveTrackingState {
-        val runtimeId = event.sessionId?.trim()?.takeIf { it.isNotEmpty() } ?: return state
+        val runtimeId = sessionId?.trim()?.takeIf { it.isNotEmpty() } ?: return state
         val storedId = state.storedIdByRuntimeId[runtimeId] ?: return state
         return state.copy(
-            liveStatuses = state.liveStatuses + (storedId to SessionLiveStatus.WAITING),
+            liveStatuses = state.liveStatuses + (storedId to status),
         )
     }
 
-    private fun reduceClarifyRequest(
+    /** A waiting session whose prompt expired or that produced new output is running again. */
+    private fun resumeWorking(
         state: SessionLiveTrackingState,
-        event: WsEvent.ClarifyRequest,
+        sessionId: String?,
     ): SessionLiveTrackingState {
-        val runtimeId = event.sessionId?.trim()?.takeIf { it.isNotEmpty() } ?: return state
+        val runtimeId = sessionId?.trim()?.takeIf { it.isNotEmpty() } ?: return state
         val storedId = state.storedIdByRuntimeId[runtimeId] ?: return state
+        if (state.liveStatuses[storedId]?.isWaiting != true) return state
         return state.copy(
-            liveStatuses = state.liveStatuses + (storedId to SessionLiveStatus.WAITING),
+            liveStatuses = state.liveStatuses + (storedId to SessionLiveStatus.WORKING),
         )
     }
 }

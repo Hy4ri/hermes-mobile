@@ -965,6 +965,14 @@
     <string name="sessions_live_status_waiting">Eingabe erforderlich</string>
     <string name="sessions_live_status_running_desc">Session läuft</string>
     <string name="sessions_live_status_waiting_desc">Session benötigt eine Eingabe</string>
+    <string name="sessions_live_status_approval">Freigabe nötig</string>
+    <string name="sessions_live_status_approval_desc">Session wartet auf die Freigabe eines Befehls</string>
+    <string name="sessions_live_status_clarify">Antwort nötig</string>
+    <string name="sessions_live_status_clarify_desc">Session hat eine Frage gestellt</string>
+    <string name="sessions_live_status_done">Fertig</string>
+    <string name="sessions_live_status_done_desc">Session ist fertig und wurde noch nicht geöffnet</string>
+    <string name="sessions_live_status_failed">Fehlgeschlagen</string>
+    <string name="sessions_live_status_failed_desc">Session endete mit einem Fehler und wurde noch nicht geöffnet</string>
     <string name="sessions_rename_title">Session umbenennen</string>
     <string name="sessions_rename_hint">Session-Titel</string>
 

@@ -14,6 +14,7 @@ import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
+import com.m57.hermescontrol.data.session.SessionAttentionStore
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
@@ -448,6 +449,7 @@ class SettingsViewModel(
         AuthManager.setWsAuthParam("token")
         AuthManager.clearLastOpenedSessionId()
         SessionListCacheStore.clear()
+        SessionAttentionStore.clearAll()
         HermesWsClient.disconnect(clearPendingMessages = true)
         // Don't rebuild ApiClient here — let the navigation complete first
     }

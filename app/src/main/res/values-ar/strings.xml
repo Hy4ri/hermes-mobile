@@ -779,6 +779,14 @@
 <string name="sessions_live_status_waiting">بانتظار إدخال</string>
 <string name="sessions_live_status_running_desc">الجلسة قيد التشغيل</string>
 <string name="sessions_live_status_waiting_desc">الجلسة بانتظار إدخال من المستخدم</string>
+<string name="sessions_live_status_approval">بانتظار موافقة</string>
+<string name="sessions_live_status_approval_desc">الجلسة بانتظار الموافقة على أمر</string>
+<string name="sessions_live_status_clarify">بانتظار إجابة</string>
+<string name="sessions_live_status_clarify_desc">الجلسة طرحت سؤالًا</string>
+<string name="sessions_live_status_done">انتهت</string>
+<string name="sessions_live_status_done_desc">انتهت الجلسة ولم تفتحها بعد</string>
+<string name="sessions_live_status_failed">فشلت</string>
+<string name="sessions_live_status_failed_desc">انتهت الجلسة بخطأ ولم تفتحها بعد</string>
 <string name="sessions_rename_title">إعادة تسمية الجلسة</string>
 <string name="sessions_rename_hint">عنوان الجلسة</string>
 <string name="toolsets_empty_title">لم يتم العثور على مجموعات أدوات</string>

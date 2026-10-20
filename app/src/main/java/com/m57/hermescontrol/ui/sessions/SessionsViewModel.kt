@@ -24,6 +24,8 @@ import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.remote.safeApiRead
 import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
+import com.m57.hermescontrol.data.session.SessionAttentionStore
+import com.m57.hermescontrol.data.session.sessionAttentionScopeKey
 import com.m57.hermescontrol.data.ws.ChangeEventHub
 import com.m57.hermescontrol.data.ws.ChangeEvents
 import com.m57.hermescontrol.data.ws.ConnectionStatus
@@ -143,10 +145,15 @@ data class SessionsUiState(
     val groupByProject: Boolean = false,
     val collapsedProjectGroups: Set<String> = emptySet(),
     val liveStatuses: Map<String, SessionLiveStatus> = emptyMap(),
+    // Issue #1642: Done/Failed marks for sessions finished since the user last opened them.
+    val attention: Map<String, SessionLiveStatus> = emptyMap(),
     // Named projects used to label each row with the workspace it belongs to.
     val projects: List<ProjectInfo> = emptyList(),
 ) {
     val isSearchMode: Boolean get() = searchQuery.isNotBlank()
+
+    /** The badge for [sessionId]: live gateway state first, else a Done/Failed mark, else none. */
+    fun statusFor(sessionId: String): SessionLiveStatus? = liveStatuses[sessionId] ?: attention[sessionId]
 
     val archivedQuery: String? get() = if (showArchived) "only" else null
 
@@ -253,6 +260,7 @@ class SessionsViewModel(
     private val sessionsPageCache = SwrCache<String, SessionListResponse>()
 
     init {
+        viewModelScope.launch { SessionAttentionStore.marks.collect { refreshAttention() } }
         // Scope transitions are driven by ProfileSwitchCoordinator (profile switch and
         // connection switch). An additional AuthManager.dataScopeFlow collector would
         // double-fire on the same transition and reset/refetch History twice.
@@ -331,7 +339,25 @@ class SessionsViewModel(
         )
     }
 
+    private fun refreshAttention() {
+        val marks =
+            SessionAttentionStore.marksFor(
+                sessionAttentionScopeKey(runCatching { currentActionScope() }.getOrNull()),
+            )
+        _uiState.update { if (it.attention == marks) it else it.copy(attention = marks) }
+    }
+
+    /** A session that is live again has a new turn in progress: its earlier Done/Failed mark is stale. */
+    private fun clearMarksOfLiveSessions() {
+        val key = sessionAttentionScopeKey(runCatching { currentActionScope() }.getOrNull()) ?: return
+        val marked = SessionAttentionStore.marksFor(key)
+        liveTrackingState.liveStatuses.keys
+            .filter { it in marked }
+            .forEach { SessionAttentionStore.clear(key, it) }
+    }
+
     private fun onDataScopeChanged(newScope: DataScope? = AuthManager.currentDataScope()) {
+        refreshAttention()
         clearHistoryFeedback()
         historyMutationJob?.cancel()
         historyMutationJob = null
@@ -1212,6 +1238,7 @@ class SessionsViewModel(
             when (result) {
                 is NetworkResult.Success -> {
                     draftScope?.let { ComposerDraftStore.initialized()?.remove(ComposerDraftKey(it, sessionId)) }
+                    sessionAttentionScopeKey(draftScope)?.let { SessionAttentionStore.clear(it, sessionId) }
                     if (AuthManager.getLastOpenedSessionId() == sessionId) {
                         AuthManager.clearLastOpenedSessionId()
                     }
@@ -1280,6 +1307,9 @@ class SessionsViewModel(
                     draftScope?.let { owner ->
                         val draftStore = ComposerDraftStore.initialized()
                         removedIds.forEach { draftStore?.remove(ComposerDraftKey(owner, it)) }
+                    }
+                    sessionAttentionScopeKey(draftScope)?.let { key ->
+                        removedIds.forEach { SessionAttentionStore.clear(key, it) }
                     }
                     val lastOpened = AuthManager.getLastOpenedSessionId()
                     if (lastOpened != null && lastOpened in removedIds) {
@@ -1628,6 +1658,7 @@ class SessionsViewModel(
                 launch {
                     liveStatusSource.events.collect { event ->
                         liveTrackingState = SessionLiveStatusReducer.applyWsEvent(liveTrackingState, event)
+                        clearMarksOfLiveSessions()
                         _uiState.update { it.copy(liveStatuses = liveTrackingState.liveStatuses) }
                         if (event is WsEvent.SessionTitle) applySessionTitle(event)
                     }
@@ -1712,7 +1743,16 @@ class SessionsViewModel(
                     liveStatusSource.connectionStatus.value == ConnectionStatus.CONNECTED &&
                     snapshot != null
                 ) {
+                    val before = liveTrackingState
                     liveTrackingState = SessionLiveStatusReducer.applySnapshot(liveTrackingState, snapshot)
+                    // Issue #1642: a session another client ran sends this phone no message.complete; the
+                    // snapshot showing it stopped is the only signal. Never overwrite a mark from an event.
+                    sessionAttentionScopeKey(currentActionScope())?.let { key ->
+                        SessionLiveStatusReducer.finishedBetween(before, liveTrackingState).forEach { id ->
+                            SessionAttentionStore.markFinished(key, id, failed = false, overwrite = false)
+                        }
+                    }
+                    clearMarksOfLiveSessions()
                     _uiState.update { it.copy(liveStatuses = liveTrackingState.liveStatuses) }
                 }
             } finally {

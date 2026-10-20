@@ -18,6 +18,8 @@ import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.ServerCaRestrictions
 import com.m57.hermescontrol.data.remote.ServerTrust
+import com.m57.hermescontrol.data.session.SessionAttentionStore
+import com.m57.hermescontrol.data.session.SessionAttentionTracker
 import com.m57.hermescontrol.notification.TurnCorrelationTracker
 import com.m57.hermescontrol.share.SHARE_INBOX_DIRECTORY
 import com.m57.hermescontrol.shortcuts.LauncherShortcuts
@@ -49,6 +51,9 @@ class HermesControlApp :
         LauncherShortcuts.initialize(this, appScope)
         NetworkMonitor.init(this)
         SessionListCacheStore.init(this)
+        // Issue #1642: "finished, not opened yet" marks for History.
+        SessionAttentionStore.init(this)
+        SessionAttentionTracker.start(appScope)
         // Reply-notification turn boundaries survive process death (armed before
         // each mobile prompt, consumed by the matching completion).
         TurnCorrelationTracker.attach(this)

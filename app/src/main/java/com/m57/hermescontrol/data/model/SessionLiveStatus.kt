@@ -4,11 +4,32 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * High-level live status for a session in History.
+ * High-level status for a session in History (issues #1101, #1642).
+ *
+ * [WORKING] and the `WAITING*` values are live gateway state. [DONE] and [FAILED] are local
+ * "finished, not opened yet" marks from [com.m57.hermescontrol.data.session.SessionAttentionStore];
+ * a live status always wins over them.
  */
 enum class SessionLiveStatus {
     WORKING,
+
+    /** Blocked on the user, reason unknown (snapshot `waiting`, sudo, secret or vault prompts). */
     WAITING,
+
+    /** Blocked on a command approval. */
+    WAITING_APPROVAL,
+
+    /** Blocked on a clarify question. */
+    WAITING_CLARIFY,
+
+    /** The turn completed after the user last viewed the session. */
+    DONE,
+
+    /** The turn ended with an error after the user last viewed the session. */
+    FAILED,
+    ;
+
+    val isWaiting: Boolean get() = this == WAITING || this == WAITING_APPROVAL || this == WAITING_CLARIFY
 }
 
 /**

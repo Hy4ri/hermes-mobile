@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -15,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -37,24 +40,8 @@ fun SessionLiveStatusIndicator(
     val spacing = LocalSpacing.current
     val statusColors = LocalHermesStatusColors.current
 
-    val (badgeType, textRes, descRes) =
-        when (liveStatus) {
-            SessionLiveStatus.WORKING -> {
-                Triple(
-                    StatusBadgeType.SUCCESS,
-                    R.string.sessions_live_status_running,
-                    R.string.sessions_live_status_running_desc,
-                )
-            }
-
-            SessionLiveStatus.WAITING -> {
-                Triple(
-                    StatusBadgeType.WARNING,
-                    R.string.sessions_live_status_waiting,
-                    R.string.sessions_live_status_waiting_desc,
-                )
-            }
-        }
+    val badgeType = liveStatus.badgeType()
+    val (textRes, descRes) = liveStatus.labels()
 
     val (bgColor, fgColor) = requireNotNull(statusBadgeColors(badgeType, statusColors))
     val text = stringResource(textRes)
@@ -77,23 +64,19 @@ fun SessionLiveStatusIndicator(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            when (liveStatus) {
-                SessionLiveStatus.WORKING -> {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(10.dp),
-                        strokeWidth = 1.5.dp,
-                        color = fgColor,
-                    )
-                }
-
-                SessionLiveStatus.WAITING -> {
-                    Icon(
-                        imageVector = Icons.Filled.Warning,
-                        contentDescription = null,
-                        tint = fgColor,
-                        modifier = Modifier.size(12.dp),
-                    )
-                }
+            if (liveStatus == SessionLiveStatus.WORKING) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(10.dp),
+                    strokeWidth = 1.5.dp,
+                    color = fgColor,
+                )
+            } else {
+                Icon(
+                    imageVector = liveStatus.icon(),
+                    contentDescription = null,
+                    tint = fgColor,
+                    modifier = Modifier.size(12.dp),
+                )
             }
             Text(
                 text = text,
@@ -104,3 +87,58 @@ fun SessionLiveStatusIndicator(
         }
     }
 }
+
+/**
+ * Issue #1642: color tells urgency, the label tells the reason. Every "needs you" state shares the
+ * warning color; Done is info (blue), Failed is error (red).
+ */
+internal fun SessionLiveStatus.badgeType(): StatusBadgeType =
+    when (this) {
+        SessionLiveStatus.WORKING -> StatusBadgeType.SUCCESS
+
+        SessionLiveStatus.WAITING,
+        SessionLiveStatus.WAITING_APPROVAL,
+        SessionLiveStatus.WAITING_CLARIFY,
+        -> StatusBadgeType.WARNING
+
+        SessionLiveStatus.DONE -> StatusBadgeType.INFO
+
+        SessionLiveStatus.FAILED -> StatusBadgeType.ERROR
+    }
+
+/** (label, accessibility description) string resources. */
+private fun SessionLiveStatus.labels(): Pair<Int, Int> =
+    when (this) {
+        SessionLiveStatus.WORKING -> {
+            R.string.sessions_live_status_running to R.string.sessions_live_status_running_desc
+        }
+
+        SessionLiveStatus.WAITING -> {
+            R.string.sessions_live_status_waiting to R.string.sessions_live_status_waiting_desc
+        }
+
+        SessionLiveStatus.WAITING_APPROVAL -> {
+            R.string.sessions_live_status_approval to
+                R.string.sessions_live_status_approval_desc
+        }
+
+        SessionLiveStatus.WAITING_CLARIFY -> {
+            R.string.sessions_live_status_clarify to
+                R.string.sessions_live_status_clarify_desc
+        }
+
+        SessionLiveStatus.DONE -> {
+            R.string.sessions_live_status_done to R.string.sessions_live_status_done_desc
+        }
+
+        SessionLiveStatus.FAILED -> {
+            R.string.sessions_live_status_failed to R.string.sessions_live_status_failed_desc
+        }
+    }
+
+private fun SessionLiveStatus.icon(): ImageVector =
+    when (this) {
+        SessionLiveStatus.DONE -> Icons.Filled.CheckCircle
+        SessionLiveStatus.FAILED -> Icons.Filled.Error
+        else -> Icons.Filled.Warning
+    }

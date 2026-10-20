@@ -90,6 +90,8 @@ import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.AttachmentSource
 import com.m57.hermescontrol.data.model.reasoningSupport
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
+import com.m57.hermescontrol.data.session.SessionAttentionStore
+import com.m57.hermescontrol.data.session.sessionAttentionScopeKey
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.notification.NotificationHelper
@@ -196,6 +198,15 @@ fun ChatScreen(
     androidx.lifecycle.compose.LifecycleResumeEffect(settingsViewModel) {
         settingsViewModel.refreshKeepScreenAwake()
         onPauseOrDispose { }
+    }
+    // Issue #1642: the open session is "seen". Clear its Done/Failed mark and suppress new ones while it is
+    // on screen; leaving Chat or backgrounding the app lets later completions mark it again.
+    androidx.lifecycle.compose.LifecycleResumeEffect(state.currentSessionId) {
+        SessionAttentionStore.setViewing(
+            sessionAttentionScopeKey(AuthManager.currentDataScope()),
+            state.currentSessionId,
+        )
+        onPauseOrDispose { SessionAttentionStore.setViewing(null, null) }
     }
     // Snapshot-backed search state — read directly so only the scopes that
     // read its fields recompose on search changes (bar, matched bubbles).

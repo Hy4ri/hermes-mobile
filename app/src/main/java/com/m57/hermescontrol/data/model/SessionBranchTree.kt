@@ -31,7 +31,7 @@ fun flattenSessionsWithBranches(
     val childrenByParent = HashMap<String, MutableList<SessionInfo>>()
     val nestedIds = HashSet<String>()
     for (s in sessions) {
-        val parentId = s.parent_session_id?.trim()?.takeIf(String::isNotEmpty) ?: continue
+        val parentId = s.forkParentId() ?: continue
         val parent = byVisibleId[parentId] ?: continue
         if (parent.id == s.id) continue
         nestedIds += s.id
@@ -89,7 +89,7 @@ private fun SessionInfo.toTreeItem(
     siblingCount: Int,
 ): SessionTreeItem {
     // G4 fix: fork identity from the field itself, never from load-set membership.
-    val isFork = !parent_session_id.isNullOrBlank()
+    val isFork = forkParentId() != null
     val title =
         title?.takeIf(String::isNotBlank)
             ?: display_name?.takeIf(String::isNotBlank)

@@ -93,6 +93,14 @@ data class SessionInfo(
     // must alias this id to this row (desktop byVisibleId parity).
     @SerialName("_lineage_root_id")
     val lineageRootId: String? = null,
+    // Lineage markers the backend lifts out of model_config. `/new` and
+    // idle/daily rotation keep parent_session_id but stamp _reset_from: those
+    // rows are new conversations, not forks. Genuine /branch stamps
+    // _branched_from. See forkParentId().
+    @SerialName("_reset_from")
+    val resetFrom: String? = null,
+    @SerialName("_branched_from")
+    val branchedFrom: String? = null,
     // Durable "keep" flag: pinned sessions are exempt from the auto-archive
     // sweep and are surfaced first in the history list (sorted client-side).
     // Uses LenientNullableBooleanSerializer to tolerate both JSON booleans and raw SQLite ints (issue #966).
@@ -198,3 +206,14 @@ data class SessionMutationSnapshot(
     @SerialName("runtime_revision") val runtimeRevision: JsonElement? = null,
     @SerialName("runtime_generation") val runtimeGeneration: JsonElement? = null,
 )
+
+/**
+ * Parent id to nest this session under, or null for a top-level conversation.
+ * Desktop parity (session-branch-tree.ts#forkParentId): reset children are
+ * siblings, `_branched_from` wins, legacy forks fall back to parent_session_id.
+ */
+fun SessionInfo.forkParentId(): String? {
+    if (!resetFrom.isNullOrBlank()) return null
+    branchedFrom?.trim()?.takeIf(String::isNotEmpty)?.let { return it }
+    return parent_session_id?.trim()?.takeIf(String::isNotEmpty)
+}

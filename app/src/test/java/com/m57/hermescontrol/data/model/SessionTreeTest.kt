@@ -102,4 +102,49 @@ class SessionTreeTest {
         assertTrue(orphanItem.isFork)
         assertEquals(0, orphanItem.depth)
     }
+
+    @Test
+    fun resetChildrenAreTopLevelConversationsNotForks() {
+        // /new rotation chain (#1647): each row keeps parent_session_id for
+        // lineage but carries _reset_from, so none of them may nest.
+        val sessions =
+            listOf(
+                SessionInfo(id = "s1", title = "Bitwarden", last_active = 1.0),
+                SessionInfo(id = "s2", parent_session_id = "s1", resetFrom = "s1", title = "Two", last_active = 2.0),
+                SessionInfo(id = "s3", parent_session_id = "s2", resetFrom = "s2", title = "Three", last_active = 3.0),
+                SessionInfo(id = "other", title = "Other", last_active = 2.5),
+            )
+
+        val tree = flattenSessionsWithBranches(sessions)
+
+        assertEquals(listOf("s3", "other", "s2", "s1"), tree.map { it.session.id })
+        assertEquals(listOf(0, 0, 0, 0), tree.map { it.depth })
+        assertEquals(listOf(false, false, false, false), tree.map { it.isFork })
+        assertEquals(listOf("Three", "Other", "Two", "Bitwarden"), tree.map { it.displayTitle })
+    }
+
+    @Test
+    fun branchedChildStillNestsAndBranchedFromWinsOverParentId() {
+        val sessions =
+            listOf(
+                SessionInfo(id = "root", title = "Root", last_active = 1.0),
+                SessionInfo(id = "reset", parent_session_id = "root", resetFrom = "root", last_active = 3.0),
+                SessionInfo(id = "fork", parent_session_id = "reset", branchedFrom = "root", last_active = 2.0),
+            )
+
+        val tree = flattenSessionsWithBranches(sessions)
+
+        assertEquals(listOf("reset", "root", "fork"), tree.map { it.session.id })
+        assertEquals(listOf(0, 0, 1), tree.map { it.depth })
+        assertEquals(listOf(false, false, true), tree.map { it.isFork })
+    }
+
+    @Test
+    fun forkParentIdFollowsDesktopRule() {
+        assertEquals(null, SessionInfo(id = "a").forkParentId())
+        assertEquals(null, SessionInfo(id = "b", parent_session_id = "a", resetFrom = "a").forkParentId())
+        assertEquals("a", SessionInfo(id = "c", parent_session_id = "a").forkParentId())
+        assertEquals("x", SessionInfo(id = "d", parent_session_id = "a", branchedFrom = "x").forkParentId())
+        assertEquals("a", SessionInfo(id = "e", parent_session_id = "a", resetFrom = " ").forkParentId())
+    }
 }

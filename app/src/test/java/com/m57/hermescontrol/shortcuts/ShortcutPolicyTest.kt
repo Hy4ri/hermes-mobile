@@ -32,6 +32,17 @@ class ShortcutPolicyTest {
     }
 
     @Test
+    fun `reset children are conversations and remain launcher targets`() {
+        val rows =
+            listOf(
+                SessionInfo("old", last_active = 1.0),
+                SessionInfo("new", parent_session_id = "old", resetFrom = "old", last_active = 2.0),
+                SessionInfo("fork", parent_session_id = "new", branchedFrom = "new", last_active = 3.0),
+            )
+        assertEquals(listOf("new", "old"), selectShortcutSessions(rows, 10).map { it.id })
+    }
+
+    @Test
     fun `recency falls back to start time and ties are deterministic`() {
         val rows =
             listOf(

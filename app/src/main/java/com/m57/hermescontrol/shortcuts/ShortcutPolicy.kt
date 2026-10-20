@@ -2,6 +2,7 @@ package com.m57.hermescontrol.shortcuts
 
 import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.model.SessionInfo
+import com.m57.hermescontrol.data.model.forkParentId
 import java.security.MessageDigest
 import java.util.Locale
 
@@ -13,7 +14,7 @@ internal fun selectShortcutSessions(
         // Policy: no hidden/archived rows, cron, bot rooms, or internal child agents (#1602).
         .filter {
             it.id.isNotBlank() && it.hidden != true && it.archived != true &&
-                it.parent_session_id.isNullOrBlank() &&
+                it.forkParentId() == null &&
                 it.source?.lowercase(Locale.ROOT) !in setOf("cron", "bot_room", "subagent")
         }.distinctBy { it.id }
         .sortedWith(

@@ -17,6 +17,7 @@ import com.m57.hermescontrol.data.model.SessionListResponse
 import com.m57.hermescontrol.data.model.SessionLiveStatus
 import com.m57.hermescontrol.data.model.SessionRenameRequest
 import com.m57.hermescontrol.data.model.SessionSearchResult
+import com.m57.hermescontrol.data.model.forkParentId
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.HermesApiService
 import com.m57.hermescontrol.data.remote.NetworkError
@@ -429,7 +430,7 @@ class SessionsViewModel(
                     }
                 val missing =
                     loaded
-                        .mapNotNull { it.parent_session_id?.trim()?.takeIf(String::isNotEmpty) }
+                        .mapNotNull { it.forkParentId() }
                         .filter { it !in known }
                         .distinct()
                         .take(MAX_STITCH_PER_PAGE)

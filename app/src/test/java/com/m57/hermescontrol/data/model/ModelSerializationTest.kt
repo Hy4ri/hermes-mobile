@@ -137,6 +137,22 @@ class ModelSerializationTest {
     }
 
     @Test
+    fun testSessionInfoDeserialization_lineageMarkers() {
+        val reset =
+            json.decodeFromString<SessionInfo>(
+                """{"id":"b","parent_session_id":"a","_reset_from":"a"}""",
+            )
+        assertEquals("a", reset.resetFrom)
+        assertNull(reset.branchedFrom)
+        val branch =
+            json.decodeFromString<SessionInfo>(
+                """{"id":"c","parent_session_id":"a","_branched_from":"a"}""",
+            )
+        assertEquals("a", branch.branchedFrom)
+        assertNull(branch.resetFrom)
+    }
+
+    @Test
     fun testSessionInfoDeserialization_missingRequiredFields() {
         val jsonStr = "{}"
         org.junit.jupiter.api.Assertions.assertThrows(kotlinx.serialization.SerializationException::class.java) {

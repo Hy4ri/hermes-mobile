@@ -394,7 +394,7 @@ fun ChatScreen(
             viewModel.consumeComposerTextRestore()
         }
     }
-    val reloginState by viewModel.relogin.state.collectAsStateWithLifecycle()
+    val reloginState by viewModel.reloginState.collectAsStateWithLifecycle()
     var showSubagentInspectionSheet by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(showSubagentInspectionSheet) {
         if (showSubagentInspectionSheet) {

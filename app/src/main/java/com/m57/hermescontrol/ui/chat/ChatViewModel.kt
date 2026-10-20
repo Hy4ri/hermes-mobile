@@ -890,6 +890,8 @@ class ChatViewModel(
             onAuthenticated = { reconnect() },
         )
 
+    val reloginState: StateFlow<ReloginUiState> = relogin.state
+
     private val modelSwitchDelegate =
         ChatModelSwitchDelegate(
             scope = viewModelScope,

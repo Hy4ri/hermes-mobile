@@ -62,6 +62,7 @@ class ChatScreenTest {
         every { mockViewModel.uiState } returns MutableStateFlow(uiState).asStateFlow()
         every { mockViewModel.streamingState } returns MutableStateFlow(StreamingState()).asStateFlow()
         every { mockViewModel.timelineState } returns MutableStateFlow(ChatTimelineState()).asStateFlow()
+        every { mockViewModel.reloginState } returns MutableStateFlow(ReloginUiState()).asStateFlow()
         every { mockViewModel.transcriptState } returns
             MutableStateFlow(
                 TranscriptUiState.resolve(uiState, ChatTimelineState(), StreamingState(), null, null),
@@ -115,6 +116,7 @@ class ChatScreenTest {
         every { mockViewModel.uiState } returns MutableStateFlow(uiState).asStateFlow()
         every { mockViewModel.streamingState } returns MutableStateFlow(StreamingState()).asStateFlow()
         every { mockViewModel.timelineState } returns MutableStateFlow(ChatTimelineState()).asStateFlow()
+        every { mockViewModel.reloginState } returns MutableStateFlow(ReloginUiState()).asStateFlow()
         every { mockViewModel.transcriptState } returns
             MutableStateFlow(
                 TranscriptUiState.resolve(uiState, ChatTimelineState(), StreamingState(), null, null),

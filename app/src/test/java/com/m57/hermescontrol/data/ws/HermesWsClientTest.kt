@@ -14,6 +14,10 @@ import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
 import com.m57.hermescontrol.data.ws.contract.SubagentInterruptParams
 import com.m57.hermescontrol.data.ws.contract.SubagentSteerParams
+import com.m57.hermescontrol.profilelock.FakeSharedPreferences
+import com.m57.hermescontrol.profilelock.ProfileLock
+import com.m57.hermescontrol.profilelock.ProfileLockStore
+import com.m57.hermescontrol.profilelock.ProfileLockTarget
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -48,6 +52,7 @@ import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -2132,5 +2137,59 @@ class HermesWsClientTest {
 
         Thread.sleep(500)
         assertFalse("Expected socket to remain connected when ping succeeds", failureInvoked)
+    }
+
+    @Test
+    fun `profile lock fails global config writes locally and keeps session writes`() {
+        ProfileLock.setStoreForTest(ProfileLockStore(FakeSharedPreferences()))
+        try {
+            ProfileLock.enable(ProfileLockTarget(null, "kids"), "4826")
+
+            val global =
+                HermesWsClient.request(
+                    WsMethods.CONFIG_SET,
+                    mapOf(
+                        "key" to "reasoning",
+                        "value" to "high",
+                        "scope" to "global",
+                    ),
+                )
+            assertTrue(global.isCompleted)
+            val error = runCatching { kotlinx.coroutines.runBlocking { global.await() } }.exceptionOrNull()
+            assertEquals(HermesWsClient.PROFILE_LOCKED_MESSAGE, error?.message)
+
+            val sendId =
+                HermesWsClient.send(
+                    WsMethods.CONFIG_SET,
+                    mapOf(
+                        "key" to "model",
+                        "value" to "x",
+                        "scope" to "global",
+                    ),
+                )
+            assertTrue(sendId.startsWith("profile-locked-"))
+
+            val session =
+                HermesWsClient.request(
+                    WsMethods.CONFIG_SET,
+                    mapOf(
+                        "key" to "reasoning",
+                        "value" to "high",
+                        "session_id" to "s1",
+                    ),
+                )
+            // Session writes reach the normal RPC path (queued or failed for the closed test socket), never the lock.
+            val sessionError =
+                if (session.isCompleted) {
+                    runCatching { kotlinx.coroutines.runBlocking { session.await() } }
+                        .exceptionOrNull()
+                } else {
+                    null
+                }
+            assertNotEquals(HermesWsClient.PROFILE_LOCKED_MESSAGE, sessionError?.message)
+            session.cancel()
+        } finally {
+            ProfileLock.setStoreForTest(null)
+        }
     }
 }

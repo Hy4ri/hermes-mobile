@@ -7,6 +7,7 @@ import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.model.ProjectInfo
+import com.m57.hermescontrol.profilelock.ProfileLock
 
 data class PendingChatNavigation(
     val sessionId: String,
@@ -73,6 +74,8 @@ object NavigationController {
 
     fun navigateTo(key: NavKey) {
         val stack = backStack ?: return
+        // #1643: protected destinations are unreachable while a profile lock is on, from any entry point.
+        if (!ProfileLock.allows(key)) return
 
         // Any explicit navigation invalidates the pending chat return — only a
         // session/chat opened from a list arms it again (see [queueChatNavigation]).
@@ -121,6 +124,7 @@ object NavigationController {
     ) {
         if (!Regex("[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}").matches(boardSlug)) return
         if (!Regex("t_[a-zA-Z0-9_-]{4,64}").matches(taskId)) return
+        if (!ProfileLock.allows(KanbanTaskDetailKey(boardSlug, taskId))) return
         pendingKanbanNavigation = PendingKanbanNavigation(boardSlug, taskId)
     }
 
@@ -198,9 +202,25 @@ object NavigationController {
     /** Clear the stack and navigate to the given screen atomically. */
     fun resetTo(screen: NavKey) {
         val stack = backStack ?: return
+        val target = if (ProfileLock.allows(screen)) screen else ChatScreen
         chatReturnScreen = null
         stack.clear()
-        stack.add(screen)
+        stack.add(target)
+    }
+
+    /**
+     * Drops protected entries left on the stack when a profile lock turns on (#1643), so back
+     * presses and return targets can never reach them. Returns true when the stack changed.
+     */
+    fun dropLockedDestinations(): Boolean {
+        val stack = backStack ?: return false
+        chatReturnScreen?.let { if (!ProfileLock.allows(it)) chatReturnScreen = null }
+        if (pendingKanbanNavigation != null && ProfileLock.isLocked) pendingKanbanNavigation = null
+        if (stack.all(ProfileLock::allows)) return false
+        val kept = stack.filter(ProfileLock::allows).ifEmpty { listOf(ChatScreen) }
+        stack.clear()
+        stack.addAll(kept)
+        return true
     }
 
     /**

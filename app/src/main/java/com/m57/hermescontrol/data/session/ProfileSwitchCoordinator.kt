@@ -3,9 +3,11 @@ package com.m57.hermescontrol.data.session
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.SetActiveProfileRequest
 import com.m57.hermescontrol.data.remote.ApiClient
+import com.m57.hermescontrol.data.remote.NetworkError
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.ws.HermesWsClient
+import com.m57.hermescontrol.profilelock.ProfileLock
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -55,6 +57,8 @@ object ProfileSwitchCoordinator {
 
     suspend fun switchProfile(name: String): NetworkResult<Unit> =
         switchMutex.withLock {
+            // #1643: refuse before the REST call so the server's sticky profile never flips.
+            if (!ProfileLock.allowsActiveProfile(name)) return@withLock lockedFailure()
             val result =
                 withContext(ioDispatcher) {
                     safeApiCall { ApiClient.hermesApi.setActiveProfile(SetActiveProfileRequest(name)) }
@@ -96,6 +100,7 @@ object ProfileSwitchCoordinator {
      */
     suspend fun switchConnectionProfile(profileId: String?) {
         switchMutex.withLock {
+            if (!ProfileLock.allowsConnection(profileId)) return@withLock
             HermesWsClient.disconnect(clearPendingMessages = true)
             prepareConnectionProfileUnlocked(profileId)
             withContext(ioDispatcher) {
@@ -107,10 +112,17 @@ object ProfileSwitchCoordinator {
     /** Re-home REST/auth state without opening a socket (used by the login flow). */
     suspend fun prepareConnectionProfile(profileId: String?) {
         switchMutex.withLock {
+            if (!ProfileLock.allowsConnection(profileId)) return@withLock
             HermesWsClient.disconnect(clearPendingMessages = true)
             prepareConnectionProfileUnlocked(profileId)
         }
     }
+
+    private fun lockedFailure(): NetworkResult<Unit> =
+        NetworkResult.Failure(NetworkError.Http(LOCKED_HTTP_CODE, "Profile lock is on"))
+
+    /** Synthetic status for a switch refused by the local profile lock (#1643); never sent by a server. */
+    const val LOCKED_HTTP_CODE = 423
 
     private suspend fun prepareConnectionProfileUnlocked(profileId: String?) {
         AuthManager.setSelectedProfileId(profileId)

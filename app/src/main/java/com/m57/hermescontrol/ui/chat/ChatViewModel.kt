@@ -79,6 +79,7 @@ import com.m57.hermescontrol.notification.ReplyNotificationTracker
 import com.m57.hermescontrol.notification.RequestNoticeCoordinator
 import com.m57.hermescontrol.notification.captureTurnBoundary
 import com.m57.hermescontrol.notification.correlationScopeId
+import com.m57.hermescontrol.profilelock.ProfileLock
 import com.m57.hermescontrol.share.IncomingShare
 import com.m57.hermescontrol.share.describeFailedShares
 import com.m57.hermescontrol.ui.chat.fullbleed.TranscriptUiState
@@ -4324,6 +4325,17 @@ class ChatViewModel(
         // mobile (issue #576, deliverable #3). These are also hidden from the
         // suggestion menu, but a user can still type one — intercept it here
         // (before any RPC fires) with a clear message instead of a doomed call.
+        // #1643: commands that can change the agent or server need the owner while a profile lock is on.
+        if (!ProfileLock.allowsSlashCommand(command)) {
+            addAssistantMessage(
+                "${command.split(
+                    " ",
+                    limit = 2,
+                )[0]} is locked on this device. The owner must turn off the profile lock first.",
+            )
+            return
+        }
+
         if (CommandBlocklist.contains(command)) {
             addAssistantMessage(
                 "${command.split(" ", limit = 2)[0]} is not supported on mobile",
@@ -7536,6 +7548,8 @@ class ChatViewModel(
         env: Map<String, String>,
         approved: Boolean,
     ) {
+        // #1643: providing credentials needs the owner while a profile lock is on; declining stays open.
+        if (approved && ProfileLock.isLocked) return
         viewModelScope.launch { connectionOperationDelegate.respond(target, env, approved) }
     }
 

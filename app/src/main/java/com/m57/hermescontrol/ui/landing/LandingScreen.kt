@@ -27,12 +27,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.profilelock.ProfileLockCard
 
 @Composable
 fun LandingScreen(
     onAuthLogin: () -> Unit,
     modifier: Modifier = Modifier,
     onConnections: () -> Unit = {},
+    locked: Boolean = false,
 ) {
     Box(
         modifier =
@@ -88,6 +90,18 @@ fun LandingScreen(
             )
 
             Spacer(modifier = Modifier.height(32.dp))
+
+            if (locked) {
+                // #1643: sign-in and connections are protected; show the owner's way out instead.
+                Text(
+                    text = stringResource(R.string.profile_lock_landing_body),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+                ProfileLockCard(modifier = Modifier.fillMaxWidth())
+                return@Column
+            }
 
             OutlinedButton(onClick = onConnections, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.screen_connections))

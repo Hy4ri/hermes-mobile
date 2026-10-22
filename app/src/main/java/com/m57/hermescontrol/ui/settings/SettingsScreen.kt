@@ -43,6 +43,8 @@ import com.m57.hermescontrol.SettingsChat
 import com.m57.hermescontrol.SettingsConnection
 import com.m57.hermescontrol.SettingsLanguage
 import com.m57.hermescontrol.SettingsVault
+import com.m57.hermescontrol.profilelock.ProfileLock
+import com.m57.hermescontrol.profilelock.ProfileLockCard
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
@@ -58,6 +60,10 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = viewModel { SettingsViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val profileLocked =
+        ProfileLock.state
+            .collectAsStateWithLifecycle()
+            .value.locked
 
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_settings)) },
@@ -70,9 +76,10 @@ fun SettingsScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
+            ProfileLockCard(modifier = Modifier.padding(bottom = 16.dp))
             SettingsCategoryCard(
                 items =
-                    listOf(
+                    listOfNotNull(
                         SettingsRow(
                             icon = Icons.AutoMirrored.Filled.ListAlt,
                             label = stringResource(R.string.settings_sec_connection),
@@ -86,7 +93,7 @@ fun SettingsScreen(
                                     null
                                 },
                             onClick = { NavigationController.navigateTo(SettingsConnection) },
-                        ),
+                        ).takeUnless { profileLocked },
                         SettingsRow(
                             icon = Icons.Filled.Palette,
                             label = stringResource(R.string.settings_sec_appearance),
@@ -128,7 +135,7 @@ fun SettingsScreen(
                             label = stringResource(R.string.settings_sec_vault),
                             summary = stringResource(R.string.settings_summary_vault),
                             onClick = { NavigationController.navigateTo(SettingsVault) },
-                        ),
+                        ).takeUnless { profileLocked },
                         SettingsRow(
                             icon = Icons.Filled.Info,
                             label = stringResource(R.string.settings_sec_about),

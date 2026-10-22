@@ -39,8 +39,11 @@ import com.m57.hermescontrol.shortcuts.ShortcutRefreshEvents
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.refreshOnChange
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -892,12 +895,54 @@ class SessionsViewModel(
         _uiState.update { it.copy(selectedIds = emptySet()) }
     }
 
+    private class RenameEdit(
+        val sessionId: String,
+        val title: String,
+        val owner: DataScope,
+        val api: HermesApiService,
+        val baseline: Deferred<Result<SessionEditSnapshot?>>,
+    )
+
+    private var renameEdit: RenameEdit? = null
+    private var renameJob: Job? = null
+
     // ── Rename ───────────────────────────────────────────────────────────
 
     fun openRenameDialog(
         sessionId: String,
         currentTitle: String,
     ) {
+        closeRenameDialog()
+        val owner = runCatching { currentActionScope() }.getOrNull() ?: return
+        val api =
+            runCatching { actionServiceFactory(owner) }.getOrElse { error ->
+                _uiState.update { it.copy(toastMessage = "Rename failed: ${error.message}") }
+                return
+            }
+        val storedTitle =
+            _uiState.value.sessions
+                .find { it.id == sessionId }
+                ?.let { it.title.orEmpty() }
+                ?: _uiState.value.searchResults
+                    .find { it.session_id == sessionId }
+                    ?.let { it.title.orEmpty() }
+                ?: currentTitle
+        val baseline =
+            viewModelScope.async {
+                try {
+                    val snapshot = SessionEditSnapshot.read(api, sessionId)
+                    if (snapshot?.exists == true) {
+                        // Bind the token to the displayed title once. Save only needs the cheap snapshot.
+                        checkRenameTitle(api, sessionId, owner, storedTitle)
+                    }
+                    Result.success(snapshot)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Result.failure(e)
+                }
+            }
+        renameEdit = RenameEdit(sessionId, storedTitle, owner, api, baseline)
         _uiState.update { it.copy(renamingSessionId = sessionId, renameDraft = currentTitle) }
     }
 
@@ -906,6 +951,10 @@ class SessionsViewModel(
     }
 
     fun closeRenameDialog() {
+        renameJob?.cancel()
+        renameJob = null
+        renameEdit?.baseline?.cancel()
+        renameEdit = null
         _uiState.update { it.copy(renamingSessionId = null, renameDraft = "") }
     }
 
@@ -913,7 +962,9 @@ class SessionsViewModel(
         sessionId: String,
         newTitle: String,
     ) {
+        if (renameJob?.isActive == true) return
         if (newTitle.isBlank()) {
+            closeRenameDialog()
             _uiState.update {
                 it.copy(
                     renamingSessionId = null,
@@ -923,44 +974,100 @@ class SessionsViewModel(
             }
             return
         }
-        viewModelScope.launch {
-            val result =
-                safeApiCall {
-                    ApiClient.hermesApi.renameSession(
-                        sessionId = sessionId,
-                        body = SessionRenameRequest(title = newTitle),
-                    )
-                }
-            when (result) {
-                is NetworkResult.Success -> {
-                    _uiState.update {
-                        it.copy(
-                            renamingSessionId = null,
-                            renameDraft = "",
-                            sessions =
-                                it.sessions.map { s ->
-                                    if (s.id == sessionId) s.copy(title = newTitle) else s
-                                },
-                            searchResults =
-                                it.searchResults.map { s ->
-                                    if (s.session_id == sessionId) s.copy(title = newTitle) else s
-                                },
-                            toastMessage = "Session renamed",
+        val edit = renameEdit
+        renameJob =
+            viewModelScope.launch {
+                val result =
+                    safeApiCall {
+                        val api = edit?.api ?: ApiClient.hermesApi
+                        val body = SessionRenameRequest(title = newTitle)
+                        val fencedBody =
+                            if (edit != null) {
+                                // Use the checked token, not a newer snapshot that could hide a concurrent edit.
+                                val snapshot = checkRenameEdit(edit, sessionId)
+                                if (snapshot == null) {
+                                    body
+                                } else {
+                                    body.copy(
+                                        requestId = UUID.randomUUID().toString(),
+                                        expectedRevision = Math.toIntExact(snapshot.revision),
+                                        expectedGeneration = snapshot.generation?.let { Math.toIntExact(it) },
+                                    )
+                                }
+                            } else {
+                                fenced(api, sessionId, body)
+                            }
+                        api.renameSession(
+                            sessionId = sessionId,
+                            body = fencedBody,
                         )
                     }
-                    ShortcutRefreshEvents.refresh()
-                }
+                if (edit != null && (renameEdit !== edit || currentActionScope() != edit.owner)) return@launch
+                when (result) {
+                    is NetworkResult.Success -> {
+                        renameEdit = null
+                        _uiState.update {
+                            it.copy(
+                                renamingSessionId = null,
+                                renameDraft = "",
+                                sessions =
+                                    it.sessions.map { s ->
+                                        if (s.id == sessionId) s.copy(title = newTitle) else s
+                                    },
+                                searchResults =
+                                    it.searchResults.map { s ->
+                                        if (s.session_id == sessionId) s.copy(title = newTitle) else s
+                                    },
+                                toastMessage = "Session renamed",
+                            )
+                        }
+                        ShortcutRefreshEvents.refresh()
+                    }
 
-                is NetworkResult.Failure -> {
-                    _uiState.update {
-                        it.copy(
-                            renamingSessionId = null,
-                            renameDraft = "",
-                            toastMessage = "Rename failed: ${result.error.message}",
-                        )
+                    is NetworkResult.Failure -> {
+                        _uiState.update {
+                            it.copy(
+                                renamingSessionId = if (edit != null) it.renamingSessionId else null,
+                                renameDraft = if (edit != null) it.renameDraft else "",
+                                toastMessage = "Rename failed: ${result.error.message}",
+                            )
+                        }
                     }
                 }
             }
+    }
+
+    private suspend fun checkRenameEdit(
+        edit: RenameEdit,
+        sessionId: String,
+    ): SessionEditSnapshot? {
+        check(edit.sessionId == sessionId && renameEdit === edit && currentActionScope() == edit.owner) {
+            "Session edit owner changed; reopen the rename dialog"
+        }
+        val baseline = edit.baseline.await().getOrThrow()
+        val current = SessionEditSnapshot.read(edit.api, sessionId)
+        if (baseline == null && current == null) {
+            // Old backends have no token. Compare the title rather than silently skipping validation.
+            checkRenameTitle(edit.api, sessionId, edit.owner, edit.title)
+        } else {
+            check(baseline != null && baseline.exists && baseline == current) {
+                "Session changed; refresh history and reopen the rename dialog"
+            }
+        }
+        check(renameEdit === edit && currentActionScope() == edit.owner) { "Session edit owner changed" }
+        return current
+    }
+
+    private suspend fun checkRenameTitle(
+        api: HermesApiService,
+        sessionId: String,
+        owner: DataScope,
+        title: String,
+    ) {
+        val response = api.getSessionInfo(sessionId, owner.activeProfileId)
+        val session = response.body()
+        check(response.isSuccessful && session?.id == sessionId && session.title.orEmpty() == title) {
+            "Session changed; refresh history and reopen the rename dialog"
         }
     }
 
@@ -1012,9 +1119,9 @@ class SessionsViewModel(
                         }
                     val response =
                         if (flag == HistoryFlag.PIN) {
-                            api.setSessionPinned(sessionId, body)
+                            api.setSessionPinned(sessionId, fenced(api, sessionId, body))
                         } else {
-                            api.setSessionArchived(sessionId, body)
+                            api.setSessionArchived(sessionId, fenced(api, sessionId, body))
                         }
                     if (!response.isSuccessful) {
                         return@safeApiCall retrofit2.Response.error<HistoryUndo>(
@@ -1127,10 +1234,12 @@ class SessionsViewModel(
             val result =
                 if (unchanged) {
                     safeApiCall {
+                        // Fence at send time: the change being undone moved the revision on.
+                        val inverse = fenced(undo.api, undo.sessionId, undo.inverse)
                         if (undo.flag == HistoryFlag.PIN) {
-                            undo.api.setSessionPinned(undo.sessionId, undo.inverse)
+                            undo.api.setSessionPinned(undo.sessionId, inverse)
                         } else {
-                            undo.api.setSessionArchived(undo.sessionId, undo.inverse)
+                            undo.api.setSessionArchived(undo.sessionId, inverse)
                         }
                     }
                 } else {
@@ -1506,29 +1615,58 @@ class SessionsViewModel(
      * endpoint: there they take the plain DELETE.
      */
     private suspend fun deleteSessionFenced(sessionId: String): NetworkResult<Unit> {
-        val snapshot =
-            (safeApiCall { ApiClient.hermesApi.getSessionMutationSnapshot(sessionId) } as? NetworkResult.Success)?.data
+        val fence =
+            mutationFence(ApiClient.hermesApi, sessionId)
+                ?: return safeApiCall { ApiClient.hermesApi.deleteSession(sessionId) }
+        return safeApiCall {
+            ApiClient.hermesApi.deleteSession(
+                sessionId = sessionId,
+                requestId = UUID.randomUUID().toString(),
+                expectedRevision = fence.revision,
+                expectedGeneration = fence.generation,
+            )
+        }
+    }
+
+    /** The same fence for a PATCH (rename, pin, archive); the body is unchanged on older backends. */
+    private suspend fun fenced(
+        api: HermesApiService,
+        sessionId: String,
+        body: SessionRenameRequest,
+    ): SessionRenameRequest {
+        val fence = mutationFence(api, sessionId) ?: return body
+        return body.copy(
+            requestId = UUID.randomUUID().toString(),
+            expectedRevision = fence.revision,
+            expectedGeneration = fence.generation,
+        )
+    }
+
+    private data class MutationFence(
+        val revision: Int,
+        val generation: Int?,
+    )
+
+    /** Null when the backend has no snapshot endpoint (older backends take unfenced writes). */
+    private suspend fun mutationFence(
+        api: HermesApiService,
+        sessionId: String,
+    ): MutationFence? {
+        val snapshot = (safeApiCall { api.getSessionMutationSnapshot(sessionId) } as? NetworkResult.Success)?.data
         val revision =
             snapshot
                 ?.runtimeRevision
                 ?.jsonPrimitive
                 ?.contentOrNull
-                ?.toIntOrNull()
-        if (snapshot == null || revision == null) {
-            return safeApiCall { ApiClient.hermesApi.deleteSession(sessionId) }
-        }
-        return safeApiCall {
-            ApiClient.hermesApi.deleteSession(
-                sessionId = sessionId,
-                requestId = UUID.randomUUID().toString(),
-                expectedRevision = revision,
-                expectedGeneration =
-                    snapshot.runtimeGeneration
-                        ?.jsonPrimitive
-                        ?.contentOrNull
-                        ?.toIntOrNull(),
-            )
-        }
+                ?.toIntOrNull() ?: return null
+        return MutationFence(
+            revision = revision,
+            generation =
+                snapshot.runtimeGeneration
+                    ?.jsonPrimitive
+                    ?.contentOrNull
+                    ?.toIntOrNull(),
+        )
     }
 
     private fun finishPrune(

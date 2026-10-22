@@ -916,6 +916,12 @@ object AuthManager {
 
     fun isNotifySessionCompletions(): Boolean = serverStore.getLatestState().notifySessionCompletions
 
+    fun isNotifyKanbanAlerts(): Boolean = serverStore.getLatestState().notifyKanbanAlerts
+
+    fun setNotifyKanbanAlerts(enabled: Boolean) {
+        serverStore.update { it.copy(notifyKanbanAlerts = enabled) }
+    }
+
     fun setNotifySessionCompletions(enabled: Boolean) {
         serverStore.update { it.copy(notifySessionCompletions = enabled) }
     }

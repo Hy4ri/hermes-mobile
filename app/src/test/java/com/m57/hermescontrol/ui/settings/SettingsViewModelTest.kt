@@ -78,6 +78,22 @@ class SettingsViewModelTest {
         assertEquals(false, viewModel.uiState.value.keepScreenAwake)
     }
 
+    @Test
+    fun kanbanAlertsLoadAndPersistToggles() {
+        var persisted = false
+        every { AuthManager.isNotifyKanbanAlerts() } answers { persisted }
+        every { AuthManager.setNotifyKanbanAlerts(any()) } answers { persisted = firstArg() }
+        val viewModel = createViewModel()
+        assertEquals(false, viewModel.uiState.value.notifyKanbanAlerts)
+
+        viewModel.onNotifyKanbanAlertsChange(true)
+        assertEquals(true, persisted)
+        assertEquals(true, viewModel.uiState.value.notifyKanbanAlerts)
+        viewModel.onNotifyKanbanAlertsChange(false)
+        assertEquals(false, persisted)
+        assertEquals(false, viewModel.uiState.value.notifyKanbanAlerts)
+    }
+
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
@@ -114,6 +130,8 @@ class SettingsViewModelTest {
         every { AuthManager.isKeepScreenAwake() } returns false
         every { AuthManager.setKeepScreenAwake(any()) } returns Unit
         every { AuthManager.isKeepConnectedInBackground() } returns false
+        every { AuthManager.isNotifyKanbanAlerts() } returns true
+        every { AuthManager.setNotifyKanbanAlerts(any()) } returns Unit
         every { AuthManager.isNotifySessionCompletions() } returns false
         every { AuthManager.setNotifySessionCompletions(any()) } returns Unit
         every { AuthManager.getConnectionProfiles() } returns emptyList()

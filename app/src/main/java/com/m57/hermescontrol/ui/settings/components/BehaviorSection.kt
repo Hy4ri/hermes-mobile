@@ -37,11 +37,14 @@ internal fun BehaviorSection(
     onKeepConnectedInBackgroundChange: (Boolean) -> Unit,
     notifySessionCompletions: Boolean,
     onNotifySessionCompletionsChange: (Boolean) -> Unit,
+    notifyKanbanAlerts: Boolean,
+    onNotifyKanbanAlertsChange: (Boolean) -> Unit,
     restoreLastSession: Boolean,
     onRestoreLastSessionChange: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
     val keepAwakeLabel = stringResource(R.string.settings_keep_screen_awake_title)
+    val kanbanAlertsLabel = stringResource(R.string.settings_notify_kanban_alerts_title)
     // Turning session-complete alerts on needs POST_NOTIFICATIONS (Android
     // 13+). The chat screen requests it on open, but the toggle lives in
     // Settings — gate here so enabling never lands in a state where the OS
@@ -172,6 +175,33 @@ internal fun BehaviorSection(
                         }
                     }
                 },
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.settings_notify_kanban_alerts_title),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    text = stringResource(R.string.settings_notify_kanban_alerts_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(
+                checked = notifyKanbanAlerts,
+                onCheckedChange = onNotifyKanbanAlertsChange,
+                modifier = Modifier.semantics { contentDescription = kanbanAlertsLabel },
             )
         }
 

@@ -265,6 +265,8 @@ internal fun SettingsBehaviorPage(
                 onKeepConnectedInBackgroundChange = viewModel::onKeepConnectedInBackgroundChange,
                 notifySessionCompletions = state.notifySessionCompletions,
                 onNotifySessionCompletionsChange = viewModel::onNotifySessionCompletionsChange,
+                notifyKanbanAlerts = state.notifyKanbanAlerts,
+                onNotifyKanbanAlertsChange = viewModel::onNotifyKanbanAlertsChange,
                 restoreLastSession = state.restoreLastSession,
                 onRestoreLastSessionChange = viewModel::onRestoreLastSessionChange,
             )

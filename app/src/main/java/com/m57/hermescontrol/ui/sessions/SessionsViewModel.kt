@@ -980,12 +980,26 @@ class SessionsViewModel(
                 val result =
                     safeApiCall {
                         val api = edit?.api ?: ApiClient.hermesApi
-                        if (edit != null) {
-                            checkRenameEdit(edit, sessionId)
-                        }
+                        val body = SessionRenameRequest(title = newTitle)
+                        val fencedBody =
+                            if (edit != null) {
+                                // Use the checked token, not a newer snapshot that could hide a concurrent edit.
+                                val snapshot = checkRenameEdit(edit, sessionId)
+                                if (snapshot == null) {
+                                    body
+                                } else {
+                                    body.copy(
+                                        requestId = UUID.randomUUID().toString(),
+                                        expectedRevision = Math.toIntExact(snapshot.revision),
+                                        expectedGeneration = snapshot.generation?.let { Math.toIntExact(it) },
+                                    )
+                                }
+                            } else {
+                                fenced(api, sessionId, body)
+                            }
                         api.renameSession(
                             sessionId = sessionId,
-                            body = SessionRenameRequest(title = newTitle),
+                            body = fencedBody,
                         )
                     }
                 if (edit != null && (renameEdit !== edit || currentActionScope() != edit.owner)) return@launch
@@ -1026,7 +1040,7 @@ class SessionsViewModel(
     private suspend fun checkRenameEdit(
         edit: RenameEdit,
         sessionId: String,
-    ) {
+    ): SessionEditSnapshot? {
         check(edit.sessionId == sessionId && renameEdit === edit && currentActionScope() == edit.owner) {
             "Session edit owner changed; reopen the rename dialog"
         }
@@ -1041,6 +1055,7 @@ class SessionsViewModel(
             }
         }
         check(renameEdit === edit && currentActionScope() == edit.owner) { "Session edit owner changed" }
+        return current
     }
 
     private suspend fun checkRenameTitle(
@@ -1104,9 +1119,9 @@ class SessionsViewModel(
                         }
                     val response =
                         if (flag == HistoryFlag.PIN) {
-                            api.setSessionPinned(sessionId, body)
+                            api.setSessionPinned(sessionId, fenced(api, sessionId, body))
                         } else {
-                            api.setSessionArchived(sessionId, body)
+                            api.setSessionArchived(sessionId, fenced(api, sessionId, body))
                         }
                     if (!response.isSuccessful) {
                         return@safeApiCall retrofit2.Response.error<HistoryUndo>(
@@ -1219,10 +1234,12 @@ class SessionsViewModel(
             val result =
                 if (unchanged) {
                     safeApiCall {
+                        // Fence at send time: the change being undone moved the revision on.
+                        val inverse = fenced(undo.api, undo.sessionId, undo.inverse)
                         if (undo.flag == HistoryFlag.PIN) {
-                            undo.api.setSessionPinned(undo.sessionId, undo.inverse)
+                            undo.api.setSessionPinned(undo.sessionId, inverse)
                         } else {
-                            undo.api.setSessionArchived(undo.sessionId, undo.inverse)
+                            undo.api.setSessionArchived(undo.sessionId, inverse)
                         }
                     }
                 } else {
@@ -1598,29 +1615,58 @@ class SessionsViewModel(
      * endpoint: there they take the plain DELETE.
      */
     private suspend fun deleteSessionFenced(sessionId: String): NetworkResult<Unit> {
-        val snapshot =
-            (safeApiCall { ApiClient.hermesApi.getSessionMutationSnapshot(sessionId) } as? NetworkResult.Success)?.data
+        val fence =
+            mutationFence(ApiClient.hermesApi, sessionId)
+                ?: return safeApiCall { ApiClient.hermesApi.deleteSession(sessionId) }
+        return safeApiCall {
+            ApiClient.hermesApi.deleteSession(
+                sessionId = sessionId,
+                requestId = UUID.randomUUID().toString(),
+                expectedRevision = fence.revision,
+                expectedGeneration = fence.generation,
+            )
+        }
+    }
+
+    /** The same fence for a PATCH (rename, pin, archive); the body is unchanged on older backends. */
+    private suspend fun fenced(
+        api: HermesApiService,
+        sessionId: String,
+        body: SessionRenameRequest,
+    ): SessionRenameRequest {
+        val fence = mutationFence(api, sessionId) ?: return body
+        return body.copy(
+            requestId = UUID.randomUUID().toString(),
+            expectedRevision = fence.revision,
+            expectedGeneration = fence.generation,
+        )
+    }
+
+    private data class MutationFence(
+        val revision: Int,
+        val generation: Int?,
+    )
+
+    /** Null when the backend has no snapshot endpoint (older backends take unfenced writes). */
+    private suspend fun mutationFence(
+        api: HermesApiService,
+        sessionId: String,
+    ): MutationFence? {
+        val snapshot = (safeApiCall { api.getSessionMutationSnapshot(sessionId) } as? NetworkResult.Success)?.data
         val revision =
             snapshot
                 ?.runtimeRevision
                 ?.jsonPrimitive
                 ?.contentOrNull
-                ?.toIntOrNull()
-        if (snapshot == null || revision == null) {
-            return safeApiCall { ApiClient.hermesApi.deleteSession(sessionId) }
-        }
-        return safeApiCall {
-            ApiClient.hermesApi.deleteSession(
-                sessionId = sessionId,
-                requestId = UUID.randomUUID().toString(),
-                expectedRevision = revision,
-                expectedGeneration =
-                    snapshot.runtimeGeneration
-                        ?.jsonPrimitive
-                        ?.contentOrNull
-                        ?.toIntOrNull(),
-            )
-        }
+                ?.toIntOrNull() ?: return null
+        return MutationFence(
+            revision = revision,
+            generation =
+                snapshot.runtimeGeneration
+                    ?.jsonPrimitive
+                    ?.contentOrNull
+                    ?.toIntOrNull(),
+        )
     }
 
     private fun finishPrune(

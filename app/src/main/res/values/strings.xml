@@ -359,6 +359,8 @@
     <string name="settings_sec_behavior">Behavior</string>
     <string name="settings_item_auto_reconnect">Auto-Reconnect</string>
     <string name="settings_desc_auto_reconnect">Automatically reconnect on disconnect</string>
+    <string name="settings_notify_kanban_alerts_title">Kanban alerts</string>
+    <string name="settings_notify_kanban_alerts_desc">Show notifications when Kanban tasks finish or need attention</string>
     <string name="settings_item_restore_session">Restore Last Session</string>
     <string name="settings_desc_restore_session">Reopen the most recent chat session on startup</string>
     <string name="settings_sec_appearance">Appearance</string>
@@ -954,6 +956,7 @@
     <string name="sessions_stat_messages_loaded">Messages loaded</string>
     <string name="sessions_tab_conversations">Conversations</string>
     <string name="sessions_tab_automations">Automations</string>
+    <string name="sessions_tab_archived">Archived</string>
     <string name="sessions_automations_empty_title">No automation history</string>
     <string name="sessions_automations_empty_desc">Runs started by scheduled automations will appear here.</string>
     <string name="sessions_section_automation_job">Job %1$s</string>

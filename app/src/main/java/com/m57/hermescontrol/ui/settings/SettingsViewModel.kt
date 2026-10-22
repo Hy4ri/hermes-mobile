@@ -52,6 +52,7 @@ data class SettingsUiState(
     val keepScreenAwake: Boolean = false,
     val keepConnectedInBackground: Boolean = false,
     val notifySessionCompletions: Boolean = false,
+    val notifyKanbanAlerts: Boolean = true,
     val profiles: List<ConnectionProfile> = emptyList(),
     val selectedProfileId: String? = null,
     val renameProfileName: String = "",
@@ -103,6 +104,7 @@ class SettingsViewModel(
         val keepScreenAwake = AuthManager.isKeepScreenAwake()
         val keepConnectedInBackground = AuthManager.isKeepConnectedInBackground()
         val notifySessionCompletions = AuthManager.isNotifySessionCompletions()
+        val notifyKanbanAlerts = AuthManager.isNotifyKanbanAlerts()
         val profiles = AuthManager.getConnectionProfiles()
         val appLanguage = AuthManager.getAppLanguage()
         val renameProfileName =
@@ -133,6 +135,7 @@ class SettingsViewModel(
                 keepScreenAwake = keepScreenAwake,
                 keepConnectedInBackground = keepConnectedInBackground,
                 notifySessionCompletions = notifySessionCompletions,
+                notifyKanbanAlerts = notifyKanbanAlerts,
                 profiles = profiles,
                 selectedProfileId = selectedId,
                 renameProfileName = renameProfileName,
@@ -434,6 +437,11 @@ class SettingsViewModel(
     fun onNotifySessionCompletionsChange(enabled: Boolean) {
         _uiState.update { it.copy(notifySessionCompletions = enabled) }
         AuthManager.setNotifySessionCompletions(enabled)
+    }
+
+    fun onNotifyKanbanAlertsChange(enabled: Boolean) {
+        _uiState.update { it.copy(notifyKanbanAlerts = enabled) }
+        AuthManager.setNotifyKanbanAlerts(enabled)
     }
 
     /** Reconcile the chat shortcut with changes made through Settings or another screen. */

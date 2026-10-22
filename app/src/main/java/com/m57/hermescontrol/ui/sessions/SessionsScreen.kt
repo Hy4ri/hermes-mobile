@@ -61,6 +61,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -544,20 +545,6 @@ fun SessionsScreen(
                     contentDescription = stringResource(R.string.content_desc_new_chat),
                 )
             }
-            IconButton(
-                onClick = { viewModel.toggleShowArchived() },
-                modifier = Modifier.testTag("sessions_action_toggle_archived"),
-            ) {
-                Icon(
-                    imageVector = if (state.showArchived) Icons.Filled.Unarchive else Icons.Filled.Archive,
-                    contentDescription =
-                        if (state.showArchived) {
-                            stringResource(R.string.sessions_hide_archived)
-                        } else {
-                            stringResource(R.string.sessions_show_archived)
-                        },
-                )
-            }
             if (state.hasHiddenSessions) {
                 IconButton(
                     onClick = { viewModel.toggleShowHidden() },
@@ -622,6 +609,19 @@ fun SessionsScreen(
                     onClick = { viewModel.selectSection(HistorySection.AUTOMATIONS) },
                     label = { Text(stringResource(R.string.sessions_tab_automations)) },
                     modifier = Modifier.testTag("history_tab_automations"),
+                )
+                FilterChip(
+                    selected = state.showArchived,
+                    onClick = { viewModel.toggleShowArchived() },
+                    label = { Text(stringResource(R.string.sessions_tab_archived)) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = if (state.showArchived) Icons.Filled.Unarchive else Icons.Filled.Archive,
+                            contentDescription = null,
+                            modifier = Modifier.size(FilterChipDefaults.IconSize),
+                        )
+                    },
+                    modifier = Modifier.testTag("sessions_action_toggle_archived"),
                 )
             }
 

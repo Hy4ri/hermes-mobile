@@ -64,7 +64,7 @@ class PersistentCookieJarTest {
                 PersistentCookieJar(
                     store = FakeEncryptedCookieStore(),
                     storeScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined),
-                    trustedHosts = { setOf("192.168.1.10") },
+                    trustedHosts = { setOf("100.64.0.5", "192.168.1.10") },
                 )
             jar.useStore("server-a")
             jar.saveFromResponse(
@@ -96,6 +96,50 @@ class PersistentCookieJarTest {
             // GHSA-jwpq-cqr7-4xf2: GitHub / image hosts must not receive the dashboard session.
             assertTrue(jar.loadForRequest("https://api.github.com/repos/x/y".toHttpUrl()).isEmpty())
             assertTrue(jar.loadForRequest("http://evil.local/".toHttpUrl()).isEmpty())
+        }
+
+    @Test
+    fun externalHostCookie_doesNotPromoteHostToSessionTrust() =
+        runTest {
+            val jar =
+                PersistentCookieJar(
+                    store = FakeEncryptedCookieStore(),
+                    storeScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined),
+                    trustedHosts = { setOf("dashboard.example") },
+                )
+            jar.useStore("server-a")
+            jar.saveFromResponse(
+                "https://dashboard.example/".toHttpUrl(),
+                listOf(sessionCookie("dashboard.example", "secret")),
+            )
+            val media = "https://media.example/a.png".toHttpUrl()
+            assertTrue(jar.loadForRequest(media).isEmpty())
+
+            // GHSA-2h88-cr8p-qm6g: an ordinary Set-Cookie from the media host must not make it trusted.
+            jar.saveFromResponse(
+                media,
+                listOf(okhttp3.Cookie.Builder().name("tracking").value("1").domain("media.example").build()),
+            )
+            val loaded = jar.loadForRequest("https://media.example/b.png".toHttpUrl())
+            assertEquals(listOf("tracking"), loaded.map { it.name })
+        }
+
+    @Test
+    fun externalHostSessionNamedCookie_isNotMirroredToWildcard() =
+        runTest {
+            val jar =
+                PersistentCookieJar(
+                    store = FakeEncryptedCookieStore(),
+                    storeScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined),
+                    trustedHosts = { setOf("dashboard.example") },
+                )
+            jar.useStore("server-a")
+            jar.saveFromResponse(
+                "https://evil.example/".toHttpUrl(),
+                listOf(sessionCookie("evil.example", "attacker")),
+            )
+            // Must not leak into the trusted dashboard host via the wildcard bucket.
+            assertTrue(jar.loadForRequest("https://dashboard.example/api".toHttpUrl()).isEmpty())
         }
 
     @Test

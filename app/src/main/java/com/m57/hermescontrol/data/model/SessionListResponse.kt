@@ -131,6 +131,11 @@ data class SessionRenameRequest(
     val pinned: Boolean? = null,
     val hidden: Boolean? = null,
     val archived: Boolean? = null,
+    // Mutation identity, as for DELETE: current backends refuse an unfenced PATCH
+    // (409 client_upgrade_required). Omitted on older backends, which accept that.
+    @SerialName("request_id") val requestId: String? = null,
+    @SerialName("expected_revision") val expectedRevision: Int? = null,
+    @SerialName("expected_generation") val expectedGeneration: Int? = null,
 )
 
 @Serializable

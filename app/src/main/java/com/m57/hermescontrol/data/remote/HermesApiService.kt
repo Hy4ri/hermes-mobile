@@ -260,7 +260,7 @@ interface HermesApiService : KanbanApiService {
     ): Response<Unit>
 
     // Pin/unpin rides the same PATCH /api/sessions/{id} — body carries only
-    // {pinned} (backend SessionRename model, any subset accepted).
+    // {pinned} plus the mutation fence (backend SessionRename model, any subset accepted).
     @PATCH("api/sessions/{id}")
     suspend fun setSessionPinned(
         @Path("id", encoded = true) sessionId: String,
@@ -268,7 +268,7 @@ interface HermesApiService : KanbanApiService {
     ): Response<Unit>
 
     // Archive/unarchive rides the same PATCH /api/sessions/{id} — body carries only
-    // {archived} (backend SessionRename model, any subset accepted; issue #1496).
+    // {archived} plus the mutation fence (backend SessionRename model; issue #1496).
     @PATCH("api/sessions/{id}")
     suspend fun setSessionArchived(
         @Path("id", encoded = true) sessionId: String,

@@ -67,6 +67,8 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.update.WhatsNewNotice
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
+import com.m57.hermescontrol.profilelock.ProfileLock
+import com.m57.hermescontrol.profilelock.ProfileLockEnforcer
 import com.m57.hermescontrol.shortcuts.LauncherShortcutNavigationEffect
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.common.DisableDrawerGestures
@@ -98,6 +100,10 @@ private fun appEntryProvider(
     entry<LandingScreen> {
         // B7 (Jun 30 2026, kanban t_424): route landing screen buttons through navigateTo to prevent duplicate screens
         LandingScreenContent(
+            locked =
+                ProfileLock.state
+                    .collectAsState()
+                    .value.locked,
             onConnections = { NavigationController.navigateTo(ConnectionsScreen) },
             onAuthLogin = {
                 NavigationController.navigateTo(AuthLoginScreen)
@@ -220,6 +226,7 @@ fun MainNavigation(sessionId: String? = null) {
     val backStack = remember(startScreen) { NavBackStack(startScreen) }
     NavigationController.backStack = backStack
     LauncherShortcutNavigationEffect(hasToken)
+    ProfileLockEnforcer(hasToken)
 
     val pendingNewChat = NavigationController.pendingNewChatNavigation
     LaunchedEffect(pendingNewChat, hasToken) {
@@ -433,7 +440,14 @@ private fun NavigationDrawerBody(
     )
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
+    // #1643: a profile lock keeps only its allowed destinations; drop now-empty section headers too.
+    val lockState by ProfileLock.state.collectAsState()
     for (section in DrawerSection.entries) {
+        val entries =
+            ScreenRegistry.ALL_SCREENS.filter {
+                it.drawerSection == section && hasToken && (!lockState.locked || ProfileLock.allows(it.key))
+            }
+        if (entries.isEmpty()) continue
         Text(
             text = stringResource(section.titleRes).uppercase(),
             modifier =
@@ -447,8 +461,7 @@ private fun NavigationDrawerBody(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontWeight = FontWeight.SemiBold,
         )
-        ScreenRegistry.ALL_SCREENS
-            .filter { it.drawerSection == section && hasToken }
+        entries
             .forEach { entry ->
                 NavigationDrawerItem(
                     icon = { Icon(entry.icon, contentDescription = null) },

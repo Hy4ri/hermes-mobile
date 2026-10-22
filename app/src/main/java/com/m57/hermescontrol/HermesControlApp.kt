@@ -21,6 +21,7 @@ import com.m57.hermescontrol.data.remote.ServerTrust
 import com.m57.hermescontrol.data.session.SessionAttentionStore
 import com.m57.hermescontrol.data.session.SessionAttentionTracker
 import com.m57.hermescontrol.notification.TurnCorrelationTracker
+import com.m57.hermescontrol.profilelock.ProfileLock
 import com.m57.hermescontrol.share.SHARE_INBOX_DIRECTORY
 import com.m57.hermescontrol.shortcuts.LauncherShortcuts
 import com.m57.hermescontrol.ui.analytics.AnalyticsPreloader
@@ -46,6 +47,8 @@ class HermesControlApp :
         ServerTrust.initialize(this)
         ServerCaRestrictions.initialize(this)
         ClientCertificates.initialize(this)
+        // #1643: load the profile lock before AuthManager so restored selections respect it.
+        ProfileLock.init(this)
         AuthManager.init(this)
         ComposerDraftStore.get(this)
         LauncherShortcuts.initialize(this, appScope)

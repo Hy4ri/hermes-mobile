@@ -60,6 +60,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.remote.ClientCertificates
+import com.m57.hermescontrol.profilelock.LockedLandingContent
+import com.m57.hermescontrol.profilelock.ProfileLock
 import com.m57.hermescontrol.ui.common.CustomHeadersButton
 
 @Composable
@@ -76,6 +78,14 @@ fun AuthLoginScreen(
                 },
         ),
 ) {
+    // #1643: sign-in can change the server URL and credentials; it needs the owner while locked.
+    if (ProfileLock.state
+            .collectAsStateWithLifecycle()
+            .value.locked
+    ) {
+        LockedLandingContent(onBack = onBack, modifier = modifier)
+        return
+    }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val lanPermissionLauncher =

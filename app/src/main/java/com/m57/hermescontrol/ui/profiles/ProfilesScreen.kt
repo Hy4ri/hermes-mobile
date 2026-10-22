@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.ui.profiles
 
 import android.content.ClipData
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -51,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -61,10 +64,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.ChatScreen
+import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.applock.AlertDialog
 import com.m57.hermescontrol.applock.DropdownMenu
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.profilelock.ProfileLockSetDialog
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
@@ -107,6 +113,8 @@ fun ProfilesScreen(
     val scope = rememberCoroutineScope()
 
     var isBuildingProfile by remember { mutableStateOf(false) }
+    var lockProfileName by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
 
     LaunchedEffect(dataScope) {
         viewModel.clearScopeOwnedState()
@@ -114,6 +122,25 @@ fun ProfilesScreen(
     }
 
     ToastEffect(toastMessage = state.toastMessage, onClearToast = viewModel::clearToast)
+
+    lockProfileName?.let { name ->
+        val enabledToast = stringResource(R.string.profile_lock_enabled_toast, name)
+        ProfileLockSetDialog(
+            profileName = name,
+            onDismiss = { lockProfileName = null },
+            onDone = {
+                lockProfileName = null
+                Toast
+                    .makeText(
+                        context,
+                        enabledToast,
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                // Profiles is protected now; return to the chat on the locked profile.
+                NavigationController.resetTo(ChatScreen)
+            },
+        )
+    }
 
     HermesScaffold(
         title = {
@@ -405,6 +432,27 @@ fun ProfilesScreen(
                                                         expanded = showMenu,
                                                         onDismissRequest = { showMenu = false },
                                                     ) {
+                                                        // #1643: lock this device to the active profile.
+                                                        if (isActive) {
+                                                            DropdownMenuItem(
+                                                                text = {
+                                                                    Text(
+                                                                        stringResource(R.string.profile_lock_menu_item),
+                                                                    )
+                                                                },
+                                                                leadingIcon = {
+                                                                    Icon(
+                                                                        Icons.Default.Lock,
+                                                                        contentDescription = null,
+                                                                    )
+                                                                },
+                                                                onClick = {
+                                                                    showMenu = false
+                                                                    lockProfileName = profile.name
+                                                                },
+                                                                modifier = Modifier.testTag("profiles_action_lock"),
+                                                            )
+                                                        }
                                                         if (profile.is_default != true) {
                                                             DropdownMenuItem(
                                                                 text = {

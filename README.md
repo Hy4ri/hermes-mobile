@@ -174,6 +174,24 @@ reply actions: open and unlock the app to reply. This is not encryption of decry
 memory, protection against a rooted device, or a server-side permission change;
 already-running agent work and opted-in background connections can continue.
 
+### Optional profile lock
+
+**Profiles → ⋮ on the active profile → Lock to this profile** keeps a shared device
+(for example, a family device) on one Hermes profile. Set a 4–8 digit PIN; only a salted
+hash is stored.
+
+While locked, the sidebar shows only Chat, History, Projects, and Settings. Settings keeps
+Appearance, Language, Chat, Behavior, and About. Profiles, server connections, sign-in,
+credentials, the Vault, integrations, and agent configuration are unavailable from every
+entry point. In Chat, session-only changes (`/model`, `/reasoning`, `/fast`) still work;
+global changes and commands that change the agent or server (for example `/config`,
+`/tools`, `/skills`, `/cron`, `/profile`, `/update`) are refused.
+
+**Settings → Turn off lock** asks for the PIN. Five wrong PINs start a 30-second wait.
+If the PIN is lost, or the lock settings cannot be read, the app stays locked; clear the
+app data to remove it. This is a local restriction in Hermes Mobile, not a server-side
+permission: restrict the profile's agent tools separately, and other clients are not affected.
+
 ### 1. Start the dashboard
 
 On the host machine:

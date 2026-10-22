@@ -40,6 +40,7 @@ fun ConnectionSetupSheet(
     onContinue: () -> Unit,
     onOpenBrowser: (operationId: String, url: String) -> Unit,
     onDismiss: () -> Unit,
+    locked: Boolean = false,
 ) {
     if (state.operation == null) return
     ModalBottomSheet(
@@ -53,6 +54,7 @@ fun ConnectionSetupSheet(
             onRespond = onRespond,
             onContinue = onContinue,
             onOpenBrowser = onOpenBrowser,
+            locked = locked,
             modifier = Modifier.fillMaxWidth(),
         )
     }
@@ -65,6 +67,7 @@ internal fun ConnectionSetupContent(
     onContinue: () -> Unit,
     onOpenBrowser: (operationId: String, url: String) -> Unit,
     modifier: Modifier = Modifier,
+    locked: Boolean = false,
 ) {
     val operation = state.operation ?: return
     val target =
@@ -129,6 +132,15 @@ internal fun ConnectionSetupContent(
         catalog?.let { ConnectionCatalogDetails(kind = target.kind, catalog = it) }
 
         when {
+            // #1643: credentials need the owner while a profile lock is on; Skip/Continue stay.
+            locked && !isTerminalTarget(target) -> {
+                Text(
+                    text = stringResource(R.string.profile_lock_connection_blocked),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.testTag("connection_setup_locked"),
+                )
+            }
+
             target.state == ConnectionTargetState.CONNECTED && !target.discoveryError.isNullOrBlank() -> {
                 Text(
                     text = stringResource(R.string.connection_setup_authorized_no_tools),

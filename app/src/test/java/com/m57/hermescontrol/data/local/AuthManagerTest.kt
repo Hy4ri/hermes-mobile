@@ -5,6 +5,10 @@ import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
 import com.m57.hermescontrol.data.config.ConnectionProfile
+import com.m57.hermescontrol.profilelock.FakeSharedPreferences
+import com.m57.hermescontrol.profilelock.ProfileLock
+import com.m57.hermescontrol.profilelock.ProfileLockStore
+import com.m57.hermescontrol.profilelock.ProfileLockTarget
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -647,5 +651,28 @@ class AuthManagerTest {
         AuthManager.setActiveProfileId("meow")
         AuthManager.setActiveProfileId(null)
         assertNull(AuthManager.activeProfileId.value)
+    }
+
+    @Test
+    fun profileLock_refusesOtherSelectionsAndProfiles() {
+        AuthManager.setActiveProfileId("kids")
+        val lockedConnection = AuthManager.getSelectedProfileId()
+        ProfileLock.setStoreForTest(ProfileLockStore(FakeSharedPreferences()))
+        try {
+            ProfileLock.enable(ProfileLockTarget(lockedConnection, "kids"), "4826")
+
+            AuthManager.setActiveProfileId("default")
+            AuthManager.setActiveProfileId(null)
+            assertEquals("kids", AuthManager.activeProfileId.value)
+
+            AuthManager.setSelectedProfileId("prof-2")
+            assertEquals(lockedConnection, AuthManager.getSelectedProfileId())
+            assertEquals("kids", AuthManager.activeProfileId.value)
+        } finally {
+            ProfileLock.setStoreForTest(null)
+        }
+        // Lock off: the same calls work again.
+        AuthManager.setActiveProfileId("default")
+        assertEquals("default", AuthManager.activeProfileId.value)
     }
 }

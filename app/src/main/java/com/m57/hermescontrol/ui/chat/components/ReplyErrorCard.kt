@@ -50,7 +50,7 @@ import com.m57.hermescontrol.ui.chat.sanitizeReplyErrorDetails
 fun ReplyErrorCard(
     failure: ReplyFailure,
     onDismiss: () -> Unit,
-    onOpenLogs: () -> Unit,
+    onOpenLogs: (() -> Unit)?,
     onCopy: (String) -> Unit,
     onShare: (String) -> Unit,
 ) {
@@ -110,7 +110,11 @@ fun ReplyErrorCard(
             }
             Text(stringResource(R.string.chat_reply_failed_share_note), style = MaterialTheme.typography.bodySmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onOpenLogs) { Text(stringResource(R.string.chat_reply_failed_logs)) }
+                onOpenLogs?.let {
+                    OutlinedButton(
+                        onClick = it,
+                    ) { Text(stringResource(R.string.chat_reply_failed_logs)) }
+                }
                 OutlinedButton(onClick = { onCopy(details) }) { Text(stringResource(R.string.chat_reply_failed_copy)) }
                 OutlinedButton(
                     onClick = { onShare(details) },

@@ -118,7 +118,14 @@ class PersistentCookieJarTest {
             // GHSA-2h88-cr8p-qm6g: an ordinary Set-Cookie from the media host must not make it trusted.
             jar.saveFromResponse(
                 media,
-                listOf(okhttp3.Cookie.Builder().name("tracking").value("1").domain("media.example").build()),
+                listOf(
+                    okhttp3.Cookie
+                        .Builder()
+                        .name("tracking")
+                        .value("1")
+                        .domain("media.example")
+                        .build(),
+                ),
             )
             val loaded = jar.loadForRequest("https://media.example/b.png".toHttpUrl())
             assertEquals(listOf("tracking"), loaded.map { it.name })

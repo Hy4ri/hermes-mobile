@@ -83,7 +83,7 @@ internal class KanbanBackgroundAlertMonitor(
     private val startupEpochSeconds = System.currentTimeMillis() / 1000
 
     fun start(scope: CoroutineScope) {
-        if (!AuthManager.isNotifyKanbanAlerts()) return
+        // Keep consuming while muted so enabling works immediately and cannot replay old alerts (#1657).
         scope.launch(Dispatchers.IO) {
             try {
                 val boards = loadKanbanAlertBoards(repository)

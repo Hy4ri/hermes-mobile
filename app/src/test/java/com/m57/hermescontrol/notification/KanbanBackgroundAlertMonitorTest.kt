@@ -1,13 +1,36 @@
 package com.m57.hermescontrol.notification
 
+import android.content.Context
+import android.content.SharedPreferences
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.KanbanBoard
 import com.m57.hermescontrol.data.model.KanbanBoardsResponse
 import com.m57.hermescontrol.data.remote.NetworkError
 import com.m57.hermescontrol.data.remote.NetworkResult
+import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.repository.KanbanRepository
+import com.m57.hermescontrol.data.ws.KanbanEvent
+import com.m57.hermescontrol.data.ws.KanbanEventsClient
+import com.m57.hermescontrol.data.ws.KanbanEventsEnvelope
+import io.mockk.Runs
 import io.mockk.coEvery
+import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
+import io.mockk.mockkConstructor
+import io.mockk.mockkObject
+import io.mockk.spyk
+import io.mockk.unmockkConstructor
+import io.mockk.unmockkObject
+import io.mockk.verify
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -42,6 +65,79 @@ class KanbanBackgroundAlertMonitorTest {
         assertFalse(shouldNotifyKanbanEvent(false, "failed"))
         assertFalse(shouldNotifyKanbanEvent(true, "heartbeat"))
     }
+
+    @Test
+    fun `muted startup keeps cursors current and enabling resumes without restarting`() =
+        runBlocking {
+            val context = mockk<Context>()
+            val prefs = mockk<SharedPreferences>()
+            val editor = mockk<SharedPreferences.Editor>(relaxed = true)
+            val repository = mockk<KanbanRepository>()
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+            val connections = Channel<Pair<Long?, (KanbanEventsEnvelope) -> Unit>>(Channel.UNLIMITED)
+            val endpoint = ServerEndpoint.parse("https://example.com/")
+            val key = "events_${endpoint.baseUrl}|default"
+            var cursor = 42L
+            var enabled = false
+            every { context.getSharedPreferences(any(), any()) } returns prefs
+            every { prefs.getLong(key, 0L) } answers { cursor }
+            every { prefs.contains(key) } returns true
+            every { prefs.edit() } returns editor
+            every { editor.putLong(key, any()) } answers {
+                cursor = secondArg()
+                editor
+            }
+            coEvery { repository.getBoards(includeArchived = false) } returns
+                NetworkResult.Success(KanbanBoardsResponse(boards = listOf(KanbanBoard(id = "default"))))
+            mockkObject(AuthManager)
+            mockkConstructor(KanbanEventsClient::class)
+            every { AuthManager.isNotifyKanbanAlerts() } answers { enabled }
+            every { AuthManager.endpointForBuild() } returns endpoint
+            every { anyConstructed<KanbanEventsClient>().connect(any(), any(), any(), any(), any()) } answers {
+                connections.trySend(thirdArg<Long?>() to arg<(KanbanEventsEnvelope) -> Unit>(3))
+                Unit
+            }
+            every { anyConstructed<KanbanEventsClient>().disconnect() } just Runs
+            val monitor = spyk(KanbanBackgroundAlertMonitor(context, repository), recordPrivateCalls = true)
+            every { monitor["notifyTask"](any<String>(), any<String>(), any<KanbanAlertKind>()) } answers { Unit }
+            try {
+                monitor.start(scope)
+                val (since, onEvents) = withTimeout(5_000) { connections.receive() }
+                assertEquals(42L, since)
+                val mutedEvent = KanbanEvent(43, "t_1234abcd", kind = "completed")
+                onEvents(KanbanEventsEnvelope(events = listOf(mutedEvent)))
+                assertEquals(43L, cursor)
+                verify(exactly = 0) {
+                    monitor["notifyTask"](any<String>(), any<String>(), any<KanbanAlertKind>())
+                }
+
+                enabled = true
+                val liveEvent = KanbanEvent(44, "t_1234abcd", kind = "blocked")
+                onEvents(KanbanEventsEnvelope(events = listOf(mutedEvent, liveEvent)))
+                assertEquals(44L, cursor)
+                verify(exactly = 1) {
+                    monitor["notifyTask"]("default", "t_1234abcd", KanbanAlertKind.NEEDS_ATTENTION)
+                }
+                verify(exactly = 0) {
+                    monitor["notifyTask"]("default", "t_1234abcd", KanbanAlertKind.COMPLETED)
+                }
+
+                monitor.stop()
+                monitor.start(scope)
+                val (resumedSince, resumedEvents) = withTimeout(5_000) { connections.receive() }
+                assertEquals(44L, resumedSince)
+                resumedEvents(KanbanEventsEnvelope(events = listOf(mutedEvent, liveEvent)))
+                verify(exactly = 1) {
+                    monitor["notifyTask"](any<String>(), any<String>(), any<KanbanAlertKind>())
+                }
+            } finally {
+                monitor.stop()
+                scope.cancel()
+                connections.close()
+                unmockkConstructor(KanbanEventsClient::class)
+                unmockkObject(AuthManager)
+            }
+        }
 
     @Test
     fun `tags are scoped to board and task`() {

@@ -44,6 +44,7 @@ internal fun BehaviorSection(
 ) {
     val context = LocalContext.current
     val keepAwakeLabel = stringResource(R.string.settings_keep_screen_awake_title)
+    val kanbanAlertsLabel = stringResource(R.string.settings_notify_kanban_alerts_title)
     // Turning session-complete alerts on needs POST_NOTIFICATIONS (Android
     // 13+). The chat screen requests it on open, but the toggle lives in
     // Settings — gate here so enabling never lands in a state where the OS
@@ -197,7 +198,11 @@ internal fun BehaviorSection(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Switch(checked = notifyKanbanAlerts, onCheckedChange = onNotifyKanbanAlertsChange)
+            Switch(
+                checked = notifyKanbanAlerts,
+                onCheckedChange = onNotifyKanbanAlertsChange,
+                modifier = Modifier.semantics { contentDescription = kanbanAlertsLabel },
+            )
         }
 
         Spacer(modifier = Modifier.height(12.dp))

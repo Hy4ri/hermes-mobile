@@ -113,7 +113,9 @@ class PersistentCookieJar(
         // same dashboard over another (e.g. LAN 192.168.x) loses the cookie
         // entirely — every authenticated download / API call then 401s even
         // though the WebSocket (dialed on the current host) keeps working.
-        val sessionCookies = cookies.filter { isSessionCookie(it) }
+        // GHSA-2h88-cr8p-qm6g: only a configured server host may feed the wildcard bucket.
+        // A third-party host (image CDN, ...) can name a cookie like the session cookie.
+        val sessionCookies = if (hostKey in trustedHosts()) cookies.filter { isSessionCookie(it) } else emptyList()
         if (sessionCookies.isNotEmpty()) {
             val wildcard =
                 cache
@@ -160,9 +162,10 @@ class PersistentCookieJar(
         // OkHttp would reject them for a different host — but never sent to
         // other servers because the scope itself is per-server.
         // GHSA-jwpq-cqr7-4xf2: the wildcard bucket is only for hosts that belong to
-        // this server (a host it already has cookies for, or the active base URL).
-        // Any other host (GitHub, image CDNs, ...) must never receive the session.
-        val trusted = hosts.containsKey(hostKey) || hostKey in trustedHosts()
+        // this server (the active base URL host). Any other host (GitHub, image CDNs, ...)
+        // must never receive the session. Having stored a cookie from a host does NOT make
+        // it trusted (GHSA-2h88-cr8p-qm6g).
+        val trusted = hostKey in trustedHosts()
         val buckets = listOfNotNull(hosts[hostKey], if (trusted) hosts[WILDCARD_HOST] else null)
         val seen = mutableSetOf<Pair<String, String>>()
         synchronized(buckets) {

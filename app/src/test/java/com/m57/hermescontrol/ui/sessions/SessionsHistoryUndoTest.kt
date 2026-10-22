@@ -7,6 +7,7 @@ import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.local.SessionListCacheStore
 import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.model.SessionListResponse
+import com.m57.hermescontrol.data.model.SessionMutationSnapshot
 import com.m57.hermescontrol.data.model.SessionRenameRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.HermesApiService
@@ -18,6 +19,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
+import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
 import org.junit.Assert.*
@@ -542,5 +544,167 @@ class SessionsHistoryUndoTest {
         assertNull(vm.uiState.value.historyFeedback)
         assertFalse(vm.uiState.value.isChangingHistory)
         coVerify(exactly = 2) { api.setSessionPinned(any(), any()) }
+    }
+
+    private fun editSnapshot(
+        revision: Long,
+        generation: Long = 0,
+    ) = Response.success(SessionMutationSnapshot("s", true, JsonPrimitive(revision), JsonPrimitive(generation)))
+
+    @Test
+    fun renameRejectsAChangedRevisionWithoutWritingAndKeepsDraft() {
+        coEvery { api.getSessionMutationSnapshot("s") } returnsMany listOf(editSnapshot(3), editSnapshot(4))
+        val vm = viewModel()
+        vm.openRenameDialog("s", "Old title")
+        idle()
+        vm.updateRenameDraft("My draft")
+        vm.renameSession("s", "My draft")
+        idle()
+        coVerify(exactly = 0) { api.renameSession(any(), any()) }
+        coVerify(exactly = 0) { ambientApi.renameSession(any(), any()) }
+        assertEquals("s", vm.uiState.value.renamingSessionId)
+        assertEquals("My draft", vm.uiState.value.renameDraft)
+        assertTrue(
+            vm.uiState.value.toastMessage!!
+                .contains("changed"),
+        )
+    }
+
+    @Test
+    fun renameWithUnchangedSnapshotUsesTheCapturedOwner() {
+        coEvery { api.getSessionMutationSnapshot("s") } returns editSnapshot(3)
+        coEvery { api.renameSession(any(), any()) } returns Response.success(Unit)
+        val vm = viewModel()
+        vm.openRenameDialog("s", "Old title")
+        vm.renameSession("s", "New title")
+        idle()
+        coVerify(exactly = 2) { api.getSessionMutationSnapshot("s") }
+        coVerify(exactly = 1) { api.renameSession("s", match { it.title == "New title" }) }
+        // One initial title read binds the baseline; saving does not refetch full detail.
+        coVerify(exactly = 1) { api.getSessionInfo("s", owner.activeProfileId) }
+        coVerify(exactly = 0) { ambientApi.renameSession(any(), any()) }
+        assertNull(vm.uiState.value.renamingSessionId)
+    }
+
+    @Test
+    fun renameRejectsGenerationChangesEvenWithTheSameRevision() {
+        coEvery { api.getSessionMutationSnapshot("s") } returnsMany listOf(editSnapshot(3, 1), editSnapshot(3, 2))
+        val vm = viewModel()
+        vm.openRenameDialog("s", "Old title")
+        idle()
+        vm.renameSession("s", "New title")
+        idle()
+        coVerify(exactly = 0) { api.renameSession(any(), any()) }
+        coVerify(exactly = 0) { ambientApi.renameSession(any(), any()) }
+    }
+
+    @Test
+    fun snapshotServerErrorsDoNotFallBackToAnUncheckedRename() {
+        coEvery { api.getSessionMutationSnapshot("s") } returns Response.error(500, "broken".toResponseBody(null))
+        val vm = viewModel()
+        vm.openRenameDialog("s", "Old title")
+        idle()
+        vm.renameSession("s", "New title")
+        idle()
+        coVerify(exactly = 0) { api.renameSession(any(), any()) }
+        coVerify(exactly = 0) { ambientApi.renameSession(any(), any()) }
+        assertNotNull(vm.uiState.value.toastMessage)
+    }
+
+    @Test
+    fun switchingOwnerWhileEditingPreventsTheWrite() {
+        coEvery { api.getSessionMutationSnapshot("s") } returns editSnapshot(3)
+        val vm = viewModel()
+        vm.openRenameDialog("s", "Old title")
+        idle()
+        owner = owner.copy(activeProfileId = "profile-b")
+        vm.renameSession("s", "New title")
+        idle()
+        coVerify(exactly = 0) { api.renameSession(any(), any()) }
+        coVerify(exactly = 0) { ambientApi.renameSession(any(), any()) }
+    }
+
+    @Test
+    fun olderBackendChecksTheTitleBeforeRenaming() {
+        coEvery { api.getSessionMutationSnapshot("s") } returns Response.error(404, "no route".toResponseBody(null))
+        coEvery { api.renameSession(any(), any()) } returns Response.success(Unit)
+        rows["s"] = SessionInfo("s", title = "Old title")
+        val vm = viewModel()
+        vm.openRenameDialog("s", "Old title")
+        idle()
+        vm.renameSession("s", "New title")
+        idle()
+        coVerify(exactly = 1) { api.getSessionInfo("s", owner.activeProfileId) }
+        coVerify(exactly = 1) { api.renameSession("s", any()) }
+    }
+
+    @Test
+    fun olderBackendRejectsAnExternallyChangedTitle() {
+        coEvery { api.getSessionMutationSnapshot("s") } returns Response.error(405, "no route".toResponseBody(null))
+        rows["s"] = SessionInfo("s", title = "Old title")
+        val vm = viewModel()
+        vm.openRenameDialog("s", "Old title")
+        idle()
+        rows["s"] = SessionInfo("s", title = "External title")
+        vm.renameSession("s", "My draft")
+        idle()
+        coVerify(exactly = 0) { api.renameSession(any(), any()) }
+        coVerify(exactly = 0) { ambientApi.renameSession(any(), any()) }
+    }
+
+    @Test
+    fun missingSessionCannotBeRenamedEvenWithMatchingCounters() {
+        coEvery { api.getSessionMutationSnapshot("s") } returns
+            Response.success(SessionMutationSnapshot("s", false, JsonPrimitive(0)))
+        val vm = viewModel()
+        vm.openRenameDialog("s", "Old title")
+        idle()
+        vm.renameSession("s", "My draft")
+        idle()
+        coVerify(exactly = 0) { api.renameSession(any(), any()) }
+        coVerify(exactly = 0) { ambientApi.renameSession(any(), any()) }
+    }
+
+    @Test
+    fun closingDialogDuringSnapshotCheckCannotSendTheRename() {
+        val pending = CompletableDeferred<Response<SessionMutationSnapshot>>()
+        coEvery { api.getSessionMutationSnapshot("s") } returns editSnapshot(3)
+        val vm = viewModel()
+        vm.openRenameDialog("s", "Old title")
+        idle()
+        coEvery { api.getSessionMutationSnapshot("s") } coAnswers { pending.await() }
+        vm.renameSession("s", "My draft")
+        dispatcher.scheduler.runCurrent()
+        vm.closeRenameDialog()
+        pending.complete(editSnapshot(3))
+        idle()
+        coVerify(exactly = 0) { api.renameSession(any(), any()) }
+        assertNull(vm.uiState.value.renamingSessionId)
+    }
+
+    @Test
+    fun olderBackendUsesTheStoredTitleRatherThanTheDisplayFallback() {
+        coEvery { api.getSessionMutationSnapshot("s") } returns Response.error(404, "no route".toResponseBody(null))
+        coEvery { api.renameSession(any(), any()) } returns Response.success(Unit)
+        val vm = viewModel()
+        vm.openRenameDialog("s", "First user message")
+        idle()
+        vm.renameSession("s", "New title")
+        idle()
+        coVerify(exactly = 1) { api.renameSession("s", any()) }
+    }
+
+    @Test
+    fun renameDetectsAListThatWasAlreadyStaleWhenTheDialogOpened() {
+        coEvery { api.getSessionMutationSnapshot("s") } returns editSnapshot(3)
+        rows["s"] = SessionInfo("s", title = "Old title")
+        val vm = viewModel()
+        rows["s"] = SessionInfo("s", title = "External title")
+        vm.openRenameDialog("s", "Old title")
+        idle()
+        vm.renameSession("s", "My draft")
+        idle()
+        coVerify(exactly = 0) { api.renameSession(any(), any()) }
+        coVerify(exactly = 0) { ambientApi.renameSession(any(), any()) }
     }
 }

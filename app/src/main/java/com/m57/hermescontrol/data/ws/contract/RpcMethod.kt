@@ -133,6 +133,13 @@ object RpcMethods {
             SessionWorkspaceMoveResult.serializer(),
         )
 
+    val SESSION_EXPORT: RpcMethod<SessionExportParams, SessionExportResult> =
+        RpcMethod(
+            WsMethods.SESSION_EXPORT,
+            SessionExportParams.serializer(),
+            SessionExportResult.serializer(),
+        )
+
     val PROMPT_BTW: RpcMethod<PromptBtwParams, PromptBtwResult> =
         RpcMethod(
             WsMethods.PROMPT_BTW,
@@ -568,6 +575,7 @@ object RpcMethods {
             SESSION_CONTEXT_BREAKDOWN,
             SESSION_USAGE,
             SESSION_WORKSPACE_MOVE,
+            SESSION_EXPORT,
             PROMPT_BTW,
             APPROVAL_PENDING,
             APPROVAL_RECEIVED,

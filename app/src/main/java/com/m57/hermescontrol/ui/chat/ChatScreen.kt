@@ -668,18 +668,51 @@ fun ChatScreen(
                     )
 
                     DropdownMenuItem(
-                        text = { Text(stringResource(R.string.session_integrations_menu_item)) },
+                        text = { Text(stringResource(R.string.chat_action_export)) },
                         leadingIcon = {
                             Icon(
-                                imageVector = Icons.Filled.Extension,
+                                imageVector = Icons.Filled.Share,
                                 contentDescription = null,
                             )
                         },
+                        enabled = state.currentSessionId != null,
                         onClick = {
                             showSessionMenu = false
-                            connectorsViewModel.show()
+                            val sessionId = state.currentSessionId
+                            if (sessionId != null) {
+                                scope.launch {
+                                    try {
+                                        val result =
+                                            HermesWsClient.call(
+                                                RpcMethods.SESSION_EXPORT,
+                                                SessionExportParams(
+                                                    sessionId = sessionId,
+                                                    format = "md",
+                                                    redact = true,
+                                                ),
+                                            )
+                                        val text = result.content ?: result.file ?: "Chat export completed"
+                                        val sendIntent =
+                                            Intent().apply {
+                                                action = Intent.ACTION_SEND
+                                                putExtra(Intent.EXTRA_TEXT, text)
+                                                type = "text/plain"
+                                            }
+                                        val chooserTitle = context.getString(R.string.chat_export_share_chooser)
+                                        context.startActivity(Intent.createChooser(sendIntent, chooserTitle))
+                                    } catch (e: Exception) {
+                                        val msg = e.message ?: "Unknown error"
+                                        Toast
+                                            .makeText(
+                                                context,
+                                                context.getString(R.string.chat_export_failed, msg),
+                                                Toast.LENGTH_SHORT,
+                                            ).show()
+                                    }
+                                }
+                            }
                         },
-                        modifier = Modifier.testTag("chat_menu_session_integrations"),
+                        modifier = Modifier.testTag("chat_menu_export_chat"),
                     )
                     ChatKeepScreenAwakeMenuItem(
                         checked = settingsState.keepScreenAwake,

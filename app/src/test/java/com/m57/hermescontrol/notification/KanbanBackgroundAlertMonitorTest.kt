@@ -35,6 +35,15 @@ class KanbanBackgroundAlertMonitorTest {
     }
 
     @Test
+    fun `kanban notifications setting gates only terminal and attention events`() {
+        assertTrue(shouldNotifyKanbanEvent(true, "completed"))
+        assertTrue(shouldNotifyKanbanEvent(true, "blocked"))
+        assertFalse(shouldNotifyKanbanEvent(false, "completed"))
+        assertFalse(shouldNotifyKanbanEvent(false, "failed"))
+        assertFalse(shouldNotifyKanbanEvent(true, "heartbeat"))
+    }
+
+    @Test
     fun `tags are scoped to board and task`() {
         assertNotEquals(kanbanNotificationTag("a", "t_1234abcd"), kanbanNotificationTag("b", "t_1234abcd"))
         assertNotEquals(kanbanNotificationTag("a", "t_1234abcd"), kanbanNotificationTag("a", "t_ffffffff"))

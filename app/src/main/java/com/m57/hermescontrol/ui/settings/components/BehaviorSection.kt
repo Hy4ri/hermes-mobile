@@ -37,6 +37,8 @@ internal fun BehaviorSection(
     onKeepConnectedInBackgroundChange: (Boolean) -> Unit,
     notifySessionCompletions: Boolean,
     onNotifySessionCompletionsChange: (Boolean) -> Unit,
+    notifyKanbanAlerts: Boolean,
+    onNotifyKanbanAlertsChange: (Boolean) -> Unit,
     restoreLastSession: Boolean,
     onRestoreLastSessionChange: (Boolean) -> Unit,
 ) {
@@ -173,6 +175,29 @@ internal fun BehaviorSection(
                     }
                 },
             )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.settings_notify_kanban_alerts_title),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    text = stringResource(R.string.settings_notify_kanban_alerts_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(checked = notifyKanbanAlerts, onCheckedChange = onNotifyKanbanAlertsChange)
         }
 
         Spacer(modifier = Modifier.height(12.dp))

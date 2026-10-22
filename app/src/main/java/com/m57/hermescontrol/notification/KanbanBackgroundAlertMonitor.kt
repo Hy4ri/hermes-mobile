@@ -44,6 +44,12 @@ internal fun kanbanNotificationTag(
     taskId: String,
 ): String = "kanban:$board:$taskId"
 
+/** Preserve Kanban alert events only when the user has opted in. */
+internal fun shouldNotifyKanbanEvent(
+    enabled: Boolean,
+    kind: String,
+): Boolean = enabled && kanbanEventAlertKind(kind) != null
+
 /** Validate, de-duplicate, and cap untrusted board slugs from the dashboard API. */
 internal fun selectKanbanAlertBoards(ids: List<String>): List<String> =
     ids
@@ -77,6 +83,7 @@ internal class KanbanBackgroundAlertMonitor(
     private val startupEpochSeconds = System.currentTimeMillis() / 1000
 
     fun start(scope: CoroutineScope) {
+        if (!AuthManager.isNotifyKanbanAlerts()) return
         scope.launch(Dispatchers.IO) {
             try {
                 val boards = loadKanbanAlertBoards(repository)
@@ -115,7 +122,10 @@ internal class KanbanBackgroundAlertMonitor(
                     if (event.id <= cursor) return@forEach
                     cursor = event.id
                     prefs.edit().putLong(key, cursor).apply()
-                    val kind = kanbanEventAlertKind(event.kind) ?: return@forEach
+                    val kind =
+                        event.kind
+                            .takeIf { shouldNotifyKanbanEvent(AuthManager.isNotifyKanbanAlerts(), it) }
+                            ?.let(::kanbanEventAlertKind) ?: return@forEach
                     val taskId = event.taskId?.takeIf { KANBAN_TASK_ID_PATTERN.matches(it) } ?: return@forEach
                     if (firstConnection && (event.createdAt ?: 0) < startupEpochSeconds - 2) return@forEach
                     notifyTask(board, taskId, kind)
@@ -132,6 +142,7 @@ internal class KanbanBackgroundAlertMonitor(
         taskId: String,
         kind: KanbanAlertKind,
     ) {
+        if (!AuthManager.isNotifyKanbanAlerts()) return
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED

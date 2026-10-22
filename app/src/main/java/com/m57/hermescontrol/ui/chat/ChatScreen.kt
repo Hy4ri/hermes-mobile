@@ -668,6 +668,20 @@ fun ChatScreen(
                     )
 
                     DropdownMenuItem(
+                        text = { Text(stringResource(R.string.session_integrations_menu_item)) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Filled.Extension,
+                                contentDescription = null,
+                            )
+                        },
+                        onClick = {
+                            showSessionMenu = false
+                            connectorsViewModel.show()
+                        },
+                        modifier = Modifier.testTag("chat_menu_session_integrations"),
+                    )
+                    DropdownMenuItem(
                         text = { Text(stringResource(R.string.chat_action_export)) },
                         leadingIcon = {
                             Icon(

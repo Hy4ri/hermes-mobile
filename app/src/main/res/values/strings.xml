@@ -251,6 +251,7 @@
     <string name="action_reply">Reply</string>
 
     <!-- Chat Screen & Bubble -->
+    <string name="chat_action_search">Search</string>
     <string name="chat_action_export">Export chat</string>
     <string name="chat_export_title">Export chat transcript</string>
     <string name="chat_export_failed">Could not export chat: %1$s</string>

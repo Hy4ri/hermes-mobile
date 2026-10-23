@@ -54,4 +54,5 @@ data class SessionResumeResult(
 @Serializable
 data class PromptSubmitResult(
     val status: String? = null,
+    @SerialName("admission_id") val admissionId: String? = null,
 )

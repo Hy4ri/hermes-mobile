@@ -214,7 +214,17 @@ class FullBleedTurnsTest {
             groupIntoTurns(
                 tools.take(2) + prose + tools.subList(2, 4) + system + tools.subList(4, 6) +
                     user + tools.takeLast(2),
+                groupConsecutiveTools = true,
             ),
+        )
+    }
+
+    @Test
+    fun `consecutive tools stay individual rows when grouping is disabled`() {
+        val tools = (1..3).map { msg("t$it", MessageRole.TOOL) }
+        assertEquals(
+            listOf(entries(AgentEntry.ToolRow(tools[0]), AgentEntry.ToolRow(tools[1]), AgentEntry.ToolRow(tools[2]))),
+            groupIntoTurns(tools, groupConsecutiveTools = false),
         )
     }
 
@@ -225,7 +235,7 @@ class FullBleedTurnsTest {
         val second = msg("t2", MessageRole.TOOL)
         assertEquals(
             listOf(entries(AgentEntry.ToolRow(first), AgentEntry.Prose(placeholder), AgentEntry.ToolRow(second))),
-            groupIntoTurns(listOf(first, placeholder, second)),
+            groupIntoTurns(listOf(first, placeholder, second), groupConsecutiveTools = true),
         )
     }
 
@@ -235,7 +245,7 @@ class FullBleedTurnsTest {
         val streaming = msg("stream", MessageRole.ASSISTANT, isStreaming = true)
         assertEquals(
             listOf(entries(AgentEntry.ToolGroup(tools.map { AgentEntry.ToolRow(it) }), AgentEntry.Prose(streaming))),
-            groupIntoTurnsWithStreaming(tools, streaming),
+            groupIntoTurnsWithStreaming(tools, streaming, groupConsecutiveTools = true),
         )
     }
 

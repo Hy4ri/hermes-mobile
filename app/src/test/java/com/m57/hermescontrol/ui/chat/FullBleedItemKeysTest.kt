@@ -69,7 +69,7 @@ class FullBleedItemKeysTest {
                 ChatMessage("t2", MessageRole.TOOL, "second output"),
                 ChatMessage("a", MessageRole.ASSISTANT, "answer", reasoningText = "thinking"),
             )
-        val turns = groupIntoTurns(messages)
+        val turns = groupIntoTurns(messages, groupConsecutiveTools = true)
         assertEquals(listOf("user-u", "reasoning-a", "toolgroup-t1", "prose-a"), fullBleedItemKeys(turns))
         val expanded = setOf("t1")
         assertEquals(
@@ -82,10 +82,30 @@ class FullBleedItemKeysTest {
     }
 
     @Test
+    fun consecutiveToolsAreNotGroupedWhenSettingIsDisabled() {
+        val messages =
+            listOf(
+                ChatMessage("u", MessageRole.USER, "question"),
+                ChatMessage("t1", MessageRole.TOOL, "first output"),
+                ChatMessage("t2", MessageRole.TOOL, "second output"),
+                ChatMessage("a", MessageRole.ASSISTANT, "answer", reasoningText = "thinking"),
+            )
+        val turns = groupIntoTurns(messages, groupConsecutiveTools = false)
+        assertEquals(
+            listOf("user-u", "reasoning-a", "tool-t1", "tool-t2", "prose-a"),
+            fullBleedItemKeys(turns),
+        )
+    }
+
+    @Test
     fun prependedToolsPreserveGroupExpansionThroughMemberIdentity() {
         val first = ChatMessage("t1", MessageRole.TOOL, "one")
         val second = ChatMessage("t2", MessageRole.TOOL, "two")
-        val turns = groupIntoTurns(listOf(ChatMessage("old", MessageRole.TOOL, "old"), first, second))
+        val turns =
+            groupIntoTurns(
+                listOf(ChatMessage("old", MessageRole.TOOL, "old"), first, second),
+                groupConsecutiveTools = true,
+            )
         assertEquals(setOf("old"), expandedToolGroups(turns, setOf("t1", "t2")))
     }
 
@@ -97,6 +117,7 @@ class FullBleedItemKeysTest {
                     ChatMessage("current-1", MessageRole.TOOL, "one"),
                     ChatMessage("current-2", MessageRole.TOOL, "two"),
                 ),
+                groupConsecutiveTools = true,
             )
         assertEquals(setOf("current-1"), activeToolMemberIds(current, setOf("old", "current-1")))
         assertEquals(emptySet<String>(), activeToolMemberIds(current, setOf("old")))
@@ -112,7 +133,7 @@ class FullBleedItemKeysTest {
     @Test
     fun groupingDoesNotChangeRealCallMilestones() {
         val tools = (1..12).map { ChatMessage("t$it", MessageRole.TOOL, "output") }
-        val turns = groupIntoTurns(tools)
+        val turns = groupIntoTurns(tools, groupConsecutiveTools = true)
         assertEquals(listOf("toolgroup-t1"), fullBleedItemKeys(turns))
         assertEquals(mapOf("t5" to 5, "t10" to 10), toolCallMilestones(tools))
         assertEquals(13, fullBleedItemKeys(turns, setOf("t1")).size)

@@ -97,6 +97,7 @@ class ChatGatewaySyncTest {
         every { AuthManager.isAssistantMessageTokensEnabled() } returns true
         every { AuthManager.isTokensPerSecondEnabled() } returns true
         every { AuthManager.isModelProviderShown() } returns false
+        every { AuthManager.isGroupConsecutiveTools() } returns false
         every { AuthManager.isAutoReconnect() } returns false
         every { AuthManager.isRestoreLastSession() } returns false
         every { AuthManager.getLastOpenedSessionId() } returns null
@@ -119,6 +120,7 @@ class ChatGatewaySyncTest {
         every { HermesWsClient.send(any(), any(), any()) } answers {
             reqCount++
             val id = "req-id-$reqCount"
+
             @Suppress("UNCHECKED_CAST")
             val params = arg<Any?>(1) as? Map<String, Any>?
             sentRequests += arg<String>(0) to params

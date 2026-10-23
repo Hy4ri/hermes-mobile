@@ -46,6 +46,13 @@ class FullBleedToolGroupTest {
     }
 
     @Test
+    fun consecutiveToolsDoNotGroupWhenSettingIsDisabled() {
+        showTools(2, groupConsecutiveTools = false)
+        compose.onAllNodesWithTag("fullbleed_tool_group_t1").assertCountEquals(0)
+        compose.onAllNodesWithTag("fullbleed_tool_row").assertCountEquals(2)
+    }
+
+    @Test
     fun singletonRendersTheOriginalToolRow() {
         showTools(1)
         compose.onAllNodesWithTag("fullbleed_tool_group_t1").assertCountEquals(0)
@@ -88,6 +95,7 @@ class FullBleedToolGroupTest {
         count: Int,
         search: ChatSearchState = ChatSearchState(),
         sessionId: () -> String = { "session" },
+        groupConsecutiveTools: Boolean = true,
     ): LazyListState {
         val tools =
             (1..count).map {
@@ -108,7 +116,12 @@ class FullBleedToolGroupTest {
                     FullBleedChatList(
                         transcript =
                             TranscriptUiState.resolve(
-                                chat = ChatUiState(messages = tools, currentSessionId = sessionId()),
+                                chat =
+                                    ChatUiState(
+                                        messages = tools,
+                                        currentSessionId = sessionId(),
+                                        groupConsecutiveTools = groupConsecutiveTools,
+                                    ),
                                 timeline = ChatTimelineState(),
                                 streaming = StreamingState(),
                                 savingAttachmentPath = null,

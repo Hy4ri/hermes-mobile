@@ -154,7 +154,11 @@ fun FullBleedChatList(
                 if (hiddenPrefixSize > 0) messages.subList(hiddenPrefixSize, messages.size) else messages
             }
         val toolMilestones = remember(renderedMessages) { toolCallMilestones(renderedMessages) }
-        val settledTurns = remember(renderedMessages) { groupIntoTurns(renderedMessages) }
+        val groupConsecutiveTools = transcript.groupConsecutiveTools
+        val settledTurns =
+            remember(renderedMessages, groupConsecutiveTools) {
+                groupIntoTurns(renderedMessages, groupConsecutiveTools)
+            }
         val settledIds = remember(renderedMessages) { renderedMessages.mapTo(HashSet()) { it.id } }
         val turns =
             remember(settledTurns, streamingState.streamingMessage) {

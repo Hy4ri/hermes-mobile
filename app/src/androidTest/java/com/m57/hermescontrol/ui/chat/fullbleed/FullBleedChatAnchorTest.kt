@@ -54,8 +54,12 @@ class FullBleedChatAnchorTest {
     fun prepend_atInteriorRow_keepsContentPixel() = checkAnchor(index = 8, offset = 17, prepend = true)
 
     @Test
+    fun prepend_mergingAgentTurn_keepsToolPixel() =
+        checkAnchor(index = 0, offset = 13, prepend = true, role = MessageRole.TOOL, groupConsecutiveTools = false)
+
+    @Test
     fun prepend_mergingAgentTurn_keepsGroupPixel() =
-        checkAnchor(index = 0, offset = 13, prepend = true, role = MessageRole.TOOL)
+        checkAnchor(index = 0, offset = 13, prepend = true, role = MessageRole.TOOL, groupConsecutiveTools = true)
 
     @Test
     fun loadingOnly_doesNotCancelAnActiveHistoryScroll() =
@@ -99,6 +103,7 @@ class FullBleedChatAnchorTest {
         moveWhileLoading: Boolean = false,
         tailKey: String? = null,
         switchSession: Boolean = false,
+        groupConsecutiveTools: Boolean = false,
     ) {
         fun message(id: Int) =
             ChatMessage(
@@ -132,6 +137,7 @@ class FullBleedChatAnchorTest {
                                     typingEffectDelayMs = 30,
                                     isLoadingOlder = loading.value,
                                     currentSessionId = session.value,
+                                    groupConsecutiveTools = groupConsecutiveTools,
                                     clarifyRequest =
                                         if (tailKey !=
                                             null
@@ -180,9 +186,9 @@ class FullBleedChatAnchorTest {
 
         fun assertAnchor(stage: String) {
             compose.runOnIdle {
-                // A collapsed run's header adopts the first tool id of the extended run.
+                // A collapsed run's header adopts the first tool id of the extended run when grouping is enabled.
                 val expectedKey =
-                    if (role == MessageRole.TOOL && messages.value.first().id == "row-0") {
+                    if (groupConsecutiveTools && role == MessageRole.TOOL && messages.value.first().id == "row-0") {
                         "toolgroup-row-0"
                     } else {
                         before.first

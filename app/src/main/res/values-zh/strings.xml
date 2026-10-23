@@ -1748,4 +1748,6 @@
     </plurals>
     <string name="chat_tool_group_expand">展开</string>
     <string name="chat_tool_group_collapse">收起</string>
+    <string name="settings_item_group_consecutive_tools">折叠连续工具调用</string>
+    <string name="settings_desc_group_consecutive_tools">将连续执行的多个工具合并为一个可展开的摘要栏</string>
 </resources>

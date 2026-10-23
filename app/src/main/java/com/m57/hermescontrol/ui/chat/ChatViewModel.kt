@@ -246,6 +246,7 @@ data class ChatUiState(
     val showAssistantMessageTokens: Boolean = true,
     val showTokensPerSecond: Boolean = true,
     val showModelProvider: Boolean = false,
+    val groupConsecutiveTools: Boolean = false,
     // Commands catalog
     val commandCatalog: CommandCatalog = CommandCatalog(),
     // Per-command usage counts for the slash-autocomplete ranking (issue
@@ -5522,6 +5523,7 @@ class ChatViewModel(
                 showAssistantMessageTokens = AuthManager.isAssistantMessageTokensEnabled(),
                 showTokensPerSecond = AuthManager.isTokensPerSecondEnabled(),
                 showModelProvider = AuthManager.isModelProviderShown(),
+                groupConsecutiveTools = AuthManager.isGroupConsecutiveTools(),
             )
         }
         publishPendingSends()

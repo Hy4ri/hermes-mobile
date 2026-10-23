@@ -81,16 +81,19 @@ internal fun ChatMessage.isTimelineMarker(): Boolean = displayKind != null && di
  * turn; all non-user messages belong to the surrounding agent turn. A new
  * agent turn starts after each user turn or at the start of the list.
  */
-fun groupIntoTurns(messages: List<ChatMessage>): List<ChatTurn> {
+fun groupIntoTurns(
+    messages: List<ChatMessage>,
+    groupConsecutiveTools: Boolean = false,
+): List<ChatTurn> {
     val turns = mutableListOf<ChatTurn>()
     val agentEntries = mutableListOf<AgentEntry>()
 
     val toolEntries = mutableListOf<AgentEntry.ToolRow>()
 
     fun flushTools() {
-        when (toolEntries.size) {
-            0 -> Unit
-            1 -> agentEntries.add(toolEntries.single())
+        when {
+            toolEntries.isEmpty() -> Unit
+            !groupConsecutiveTools || toolEntries.size == 1 -> agentEntries.addAll(toolEntries)
             else -> agentEntries.add(AgentEntry.ToolGroup(toolEntries.toList()))
         }
         toolEntries.clear()
@@ -166,7 +169,13 @@ fun groupIntoTurns(messages: List<ChatMessage>): List<ChatTurn> {
 fun groupIntoTurnsWithStreaming(
     messages: List<ChatMessage>,
     streamingMessage: ChatMessage?,
-): List<ChatTurn> = appendStreamingTurn(groupIntoTurns(messages), messages.mapTo(HashSet()) { it.id }, streamingMessage)
+    groupConsecutiveTools: Boolean = false,
+): List<ChatTurn> =
+    appendStreamingTurn(
+        groupIntoTurns(messages, groupConsecutiveTools),
+        messages.mapTo(HashSet()) { it.id },
+        streamingMessage,
+    )
 
 /** Reuse every settled turn; only the last agent turn needs a changing streaming entry. */
 internal fun appendStreamingTurn(

@@ -74,7 +74,7 @@ fun AnalyticsScreen(
         title = { Text(stringResource(R.string.screen_analytics)) },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
-        onRefresh = { viewModel.load() },
+        onRefresh = { viewModel.load(forceRefresh = true) },
         modifier = modifier,
     ) {
         when {

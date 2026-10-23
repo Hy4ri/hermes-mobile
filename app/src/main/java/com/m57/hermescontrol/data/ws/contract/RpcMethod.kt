@@ -62,6 +62,20 @@ object RpcMethods {
             PromptSubmitResult.serializer(),
         )
 
+    val PROMPT_CANCEL: RpcMethod<PromptCancelParams, AdmissionStatusResult> =
+        RpcMethod(
+            WsMethods.PROMPT_CANCEL,
+            PromptCancelParams.serializer(),
+            AdmissionStatusResult.serializer(),
+        )
+
+    val PROMPT_RECEIPT: RpcMethod<PromptReceiptParams, PromptReceiptResult> =
+        RpcMethod(
+            WsMethods.PROMPT_RECEIPT,
+            PromptReceiptParams.serializer(),
+            PromptReceiptResult.serializer(),
+        )
+
     val SESSION_INTERRUPT: RpcMethod<SessionInterruptParams, SessionInterruptResult> =
         RpcMethod(
             WsMethods.SESSION_INTERRUPT,
@@ -565,6 +579,8 @@ object RpcMethods {
             SESSION_CREATE,
             SESSION_RESUME,
             PROMPT_SUBMIT,
+            PROMPT_CANCEL,
+            PROMPT_RECEIPT,
             SESSION_INTERRUPT,
             SESSION_STEER,
             SESSION_REDIRECT,

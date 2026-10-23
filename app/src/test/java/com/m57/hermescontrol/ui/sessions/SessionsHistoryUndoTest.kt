@@ -178,8 +178,13 @@ class SessionsHistoryUndoTest {
         )
         assertEquals(1, vm.uiState.value.total)
         coVerify(exactly = 0) { ambientApi.setSessionArchived(any(), any()) }
-        coVerify { api.setSessionArchived("s", SessionRenameRequest(archived = false)) }
-        coVerify { api.setSessionArchived("s", SessionRenameRequest(archived = true)) }
+        coVerify {
+            api.setSessionArchived(
+                "s",
+                SessionRenameRequest(archived = false, profile = owner.activeProfileId),
+            )
+        }
+        coVerify { api.setSessionArchived("s", SessionRenameRequest(archived = true, profile = owner.activeProfileId)) }
     }
 
     @Test
@@ -196,7 +201,12 @@ class SessionsHistoryUndoTest {
         idle()
         assertTrue(rows.getValue("s").hidden == true)
         assertFalse(rows.getValue("s").archived == true)
-        coVerify { api.setSessionPinned("s", SessionRenameRequest(pinned = false, hidden = true)) }
+        coVerify {
+            api.setSessionPinned(
+                "s",
+                SessionRenameRequest(pinned = false, hidden = true, profile = owner.activeProfileId),
+            )
+        }
     }
 
     @Test

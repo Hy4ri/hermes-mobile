@@ -1,5 +1,5 @@
 repo: NousResearch/hermes-agent
-ref: 7cc3fb8cb55898747dd1dfa56fda3e16ebba028e
-sha: 7cc3fb8cb55898747dd1dfa56fda3e16ebba028e
-date: 2026-10-12
+ref: 4d043038
+sha: 4d04303818b61bf3aa09278af48356315515965b
+date: 2026-10-21
 path: apps/shared/src/gateway-contract.openrpc.json

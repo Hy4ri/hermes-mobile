@@ -209,7 +209,7 @@ class KanbanViewModel(
             loadGen = currentLoadGen,
         )
 
-    fun loadBoards() {
+    fun loadBoards(isRefresh: Boolean = false) {
         val endpoint = endpointProvider()
         val scope = currentDataScope()
         val gen = ++currentLoadGen
@@ -218,7 +218,8 @@ class KanbanViewModel(
         val previouslySelectedId = _uiState.value.selectedBoard?.id ?: savedSlug
 
         val hasExistingContent = _uiState.value.columns.isNotEmpty() || _uiState.value.tasks.isNotEmpty()
-        if (!hasExistingContent) {
+        // Background reloads keep existing content quiet; an explicit refresh shows the indicator.
+        if (!hasExistingContent || isRefresh) {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         }
         loadProfiles()
@@ -276,7 +277,7 @@ class KanbanViewModel(
 
                     is NetworkResult.Failure -> {
                         if (!isCurrentOwner(owner)) return@coroutineScope
-                        if (!hasExistingContent) {
+                        if (!hasExistingContent || isRefresh) {
                             _uiState.update {
                                 it.copy(
                                     isLoading = false,

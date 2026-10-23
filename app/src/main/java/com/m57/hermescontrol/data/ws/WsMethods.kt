@@ -51,6 +51,8 @@ object WsMethods {
 
     // ── Interaction ───────────────────────────────────────────────────────
     const val PROMPT_SUBMIT = "prompt.submit"
+    const val PROMPT_CANCEL = "prompt.cancel"
+    const val PROMPT_RECEIPT = "prompt.receipt"
     const val PROMPT_BTW = "prompt.btw"
     const val CLARIFY_RESPOND = "clarify.respond"
     const val APPROVAL_RESPOND = "approval.respond"

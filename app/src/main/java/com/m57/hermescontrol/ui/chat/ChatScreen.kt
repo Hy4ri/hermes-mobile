@@ -914,6 +914,7 @@ fun ChatScreen(
                     replyErrorContent =
                         state.replyFailure?.takeUnless { timelineState.isHistorical }?.let { failure ->
                             {
+                                @Suppress("DEPRECATION")
                                 val clipboard = LocalClipboardManager.current
                                 val copiedMessage = stringResource(R.string.chat_reply_failed_copied)
                                 val shareTitle = stringResource(R.string.chat_reply_failed_share)

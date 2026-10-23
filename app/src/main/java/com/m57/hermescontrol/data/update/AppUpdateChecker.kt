@@ -291,12 +291,12 @@ open class AppUpdateChecker(
                         cached?.metadata as? List<UpdateInfo>
                             ?: throw IOException("GitHub returned 304 without cached releases list")
                     releases += parsed
-                    val resolvedNextUrl = if (page?.nextUrl != null) page.nextUrl else cached.nextUrl
-                    if (page?.etag != null || page?.lastModified != null || page?.nextUrl != null) {
+                    val resolvedNextUrl = if (page != null && page.nextUrl != null) page.nextUrl else cached.nextUrl
+                    if (page != null && (page.etag != null || page.lastModified != null || page.nextUrl != null)) {
                         pageCache[nextUrl] =
                             cached.copy(
-                                etag = page?.etag ?: cached.etag,
-                                lastModified = page?.lastModified ?: cached.lastModified,
+                                etag = page.etag ?: cached.etag,
+                                lastModified = page.lastModified ?: cached.lastModified,
                                 nextUrl = resolvedNextUrl,
                             )
                     }

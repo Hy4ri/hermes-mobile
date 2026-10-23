@@ -138,13 +138,14 @@ class ChatReplyErrorTest {
                 .single()
                 .content,
         )
+        val replyFailure = checkNotNull(result.state.replyFailure)
         assertFalse(
-            result.state.replyFailure!!
+            replyFailure
                 .details
                 .contains("Private conversational content"),
         )
         assertTrue(
-            result.state.replyFailure!!
+            replyFailure
                 .details
                 .isNotBlank(),
         )

@@ -22,10 +22,12 @@ import org.junit.Test
  * - Integration via [mapServerMessages] with USER turns
  */
 class UserImageHydrationTest {
+    private val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+
     @Test
     fun issue1459PlainHistorySurvivesLiveMergeAndCacheRestore() {
         val row =
-            kotlinx.serialization.json.Json { ignoreUnknownKeys = true }.decodeFromString<SessionMessage>(
+            json.decodeFromString<SessionMessage>(
                 """
                 {"id":344596,"role":"user","active":1,"compacted":0,
                  "content":"图片附件测试\n@image:/opt/data/images/upload_20261003_211435_1.jpg\n[screenshot]"}
@@ -116,9 +118,10 @@ class UserImageHydrationTest {
                 attachments = listOf(localImage("one.jpg"), document, localImage("two.jpg")),
             )
         val merged = mergeTranscriptWithLive(listOf(remote), listOf(local)).single()
-        assertEquals(listOf("a.jpg", "b.jpg", "notes.pdf"), merged.attachments!!.map { it.name })
-        assertEquals(AttachmentSource.GATEWAY, merged.attachments!!.first().source)
-        assertEquals(document, merged.attachments!!.last())
+        val attachments = checkNotNull(merged.attachments)
+        assertEquals(listOf("a.jpg", "b.jpg", "notes.pdf"), attachments.map { it.name })
+        assertEquals(AttachmentSource.GATEWAY, attachments.first().source)
+        assertEquals(document, attachments.last())
         // Durable refs survive; the model-facing [screenshot] placeholder never enters the live bubble.
         assertTrue(merged.content.contains("@image:/opt/data/images/a.jpg"))
         assertTrue(merged.content.contains("@image:/opt/data/images/b.jpg"))

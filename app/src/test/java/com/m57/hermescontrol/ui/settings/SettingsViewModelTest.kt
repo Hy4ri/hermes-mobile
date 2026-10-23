@@ -167,11 +167,9 @@ class SettingsViewModelTest {
         mockkObject(ProfileSwitchCoordinator)
         coEvery { ProfileSwitchCoordinator.switchConnectionProfile(any()) } answers {
             storedSelectedProfileId = firstArg()
-            Unit
         }
         coEvery { ProfileSwitchCoordinator.prepareConnectionProfile(any()) } answers {
             storedSelectedProfileId = firstArg()
-            Unit
         }
         every { ApiClient.rebuild() } returns Unit
     }

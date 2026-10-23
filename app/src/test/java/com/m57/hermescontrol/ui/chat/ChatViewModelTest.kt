@@ -3707,7 +3707,6 @@ class ChatViewModelTest {
                     preparationCount++
                     releasePersistence.await()
                 }
-                Unit
             }
             val (viewModel, sessionId) = createViewModelWithSession()
             mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
@@ -3835,7 +3834,6 @@ class ChatViewModelTest {
                     preparations++
                     releasePersistence.await()
                 }
-                Unit
             }
             val store = ChatSendStore()
             val (viewModel, sessionId) = createViewModelWithSession(sendStore = store)
@@ -5261,7 +5259,7 @@ class ChatViewModelTest {
                     AuthManager.activeProfileId.value ?: AuthManager.DEFAULT_PROFILE_ID,
                 ).joinToString("\u001f")
             val snapshot = java.io.File(attachmentFilesDir, "chat-send/retry-existing/0")
-            snapshot.parentFile.mkdirs()
+            snapshot.parentFile?.mkdirs()
             snapshot.writeBytes(byteArrayOf(1, 2, 3))
             val snapshotUri = mockk<Uri>()
             val resolver = mockk<ContentResolver>()
@@ -5310,7 +5308,7 @@ class ChatViewModelTest {
                     AuthManager.activeProfileId.value ?: AuthManager.DEFAULT_PROFILE_ID,
                 ).joinToString("\u001f")
             val snapshot = java.io.File(attachmentFilesDir, "chat-send/retry-unreadable/0")
-            snapshot.parentFile.mkdirs()
+            snapshot.parentFile?.mkdirs()
             snapshot.writeBytes(byteArrayOf(1))
             val snapshotUri = mockk<Uri>()
             val resolver = mockk<ContentResolver>()
@@ -6602,7 +6600,7 @@ class ChatViewModelTest {
             } returns
                 retrofit2.Response.error(
                     500,
-                    okhttp3.ResponseBody.create(null, "{\"detail\":\"boom\"}"),
+                    "{\"detail\":\"boom\"}".toResponseBody(),
                 )
         }
     }
@@ -7281,7 +7279,7 @@ class ChatViewModelTest {
                 if (call < 3) {
                     retrofit2.Response.error(
                         500,
-                        okhttp3.ResponseBody.create(null, "{\"detail\":\"boom\"}"),
+                        "{\"detail\":\"boom\"}".toResponseBody(),
                     )
                 } else {
                     retrofit2.Response.success(
@@ -10101,7 +10099,7 @@ class ChatViewModelTest {
                 api.getSessionMessages("session-456", 150, 150, "latest", any())
             }
             assertTrue(viewModel.uiState.value.isLoadingOlder)
-            pending.complete(retrofit2.Response.error(500, okhttp3.ResponseBody.create(null, "test failure")))
+            pending.complete(retrofit2.Response.error(500, "test failure".toResponseBody()))
             advanceUntilIdle()
             assertFalse(viewModel.uiState.value.isLoadingOlder)
             assertTrue(viewModel.uiState.value.hasOlderMessages)

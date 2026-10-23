@@ -149,7 +149,7 @@ class ConnectorsTypesTest {
         assertEquals(expected, encoded)
         assertTrue(encoded is JsonObject)
         assertEquals(setOf("owner", "connectors", "reconnect"), (encoded as JsonObject).keys)
-        assertFalse((encoded as JsonObject).containsKey("profile"))
+        assertFalse(encoded.containsKey("profile"))
     }
 
     @Test
@@ -392,7 +392,7 @@ class ConnectorsTypesTest {
         assertEquals(expected, encoded)
         assertTrue(encoded is JsonObject)
         assertEquals(setOf("change", "expected_revision", "profile"), (encoded as JsonObject).keys)
-        assertEquals(nestedChange, (encoded as JsonObject)["change"])
+        assertEquals(nestedChange, encoded["change"])
     }
 
     @Test

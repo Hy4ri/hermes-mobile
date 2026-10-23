@@ -119,7 +119,9 @@ class ChatGatewaySyncTest {
         every { HermesWsClient.send(any(), any(), any()) } answers {
             reqCount++
             val id = "req-id-$reqCount"
-            sentRequests += arg<String>(0) to (arg<Any?>(1) as? Map<String, Any>?)
+            @Suppress("UNCHECKED_CAST")
+            val params = arg<Any?>(1) as? Map<String, Any>?
+            sentRequests += arg<String>(0) to params
             arg<((String) -> Unit)?>(2)?.invoke(id)
             id
         }

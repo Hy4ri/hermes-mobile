@@ -104,9 +104,7 @@ class ProjectsViewModel(
                         }
                     }
 
-                    else -> {
-                        Unit
-                    }
+                    else -> {}
                 }
             }
         }

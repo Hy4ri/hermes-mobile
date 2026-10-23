@@ -1330,7 +1330,7 @@ class HermesWsClientTest {
             MockResponse().withClosingWebSocketUpgrade(
                 object : WebSocketListener() {
                     override fun onOpen(
-                        ws: WebSocket,
+                        webSocket: WebSocket,
                         response: okhttp3.Response,
                     ) {
                         serverLatch.countDown()
@@ -1359,7 +1359,7 @@ class HermesWsClientTest {
             MockResponse().withClosingWebSocketUpgrade(
                 object : WebSocketListener() {
                     override fun onOpen(
-                        ws: WebSocket,
+                        webSocket: WebSocket,
                         response: okhttp3.Response,
                     ) {
                         serverLatch.countDown()
@@ -1389,7 +1389,7 @@ class HermesWsClientTest {
             MockResponse().withClosingWebSocketUpgrade(
                 object : WebSocketListener() {
                     override fun onOpen(
-                        ws: WebSocket,
+                        webSocket: WebSocket,
                         response: okhttp3.Response,
                     ) {
                         serverLatch.countDown()
@@ -1415,7 +1415,7 @@ class HermesWsClientTest {
             MockResponse().withClosingWebSocketUpgrade(
                 object : WebSocketListener() {
                     override fun onOpen(
-                        ws: WebSocket,
+                        webSocket: WebSocket,
                         response: okhttp3.Response,
                     ) {
                         serverLatch.countDown()
@@ -1452,7 +1452,7 @@ class HermesWsClientTest {
             MockResponse().withClosingWebSocketUpgrade(
                 object : WebSocketListener() {
                     override fun onOpen(
-                        ws: WebSocket,
+                        webSocket: WebSocket,
                         response: okhttp3.Response,
                     ) {
                         connectLatch.countDown()
@@ -1466,7 +1466,7 @@ class HermesWsClientTest {
             MockResponse().withClosingWebSocketUpgrade(
                 object : WebSocketListener() {
                     override fun onOpen(
-                        ws: WebSocket,
+                        webSocket: WebSocket,
                         response: okhttp3.Response,
                     ) {
                         // No-op — should be cancelled
@@ -1524,7 +1524,7 @@ class HermesWsClientTest {
             MockResponse().withClosingWebSocketUpgrade(
                 object : WebSocketListener() {
                     override fun onOpen(
-                        ws: WebSocket,
+                        webSocket: WebSocket,
                         response: okhttp3.Response,
                     ) {
                         connectLatch.countDown()

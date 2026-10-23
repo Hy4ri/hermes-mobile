@@ -40,6 +40,7 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.After
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -858,7 +859,7 @@ class ChatCompressRpcTest {
             advanceUntilIdle() // Negotiate latest paging before an id-less RPC result.
             val before = fakeRepo.loadPage(sessionId, null, 150).messages.map { it.id to it.content }
             coEvery { api.getSessionMessages(sessionId, any(), any(), any(), any()) } returns
-                retrofit2.Response.error(503, okhttp3.ResponseBody.create(null, "unavailable"))
+                retrofit2.Response.error(503, "unavailable".toResponseBody())
             every { HermesWsClient.request(WsMethods.SESSION_COMPRESS, any(), any()) } returns
                 CompletableDeferred(
                     buildJsonObject {

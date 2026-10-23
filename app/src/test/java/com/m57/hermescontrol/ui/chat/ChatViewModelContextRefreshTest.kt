@@ -28,6 +28,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
+import okhttp3.ResponseBody.Companion.toResponseBody
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -586,7 +587,7 @@ class ChatViewModelContextRefreshTest {
 
             coEvery { mockApi.getSessionDetail(any(), any()) } coAnswers {
                 kotlinx.coroutines.delay(100)
-                Response.error(500, okhttp3.ResponseBody.create(null, "Server Error"))
+                Response.error(500, "Server Error".toResponseBody())
             }
 
             // Trigger multiple times while in flight

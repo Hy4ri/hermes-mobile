@@ -67,9 +67,7 @@ fun SkillScanSection(
         }
 
         when {
-            isScanning -> {
-                Unit
-            }
+            isScanning -> {}
 
             scanError != null -> {
                 Surface(

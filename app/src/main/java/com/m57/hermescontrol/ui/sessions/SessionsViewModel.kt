@@ -445,7 +445,7 @@ class SessionsViewModel(
                             val r =
                                 safeApiRead { ApiClient.hermesApi.getSessionInfo(pid) }
                         ) {
-                            is NetworkResult.Success -> r.data?.also { resolvedParentCache[pid] = it }
+                            is NetworkResult.Success -> r.data.also { resolvedParentCache[pid] = it }
                             is NetworkResult.Failure -> null
                         }
                     }

@@ -54,7 +54,6 @@ class MockWebSocketCleanupListenerTest {
         every { socket.close(1000, "complete") } returns false
         every { delegate.onClosing(socket, 1000, "complete") } answers {
             socket.close(1001, "custom close")
-            Unit
         }
 
         listener.onClosing(socket, 1000, "complete")

@@ -88,11 +88,10 @@ class AppUpdateViewModelTest {
         every { AuthManager.isCheckingReleaseCandidateUpdates() } answers { rcUpdatesEnabled }
         every { AuthManager.setCheckReleaseCandidateUpdates(any()) } answers {
             rcUpdatesEnabled = firstArg()
-            Unit
         }
 
         app = mockk(relaxed = true)
-        every { app.cacheDir } returns File(System.getProperty("java.io.tmpdir"))
+        every { app.cacheDir } returns File(System.getProperty("java.io.tmpdir") ?: "/tmp")
         every { app.packageName } returns "com.m57.hermescontrol"
         packageManager = mockk(relaxed = true)
         every { app.packageManager } returns packageManager

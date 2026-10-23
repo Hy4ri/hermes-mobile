@@ -73,7 +73,7 @@ class ConnectionOperationTypesTest {
         assertEquals(expected, encoded)
         assertTrue(encoded is JsonObject)
         assertEquals(setOf("owner", "op_id", "result", "profile"), (encoded as JsonObject).keys)
-        val resultObj = (encoded as JsonObject)["result"] as JsonObject
+        val resultObj = encoded["result"] as JsonObject
         assertEquals(setOf("targets"), resultObj.keys)
         assertFalse(resultObj.containsKey("settled_by"))
     }
@@ -132,9 +132,9 @@ class ConnectionOperationTypesTest {
         assertEquals(expected, encoded)
         assertTrue(encoded is JsonObject)
         assertEquals(setOf("owner", "op_id", "result"), (encoded as JsonObject).keys)
-        assertFalse((encoded as JsonObject).containsKey("profile"))
+        assertFalse(encoded.containsKey("profile"))
 
-        val resultObj = (encoded as JsonObject)["result"] as JsonObject
+        val resultObj = encoded["result"] as JsonObject
         assertEquals(setOf("targets"), resultObj.keys)
         assertFalse(resultObj.containsKey("settled_by"))
 
@@ -180,9 +180,9 @@ class ConnectionOperationTypesTest {
         assertEquals(expected, encoded)
         assertTrue(encoded is JsonObject)
         assertEquals(setOf("owner", "op_id", "result"), (encoded as JsonObject).keys)
-        assertFalse((encoded as JsonObject).containsKey("profile"))
+        assertFalse(encoded.containsKey("profile"))
 
-        val resultObj = (encoded as JsonObject)["result"] as JsonObject
+        val resultObj = encoded["result"] as JsonObject
         assertEquals(setOf("settled_by"), resultObj.keys)
         assertFalse(resultObj.containsKey("targets"))
     }
@@ -239,7 +239,7 @@ class ConnectionOperationTypesTest {
         assertEquals(expected, encoded)
         assertTrue(encoded is JsonObject)
         assertEquals(setOf("owner", "op_id"), (encoded as JsonObject).keys)
-        assertFalse((encoded as JsonObject).containsKey("profile"))
+        assertFalse(encoded.containsKey("profile"))
     }
 
     @Test

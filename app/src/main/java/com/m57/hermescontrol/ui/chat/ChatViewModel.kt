@@ -2398,10 +2398,10 @@ class ChatViewModel(
                 val pendingConnection = resultMap["pending_connection"] as? Map<String, Any?>
                 val pendingSnapshot =
                     pendingConnection?.let { ConnectionOperationParser.parse(it, activeSessionId) }
-                request?.connectionCheckpoint?.let { checkpoint ->
+                request.connectionCheckpoint?.let { checkpoint ->
                     connectionOperationDelegate.reconcileResume(pendingSnapshot, checkpoint)
                 }
-                if (activeSessionId != null) approvalsDelegate.replayPendingApproval(activeSessionId)
+                approvalsDelegate.replayPendingApproval(activeSessionId)
             }
 
             WsMethods.SESSION_INTERRUPT -> {
@@ -2601,7 +2601,7 @@ class ChatViewModel(
             }
             hardInterruptRequestById.remove(id)?.let { tracked ->
                 val receipt = sendStore.all().firstOrNull { it.id == tracked.messageId }
-                if (request != null && ownsOutgoingReceipt(request, tracked.messageId) &&
+                if (ownsOutgoingReceipt(request, tracked.messageId) &&
                     receipt?.state == PendingSendState.SENDING
                 ) {
                     markPendingSend(tracked.messageId, PendingSendState.UNKNOWN)
@@ -5062,13 +5062,13 @@ class ChatViewModel(
             if (!isCurrentSessionRequest(sessionId, generation)) return
         }
         if (!isCurrentSessionRequest(sessionId, generation)) return
-        val summary = response?.summary
+        val summary = response.summary
         val feedback =
             listOfNotNull(
                 summary?.headline?.takeIf { it.isNotBlank() },
                 summary?.token_line?.takeIf { it.isNotBlank() },
                 summary?.note?.takeIf { it.isNotBlank() },
-            ).takeIf { it.isNotEmpty() }?.joinToString("\n") ?: response?.message ?: "Context compressed."
+            ).takeIf { it.isNotEmpty() }?.joinToString("\n") ?: response.message ?: "Context compressed."
         addAssistantMessage(
             if (incompleteFallback) "$feedback\nHistory refresh incomplete; cached history retained." else feedback,
         )
@@ -5076,8 +5076,12 @@ class ChatViewModel(
         fetchContextUsage()
         loadSessions()
         if (!isCurrentSessionRequest(sessionId, generation)) return
-        response?.info?.let { infoElement ->
-            val infoMap = (infoElement.toAny() as? Map<*, *>)?.filterKeys { it is String } as? Map<String, Any?>
+        response.info?.let { infoElement ->
+            val infoMap =
+                (infoElement.toAny() as? Map<*, *>)
+                    ?.entries
+                    ?.mapNotNull { (k, v) -> (k as? String)?.let { it to v } }
+                    ?.toMap()
             handleSessionInfo(infoMap)
         }
         if (isCurrentSessionRequest(sessionId, generation)) sessionHasServerPresence = true

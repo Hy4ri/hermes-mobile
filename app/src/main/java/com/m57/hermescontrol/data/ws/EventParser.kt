@@ -481,8 +481,8 @@ object EventParser {
                     WsEvent.Unknown(rawJson)
                 } else {
                     val ttlMs = (ttlValue as? Number)?.toLong()
-                    val key = payload?.get("key") as? String
-                    val id = payload?.get("id") as? String
+                    val key = payload["key"] as? String
+                    val id = payload["id"] as? String
                     WsEvent.NotificationShow(
                         text = text,
                         level = level,

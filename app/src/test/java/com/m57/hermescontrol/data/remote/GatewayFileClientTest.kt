@@ -19,6 +19,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class GatewayFileClientTest {
     private val base = "https://gw.example.com:9119"
     private val tok = "s e/cret"

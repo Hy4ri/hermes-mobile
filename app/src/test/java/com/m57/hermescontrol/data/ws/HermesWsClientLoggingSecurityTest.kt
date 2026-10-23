@@ -330,12 +330,13 @@ class HermesWsClientLoggingSecurityTest {
         collectJob.cancel()
 
         assertNotNull("Captured RpcError event must exist", receivedErrorEvent)
-        assertEquals(reqId, receivedErrorEvent!!.id)
-        assertEquals(4001, receivedErrorEvent!!.error.code)
-        assertEquals("Access denied: session ownership required", receivedErrorEvent!!.error.message)
-        val eventDataObj = receivedErrorEvent!!.error.data as? JsonObject
+        val errorEvent = checkNotNull(receivedErrorEvent)
+        assertEquals(reqId, errorEvent.id)
+        assertEquals(4001, errorEvent.error.code)
+        assertEquals("Access denied: session ownership required", errorEvent.error.message)
+        val eventDataObj = errorEvent.error.data as? JsonObject
         assertNotNull("Event error data must be JsonObject", eventDataObj)
-        assertEquals("NOT_OWNER", (eventDataObj!!["reason"] as? JsonPrimitive)?.content)
+        assertEquals("NOT_OWNER", (eventDataObj?.get("reason") as? JsonPrimitive)?.content)
     }
 
     @Test

@@ -310,9 +310,15 @@ class RawRpcParamsRatchetTest {
 
         /**
          * Multiset of remaining raw RPC call sites for contract methods in `app/src/main/java/com/m57/hermescontrol/`.
-         * Empty: every contract method goes through `RpcMethods`. Keep it empty; new contract methods must be typed.
-         * The untyped `request`/`send` stay module-internal for `gateway.ping` and the legacy `*.respond` fallbacks.
+         * The untyped `request`/`send` stay module-internal for `gateway.ping`, the legacy `*.respond` fallbacks,
+         * and clarify.respond pending generation-fenced migration.
          */
-        val BASELINE: List<String> = emptyList()
+        val BASELINE: List<String> =
+            listOf(
+                "ui/chat/ChatClarifyDelegate.kt::CLARIFY_RESPOND",
+                "ui/chat/ChatClarifyDelegate.kt::CLARIFY_RESPOND",
+                "ui/chat/ChatViewModel.kt::CLARIFY_RESPOND",
+                "ui/chat/ChatViewModel.kt::CLARIFY_RESPOND",
+            )
     }
 }

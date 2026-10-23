@@ -608,16 +608,16 @@ object ChatWsEventReducer {
             }
         val reasoning = streamingState.reasoningText.ifBlank { streaming?.reasoningText.orEmpty() }
         val existingProjection = state.replyFailureProjection
-        val completionId = event.completionId?.takeIf { it.isNotBlank() } ?: existingProjection?.completionId
+        val completionId = event.completionId.takeIf { it.isNotBlank() } ?: existingProjection?.completionId
         val sessionIdentity = state.currentSessionId ?: event.sessionId.orEmpty()
         val failureId =
             existingProjection?.failureId
-                ?: event.completionId?.takeIf { it.isNotBlank() }?.let { "reply-failure-$sessionIdentity-$it" }
+                ?: event.completionId.takeIf { it.isNotBlank() }?.let { "reply-failure-$sessionIdentity-$it" }
                 ?: failure.id
         val projectionMessageId =
             existingProjection?.messageId
                 ?: streaming?.id
-                ?: event.completionId?.takeIf { it.isNotBlank() }?.let { "reply-failure-message-$it" }
+                ?: event.completionId.takeIf { it.isNotBlank() }?.let { "reply-failure-message-$it" }
                 ?: if (text.isNotBlank() || reasoning.isNotBlank()) "reply-failure-message-$failureId" else null
         val projection = ReplyFailureProjection(projectionMessageId, failureId, completionId)
         val existingProjectedMessage =

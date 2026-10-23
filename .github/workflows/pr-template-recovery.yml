@@ -1,12 +1,12 @@
 name: PR Template Recovery
 
 # Metadata only: NEVER check out a PR head, download its artifacts or run its code.
-# dev is the trusted/default branch. workflow_run only activates after this file
+# main is the trusted/default branch. workflow_run only activates after this file
 # lands there; it closes the edit-before-Android-completion race (issue #1506).
 on:
   pull_request_target:
     types: [edited, ready_for_review]
-    branches: [dev]
+    branches: [main]
   workflow_run:
     workflows: [Android CI/CD]
     types: [completed]
@@ -32,7 +32,7 @@ jobs:
       - name: Check out trusted automation only
         uses: actions/checkout@v7
         with:
-          ref: dev
+          ref: main
           persist-credentials: false
           sparse-checkout: .github/scripts
       - name: Resolve live PRs (including fork runs)
@@ -63,7 +63,7 @@ jobs:
       - name: Check out trusted automation only
         uses: actions/checkout@v7
         with:
-          ref: dev
+          ref: main
           persist-credentials: false
           sparse-checkout: .github/scripts
       - name: Recover a template-blocked run

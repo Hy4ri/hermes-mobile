@@ -2,12 +2,12 @@ name: PR Automation Tests
 
 on:
   pull_request:
-    branches: [dev, main]
+    branches: [main]
     paths:
       - '.github/scripts/**'
       - '.github/workflows/pr-*.yml'
   push:
-    branches: [dev, main]
+    branches: [main]
     paths:
       - '.github/scripts/**'
       - '.github/workflows/pr-*.yml'

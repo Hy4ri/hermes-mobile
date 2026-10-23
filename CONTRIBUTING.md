@@ -20,19 +20,19 @@ If an open PR already covers it, review or improve that one instead of opening a
 
 ## PR Workflow
 
-Every change must go through a pull request (PR) targeting the `dev` staging branch. Do not push directly to `main` or `dev`.
+Every change must go through a pull request (PR) targeting the `main` branch. Do not push directly to `main`.
 
 **Keep PRs focused: one feature or one fix per PR.** Unrelated changes belong in separate PRs so each one stays easy to review, test, and revert.
 
 1. **Pick or open an issue** to discuss the changes you want to make.
-2. **Create a branch** off `dev` using the following naming convention:
+2. **Create a branch** off `main` using the following naming convention:
    - Features: `feat/short-description` (optionally `feat/issue-N-description`)
    - Bug fixes: `fix/short-description` (optionally `fix/issue-N-description`)
    - CI/chore: `ci/...`, `chore/...`
 3. **Implement your changes** and format them locally (see Code Style).
-4. **Submit a PR** targeting the `dev` branch, filling the PR template.
+4. **Submit a PR** targeting the `main` branch, filling the PR template.
 5. **Ensure all CI checks pass** (ktlint, Android Lint, unit tests, build).
-6. **Rebase onto `dev` before merge.** Run `git fetch origin dev && git rebase origin/dev`, resolve conflicts carefully, and re-run verification on the rebased result. Maintainers squash-merge; green CI does not by itself authorize a merge.
+6. **Rebase onto `main` before merge.** Run `git fetch origin main && git rebase origin/main`, resolve conflicts carefully, and re-run verification on the rebased result. Maintainers squash-merge; green CI does not by itself authorize a merge.
 
 ### Fixing a blocked PR description
 
@@ -44,9 +44,9 @@ checks again. Green runs and unrelated build/test failures are not restarted.
 The bot announces a restart only after GitHub accepts the request; it does not
 mean CI has passed. Fork workflow-approval requirements still apply.
 
-Recovery runs trusted scripts from `dev`, never contributor code or artifacts.
+Recovery runs trusted scripts from `main`, never contributor code or artifacts.
 Its `workflow_run` completion trigger becomes active once the workflow is on the
-repository's default branch (currently `dev`). Repeated events for the same run
+repository's default branch (`main`). Repeated events for the same run
 and validated metadata are deduplicated using a bot receipt reserved before the
 restart request, then updated after GitHub accepts it. This prevents retry loops
 even if the final comment update fails. If a receipt stays unconfirmed, inspect
@@ -160,7 +160,7 @@ Before submitting your PR, please verify:
 
 - [ ] I searched open/closed PRs + issues for duplicates (see *Before You Start*).
 - [ ] PR is focused on one feature or one fix (no unrelated changes).
-- [ ] Branch is rebased onto current `dev` (`git rebase origin/dev`).
+- [ ] Branch is rebased onto current `main` (`git rebase origin/main`).
 - [ ] `./gradlew ktlintCheck` passes (ran `ktlintFormat` first — no hand edits).
 - [ ] `checkColorLiterals` passes (no hardcoded Color literals outside theme/).
 - [ ] `./gradlew testDebugUnitTest` passes locally (or CI unit-tests job is green).

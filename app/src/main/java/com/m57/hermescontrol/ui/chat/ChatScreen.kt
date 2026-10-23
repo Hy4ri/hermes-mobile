@@ -5,6 +5,7 @@ import android.content.ActivityNotFoundException
 import android.content.ContextWrapper
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -37,6 +38,7 @@ import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenuItem
@@ -94,6 +96,8 @@ import com.m57.hermescontrol.data.session.SessionAttentionStore
 import com.m57.hermescontrol.data.session.sessionAttentionScopeKey
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
+import com.m57.hermescontrol.data.ws.contract.RpcMethods
+import com.m57.hermescontrol.data.ws.contract.SessionExportParams
 import com.m57.hermescontrol.notification.NotificationHelper
 import com.m57.hermescontrol.profilelock.ProfileLock
 import com.m57.hermescontrol.share.ShareInbox
@@ -702,7 +706,7 @@ fun ChatScreen(
                             showSessionMenu = false
                             val sessionId = state.currentSessionId
                             if (sessionId != null) {
-                                scope.launch {
+                                scrollScope.launch {
                                     try {
                                         val result =
                                             HermesWsClient.call(
@@ -721,7 +725,9 @@ fun ChatScreen(
                                                 type = "text/plain"
                                             }
                                         val chooserTitle = context.getString(R.string.chat_export_share_chooser)
-                                        context.startActivity(Intent.createChooser(sendIntent, chooserTitle))
+                                        launchExternalActivity {
+                                            context.startActivity(Intent.createChooser(sendIntent, chooserTitle))
+                                        }
                                     } catch (e: Exception) {
                                         val msg = e.message ?: "Unknown error"
                                         Toast

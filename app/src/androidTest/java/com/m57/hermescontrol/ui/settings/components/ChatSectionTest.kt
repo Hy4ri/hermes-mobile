@@ -123,4 +123,28 @@ class ChatSectionTest {
         assertEquals(1, assistantChanges)
         assertEquals(1, tpsChanges)
     }
+
+    @Test
+    fun groupConsecutiveTools_togglesStateAndRoutesCallback() {
+        var toggled = false
+        composeTestRule.setContent {
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                ChatSection(
+                    typingEffectEnabled = false,
+                    onTypingEffectEnabledChange = {},
+                    typingEffectDelayMs = 30,
+                    onTypingEffectDelayMsChange = {},
+                    groupConsecutiveTools = false,
+                    onGroupConsecutiveToolsChange = { toggled = it },
+                )
+            }
+        }
+
+        composeTestRule
+            .onNodeWithTag("settings_group_consecutive_tools")
+            .performScrollTo()
+            .assertIsOff()
+            .performClick()
+        assertEquals(true, toggled)
+    }
 }

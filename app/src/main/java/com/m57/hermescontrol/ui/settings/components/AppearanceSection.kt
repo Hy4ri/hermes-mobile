@@ -186,6 +186,8 @@ internal fun ChatSection(
     onTokensPerSecondChange: (Boolean) -> Unit = {},
     showModelProvider: Boolean = false,
     onShowModelProviderChange: (Boolean) -> Unit = {},
+    groupConsecutiveTools: Boolean = false,
+    onGroupConsecutiveToolsChange: (Boolean) -> Unit = {},
     busySendMode: BusySendMode = BusySendMode.CORRECT,
     onBusySendModeChange: (BusySendMode) -> Unit = {},
 ) {
@@ -454,6 +456,33 @@ internal fun ChatSection(
                 checked = showModelProvider,
                 onCheckedChange = onShowModelProviderChange,
                 modifier = Modifier.testTag("settings_show_model_provider"),
+            )
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                Text(
+                    text = stringResource(R.string.settings_item_group_consecutive_tools),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    text = stringResource(R.string.settings_desc_group_consecutive_tools),
+                    style =
+                        MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        ),
+                )
+            }
+            Switch(
+                checked = groupConsecutiveTools,
+                onCheckedChange = onGroupConsecutiveToolsChange,
+                modifier = Modifier.testTag("settings_group_consecutive_tools"),
             )
         }
 

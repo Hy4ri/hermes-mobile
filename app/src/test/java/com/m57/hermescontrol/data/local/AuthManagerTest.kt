@@ -675,4 +675,13 @@ class AuthManagerTest {
         AuthManager.setActiveProfileId("default")
         assertEquals("default", AuthManager.activeProfileId.value)
     }
+
+    @Test
+    fun groupConsecutiveTools_defaultsToFalseAndUpdatesState() {
+        assertEquals(false, AuthManager.isGroupConsecutiveTools())
+        AuthManager.setGroupConsecutiveTools(true)
+        assertEquals(true, AuthManager.isGroupConsecutiveTools())
+        AuthManager.setGroupConsecutiveTools(false)
+        assertEquals(false, AuthManager.isGroupConsecutiveTools())
+    }
 }

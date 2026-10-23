@@ -31,6 +31,7 @@ data class ServerStoreState(
     val showAssistantMessageTokens: Boolean = true,
     val showTokensPerSecond: Boolean = true,
     val showModelProvider: Boolean = false,
+    val groupConsecutiveTools: Boolean = false,
     val keepScreenAwake: Boolean = false,
     val keepConnectedInBackground: Boolean = false,
     // Notify when ANY session finishes while the app is backgrounded. Needs a

@@ -2039,4 +2039,24 @@
     <string name="profile_lock_disabled_toast">Profile lock is off</string>
     <string name="profile_lock_connection_blocked">Profile lock is on. This request needs credentials, so the owner must turn off the lock first.</string>
     <string name="profile_lock_landing_body">Sign-in and server connections are locked. The owner can turn off the lock to sign in again.</string>
+    <plurals name="chat_tool_group_calls">
+        <item quantity="one">%1$d tool call</item>
+        <item quantity="other">%1$d tool calls</item>
+    </plurals>
+    <plurals name="chat_tool_group_running">
+        <item quantity="one">%1$d running</item>
+        <item quantity="other">%1$d running</item>
+    </plurals>
+    <plurals name="chat_tool_group_failed">
+        <item quantity="one">%1$d failed</item>
+        <item quantity="other">%1$d failed</item>
+    </plurals>
+    <plurals name="chat_tool_group_completed">
+        <item quantity="one">%1$d completed</item>
+        <item quantity="other">%1$d completed</item>
+    </plurals>
+    <string name="chat_tool_group_expand">Expand</string>
+    <string name="chat_tool_group_collapse">Collapse</string>
+    <string name="settings_item_group_consecutive_tools">Group consecutive tool calls</string>
+    <string name="settings_desc_group_consecutive_tools">Collapse back-to-back tool executions into an expandable header</string>
 </resources>

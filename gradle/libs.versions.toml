@@ -31,7 +31,7 @@ coil = "3.6.3"
 room = "3.0.2"
 sqlcipher = "4.19.1"
 datastore = "1.1.2"
-latex = "1.5.6"
+latex = "1.6.2"
 
 [libraries]
 androidx-exifinterface = { module = "androidx.exifinterface:exifinterface", version.ref = "androidxExif" }
@@ -88,6 +88,7 @@ sqlcipher = { module = "net.zetetic:sqlcipher-android", version.ref = "sqlcipher
 latex-base = { module = "io.github.huarangmeng:latex-base", version.ref = "latex" }
 latex-parser = { module = "io.github.huarangmeng:latex-parser", version.ref = "latex" }
 latex-renderer = { module = "io.github.huarangmeng:latex-renderer", version.ref = "latex" }
+latex-fonts-katex = { module = "io.github.huarangmeng:latex-fonts-katex", version.ref = "latex" }
 
 # Image loading (Coil 3)
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }

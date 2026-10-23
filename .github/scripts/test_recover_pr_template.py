@@ -37,7 +37,7 @@ class FakeGitHub:
             "body": BODY,
             "title": "ci: recover template gate",
             "user": {"type": "User"},
-            "base": {"ref": "dev"},
+            "base": {"ref": "main"},
             "head": {
                 "sha": "abc",
                 "ref": "feature",
@@ -89,7 +89,7 @@ class FakeGitHub:
             return deepcopy(self.files)
         if path == "issues/42/comments":
             return deepcopy(self.comments)
-        if path == "pulls?state=open&base=dev":
+        if path == "pulls?state=open&base=main":
             return [deepcopy(self.pr)]
         raise AssertionError(path)
 
@@ -164,7 +164,7 @@ class RecoveryTests(unittest.TestCase):
     def test_no_mutation_for_ineligible_or_unblocked_cases(self):
         cases = {
             "closed": lambda g: g.pr.update(state="closed"),
-            "wrong_base": lambda g: g.pr["base"].update(ref="main"),
+            "wrong_base": lambda g: g.pr["base"].update(ref="dev"),
             "bot": lambda g: g.pr["user"].update(type="Bot"),
             "invalid_body": lambda g: g.pr.update(body="not a template"),
             "invalid_title": lambda g: g.pr.update(title="not conventional"),

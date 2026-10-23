@@ -7657,6 +7657,54 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun testRespondToApproval_withSpecificRequestId_resolvesTargetCardOnly() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            mockEventsFlow.emit(
+                WsEvent.ApprovalRequest(
+                    command = "git diff",
+                    description = "Diff check",
+                    patternKeys = null,
+                    sessionId = null,
+                    requestId = "req-first",
+                ),
+            )
+            mockEventsFlow.emit(
+                WsEvent.ApprovalRequest(
+                    command = "git push",
+                    description = "Push check",
+                    patternKeys = null,
+                    sessionId = null,
+                    requestId = "req-second",
+                ),
+            )
+            advanceUntilIdle()
+
+            val msg1 =
+                viewModel.uiState.value.messages
+                    .first { it.approvalInfo?.requestId == "req-first" }
+            val msg2 =
+                viewModel.uiState.value.messages
+                    .first { it.approvalInfo?.requestId == "req-second" }
+            assertNotNull(msg1.approvalInfo)
+            assertNotNull(msg2.approvalInfo)
+
+            viewModel.respondToApproval("deny", "req-first")
+            advanceUntilIdle()
+
+            val after1 =
+                viewModel.uiState.value.messages
+                    .first { it.id == msg1.id }
+            val after2 =
+                viewModel.uiState.value.messages
+                    .first { it.id == msg2.id }
+            assertNull(after1.approvalInfo)
+            assertNotNull(after2.approvalInfo)
+            assertEquals("req-second", after2.approvalInfo?.requestId)
+        }
+
+    @Test
     fun testApprovalRequest_storesRequestIdAndChoices() =
         runTest {
             val viewModel = createViewModel()

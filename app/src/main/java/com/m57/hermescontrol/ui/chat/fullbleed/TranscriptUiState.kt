@@ -101,7 +101,7 @@ class TranscriptActions(
     val onOpenAttachment: (Attachment) -> Unit,
     val onSaveAttachment: (Attachment) -> Unit,
     val onImageClick: (ImageViewerModel) -> Unit,
-    val onRespondApproval: (String) -> Unit,
+    val onRespondApproval: (action: String, requestId: String?) -> Unit,
     val onRespondClarify: (String) -> Unit,
     val onRespondClarifyBatch: (Map<String, String>) -> Unit,
     val onDismissClarify: () -> Unit,

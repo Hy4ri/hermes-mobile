@@ -330,4 +330,146 @@ class ChatApprovalsDelegateTest {
                 ?.content,
         )
     }
+
+    @Test
+    fun respondToApproval_withTargetRequestId_resolvesOnlyMatchingCardAndLeavesOthersIntact() =
+        testScope.runTest {
+            runtimeId = "runtime-session-multi"
+            delegate.handleApprovalRequest(
+                WsEvent.ApprovalRequest(
+                    command = "git status",
+                    description = "card 1",
+                    patternKeys = null,
+                    sessionId = null,
+                    requestId = "req-1",
+                ),
+            )
+            delegate.handleApprovalRequest(
+                WsEvent.ApprovalRequest(
+                    command = "git push",
+                    description = "card 2",
+                    patternKeys = null,
+                    sessionId = null,
+                    requestId = "req-2",
+                ),
+            )
+            advanceUntilIdle()
+            sentMethods.clear()
+            sentParams.clear()
+
+            assertEquals(2, uiState.value.messages.size)
+            assertNotNull(uiState.value.messages[0].approvalInfo)
+            assertNotNull(uiState.value.messages[1].approvalInfo)
+
+            // Resolve card 1 specifically
+            delegate.respondToApproval("deny", targetRequestId = "req-1")
+
+            // Card 1 buttons cleared; Card 2 remains pending
+            assertNull(uiState.value.messages[0].approvalInfo)
+            assertNotNull(uiState.value.messages[1].approvalInfo)
+            assertEquals(
+                "req-2",
+                uiState.value.messages[1]
+                    .approvalInfo
+                    ?.requestId,
+            )
+
+            advanceUntilIdle()
+            assertEquals(listOf(WsMethods.APPROVAL_RESPOND, WsMethods.APPROVAL_PENDING), sentMethods)
+            assertEquals(JsonPrimitive("deny"), sentParams[0]["choice"])
+            assertEquals(JsonPrimitive("req-1"), sentParams[0]["request_id"])
+        }
+
+    @Test
+    fun respondToApproval_withUnknownRequestId_doesNotResolveAnyCard() =
+        testScope.runTest {
+            runtimeId = "runtime-session-unknown"
+            delegate.handleApprovalRequest(
+                WsEvent.ApprovalRequest(
+                    command = "pwd",
+                    description = "card 1",
+                    patternKeys = null,
+                    sessionId = null,
+                    requestId = "req-real",
+                ),
+            )
+            advanceUntilIdle()
+            sentMethods.clear()
+            sentParams.clear()
+
+            delegate.respondToApproval("deny", targetRequestId = "req-nonexistent")
+            advanceUntilIdle()
+
+            // Real card was untouched
+            assertNotNull(
+                uiState.value.messages
+                    .single()
+                    .approvalInfo,
+            )
+            assertTrue(sentMethods.isEmpty())
+        }
+
+    @Test
+    fun respondToApproval_withServerRequestIdTarget_resolvesMatchingServerRequest() {
+        val responses = mutableListOf<Pair<String, JsonElement>>()
+        val serverDelegate =
+            ChatApprovalsDelegate(
+                scope = testScope,
+                ioDispatcher = testDispatcher,
+                uiState = uiState,
+                runtimeSessionId = { "session-1" },
+                rpc =
+                    object : TypedRpcSender {
+                        override fun <P> send(
+                            method: RpcMethod<P, *>,
+                            params: P,
+                            onSent: ((String) -> Unit)?,
+                        ): String = error("new approval must not use legacy response")
+                    },
+                trackRequest = { _, _ -> },
+                addSystemMessage = { },
+                respondToServerRequest = { id, result -> responses += id to result },
+            )
+
+        serverDelegate.handleApprovalRequest(
+            WsEvent.ApprovalRequest(
+                command = "ls",
+                description = "card 1",
+                patternKeys = null,
+                sessionId = "session-1",
+                requestId = "app-1",
+                serverRequestId = "srq-1",
+            ),
+        )
+        serverDelegate.handleApprovalRequest(
+            WsEvent.ApprovalRequest(
+                command = "rm",
+                description = "card 2",
+                patternKeys = null,
+                sessionId = "session-1",
+                requestId = "app-2",
+                serverRequestId = "srq-2",
+            ),
+        )
+
+        serverDelegate.respondToApproval("deny", targetRequestId = "srq-1")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val messages = uiState.value.messages
+        assertEquals(2, messages.size)
+        assertNull(messages[0].approvalInfo)
+        assertNotNull(messages[1].approvalInfo)
+        assertEquals("srq-2", messages[1].approvalInfo?.serverRequestId)
+
+        assertEquals(1, responses.size)
+        assertEquals("srq-1", responses.single().first)
+        assertEquals(
+            "deny",
+            responses
+                .single()
+                .second.jsonObject["choice"]
+                ?.jsonPrimitive
+                ?.content,
+        )
+    }
 }

@@ -159,9 +159,22 @@ class ChatApprovalsDelegate(
         }
     }
 
-    fun respondToApproval(action: String) {
+    fun respondToApproval(
+        action: String,
+        targetRequestId: String? = null,
+    ) {
         val state = uiState.value
-        val approvalMsg = state.messages.lastOrNull { it.approvalInfo != null } ?: return
+        val approvalMsg =
+            if (targetRequestId != null) {
+                state.messages.firstOrNull { message ->
+                    val info = message.approvalInfo ?: return@firstOrNull false
+                    info.requestId == targetRequestId ||
+                        info.serverRequestId == targetRequestId ||
+                        message.id == targetRequestId
+                }
+            } else {
+                state.messages.lastOrNull { it.approvalInfo != null }
+            } ?: return
         val sessionId = runtimeSessionId() ?: state.currentSessionId ?: return
         // Desktop sends `once` for a single run; legacy mobile sent `approve`
         // (any non-deny still unblocks, but stay on-spec going forward).
@@ -213,7 +226,15 @@ class ChatApprovalsDelegate(
             state.copy(
                 messages =
                     state.messages.map { message ->
-                        if (message.approvalInfo?.serverRequestId == requestId) {
+                        val info = message.approvalInfo
+                        val matches =
+                            info != null &&
+                                (
+                                    info.serverRequestId == requestId ||
+                                        info.requestId == requestId ||
+                                        message.id == requestId
+                                )
+                        if (matches) {
                             message.copy(approvalInfo = null)
                         } else {
                             message

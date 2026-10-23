@@ -5,9 +5,9 @@ on:
   # labeling 403s. Safe here because this workflow never checks out PR code.
   pull_request_target:
     types: [opened, synchronize, reopened]
-    branches: [main, dev]
+    branches: [main]
   push:
-    branches: [main, dev]
+    branches: [main]
 
 # Cancel in-progress runs when a new event lands — protects the expensive
 # bulk-check path. github.ref is stable per PR (refs/pull/N/merge) AND stable
@@ -127,7 +127,7 @@ jobs:
               return;
             }
 
-            // ── Bulk check all open PRs (push to main/dev event) ───────────
+            // ── Bulk check all open PRs (push to main event) ───────────
             // GitHub usually recomputes mergeable for every open PR at once after a
             // push, so most hit the retry loop simultaneously. Batch a few at a time
             // with Promise.all to bound wall-clock without hammering the API.

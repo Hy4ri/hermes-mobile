@@ -8,7 +8,7 @@ name: PR Automation
 on:
   pull_request_target:
     types: [opened, edited, reopened, synchronize, ready_for_review]
-    branches: [main, dev]
+    branches: [main]
 
 concurrency:
   group: pr-automation-${{ github.event.pull_request.number }}

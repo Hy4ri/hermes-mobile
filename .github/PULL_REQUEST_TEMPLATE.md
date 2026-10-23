@@ -35,7 +35,7 @@ Fixes #
 
 - [ ] I searched open/closed PRs and issues for duplicates
 - [ ] PR is focused on one feature or one fix (no unrelated changes)
-- [ ] Branch rebased onto `dev` (`git rebase origin/dev`)
+- [ ] Branch rebased onto `main` (`git rebase origin/main`)
 - [ ] `./gradlew ktlintCheck` passes (ran `ktlintFormat` first)
 - [ ] `./gradlew testDebugUnitTest` green (or CI unit-tests job)
 - [ ] `checkColorLiterals` passes (no hardcoded Color outside theme/)

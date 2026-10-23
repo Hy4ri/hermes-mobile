@@ -906,7 +906,7 @@ class SessionsViewModelTest {
         vm.toggleArchive("s-1")
         testDispatcher.scheduler.advanceUntilIdle()
 
-        coVerify { mockApi.setSessionArchived("s-1", SessionRenameRequest(archived = true)) }
+        coVerify { mockApi.setSessionArchived("s-1", SessionRenameRequest(archived = true, profile = "default")) }
         assertEquals(
             listOf("s-2"),
             vm.uiState.value.sessions

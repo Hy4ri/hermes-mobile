@@ -179,4 +179,15 @@ class SessionDestructiveOpsSerializationTest {
         val plain = json.parseToJsonElement(json.encodeToString(SessionRenameRequest(title = "New"))).jsonObject
         assertEquals(setOf("title"), plain.keys)
     }
+
+    @Test
+    fun sessionPatch_carriesProfileInBody() {
+        // PATCH /api/sessions/{id} resolves the owning profile from the body (issue #1670).
+        val body =
+            json
+                .parseToJsonElement(
+                    json.encodeToString(SessionRenameRequest(title = "New", profile = "work")),
+                ).jsonObject
+        assertEquals("work", body["profile"]!!.jsonPrimitive.content)
+    }
 }

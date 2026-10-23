@@ -427,7 +427,7 @@ fun KanbanScreen(
             }
         },
         isRefreshing = state.isLoading,
-        onRefresh = { viewModel.loadBoards() },
+        onRefresh = { viewModel.loadBoards(isRefresh = true) },
     ) { paddingValues ->
         when {
             state.isLoading && state.boards.isEmpty() -> {

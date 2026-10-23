@@ -95,6 +95,7 @@ import com.m57.hermescontrol.data.session.sessionAttentionScopeKey
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.notification.NotificationHelper
+import com.m57.hermescontrol.profilelock.ProfileLock
 import com.m57.hermescontrol.share.ShareInbox
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.chat.components.ChatAppUpdateSection
@@ -184,6 +185,10 @@ fun ChatScreen(
     viewModel: ChatViewModel = viewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val profileLocked =
+        ProfileLock.state
+            .collectAsStateWithLifecycle()
+            .value.locked
     val streamingState by viewModel.streamingState.collectAsStateWithLifecycle()
     val timelineState by viewModel.timelineState.collectAsStateWithLifecycle()
     val transcriptState by viewModel.transcriptState.collectAsStateWithLifecycle()
@@ -667,20 +672,23 @@ fun ChatScreen(
                         modifier = Modifier.testTag("chat_menu_search"),
                     )
 
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.session_integrations_menu_item)) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Filled.Extension,
-                                contentDescription = null,
-                            )
-                        },
-                        onClick = {
-                            showSessionMenu = false
-                            connectorsViewModel.show()
-                        },
-                        modifier = Modifier.testTag("chat_menu_session_integrations"),
-                    )
+                    // #1643: integrations manage credentials; hidden while a profile lock is on.
+                    if (!profileLocked) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.session_integrations_menu_item)) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Filled.Extension,
+                                    contentDescription = null,
+                                )
+                            },
+                            onClick = {
+                                showSessionMenu = false
+                                connectorsViewModel.show()
+                            },
+                            modifier = Modifier.testTag("chat_menu_session_integrations"),
+                        )
+                    }
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.chat_action_export)) },
                         leadingIcon = {
@@ -773,7 +781,9 @@ fun ChatScreen(
             credentialWarning?.let { warning ->
                 CredentialWarningBanner(
                     warning = warning,
-                    onFix = { NavigationController.navigateTo(com.m57.hermescontrol.ProvidersScreen) },
+                    onFix =
+                        { NavigationController.navigateTo(com.m57.hermescontrol.ProvidersScreen) }
+                            .takeUnless { profileLocked },
                     onDismiss = { HermesWsClient.clearCredentialWarning() },
                 )
             }
@@ -904,7 +914,12 @@ fun ChatScreen(
                                 ReplyErrorCard(
                                     failure = failure,
                                     onDismiss = { viewModel.dismissReplyFailure(failure.id) },
-                                    onOpenLogs = { NavigationController.navigateTo(LogsScreen) },
+                                    onOpenLogs =
+                                        {
+                                            NavigationController.navigateTo(
+                                                LogsScreen,
+                                            )
+                                        }.takeUnless { profileLocked },
                                     onCopy = { details ->
                                         clipboard.setText(AnnotatedString(details))
                                         scrollScope.launch { snackbarHostState.showSnackbar(copiedMessage) }
@@ -1257,6 +1272,7 @@ fun ChatScreen(
                     }
                 },
                 onDismiss = viewModel::continueConnectionOperation,
+                locked = profileLocked,
             )
         }
 

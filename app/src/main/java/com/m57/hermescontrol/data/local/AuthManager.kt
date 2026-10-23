@@ -21,6 +21,7 @@ import com.m57.hermescontrol.data.remote.CookieManager
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.ServerHeaders
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
+import com.m57.hermescontrol.profilelock.ProfileLock
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
 import kotlinx.coroutines.CancellationException
@@ -496,6 +497,8 @@ object AuthManager {
 
     fun setSelectedProfileId(id: String?) {
         val normalizedId = id?.takeIf { it.isNotBlank() }
+        // #1643: a profile lock pins the connection; refuse every other selection at the mutation point.
+        if (!ProfileLock.allowsConnection(normalizedId)) return
         val changed = getSelectedProfileId() != normalizedId
         if (changed) {
             ActiveSessionHolder.clear()
@@ -538,6 +541,7 @@ object AuthManager {
      */
     fun setActiveProfileId(id: String?) {
         val normalized = id?.takeIf { it.isNotBlank() }
+        if (!ProfileLock.allowsActiveProfile(normalized)) return
         // Flow first, persistence best-effort: a caller racing cold startup
         // still gets the correct in-memory scope instead of an exception, and
         // the write lands once initialization is Ready (#1171).

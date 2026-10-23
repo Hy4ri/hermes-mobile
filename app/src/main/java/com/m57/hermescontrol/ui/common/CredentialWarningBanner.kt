@@ -26,7 +26,7 @@ import com.m57.hermescontrol.theme.LocalHermesStatusColors
 @Composable
 fun CredentialWarningBanner(
     warning: String,
-    onFix: () -> Unit,
+    onFix: (() -> Unit)?,
     onDismiss: () -> Unit,
 ) {
     Row(
@@ -49,11 +49,13 @@ fun CredentialWarningBanner(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f),
         )
-        TextButton(onClick = onFix) {
-            Text(
-                text = stringResource(R.string.providers_action_fix),
-                style = MaterialTheme.typography.labelSmall,
-            )
+        if (onFix != null) {
+            TextButton(onClick = onFix) {
+                Text(
+                    text = stringResource(R.string.providers_action_fix),
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
         }
         TextButton(onClick = onDismiss) {
             Text(

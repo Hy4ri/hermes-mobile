@@ -579,7 +579,15 @@ class SessionsHistoryUndoTest {
         vm.renameSession("s", "New title")
         idle()
         coVerify(exactly = 2) { api.getSessionMutationSnapshot("s") }
-        coVerify(exactly = 1) { api.renameSession("s", match { it.title == "New title" }) }
+        coVerify(exactly = 1) {
+            api.renameSession(
+                "s",
+                match {
+                    it.title == "New title" && it.expectedRevision == 3 && it.expectedGeneration == 0 &&
+                        it.requestId != null
+                },
+            )
+        }
         // One initial title read binds the baseline; saving does not refetch full detail.
         coVerify(exactly = 1) { api.getSessionInfo("s", owner.activeProfileId) }
         coVerify(exactly = 0) { ambientApi.renameSession(any(), any()) }
@@ -706,5 +714,64 @@ class SessionsHistoryUndoTest {
         idle()
         coVerify(exactly = 0) { api.renameSession(any(), any()) }
         coVerify(exactly = 0) { ambientApi.renameSession(any(), any()) }
+    }
+
+    private fun snapshot(
+        api: HermesApiService,
+        revision: Int,
+    ) {
+        coEvery { api.getSessionMutationSnapshot("s") } returns
+            Response.success(SessionMutationSnapshot("s", true, JsonPrimitive(revision), JsonPrimitive(0)))
+    }
+
+    @Test
+    fun pinAndItsUndoQuoteTheCurrentMutationSnapshot() {
+        val vm = viewModel()
+        snapshot(api, revision = 3)
+        vm.togglePin("s")
+        idle()
+        coVerify {
+            api.setSessionPinned(
+                "s",
+                match {
+                    it.pinned == true && it.expectedRevision == 3 && it.expectedGeneration == 0 &&
+                        it.requestId != null
+                },
+            )
+        }
+        snapshot(api, revision = 4)
+        vm.undoHistoryChange(
+            vm.uiState.value.historyFeedback!!
+                .id,
+        )
+        idle()
+        coVerify { api.setSessionPinned("s", match { it.pinned == false && it.expectedRevision == 4 }) }
+    }
+
+    @Test
+    fun archiveQuotesTheMutationSnapshot() {
+        val vm = viewModel()
+        snapshot(api, revision = 7)
+        vm.toggleArchive("s")
+        idle()
+        coVerify { api.setSessionArchived("s", match { it.archived == true && it.expectedRevision == 7 }) }
+    }
+
+    @Test
+    fun renameQuotesTheMutationSnapshot() {
+        coEvery { ambientApi.renameSession(any(), any()) } returns Response.success(Unit)
+        val vm = viewModel()
+        snapshot(ambientApi, revision = 2)
+        vm.renameSession("s", "New title")
+        idle()
+        coVerify {
+            ambientApi.renameSession(
+                "s",
+                match {
+                    it.title == "New title" && it.expectedRevision == 2 &&
+                        it.requestId != null
+                },
+            )
+        }
     }
 }

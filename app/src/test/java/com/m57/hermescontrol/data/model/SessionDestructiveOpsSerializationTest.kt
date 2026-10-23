@@ -156,4 +156,27 @@ class SessionDestructiveOpsSerializationTest {
 
         assertEquals(emptyList<String>(), decoded.skippedActive)
     }
+
+    @Test
+    fun sessionPatch_sendsMutationIdentityOnlyWhenFenced() {
+        val fenced =
+            json
+                .parseToJsonElement(
+                    json.encodeToString(
+                        SessionRenameRequest(
+                            pinned = true,
+                            requestId = "r-1",
+                            expectedRevision = 3,
+                            expectedGeneration = 0,
+                        ),
+                    ),
+                ).jsonObject
+        assertEquals("r-1", fenced["request_id"]!!.jsonPrimitive.content)
+        assertEquals("3", fenced["expected_revision"]!!.jsonPrimitive.content)
+        assertEquals("0", fenced["expected_generation"]!!.jsonPrimitive.content)
+
+        // An older backend without the snapshot endpoint gets the body it always accepted.
+        val plain = json.parseToJsonElement(json.encodeToString(SessionRenameRequest(title = "New"))).jsonObject
+        assertEquals(setOf("title"), plain.keys)
+    }
 }

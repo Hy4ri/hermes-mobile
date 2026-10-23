@@ -7,6 +7,7 @@ import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.contract.ClientCapabilitiesParams
 import com.m57.hermescontrol.data.ws.contract.RpcMethod
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
+import com.m57.hermescontrol.profilelock.ProfileLock
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -227,7 +228,19 @@ object HermesWsClient {
         params: Map<String, Any> = emptyMap(),
         timeoutMs: Long = REQUEST_TIMEOUT_MS,
         suppressErrorEvent: Boolean = false,
-    ): CompletableDeferred<Any?> = rpcChannel.request(method, params, timeoutMs, suppressErrorEvent)
+    ): CompletableDeferred<Any?> {
+        // #1643: persistent config writes need the owner while a profile lock is on.
+        if (!ProfileLock.allowsRpc(method, params)) {
+            return CompletableDeferred<Any?>().apply {
+                completeExceptionally(
+                    HermesRpcException(PROFILE_LOCKED_MESSAGE),
+                )
+            }
+        }
+        return rpcChannel.request(method, params, timeoutMs, suppressErrorEvent)
+    }
+
+    const val PROFILE_LOCKED_MESSAGE = "Profile lock is on: global settings need the owner PIN"
 
     fun <P, R> requestTyped(
         method: RpcMethod<P, R>,
@@ -277,12 +290,15 @@ object HermesWsClient {
         params: Map<String, Any>,
         onSent: ((String) -> Unit)?,
         queueIfDisconnected: Boolean,
-    ): String =
-        transport.send(
+    ): String {
+        // A fire-and-forget write has no caller to fail; drop it and report a local id.
+        if (!ProfileLock.allowsRpc(method, params)) return "profile-locked-${java.util.UUID.randomUUID()}"
+        return transport.send(
             rpcChannel.createRequest(method, params),
             onSent = onSent,
             queueIfDisconnected = queueIfDisconnected,
         )
+    }
 
     fun sendMessage(
         sessionId: String,

@@ -2011,4 +2011,30 @@
     <string name="sessions_undo_failed">Undo failed. Refresh history to check the current state.</string>
     <string name="sessions_undo_changed">Session changed. Undo is no longer available.</string>
     <string name="chat_attachment_send_original">Send original</string>
+    <!-- Profile lock (#1643) -->
+    <string name="profile_lock_title">Profile lock</string>
+    <string name="profile_lock_menu_item">Lock to this profile</string>
+    <string name="profile_lock_set_title">Lock to %1$s</string>
+    <string name="profile_lock_set_body">This device stays on this profile. Only Chat, History, Projects, and Settings stay in the sidebar. Profiles, server connections, credentials, and agent settings need the PIN.</string>
+    <string name="profile_lock_pin_label">PIN (4–8 digits)</string>
+    <string name="profile_lock_pin_confirm_label">Confirm PIN</string>
+    <string name="profile_lock_forgot_pin_note">If you forget the PIN, the only way to remove the lock is to clear the app data. This lock applies to this app only. It does not limit the agent\'s tools.</string>
+    <string name="profile_lock_pin_invalid">Use 4 to 8 digits.</string>
+    <string name="profile_lock_pin_mismatch">The PINs do not match.</string>
+    <string name="profile_lock_save_failed">Could not save the profile lock. Try again.</string>
+    <string name="profile_lock_action_lock">Lock</string>
+    <string name="profile_lock_action_turn_off">Turn off lock</string>
+    <string name="profile_lock_unlock_title">Enter PIN to turn off the profile lock</string>
+    <string name="profile_lock_cooling_down">Too many wrong PINs. Wait %1$d seconds, then try again.</string>
+    <plurals name="profile_lock_wrong_pin">
+        <item quantity="one">Wrong PIN. %1$d try left.</item>
+        <item quantity="other">Wrong PIN. %1$d tries left.</item>
+    </plurals>
+    <string name="profile_lock_locked_to">Locked to %1$s</string>
+    <string name="profile_lock_unreadable">The lock settings cannot be read. The app stays locked. To remove the lock, clear the app data.</string>
+    <string name="profile_lock_card_body">Profiles, server connections, credentials, and agent settings are hidden. Turn off the lock to change them.</string>
+    <string name="profile_lock_enabled_toast">Locked to %1$s</string>
+    <string name="profile_lock_disabled_toast">Profile lock is off</string>
+    <string name="profile_lock_connection_blocked">Profile lock is on. This request needs credentials, so the owner must turn off the lock first.</string>
+    <string name="profile_lock_landing_body">Sign-in and server connections are locked. The owner can turn off the lock to sign in again.</string>
 </resources>

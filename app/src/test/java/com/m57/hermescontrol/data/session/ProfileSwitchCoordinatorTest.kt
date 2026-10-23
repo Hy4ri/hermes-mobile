@@ -4,8 +4,13 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.SetActiveProfileRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.HermesApiService
+import com.m57.hermescontrol.data.remote.NetworkError
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.ws.HermesWsClient
+import com.m57.hermescontrol.profilelock.FakeSharedPreferences
+import com.m57.hermescontrol.profilelock.ProfileLock
+import com.m57.hermescontrol.profilelock.ProfileLockStore
+import com.m57.hermescontrol.profilelock.ProfileLockTarget
 import io.mockk.Ordering
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -233,6 +238,62 @@ class ProfileSwitchCoordinatorTest {
 
             // Verify operations for p1 completely finished before p2 began (mutex serialization)
             assertEquals(listOf("p1-start", "p1-end", "p2-start", "p2-end"), order)
+        }
+
+    @Test
+    fun `profile lock refuses another profile before any server call`() =
+        runTest {
+            ProfileLock.setStoreForTest(ProfileLockStore(FakeSharedPreferences()))
+            try {
+                ProfileLock.enable(ProfileLockTarget("home", "kids"), "4826")
+
+                val result = ProfileSwitchCoordinator.switchProfile("default")
+
+                assertEquals(
+                    ProfileSwitchCoordinator.LOCKED_HTTP_CODE,
+                    ((result as NetworkResult.Failure).error as NetworkError.Http).code,
+                )
+                coVerify(exactly = 0) { mockApi.setActiveProfile(any()) }
+                verify(exactly = 0) { AuthManager.setActiveProfileId(any()) }
+                verify(exactly = 0) { HermesWsClient.disconnect(any()) }
+            } finally {
+                ProfileLock.setStoreForTest(null)
+            }
+        }
+
+    @Test
+    fun `profile lock still allows re-homing to its own target`() =
+        runTest {
+            ProfileLock.setStoreForTest(ProfileLockStore(FakeSharedPreferences()))
+            try {
+                ProfileLock.enable(ProfileLockTarget("home", "kids"), "4826")
+                coEvery { mockApi.setActiveProfile(any()) } returns Response.success(Unit)
+
+                assertTrue(ProfileSwitchCoordinator.switchProfile("kids") is NetworkResult.Success)
+                verify { AuthManager.setActiveProfileId("kids") }
+            } finally {
+                ProfileLock.setStoreForTest(null)
+            }
+        }
+
+    @Test
+    fun `profile lock refuses other connections without touching the socket`() =
+        runTest {
+            every { AuthManager.setSelectedProfileId(any()) } returns Unit
+            every { ApiClient.rebuild() } returns Unit
+            ProfileLock.setStoreForTest(ProfileLockStore(FakeSharedPreferences()))
+            try {
+                ProfileLock.enable(ProfileLockTarget("home", "kids"), "4826")
+
+                ProfileSwitchCoordinator.switchConnectionProfile("work")
+                ProfileSwitchCoordinator.prepareConnectionProfile(null)
+
+                verify(exactly = 0) { HermesWsClient.disconnect(any()) }
+                verify(exactly = 0) { AuthManager.setSelectedProfileId(any()) }
+                verify(exactly = 0) { ApiClient.rebuild() }
+            } finally {
+                ProfileLock.setStoreForTest(null)
+            }
         }
 
     private fun <T> errorResponse(code: Int): Response<T> = Response.error(code, "{}".toResponseBody(null))

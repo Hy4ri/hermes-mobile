@@ -31,7 +31,7 @@ coil = "3.6.3"
 room = "3.0.2"
 sqlcipher = "4.19.1"
 datastore = "1.1.2"
-latex = "1.5.6"
+latex = "1.6.1"
 
 [libraries]
 androidx-exifinterface = { module = "androidx.exifinterface:exifinterface", version.ref = "androidxExif" }

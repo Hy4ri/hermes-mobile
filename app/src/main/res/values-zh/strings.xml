@@ -1734,4 +1734,18 @@
     <string name="trust_user_cas_save_failed">无法保存信任设置，请重试。</string>
     <string name="trust_user_cas_restart_required">请重启应用进程以应用此更改。</string>
     <string name="shortcut_unavailable">此对话快捷方式已不可用。请打开历史记录选择对话。</string>
+    <plurals name="chat_tool_group_calls">
+        <item quantity="other">%1$d 个工具调用</item>
+    </plurals>
+    <plurals name="chat_tool_group_running">
+        <item quantity="other">%1$d 个运行中</item>
+    </plurals>
+    <plurals name="chat_tool_group_failed">
+        <item quantity="other">%1$d 个失败</item>
+    </plurals>
+    <plurals name="chat_tool_group_completed">
+        <item quantity="other">%1$d 个已完成</item>
+    </plurals>
+    <string name="chat_tool_group_expand">展开</string>
+    <string name="chat_tool_group_collapse">收起</string>
 </resources>

@@ -54,7 +54,7 @@ class FullBleedChatAnchorTest {
     fun prepend_atInteriorRow_keepsContentPixel() = checkAnchor(index = 8, offset = 17, prepend = true)
 
     @Test
-    fun prepend_mergingAgentTurn_keepsToolPixel() =
+    fun prepend_mergingAgentTurn_keepsGroupPixel() =
         checkAnchor(index = 0, offset = 13, prepend = true, role = MessageRole.TOOL)
 
     @Test
@@ -180,7 +180,14 @@ class FullBleedChatAnchorTest {
 
         fun assertAnchor(stage: String) {
             compose.runOnIdle {
-                val after = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == before.first }
+                // A collapsed run's header adopts the first tool id of the extended run.
+                val expectedKey =
+                    if (role == MessageRole.TOOL && messages.value.first().id == "row-0") {
+                        "toolgroup-row-0"
+                    } else {
+                        before.first
+                    }
+                val after = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == expectedKey }
                 assertNotNull("$stage: anchor ${before.first} left viewport", after)
                 assertEquals("$stage: anchor ${before.first} moved (pixels)", before.second, after!!.offset)
             }

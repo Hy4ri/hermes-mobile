@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -32,6 +33,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.LocalChatFontScale
+import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.chat.ChatMessage
 import com.m57.hermescontrol.ui.chat.ChatSearchState
 import com.m57.hermescontrol.ui.chat.ImageViewerModel
@@ -158,6 +160,23 @@ fun FullBleedChatList(
             remember(settledTurns, streamingState.streamingMessage) {
                 appendStreamingTurn(settledTurns, settledIds, streamingState.streamingMessage)
             }
+        val expandedToolMembers = remember(listState, pagingSessionId) { mutableStateOf(emptySet<String>()) }
+        val currentToolMemberIds = remember(turns) { toolMemberIds(turns) }
+        val activeExpandedToolMembers = expandedToolMembers.value intersect currentToolMemberIds
+        val searchExpandedToolMembers =
+            if (searchState.isActive) {
+                setOfNotNull(searchState.currentMatchId)
+            } else {
+                emptySet()
+            }
+        val expandedToolGroupIds =
+            remember(turns, activeExpandedToolMembers, searchExpandedToolMembers) {
+                expandedToolGroups(
+                    turns,
+                    activeExpandedToolMembers + searchExpandedToolMembers,
+                )
+            }
+        val previousGroupMembers = remember(listState, pagingSessionId) { mutableStateOf(emptyMap<String, String>()) }
         val agentStatus = deriveAgentStatus(isAgentTyping, streamingState, renderedMessages)
         // A single ordered definition supplies both emitted tail rows and anchor keys.
         val tailItems =
@@ -239,13 +258,23 @@ fun FullBleedChatList(
                 val firstVisibleIndex = listState.firstVisibleItemIndex
                 val anchor = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == firstVisibleIndex }
                 if (anchor != null) {
-                    val newIndex = (fullBleedItemKeys(turns) + tailItems.keys).indexOf(anchor.key)
-                    if (newIndex >= 0 && newIndex != anchor.index) {
+                    val keys = fullBleedItemKeys(turns, expandedToolGroupIds) + tailItems.keys
+                    val anchorMember =
+                        previousGroupMembers.value[anchor.key] ?: anchor.key.toString().removePrefix("tool-")
+                    val group = toolGroupForMessage(turns, anchorMember)
+                    val anchorKey = if (anchor.key in keys) anchor.key else group?.key
+                    val newIndex = keys.indexOf(anchorKey)
+                    if (newIndex >= 0 && (newIndex != anchor.index || anchorKey != anchor.key)) {
                         listState.requestScrollToItem(newIndex, listState.firstVisibleItemScrollOffset)
                     }
                 }
             }
             previousFirstId.value = firstId
+            previousGroupMembers.value =
+                turns
+                    .filterIsInstance<ChatTurn.Agent>()
+                    .flatMap { it.entries.filterIsInstance<AgentEntry.ToolGroup>() }
+                    .associate { it.key to it.id }
         }
         val prefetch = remember(pagingSessionId) { ChatHistoryPrefetch() }
         val canLoad = rememberUpdatedState(hasOlderMessages && !isLoadingOlder && !isLoading)
@@ -285,6 +314,8 @@ fun FullBleedChatList(
             messages = messages,
             renderedFirstId = renderedMessages.firstOrNull()?.id,
             turns = turns,
+            expandedToolGroupIds = expandedToolGroupIds,
+            listState = listState,
             scrollController = scrollController,
         )
 
@@ -493,30 +524,51 @@ fun FullBleedChatList(
                                         }
 
                                         is AgentEntry.ToolRow -> {
-                                            val toolMessage = entry.message
-                                            val milestone = toolMilestones[toolMessage.id]
-                                            item(
-                                                key = "tool-${toolMessage.id}",
-                                                contentType = FullBleedContentType.TOOL,
-                                            ) {
-                                                Column(modifier = Modifier.padding(bottom = 6.dp)) {
-                                                    FullBleedToolRow(
-                                                        message = toolMessage,
-                                                        searchQuery =
-                                                            if (toolMessage.id in searchState.matchedIds) {
-                                                                searchState.query
-                                                            } else {
-                                                                ""
+                                            toolRow(entry.message, searchState, toolMilestones, maxToolCallsPerTurn)
+                                        }
+
+                                        is AgentEntry.ToolGroup -> {
+                                            if (entry.entries.size == 1) {
+                                                toolRow(
+                                                    entry.entries.single().message,
+                                                    searchState,
+                                                    toolMilestones,
+                                                    maxToolCallsPerTurn,
+                                                )
+                                            } else {
+                                                val expanded = entry.id in expandedToolGroupIds
+                                                item(key = entry.key, contentType = "tool_group") {
+                                                    Column {
+                                                        FullBleedToolGroupHeader(
+                                                            group = entry,
+                                                            expanded = expanded,
+                                                            onToggle = {
+                                                                val ids = entry.entries.map { it.message.id }.toSet()
+                                                                expandedToolMembers.value =
+                                                                    if (expanded) {
+                                                                        activeExpandedToolMembers - ids
+                                                                    } else {
+                                                                        activeExpandedToolMembers + ids
+                                                                    }
                                                             },
-                                                        isCurrentMatch =
-                                                            searchState.currentMatchId == toolMessage.id &&
-                                                                searchState.matchTargets.getOrNull(
-                                                                    searchState.currentIndex,
-                                                                ) ==
-                                                                SearchTarget.TOOL,
-                                                    )
-                                                    milestone?.let { count ->
-                                                        ToolCallDivider(count = count, maxPerTurn = maxToolCallsPerTurn)
+                                                        )
+                                                        if (!expanded) {
+                                                            entry.entries.forEach { row ->
+                                                                toolMilestones[row.message.id]?.let { count ->
+                                                                    ToolCallDivider(count, maxToolCallsPerTurn)
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                if (expanded) {
+                                                    entry.entries.forEach { row ->
+                                                        toolRow(
+                                                            row.message,
+                                                            searchState,
+                                                            toolMilestones,
+                                                            maxToolCallsPerTurn,
+                                                        )
                                                     }
                                                 }
                                             }
@@ -564,6 +616,34 @@ fun FullBleedChatList(
                     )
                 }
             }
+        }
+    }
+}
+
+/** Each detail keeps its own lazy key so search can land on the exact tool row. */
+private fun LazyListScope.toolRow(
+    message: ChatMessage,
+    searchState: ChatSearchState,
+    milestones: Map<String, Int>,
+    maxToolCallsPerTurn: Int?,
+) {
+    item(key = "tool-${message.id}", contentType = FullBleedContentType.TOOL) {
+        Column(modifier = Modifier.padding(bottom = LocalSpacing.current.sm)) {
+            FullBleedToolRow(
+                message = message,
+                searchQuery =
+                    if (searchState.isActive &&
+                        message.id in searchState.matchedIds
+                    ) {
+                        searchState.query
+                    } else {
+                        ""
+                    },
+                isCurrentMatch =
+                    searchState.isActive && searchState.currentMatchId == message.id &&
+                        searchState.matchTargets.getOrNull(searchState.currentIndex) == SearchTarget.TOOL,
+            )
+            milestones[message.id]?.let { ToolCallDivider(it, maxToolCallsPerTurn) }
         }
     }
 }

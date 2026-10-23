@@ -35,6 +35,13 @@ sealed interface AgentEntry {
         val message: ChatMessage,
     ) : AgentEntry
 
+    data class ToolGroup(
+        val entries: List<ToolRow>,
+    ) : AgentEntry {
+        val id: String get() = entries.first().message.id
+        val key: String get() = "toolgroup-$id"
+    }
+
     data class SystemEvent(
         val message: ChatMessage,
     ) : AgentEntry
@@ -78,7 +85,19 @@ fun groupIntoTurns(messages: List<ChatMessage>): List<ChatTurn> {
     val turns = mutableListOf<ChatTurn>()
     val agentEntries = mutableListOf<AgentEntry>()
 
+    val toolEntries = mutableListOf<AgentEntry.ToolRow>()
+
+    fun flushTools() {
+        when (toolEntries.size) {
+            0 -> Unit
+            1 -> agentEntries.add(toolEntries.single())
+            else -> agentEntries.add(AgentEntry.ToolGroup(toolEntries.toList()))
+        }
+        toolEntries.clear()
+    }
+
     fun flushAgent() {
+        flushTools()
         if (agentEntries.isNotEmpty()) {
             turns += ChatTurn.Agent(agentEntries.toList())
             agentEntries.clear()
@@ -96,10 +115,12 @@ fun groupIntoTurns(messages: List<ChatMessage>): List<ChatTurn> {
             // stable content prefix and route it as a system event too, tagging
             // it so the timeline chip can name it.
             message.isTimelineMarker() -> {
+                flushTools()
                 agentEntries += AgentEntry.SystemEvent(message)
             }
 
             message.isSyntheticSystemRow() -> {
+                flushTools()
                 agentEntries +=
                     AgentEntry.SystemEvent(message.copy(displayKind = DisplayKind.MAX_ITERATIONS_REACHED))
             }
@@ -110,6 +131,7 @@ fun groupIntoTurns(messages: List<ChatMessage>): List<ChatTurn> {
             }
 
             MessageRole.ASSISTANT == message.role -> {
+                flushTools()
                 agentEntries += AgentEntry.Prose(message)
             }
 
@@ -118,10 +140,11 @@ fun groupIntoTurns(messages: List<ChatMessage>): List<ChatTurn> {
             }
 
             MessageRole.TOOL == message.role -> {
-                agentEntries += AgentEntry.ToolRow(message)
+                toolEntries += AgentEntry.ToolRow(message)
             }
 
             MessageRole.SYSTEM == message.role -> {
+                flushTools()
                 agentEntries += AgentEntry.SystemEvent(message)
             }
         }
@@ -184,8 +207,9 @@ internal fun appendStreamingTurn(
 fun messageIdToLazyIndex(
     turns: List<ChatTurn>,
     leadingItems: Int = 0,
+    expandedToolGroupIds: Set<String> = emptySet(),
 ): Map<String, Int> =
-    fullBleedItemKeys(turns)
+    fullBleedItemKeys(turns, expandedToolGroupIds)
         .mapIndexedNotNull { index, key ->
             if (key.startsWith("user-") || key.startsWith("prose-")) {
                 key.substringAfter('-') to index + leadingItems
@@ -198,6 +222,7 @@ fun searchMatchToLazyIndex(
     turns: List<ChatTurn>,
     messages: List<ChatMessage>,
     match: SearchMatch,
+    expandedToolGroupIds: Set<String> = emptySet(),
 ): Int? {
     val message = messages.getOrNull(match.messageIndex) ?: return null
     val prefix =
@@ -206,7 +231,7 @@ fun searchMatchToLazyIndex(
             SearchTarget.REASONING -> "reasoning"
             SearchTarget.TOOL -> "tool"
         }
-    val keys = fullBleedItemKeys(turns)
+    val keys = fullBleedItemKeys(turns, expandedToolGroupIds)
     keys.indexOf("$prefix-${message.id}").takeIf { it >= 0 }?.let { return it }
     // Non-hoisted reasoning renders inside its message's prose row, not as its own row.
     return if (match.target == SearchTarget.REASONING) {
@@ -217,7 +242,10 @@ fun searchMatchToLazyIndex(
 }
 
 /** Lazy row identities, including hoisted reasoning and grouped tool/system entries. */
-internal fun fullBleedItemKeys(turns: List<ChatTurn>): List<String> =
+internal fun fullBleedItemKeys(
+    turns: List<ChatTurn>,
+    expandedToolGroupIds: Set<String> = emptySet(),
+): List<String> =
     buildList {
         turns.forEach { turn ->
             when (turn) {
@@ -245,6 +273,17 @@ internal fun fullBleedItemKeys(turns: List<ChatTurn>): List<String> =
                                 add("tool-${entry.message.id}")
                             }
 
+                            is AgentEntry.ToolGroup -> {
+                                if (entry.entries.size == 1) {
+                                    add("tool-${entry.id}")
+                                } else {
+                                    add(entry.key)
+                                    if (entry.id in expandedToolGroupIds) {
+                                        entry.entries.forEach { add("tool-${it.message.id}") }
+                                    }
+                                }
+                            }
+
                             is AgentEntry.SystemEvent -> {
                                 add("sys-${entry.message.id}")
                             }
@@ -254,6 +293,46 @@ internal fun fullBleedItemKeys(turns: List<ChatTurn>): List<String> =
             }
         }
     }
+
+/** Match groups by member identity so a prepended history page can extend an open group. */
+internal fun expandedToolGroups(
+    turns: List<ChatTurn>,
+    expandedMemberIds: Set<String>,
+): Set<String> =
+    turns
+        .filterIsInstance<ChatTurn.Agent>()
+        .flatMap { it.entries.filterIsInstance<AgentEntry.ToolGroup>() }
+        .filter { group -> group.entries.any { it.message.id in expandedMemberIds } }
+        .mapTo(mutableSetOf()) { it.id }
+
+internal fun toolMemberIds(turns: List<ChatTurn>): Set<String> =
+    turns
+        .filterIsInstance<ChatTurn.Agent>()
+        .flatMap { agent ->
+            agent.entries.flatMap { entry ->
+                when (entry) {
+                    is AgentEntry.ToolRow -> listOf(entry.message.id)
+                    is AgentEntry.ToolGroup -> entry.entries.map { it.message.id }
+                    else -> emptyList()
+                }
+            }
+        }.toSet()
+
+internal fun activeToolMemberIds(
+    turns: List<ChatTurn>,
+    expandedMemberIds: Set<String>,
+): Set<String> = expandedMemberIds intersect toolMemberIds(turns)
+
+internal fun toolGroupForMessage(
+    turns: List<ChatTurn>,
+    messageId: String,
+): AgentEntry.ToolGroup? =
+    turns
+        .filterIsInstance<ChatTurn.Agent>()
+        .asSequence()
+        .flatMap { it.entries.asSequence() }
+        .filterIsInstance<AgentEntry.ToolGroup>()
+        .firstOrNull { group -> group.entries.any { it.message.id == messageId } }
 
 /**
  * Resolve the message id of the CURRENT search match once, so per-item

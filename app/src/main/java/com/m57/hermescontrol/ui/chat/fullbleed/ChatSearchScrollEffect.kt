@@ -1,11 +1,14 @@
 package com.m57.hermescontrol.ui.chat.fullbleed
 
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import com.m57.hermescontrol.ui.chat.ChatMessage
 import com.m57.hermescontrol.ui.chat.ChatSearchState
 import com.m57.hermescontrol.ui.chat.components.ChatScrollController
 import com.m57.hermescontrol.ui.chat.searchTextFor
+import kotlinx.coroutines.flow.first
 
 /** Resolve a search hit against emitted lazy rows, including hoisted reasoning and tool rows. */
 @Composable
@@ -14,6 +17,8 @@ internal fun ChatSearchScrollEffect(
     messages: List<ChatMessage>,
     renderedFirstId: String?,
     turns: List<ChatTurn>,
+    expandedToolGroupIds: Set<String>,
+    listState: LazyListState,
     scrollController: ChatScrollController,
 ) {
     LaunchedEffect(
@@ -25,6 +30,7 @@ internal fun ChatSearchScrollEffect(
         searchState.currentMatchId,
         messages,
         renderedFirstId,
+        expandedToolGroupIds,
     ) {
         val index = searchState.currentIndex
         if (!searchState.isActive || index !in searchState.matchIndices.indices) return@LaunchedEffect
@@ -40,7 +46,10 @@ internal fun ChatSearchScrollEffect(
                 target = target,
             )
         // A hit in a staged history prefix is retried when the prefix enters layout.
-        val lazyIndex = searchMatchToLazyIndex(turns, messages, match) ?: return@LaunchedEffect
+        val keys = fullBleedItemKeys(turns, expandedToolGroupIds)
+        val lazyIndex = searchMatchToLazyIndex(turns, messages, match, expandedToolGroupIds) ?: return@LaunchedEffect
+        // Search may have just expanded an offscreen group. Wait for the new item provider.
+        snapshotFlow { listState.layoutInfo.totalItemsCount }.first { it >= keys.size }
         scrollController.scrollToSearchMatch(lazyIndex, match.contentOffset, searchTextFor(message, target).length)
     }
 }

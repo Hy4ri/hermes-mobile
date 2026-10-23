@@ -693,6 +693,8 @@ fun ChatScreen(
                             modifier = Modifier.testTag("chat_menu_session_integrations"),
                         )
                     }
+                    val exportShareTitle = stringResource(R.string.chat_export_share_chooser)
+                    val exportFailedMessage = stringResource(R.string.chat_export_failed)
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.chat_action_export)) },
                         leadingIcon = {
@@ -724,16 +726,15 @@ fun ChatScreen(
                                                 putExtra(Intent.EXTRA_TEXT, text)
                                                 type = "text/plain"
                                             }
-                                        val chooserTitle = context.getString(R.string.chat_export_share_chooser)
                                         launchExternalActivity {
-                                            context.startActivity(Intent.createChooser(sendIntent, chooserTitle))
+                                            context.startActivity(Intent.createChooser(sendIntent, exportShareTitle))
                                         }
                                     } catch (e: Exception) {
                                         val msg = e.message ?: "Unknown error"
                                         Toast
                                             .makeText(
                                                 context,
-                                                context.getString(R.string.chat_export_failed, msg),
+                                                String.format(exportFailedMessage, msg),
                                                 Toast.LENGTH_SHORT,
                                             ).show()
                                     }

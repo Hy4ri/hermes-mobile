@@ -78,10 +78,18 @@ class AnalyticsViewModel(
     }
 
     /** Reload both analytics endpoints for the current [days]/[profile]. */
-    fun load() {
+    fun load(forceRefresh: Boolean = false) {
         loadJob?.cancel()
         val days = _uiState.value.days
         val profile = _uiState.value.profile
+
+        // An explicit refresh keeps the current data on screen but shows the
+        // refresh indicator until the fetch lands.
+        if (forceRefresh) {
+            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            fetchAndCache(days, profile, showLoading = true)
+            return
+        }
 
         // Serve from cache instantly if available.
         cache[days]?.let { cached ->

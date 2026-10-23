@@ -252,6 +252,10 @@
 
     <!-- Chat Screen & Bubble -->
     <string name="chat_action_search">Search</string>
+    <string name="chat_action_export">Export chat</string>
+    <string name="chat_export_title">Export chat transcript</string>
+    <string name="chat_export_failed">Could not export chat: %1$s</string>
+    <string name="chat_export_share_chooser">Share chat transcript</string>
     <string name="chat_action_close_search">Close search</string>
     <string name="chat_action_timeline">Timeline</string>
     <string name="chat_timeline_title">Conversation timeline</string>
@@ -294,6 +298,8 @@
     <string name="chat_busy_interrupt">Hard interrupt, then send</string>
     <string name="chat_busy_interrupt_warning">Hard interrupt can stop child agents. Queue and guide let current work continue.</string>
     <string name="chat_pending_sends">Pending messages</string>
+    <string name="chat_pending_sheet_hint">Waiting on this device. Send one now or dismiss it.</string>
+    <string name="chat_pending_offline_hint">Reconnect to send</string>
     <string name="chat_send_accepted">Accepted by server</string>
     <plurals name="chat_pending_count">
         <item quantity="one">%d pending message</item>
@@ -2033,4 +2039,24 @@
     <string name="profile_lock_disabled_toast">Profile lock is off</string>
     <string name="profile_lock_connection_blocked">Profile lock is on. This request needs credentials, so the owner must turn off the lock first.</string>
     <string name="profile_lock_landing_body">Sign-in and server connections are locked. The owner can turn off the lock to sign in again.</string>
+    <plurals name="chat_tool_group_calls">
+        <item quantity="one">%1$d tool call</item>
+        <item quantity="other">%1$d tool calls</item>
+    </plurals>
+    <plurals name="chat_tool_group_running">
+        <item quantity="one">%1$d running</item>
+        <item quantity="other">%1$d running</item>
+    </plurals>
+    <plurals name="chat_tool_group_failed">
+        <item quantity="one">%1$d failed</item>
+        <item quantity="other">%1$d failed</item>
+    </plurals>
+    <plurals name="chat_tool_group_completed">
+        <item quantity="one">%1$d completed</item>
+        <item quantity="other">%1$d completed</item>
+    </plurals>
+    <string name="chat_tool_group_expand">Expand</string>
+    <string name="chat_tool_group_collapse">Collapse</string>
+    <string name="settings_item_group_consecutive_tools">Group consecutive tool calls</string>
+    <string name="settings_desc_group_consecutive_tools">Collapse back-to-back tool executions into an expandable header</string>
 </resources>

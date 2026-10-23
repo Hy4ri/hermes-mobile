@@ -61,6 +61,22 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun groupConsecutiveToolsLoadsAndPersistsToggle() {
+        var persisted = false
+        every { AuthManager.isGroupConsecutiveTools() } answers { persisted }
+        every { AuthManager.setGroupConsecutiveTools(any()) } answers { persisted = firstArg() }
+        val viewModel = createViewModel()
+        assertEquals(false, viewModel.uiState.value.groupConsecutiveTools)
+
+        viewModel.onGroupConsecutiveToolsChange(true)
+        assertEquals(true, persisted)
+        assertEquals(true, viewModel.uiState.value.groupConsecutiveTools)
+        viewModel.onGroupConsecutiveToolsChange(false)
+        assertEquals(false, persisted)
+        assertEquals(false, viewModel.uiState.value.groupConsecutiveTools)
+    }
+
+    @Test
     fun keepScreenAwakeLoadsTogglesAndRefreshes() {
         var persisted = true
         every { AuthManager.isKeepScreenAwake() } answers { persisted }
@@ -127,6 +143,7 @@ class SettingsViewModelTest {
         every { AuthManager.isAssistantMessageTokensEnabled() } returns true
         every { AuthManager.isTokensPerSecondEnabled() } returns true
         every { AuthManager.isModelProviderShown() } returns false
+        every { AuthManager.isGroupConsecutiveTools() } returns false
         every { AuthManager.isKeepScreenAwake() } returns false
         every { AuthManager.setKeepScreenAwake(any()) } returns Unit
         every { AuthManager.isKeepConnectedInBackground() } returns false
@@ -151,6 +168,7 @@ class SettingsViewModelTest {
         every { AuthManager.setAssistantMessageTokensEnabled(any()) } returns Unit
         every { AuthManager.setTokensPerSecondEnabled(any()) } returns Unit
         every { AuthManager.setModelProviderShown(any()) } returns Unit
+        every { AuthManager.setGroupConsecutiveTools(any()) } returns Unit
         every { AuthManager.setKeepConnectedInBackground(any()) } returns Unit
         every { AuthManager.setSelectedProfileId(any()) } answers {
             storedSelectedProfileId = firstArg()
@@ -167,11 +185,9 @@ class SettingsViewModelTest {
         mockkObject(ProfileSwitchCoordinator)
         coEvery { ProfileSwitchCoordinator.switchConnectionProfile(any()) } answers {
             storedSelectedProfileId = firstArg()
-            Unit
         }
         coEvery { ProfileSwitchCoordinator.prepareConnectionProfile(any()) } answers {
             storedSelectedProfileId = firstArg()
-            Unit
         }
         every { ApiClient.rebuild() } returns Unit
     }

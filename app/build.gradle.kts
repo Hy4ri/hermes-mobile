@@ -10,8 +10,8 @@ plugins {
 
 android {
     namespace = "com.m57.hermescontrol"
-    sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
-    sourceSets.getByName("androidTest").assets.srcDir("$projectDir/src/test/resources/tls")
+    sourceSets.getByName("androidTest").assets.directories.add("$projectDir/schemas")
+    sourceSets.getByName("androidTest").assets.directories.add("$projectDir/src/test/resources/tls")
 
     lint {
         disable += "MissingTranslation"
@@ -192,6 +192,7 @@ dependencies {
     implementation(libs.latex.base)
     implementation(libs.latex.parser)
     implementation(libs.latex.renderer)
+    implementation(libs.latex.fonts.katex)
 
     // Image loading (Coil 3)
     implementation(libs.coil.compose)

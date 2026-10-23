@@ -68,6 +68,7 @@ class KeysViewModelTest {
         // Seed initial categories via reflection (no test-only seeding path exists in source)
         val uiStateField = KeysViewModel::class.java.getDeclaredField("_uiState")
         uiStateField.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
         val uiStateFlow =
             uiStateField.get(viewModel) as MutableStateFlow<KeysUiState>
 

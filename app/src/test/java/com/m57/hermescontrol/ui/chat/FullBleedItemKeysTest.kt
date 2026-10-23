@@ -1,5 +1,9 @@
 package com.m57.hermescontrol.ui.chat
 
+import com.m57.hermescontrol.ui.chat.fullbleed.AgentEntry
+import com.m57.hermescontrol.ui.chat.fullbleed.ChatTurn
+import com.m57.hermescontrol.ui.chat.fullbleed.activeToolMemberIds
+import com.m57.hermescontrol.ui.chat.fullbleed.expandedToolGroups
 import com.m57.hermescontrol.ui.chat.fullbleed.fullBleedItemKeys
 import com.m57.hermescontrol.ui.chat.fullbleed.groupIntoTurns
 import com.m57.hermescontrol.ui.chat.fullbleed.messageIdToLazyIndex
@@ -54,6 +58,85 @@ class FullBleedItemKeysTest {
             keys.indexOf("prose-a2"),
             searchMatchToLazyIndex(turns, messages, SearchMatch(1, 0, SearchTarget.REASONING)),
         )
+    }
+
+    @Test
+    fun groupedToolsKeepExactSearchAndProseIndicesWhenOpened() {
+        val messages =
+            listOf(
+                ChatMessage("u", MessageRole.USER, "question"),
+                ChatMessage("t1", MessageRole.TOOL, "first output"),
+                ChatMessage("t2", MessageRole.TOOL, "second output"),
+                ChatMessage("a", MessageRole.ASSISTANT, "answer", reasoningText = "thinking"),
+            )
+        val turns = groupIntoTurns(messages, groupConsecutiveTools = true)
+        assertEquals(listOf("user-u", "reasoning-a", "toolgroup-t1", "prose-a"), fullBleedItemKeys(turns))
+        val expanded = setOf("t1")
+        assertEquals(
+            listOf("user-u", "reasoning-a", "toolgroup-t1", "tool-t1", "tool-t2", "prose-a"),
+            fullBleedItemKeys(turns, expanded),
+        )
+        assertEquals(4, searchMatchToLazyIndex(turns, messages, SearchMatch(2, 0, SearchTarget.TOOL), expanded))
+        assertEquals(5, messageIdToLazyIndex(turns, expandedToolGroupIds = expanded)["a"])
+        assertEquals(3, messageIdToLazyIndex(turns)["a"])
+    }
+
+    @Test
+    fun consecutiveToolsAreNotGroupedWhenSettingIsDisabled() {
+        val messages =
+            listOf(
+                ChatMessage("u", MessageRole.USER, "question"),
+                ChatMessage("t1", MessageRole.TOOL, "first output"),
+                ChatMessage("t2", MessageRole.TOOL, "second output"),
+                ChatMessage("a", MessageRole.ASSISTANT, "answer", reasoningText = "thinking"),
+            )
+        val turns = groupIntoTurns(messages, groupConsecutiveTools = false)
+        assertEquals(
+            listOf("user-u", "reasoning-a", "tool-t1", "tool-t2", "prose-a"),
+            fullBleedItemKeys(turns),
+        )
+    }
+
+    @Test
+    fun prependedToolsPreserveGroupExpansionThroughMemberIdentity() {
+        val first = ChatMessage("t1", MessageRole.TOOL, "one")
+        val second = ChatMessage("t2", MessageRole.TOOL, "two")
+        val turns =
+            groupIntoTurns(
+                listOf(ChatMessage("old", MessageRole.TOOL, "old"), first, second),
+                groupConsecutiveTools = true,
+            )
+        assertEquals(setOf("old"), expandedToolGroups(turns, setOf("t1", "t2")))
+    }
+
+    @Test
+    fun staleExpandedMembersAreIgnoredWhenTranscriptChanges() {
+        val current =
+            groupIntoTurns(
+                listOf(
+                    ChatMessage("current-1", MessageRole.TOOL, "one"),
+                    ChatMessage("current-2", MessageRole.TOOL, "two"),
+                ),
+                groupConsecutiveTools = true,
+            )
+        assertEquals(setOf("current-1"), activeToolMemberIds(current, setOf("old", "current-1")))
+        assertEquals(emptySet<String>(), activeToolMemberIds(current, setOf("old")))
+    }
+
+    @Test
+    fun singletonGroupKeepsTheOriginalToolKey() {
+        val tool = ChatMessage("single", MessageRole.TOOL, "output")
+        val turns = listOf(ChatTurn.Agent(listOf(AgentEntry.ToolGroup(listOf(AgentEntry.ToolRow(tool))))))
+        assertEquals(listOf("tool-single"), fullBleedItemKeys(turns))
+    }
+
+    @Test
+    fun groupingDoesNotChangeRealCallMilestones() {
+        val tools = (1..12).map { ChatMessage("t$it", MessageRole.TOOL, "output") }
+        val turns = groupIntoTurns(tools, groupConsecutiveTools = true)
+        assertEquals(listOf("toolgroup-t1"), fullBleedItemKeys(turns))
+        assertEquals(mapOf("t5" to 5, "t10" to 10), toolCallMilestones(tools))
+        assertEquals(13, fullBleedItemKeys(turns, setOf("t1")).size)
     }
 
     @Test

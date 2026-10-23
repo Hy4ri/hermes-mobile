@@ -4,6 +4,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class StreamingBufferTest {
     @Test
     fun channelsThrottleIndependentlyAndFlushCumulativeText() =

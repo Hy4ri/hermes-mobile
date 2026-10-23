@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_reply_failed_title">تعذّر على هيرميس إكمال هذا الرد</string>
+    <string name="chat_reply_failed_description">حدث خطأ أثناء رد هيرميس. افتح التفاصيل أو السجلات لمعرفة ما حدث.</string>
+    <string name="chat_reply_failed_details">التفاصيل</string>
+    <string name="chat_reply_failed_details_collapsed">مطوي</string>
+    <string name="chat_reply_failed_details_expanded">موسّع</string>
+    <string name="chat_reply_failed_copy">نسخ تفاصيل الخطأ</string>
+    <string name="chat_reply_failed_logs">فتح السجلات</string>
+    <string name="chat_reply_failed_share">مشاركة بيانات التشخيص</string>
+    <string name="chat_reply_failed_share_note">راجع التفاصيل قبل المشاركة. تتضمن بيانات التشخيص هذا الخطأ وإصدار التطبيق، ولا تشمل محادثتك أو مرفقاتك.</string>
+    <string name="chat_reply_failed_dismiss">تجاهل الخطأ</string>
+
+    <string name="chat_reply_failed_copied">تم نسخ تفاصيل الخطأ</string>
+    <string name="chat_reply_failed_share_unavailable">لا يتوفر تطبيق لمشاركة بيانات التشخيص</string>
+</resources>

@@ -29,15 +29,21 @@ object GatewayContract {
     private fun names(key: String): Set<String> =
         (root[key] as JsonArray).map { it.jsonObject["name"]!!.jsonPrimitive.content }.toSet()
 
-    val methods: Set<String> by lazy { names("methods") }
+    /** `methods` plus the canonical session methods the backend lists under `x-canonical-methods`. */
+    private val methodEntries: List<JsonObject> by lazy {
+        listOf("methods", "x-canonical-methods").flatMap { key ->
+            (root[key] as? JsonArray).orEmpty().map { it.jsonObject }
+        }
+    }
+
+    val methods: Set<String> by lazy { methodEntries.map { it["name"]!!.jsonPrimitive.content }.toSet() }
 
     /** Server→client request methods (`x-server-requests`). */
     val serverRequests: Set<String> by lazy { names("x-server-requests") }
 
     private fun paramsSchema(method: String): JsonObject {
         val entry =
-            (root["methods"] as JsonArray)
-                .map { it.jsonObject }
+            methodEntries
                 .first { it["name"]!!.jsonPrimitive.content == method }
         val ref =
             entry["params"]!!
@@ -160,7 +166,6 @@ object GatewayContractAllowlist {
     val entries: Map<String, String> =
         mapOf(
             "gateway.ping" to "handled inline by the WS transport itself (tui_gateway/ws.py), not a contract method",
-            "clarify.respond" to LEGACY,
             "sudo.respond" to LEGACY,
             "secret.respond" to LEGACY,
             "vault.unlock.respond" to LEGACY,

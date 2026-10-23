@@ -902,6 +902,12 @@ object AuthManager {
         serverStore.update { it.copy(showModelProvider = shown) }
     }
 
+    fun isGroupConsecutiveTools(): Boolean = serverStore.getLatestState().groupConsecutiveTools
+
+    fun setGroupConsecutiveTools(enabled: Boolean) {
+        serverStore.update { it.copy(groupConsecutiveTools = enabled) }
+    }
+
     fun isKeepScreenAwake(): Boolean = serverStore.getLatestState().keepScreenAwake
 
     fun setKeepScreenAwake(enabled: Boolean) {

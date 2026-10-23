@@ -193,6 +193,62 @@ class FullBleedTurnsTest {
         )
     }
 
+    @Test
+    fun `consecutive tools group without crossing prose system or user boundaries`() {
+        val tools = (1..8).map { msg("t$it", MessageRole.TOOL) }
+        val prose = msg("a", MessageRole.ASSISTANT)
+        val system = msg("s", MessageRole.SYSTEM)
+        val user = msg("u", MessageRole.USER)
+        assertEquals(
+            listOf(
+                entries(
+                    AgentEntry.ToolGroup(tools.take(2).map { AgentEntry.ToolRow(it) }),
+                    AgentEntry.Prose(prose),
+                    AgentEntry.ToolGroup(tools.subList(2, 4).map { AgentEntry.ToolRow(it) }),
+                    AgentEntry.SystemEvent(system),
+                    AgentEntry.ToolGroup(tools.subList(4, 6).map { AgentEntry.ToolRow(it) }),
+                ),
+                ChatTurn.User(user),
+                entries(AgentEntry.ToolGroup(tools.takeLast(2).map { AgentEntry.ToolRow(it) })),
+            ),
+            groupIntoTurns(
+                tools.take(2) + prose + tools.subList(2, 4) + system + tools.subList(4, 6) +
+                    user + tools.takeLast(2),
+                groupConsecutiveTools = true,
+            ),
+        )
+    }
+
+    @Test
+    fun `consecutive tools stay individual rows when grouping is disabled`() {
+        val tools = (1..3).map { msg("t$it", MessageRole.TOOL) }
+        assertEquals(
+            listOf(entries(AgentEntry.ToolRow(tools[0]), AgentEntry.ToolRow(tools[1]), AgentEntry.ToolRow(tools[2]))),
+            groupIntoTurns(tools, groupConsecutiveTools = false),
+        )
+    }
+
+    @Test
+    fun `empty assistant placeholders still break tool runs`() {
+        val first = msg("t1", MessageRole.TOOL)
+        val placeholder = msg("empty", MessageRole.ASSISTANT, content = "")
+        val second = msg("t2", MessageRole.TOOL)
+        assertEquals(
+            listOf(entries(AgentEntry.ToolRow(first), AgentEntry.Prose(placeholder), AgentEntry.ToolRow(second))),
+            groupIntoTurns(listOf(first, placeholder, second), groupConsecutiveTools = true),
+        )
+    }
+
+    @Test
+    fun `streaming prose preserves a settled tool group`() {
+        val tools = (1..3).map { msg("t$it", MessageRole.TOOL) }
+        val streaming = msg("stream", MessageRole.ASSISTANT, isStreaming = true)
+        assertEquals(
+            listOf(entries(AgentEntry.ToolGroup(tools.map { AgentEntry.ToolRow(it) }), AgentEntry.Prose(streaming))),
+            groupIntoTurnsWithStreaming(tools, streaming, groupConsecutiveTools = true),
+        )
+    }
+
     // ── groupIntoTurnsWithStreaming ────────────────────────────────────────
 
     @Test
@@ -495,6 +551,7 @@ class FullBleedTurnsTest {
                 when (it) {
                     is AgentEntry.Prose -> it.message.id
                     is AgentEntry.ToolRow -> it.message.id
+                    is AgentEntry.ToolGroup -> it.entries.joinToString { row -> row.message.id }
                     is AgentEntry.SystemEvent -> it.message.id
                 }
             },

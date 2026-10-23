@@ -79,7 +79,7 @@ open class VoiceNoteRepository(
             is NetworkResult.Success -> {
                 NetworkResult.Success(
                     finalResult.data
-                        ?.transcript
+                        .transcript
                         .orEmpty()
                         .trim(),
                 )

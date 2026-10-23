@@ -159,18 +159,18 @@ class UpdateReceiptFormattingTest {
                 "user_action":{"step":"a","extra":true}},
                 "summary":{"outcome":"partial","followups":[{"step":"s","reason":"r"}],"user_action":null}}""",
             )
+        val receipt = checkNotNull(decoded.receipt)
         assertEquals(
             "s",
-            decoded.receipt!!
-                .followups!!
+            checkNotNull(receipt.followups)
                 .single()
                 .step,
         )
-        assertEquals(true, decoded.receipt!!.userAction != null)
+        assertTrue(receipt.userAction != null)
+        val summary = checkNotNull(decoded.summary)
         assertEquals(
             "r",
-            decoded.summary!!
-                .followups!!
+            checkNotNull(summary.followups)
                 .single()
                 .reason,
         )

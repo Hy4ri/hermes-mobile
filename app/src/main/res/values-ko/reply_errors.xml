@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_reply_failed_title">Hermes가 이 답변을 완료하지 못했습니다</string>
+    <string name="chat_reply_failed_description">Hermes가 응답하는 동안 문제가 발생했습니다. 세부정보나 로그를 열어 발생한 상황을 확인하세요.</string>
+    <string name="chat_reply_failed_details">세부정보</string>
+    <string name="chat_reply_failed_details_collapsed">접힘</string>
+    <string name="chat_reply_failed_details_expanded">펼침</string>
+    <string name="chat_reply_failed_copy">오류 세부정보 복사</string>
+    <string name="chat_reply_failed_logs">로그 열기</string>
+    <string name="chat_reply_failed_share">진단 정보 공유</string>
+    <string name="chat_reply_failed_share_note">공유하기 전에 세부정보를 검토하세요. 진단 정보에는 대화나 첨부 파일이 아닌 이 오류와 앱 버전만 포함됩니다.</string>
+    <string name="chat_reply_failed_dismiss">오류 닫기</string>
+
+    <string name="chat_reply_failed_copied">오류 세부정보가 복사되었습니다</string>
+    <string name="chat_reply_failed_share_unavailable">진단 정보를 공유할 수 있는 앱이 없습니다</string>
+</resources>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_pending_delivery_unverified">لم يتم التحقق من التسليم: هذا لا يعني أن المهمة ما زالت قيد التشغيل. تحقق من التسليم قبل إعادة المحاولة لتجنب الرسائل المكررة.</string>
+    <string name="chat_pending_unknown_released">غير موثق · تم تأكيده محليًا</string>
+    <string name="chat_pending_continue_queue">تأكيد دون إعادة الإرسال</string>
+    <string name="chat_pending_continue_title">هل تريد تأكيد هذا الإرسال غير الموثق؟</string>
+    <string name="chat_pending_continue_warning">يتيح هذا إزالة اختيارية لهذا الإدخال المعلق محليًا. لا يؤكد هذا التسليم أو يعيد إرسال هذه الرسالة أو يحذف المحادثة أو مرفقاتها. يمكن إرسال رسائل جديدة بالفعل دون الحاجة لتأكيد هذا الإدخال.</string>
+    <string name="chat_pending_continue_confirm">تأكيد الإدخال</string>
+    <string name="chat_pending_remove">إزالة من المعلق</string>
+    <string name="chat_pending_remove_title">هل تريد إزالة هذه الرسالة المعلقة؟</string>
+    <string name="chat_pending_remove_warning">يؤدي هذا إلى إزالة الإدخال المعلق محليًا فقط. لا يؤكد التسليم ولا يحذف المحادثة أو مرفقاتها. لن تتم إعادة إرسال هذه الرسالة. ولن تتمكن من إعادة محاولتها من هذه اللوحة بعد الآن.</string>
+    <string name="chat_pending_remove_confirm">إزالة</string>
+    <string name="chat_pending_remove_failed">تعذّرت إزالة الإدخال المعلق. تم الاحتفاظ به؛ حاول مجددًا.</string>
+    <string name="chat_pending_acknowledge_failed">تعذّر تأكيد الإدخال المعلق. تم الاحتفاظ به؛ حاول مجددًا.</string>
+</resources>

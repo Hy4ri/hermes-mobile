@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_image_paste_loading">正在添加粘贴的图片…</string>
+    <string name="chat_image_paste_failed">无法粘贴图片。请检查访问权限后重试。</string>
+    <string name="chat_image_paste_too_large">图片大小超出 10 MB 的附件限制。</string>
+    <string name="chat_image_paste_batch_limit">最多可粘贴 8 张图片，总大小不超过 20 MB。</string>
+    <string name="chat_image_paste_busy">请等待图片加载完成后再粘贴。</string>
+</resources>

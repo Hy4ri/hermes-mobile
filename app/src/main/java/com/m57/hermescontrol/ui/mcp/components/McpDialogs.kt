@@ -43,6 +43,7 @@ import com.m57.hermescontrol.ui.common.toDetailRows
 import com.m57.hermescontrol.ui.mcp.McpServersUiState
 import com.m57.hermescontrol.ui.mcp.McpServersViewModel
 
+@Suppress("DEPRECATION")
 @Composable
 fun McpDialogs(
     state: McpServersUiState,

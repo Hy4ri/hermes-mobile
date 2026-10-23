@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tls_mtls_title">Configurazione TLS e mTLS</string>
+    <string name="tls_mtls_help">TLS limita quale CA può autenticare un server. mTLS seleziona l\'identità del client. Entrambi possono essere configurati per lo stesso nome host e porta HTTPS.</string>
+    <string name="tls_mtls_type">Tipo di configurazione</string>
+    <string name="tls_mtls_delete_help">Eliminare la configurazione %2$s per %1$s? Il certificato Android non verrà eliminato.</string>
+    <string name="tls_restriction_help">La catena del server deve collegarsi alla CA selezionata, che deve essere consentita dall\'impostazione di attendibilità globale attiva. La selezione di una CA utente non abilita \'Considera attendibili le CA installate dall\'utente\'. Senza una configurazione TLS, si applica l\'attendibilità globale. Le modifiche alla configurazione hanno effetto immediato.</string>
+    <string name="tls_ca_certificate">Limitazione CA del server</string>
+    <string name="tls_ca_picker">Seleziona CA Android</string>
+    <string name="tls_ca_system">Sistema</string>
+    <string name="tls_ca_user">Utente</string>
+    <string name="tls_ca_details">Dettagli certificato CA</string>
+    <string name="tls_ca_source">Origine: %1$s</string>
+    <string name="tls_ca_subject">Soggetto: %1$s</string>
+    <string name="tls_ca_issuer">Emittente: %1$s</string>
+    <string name="tls_ca_validity">Valido da %1$s a %2$s</string>
+    <string name="tls_ca_fingerprint">SHA-256: %1$s</string>
+    <string name="tls_ca_empty">Nessun certificato CA in questa origine.</string>
+    <string name="tls_ca_load_error">Impossibile leggere l\'archivio CA di Android. Riapri il selettore e riprova.</string>
+    <string name="tls_ca_loading">Lettura dell\'archivio CA di Android in corso…</string>
+    <string name="tls_type_tls">TLS: limitazione CA del server</string>
+    <string name="tls_type_mtls">mTLS: identità client</string>
+</resources>

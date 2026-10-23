@@ -445,7 +445,7 @@ class SessionsViewModel(
                             val r =
                                 safeApiRead { ApiClient.hermesApi.getSessionInfo(pid) }
                         ) {
-                            is NetworkResult.Success -> r.data?.also { resolvedParentCache[pid] = it }
+                            is NetworkResult.Success -> r.data.also { resolvedParentCache[pid] = it }
                             is NetworkResult.Failure -> null
                         }
                     }
@@ -980,7 +980,10 @@ class SessionsViewModel(
                 val result =
                     safeApiCall {
                         val api = edit?.api ?: ApiClient.hermesApi
-                        val body = SessionRenameRequest(title = newTitle)
+                        val profile =
+                            (edit?.owner ?: currentActionScope())?.activeProfileId
+                                ?: AuthManager.destructiveProfileId()
+                        val body = SessionRenameRequest(title = newTitle, profile = profile)
                         val fencedBody =
                             if (edit != null) {
                                 // Use the checked token, not a newer snapshot that could hide a concurrent edit.
@@ -1119,9 +1122,9 @@ class SessionsViewModel(
                         }
                     val response =
                         if (flag == HistoryFlag.PIN) {
-                            api.setSessionPinned(sessionId, fenced(api, sessionId, body))
+                            api.setSessionPinned(sessionId, fenced(api, sessionId, body, owner.activeProfileId))
                         } else {
-                            api.setSessionArchived(sessionId, fenced(api, sessionId, body))
+                            api.setSessionArchived(sessionId, fenced(api, sessionId, body, owner.activeProfileId))
                         }
                     if (!response.isSuccessful) {
                         return@safeApiCall retrofit2.Response.error<HistoryUndo>(
@@ -1235,7 +1238,7 @@ class SessionsViewModel(
                 if (unchanged) {
                     safeApiCall {
                         // Fence at send time: the change being undone moved the revision on.
-                        val inverse = fenced(undo.api, undo.sessionId, undo.inverse)
+                        val inverse = fenced(undo.api, undo.sessionId, undo.inverse, undo.owner.activeProfileId)
                         if (undo.flag == HistoryFlag.PIN) {
                             undo.api.setSessionPinned(undo.sessionId, inverse)
                         } else {
@@ -1633,9 +1636,13 @@ class SessionsViewModel(
         api: HermesApiService,
         sessionId: String,
         body: SessionRenameRequest,
+        profile: String? = body.profile,
     ): SessionRenameRequest {
-        val fence = mutationFence(api, sessionId) ?: return body
-        return body.copy(
+        // The PATCH reads the profile off the BODY (not the ?profile= query rewrite);
+        // without it a non-launch profile's session is "not found" (issue #1670).
+        val scoped = body.copy(profile = profile)
+        val fence = mutationFence(api, sessionId) ?: return scoped
+        return scoped.copy(
             requestId = UUID.randomUUID().toString(),
             expectedRevision = fence.revision,
             expectedGeneration = fence.generation,

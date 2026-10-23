@@ -100,6 +100,8 @@ fun McpServersBody(
     val dataScope by AuthManager.dataScopeFlow.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
     val context = LocalContext.current
+
+    @Suppress("DEPRECATION")
     val clipboardManager = LocalClipboardManager.current
     var query by remember { mutableStateOf("") }
     var statusFilter by remember { mutableStateOf(StatusFilter.ALL) }

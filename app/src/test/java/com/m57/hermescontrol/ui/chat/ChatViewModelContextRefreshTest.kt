@@ -38,6 +38,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -110,6 +111,7 @@ class ChatViewModelContextRefreshTest {
         every { AuthManager.isAssistantMessageTokensEnabled() } returns true
         every { AuthManager.isTokensPerSecondEnabled() } returns true
         every { AuthManager.isModelProviderShown() } returns false
+        every { AuthManager.isGroupConsecutiveTools() } returns false
         every { AuthManager.isAutoReconnect() } returns false
         every { AuthManager.isRestoreLastSession() } returns false
         every { AuthManager.getLastOpenedSessionId() } returns null
@@ -586,7 +588,7 @@ class ChatViewModelContextRefreshTest {
 
             coEvery { mockApi.getSessionDetail(any(), any()) } coAnswers {
                 kotlinx.coroutines.delay(100)
-                Response.error(500, okhttp3.ResponseBody.create(null, "Server Error"))
+                Response.error(500, "Server Error".toResponseBody())
             }
 
             // Trigger multiple times while in flight

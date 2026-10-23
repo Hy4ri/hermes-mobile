@@ -591,38 +591,45 @@ fun SessionsScreen(
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
             }
-            Row(
+            LazyRow(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = spacing.md, vertical = spacing.sm),
+                        .padding(vertical = spacing.sm),
+                contentPadding = PaddingValues(horizontal = spacing.md),
                 horizontalArrangement = Arrangement.spacedBy(spacing.sm),
             ) {
-                FilterChip(
-                    selected = state.section == HistorySection.CONVERSATIONS,
-                    onClick = { viewModel.selectSection(HistorySection.CONVERSATIONS) },
-                    label = { Text(stringResource(R.string.sessions_tab_conversations)) },
-                    modifier = Modifier.testTag("history_tab_conversations"),
-                )
-                FilterChip(
-                    selected = state.section == HistorySection.AUTOMATIONS,
-                    onClick = { viewModel.selectSection(HistorySection.AUTOMATIONS) },
-                    label = { Text(stringResource(R.string.sessions_tab_automations)) },
-                    modifier = Modifier.testTag("history_tab_automations"),
-                )
-                FilterChip(
-                    selected = state.showArchived,
-                    onClick = { viewModel.toggleShowArchived() },
-                    label = { Text(stringResource(R.string.sessions_tab_archived)) },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = if (state.showArchived) Icons.Filled.Unarchive else Icons.Filled.Archive,
-                            contentDescription = null,
-                            modifier = Modifier.size(FilterChipDefaults.IconSize),
-                        )
-                    },
-                    modifier = Modifier.testTag("sessions_action_toggle_archived"),
-                )
+                item {
+                    FilterChip(
+                        selected = state.section == HistorySection.CONVERSATIONS,
+                        onClick = { viewModel.selectSection(HistorySection.CONVERSATIONS) },
+                        label = { Text(stringResource(R.string.sessions_tab_conversations)) },
+                        modifier = Modifier.testTag("history_tab_conversations"),
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = state.section == HistorySection.AUTOMATIONS,
+                        onClick = { viewModel.selectSection(HistorySection.AUTOMATIONS) },
+                        label = { Text(stringResource(R.string.sessions_tab_automations)) },
+                        modifier = Modifier.testTag("history_tab_automations"),
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = state.showArchived,
+                        onClick = { viewModel.toggleShowArchived() },
+                        label = { Text(stringResource(R.string.sessions_tab_archived)) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = if (state.showArchived) Icons.Filled.Unarchive else Icons.Filled.Archive,
+                                contentDescription = null,
+                                modifier = Modifier.size(FilterChipDefaults.IconSize),
+                            )
+                        },
+                        modifier = Modifier.testTag("sessions_action_toggle_archived"),
+                    )
+                }
             }
 
             // Source chips: hidden until a loaded row actually carries that source.

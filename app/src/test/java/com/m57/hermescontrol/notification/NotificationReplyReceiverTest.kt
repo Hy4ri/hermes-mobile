@@ -89,7 +89,6 @@ class NotificationReplyReceiverTest {
         mockDao = mockk(relaxed = true)
         coEvery { mockDao.upsert(any<ChatMessageEntity>()) } answers {
             upsertCallCount++
-            Unit
         }
         coEvery { mockDao.sessionExists(any<String>()) } returns true
         mockDb = mockk(relaxed = true)
@@ -169,7 +168,6 @@ class NotificationReplyReceiverTest {
         val entitySlot = slot<ChatMessageEntity>()
         coEvery { mockDao.upsert(capture(entitySlot)) } answers {
             upsertCallCount++
-            Unit
         }
 
         givenValidReply("session-abc", "Hello")

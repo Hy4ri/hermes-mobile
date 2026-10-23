@@ -66,7 +66,6 @@ object HermesWsClient {
             isConnected = { transport.isConnected },
             pingRequest = { timeoutMs ->
                 request(WsMethods.GATEWAY_PING, emptyMap(), timeoutMs = timeoutMs).await()
-                Unit
             },
             cancelSocket = { transport.cancelSocket() },
             pendingReply = { transport.pendingReply },

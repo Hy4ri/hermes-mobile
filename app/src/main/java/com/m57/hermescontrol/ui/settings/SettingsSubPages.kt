@@ -227,6 +227,8 @@ internal fun SettingsChatPage(
                 onTokensPerSecondChange = viewModel::onTokensPerSecondChange,
                 showModelProvider = state.showModelProvider,
                 onShowModelProviderChange = viewModel::onShowModelProviderChange,
+                groupConsecutiveTools = state.groupConsecutiveTools,
+                onGroupConsecutiveToolsChange = viewModel::onGroupConsecutiveToolsChange,
             )
         }
     }

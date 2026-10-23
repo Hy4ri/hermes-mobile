@@ -114,8 +114,12 @@ class HistoryUndoTest {
             viewModel.loadSessions(forceRefresh = true)
         }
         compose.onNodeWithTag("session_card_${row.id}").assertIsDisplayed()
-        coVerify(exactly = 1) { api.setSessionArchived(row.id, SessionRenameRequest(archived = true)) }
-        coVerify(exactly = 1) { api.setSessionArchived(row.id, SessionRenameRequest(archived = false)) }
+        coVerify(
+            exactly = 1,
+        ) { api.setSessionArchived(row.id, SessionRenameRequest(archived = true, profile = "test")) }
+        coVerify(
+            exactly = 1,
+        ) { api.setSessionArchived(row.id, SessionRenameRequest(archived = false, profile = "test")) }
     }
 
     @Test
@@ -127,7 +131,9 @@ class HistoryUndoTest {
         compose.onNodeWithText(context.getString(R.string.sessions_undo_action)).assertHasClickAction().performClick()
         compose.onNodeWithText(context.getString(R.string.sessions_undo_done)).assertIsDisplayed()
         compose.runOnIdle { assertFalse(row.pinned == true) }
-        coVerify(exactly = 1) { api.setSessionPinned(row.id, SessionRenameRequest(pinned = false, hidden = false)) }
+        coVerify(exactly = 1) {
+            api.setSessionPinned(row.id, SessionRenameRequest(pinned = false, hidden = false, profile = "test"))
+        }
     }
 
     @Test

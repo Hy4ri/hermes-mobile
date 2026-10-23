@@ -95,11 +95,10 @@ class KanbanBackgroundAlertMonitorTest {
             every { AuthManager.endpointForBuild() } returns endpoint
             every { anyConstructed<KanbanEventsClient>().connect(any(), any(), any(), any(), any()) } answers {
                 connections.trySend(thirdArg<Long?>() to arg<(KanbanEventsEnvelope) -> Unit>(3))
-                Unit
             }
             every { anyConstructed<KanbanEventsClient>().disconnect() } just Runs
             val monitor = spyk(KanbanBackgroundAlertMonitor(context, repository), recordPrivateCalls = true)
-            every { monitor["notifyTask"](any<String>(), any<String>(), any<KanbanAlertKind>()) } answers { Unit }
+            every { monitor["notifyTask"](any<String>(), any<String>(), any<KanbanAlertKind>()) } returns Unit
             try {
                 monitor.start(scope)
                 val (since, onEvents) = withTimeout(5_000) { connections.receive() }

@@ -49,6 +49,7 @@ data class SettingsUiState(
     val showAssistantMessageTokens: Boolean = true,
     val showTokensPerSecond: Boolean = true,
     val showModelProvider: Boolean = false,
+    val groupConsecutiveTools: Boolean = false,
     val keepScreenAwake: Boolean = false,
     val keepConnectedInBackground: Boolean = false,
     val notifySessionCompletions: Boolean = false,
@@ -101,6 +102,7 @@ class SettingsViewModel(
         val showAssistantMessageTokens = AuthManager.isAssistantMessageTokensEnabled()
         val showTokensPerSecond = AuthManager.isTokensPerSecondEnabled()
         val showModelProvider = AuthManager.isModelProviderShown()
+        val groupConsecutiveTools = AuthManager.isGroupConsecutiveTools()
         val keepScreenAwake = AuthManager.isKeepScreenAwake()
         val keepConnectedInBackground = AuthManager.isKeepConnectedInBackground()
         val notifySessionCompletions = AuthManager.isNotifySessionCompletions()
@@ -132,6 +134,7 @@ class SettingsViewModel(
                 showAssistantMessageTokens = showAssistantMessageTokens,
                 showTokensPerSecond = showTokensPerSecond,
                 showModelProvider = showModelProvider,
+                groupConsecutiveTools = groupConsecutiveTools,
                 keepScreenAwake = keepScreenAwake,
                 keepConnectedInBackground = keepConnectedInBackground,
                 notifySessionCompletions = notifySessionCompletions,
@@ -418,6 +421,11 @@ class SettingsViewModel(
         AuthManager.setModelProviderShown(enabled)
     }
 
+    fun onGroupConsecutiveToolsChange(enabled: Boolean) {
+        _uiState.update { it.copy(groupConsecutiveTools = enabled, isSaved = false) }
+        AuthManager.setGroupConsecutiveTools(enabled)
+    }
+
     fun onKeepScreenAwakeChange(enabled: Boolean) {
         AuthManager.setKeepScreenAwake(enabled)
         _uiState.update { it.copy(keepScreenAwake = enabled) }
@@ -485,6 +493,7 @@ class SettingsViewModel(
         AuthManager.setAssistantMessageTokensEnabled(state.showAssistantMessageTokens)
         AuthManager.setTokensPerSecondEnabled(state.showTokensPerSecond)
         AuthManager.setModelProviderShown(state.showModelProvider)
+        AuthManager.setGroupConsecutiveTools(state.groupConsecutiveTools)
         AuthManager.setKeepConnectedInBackground(state.keepConnectedInBackground)
         ApiClient.rebuild()
 

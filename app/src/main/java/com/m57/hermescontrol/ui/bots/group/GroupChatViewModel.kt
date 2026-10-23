@@ -769,7 +769,7 @@ class GroupChatViewModel(
                 // Adaptive extension: if bot is actively working (tokens/tools streamed in last 60s), extend deadline
                 val lastActivity =
                     listOfNotNull(
-                        activeRuntimeId?.let { sessionLastActivity[it] },
+                        sessionLastActivity[activeRuntimeId],
                         activeStoredId?.let { sessionLastActivity[it] },
                     ).maxOrNull() ?: turnStartTime
 

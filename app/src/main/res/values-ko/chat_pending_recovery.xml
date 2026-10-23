@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_pending_delivery_unverified">전송 확인 안 됨: 작업이 계속 실행 중임을 의미하지는 않습니다. 중복 메시지를 방지하려면 다시 시도하기 전에 전송 여부를 확인하세요.</string>
+    <string name="chat_pending_unknown_released">확인되지 않음 · 로컬에서 확인됨</string>
+    <string name="chat_pending_continue_queue">재전송 없이 확인</string>
+    <string name="chat_pending_continue_title">확인되지 않은 이 전송을 확인하시겠습니까?</string>
+    <string name="chat_pending_continue_warning">이 옵션을 사용하면 로컬의 대기 중인 항목을 선택적으로 제거할 수 있습니다. 전송을 보장하거나 메시지를 재전송하지 않으며, 대화나 첨부 파일을 삭제하지도 않습니다. 이 항목을 확인하지 않고도 새 메시지를 바로 보낼 수 있습니다.</string>
+    <string name="chat_pending_continue_confirm">항목 확인</string>
+    <string name="chat_pending_remove">대기 목록에서 제거</string>
+    <string name="chat_pending_remove_title">대기 중인 이 메시지를 제거하시겠습니까?</string>
+    <string name="chat_pending_remove_warning">로컬의 대기 중인 항목만 제거됩니다. 전송을 보장하지 않으며 대화나 첨부 파일을 삭제하지 않습니다. 이 메시지는 재전송되지 않으며, 이 패널에서 다시 시도할 수 없게 됩니다.</string>
+    <string name="chat_pending_remove_confirm">제거</string>
+    <string name="chat_pending_remove_failed">대기 중인 항목을 제거할 수 없습니다. 항목이 유지되었습니다. 다시 시도하세요.</string>
+    <string name="chat_pending_acknowledge_failed">대기 중인 항목을 확인할 수 없습니다. 항목이 유지되었습니다. 다시 시도하세요.</string>
+</resources>

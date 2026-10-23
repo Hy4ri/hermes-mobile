@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_image_paste_loading">붙여넣은 이미지 추가 중…</string>
+    <string name="chat_image_paste_failed">이미지를 붙여넣을 수 없습니다. 권한을 확인하고 다시 시도하세요.</string>
+    <string name="chat_image_paste_too_large">이미지가 첨부 파일 제한 크기인 10MB를 초과합니다.</string>
+    <string name="chat_image_paste_batch_limit">최대 8개, 총 20MB 이하의 이미지를 붙여넣으세요.</string>
+    <string name="chat_image_paste_busy">이미지 로드가 완료될 때까지 기다린 후 다시 붙여넣으세요.</string>
+</resources>

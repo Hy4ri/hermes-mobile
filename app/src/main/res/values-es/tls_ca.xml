@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tls_mtls_title">Configuración de TLS y mTLS</string>
+    <string name="tls_mtls_help">TLS restringe qué CA puede autenticar un servidor. mTLS selecciona tu identidad de cliente. Ambos pueden configurarse para el mismo nombre de host y puerto HTTPS.</string>
+    <string name="tls_mtls_type">Tipo de configuración</string>
+    <string name="tls_mtls_delete_help">¿Eliminar la configuración %2$s para %1$s? Esto no elimina el certificado de Android.</string>
+    <string name="tls_restriction_help">La cadena del servidor debe vincularse a la CA seleccionada, que debe estar permitida por la configuración de confianza global activa. Seleccionar una CA de usuario no habilita \'Confiar en CA instaladas por el usuario\'. Sin una configuración TLS, se aplica la confianza global. Los cambios de configuración se aplican de inmediato.</string>
+    <string name="tls_ca_certificate">Restricción de CA del servidor</string>
+    <string name="tls_ca_picker">Seleccionar CA de Android</string>
+    <string name="tls_ca_system">Sistema</string>
+    <string name="tls_ca_user">Usuario</string>
+    <string name="tls_ca_details">Detalles del certificado de CA</string>
+    <string name="tls_ca_source">Origen: %1$s</string>
+    <string name="tls_ca_subject">Asunto: %1$s</string>
+    <string name="tls_ca_issuer">Emisor: %1$s</string>
+    <string name="tls_ca_validity">Válido desde %1$s hasta %2$s</string>
+    <string name="tls_ca_fingerprint">SHA-256: %1$s</string>
+    <string name="tls_ca_empty">No hay certificados de CA en este origen.</string>
+    <string name="tls_ca_load_error">No se pudo leer el almacén de CA de Android. Vuelve a abrir el selector e inténtalo de nuevo.</string>
+    <string name="tls_ca_loading">Leyendo almacén de CA de Android…</string>
+    <string name="tls_type_tls">TLS: restricción de CA del servidor</string>
+    <string name="tls_type_mtls">mTLS: identidad de cliente</string>
+</resources>

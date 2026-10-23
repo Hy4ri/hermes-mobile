@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="share_attach_failed">첨부할 수 없습니다: %1$s</string>
+</resources>

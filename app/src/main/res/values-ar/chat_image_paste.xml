@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_image_paste_loading">جارٍ إضافة الصور الملصقة…</string>
+    <string name="chat_image_paste_failed">تعذّر لصق الصورة. تحقق من إذن الوصول وحاول مجددًا.</string>
+    <string name="chat_image_paste_too_large">تتجاوز الصورة الحد الأقصى للمرفقات وهو 10 ميغابايت.</string>
+    <string name="chat_image_paste_batch_limit">الصق ما يصل إلى 8 صور بإجمالي لا يتجاوز 20 ميغابايت.</string>
+    <string name="chat_image_paste_busy">انتظر حتى يكتمل تحميل الصور قبل اللصق مجددًا.</string>
+</resources>

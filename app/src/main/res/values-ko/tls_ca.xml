@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tls_mtls_title">TLS 및 mTLS 구성</string>
+    <string name="tls_mtls_help">TLS는 서버를 인증할 수 있는 CA를 제한합니다. mTLS는 클라이언트 ID를 선택합니다. 동일한 호스트 이름 및 HTTPS 포트에 대해 둘 다 구성할 수 있습니다.</string>
+    <string name="tls_mtls_type">구성 유형</string>
+    <string name="tls_mtls_delete_help">%1$s에 대한 %2$s 구성을 삭제하시겠습니까? Android 인증서는 삭제되지 않습니다.</string>
+    <string name="tls_restriction_help">서버 인증서 체인은 활성 전역 신뢰 설정에서 허용된 선택된 CA에 연결되어야 합니다. 사용자 CA를 선택해도 \'사용자가 설치한 CA 신뢰\'가 활성화되지는 않습니다. TLS 구성이 없으면 전역 신뢰가 적용됩니다. 구성 변경 사항은 즉시 적용됩니다.</string>
+    <string name="tls_ca_certificate">서버 CA 제한</string>
+    <string name="tls_ca_picker">Android CA 선택</string>
+    <string name="tls_ca_system">시스템</string>
+    <string name="tls_ca_user">사용자</string>
+    <string name="tls_ca_details">CA 인증서 세부정보</string>
+    <string name="tls_ca_source">소스: %1$s</string>
+    <string name="tls_ca_subject">주체: %1$s</string>
+    <string name="tls_ca_issuer">발급자: %1$s</string>
+    <string name="tls_ca_validity">유효 기간: %1$s ~ %2$s</string>
+    <string name="tls_ca_fingerprint">SHA-256: %1$s</string>
+    <string name="tls_ca_empty">이 소스에 CA 인증서가 없습니다.</string>
+    <string name="tls_ca_load_error">Android CA 저장소를 읽을 수 없습니다. 선택기를 다시 열고 시도하세요.</string>
+    <string name="tls_ca_loading">Android CA 저장소 읽는 중…</string>
+    <string name="tls_type_tls">TLS: 서버 CA 제한</string>
+    <string name="tls_type_mtls">mTLS: 클라이언트 ID</string>
+</resources>

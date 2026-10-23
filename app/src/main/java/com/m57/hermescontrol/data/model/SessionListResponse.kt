@@ -136,6 +136,8 @@ data class SessionRenameRequest(
     @SerialName("request_id") val requestId: String? = null,
     @SerialName("expected_revision") val expectedRevision: Int? = null,
     @SerialName("expected_generation") val expectedGeneration: Int? = null,
+    // PATCH resolves the owning profile from the BODY; the ?profile= query is ignored (issue #1670).
+    val profile: String? = null,
 )
 
 @Serializable

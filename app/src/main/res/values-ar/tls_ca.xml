@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tls_mtls_title">تهيئة TLS و mTLS</string>
+    <string name="tls_mtls_help">يقيّد TLS المرجع المصدق (CA) الذي يمكنه مصادقة الخادم. ويحدد mTLS هوية العميل الخاصة بك. يمكن تهيئة كليهما لنفس اسم المضيف ومنفذ HTTPS.</string>
+    <string name="tls_mtls_type">نوع التهيئة</string>
+    <string name="tls_mtls_delete_help">هل تريد حذف تهيئة %2$s لـ %1$s؟ لن يؤدي هذا إلى حذف شهادة أندرويد.</string>
+    <string name="tls_restriction_help">يجب أن يرتبط الخادم بالمرجع المصدق (CA) المحدد، والذي يجب أن تسمح به إعدادات الثقة العامة النشطة. تحديد مرجع مصدق للمستخدم لا يفعّل \'الوثوق بالمراجع المصدقة المثبتة من قبل المستخدم\'. بدون تهيئة TLS، تنطبق الثقة العامة. تسري تغييرات التهيئة على الفور.</string>
+    <string name="tls_ca_certificate">تقييد المرجع المصدق للخادم</string>
+    <string name="tls_ca_picker">تحديد المرجع المصدق من أندرويد</string>
+    <string name="tls_ca_system">النظام</string>
+    <string name="tls_ca_user">المستخدم</string>
+    <string name="tls_ca_details">تفاصيل شهادة المرجع المصدق</string>
+    <string name="tls_ca_source">المصدر: %1$s</string>
+    <string name="tls_ca_subject">الموضوع: %1$s</string>
+    <string name="tls_ca_issuer">الجهة المصدرة: %1$s</string>
+    <string name="tls_ca_validity">صالحة من %1$s إلى %2$s</string>
+    <string name="tls_ca_fingerprint">SHA-256: %1$s</string>
+    <string name="tls_ca_empty">لا توجد شهادات مراجع مصدقة في هذا المصدر.</string>
+    <string name="tls_ca_load_error">تعذّرت قراءة مخزن المراجع المصدقة في أندرويد. أعد فتح أداة التحديد وحاول مجددًا.</string>
+    <string name="tls_ca_loading">جارٍ قراءة مخزن المراجع المصدقة في أندرويد…</string>
+    <string name="tls_type_tls">TLS: تقييد المرجع المصدق للخادم</string>
+    <string name="tls_type_mtls">mTLS: هوية العميل</string>
+</resources>

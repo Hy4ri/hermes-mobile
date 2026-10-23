@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_pending_delivery_unverified">发送未确认：这并不意味着任务仍在运行。在重试之前请确认发送状态，以避免重复发送消息。</string>
+    <string name="chat_pending_unknown_released">未确认 · 已在本地确认</string>
+    <string name="chat_pending_continue_queue">确认但不重新发送</string>
+    <string name="chat_pending_continue_title">确认此未验证的发送？</string>
+    <string name="chat_pending_continue_warning">这将允许从本地待发送队列中移除此条目。此操作不会确认送达、重新发送此消息，也不会删除对话或其附件。无需确认此条目即可继续发送新消息。</string>
+    <string name="chat_pending_continue_confirm">确认条目</string>
+    <string name="chat_pending_remove">从待发送中移除</string>
+    <string name="chat_pending_remove_title">移除此待发送消息？</string>
+    <string name="chat_pending_remove_warning">这仅会移除本地待发送条目。此操作不会确认送达，也不会删除对话或其附件。此消息将不会被重新发送，您也无法再从此面板重试。</string>
+    <string name="chat_pending_remove_confirm">移除</string>
+    <string name="chat_pending_remove_failed">无法移除待发送条目。条目已保留，请重试。</string>
+    <string name="chat_pending_acknowledge_failed">无法确认待发送条目。条目已保留，请重试。</string>
+</resources>

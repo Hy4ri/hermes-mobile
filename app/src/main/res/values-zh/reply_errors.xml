@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_reply_failed_title">Hermes 无法完成此回复</string>
+    <string name="chat_reply_failed_description">Hermes 在回复时出现问题。请打开详情或日志以了解具体情况。</string>
+    <string name="chat_reply_failed_details">详情</string>
+    <string name="chat_reply_failed_details_collapsed">已折叠</string>
+    <string name="chat_reply_failed_details_expanded">已展开</string>
+    <string name="chat_reply_failed_copy">复制错误详情</string>
+    <string name="chat_reply_failed_logs">打开日志</string>
+    <string name="chat_reply_failed_share">分享诊断信息</string>
+    <string name="chat_reply_failed_share_note">分享前请检查详情。诊断信息仅包含此错误和应用版本，不包含您的对话或附件。</string>
+    <string name="chat_reply_failed_dismiss">忽略错误</string>
+
+    <string name="chat_reply_failed_copied">已复制错误详情</string>
+    <string name="chat_reply_failed_share_unavailable">没有可用于分享诊断信息的应用</string>
+</resources>

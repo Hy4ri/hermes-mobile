@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tls_mtls_title">TLS- und mTLS-Konfiguration</string>
+    <string name="tls_mtls_help">TLS schränkt ein, welche CA einen Server authentifizieren darf. mTLS wählt deine Client-Identität aus. Beides kann für denselben Hostnamen und HTTPS-Port konfiguriert werden.</string>
+    <string name="tls_mtls_type">Konfigurationstyp</string>
+    <string name="tls_mtls_delete_help">Die Konfiguration %2$s für %1$s löschen? Dadurch wird das Android-Zertifikat nicht gelöscht.</string>
+    <string name="tls_restriction_help">Die Zertifikatskette des Servers muss zur ausgewählten CA führen, die durch die aktive globale Vertrauenseinstellung zugelassen sein muss. Die Auswahl einer Benutzer-CA aktiviert nicht \'Vom Nutzer installierten CAs vertrauen\'. Ohne eine TLS-Konfiguration gilt das globale Vertrauen. Konfigurationsänderungen werden sofort wirksam.</string>
+    <string name="tls_ca_certificate">Server-CA-Einschränkung</string>
+    <string name="tls_ca_picker">Android-CA auswählen</string>
+    <string name="tls_ca_system">System</string>
+    <string name="tls_ca_user">Nutzer</string>
+    <string name="tls_ca_details">CA-Zertifikatdetails</string>
+    <string name="tls_ca_source">Quelle: %1$s</string>
+    <string name="tls_ca_subject">Betreff: %1$s</string>
+    <string name="tls_ca_issuer">Aussteller: %1$s</string>
+    <string name="tls_ca_validity">Gültig von %1$s bis %2$s</string>
+    <string name="tls_ca_fingerprint">SHA-256: %1$s</string>
+    <string name="tls_ca_empty">Keine CA-Zertifikate in dieser Quelle.</string>
+    <string name="tls_ca_load_error">Der Android-CA-Speicher konnte nicht gelesen werden. Öffne die Auswahl erneut und versuche es noch einmal.</string>
+    <string name="tls_ca_loading">Android-CA-Speicher wird gelesen…</string>
+    <string name="tls_type_tls">TLS: Server-CA-Einschränkung</string>
+    <string name="tls_type_mtls">mTLS: Client-Identität</string>
+</resources>

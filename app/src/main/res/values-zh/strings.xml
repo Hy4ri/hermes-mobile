@@ -1921,4 +1921,9 @@
     <plurals name="task_progress_processes">
         <item quantity="other">%1$d 个进程</item>
     </plurals>
+    <string name="db_unavailable_title">本地数据不可用</string>
+    <string name="db_unavailable_message">无法打开本地聊天数据库。您的数据未被删除。请重试，或将其移开并重新开始。</string>
+    <string name="db_unavailable_retry">重试</string>
+    <string name="db_unavailable_reset">移开并重新开始</string>
+    <string name="db_unavailable_reset_confirm">数据库文件将被重命名为带 .corrupt 后缀，不会被删除。本地聊天记录将从空白开始。</string>
 </resources>

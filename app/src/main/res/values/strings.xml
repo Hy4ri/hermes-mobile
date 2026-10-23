@@ -2059,4 +2059,9 @@
     <string name="chat_tool_group_collapse">Collapse</string>
     <string name="settings_item_group_consecutive_tools">Group consecutive tool calls</string>
     <string name="settings_desc_group_consecutive_tools">Collapse back-to-back tool executions into an expandable header</string>
+    <string name="db_unavailable_title">Local data unavailable</string>
+    <string name="db_unavailable_message">The local chat database could not be opened. Your data has not been deleted. Retry, or move it aside to start fresh.</string>
+    <string name="db_unavailable_retry">Retry</string>
+    <string name="db_unavailable_reset">Move aside and start fresh</string>
+    <string name="db_unavailable_reset_confirm">The database files will be renamed with a .corrupt suffix, not deleted. Local chat history will start empty.</string>
 </resources>

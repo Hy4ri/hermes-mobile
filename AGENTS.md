@@ -238,15 +238,15 @@ Access status colors via `LocalHermesStatusColors.current.success`, not
 
 ### PR-Always (ENFORCED)
 
-**Every change goes through a PR, targeting `dev`. Never push directly to `dev` (or `main`).**
+**Every change goes through a PR, targeting `main`. Never push directly to `main`.**
 
 ```bash
-git checkout dev && git pull origin dev
+git checkout main && git pull origin main
 git checkout -b fix/issue-N-description    # or feat/...
 # make changes, run ./gradlew ktlintFormat ktlintCheck (requires Android SDK)
 git commit -m "fix(#N): description"
 git push -u origin HEAD
-gh pr create --base dev --title "fix(#N): description" --body "Closes #N"
+gh pr create --base main --title "fix(#N): description" --body "Closes #N"
 ```
 
 ### Commit Conventions — STRICT

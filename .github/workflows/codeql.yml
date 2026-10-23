@@ -2,7 +2,7 @@ name: "CodeQL Analysis"
 
 on:
   push:
-    branches: [ "main", "dev" ]
+    branches: [ "main" ]
     paths-ignore:
       - '**.md'
       - 'docs/**'
@@ -17,7 +17,7 @@ on:
       - '.envrc'
       - '*.html'
   pull_request:
-    branches: [ "main", "dev" ]
+    branches: [ "main" ]
     paths-ignore:
       - '**.md'
       - 'docs/**'

@@ -99,7 +99,7 @@ def resolve(gh, event, event_name):
     # trust branch names alone or rely on that array for routing the completion.
     return [
         pr["number"]
-        for pr in gh.pages("pulls?state=open&base=dev")
+        for pr in gh.pages("pulls?state=open&base=main")
         if matches_run(run, pr)
     ]
 
@@ -120,7 +120,7 @@ def recover(gh, number):
     pr = gh.get(f"pulls/{number}")
     if (
         pr["state"] != "open"
-        or pr["base"]["ref"] != "dev"
+        or pr["base"]["ref"] != "main"
         or pr["user"]["type"] == "Bot"
     ):
         return "ineligible"

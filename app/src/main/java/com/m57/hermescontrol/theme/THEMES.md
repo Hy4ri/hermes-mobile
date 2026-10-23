@@ -162,4 +162,4 @@ and explains that it controls status colors while Material You supplies app colo
 - ktlint 1.8.0 is enforced in CI. Run `./gradlew ktlintCheck` before committing
   (the gradle task is the gate, not the standalone `ktlint` binary).
 - Import order is ASCII-lexicographic (uppercase before lowercase).
-- Every change goes through a PR targeting `dev` — never push directly to `main` or `dev`.
+- Every change goes through a PR targeting `main` — never push directly to `main`.

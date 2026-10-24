@@ -101,7 +101,7 @@ private fun SelfImprovementReviewCard(
 @Composable
 internal fun SystemBubble(
     message: ChatMessage,
-    onRespondApproval: (String) -> Unit = {},
+    onRespondApproval: (action: String, requestId: String?) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     if (message.content.contains("Self-improvement review:", ignoreCase = true)) {
@@ -110,6 +110,7 @@ internal fun SystemBubble(
     }
 
     val approvalInfo = message.approvalInfo
+    val targetRequestId = approvalInfo?.requestId ?: approvalInfo?.serverRequestId ?: message.id
     var confirmAlways by remember(message.id) { mutableStateOf(false) }
 
     Column(
@@ -149,7 +150,7 @@ internal fun SystemBubble(
                     when (choice) {
                         "deny" -> {
                             FilledTonalButton(
-                                onClick = { onRespondApproval("deny") },
+                                onClick = { onRespondApproval("deny", targetRequestId) },
                                 modifier =
                                     Modifier
                                         .height(36.dp)
@@ -171,7 +172,7 @@ internal fun SystemBubble(
 
                         "session" -> {
                             FilledTonalButton(
-                                onClick = { onRespondApproval("session") },
+                                onClick = { onRespondApproval("session", targetRequestId) },
                                 modifier =
                                     Modifier
                                         .height(36.dp)
@@ -216,7 +217,7 @@ internal fun SystemBubble(
                         else -> {
                             // "once" (+ legacy "approve" → normalized to once in VM)
                             FilledTonalButton(
-                                onClick = { onRespondApproval(choice) },
+                                onClick = { onRespondApproval(choice, targetRequestId) },
                                 modifier =
                                     Modifier
                                         .height(36.dp)
@@ -254,7 +255,7 @@ internal fun SystemBubble(
                         TextButton(
                             onClick = {
                                 confirmAlways = false
-                                onRespondApproval("always")
+                                onRespondApproval("always", targetRequestId)
                             },
                         ) {
                             Text("Always allow")

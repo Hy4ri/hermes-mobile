@@ -218,18 +218,34 @@ class MainActivity : ComponentActivity() {
                 }
         }
         when (failed) {
-            null -> LoadingState()
-            false -> content()
-            true ->
+            null -> {
+                LoadingState()
+            }
+
+            false -> {
+                content()
+            }
+
+            true -> {
                 Column(
-                    modifier = Modifier.fillMaxSize().padding(24.dp),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
                 ) {
-                    Text(stringResource(R.string.db_unavailable_title), style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        stringResource(R.string.db_unavailable_title),
+                        style = MaterialTheme.typography.titleLarge,
+                    )
                     Text(stringResource(R.string.db_unavailable_message))
-                    Button(onClick = { attempt++ }) { Text(stringResource(R.string.db_unavailable_retry)) }
-                    Button(onClick = { confirmReset = true }) { Text(stringResource(R.string.db_unavailable_reset)) }
+                    Button(onClick = { attempt++ }) {
+                        Text(stringResource(R.string.db_unavailable_retry))
+                    }
+                    Button(onClick = { confirmReset = true }) {
+                        Text(stringResource(R.string.db_unavailable_reset))
+                    }
                 }
+            }
         }
         if (confirmReset) {
             AlertDialog(
@@ -237,16 +253,22 @@ class MainActivity : ComponentActivity() {
                 title = { Text(stringResource(R.string.db_unavailable_reset)) },
                 text = { Text(stringResource(R.string.db_unavailable_reset_confirm)) },
                 confirmButton = {
-                    TextButton(onClick = {
-                        confirmReset = false
-                        scope.launch {
-                            HermesDatabase.quarantine(applicationContext)
-                            attempt++
-                        }
-                    }) { Text(stringResource(R.string.db_unavailable_reset)) }
+                    TextButton(
+                        onClick = {
+                            confirmReset = false
+                            scope.launch {
+                                HermesDatabase.quarantine(applicationContext)
+                                attempt++
+                            }
+                        },
+                    ) {
+                        Text(stringResource(R.string.db_unavailable_reset))
+                    }
                 },
                 dismissButton = {
-                    TextButton(onClick = { confirmReset = false }) { Text(stringResource(android.R.string.cancel)) }
+                    TextButton(onClick = { confirmReset = false }) {
+                        Text(stringResource(android.R.string.cancel))
+                    }
                 },
             )
         }

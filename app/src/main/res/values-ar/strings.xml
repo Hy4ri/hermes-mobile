@@ -2011,4 +2011,9 @@
         <item quantity="many">%1$d قيد التشغيل</item>
         <item quantity="other">%1$d قيد التشغيل</item>
     </plurals>
+    <string name="db_unavailable_title">البيانات المحلية غير متاحة</string>
+    <string name="db_unavailable_message">تعذّر فتح قاعدة بيانات المحادثات المحلية. لم يتم حذف بياناتك. أعد المحاولة أو انقلها جانباً للبدء من جديد.</string>
+    <string name="db_unavailable_retry">إعادة المحاولة</string>
+    <string name="db_unavailable_reset">نقلها جانباً والبدء من جديد</string>
+    <string name="db_unavailable_reset_confirm">سيتم إعادة تسمية ملفات القاعدة بلاحقة .corrupt دون حذفها. سيبدأ سجل المحادثات المحلي فارغاً.</string>
 </resources>

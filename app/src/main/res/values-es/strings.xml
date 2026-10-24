@@ -2062,4 +2062,9 @@
         <item quantity="one">%1$d en ejecución</item>
         <item quantity="other">%1$d en ejecución</item>
     </plurals>
+    <string name="db_unavailable_title">Datos locales no disponibles</string>
+    <string name="db_unavailable_message">No se pudo abrir la base de datos local del chat. Tus datos no se han borrado. Reintenta o apártala para empezar de nuevo.</string>
+    <string name="db_unavailable_retry">Reintentar</string>
+    <string name="db_unavailable_reset">Apartar y empezar de nuevo</string>
+    <string name="db_unavailable_reset_confirm">Los archivos de la base de datos se renombrarán con el sufijo .corrupt, no se borrarán. El historial local empezará vacío.</string>
 </resources>

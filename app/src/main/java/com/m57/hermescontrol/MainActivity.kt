@@ -20,12 +20,14 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -38,9 +40,12 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.m57.hermescontrol.applock.AlertDialog
 import com.m57.hermescontrol.applock.AppLockController
 import com.m57.hermescontrol.applock.AppLockHost
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DatabaseUnavailableException
+import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.remote.requiresLocalNetworkPermission
 import com.m57.hermescontrol.data.update.UpdateNoticeManager
 import com.m57.hermescontrol.data.update.WhatsNewNotice
@@ -174,7 +179,9 @@ class MainActivity : ComponentActivity() {
                                     val savedToken = remember { AuthManager.getToken() }
                                     val savedGatedMode = remember { AuthManager.isGatedMode() }
                                     val savedUrl = remember { AuthManager.getBaseUrl() }
-                                    SavedSessionLanGate(savedToken, savedGatedMode, savedUrl)
+                                    DatabaseGate {
+                                        SavedSessionLanGate(savedToken, savedGatedMode, savedUrl)
+                                    }
                                 }
                             }
 
@@ -190,6 +197,81 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    /** Halts startup with a recovery state if the encrypted database cannot be opened. Never wipes data. */
+    @Composable
+    private fun DatabaseGate(content: @Composable () -> Unit) {
+        var attempt by remember { mutableStateOf(0) }
+        var failed by remember { mutableStateOf<Boolean?>(null) }
+        var confirmReset by remember { mutableStateOf(false) }
+        val scope = rememberCoroutineScope()
+        LaunchedEffect(attempt) {
+            failed = null
+            failed =
+                try {
+                    HermesDatabase.verifyOpen(applicationContext)
+                    false
+                } catch (_: DatabaseUnavailableException) {
+                    true
+                }
+        }
+        when (failed) {
+            null -> {
+                LoadingState()
+            }
+
+            false -> {
+                content()
+            }
+
+            true -> {
+                Column(
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+                ) {
+                    Text(
+                        stringResource(R.string.db_unavailable_title),
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                    Text(stringResource(R.string.db_unavailable_message))
+                    Button(onClick = { attempt++ }) {
+                        Text(stringResource(R.string.db_unavailable_retry))
+                    }
+                    Button(onClick = { confirmReset = true }) {
+                        Text(stringResource(R.string.db_unavailable_reset))
+                    }
+                }
+            }
+        }
+        if (confirmReset) {
+            AlertDialog(
+                onDismissRequest = { confirmReset = false },
+                title = { Text(stringResource(R.string.db_unavailable_reset)) },
+                text = { Text(stringResource(R.string.db_unavailable_reset_confirm)) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            confirmReset = false
+                            scope.launch {
+                                HermesDatabase.quarantine(applicationContext)
+                                attempt++
+                            }
+                        },
+                    ) {
+                        Text(stringResource(R.string.db_unavailable_reset))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { confirmReset = false }) {
+                        Text(stringResource(android.R.string.cancel))
+                    }
+                },
+            )
         }
     }
 

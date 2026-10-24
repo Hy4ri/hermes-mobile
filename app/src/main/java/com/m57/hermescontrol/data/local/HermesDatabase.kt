@@ -138,17 +138,21 @@ abstract class HermesDatabase : RoomDatabase() {
         suspend fun get(context: Context): HermesDatabase =
             withContext(Dispatchers.IO) {
                 instance?.let { return@withContext it }
+                val dbFile = context.getDatabasePath(DB_NAME)
+                // SQLCipher can't open plaintext SQLite databases — a verified legacy
+                // unencrypted DB (v1) is deleted so an encrypted one can be created.
+                // An unreadable file is never deleted: fail safe and preserve it.
+                if (dbFile.exists() && isPlaintextDatabase(dbFile)) {
+                    dbFile.delete()
+                }
+                // A missing key with an existing encrypted DB means the key was lost. Do not
+                // mint a new key: it can never open the existing data.
+                if (dbFile.exists() && dbFile.length() > 0 && !AuthManager.awaitPrefs().contains("db_password")) {
+                    throw DatabaseUnavailableException("Database key is missing; data preserved")
+                }
                 val password = AuthManager.getDatabasePassword()
                 synchronized(this@Companion) {
                     instance?.let { return@synchronized it }
-                    // SQLCipher can't open plaintext SQLite databases — if an old
-                    // unencrypted DB exists (v1), delete it so Room + SQLCipher can
-                    // create an encrypted replacement from scratch.
-                    val dbFile = context.getDatabasePath("hermes_control.db")
-                    if (dbFile.exists() && !isSqlCipherDatabase(dbFile)) {
-                        dbFile.delete()
-                    }
-
                     // Load SQLCipher native library before creating the driver
                     System.loadLibrary("sqlcipher")
                     val driver =
@@ -162,7 +166,7 @@ abstract class HermesDatabase : RoomDatabase() {
                         .databaseBuilder(
                             context.applicationContext,
                             HermesDatabase::class.java,
-                            "hermes_control.db",
+                            DB_NAME,
                         ).setDriver(driver)
                         .addMigrations(
                             MIGRATION_2_3,
@@ -180,18 +184,61 @@ abstract class HermesDatabase : RoomDatabase() {
                 }
             }
 
-        /** Returns true if the database file starts with the SQLCipher magic header. */
-        private fun isSqlCipherDatabase(file: File): Boolean =
+        private const val DB_NAME = "hermes_control.db"
+
+        /**
+         * Opens the database and runs a trivial query so a wrong key or corrupt file fails here.
+         * On failure the file is left untouched and [DatabaseUnavailableException] is thrown.
+         */
+        suspend fun verifyOpen(context: Context) {
             try {
-                val header = ByteArray(16)
-                file.inputStream().use { it.read(header) }
-                // SQLCipher 4.x databases start with bytes that differ from
-                // the plaintext SQLite header "SQLite format 3\0"
-                val plaintextHeader = "SQLite format 3\u0000"
-                !header.contentEquals(plaintextHeader.toByteArray())
-            } catch (_: Exception) {
-                false // if we can't read it, treat as plaintext and delete
+                get(context).chatMessageDao().sessionExists("")
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: DatabaseUnavailableException) {
+                throw e
+            } catch (e: Exception) {
+                synchronized(this@Companion) {
+                    runCatching { instance?.close() }
+                    instance = null
+                }
+                throw DatabaseUnavailableException("Cannot open local database; data preserved", e)
             }
+        }
+
+        /** Moves the database aside (never deletes) so a fresh one can be created. */
+        suspend fun quarantine(context: Context): Boolean =
+            withContext(Dispatchers.IO) {
+                synchronized(this@Companion) {
+                    runCatching { instance?.close() }
+                    instance = null
+                    val stamp = System.currentTimeMillis()
+                    val base = context.getDatabasePath(DB_NAME)
+                    var ok = true
+                    for (suffix in listOf("", "-wal", "-shm", "-journal")) {
+                        val f = File(base.path + suffix)
+                        if (f.exists()) ok = f.renameTo(File("${f.path}.corrupt-$stamp")) && ok
+                    }
+                    ok
+                }
+            }
+
+        /**
+         * Returns true only if the file verifiably starts with the plaintext SQLite header.
+         * Throws [DatabaseUnavailableException] if the header cannot be read, so the file is preserved.
+         */
+        internal fun isPlaintextDatabase(file: File): Boolean {
+            val header = ByteArray(PLAINTEXT_HEADER.size)
+            val read =
+                try {
+                    file.inputStream().use { it.read(header) }
+                } catch (e: java.io.IOException) {
+                    throw DatabaseUnavailableException("Cannot read local database; data preserved", e)
+                }
+            return read == header.size && header.contentEquals(PLAINTEXT_HEADER)
+        }
+
+        private val PLAINTEXT_HEADER = "SQLite format 3\u0000".toByteArray()
 
         /** For testing — inject a custom instance. */
         fun setForTest(db: HermesDatabase?) {
@@ -199,3 +246,9 @@ abstract class HermesDatabase : RoomDatabase() {
         }
     }
 }
+
+/** Local database could not be opened safely. The database file is left untouched. */
+class DatabaseUnavailableException(
+    message: String,
+    cause: Throwable? = null,
+) : RuntimeException(message, cause)

@@ -2066,4 +2066,9 @@
         <item quantity="one">%1$d wird ausgeführt</item>
         <item quantity="other">%1$d werden ausgeführt</item>
     </plurals>
+    <string name="db_unavailable_title">Lokale Daten nicht verfügbar</string>
+    <string name="db_unavailable_message">Die lokale Chat-Datenbank konnte nicht geöffnet werden. Deine Daten wurden nicht gelöscht. Erneut versuchen oder beiseite verschieben und neu beginnen.</string>
+    <string name="db_unavailable_retry">Erneut versuchen</string>
+    <string name="db_unavailable_reset">Beiseite verschieben und neu beginnen</string>
+    <string name="db_unavailable_reset_confirm">Die Datenbankdateien werden mit der Endung .corrupt umbenannt, nicht gelöscht. Der lokale Chatverlauf beginnt leer.</string>
 </resources>

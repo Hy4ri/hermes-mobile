@@ -36,7 +36,8 @@ internal fun ActionFeedbackSnackbarHost(hostState: SnackbarHostState) {
             snackbarData = data,
             containerColor = MaterialTheme.colorScheme.errorContainer,
             contentColor = MaterialTheme.colorScheme.onErrorContainer,
-            actionContentColor = MaterialTheme.colorScheme.onErrorContainer,
+            // `actionColor` tints the Copy button; `actionContentColor` only applies to a custom action slot.
+            actionColor = MaterialTheme.colorScheme.onErrorContainer,
             dismissActionContentColor = MaterialTheme.colorScheme.onErrorContainer,
         )
     }

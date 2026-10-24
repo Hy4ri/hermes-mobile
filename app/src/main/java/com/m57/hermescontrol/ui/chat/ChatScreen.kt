@@ -601,6 +601,10 @@ fun ChatScreen(
                         if (isDownloadComplete) statusColors.success else MaterialTheme.colorScheme.errorContainer,
                     contentColor =
                         if (isDownloadComplete) statusColors.onSuccess else MaterialTheme.colorScheme.onErrorContainer,
+                    actionColor =
+                        if (isDownloadComplete) statusColors.onSuccess else MaterialTheme.colorScheme.onErrorContainer,
+                    dismissActionContentColor =
+                        if (isDownloadComplete) statusColors.onSuccess else MaterialTheme.colorScheme.onErrorContainer,
                 )
             }
         },

@@ -42,6 +42,7 @@ class ThemeComponentContrastTest {
                         "field error label/surface" to (c.error to c.surface),
                         "segment selected content/container" to (c.onSecondaryContainer to c.secondaryContainer),
                         "segment unselected content/surface" to (c.onSurface to c.surface),
+                        "error snackbar action/container" to (c.onErrorContainer to c.errorContainer),
                     )
                 graphics.forEach { (name, pair) -> checkPair(preset, dark, name, pair, 3f) }
                 text.forEach { (name, pair) -> checkPair(preset, dark, name, pair, 4.5f) }

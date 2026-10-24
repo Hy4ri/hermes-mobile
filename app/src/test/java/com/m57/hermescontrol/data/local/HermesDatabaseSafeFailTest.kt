@@ -7,7 +7,11 @@ import org.junit.Test
 import java.io.File
 
 class HermesDatabaseSafeFailTest {
-    private fun tmp(bytes: ByteArray): File = File.createTempFile("hermesdb", ".db").apply { writeBytes(bytes); deleteOnExit() }
+    private fun tmp(bytes: ByteArray): File =
+        File.createTempFile("hermesdb", ".db").apply {
+            writeBytes(bytes)
+            deleteOnExit()
+        }
 
     @Test
     fun plaintextHeaderDetected() {
@@ -22,7 +26,12 @@ class HermesDatabaseSafeFailTest {
 
     @Test
     fun unreadableFileThrowsInsteadOfDeleting() {
-        val dir = File.createTempFile("hermesdir", "").apply { delete(); mkdir(); deleteOnExit() }
+        val dir =
+            File.createTempFile("hermesdir", "").apply {
+                delete()
+                mkdir()
+                deleteOnExit()
+            }
         try {
             HermesDatabase.isPlaintextDatabase(dir)
             fail("expected exception")

@@ -5,6 +5,11 @@ import com.m57.hermescontrol.data.model.SessionLiveStatus
 import com.m57.hermescontrol.data.ws.WsEvent
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -12,12 +17,15 @@ import org.junit.Before
 import org.junit.Test
 
 /** Issue #1642: Done/Failed marks, their persistence, and every path that clears them. */
+@OptIn(ExperimentalCoroutinesApi::class)
 class SessionAttentionStoreTest {
+    private val testDispatcher = StandardTestDispatcher()
     private val storage = mutableMapOf<String, Any?>()
     private lateinit var prefs: SharedPreferences
 
     @Before
     fun setUp() {
+        Dispatchers.setMain(testDispatcher)
         storage.clear()
         prefs = fakePrefs(storage)
         SessionAttentionStore.resetForTesting(prefs)
@@ -26,6 +34,7 @@ class SessionAttentionStoreTest {
     @After
     fun tearDown() {
         SessionAttentionStore.resetForTesting(null)
+        Dispatchers.resetMain()
     }
 
     @Test

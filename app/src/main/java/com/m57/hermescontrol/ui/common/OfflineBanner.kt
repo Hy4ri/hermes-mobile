@@ -28,7 +28,8 @@ import kotlinx.coroutines.delay
 internal const val OFFLINE_BANNER_DELAY_MS = 1_500L
 
 /** True when [status] means remote operations are expected to fail. */
-internal fun ConnectionStatus.isOffline(): Boolean = this != ConnectionStatus.CONNECTED && this != ConnectionStatus.CONNECTING
+internal fun ConnectionStatus.isOffline(): Boolean =
+    this != ConnectionStatus.CONNECTED && this != ConnectionStatus.CONNECTING
 
 /**
  * Slim, app-wide notice that the gateway connection is lost (issue #1686).

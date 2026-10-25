@@ -8,11 +8,14 @@ import androidx.core.content.ContextCompat
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.config.ConnectionProfile
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.CertificateBindings
 import com.m57.hermescontrol.data.remote.ClientCertificates
+import com.m57.hermescontrol.data.remote.HermesApiService
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.await
+import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.every
@@ -339,9 +342,78 @@ class AuthLoginViewModelTest {
         coEvery { homepageCall.await() } throws javax.net.ssl.SSLProtocolException("TLSV1_ALERT_CERTIFICATE_REQUIRED")
         viewModel.probe()
         val state = runBlocking { viewModel.uiState.first { !it.probing } }
-        assertEquals(DashboardAuthMode.ALL, state.authMode)
+        assertEquals(DashboardAuthMode.TOKEN_ONLY, state.authMode)
+        io.mockk.coVerify(exactly = 1) { homepageCall.await() }
         assertNull(viewModel.certificatePrompt.state.value.origin)
     }
+
+    @Test
+    fun `ungated probe fetches prefixed homepage and extracts session token`() =
+        runBlocking {
+            viewModel.onBaseUrlChange("https://example.com/hermes/")
+            val statusCall = mockk<okhttp3.Call>()
+            val homepageCall = mockk<okhttp3.Call>()
+            every {
+                mockProbeClient.newCall(
+                    match { it.url.toString() == "https://example.com/hermes/api/status" },
+                )
+            } returns
+                statusCall
+            every { mockProbeClient.newCall(match { it.url.toString() == "https://example.com/hermes/" }) } returns
+                homepageCall
+            val status = mockk<Response>(relaxed = true)
+            every { status.isSuccessful } returns true
+            every { status.body.string() } returns """{"auth_required":false}"""
+            val homepage = mockk<Response>(relaxed = true)
+            every { homepage.body.string() } returns
+                """<script>window.__HERMES_SESSION_TOKEN__="session-1687";</script>"""
+            coEvery { statusCall.await() } returns status
+            coEvery { homepageCall.await() } returns homepage
+
+            viewModel.probe()
+            val state = withTimeout(5_000) { viewModel.uiState.first { !it.probing } }
+            assertEquals(DashboardAuthMode.TOKEN_ONLY, state.authMode)
+            assertEquals("session-1687", state.token)
+            io.mockk.coVerify(exactly = 1) { homepageCall.await() }
+        }
+
+    @Test
+    fun `missing embedded token keeps manual token entry available`() =
+        runBlocking {
+            val call = mockk<okhttp3.Call>()
+            every { mockProbeClient.newCall(any()) } returns call
+            val status = mockk<Response>(relaxed = true)
+            every { status.isSuccessful } returns true
+            every { status.body.string() } returns """{"auth_required":false}"""
+            val homepage = mockk<Response>(relaxed = true)
+            every { homepage.body.string() } returns "<html>No embedded token</html>"
+            coEvery { call.await() } returnsMany listOf(status, homepage)
+            viewModel.onTokenChange("pasted-token")
+
+            viewModel.probe()
+            val state = withTimeout(5_000) { viewModel.uiState.first { !it.probing } }
+            assertEquals(DashboardAuthMode.TOKEN_ONLY, state.authMode)
+            assertEquals("pasted-token", state.token)
+            io.mockk.coVerify(exactly = 2) { call.await() }
+
+            every { AuthManager.setBaseUrl(any()) } just Runs
+            every { AuthManager.setToken(any()) } just Runs
+            every { AuthManager.setSessionCookie(any()) } just Runs
+            every { AuthManager.setWsAuthParam(any()) } just Runs
+            every { AuthManager.getSelectedProfileId() } returns null
+            val api = mockk<HermesApiService>()
+            mockkObject(ApiClient, ProfileSwitchCoordinator)
+            every { ApiClient.createTempService(any(), "pasted-token") } returns api
+            coEvery { api.getSessions() } returns retrofit2.Response.success(mockk(relaxed = true))
+            coEvery { ProfileSwitchCoordinator.switchConnectionProfile(any()) } just Runs
+
+            viewModel.connect()
+            withTimeout(5_000) { viewModel.uiState.first { it.connectionSuccess } }
+            verify { AuthManager.setToken("pasted-token") }
+            verify { AuthManager.setSessionCookie(null) }
+            verify { AuthManager.setWsAuthParam("token") }
+            verify(exactly = 0) { AuthManager.setWsAuthParam("ticket") }
+        }
 
     @Test
     fun `address edit and navigation invalidate a pending prompt`() =
@@ -448,9 +520,9 @@ class AuthLoginViewModelTest {
     // ── deriveAuthMode (authoritative /api/status mapping) ──
 
     @Test
-    fun `deriveAuthMode gate down returns ALL sentinel`() {
+    fun `deriveAuthMode gate down returns TOKEN_ONLY`() {
         assertEquals(
-            DashboardAuthMode.ALL,
+            DashboardAuthMode.TOKEN_ONLY,
             viewModel.deriveAuthMode(authRequired = false, providers = emptyList()),
         )
     }

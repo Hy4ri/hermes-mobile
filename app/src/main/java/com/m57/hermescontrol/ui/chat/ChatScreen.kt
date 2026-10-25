@@ -547,6 +547,7 @@ fun ChatScreen(
     )
 
     HermesScaffold(
+        showConnectionBanner = false,
         modifier = modifier,
         pinTopBar = true,
         title = {

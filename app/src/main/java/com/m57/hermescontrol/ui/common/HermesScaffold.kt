@@ -1,11 +1,13 @@
 package com.m57.hermescontrol.ui.common
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -26,6 +28,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,6 +42,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.ws.HermesWsClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -148,6 +152,8 @@ fun HermesScaffold(
     onRefresh: (() -> Unit)? = null,
     isRefreshing: Boolean = false,
     pinTopBar: Boolean = false,
+    /** Show the app-wide connection-lost banner (issue #1686). Chat opts out; it has its own. */
+    showConnectionBanner: Boolean = true,
     snackbarHost: @Composable () -> Unit = {},
     actions: @Composable () -> Unit = {},
     content: @Composable (PaddingValues) -> Unit,
@@ -236,7 +242,15 @@ fun HermesScaffold(
                                 bottom = paddingValues.calculateBottomPadding(),
                             ).dynamicTopBarPadding(scrollBehavior, paddingValues.calculateTopPadding()),
                 ) {
-                    content(paddingValues)
+                    Column {
+                        if (showConnectionBanner) {
+                            val connectionStatus by HermesWsClient.connectionStatus.collectAsState()
+                            OfflineBanner(connectionStatus)
+                        }
+                        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                            content(paddingValues)
+                        }
+                    }
                 }
             }
 

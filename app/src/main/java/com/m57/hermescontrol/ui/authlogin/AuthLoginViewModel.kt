@@ -373,9 +373,8 @@ class AuthLoginViewModel(
      * Derives the initial [DashboardAuthMode] from the authoritative `/api/status` gate flag and the
      * advertised sign-in options.
      *
-     * - Gate down (loopback / `--insecure`): caller decides TOKEN_ONLY vs ALL
-     *   based on whether the SPA embedded a token, so this returns a sentinel
-     *   [DashboardAuthMode.ALL] placeholder that [probeDashboardInternal] refines.
+     * - Gate down (loopback / `--insecure`): session token, extracted from the SPA
+     *   when available or entered manually.
      * - Gate up: the first advertised provider decides (password form vs system browser); the user
      *   can switch when several are offered. No providers at all keeps the legacy password form.
      *
@@ -386,8 +385,7 @@ class AuthLoginViewModel(
         providers: List<AuthProviderOption>,
     ): DashboardAuthMode =
         if (!authRequired) {
-            // Refined by the caller once it knows whether the SPA embedded a token.
-            DashboardAuthMode.ALL
+            DashboardAuthMode.TOKEN_ONLY
         } else {
             providers.firstOrNull()?.let(::modeForProvider) ?: DashboardAuthMode.BASIC_AUTH
         }
@@ -427,7 +425,7 @@ class AuthLoginViewModel(
                 val spaReq =
                     Request
                         .Builder()
-                        .url(endpoint.resolve("").toString())
+                        .url(endpoint.baseUrl)
                         .get()
                         .build()
                 val spaResp = probeClient.newCall(spaReq).await()
@@ -437,13 +435,8 @@ class AuthLoginViewModel(
             } catch (e: Exception) {
                 Log.w(TAG, "SPA token extraction failed: ${e.message}")
             }
-            val mode =
-                if (extractedToken != null) {
-                    DashboardAuthMode.TOKEN_ONLY
-                } else {
-                    DashboardAuthMode.ALL
-                }
-            return ProbeResult(authMode = mode, extractedToken = extractedToken)
+            // #1687: extraction is optional; ungated dashboards still accept a manual token.
+            return ProbeResult(authMode = DashboardAuthMode.TOKEN_ONLY, extractedToken = extractedToken)
         }
 
         // Gate engaged (non-loopback bind): each advertised provider maps to a sign-in mode.

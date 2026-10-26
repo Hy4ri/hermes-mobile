@@ -45,6 +45,24 @@ class ChatServerMessageMapperPurityTest {
     }
 
     @Test
+    fun mediaRowKeepsRawDirectiveForPersistence() {
+        val mapped =
+            mapServerMessages(
+                "s",
+                listOf(assistant(1, "Chart MEDIA:/opt/hermes/chart.png")),
+                0,
+                true,
+                emptyList(),
+                mediaUrl = { path -> "gw://$path" },
+            ).single()
+
+        // #1696: the visible text is stripped, but the durable copy keeps the
+        // directive so Room cache loads can re-derive the attachment.
+        assertEquals("Chart", mapped.content.trim())
+        assertEquals("Chart MEDIA:/opt/hermes/chart.png", mapped.persistedContent)
+    }
+
+    @Test
     fun activeReplyTargetIsAPlainInputScopedToItsSession() {
         val rows = listOf(assistant(100, "Done"), assistant(200, "Done"))
         val target = ReplyNotificationTarget("default", "s", "comp", 1L, serverMessageId = 100)

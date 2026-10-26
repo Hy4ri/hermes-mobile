@@ -207,7 +207,7 @@ dependencies {
     // Encrypted storage
     implementation(libs.androidx.security.crypto)
     implementation(libs.androidx.datastore)
-    implementation("androidx.startup:startup-runtime:1.1.1")
+    implementation("androidx.startup:startup-runtime:1.2.0")
 
     // Local database (Room 3) — message persistence
     implementation(libs.androidx.room.runtime)

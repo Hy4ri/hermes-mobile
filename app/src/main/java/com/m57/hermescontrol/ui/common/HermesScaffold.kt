@@ -16,8 +16,6 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
@@ -184,23 +182,21 @@ fun HermesScaffold(
                     navigationIcon = {
                         when (val icon = navigationIcon) {
                             is NavIcon.Back -> {
-                                IconButton(onClick = icon.onBack) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                        contentDescription = stringResource(R.string.content_desc_back),
-                                        modifier = Modifier.testTag("back_button"),
-                                    )
-                                }
+                                HermesIconButton(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    label = stringResource(R.string.content_desc_back),
+                                    onClick = icon.onBack,
+                                    modifier = Modifier.testTag("back_button"),
+                                )
                             }
 
                             is NavIcon.Menu -> {
-                                IconButton(onClick = icon.onOpen) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Menu,
-                                        contentDescription = stringResource(R.string.content_desc_open_drawer),
-                                        modifier = Modifier.testTag("menu_button"),
-                                    )
-                                }
+                                HermesIconButton(
+                                    imageVector = Icons.Filled.Menu,
+                                    label = stringResource(R.string.content_desc_open_drawer),
+                                    onClick = icon.onOpen,
+                                    modifier = Modifier.testTag("menu_button"),
+                                )
                             }
 
                             null -> { /* no navigation icon */ }
@@ -208,13 +204,12 @@ fun HermesScaffold(
                     },
                     actions = {
                         if (onRefresh != null) {
-                            IconButton(onClick = onRefresh) {
-                                Icon(
-                                    imageVector = Icons.Filled.Refresh,
-                                    contentDescription = stringResource(R.string.content_desc_refresh),
-                                    modifier = Modifier.testTag("refresh_button"),
-                                )
-                            }
+                            HermesIconButton(
+                                imageVector = Icons.Filled.Refresh,
+                                label = stringResource(R.string.content_desc_refresh),
+                                onClick = onRefresh,
+                                modifier = Modifier.testTag("refresh_button"),
+                            )
                         }
                         actions()
                     },

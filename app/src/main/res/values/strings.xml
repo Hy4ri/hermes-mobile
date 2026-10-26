@@ -1863,6 +1863,7 @@
     <string name="session_integrations_err_generic">Connector operation failed</string>
     <string name="session_integrations_retry">Retry</string>
     <string name="session_integrations_close">Close</string>
+    <string name="content_desc_session_options">Session options</string>
     <string name="session_integrations_menu_item">Session Integrations</string>
 
     <!-- Media Player -->

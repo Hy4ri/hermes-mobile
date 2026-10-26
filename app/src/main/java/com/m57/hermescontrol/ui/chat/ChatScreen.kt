@@ -44,7 +44,6 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
@@ -145,6 +144,7 @@ import com.m57.hermescontrol.ui.chat.fullbleed.TranscriptActions
 import com.m57.hermescontrol.ui.common.ActionProgressDialog
 import com.m57.hermescontrol.ui.common.AutoScrollingTitleText
 import com.m57.hermescontrol.ui.common.CredentialWarningBanner
+import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.ReadableContentMaxWidth
@@ -610,29 +610,25 @@ fun ChatScreen(
             }
         },
         actions = {
-            IconButton(onClick = { viewModel.createNewSession() }) {
-                Icon(
-                    imageVector = Icons.Filled.Add,
-                    contentDescription = stringResource(R.string.content_desc_new_chat),
-                )
-            }
+            HermesIconButton(
+                imageVector = Icons.Filled.Add,
+                label = stringResource(R.string.content_desc_new_chat),
+                onClick = { viewModel.createNewSession() },
+            )
 
             // Session actions overflow menu (issue #1091)
             var showSessionMenu by remember { mutableStateOf(false) }
             Box {
-                IconButton(
+                HermesIconButton(
+                    imageVector = Icons.Filled.MoreVert,
+                    label = stringResource(R.string.content_desc_session_options),
                     onClick = {
                         settingsViewModel.refreshKeepScreenAwake()
                         settingsViewModel.refreshKeepConnectedInBackground()
                         showSessionMenu = true
                     },
                     modifier = Modifier.testTag("chat_session_menu_button"),
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.MoreVert,
-                        contentDescription = stringResource(R.string.session_integrations_menu_item),
-                    )
-                }
+                )
                 DropdownMenu(
                     expanded = showSessionMenu,
                     onDismissRequest = { showSessionMenu = false },

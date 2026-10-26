@@ -52,7 +52,9 @@ private fun stripSealedOrphanPrefix(
     if (sealedOrphanIds.isEmpty()) return text
     val prefix =
         sealedOrphanIds
-            .mapNotNull { id -> messages.firstOrNull { it.id == id }?.content }
+            // #1696: sealed MEDIA orphans render stripped text, but the complete
+            // payload repeats the raw directive — compare against the raw copy.
+            .mapNotNull { id -> messages.firstOrNull { it.id == id }?.let { it.persistedContent ?: it.content } }
             .joinToString("")
     if (prefix.isEmpty() || !text.startsWith(prefix)) return text
     return text.removePrefix(prefix)
@@ -78,6 +80,7 @@ object ChatWsEventReducer {
         state: ChatUiState,
         inflight: Map<String, Any?>,
         currentSessionId: String,
+        mediaUrl: (path: String) -> String? = { null },
     ): ReducerResult {
         if (inflight["status"] != "error") return ReducerResult(state, StreamingState())
         val assistant = (inflight["assistant"] as? String).orEmpty()
@@ -100,6 +103,7 @@ object ChatWsEventReducer {
                 rawPayload = payload,
             ),
             currentSessionId,
+            mediaUrl,
         )
     }
 
@@ -108,6 +112,7 @@ object ChatWsEventReducer {
         streamingState: StreamingState,
         event: WsEvent,
         currentSessionId: String? = null,
+        mediaUrl: (path: String) -> String? = { null },
     ): ReducerResult {
         val eventSessionId =
             when (event) {
@@ -142,7 +147,7 @@ object ChatWsEventReducer {
         if (eventSessionId != null && (currentSessionId == null || eventSessionId != currentSessionId)) {
             return ReducerResult(state = state, streamingState = streamingState)
         }
-        val result = reduceInternal(state, streamingState, event)
+        val result = reduceInternal(state, streamingState, event, mediaUrl)
         val hydratedTodos =
             if (result.state.todos.isEmpty() && result.state.messages.isNotEmpty()) {
                 hydrateTodosFromMessages(result.state.messages)
@@ -160,11 +165,12 @@ object ChatWsEventReducer {
         state: ChatUiState,
         streamingState: StreamingState,
         event: WsEvent,
+        mediaUrl: (path: String) -> String?,
     ): ReducerResult =
         when (event) {
             is WsEvent.GatewayReady -> onGatewayReady(state, streamingState)
 
-            is WsEvent.MessageStart -> onMessageStart(state, streamingState, event)
+            is WsEvent.MessageStart -> onMessageStart(state, streamingState, event, mediaUrl)
 
             is WsEvent.MessageToken -> onMessageToken(state, streamingState, event)
 
@@ -174,11 +180,11 @@ object ChatWsEventReducer {
 
             is WsEvent.ReasoningAvailable -> onReasoningAvailable(state, streamingState, event)
 
-            is WsEvent.MessageComplete -> onMessageComplete(state, streamingState, event)
+            is WsEvent.MessageComplete -> onMessageComplete(state, streamingState, event, mediaUrl)
 
-            is WsEvent.MessageDone -> onMessageDone(state, streamingState)
+            is WsEvent.MessageDone -> onMessageDone(state, streamingState, mediaUrl)
 
-            is WsEvent.ToolStart -> onToolStart(state, streamingState, event)
+            is WsEvent.ToolStart -> onToolStart(state, streamingState, event, mediaUrl)
 
             is WsEvent.ToolComplete -> onToolComplete(state, streamingState, event)
 
@@ -286,6 +292,7 @@ object ChatWsEventReducer {
         state: ChatUiState,
         streamingState: StreamingState,
         event: WsEvent.MessageStart,
+        mediaUrl: (path: String) -> String?,
     ): ReducerResult {
         val previousFailureMessageId = state.replyFailureProjection?.messageId
         val turnState =
@@ -323,12 +330,13 @@ object ChatWsEventReducer {
         val preState =
             if (streamingState.streamingMessage?.content?.isNotEmpty() == true) {
                 val finalized =
-                    streamingState.streamingMessage.copy(
-                        isStreaming = false,
-                        finishTimestamp = System.currentTimeMillis(),
-                        tokenCount = null,
-                        tps = null,
-                    )
+                    streamingState.streamingMessage
+                        .copy(
+                            isStreaming = false,
+                            finishTimestamp = System.currentTimeMillis(),
+                            tokenCount = null,
+                            tps = null,
+                        ).withHostMedia(mediaUrl)
                 orphan = finalized
                 turnState.copy(
                     messages = turnState.messages.upsertById(finalized),
@@ -465,10 +473,16 @@ object ChatWsEventReducer {
         state: ChatUiState,
         streamingState: StreamingState,
         event: WsEvent.MessageComplete,
+        mediaUrl: (path: String) -> String?,
     ): ReducerResult {
         val failure = replyFailureFromPayload(event.rawPayload, event.text)
         if (failure != null) return onReplyFailure(state, streamingState, event, failure)
-        if (GatewayNotice.isInterruptSentinel(event.text)) return onInterruptNotice(state, streamingState, event)
+        if (GatewayNotice.isInterruptSentinel(
+                event.text,
+            )
+        ) {
+            return onInterruptNotice(state, streamingState, event, mediaUrl)
+        }
         val finalSnapshot = event.rawPayload?.let(::parseUsageSnapshot)
         val usageState = finalSnapshot?.let { applyUsageSnapshot(state, it) } ?: state
         val turnUsage = finalSnapshot?.deltaFrom(streamingState.turnUsageBaseline)
@@ -541,25 +555,27 @@ object ChatWsEventReducer {
                 TokenEstimator.estimate(text).takeIf { it > 0 }
             }
         val msg =
-            streaming?.copy(
-                content = text,
-                isStreaming = false,
-                reasoningText = reasoning,
-                finishTimestamp = System.currentTimeMillis(),
-                tokenCount = tokenCount,
-                tps = tps,
-                completionId = event.completionId,
-                serverRowId = finalRowId ?: streaming.serverRowId,
-            ) ?: ChatMessage(
-                role = MessageRole.ASSISTANT,
-                content = text,
-                reasoningText = reasoning,
-                finishTimestamp = System.currentTimeMillis(),
-                tokenCount = tokenCount,
-                tps = tps,
-                completionId = event.completionId,
-                serverRowId = finalRowId,
-            )
+            (
+                streaming?.copy(
+                    content = text,
+                    isStreaming = false,
+                    reasoningText = reasoning,
+                    finishTimestamp = System.currentTimeMillis(),
+                    tokenCount = tokenCount,
+                    tps = tps,
+                    completionId = event.completionId,
+                    serverRowId = finalRowId ?: streaming.serverRowId,
+                ) ?: ChatMessage(
+                    role = MessageRole.ASSISTANT,
+                    content = text,
+                    reasoningText = reasoning,
+                    finishTimestamp = System.currentTimeMillis(),
+                    tokenCount = tokenCount,
+                    tps = tps,
+                    completionId = event.completionId,
+                    serverRowId = finalRowId,
+                )
+            ).withHostMedia(mediaUrl)
         val effects = mutableListOf<ReducerEffect>()
         val sid = state.currentSessionId
         if (sid != null) {
@@ -569,13 +585,8 @@ object ChatWsEventReducer {
         // Refresh the context meter immediately on completion instead of
         // waiting for the next 5s session-sync poll.
         effects.add(ReducerEffect.RefreshContextUsage)
-        // Mobile-only media fix (issue #724): the WS stream delivers the raw
-        // `MEDIA:<host-path>` directive. Turn it into real attachments (images
-        // inline, every other file tappable) via the gateway /api/files/download
-        // endpoint — works on a remote phone too.
-        if (msg.role == MessageRole.ASSISTANT && sid != null) {
-            effects.add(ReducerEffect.AttachHostMedia(sid, msg.id))
-        }
+        // #724/#1696: `MEDIA:` directives are resolved inside the reduction via
+        // withHostMedia — no async attach effect, no id lookup, no missed sites.
         return ReducerResult(
             state =
                 usageState.copy(
@@ -673,6 +684,7 @@ object ChatWsEventReducer {
     private fun onMessageDone(
         state: ChatUiState,
         streamingState: StreamingState,
+        mediaUrl: (path: String) -> String?,
     ): ReducerResult {
         val streaming =
             streamingState.streamingMessage
@@ -688,23 +700,18 @@ object ChatWsEventReducer {
             }
         val tokenCount = TokenEstimator.estimate(streaming.content).takeIf { it > 0 }
         val msg =
-            streaming.copy(
-                isStreaming = false,
-                reasoningText = reasoning,
-                finishTimestamp = System.currentTimeMillis(),
-                tokenCount = streaming.tokenCount ?: tokenCount,
-                tps = streaming.tps ?: state.latestTps?.takeIf { it > 0.0 },
-            )
+            streaming
+                .copy(
+                    isStreaming = false,
+                    reasoningText = reasoning,
+                    finishTimestamp = System.currentTimeMillis(),
+                    tokenCount = streaming.tokenCount ?: tokenCount,
+                    tps = streaming.tps ?: state.latestTps?.takeIf { it > 0.0 },
+                ).withHostMedia(mediaUrl)
         val effects = mutableListOf<ReducerEffect>()
         val sid = state.currentSessionId
         if (sid != null) {
             effects.add(ReducerEffect.PersistMessage(msg, sid))
-        }
-        // Mobile-only media fix (issue #724): attach any `MEDIA:<path>` file
-        // carried in the finalized assistant message as a real attachment. See
-        // the ReducerEffect.AttachHostMedia KDoc for the rationale.
-        if (msg.role == MessageRole.ASSISTANT && sid != null) {
-            effects.add(ReducerEffect.AttachHostMedia(sid, msg.id))
         }
         return ReducerResult(
             state =
@@ -723,6 +730,7 @@ object ChatWsEventReducer {
         state: ChatUiState,
         streamingState: StreamingState,
         event: WsEvent.ToolStart,
+        mediaUrl: (path: String) -> String?,
     ): ReducerResult {
         val contentJson =
             event.data?.let {
@@ -755,13 +763,14 @@ object ChatWsEventReducer {
                         streamingState.streamingMessage.reasoningText
                     }
                 val finalized =
-                    streamingState.streamingMessage.copy(
-                        isStreaming = false,
-                        reasoningText = reasoning,
-                        finishTimestamp = System.currentTimeMillis(),
-                        tokenCount = null,
-                        tps = null,
-                    )
+                    streamingState.streamingMessage
+                        .copy(
+                            isStreaming = false,
+                            reasoningText = reasoning,
+                            finishTimestamp = System.currentTimeMillis(),
+                            tokenCount = null,
+                            tps = null,
+                        ).withHostMedia(mediaUrl)
                 orphanToPersist = finalized
                 state.copy(
                     messages = state.messages.upsertById(finalized),
@@ -1160,6 +1169,7 @@ object ChatWsEventReducer {
         state: ChatUiState,
         streamingState: StreamingState,
         event: WsEvent.MessageComplete,
+        mediaUrl: (path: String) -> String?,
     ): ReducerResult {
         val usageState = event.rawPayload?.let(::parseUsageSnapshot)?.let { applyUsageSnapshot(state, it) } ?: state
         val text = event.text.trim()
@@ -1176,6 +1186,7 @@ object ChatWsEventReducer {
             streamingState.streamingMessage
                 ?.takeIf { it.content.isNotBlank() || it.reasoningText.isNotBlank() }
                 ?.copy(isStreaming = false, finishTimestamp = System.currentTimeMillis())
+                ?.withHostMedia(mediaUrl)
                 ?.let { partial ->
                     messages = messages.upsertById(partial)
                     usageState.currentSessionId?.let { effects += ReducerEffect.PersistMessage(partial, it) }
@@ -1409,24 +1420,6 @@ sealed class ReducerEffect {
 
     /** Drop a never-confirmed local row from Room (the DAO refuses rows that carry a REST identity). */
     data class DeleteLocalMessage(
-        val messageId: String,
-    ) : ReducerEffect()
-
-    /**
-     * Ask the ViewModel to turn any `MEDIA:<host-path>` directives in the
-     * just-finalized assistant message into real [Attachment]s (images inline,
-     * every other file type tappable) and strip the directives from the text.
-     *
-     * Why: the gateway's WebSocket stream delivers the raw `MEDIA:<path>`
-     * directive (the same one the desktop app resolves via `mediaExternalUrl`
-     * to the authenticated `/api/files/download` endpoint, which streams the
-     * host file over HTTP). Attaching them lets the renderer show images inline
-     * and offer every other file as a fetchable attachment — even on a remote
-     * phone (real HTTP, unlike a host-local file read). Mirrors desktop's
-     * `mediaExternalUrl`; mobile-only, backend untouched. See issue #724.
-     */
-    data class AttachHostMedia(
-        val sessionId: String,
         val messageId: String,
     ) : ReducerEffect()
 }

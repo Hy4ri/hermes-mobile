@@ -909,6 +909,7 @@
     <string name="content_desc_expand_provider">Expand %1$s models</string>
     <string name="content_desc_collapse_provider">Collapse %1$s models</string>
     <string name="model_section_pinned">Pinned Models</string>
+    <string name="content_desc_pin_model">Pin model</string>
     <string name="content_desc_unpin_model">Unpin model</string>
     <string name="content_desc_pinned_section_toggle">Toggle pinned section visibility</string>
     <plurals name="model_provider_count">

@@ -63,7 +63,6 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -113,6 +112,7 @@ import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
+import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
@@ -536,35 +536,31 @@ fun SessionsScreen(
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadSessions(forceRefresh = true) },
         actions = {
-            IconButton(
+            HermesIconButton(
+                imageVector = Icons.Filled.Add,
+                label = stringResource(R.string.content_desc_new_chat),
                 onClick = { NavigationController.openNewChat() },
                 modifier = Modifier.testTag("sessions_action_new_chat"),
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Add,
-                    contentDescription = stringResource(R.string.content_desc_new_chat),
-                )
-            }
+            )
             if (state.hasHiddenSessions) {
-                IconButton(
+                HermesIconButton(
+                    imageVector =
+                        if (state.showHidden) {
+                            Icons.Filled.VisibilityOff
+                        } else {
+                            Icons.Filled.Visibility
+                        },
+                    label =
+                        stringResource(
+                            if (state.showHidden) {
+                                R.string.sessions_hide_hidden
+                            } else {
+                                R.string.sessions_show_hidden
+                            },
+                        ),
                     onClick = { viewModel.toggleShowHidden() },
                     modifier = Modifier.testTag("sessions_action_toggle_hidden"),
-                ) {
-                    Icon(
-                        imageVector =
-                            if (state.showHidden) {
-                                Icons.Filled.VisibilityOff
-                            } else {
-                                Icons.Filled.Visibility
-                            },
-                        contentDescription =
-                            if (state.showHidden) {
-                                stringResource(R.string.sessions_hide_hidden)
-                            } else {
-                                stringResource(R.string.sessions_show_hidden)
-                            },
-                    )
-                }
+                )
             }
         },
         modifier = modifier,

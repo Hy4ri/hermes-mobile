@@ -52,6 +52,7 @@ fun ClarifyBubble(
     onRespondBatch: (Map<String, String>) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    onShowMessage: (String) -> Unit = {},
 ) {
     val questions = clarifyRequest.resolvedQuestions
     val isBatch = questions.size > 1
@@ -203,7 +204,7 @@ fun ClarifyBubble(
                             )
                         },
                         trailingIcon = {
-                            ClarifyDictationButton {
+                            ClarifyDictationButton(onShowMessage) {
                                 customTextByQid =
                                     customTextByQid.withDictation(q.qid, it)
                             }

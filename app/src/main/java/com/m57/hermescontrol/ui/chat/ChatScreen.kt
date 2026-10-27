@@ -888,6 +888,9 @@ fun ChatScreen(
                             onRespondClarify = viewModel::respondToClarify,
                             onRespondClarifyBatch = viewModel::respondToClarifyBatch,
                             onDismissClarify = viewModel::dismissClarify,
+                            onShowMessage = { message ->
+                                scrollScope.launch { snackbarHostState.showSnackbar(message) }
+                            },
                             onRespondVaultUnlock = viewModel::respondToVaultUnlock,
                             onDismissVaultUnlock = viewModel::dismissVaultUnlock,
                             onRespondVaultSaveLogin = viewModel::respondToVaultSaveLogin,

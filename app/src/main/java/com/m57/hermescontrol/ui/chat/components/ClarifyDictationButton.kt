@@ -5,7 +5,6 @@ import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.pm.PackageManager
 import android.speech.RecognizerIntent
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
@@ -33,12 +32,16 @@ import com.m57.hermescontrol.ui.chat.SpeechInputHelper
  * instead of the chat composer. Renders nothing when no recognizer exists.
  */
 @Composable
-internal fun ClarifyDictationButton(onText: (String) -> Unit) {
+internal fun ClarifyDictationButton(
+    onShowMessage: (String) -> Unit,
+    onText: (String) -> Unit,
+) {
     val context = LocalContext.current
     val available = remember(context) { SpeechInputHelper.isSpeechInputAvailable(context) }
     if (!available) return
 
     val currentOnText by rememberUpdatedState(onText)
+    val currentOnShowMessage by rememberUpdatedState(onShowMessage)
     val listeningPrompt = stringResource(R.string.chat_mic_listening)
     val notAvailableMsg = stringResource(R.string.stt_not_available)
     val permissionDeniedMsg = stringResource(R.string.stt_permission_denied)
@@ -62,7 +65,7 @@ internal fun ClarifyDictationButton(onText: (String) -> Unit) {
                 speechLauncher.launch(SpeechInputHelper.createSpeechIntent(listeningPrompt))
             } catch (_: ActivityNotFoundException) {
                 ExternalActivityLifecycleGuard.externalActivityReturned()
-                Toast.makeText(context, notAvailableMsg, Toast.LENGTH_SHORT).show()
+                currentOnShowMessage(notAvailableMsg)
             }
         }
     }
@@ -73,7 +76,7 @@ internal fun ClarifyDictationButton(onText: (String) -> Unit) {
             if (granted) {
                 startDictation()
             } else {
-                Toast.makeText(context, permissionDeniedMsg, Toast.LENGTH_SHORT).show()
+                currentOnShowMessage(permissionDeniedMsg)
             }
         }
 

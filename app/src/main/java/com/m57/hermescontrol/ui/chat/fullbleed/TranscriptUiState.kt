@@ -105,6 +105,7 @@ class TranscriptActions(
     val onRespondClarify: (String) -> Unit,
     val onRespondClarifyBatch: (Map<String, String>) -> Unit,
     val onDismissClarify: () -> Unit,
+    val onShowMessage: (String) -> Unit,
     val onRespondVaultUnlock: (String) -> Unit,
     val onDismissVaultUnlock: () -> Unit,
     val onRespondVaultSaveLogin: (String, String) -> Unit,

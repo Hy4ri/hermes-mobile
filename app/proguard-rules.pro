@@ -46,6 +46,10 @@
 # Tink references com.google.errorprone.annotations.Immutable which isn't
 # shipped as a runtime dependency. Suppress the R8 missing-class error.
 -dontwarn com.google.errorprone.annotations.Immutable
+# security-crypto 1.1.0 (Tink KeysDownloader) references the Google HTTP client
+# and Joda-Time, which are not shipped. The app never calls KeysDownloader.
+-dontwarn com.google.api.client.http.**
+-dontwarn org.joda.time.**
 
 # ── Compose ───────────────────────────────────────────────────────────────
 -dontwarn androidx.compose.**

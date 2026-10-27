@@ -5,6 +5,7 @@ import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.pm.PackageManager
 import android.speech.RecognizerIntent
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
@@ -13,6 +14,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -40,15 +42,23 @@ internal fun ClarifyDictationButton(
     val available = remember(context) { SpeechInputHelper.isSpeechInputAvailable(context) }
     if (!available) return
 
+    val activity = LocalActivity.current
     val currentOnText by rememberUpdatedState(onText)
     val currentOnShowMessage by rememberUpdatedState(onShowMessage)
     val listeningPrompt = stringResource(R.string.chat_mic_listening)
     val notAvailableMsg = stringResource(R.string.stt_not_available)
     val permissionDeniedMsg = stringResource(R.string.stt_permission_denied)
+    val pending = remember { PendingExternalLaunch(ExternalActivityLifecycleGuard::externalActivityReturned) }
+
+    // The card can leave composition while the recognizer is open (request answered elsewhere
+    // or timed out); its launcher then never delivers, so return the lease here.
+    DisposableEffect(pending) {
+        onDispose { pending.disposed(changingConfigurations = activity?.isChangingConfigurations == true) }
+    }
 
     val speechLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            ExternalActivityLifecycleGuard.externalActivityReturned()
+            pending.returned()
             if (result.resultCode == Activity.RESULT_OK) {
                 val spoken =
                     result.data
@@ -62,9 +72,10 @@ internal fun ClarifyDictationButton(
     fun startDictation() {
         launchExternalActivityWithLease(context) {
             try {
+                pending.launched()
                 speechLauncher.launch(SpeechInputHelper.createSpeechIntent(listeningPrompt))
             } catch (_: ActivityNotFoundException) {
-                ExternalActivityLifecycleGuard.externalActivityReturned()
+                pending.returned()
                 currentOnShowMessage(notAvailableMsg)
             }
         }
@@ -72,7 +83,7 @@ internal fun ClarifyDictationButton(
 
     val permissionLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            ExternalActivityLifecycleGuard.externalActivityReturned()
+            pending.returned()
             if (granted) {
                 startDictation()
             } else {
@@ -89,6 +100,7 @@ internal fun ClarifyDictationButton(
                 startDictation()
             } else {
                 launchExternalActivityWithLease(context) {
+                    pending.launched()
                     permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                 }
             }
@@ -100,6 +112,30 @@ internal fun ClarifyDictationButton(
             contentDescription = stringResource(R.string.clarify_dictate),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+/**
+ * Tracks one external launch owned by a composable. If the composable is disposed (not for a
+ * configuration change) while the launch is outstanding, its result can no longer arrive, so the
+ * guard is told the activity returned instead of holding the lease until the guard's timeout.
+ */
+internal class PendingExternalLaunch(
+    private val externalActivityReturned: () -> Unit,
+) {
+    private var outstanding = false
+
+    fun launched() {
+        outstanding = true
+    }
+
+    fun returned() {
+        outstanding = false
+        externalActivityReturned()
+    }
+
+    fun disposed(changingConfigurations: Boolean) {
+        if (outstanding && !changingConfigurations) returned()
     }
 }
 

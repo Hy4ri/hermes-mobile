@@ -3,13 +3,17 @@ package com.m57.hermescontrol.ui.settings
 import com.m57.hermescontrol.data.config.ConnectionProfile
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.BusySendMode
+import com.m57.hermescontrol.data.model.SessionStatsResponse
+import com.m57.hermescontrol.data.model.StatusResponse
 import com.m57.hermescontrol.data.remote.ApiClient
+import com.m57.hermescontrol.data.remote.HermesApiService
 import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
+import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.slot
 import io.mockk.unmockkAll
@@ -21,10 +25,12 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
+import retrofit2.Response
 
 /**
  * Tests for [SettingsViewModel] profile operations.
@@ -521,5 +527,65 @@ class SettingsViewModelTest {
 
             verify { AuthManager.setKeepConnectedInBackground(true) }
             assertEquals(true, viewModel.uiState.value.isSaved)
+        }
+
+    @Test
+    fun testTestConnection_wrongKeyAgainstPublicStatus_reportsAuthFailure401() =
+        runTest {
+            val mockApi = mockk<HermesApiService>()
+            every { ApiClient.hermesApi } returns mockApi
+            coEvery { mockApi.getStatus() } returns Response.success(StatusResponse(version = "1.0"))
+            coEvery { mockApi.getSessionStats() } returns Response.error(401, "".toResponseBody(null))
+
+            val viewModel = SettingsViewModel(ioDispatcher = testDispatcher)
+            testDispatcher.scheduler.advanceUntilIdle()
+            viewModel.onTokenChange("wrong-key")
+
+            viewModel.testConnection()
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            assertEquals(false, viewModel.uiState.value.isTesting)
+            assertEquals("❌ Key rejected by server (401 Unauthorized)", viewModel.uiState.value.testResult)
+            coVerify(exactly = 1) { mockApi.getStatus() }
+            coVerify(exactly = 1) { mockApi.getSessionStats() }
+        }
+
+    @Test
+    fun testTestConnection_wrongKeyAgainstPublicStatus_reportsAuthFailure403() =
+        runTest {
+            val mockApi = mockk<HermesApiService>()
+            every { ApiClient.hermesApi } returns mockApi
+            coEvery { mockApi.getStatus() } returns Response.success(StatusResponse(version = "1.0"))
+            coEvery { mockApi.getSessionStats() } returns Response.error(403, "".toResponseBody(null))
+
+            val viewModel = SettingsViewModel(ioDispatcher = testDispatcher)
+            testDispatcher.scheduler.advanceUntilIdle()
+            viewModel.onTokenChange("wrong-key")
+
+            viewModel.testConnection()
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            assertEquals(false, viewModel.uiState.value.isTesting)
+            assertEquals("❌ Key rejected by server (403 Forbidden)", viewModel.uiState.value.testResult)
+        }
+
+    @Test
+    fun testTestConnection_validKey_reportsSuccess() =
+        runTest {
+            val mockApi = mockk<HermesApiService>()
+            every { ApiClient.hermesApi } returns mockApi
+            coEvery { mockApi.getStatus() } returns Response.success(StatusResponse(version = "1.0"))
+            coEvery { mockApi.getSessionStats() } returns
+                Response.success(SessionStatsResponse(total = 2, messages = 5))
+
+            val viewModel = SettingsViewModel(ioDispatcher = testDispatcher)
+            testDispatcher.scheduler.advanceUntilIdle()
+            viewModel.onTokenChange("valid-key")
+
+            viewModel.testConnection()
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            assertEquals(false, viewModel.uiState.value.isTesting)
+            assertEquals("✅ Connected successfully", viewModel.uiState.value.testResult)
         }
 }

@@ -42,8 +42,7 @@ import com.m57.hermescontrol.ExternalActivityLifecycleGuard
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.applock.AlertDialog
 import com.m57.hermescontrol.data.model.ConnectorAccount
-import com.m57.hermescontrol.data.ws.HermesWsClient
-import com.m57.hermescontrol.notification.NotificationHelper
+import com.m57.hermescontrol.launchExternalActivityWithLease
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.chat.components.ConnectionSetupSheet
 import com.m57.hermescontrol.ui.common.EmptyState
@@ -249,12 +248,7 @@ fun AccountConnectorsBody(
         onOpenBrowser = { opId, url ->
             if (ConnectorUrlValidator.isValidHttpsUrl(url)) {
                 try {
-                    ExternalActivityLifecycleGuard.launchExternalActivity(
-                        acquireConnectionLease = HermesWsClient::acquireExternalActivityConnectionLease,
-                        releaseConnectionLease = HermesWsClient::releaseExternalActivityConnectionLease,
-                        prepareForBackground = { NotificationHelper.start(context) },
-                        cleanupAfterLaunchFailure = { NotificationHelper.stop(context) },
-                    ) {
+                    launchExternalActivityWithLease(context) {
                         browserOperation = opId
                         departed = false
                         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))

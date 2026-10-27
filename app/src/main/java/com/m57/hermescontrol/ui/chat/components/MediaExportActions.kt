@@ -15,8 +15,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.m57.hermescontrol.ExternalActivityLifecycleGuard
 import com.m57.hermescontrol.R
-import com.m57.hermescontrol.data.ws.HermesWsClient
-import com.m57.hermescontrol.notification.NotificationHelper
+import com.m57.hermescontrol.launchExternalActivityWithLease
 import com.m57.hermescontrol.ui.chat.MediaExportHelper
 import com.m57.hermescontrol.ui.chat.MediaSaveStrategy
 import com.m57.hermescontrol.ui.chat.acceptedSaveDestination
@@ -53,13 +52,7 @@ internal fun rememberMediaExportActions(
     val shareTitle = stringResource(R.string.media_player_share_title)
 
     val launchExternalActivity: (() -> Unit) -> Unit = { launch ->
-        ExternalActivityLifecycleGuard.launchExternalActivity(
-            acquireConnectionLease = HermesWsClient::acquireExternalActivityConnectionLease,
-            releaseConnectionLease = HermesWsClient::releaseExternalActivityConnectionLease,
-            prepareForBackground = { NotificationHelper.start(context) },
-            cleanupAfterLaunchFailure = { NotificationHelper.stop(context) },
-            launch = launch,
-        )
+        launchExternalActivityWithLease(context, launch)
     }
 
     val saveDocumentLauncher =

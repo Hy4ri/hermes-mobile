@@ -13,8 +13,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import com.m57.hermescontrol.ExternalActivityLifecycleGuard
-import com.m57.hermescontrol.data.ws.HermesWsClient
-import com.m57.hermescontrol.notification.NotificationHelper
+import com.m57.hermescontrol.launchExternalActivityWithLease
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -177,11 +176,8 @@ object ClientCertificates {
         lifecycle.addObserver(observer)
         session.launched()
         try {
-            ExternalActivityLifecycleGuard.launchExternalActivity(
-                acquireConnectionLease = HermesWsClient::acquireExternalActivityConnectionLease,
-                releaseConnectionLease = HermesWsClient::releaseExternalActivityConnectionLease,
-                prepareForBackground = { NotificationHelper.start(host) },
-                cleanupAfterLaunchFailure = { NotificationHelper.stop(host) },
+            launchExternalActivityWithLease(
+                context = host,
                 launch = {
                     KeyChain.choosePrivateKeyAlias(
                         host,

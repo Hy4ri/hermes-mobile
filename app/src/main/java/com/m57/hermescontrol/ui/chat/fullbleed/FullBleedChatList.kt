@@ -217,6 +217,7 @@ fun FullBleedChatList(
                             onRespondSingle = actions.onRespondClarify,
                             onRespondBatch = actions.onRespondClarifyBatch,
                             onDismiss = actions.onDismissClarify,
+                            onShowMessage = actions.onShowMessage,
                         )
                     }
                 }

@@ -70,6 +70,8 @@ object ExternalActivityLifecycleGuard {
         release?.invoke()
     }
 
+    internal fun isExternalActivityInFlightForTest(): Boolean = synchronized(lock) { externalActivityInFlight }
+
     internal fun resetForTest() {
         synchronized(lock) {
             generation += 1

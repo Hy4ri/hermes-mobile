@@ -11,6 +11,7 @@ internal fun testTranscriptActions() =
         onRespondClarify = {},
         onRespondClarifyBatch = {},
         onDismissClarify = {},
+        onShowMessage = {},
         onRespondVaultUnlock = {},
         onDismissVaultUnlock = {},
         onRespondVaultSaveLogin = { _, _ -> },

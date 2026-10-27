@@ -21,7 +21,13 @@ internal class ConnectionHealth(
 ) {
     companion object {
         internal const val HEARTBEAT_INTERVAL_MS = 15_000L
-        internal const val STALE_THRESHOLD_MS = 30_000L
+
+        /**
+         * Longest silence (no complete inbound frame, no pong) before the socket is declared dead.
+         * OkHttp's ping interval uses the same value. Issue #1701: on a slow relay, one large server
+         * frame can take more than 30 s to arrive, and pongs queue behind it.
+         */
+        internal const val STALE_THRESHOLD_MS = 60_000L
         internal const val LIVENESS_PROBE_TIMEOUT_MS = 5_000L
     }
 

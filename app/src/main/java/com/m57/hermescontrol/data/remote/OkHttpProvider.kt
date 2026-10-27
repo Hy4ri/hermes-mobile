@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.data.remote
 
+import com.m57.hermescontrol.data.ws.ConnectionHealth
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNamingStrategy
@@ -60,7 +61,8 @@ object OkHttpProvider {
             .newBuilder()
             .cookieJar(resolveCookieJar())
             .readTimeout(0, TimeUnit.MILLISECONDS)
-            .pingInterval(30, TimeUnit.SECONDS)
+            // A pong may arrive up to one interval late; keep this equal to the app heartbeat's stale limit.
+            .pingInterval(ConnectionHealth.STALE_THRESHOLD_MS, TimeUnit.MILLISECONDS)
             .addInterceptor(ServerHeadersInterceptor())
             .followRedirects(false)
             .followSslRedirects(false)

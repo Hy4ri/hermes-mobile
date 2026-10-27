@@ -146,7 +146,22 @@ class ConnectionHealthTest {
         }
 
     @Test
-    fun isHealthyStrictlyEnforcesStaleThresholdOf30000() =
+    fun slowLargeFrameSilenceDoesNotCancelSocket() =
+        runTest {
+            // Issue #1701: one large frame on a slow relay can leave ~45 s without a complete
+            // inbound frame. The old 30 s limit cancelled a healthy socket here.
+            val fixture = Fixture(scope = this, connected = true, initialTimeMs = 100_000L)
+            try {
+                fixture.health.onInboundFrame()
+                fixture.health.forceHealthCheckForTest(45_000L)
+                assertEquals(0, fixture.cancelCalls.get())
+            } finally {
+                fixture.health.stop()
+            }
+        }
+
+    @Test
+    fun isHealthyStrictlyEnforcesStaleThreshold() =
         runTest {
             val fixture =
                 Fixture(
@@ -158,16 +173,17 @@ class ConnectionHealthTest {
                 fixture.health.onInboundFrame()
                 assertEquals(50_000L, fixture.health.lastPongTimestamp)
 
-                // now - lastPong < 30000 is healthy
-                fixture.currentTimeMs = 50_000L + 29_999L
+                val limit = ConnectionHealth.STALE_THRESHOLD_MS
+                // now - lastPong < limit is healthy
+                fixture.currentTimeMs = 50_000L + limit - 1
                 assertTrue(fixture.health.isHealthy)
 
-                // now - lastPong == 30000 is NOT healthy (< 30000 required)
-                fixture.currentTimeMs = 50_000L + 30_000L
+                // now - lastPong == limit is NOT healthy (< limit required)
+                fixture.currentTimeMs = 50_000L + limit
                 assertFalse(fixture.health.isHealthy)
 
-                // now - lastPong > 30000 is NOT healthy
-                fixture.currentTimeMs = 50_000L + 30_001L
+                // now - lastPong > limit is NOT healthy
+                fixture.currentTimeMs = 50_000L + limit + 1
                 assertFalse(fixture.health.isHealthy)
             } finally {
                 fixture.health.stop()
@@ -206,12 +222,12 @@ class ConnectionHealthTest {
             try {
                 fixture.health.onInboundFrame()
 
-                // Within stale threshold (30000ms), no cancellation
-                fixture.health.forceHealthCheckForTest(30_000L)
+                // At the stale threshold, no cancellation
+                fixture.health.forceHealthCheckForTest(ConnectionHealth.STALE_THRESHOLD_MS)
                 assertEquals(0, fixture.cancelCalls.get())
 
-                // Exceeding stale threshold (> 30000ms), cancels socket
-                fixture.health.forceHealthCheckForTest(30_001L)
+                // Past the stale threshold, cancels socket
+                fixture.health.forceHealthCheckForTest(ConnectionHealth.STALE_THRESHOLD_MS + 1)
                 assertEquals(1, fixture.cancelCalls.get())
             } finally {
                 fixture.health.stop()
@@ -234,22 +250,20 @@ class ConnectionHealthTest {
                 runCurrent()
                 fixture.health.onInboundFrame()
 
-                // Advance by heartbeat interval (15000ms), still fresh
-                advanceTimeBy(15_000L)
-                fixture.currentTimeMs += 15_000L
-                runCurrent()
-                assertEquals(0, fixture.cancelCalls.get())
+                val interval = ConnectionHealth.HEARTBEAT_INTERVAL_MS
+                val beatsWithinLimit = ConnectionHealth.STALE_THRESHOLD_MS / interval
+                // Every heartbeat up to and including the stale threshold keeps the socket.
+                repeat(beatsWithinLimit.toInt()) {
+                    advanceTimeBy(interval)
+                    fixture.currentTimeMs += interval
+                    runCurrent()
+                    assertEquals(0, fixture.cancelCalls.get())
+                }
 
-                // Advance another heartbeat interval to 30000ms from last inbound frame
-                advanceTimeBy(15_000L)
-                fixture.currentTimeMs += 15_000L
-                runCurrent()
-                assertEquals(0, fixture.cancelCalls.get())
-
-                // Now time elapsed is > 30000ms (e.g. 30001ms)
+                // The next heartbeat past the threshold cancels the socket.
                 fixture.currentTimeMs += 1L
-                advanceTimeBy(15_000L)
-                fixture.currentTimeMs += 15_000L
+                advanceTimeBy(interval)
+                fixture.currentTimeMs += interval
                 runCurrent()
                 assertEquals(1, fixture.cancelCalls.get())
             } finally {

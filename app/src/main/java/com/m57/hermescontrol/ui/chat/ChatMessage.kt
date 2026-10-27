@@ -120,6 +120,12 @@ data class ChatMessage(
     val serverRowId: Long? = null,
     /** Emoji tapbacks on this message (REST `display_metadata` or live `message.reaction`); transient. */
     val reactions: List<MessageReaction> = emptyList(),
+    /**
+     * #1696: durable raw text behind a derived [content] projection. Assistant
+     * `MEDIA:` rows keep the directive here (Room persists it) while [content]
+     * is stripped for rendering; the UI never shows this field.
+     */
+    val persistedContent: String? = null,
 )
 
 /** Cached REST rows already carry their canonical identity in the persisted primary key. */

@@ -1,7 +1,6 @@
 package com.m57.hermescontrol.ui.chat
 
 import com.m57.hermescontrol.data.model.Attachment
-import com.m57.hermescontrol.data.model.AttachmentSource
 import com.m57.hermescontrol.data.model.SessionMessage
 import com.m57.hermescontrol.notification.ReplyNotificationTarget
 import com.m57.hermescontrol.ui.chat.tool.ToolJson
@@ -232,26 +231,16 @@ internal fun mapServerMessages(
                 rawContent
             }
         var attachments: List<Attachment>? = null
+        var persistedContent: String? = null
         if (role == MessageRole.USER) {
             attachments = userImageAttachments(finalContent, mediaUrl).takeIf { it.isNotEmpty() }
         } else if (role == MessageRole.ASSISTANT && rawContent.contains("MEDIA:")) {
             val items = HostMediaExtractor.extract(rawContent)
             if (items.isNotEmpty()) {
                 finalContent = HostMediaExtractor.strip(rawContent)
-                attachments =
-                    items
-                        .mapNotNull { item ->
-                            val url = mediaUrl(item.path) ?: return@mapNotNull null
-                            Attachment(
-                                uri = url,
-                                name = mediaNameFromPath(item.path),
-                                mimeType = mediaMimeForPath(item.path),
-                                size = 0,
-                                gatewayUrl = url,
-                                source = AttachmentSource.GATEWAY,
-                                contentOffset = item.offset,
-                            )
-                        }.takeIf { it.isNotEmpty() }
+                // #1696: keep the raw directive for Room so cache loads re-derive.
+                persistedContent = rawContent
+                attachments = hostMediaAttachments(rawContent, mediaUrl).takeIf { it.isNotEmpty() }
             }
         }
 
@@ -277,6 +266,7 @@ internal fun mapServerMessages(
                 completionId = completionId,
                 serverRowId = msg.id?.toLong()?.takeIf { it > 0L },
                 reactions = msg.reactions,
+                persistedContent = persistedContent,
             ).normalizedGatewayNotice(),
         )
     }

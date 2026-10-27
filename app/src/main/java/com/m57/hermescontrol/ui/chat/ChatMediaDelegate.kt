@@ -1,7 +1,6 @@
 package com.m57.hermescontrol.ui.chat
 
 import android.app.Application
-import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.AttachmentSource
 import com.m57.hermescontrol.data.remote.GatewayFile
@@ -12,14 +11,18 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * Owns gateway/host media handling for [ChatViewModel]: attaching MEDIA paths
- * extracted from message content, opening and saving attachments through the
- * gateway file client, and the FileProvider/ACTION_VIEW plumbing.
+ * Owns gateway/host media handling for [ChatViewModel]: opening and saving
+ * attachments through the gateway file client, and the FileProvider/ACTION_VIEW
+ * plumbing.
  *
  * Verbatim extraction of the inline implementation (corral 1 of the 2026-08
  * ChatViewModel delegate refactor) — same collaborators, same behavior: the
  * shared `_uiState` flow, an application context provider, and a scope for
  * background fetches are supplied by the ViewModel at construction.
+ *
+ * #1696: attaching `MEDIA:` directives to messages no longer lives here —
+ * derivation is a pure step of the reduction (see [withHostMedia]) so every
+ * transcript path (live WS, REST, Room cache) resolves identically.
  */
 class ChatMediaDelegate(
     private val uiState: MutableStateFlow<ChatUiState>,
@@ -27,64 +30,6 @@ class ChatMediaDelegate(
     private val scope: kotlinx.coroutines.CoroutineScope,
     private val ioDispatcher: kotlin.coroutines.CoroutineContext,
 ) {
-    fun attachHostMedia(
-        sessionId: String,
-        messageId: String,
-    ) {
-        val current = uiState.value.messages.find { it.id == messageId } ?: return
-        val content = current.content
-        val items = HostMediaExtractor.extract(content)
-        if (items.isEmpty()) return
-
-        val baseUrl = AuthManager.getBaseUrl()
-        if (baseUrl.isBlank()) return
-        // NOTE: no token gate here. Gated (basic-auth) dashboards download via
-        // the session cookie, and even loopback hosts can serve files with an
-        // empty query token — requiring a non-blank token dropped every MEDIA
-        // attachment on gate-auth connections where getToken() returns null.
-
-        val existingUrls =
-            current.attachments
-                .orEmpty()
-                .mapNotNull { it.gatewayUrl }
-                .toSet()
-        val newAttachments =
-            items.mapNotNull { item ->
-                val token = AuthManager.getToken().orEmpty()
-                val url = GatewayFileClient.buildMediaUrl(baseUrl, token, item.path) ?: return@mapNotNull null
-                if (url in existingUrls) return@mapNotNull null
-                Attachment(
-                    uri = url,
-                    name = mediaNameFromPath(item.path),
-                    mimeType = mediaMimeForPath(item.path),
-                    size = 0,
-                    gatewayUrl = url,
-                    source = AttachmentSource.GATEWAY,
-                    contentOffset = item.offset,
-                )
-            }
-        if (newAttachments.isEmpty()) return
-
-        val stripped = HostMediaExtractor.strip(content)
-        uiState.update { state ->
-            state.copy(
-                messages =
-                    state.messages.map { msg ->
-                        if (msg.id == messageId) {
-                            msg.copy(
-                                content = stripped,
-                                attachments =
-                                    (msg.attachments.orEmpty() + newAttachments)
-                                        .distinctBy { it.gatewayUrl ?: it.uri },
-                            )
-                        } else {
-                            msg
-                        }
-                    },
-            )
-        }
-    }
-
     /**
      * Open an attachment when its chip/thumbnail is tapped.
      *

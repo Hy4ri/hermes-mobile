@@ -1334,6 +1334,9 @@ class ChatViewModel(
                 _streamingState.value,
                 event,
                 runtimeSessionId ?: _uiState.value.currentSessionId,
+                // #1696: resolve MEDIA: directives inside the reduction so every
+                // seal path derives attachments synchronously.
+                mediaUrl = ::gatewayMediaUrl,
             )
 
         // Apply the new state
@@ -1779,16 +1782,6 @@ class ChatViewModel(
 
                 is ReducerEffect.DeleteLocalMessage -> {
                     viewModelScope.launch(ioDispatcher) { repo.deleteMessage(effect.messageId) }
-                }
-
-                is ReducerEffect.AttachHostMedia -> {
-                    // Issue #724: turn host-path MEDIA: directives into real
-                    // attachments (images inline, every other file tappable)
-                    // via the gateway /api/files/download endpoint. Works on a
-                    // remote phone too.
-                    viewModelScope.launch(ioDispatcher) {
-                        mediaDelegate.attachHostMedia(effect.sessionId, effect.messageId)
-                    }
                 }
             }
         }
@@ -2527,7 +2520,13 @@ class ChatViewModel(
     ) {
         if (inflight?.get("status") != "error") return
         val result =
-            ChatWsEventReducer.reduceRetainedReplyFailure(_uiState.value, inflight, runtimeId)
+            ChatWsEventReducer.reduceRetainedReplyFailure(
+                _uiState.value,
+                inflight,
+                runtimeId,
+                // #1696: retained failure projections derive media like any other seal.
+                mediaUrl = ::gatewayMediaUrl,
+            )
         _uiState.value = result.state
         _streamingState.value = result.streamingState
         dispatchReducerEffects(result.effects)
@@ -4979,7 +4978,12 @@ class ChatViewModel(
                     .async(ioDispatcher, start = CoroutineStart.LAZY) {
                         predecessor?.join()
                         if (!isCurrentSessionRequest(sessionId, generation)) return@async false
-                        val retained = repo.replaceCanonicalHistory(sessionId, replacement)
+                        val retained =
+                            repo
+                                .replaceCanonicalHistory(sessionId, replacement)
+                                // #1696: retained rows come from Room with the raw
+                                // directive; derive against the current connection.
+                                .map { it.withHostMedia(::gatewayMediaUrl) }
                         onCompressionHistoryReplacedForTest?.invoke()
                         if (!isCurrentSessionRequest(sessionId, generation)) return@async false
                         val retainedById = retained.associateBy { it.id }
@@ -6083,16 +6087,26 @@ class ChatViewModel(
         mergeHistoryPage(valid, cached = true) {
             // #1432: Room retains host references, not connection-bound download URLs.
             page.messages.map { message ->
-                if (message.role == MessageRole.USER && message.attachments.isNullOrEmpty()) {
-                    message.copy(
-                        attachments =
-                            userImageAttachments(
-                                message.content,
-                                ::gatewayMediaUrl,
-                            ).takeIf { it.isNotEmpty() },
-                    )
-                } else {
-                    message
+                when {
+                    message.role == MessageRole.USER && message.attachments.isNullOrEmpty() -> {
+                        message.copy(
+                            attachments =
+                                userImageAttachments(
+                                    message.content,
+                                    ::gatewayMediaUrl,
+                                ).takeIf { it.isNotEmpty() },
+                        )
+                    }
+
+                    // #1696: Room keeps the raw MEDIA: directive — derive the
+                    // attachment against the current connection, like REST rows.
+                    message.role == MessageRole.ASSISTANT -> {
+                        message.withHostMedia(::gatewayMediaUrl)
+                    }
+
+                    else -> {
+                        message
+                    }
                 }
             }
         } ?: return false
@@ -6338,10 +6352,11 @@ class ChatViewModel(
         val streaming = _streamingState.value.streamingMessage ?: return
         if (streaming.content.isBlank() && streaming.reasoningText.isBlank()) return
         val finalized =
-            streaming.copy(
-                isStreaming = false,
-                finishTimestamp = System.currentTimeMillis(),
-            )
+            streaming
+                .copy(
+                    isStreaming = false,
+                    finishTimestamp = System.currentTimeMillis(),
+                ).withHostMedia(::gatewayMediaUrl)
         _uiState.update { it.copy(messages = (it.messages + finalized).dedupeById()) }
         val sid = _uiState.value.currentSessionId
         if (sid != null) {

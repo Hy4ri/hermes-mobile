@@ -54,7 +54,8 @@ fun ChatMessage.toEntity(sessionId: String): ChatMessageEntity =
         id = id,
         sessionId = sessionId,
         role = role.name,
-        content = content,
+        // #1696: keep the raw directive when content is a derived projection.
+        content = persistedContent ?: content,
         reasoningText = reasoningText,
         timestamp = timestamp,
         toolName = toolName,

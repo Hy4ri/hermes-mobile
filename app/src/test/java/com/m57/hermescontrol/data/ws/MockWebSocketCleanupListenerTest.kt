@@ -2,12 +2,14 @@ package com.m57.hermescontrol.data.ws
 
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import io.mockk.verifySequence
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okhttp3.mockwebserver.MockResponse
 import okio.ByteString.Companion.encodeUtf8
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Test
@@ -93,6 +95,61 @@ class MockWebSocketCleanupListenerTest {
         listener.onClosed(socket, 1001, "server close")
 
         verifySequence { delegate.onClosed(socket, 1001, "server close") }
+    }
+
+    @Test
+    fun invokesOnClosedCallbackInAdditionToDelegate() {
+        var callbackInvoked = false
+        var capturedSocket: WebSocket? = null
+        var capturedCode = 0
+        var capturedReason = ""
+
+        val customListener =
+            requireNotNull(
+                MockResponse()
+                    .withClosingWebSocketUpgrade(delegate) { ws, code, reason ->
+                        callbackInvoked = true
+                        capturedSocket = ws
+                        capturedCode = code
+                        capturedReason = reason
+                    }.webSocketListener,
+            )
+
+        customListener.onClosed(socket, 1000, "normal close")
+
+        verifySequence { delegate.onClosed(socket, 1000, "normal close") }
+        assertEquals(true, callbackInvoked)
+        assertSame(socket, capturedSocket)
+        assertEquals(1000, capturedCode)
+        assertEquals("normal close", capturedReason)
+    }
+
+    @Test
+    fun invokesOnClosedCallbackEvenWhenDelegateOnClosedThrows() {
+        val failure = RuntimeException("delegate error on closed")
+        every { delegate.onClosed(socket, 1000, "normal close") } throws failure
+
+        var callbackInvoked = false
+        var capturedCode = 0
+
+        val customListener =
+            requireNotNull(
+                MockResponse()
+                    .withClosingWebSocketUpgrade(delegate) { _, code, _ ->
+                        callbackInvoked = true
+                        capturedCode = code
+                    }.webSocketListener,
+            )
+
+        val thrown =
+            assertThrows(RuntimeException::class.java) {
+                customListener.onClosed(socket, 1000, "normal close")
+            }
+
+        assertSame(failure, thrown)
+        assertEquals(true, callbackInvoked)
+        assertEquals(1000, capturedCode)
+        verify { delegate.onClosed(socket, 1000, "normal close") }
     }
 
     @Test

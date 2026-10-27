@@ -37,6 +37,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import retrofit2.Response
+import java.io.IOException
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CronJobsViewModelTest {
@@ -581,34 +582,264 @@ class CronJobsViewModelTest {
         )
 
         settle()
+        assertEquals(
+            "scheduled",
+            vm.uiState.value.jobs
+                .single()
+                .state,
+        )
         coVerify { mockApi.resumeCronJob("j-paused") }
     }
 
     @Test
     fun `pauseCronJob updates optimistic state to paused`() {
-        val vm = createViewModel()
-        val scheduledJob = CronJob(id = "j-sched", name = "Test", state = "scheduled")
-        coEvery { mockApi.getCronJobs() } returns Response.success(listOf(scheduledJob))
-        coEvery { mockApi.pauseCronJob("j-sched") } returns Response.success(Unit)
+        for (initialState in listOf("active", "scheduled")) {
+            val vm = createViewModel()
+            val jobId = "j-$initialState"
+            val job = CronJob(id = jobId, name = "Test", state = initialState)
+            coEvery { mockApi.getCronJobs() } returns Response.success(listOf(job))
+            coEvery { mockApi.pauseCronJob(jobId) } returns Response.success(Unit)
 
+            vm.loadCronJobs()
+            settle()
+            assertEquals(
+                initialState,
+                vm.uiState.value.jobs
+                    .single()
+                    .state,
+            )
+
+            vm.pauseCronJob(jobId)
+            assertEquals(
+                "paused",
+                vm.uiState.value.jobs
+                    .single()
+                    .state,
+            )
+
+            settle()
+            assertEquals(
+                "paused",
+                vm.uiState.value.jobs
+                    .single()
+                    .state,
+            )
+            coVerify(exactly = 1) { mockApi.pauseCronJob(jobId) }
+        }
+    }
+
+    // ── Cron loading and mutations ──────────────────────────────────────
+
+    @Test
+    fun `loadCronJobs success populates jobs and metadata`() {
+        val job = CronJob("id1", "Job 1", JsonPrimitive("*/5 * * * *"), "active", "success", "2026-06-15T15:10:00Z")
+        coEvery { mockApi.getCronJobs() } returns Response.success(listOf(job))
+
+        val vm = createViewModel()
+        vm.loadCronJobs()
+        assertTrue(vm.uiState.value.isLoading)
+
+        settle()
+
+        assertFalse(vm.uiState.value.isLoading)
+        assertEquals(1, vm.uiState.value.jobs.size)
+        assertEquals(
+            "id1",
+            vm.uiState.value.jobs[0]
+                .id,
+        )
+        assertEquals(
+            "Job 1",
+            vm.uiState.value.jobs[0]
+                .name,
+        )
+        assertEquals(
+            "active",
+            vm.uiState.value.jobs[0]
+                .state,
+        )
+        assertEquals(
+            "success",
+            vm.uiState.value.jobs[0]
+                .last_run_status,
+        )
+        assertEquals(
+            "2026-06-15T15:10:00Z",
+            vm.uiState.value.jobs[0]
+                .next_run,
+        )
+    }
+
+    @Test
+    fun `loadCronJobs failure surfaces error message and stops loading`() {
+        val errorResponse = Response.error<List<CronJob>>(500, "".toResponseBody(null))
+        coEvery { mockApi.getCronJobs() } returns errorResponse
+
+        val vm = createViewModel()
+        vm.loadCronJobs()
+        settle()
+
+        assertFalse(vm.uiState.value.isLoading)
+        assertNotNull(vm.uiState.value.errorMessage)
+        assertTrue(
+            vm.uiState.value.errorMessage!!
+                .contains("HTTP 500"),
+        )
+    }
+
+    @Test
+    fun `loadCronJobs refresh updates state with newest listing`() {
+        val jobA = CronJob("idA", "Job A", null, null, null, null)
+        val jobB = CronJob("idB", "Job B", null, null, null, null)
+        coEvery { mockApi.getCronJobs() } returnsMany
+            listOf(
+                Response.success(listOf(jobA)),
+                Response.success(listOf(jobB)),
+            )
+
+        val vm = createViewModel()
         vm.loadCronJobs()
         settle()
         assertEquals(
-            "scheduled",
-            vm.uiState.value.jobs
-                .first()
-                .state,
+            "Job A",
+            vm.uiState.value.jobs[0]
+                .name,
         )
 
-        vm.pauseCronJob("j-sched")
+        vm.loadCronJobs(forceRefresh = true)
+        settle()
         assertEquals(
-            "paused",
-            vm.uiState.value.jobs
-                .first()
+            "Job B",
+            vm.uiState.value.jobs[0]
+                .name,
+        )
+    }
+
+    @Test
+    fun `pauseCronJob HTTP error reverts state and surfaces toast error`() {
+        val job = CronJob("id1", "Job 1", null, "active", null, null)
+        coEvery { mockApi.getCronJobs() } returns Response.success(listOf(job))
+        coEvery { mockApi.pauseCronJob("id1") } returns Response.error<Unit>(500, "".toResponseBody(null))
+
+        val vm = createViewModel()
+        vm.loadCronJobs()
+        settle()
+
+        vm.pauseCronJob("id1")
+        settle()
+
+        assertEquals(
+            "active",
+            vm.uiState.value.jobs[0]
                 .state,
+        )
+        assertNotNull(vm.uiState.value.toastMessage)
+        assertTrue(
+            vm.uiState.value.toastMessage!!
+                .contains("HTTP 500"),
+        )
+    }
+
+    @Test
+    fun `triggerCronJob success sets success toast message`() {
+        coEvery { mockApi.triggerCronJob("id1") } returns Response.success(Unit)
+
+        val vm = createViewModel()
+        vm.triggerCronJob("id1")
+        settle()
+
+        assertEquals("Job triggered successfully", vm.uiState.value.toastMessage)
+    }
+
+    @Test
+    fun `triggerCronJob HTTP error surfaces toast error`() {
+        coEvery { mockApi.triggerCronJob("id1") } returns Response.error<Unit>(500, "".toResponseBody(null))
+
+        val vm = createViewModel()
+        vm.triggerCronJob("id1")
+        settle()
+
+        assertNotNull(vm.uiState.value.toastMessage)
+        assertTrue(
+            vm.uiState.value.toastMessage!!
+                .contains("HTTP 500"),
+        )
+    }
+
+    @Test
+    fun `deleteCronJob success applies optimistic removal and completes`() {
+        val job = CronJob("id1", "Job 1", null, null, null, null)
+        coEvery { mockApi.getCronJobs() } returns Response.success(listOf(job))
+        coEvery { mockApi.deleteCronJob("id1") } returns Response.success(Unit)
+
+        val vm = createViewModel()
+        vm.loadCronJobs()
+        settle()
+
+        assertEquals(1, vm.uiState.value.jobs.size)
+
+        vm.deleteCronJob("id1")
+        // Verify optimistic update (immediate removal)
+        assertTrue(
+            vm.uiState.value.jobs
+                .isEmpty(),
         )
 
         settle()
-        coVerify { mockApi.pauseCronJob("j-sched") }
+        assertTrue(
+            vm.uiState.value.jobs
+                .isEmpty(),
+        )
+    }
+
+    @Test
+    fun `deleteCronJob HTTP error reverts state and surfaces toast error`() {
+        val job = CronJob("id1", "Job 1", null, null, null, null)
+        coEvery { mockApi.getCronJobs() } returns Response.success(listOf(job))
+        coEvery { mockApi.deleteCronJob("id1") } returns Response.error<Unit>(500, "".toResponseBody(null))
+
+        val vm = createViewModel()
+        vm.loadCronJobs()
+        settle()
+
+        vm.deleteCronJob("id1")
+        settle()
+
+        assertEquals(1, vm.uiState.value.jobs.size)
+        assertNotNull(vm.uiState.value.toastMessage)
+        assertTrue(
+            vm.uiState.value.toastMessage!!
+                .contains("HTTP 500"),
+        )
+    }
+
+    @Test
+    fun `loadCronJobs network timeout surfaces timeout in error message`() {
+        coEvery { mockApi.getCronJobs() } throws IOException("Timeout")
+
+        val vm = createViewModel()
+        vm.loadCronJobs()
+        settle()
+
+        assertTrue(
+            vm.uiState.value.errorMessage!!
+                .contains("Timeout"),
+        )
+    }
+
+    @Test
+    fun `loadCronJobs empty response produces empty jobs list without error`() {
+        coEvery { mockApi.getCronJobs() } returns Response.success(emptyList())
+
+        val vm = createViewModel()
+        vm.loadCronJobs()
+        settle()
+
+        assertFalse(vm.uiState.value.isLoading)
+        assertTrue(
+            vm.uiState.value.jobs
+                .isEmpty(),
+        )
+        assertNull(vm.uiState.value.errorMessage)
     }
 }

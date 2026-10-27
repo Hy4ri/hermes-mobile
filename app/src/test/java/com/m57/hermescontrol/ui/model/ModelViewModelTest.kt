@@ -1,21 +1,37 @@
 package com.m57.hermescontrol.ui.model
 
+import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.DataScope
+import com.m57.hermescontrol.data.model.ActiveProfileResponse
+import com.m57.hermescontrol.data.model.AuxiliaryModelsResponse
+import com.m57.hermescontrol.data.model.MainModelAssignment
+import com.m57.hermescontrol.data.model.MoaConfigResponse
+import com.m57.hermescontrol.data.model.MoaModelSlot
 import com.m57.hermescontrol.data.model.ModelCapabilities
 import com.m57.hermescontrol.data.model.ModelInfoResponse
 import com.m57.hermescontrol.data.model.ModelOptionsResponse
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
+import com.m57.hermescontrol.data.model.ProfileInfo
+import com.m57.hermescontrol.data.model.ProfilesResponse
+import com.m57.hermescontrol.data.remote.ApiClient
+import com.m57.hermescontrol.data.remote.HermesApiService
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.ws.ModelCatalogStore
 import com.m57.hermescontrol.data.ws.ModelOptionsRepository
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
+import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.job
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -27,6 +43,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import retrofit2.Response
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ModelViewModelTest {
@@ -329,4 +346,152 @@ class ModelViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
         assertEquals(1, viewModel.uiState.value.pinnedModels.size)
     }
+
+    @Test
+    fun `selectModel updates profile model and shows toast`() =
+        runTest {
+            val mockApiService = mockk<HermesApiService>()
+            mockkObject(ApiClient)
+            every { ApiClient.hermesApi } returns mockApiService
+
+            val provider = ModelProvider("ollama", "Ollama", false, true, listOf("llama3"), 1, null, true, null, null)
+            val profile = ProfileInfo("default", null, true, "llama3", "ollama", null, null, null, null)
+
+            coEvery { mockApiService.getModelOptions(any(), any()) } returns
+                Response.success(ModelOptionsResponse(listOf(provider)))
+            coEvery { mockApiService.getModelInfo(any()) } returns Response.success(ModelInfoResponse())
+            val catalogStore =
+                ModelCatalogStore(
+                    repository = ModelOptionsRepository(connected = { false }),
+                    getCurrentScope = { null },
+                    scope = this,
+                )
+
+            coEvery { mockApiService.getActiveProfile() } returns
+                Response.success(ActiveProfileResponse("default", null))
+            coEvery { mockApiService.getProfiles() } returns Response.success(ProfilesResponse(listOf(profile)))
+            coEvery { mockApiService.updateProfileModel("default", any()) } returns Response.success(Unit)
+            coEvery { mockApiService.getAuxiliaryModels() } returns
+                Response.success(
+                    AuxiliaryModelsResponse(
+                        tasks = emptyList(),
+                        main = MainModelAssignment("openai", "gpt-4"),
+                    ),
+                )
+            coEvery { mockApiService.getMoaModels() } returns
+                Response.success<MoaConfigResponse>(
+                    MoaConfigResponse(
+                        presets = emptyMap(),
+                        default_preset = "",
+                        reference_models = emptyList(),
+                        aggregator = MoaModelSlot("openai", "gpt-4"),
+                        reference_temperature = 0.7,
+                        aggregator_temperature = 0.7,
+                        max_tokens = 4096,
+                    ),
+                )
+
+            val viewModel =
+                ModelViewModel(
+                    catalogStore = catalogStore,
+                    getCurrentScope = { null },
+                    ioDispatcher = testDispatcher,
+                )
+            try {
+                viewModel.loadAll()
+                advanceUntilIdle()
+
+                assertEquals(1, viewModel.uiState.value.providers.size)
+                assertEquals(
+                    "default",
+                    viewModel.uiState.value.activeProfile
+                        ?.name,
+                )
+                assertEquals(
+                    "llama3",
+                    viewModel.uiState.value.activeProfile
+                        ?.model,
+                )
+
+                viewModel.selectModel("ollama", "llama3")
+
+                // ModelViewModel.selectModel uses Dispatchers.IO internally.
+                // Suspend on uiState terminal toast message to safely await without static Dispatchers mocking.
+                viewModel.uiState.first { it.toastMessage == "Successfully set profile model to llama3" }
+
+                coVerify { mockApiService.updateProfileModel("default", any()) }
+                assertEquals("Successfully set profile model to llama3", viewModel.uiState.value.toastMessage)
+            } finally {
+                viewModel.viewModelScope.coroutineContext.job.children
+                    .toList()
+                    .forEach { it.cancelAndJoin() }
+            }
+        }
+
+    @Test
+    fun `loadAll propagates refresh flag to REST model options`() =
+        runTest {
+            val mockApiService = mockk<HermesApiService>()
+            mockkObject(ApiClient)
+            every { ApiClient.hermesApi } returns mockApiService
+
+            val provider = ModelProvider("ollama", "Ollama", false, true, listOf("llama3"), 1, null, true, null, null)
+            val profile = ProfileInfo("default", null, true, "llama3", "ollama", null, null, null, null)
+
+            val capturedRefresh = mutableListOf<Boolean>()
+            coEvery { mockApiService.getModelOptions(any(), any()) } answers {
+                capturedRefresh += firstArg<Boolean>()
+                Response.success(ModelOptionsResponse(listOf(provider)))
+            }
+            coEvery { mockApiService.getModelInfo(any()) } returns Response.success(ModelInfoResponse())
+            val catalogStore =
+                ModelCatalogStore(
+                    repository = ModelOptionsRepository(connected = { false }),
+                    getCurrentScope = { null },
+                    scope = this,
+                )
+
+            coEvery { mockApiService.getActiveProfile() } returns
+                Response.success(ActiveProfileResponse("default", null))
+            coEvery { mockApiService.getProfiles() } returns Response.success(ProfilesResponse(listOf(profile)))
+            coEvery { mockApiService.getAuxiliaryModels() } returns
+                Response.success(
+                    AuxiliaryModelsResponse(
+                        tasks = emptyList(),
+                        main = MainModelAssignment("openai", "gpt-4"),
+                    ),
+                )
+            coEvery { mockApiService.getMoaModels() } returns
+                Response.success<MoaConfigResponse>(
+                    MoaConfigResponse(
+                        presets = emptyMap(),
+                        default_preset = "",
+                        reference_models = emptyList(),
+                        aggregator = MoaModelSlot("openai", "gpt-4"),
+                        max_tokens = 4096,
+                    ),
+                )
+
+            val viewModel =
+                ModelViewModel(
+                    catalogStore = catalogStore,
+                    getCurrentScope = { null },
+                    ioDispatcher = testDispatcher,
+                )
+            try {
+                // Default loadAll() must call ensureLoaded with refresh = false
+                viewModel.loadAll()
+                advanceUntilIdle()
+
+                // Pull-to-refresh path must call ensureLoaded with refresh = true
+                viewModel.loadAll(refresh = true)
+                advanceUntilIdle()
+
+                assertEquals(listOf(false, true), capturedRefresh)
+            } finally {
+                viewModel.viewModelScope.coroutineContext.job.children
+                    .toList()
+                    .forEach { it.cancelAndJoin() }
+            }
+        }
 }

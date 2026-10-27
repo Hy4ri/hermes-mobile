@@ -1,13 +1,27 @@
 package com.m57.hermescontrol.ui.keys
 
+import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.model.EnvVarConfig
+import com.m57.hermescontrol.data.model.EnvVarUpdate
+import com.m57.hermescontrol.data.remote.ApiClient
+import com.m57.hermescontrol.data.remote.HermesApiService
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.job
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -15,6 +29,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import retrofit2.Response
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class KeysViewModelTest {
@@ -146,5 +161,52 @@ class KeysViewModelTest {
             "Tool API Keys should now be collapsed",
             categories.first { it.name == "Tool API Keys" }.expanded,
         )
+    }
+
+    @Test
+    fun `loadKeys and updateKey complete successfully using flow first suspension`() =
+        runTest {
+            val mockApi = mockk<HermesApiService>()
+            mockkObject(ApiClient)
+            every { ApiClient.hermesApi } returns mockApi
+            lateinit var viewModel: KeysViewModel
+            try {
+                coEvery { mockApi.getEnvVars() } returns
+                    Response.success(mapOf("KEY1" to EnvVarConfig(true, "value1", "desc", null, null, false)))
+                coEvery { mockApi.updateEnvVar(any()) } returns Response.success(Unit)
+
+                viewModel = KeysViewModel()
+                viewModel.loadKeys()
+
+                val loadedState =
+                    viewModel.uiState.first { state ->
+                        !state.isLoading && state.categories.isNotEmpty()
+                    }
+
+                val allVars =
+                    loadedState.categories
+                        .flatMap { it.vars.entries }
+                        .associate { it.key to it.value }
+                assertEquals("value1", allVars["KEY1"]?.redactedValue)
+
+                viewModel.updateKey("KEY1", "newValue")
+
+                val updatedState =
+                    viewModel.uiState.first { state ->
+                        state.toastMessage == "Key updated successfully"
+                    }
+                assertEquals("Key updated successfully", updatedState.toastMessage)
+                coVerify { mockApi.updateEnvVar(EnvVarUpdate("KEY1", "newValue")) }
+            } finally {
+                // The real IO hop may still be finishing a refresh. Do not let it resume after resetMain().
+                viewModel.drainBackgroundWork()
+                unmockkObject(ApiClient)
+            }
+        }
+
+    private suspend fun KeysViewModel.drainBackgroundWork() {
+        viewModelScope.coroutineContext.job.children
+            .toList()
+            .forEach { it.cancelAndJoin() }
     }
 }

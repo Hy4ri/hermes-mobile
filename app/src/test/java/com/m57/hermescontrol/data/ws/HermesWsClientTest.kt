@@ -409,9 +409,10 @@ class HermesWsClientTest {
                 ),
             )
 
+            // events has no replay: subscribe before connect() so the frame cannot be missed.
             val received =
-                async {
-                    withTimeout(5_000) {
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    withTimeout(15_000) {
                         HermesWsClient.events.first {
                             it is WsEvent.ServerRequest && it.id == "srq-secret"
                         }

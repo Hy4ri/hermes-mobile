@@ -247,4 +247,46 @@ class ChannelsViewModelTest {
         )
         assertFalse(viewModel.uiState.value.restartNeeded)
     }
+
+    @Test
+    fun `configurePlatform with env map overload sets exact restart toast and retains platform`() {
+        val platform =
+            MessagingPlatform(
+                id = "telegram",
+                name = "Telegram",
+                enabled = false,
+                configured = false,
+                envVars = emptyList(),
+            )
+        coEvery { mockApi.getMessagingPlatforms() } returns
+            Response.success(
+                MessagingPlatformResponse(
+                    envPath = "/tmp/.env",
+                    gatewayStartCommand = "hermes gateway start",
+                    platforms = listOf(platform),
+                ),
+            )
+        coEvery { mockApi.configurePlatform("telegram", any()) } returns
+            Response.success(MessagingPlatformUpdateResponse(ok = true))
+
+        val viewModel = ChannelsViewModel()
+        viewModel.loadPlatforms()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1, viewModel.uiState.value.platforms.size)
+
+        viewModel.configurePlatform("telegram", mapOf("bot_token" to "xyz"))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            "telegram configured successfully — restart the gateway for changes to take effect",
+            viewModel.uiState.value.toastMessage,
+        )
+        coVerify {
+            mockApi.configurePlatform(
+                "telegram",
+                MessagingPlatformUpdate(env = mapOf("bot_token" to "xyz")),
+            )
+        }
+    }
 }

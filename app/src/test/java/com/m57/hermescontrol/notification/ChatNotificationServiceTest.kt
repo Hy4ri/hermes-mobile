@@ -67,26 +67,6 @@ class ChatNotificationServiceTest {
     }
 
     @Test
-    fun `isAppInForeground defaults to false`() {
-        val field =
-            ChatNotificationService::class.java
-                .getDeclaredField("isAppInForeground")
-        field.isAccessible = true
-
-        val atomicBoolean = field.get(null) as java.util.concurrent.atomic.AtomicBoolean
-
-        // Ensure it's in a clean state
-        atomicBoolean.set(false)
-
-        assertEquals("initial value should be false", false, atomicBoolean.get())
-    }
-
-    @Test
-    fun `isAppInForeground field is volatile for thread safety`() {
-        // Obsolete test as the type is now AtomicBoolean which guarantees thread safety implicitly
-    }
-
-    @Test
     fun `setAppForeground is idempotent when called multiple times`() {
         val field =
             ChatNotificationService::class.java

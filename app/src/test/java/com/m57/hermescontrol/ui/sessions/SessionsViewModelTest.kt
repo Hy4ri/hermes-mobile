@@ -38,6 +38,7 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
@@ -1235,4 +1236,60 @@ class SessionsViewModelTest {
         assertEquals(2, source.fetchCallCount)
         vm.stopLiveStatusTracking()
     }
+
+    @Test
+    fun testSessionsListing_success() =
+        runTest {
+            val session = SessionInfo("session-123", "Session 1", "2026-06-15T15:10:00Z", 5, "active")
+            coEvery {
+                mockApi.getSessions(any(), any(), any(), null, "cron")
+            } returns Response.success(SessionListResponse(listOf(session)))
+
+            val viewModel = createViewModel()
+            viewModel.loadSessions()
+            assertTrue(viewModel.uiState.value.isLoading)
+
+            advanceUntilIdle()
+
+            assertFalse(viewModel.uiState.value.isLoading)
+            assertEquals(1, viewModel.uiState.value.sessions.size)
+            assertEquals(
+                "session-123",
+                viewModel.uiState.value.sessions[0]
+                    .id,
+            )
+            assertEquals(
+                "Session 1",
+                viewModel.uiState.value.sessions[0]
+                    .title,
+            )
+            assertEquals(
+                5,
+                viewModel.uiState.value.sessions[0]
+                    .message_count,
+            )
+            assertEquals(
+                "active",
+                viewModel.uiState.value.sessions[0]
+                    .status,
+            )
+        }
+
+    @Test
+    fun testSessionsLoad_failure() =
+        runTest {
+            coEvery { mockApi.getSessions(any(), any(), any(), null, "cron") } returns
+                Response.error(500, "".toResponseBody(null))
+
+            val viewModel = createViewModel()
+            viewModel.loadSessions()
+            advanceUntilIdle()
+
+            assertFalse(viewModel.uiState.value.isLoading)
+            assertNotNull(viewModel.uiState.value.errorMessage)
+            assertTrue(
+                viewModel.uiState.value.errorMessage!!
+                    .contains("HTTP 500"),
+            )
+        }
 }

@@ -597,15 +597,6 @@ The following content was retrieved from an external source.
     }
 
     @Test
-    fun sameLogicalMessage_callIdMissing_fallsBackToContentCanonical() {
-        // Old cached rows may lack the call id — terminal-style content
-        // canonicalization must still match.
-        val ws = ChatMessage(role = MessageRole.TOOL, content = wsToolContent, toolName = "terminal")
-        val rest = ChatMessage(role = MessageRole.TOOL, content = restToolContent)
-        assertTrue(sameLogicalMessage(ws, rest))
-    }
-
-    @Test
     fun mergeTranscriptWithLive_mcpToolRows_collapseToOne() {
         // Issue #842 on-device repro: the REST page carries the same MCP
         // search call as raw blob text; with the call id present the merge

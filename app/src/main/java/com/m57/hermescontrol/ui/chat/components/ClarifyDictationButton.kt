@@ -3,7 +3,6 @@ package com.m57.hermescontrol.ui.chat.components
 import android.Manifest
 import android.app.Activity
 import android.content.ActivityNotFoundException
-import android.content.Context
 import android.content.pm.PackageManager
 import android.speech.RecognizerIntent
 import android.widget.Toast
@@ -25,8 +24,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
 import com.m57.hermescontrol.ExternalActivityLifecycleGuard
 import com.m57.hermescontrol.R
-import com.m57.hermescontrol.data.ws.HermesWsClient
-import com.m57.hermescontrol.notification.NotificationHelper
+import com.m57.hermescontrol.launchExternalActivityWithLease
 import com.m57.hermescontrol.ui.chat.SpeechInputHelper
 
 /**
@@ -59,7 +57,7 @@ internal fun ClarifyDictationButton(onText: (String) -> Unit) {
         }
 
     fun startDictation() {
-        launchClarifyExternal(context) {
+        launchExternalActivityWithLease(context) {
             try {
                 speechLauncher.launch(SpeechInputHelper.createSpeechIntent(listeningPrompt))
             } catch (_: ActivityNotFoundException) {
@@ -87,7 +85,7 @@ internal fun ClarifyDictationButton(onText: (String) -> Unit) {
             if (granted) {
                 startDictation()
             } else {
-                launchClarifyExternal(context) {
+                launchExternalActivityWithLease(context) {
                     permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                 }
             }
@@ -100,23 +98,6 @@ internal fun ClarifyDictationButton(onText: (String) -> Unit) {
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
-}
-
-/**
- * Same connection lease the chat screen takes around external activities, so
- * the clarify request survives the trip to the recognizer.
- */
-private fun launchClarifyExternal(
-    context: Context,
-    launch: () -> Unit,
-) {
-    ExternalActivityLifecycleGuard.launchExternalActivity(
-        acquireConnectionLease = HermesWsClient::acquireExternalActivityConnectionLease,
-        releaseConnectionLease = HermesWsClient::releaseExternalActivityConnectionLease,
-        prepareForBackground = { NotificationHelper.start(context) },
-        cleanupAfterLaunchFailure = { NotificationHelper.stop(context) },
-        launch = launch,
-    )
 }
 
 /** Appends dictated text to whatever the user already typed, separated by a space. */

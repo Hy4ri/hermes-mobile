@@ -97,7 +97,7 @@ import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
 import com.m57.hermescontrol.data.ws.contract.SessionExportParams
-import com.m57.hermescontrol.notification.NotificationHelper
+import com.m57.hermescontrol.launchExternalActivityWithLease
 import com.m57.hermescontrol.profilelock.ProfileLock
 import com.m57.hermescontrol.share.ShareInbox
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
@@ -438,13 +438,7 @@ fun ChatScreen(
             scrollScope.launch { snackbarHostState.showSnackbar(message) }
         }
     val launchExternalActivity: (() -> Unit) -> Unit = { launch ->
-        ExternalActivityLifecycleGuard.launchExternalActivity(
-            acquireConnectionLease = HermesWsClient::acquireExternalActivityConnectionLease,
-            releaseConnectionLease = HermesWsClient::releaseExternalActivityConnectionLease,
-            prepareForBackground = { NotificationHelper.start(context) },
-            cleanupAfterLaunchFailure = { NotificationHelper.stop(context) },
-            launch = launch,
-        )
+        launchExternalActivityWithLease(context, launch)
     }
 
     val invalidResponseError = stringResource(R.string.session_integrations_err_invalid_response)

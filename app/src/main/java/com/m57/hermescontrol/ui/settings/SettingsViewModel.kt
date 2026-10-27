@@ -535,10 +535,16 @@ class SettingsViewModel(
                         }
 
                         is NetworkResult.Failure -> {
+                            val testResult =
+                                if (authResult.error is NetworkError.Http && authResult.error.code == 404) {
+                                    "✅ Reachable (auth not verified on older server)"
+                                } else {
+                                    "❌ ${formatTestConnectionError(authResult.error)}"
+                                }
                             _uiState.update {
                                 it.copy(
                                     isTesting = false,
-                                    testResult = "❌ ${formatTestConnectionError(authResult.error)}",
+                                    testResult = testResult,
                                 )
                             }
                         }
@@ -566,7 +572,7 @@ class SettingsViewModel(
             is NetworkError.Http -> {
                 when (error.code) {
                     401 -> "Key rejected by server (401 Unauthorized)"
-                    403 -> "Key rejected by server (403 Forbidden)"
+                    403 -> "Server refused access (403)"
                     else -> error.message
                 }
             }

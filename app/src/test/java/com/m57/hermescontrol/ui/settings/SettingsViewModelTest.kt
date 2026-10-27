@@ -566,7 +566,26 @@ class SettingsViewModelTest {
             testDispatcher.scheduler.advanceUntilIdle()
 
             assertEquals(false, viewModel.uiState.value.isTesting)
-            assertEquals("❌ Key rejected by server (403 Forbidden)", viewModel.uiState.value.testResult)
+            assertEquals("❌ Server refused access (403)", viewModel.uiState.value.testResult)
+        }
+
+    @Test
+    fun testTestConnection_olderServerMissingSessionStats_reportsReachableUnverified() =
+        runTest {
+            val mockApi = mockk<HermesApiService>()
+            every { ApiClient.hermesApi } returns mockApi
+            coEvery { mockApi.getStatus() } returns Response.success(StatusResponse(version = "1.0"))
+            coEvery { mockApi.getSessionStats() } returns Response.error(404, "".toResponseBody(null))
+
+            val viewModel = SettingsViewModel(ioDispatcher = testDispatcher)
+            testDispatcher.scheduler.advanceUntilIdle()
+            viewModel.onTokenChange("valid-key")
+
+            viewModel.testConnection()
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            assertEquals(false, viewModel.uiState.value.isTesting)
+            assertEquals("✅ Reachable (auth not verified on older server)", viewModel.uiState.value.testResult)
         }
 
     @Test

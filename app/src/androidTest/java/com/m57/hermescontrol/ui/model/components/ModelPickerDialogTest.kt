@@ -167,4 +167,100 @@ class ModelPickerDialogTest {
         assertEquals("openai", selectedProvider)
         assertEquals("gpt-4", selectedModel)
     }
+
+    @Test
+    fun pinnedRows_showProvider_soDuplicateModelNamesAreDistinguishable() {
+        var selectedProvider = ""
+        composeTestRule.setContent {
+            HermesControlTheme {
+                ModelPickerDialog(
+                    providers =
+                        listOf(
+                            ModelProvider(slug = "alpha", name = "Alpha", models = listOf("deepseek-v4.1-flash")),
+                            ModelProvider(slug = "beta", name = "Beta", models = listOf("deepseek-v4.1-flash")),
+                        ),
+                    title = "Choose model",
+                    pinnedModels =
+                        listOf(
+                            PinnedModel("alpha", "deepseek-v4.1-flash"),
+                            PinnedModel("beta", "deepseek-v4.1-flash"),
+                        ),
+                    onSelect = { provider, _ -> selectedProvider = provider },
+                    onDismiss = {},
+                )
+            }
+        }
+
+        // Two providers ship the same model name; the pinned rows stay
+        // distinguishable because each carries its provider (#1697).
+        composeTestRule.onAllNodesWithText("deepseek-v4.1-flash").assertCountEquals(2)
+        // Provider text appears on the collapsed section header and on the
+        // pinned row itself — without the label there is only the header.
+        composeTestRule.onAllNodesWithText("Alpha").assertCountEquals(2)
+        composeTestRule.onAllNodesWithText("Beta").assertCountEquals(2)
+
+        composeTestRule.onAllNodesWithText("deepseek-v4.1-flash")[0].performClick()
+        assertEquals("alpha", selectedProvider)
+    }
+
+    @Test
+    fun groupedRows_doNotRepeatTheProviderLabel() {
+        composeTestRule.setContent {
+            HermesControlTheme {
+                ModelPickerDialog(
+                    providers = listOf(ModelProvider(slug = "openai", name = "OpenAI", models = listOf("gpt-4"))),
+                    title = "Choose model",
+                    pinnedModels = listOf(PinnedModel("openai", "gpt-4")),
+                    onSelect = { _, _ -> },
+                    onDismiss = {},
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithContentDescription("Expand OpenAI models").performClick()
+
+        // The provider shows on the header and the pinned row; the grouped row
+        // leans on its header and does not repeat it.
+        composeTestRule.onAllNodesWithText("OpenAI").assertCountEquals(2)
+        composeTestRule.onAllNodesWithText("gpt-4").assertCountEquals(2)
+    }
+
+    @Test
+    fun pinnedRow_showsSlugWhileCatalogLoads() {
+        composeTestRule.setContent {
+            HermesControlTheme {
+                ModelPickerDialog(
+                    providers = emptyList(),
+                    title = "Choose model",
+                    isLoading = true,
+                    pinnedModels = listOf(PinnedModel("openai", "gpt-4")),
+                    onSelect = { _, _ -> },
+                    onDismiss = {},
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithText("gpt-4").assertIsDisplayed()
+        composeTestRule.onNodeWithText("openai").assertIsDisplayed()
+    }
+
+    @Test
+    fun pinnedSearch_matchesProviderDisplayName() {
+        composeTestRule.setContent {
+            HermesControlTheme {
+                ModelPickerDialog(
+                    providers = listOf(ModelProvider(slug = "nous", name = "Nous Portal", models = emptyList())),
+                    title = "Choose model",
+                    pinnedModels = listOf(PinnedModel("nous", "gpt-4")),
+                    onSelect = { _, _ -> },
+                    onDismiss = {},
+                )
+            }
+        }
+
+        // The provider label is searchable, not just decorative: the model name
+        // does not contain the query, so only the label keeps the row visible.
+        composeTestRule.onNode(hasSetTextAction()).performTextInput("Portal")
+        composeTestRule.onNodeWithText("gpt-4").assertIsDisplayed()
+    }
 }

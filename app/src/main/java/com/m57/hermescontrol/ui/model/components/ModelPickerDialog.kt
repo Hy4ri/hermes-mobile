@@ -115,14 +115,23 @@ fun ModelPickerDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 } else {
+                    val providerBySlug =
+                        remember(providers) {
+                            providers.associateBy { it.slug }
+                        }
+
+                    // #1697: pinned rows have no provider header to lean on, so
+                    // search also matches the provider label shown on the row.
                     val filteredPinned =
-                        remember(pickerQuery, pinnedModels) {
+                        remember(pickerQuery, pinnedModels, providerBySlug) {
                             if (pickerQuery.isBlank()) {
                                 pinnedModels
                             } else {
                                 pinnedModels.filter {
                                     it.modelName.contains(pickerQuery, ignoreCase = true) ||
-                                        it.providerSlug.contains(pickerQuery, ignoreCase = true)
+                                        it.providerSlug.contains(pickerQuery, ignoreCase = true) ||
+                                        pinnedProviderLabel(it, providerBySlug)
+                                            .contains(pickerQuery, ignoreCase = true)
                                 }
                             }
                         }
@@ -130,11 +139,6 @@ fun ModelPickerDialog(
                     val pinnedSet =
                         remember(pinnedModels) {
                             pinnedModels.map { "${it.providerSlug}:${it.modelName}" }.toSet()
-                        }
-
-                    val providerBySlug =
-                        remember(providers) {
-                            providers.associateBy { it.slug }
                         }
 
                     val filteredProvidersWithModels =
@@ -215,6 +219,7 @@ fun ModelPickerDialog(
                                         },
                                     onClick = { onSelect(pinned.providerSlug, pinned.modelName) },
                                     capabilities = caps,
+                                    providerLabel = pinnedProviderLabel(pinned, providerBySlug),
                                 )
                             }
                         }
@@ -320,6 +325,8 @@ private fun ModelItemCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     capabilities: ModelCapabilities? = null,
+    // Only set where no provider header gives context (pinned rows, #1697).
+    providerLabel: String? = null,
 ) {
     Surface(
         modifier =
@@ -351,6 +358,13 @@ private fun ModelItemCard(
                     // No maxLines/ellipsis: a long model name wraps so the full
                     // name stays readable while the pin button keeps its spot.
                 )
+                if (providerLabel != null) {
+                    Text(
+                        text = providerLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 ModelCapabilitySummary(capabilities)
             }
             if (onPinToggle != null) {
@@ -360,7 +374,14 @@ private fun ModelItemCard(
                 ) {
                     Icon(
                         imageVector = if (isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
-                        contentDescription = if (isPinned) "Unpin model" else "Pin model",
+                        contentDescription =
+                            stringResource(
+                                if (isPinned) {
+                                    R.string.content_desc_unpin_model
+                                } else {
+                                    R.string.content_desc_pin_model
+                                },
+                            ),
                         tint =
                             if (isPinned) {
                                 MaterialTheme.colorScheme.primary
@@ -374,3 +395,13 @@ private fun ModelItemCard(
         }
     }
 }
+
+/**
+ * #1697: pinned rows have no provider header to lean on, so they carry the
+ * provider themselves. Prefers the catalog's display name and falls back to
+ * the slug while the catalog is still loading or after the provider is gone.
+ */
+internal fun pinnedProviderLabel(
+    pinned: PinnedModel,
+    providerBySlug: Map<String, ModelProvider>,
+): String = providerBySlug[pinned.providerSlug]?.name?.takeIf { it.isNotBlank() } ?: pinned.providerSlug

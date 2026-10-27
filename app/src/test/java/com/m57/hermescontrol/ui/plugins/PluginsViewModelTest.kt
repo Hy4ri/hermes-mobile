@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.plugins
 
+import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.model.AgentPluginInstallBody
 import com.m57.hermescontrol.data.model.PluginCatalogCapabilities
 import com.m57.hermescontrol.data.model.PluginCatalogEntry
@@ -21,6 +22,9 @@ import io.mockk.unmockkAll
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.job
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -476,32 +480,56 @@ class PluginsViewModelTest {
 
     @Test
     fun `togglePlugin applies optimistic update and enables plugin`() {
-        val plugin = PluginInfo("plugin-1", "Desc", "1.0", null, "disabled")
-        coEvery { mockApi.getPlugins() } returns Response.success(PluginsHubResponse(listOf(plugin)))
-        coEvery { mockApi.enablePlugin("plugin-1") } returns Response.success(Unit)
+        var enabledOnServer = false
+        coEvery { mockApi.getPlugins() } answers {
+            val status = if (enabledOnServer) "enabled" else "disabled"
+            Response.success(PluginsHubResponse(listOf(PluginInfo("plugin-1", "Desc", "1.0", null, status))))
+        }
+        coEvery { mockApi.enablePlugin("plugin-1") } answers {
+            enabledOnServer = true
+            Response.success(Unit)
+        }
 
         val viewModel = PluginsViewModel()
-        viewModel.loadPlugins()
+        try {
+            viewModel.loadPlugins()
+            settleRealIo { viewModel.uiState.value.plugins.size == 1 }
+            assertFalse(
+                viewModel.uiState.value.plugins[0]
+                    .enabled,
+            )
+
+            viewModel.togglePlugin(viewModel.uiState.value.plugins[0])
+            // The optimistic state is visible before the real IO hop returns.
+            assertTrue(
+                viewModel.uiState.value.plugins[0]
+                    .enabled,
+            )
+
+            settleRealIo { enabledOnServer }
+            assertTrue(
+                viewModel.uiState.value.plugins[0]
+                    .enabled,
+            )
+            coVerify(exactly = 1) { mockApi.enablePlugin("plugin-1") }
+        } finally {
+            // Real IO work must not resume after resetMain().
+            runBlocking {
+                viewModel.viewModelScope.coroutineContext.job.children
+                    .toList()
+                    .forEach { it.cancelAndJoin() }
+            }
+        }
+    }
+
+    private fun settleRealIo(condition: () -> Boolean) {
+        val deadline = System.nanoTime() + 5_000_000_000L
+        while (System.nanoTime() < deadline) {
+            testDispatcher.scheduler.advanceUntilIdle()
+            if (condition()) return
+            Thread.sleep(10)
+        }
         testDispatcher.scheduler.advanceUntilIdle()
-
-        assertEquals(1, viewModel.uiState.value.plugins.size)
-        assertFalse(
-            viewModel.uiState.value.plugins[0]
-                .enabled,
-        )
-
-        viewModel.togglePlugin(viewModel.uiState.value.plugins[0])
-        // Optimistic toggle check before async network call settles
-        assertTrue(
-            viewModel.uiState.value.plugins[0]
-                .enabled,
-        )
-
-        testDispatcher.scheduler.advanceUntilIdle()
-        assertTrue(
-            viewModel.uiState.value.plugins[0]
-                .enabled,
-        )
-        coVerify(exactly = 1) { mockApi.enablePlugin("plugin-1") }
+        assertTrue("Timed out waiting for real IO work", condition())
     }
 }

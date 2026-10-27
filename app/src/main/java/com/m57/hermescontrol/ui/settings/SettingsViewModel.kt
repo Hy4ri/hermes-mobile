@@ -10,6 +10,7 @@ import com.m57.hermescontrol.data.local.SessionListCacheStore
 import com.m57.hermescontrol.data.model.BusySendMode
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.CleartextPolicy
+import com.m57.hermescontrol.data.remote.NetworkError
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.safeApiCall
@@ -516,14 +517,37 @@ class SettingsViewModel(
         _uiState.update { it.copy(isTesting = true, testResult = null) }
 
         viewModelScope.launch {
-            val result =
+            val statusResult =
                 withContext(ioDispatcher) {
                     safeApiCall { ApiClient.hermesApi.getStatus() }
                 }
-            when (result) {
+            when (statusResult) {
                 is NetworkResult.Success -> {
-                    _uiState.update {
-                        it.copy(isTesting = false, testResult = "✅ Connected successfully")
+                    val authResult =
+                        withContext(ioDispatcher) {
+                            safeApiCall { ApiClient.hermesApi.getSessionStats() }
+                        }
+                    when (authResult) {
+                        is NetworkResult.Success -> {
+                            _uiState.update {
+                                it.copy(isTesting = false, testResult = "✅ Connected successfully")
+                            }
+                        }
+
+                        is NetworkResult.Failure -> {
+                            val testResult =
+                                if (authResult.error is NetworkError.Http && authResult.error.code == 404) {
+                                    "✅ Reachable (auth not verified on older server)"
+                                } else {
+                                    "❌ ${formatTestConnectionError(authResult.error)}"
+                                }
+                            _uiState.update {
+                                it.copy(
+                                    isTesting = false,
+                                    testResult = testResult,
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -531,11 +555,30 @@ class SettingsViewModel(
                     _uiState.update {
                         it.copy(
                             isTesting = false,
-                            testResult = "❌ ${result.error.message}",
+                            testResult = "❌ ${formatTestConnectionError(statusResult.error)}",
                         )
                     }
                 }
             }
         }
     }
+
+    private fun formatTestConnectionError(error: NetworkError): String =
+        when (error) {
+            is NetworkError.AuthExpired -> {
+                "Key rejected by server (401 Unauthorized)"
+            }
+
+            is NetworkError.Http -> {
+                when (error.code) {
+                    401 -> "Key rejected by server (401 Unauthorized)"
+                    403 -> "Server refused access (403)"
+                    else -> error.message
+                }
+            }
+
+            else -> {
+                error.message
+            }
+        }
 }

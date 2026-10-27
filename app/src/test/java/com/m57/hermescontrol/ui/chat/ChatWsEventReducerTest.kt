@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.ui.chat
 
+import com.m57.hermescontrol.data.model.Attachment
+import com.m57.hermescontrol.data.model.AttachmentSource
 import com.m57.hermescontrol.data.model.MessageReaction
 import com.m57.hermescontrol.data.model.UsageSnapshotResponse
 import com.m57.hermescontrol.data.ws.WsEvent
@@ -1742,5 +1744,231 @@ class ChatWsEventReducerTest {
                 "s",
             )
         assertEquals(state, otherSession.state)
+    }
+
+    // ── #1696: MEDIA directives derive inside the reduction, on every seal path ──
+
+    private val mediaRaw = "Mock ready\nMEDIA:/opt/data/mock.png"
+
+    @Test
+    fun messageCompleteAttachesMediaInSameReduction() {
+        val state = ChatUiState(currentSessionId = "s")
+        val result =
+            ChatWsEventReducer.reduce(
+                state,
+                StreamingState(
+                    streamingMessage = ChatMessage(id = "m1", role = MessageRole.ASSISTANT, content = mediaRaw),
+                ),
+                WsEvent.MessageComplete(mediaRaw, "s"),
+                "s",
+                mediaUrl = { "gw://$it" },
+            )
+
+        val sealed = result.state.messages.single()
+        assertEquals("Mock ready", sealed.content)
+        assertEquals(listOf("gw:///opt/data/mock.png"), sealed.attachments?.map { it.uri })
+        assertEquals(mediaRaw, sealed.persistedContent)
+        val persisted = result.effects.filterIsInstance<ReducerEffect.PersistMessage>().single()
+        assertEquals(mediaRaw, persisted.message.persistedContent)
+        assertEquals("Mock ready", persisted.message.content)
+    }
+
+    @Test
+    fun messageDoneAttachesMedia() {
+        val state = ChatUiState(currentSessionId = "s")
+        val result =
+            ChatWsEventReducer.reduce(
+                state,
+                StreamingState(
+                    streamingMessage = ChatMessage(id = "m1", role = MessageRole.ASSISTANT, content = mediaRaw),
+                ),
+                WsEvent.MessageDone("s"),
+                "s",
+                mediaUrl = { "gw://$it" },
+            )
+
+        val sealed = result.state.messages.single()
+        assertEquals("Mock ready", sealed.content)
+        assertEquals(listOf("gw:///opt/data/mock.png"), sealed.attachments?.map { it.uri })
+    }
+
+    @Test
+    fun toolStartSealsStreamingMediaOrphanWithAttachment() {
+        val state = ChatUiState(currentSessionId = "s")
+        val result =
+            ChatWsEventReducer.reduce(
+                state,
+                StreamingState(
+                    streamingMessage = ChatMessage(id = "m1", role = MessageRole.ASSISTANT, content = mediaRaw),
+                ),
+                WsEvent.ToolStart(name = "terminal", data = mapOf("tool_id" to "c1"), sessionId = "s"),
+                "s",
+                mediaUrl = { "gw://$it" },
+            )
+
+        val orphan = result.state.messages.first { it.id == "m1" }
+        assertEquals("Mock ready", orphan.content)
+        assertEquals(listOf("gw:///opt/data/mock.png"), orphan.attachments?.map { it.uri })
+        val persisted = result.effects.filterIsInstance<ReducerEffect.PersistMessage>().first { it.message.id == "m1" }
+        assertEquals(mediaRaw, persisted.message.persistedContent)
+    }
+
+    @Test
+    fun messageStartSealsStreamingMediaOrphanWithAttachment() {
+        val state = ChatUiState(currentSessionId = "s")
+        val result =
+            ChatWsEventReducer.reduce(
+                state,
+                StreamingState(
+                    streamingMessage = ChatMessage(id = "m1", role = MessageRole.ASSISTANT, content = mediaRaw),
+                ),
+                WsEvent.MessageStart("s"),
+                "s",
+                mediaUrl = { "gw://$it" },
+            )
+
+        val orphan = result.state.messages.single { it.id == "m1" }
+        assertEquals("Mock ready", orphan.content)
+        assertEquals(listOf("gw:///opt/data/mock.png"), orphan.attachments?.map { it.uri })
+    }
+
+    @Test
+    fun interruptPartialKeepsMediaAttached() {
+        val state = ChatUiState(currentSessionId = "s")
+        val result =
+            ChatWsEventReducer.reduce(
+                state,
+                StreamingState(
+                    streamingMessage = ChatMessage(id = "m1", role = MessageRole.ASSISTANT, content = mediaRaw),
+                ),
+                WsEvent.MessageComplete("Operation interrupted.", "s"),
+                "s",
+                mediaUrl = { "gw://$it" },
+            )
+
+        val partial = result.state.messages.first { it.id == "m1" }
+        assertEquals("Mock ready", partial.content)
+        assertEquals(listOf("gw:///opt/data/mock.png"), partial.attachments?.map { it.uri })
+    }
+
+    @Test
+    fun completeAfterMediaOrphanDoesNotRepeatCommentary() {
+        // The complete payload re-carries the sealed orphan's raw text, so the
+        // sealed-prefix strip must compare against persistedContent (#1696) —
+        // leaving the final bubble with only the not-yet-rendered part.
+        val rawWithNewline = "Mock ready\nMEDIA:/opt/data/mock.png\n"
+        val state = ChatUiState(currentSessionId = "s")
+        val sealed =
+            ChatWsEventReducer.reduce(
+                state,
+                StreamingState(
+                    streamingMessage = ChatMessage(id = "m1", role = MessageRole.ASSISTANT, content = rawWithNewline),
+                ),
+                WsEvent.ToolStart(name = "terminal", data = mapOf("tool_id" to "c1"), sessionId = "s"),
+                "s",
+                mediaUrl = { "gw://$it" },
+            )
+        val complete =
+            ChatWsEventReducer.reduce(
+                sealed.state,
+                sealed.streamingState,
+                WsEvent.MessageComplete(rawWithNewline + "Done.", "s"),
+                "s",
+                mediaUrl = { "gw://$it" },
+            )
+
+        val final = complete.state.messages.first { it.id != "m1" && it.role == MessageRole.ASSISTANT }
+        assertEquals("Done.", final.content)
+    }
+
+    // ── Review follow-up (#1700): interrupt/late-completion and failed-reply media ──
+
+    @Test
+    fun lateCompletionAfterInterruptSealedMediaKeepsTheAuthoritativeText() {
+        // An interrupt acknowledgement seals the streaming media row via
+        // sealStreamingMessageIfAny: visible text stripped, raw kept in
+        // persistedContent, attachment attached. A late completion then
+        // re-carries the directive PLUS new authoritative text — the fresh
+        // payload must win, never the stale raw projection.
+        val sealedPartial =
+            ChatMessage(
+                id = "m1",
+                role = MessageRole.ASSISTANT,
+                content = "Mock ready",
+                persistedContent = "Mock ready\nMEDIA:/opt/data/mock.png",
+                attachments =
+                    listOf(
+                        Attachment(
+                            uri = "gw:///opt/data/mock.png",
+                            name = "mock.png",
+                            mimeType = "image/png",
+                            source = AttachmentSource.GATEWAY,
+                        ),
+                    ),
+            )
+        val completionText = "Mock ready\nMEDIA:/opt/data/mock.png\nFinal authoritative text"
+        val result =
+            ChatWsEventReducer.reduce(
+                ChatUiState(currentSessionId = "s"),
+                StreamingState(interruptedMessage = sealedPartial),
+                WsEvent.MessageComplete(completionText, "s"),
+                "s",
+                mediaUrl = { "gw://$it" },
+            )
+
+        val final = result.state.messages.last { it.role == MessageRole.ASSISTANT }
+        assertFalse(final.content.contains("MEDIA:"))
+        assertTrue(final.content.contains("Mock ready"))
+        assertTrue(final.content.contains("Final authoritative text"))
+        assertEquals(completionText, final.persistedContent)
+        assertEquals(1, final.attachments?.size)
+    }
+
+    @Test
+    fun failedReplyPartialDerivesMediaWithoutPersisting() {
+        val result =
+            ChatWsEventReducer.reduce(
+                ChatUiState(currentSessionId = "s"),
+                StreamingState(
+                    streamingMessage =
+                        ChatMessage(
+                            id = "m1",
+                            role = MessageRole.ASSISTANT,
+                            content = "Chart incoming\nMEDIA:/opt/data/chart.png",
+                        ),
+                ),
+                WsEvent.MessageComplete(
+                    "Chart incoming\nMEDIA:/opt/data/chart.png",
+                    "s",
+                    rawPayload = mapOf("status" to "error", "partial" to true, "error" to "gateway blew up"),
+                ),
+                "s",
+                mediaUrl = { "gw://$it" },
+            )
+
+        val partial = result.state.messages.last { it.role == MessageRole.ASSISTANT }
+        assertEquals("Chart incoming", partial.content)
+        assertEquals(listOf("gw:///opt/data/chart.png"), partial.attachments?.map { it.uri })
+        // Failed-reply projections stay transient: nothing reaches Room.
+        assertTrue(result.effects.none { it is ReducerEffect.PersistMessage })
+    }
+
+    @Test
+    fun retainedReplyFailureDerivesMediaWithoutPersisting() {
+        val result =
+            ChatWsEventReducer.reduceRetainedReplyFailure(
+                ChatUiState(currentSessionId = "s"),
+                mapOf(
+                    "status" to "error",
+                    "assistant" to "Chart incoming\nMEDIA:/opt/data/chart.png",
+                ),
+                "s",
+                mediaUrl = { "gw://$it" },
+            )
+
+        val partial = result.state.messages.last { it.role == MessageRole.ASSISTANT }
+        assertEquals("Chart incoming", partial.content)
+        assertEquals(listOf("gw:///opt/data/chart.png"), partial.attachments?.map { it.uri })
+        assertTrue(result.effects.none { it is ReducerEffect.PersistMessage })
     }
 }

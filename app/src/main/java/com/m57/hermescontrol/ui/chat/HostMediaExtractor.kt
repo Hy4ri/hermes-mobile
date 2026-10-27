@@ -8,7 +8,7 @@ package com.m57.hermescontrol.ui.chat
  * desktop app resolves via `mediaExternalUrl` — an authenticated
  * `/api/files/download?path=<enc>&token=<enc>` URL that streams the host file's
  * bytes over HTTP. Mobile turns each directive into an [Attachment] (see
- * [com.m57.hermescontrol.ui.chat.ChatViewModel.attachHostMedia]) so the
+ * [withHostMedia]) so the
  * renderer can show images inline and offer every other file type as a
  * tappable, fetchable attachment — including on a *remote* phone.
  *

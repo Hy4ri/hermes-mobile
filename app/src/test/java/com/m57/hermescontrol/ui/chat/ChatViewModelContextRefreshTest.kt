@@ -194,6 +194,8 @@ class ChatViewModelContextRefreshTest {
             repo = fakeRepo,
             slashUsageStore = fakeSlashUsageStore,
             ioDispatcher = testDispatcher,
+            // Cache/history merges run here; a real Default dispatcher would resume onto Main after teardown.
+            searchDispatcher = testDispatcher,
             sendStore = ChatSendStore(),
         )
 
@@ -648,5 +650,37 @@ class ChatViewModelContextRefreshTest {
                     any(),
                 )
             }
+        }
+
+    @Test
+    fun droppedSocket_backgroundPollsSkipStoredIdUntilRuntimeRebinds() =
+        runTest {
+            // Issue #1701: after a drop the poll fell back to the stored id, which the gateway
+            // always rejects for session-scoped RPCs ("not in memory").
+            val runtimeId = "rt-live-1701"
+            val storageId = "20261027_085237_bf1d3a"
+            val (vm, _) = createViewModelWithActiveSession(runtimeId = runtimeId, storageId = storageId)
+
+            fun sentWith(
+                method: String,
+                id: String,
+            ) = sentRequests.count { (m, params, _) -> m == method && params.toString().contains("\"$id\"") }
+
+            vm.refreshBackgroundProcesses()
+            vm.hydrateSubagents()
+            advanceUntilIdle()
+            assertEquals(1, sentWith(WsMethods.PROCESS_LIST, runtimeId))
+            assertEquals(1, sentWith(WsMethods.SUBAGENT_LIST, runtimeId))
+
+            mockConnectionStatus.value = ConnectionStatus.RECONNECTING
+            advanceUntilIdle()
+            assertEquals(storageId, vm.uiState.value.currentSessionId)
+            sentRequests.clear()
+
+            vm.refreshBackgroundProcesses()
+            vm.hydrateSubagents()
+            advanceUntilIdle()
+
+            assertTrue(sentRequests.none { it.first == WsMethods.PROCESS_LIST || it.first == WsMethods.SUBAGENT_LIST })
         }
 }

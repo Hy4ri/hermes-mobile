@@ -651,6 +651,11 @@ class ChatViewModel(
     private var resumedGeneration = -1L
     private var hydratedGeneration = -1L
 
+    /** Monotonic start of the current resume, for the recovery timing log (issue #1701). */
+    private var resumeStartedAtNanos = 0L
+
+    private fun resumeElapsedMs(): Long = (System.nanoTime() - resumeStartedAtNanos) / 1_000_000L
+
     /** Runtime TUI session returned by session.resume; Desktop storage keeps the original ID. */
     private var runtimeSessionId: String? = null
 
@@ -956,7 +961,9 @@ class ChatViewModel(
             uiState = _uiState,
             scope = viewModelScope,
             ioDispatcher = ioDispatcher,
-            runtimeSessionId = { runtimeSessionId ?: _uiState.value.currentSessionId },
+            // Session-scoped gateway RPCs accept only the live runtime id. The stored id is always
+            // rejected, so no fallback (issue #1701).
+            runtimeSessionId = { runtimeSessionId },
         )
 
     private val processesDelegate =
@@ -964,7 +971,9 @@ class ChatViewModel(
             uiState = _uiState,
             scope = viewModelScope,
             ioDispatcher = ioDispatcher,
-            runtimeSessionId = { runtimeSessionId ?: _uiState.value.currentSessionId },
+            // Session-scoped gateway RPCs accept only the live runtime id. The stored id is always
+            // rejected, so no fallback (issue #1701).
+            runtimeSessionId = { runtimeSessionId },
         )
 
     private val streamingController =
@@ -2291,6 +2300,7 @@ class ChatViewModel(
                     return
                 }
                 runtimeSessionId = runtimeId
+                Log.i(TAG, "session.resume bound runtime after ${resumeElapsedMs()}ms")
                 connectionOperationDelegate.bindSession(runtimeId)
                 fetchCommandCatalog()
                 mainTurnBusy = resultMap["running"] as? Boolean ?: false
@@ -5298,7 +5308,7 @@ class ChatViewModel(
     }
 
     fun hydrateSubagents(sessionId: String? = null) {
-        subagentsDelegate.hydrateSubagents(sessionId ?: runtimeSessionId ?: _uiState.value.currentSessionId)
+        subagentsDelegate.hydrateSubagents(sessionId ?: runtimeSessionId)
     }
 
     fun refreshBackgroundProcesses() {
@@ -6199,6 +6209,10 @@ class ChatViewModel(
                             sessionHasServerPresence = true
                             publishHistoryAvailability()
                             hydratedGeneration = generation
+                            Log.i(
+                                TAG,
+                                "transcript page (${raw.size} rows) loaded, ${resumeElapsedMs()}ms since resume start",
+                            )
                             finishResumeWhenHydrated(generation)
                         }
 
@@ -6467,6 +6481,7 @@ class ChatViewModel(
     ) {
         resumedGeneration = -1L
         hydratedGeneration = -1L
+        resumeStartedAtNanos = System.nanoTime()
         _uiState.update { it.copy(isSessionReady = false) }
         val requestSequence = ++resumeRequestSequence
         activeResumeRequestSequence = requestSequence
@@ -6513,6 +6528,7 @@ class ChatViewModel(
             return
         }
         cancelResumeRetry()
+        Log.i(TAG, "session ready after ${resumeElapsedMs()}ms")
         _uiState.update {
             it.copy(
                 isLoading = false,
@@ -6666,6 +6682,7 @@ class ChatViewModel(
 
         val delayMs = resumeRetryDelayMs(resumeRetryAttempt)
         resumeRetryAttempt++
+        Log.w(TAG, "resume attempt failed after ${resumeElapsedMs()}ms; retry $resumeRetryAttempt in ${delayMs}ms")
 
         _uiState.update {
             it.copy(

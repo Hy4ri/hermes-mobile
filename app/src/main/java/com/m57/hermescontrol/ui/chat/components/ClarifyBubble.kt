@@ -202,6 +202,12 @@ fun ClarifyBubble(
                                 },
                             )
                         },
+                        trailingIcon = {
+                            ClarifyDictationButton {
+                                customTextByQid =
+                                    customTextByQid.withDictation(q.qid, it)
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                     )

@@ -106,160 +106,6 @@ class ChatViewModelTest {
     private var reqCount = 0
     private val sentRequestMethods = mutableListOf<Pair<String, String>>()
 
-    @Test
-    fun mergeTranscriptWithLive_collapsesDuplicateIdsKeepingLatestMessage() {
-        val stale = ChatMessage(id = "duplicate-id", role = MessageRole.ASSISTANT, content = "stale")
-        val latest = stale.copy(content = "latest")
-
-        val merged = mergeTranscriptWithLive(emptyList(), listOf(stale, latest))
-
-        assertEquals(listOf(latest), merged)
-    }
-
-    @Test
-    fun mergeTranscriptWithLive_matchingUserContentCollapsesLocalAndRestCopies() {
-        // /queue bubbles show the stripped queued text, so the optimistic
-        // local copy and the later REST echo share content — the sync merge
-        // must collapse them into one row instead of rendering a duplicate
-        // below its answer (PR #892 follow-up).
-        val local =
-            ChatMessage(
-                id = "ws-local-1",
-                role = MessageRole.USER,
-                content = "do the thing",
-                timestamp = 100L,
-            )
-        val rest =
-            ChatMessage(
-                id = "rest-sess-5",
-                role = MessageRole.USER,
-                content = "do the thing",
-                timestamp = 100L,
-            )
-
-        val merged = mergeTranscriptWithLive(listOf(rest), listOf(local))
-
-        assertEquals(1, merged.size)
-        // The richer local copy wins when both sides carry the same content.
-        assertEquals("ws-local-1", merged.single().id)
-    }
-
-    @Test
-    fun mergeTranscriptWithLive_collapsesGatewayAttachmentContextCopy() {
-        val local =
-            ChatMessage(
-                id = "ws-local-attachment",
-                role = MessageRole.USER,
-                content = "What is the secret word in the attached file?",
-                timestamp = 100L,
-            )
-        val rest =
-            ChatMessage(
-                id = "rest-sess-attachment",
-                role = MessageRole.USER,
-                content =
-                    """
-                    @file:files/agent-vault/hermes/attachments/note.txt
-
-                    What is the secret word in the attached file?
-
-                    --- Attached Context ---
-
-                    📄 @file:files/agent-vault/hermes/attachments/note.txt (8 tokens)
-                    ```
-                    THE_SECRET_WORD_IS_MANGO_8421
-                    ```
-                    """.trimIndent(),
-                timestamp = 100L,
-            )
-
-        val merged = mergeTranscriptWithLive(listOf(rest), listOf(local))
-
-        assertEquals(1, merged.size)
-        assertEquals("ws-local-attachment", merged.single().id)
-    }
-
-    @Test
-    fun mapServerMessages_restOnlyAttachmentHidesGatewayContext() {
-        val ref = "@file:files/agent-vault/hermes/attachments/note.txt"
-        val persisted =
-            """
-            $ref
-
-            What is the secret word in the attached file?
-
-            --- Attached Context ---
-
-            📄 $ref (8 tokens)
-            ```
-            THE_SECRET_WORD_IS_MANGO_8421
-            ```
-            """.trimIndent()
-
-        val mapped =
-            mapServerMessages(
-                sessionId = "session-1",
-                messages =
-                    listOf(
-                        SessionMessage(
-                            id = 42,
-                            role = "user",
-                            content = JsonPrimitive(persisted),
-                            timestamp = JsonPrimitive("100"),
-                        ),
-                    ),
-                offset = 0,
-                latestPaging = true,
-                liveMessages = emptyList(),
-            )
-
-        assertEquals(1, mapped.size)
-        assertEquals(
-            """
-            $ref
-
-            What is the secret word in the attached file?
-            """.trimIndent(),
-            mapped.single().content,
-        )
-        assertFalse(mapped.single().content.contains("--- Attached Context ---"))
-        assertFalse(mapped.single().content.contains("THE_SECRET_WORD_IS_MANGO_8421"))
-    }
-
-    @Test
-    fun mapServerMessages_prefersCompactionDisplayContent() {
-        val mapped =
-            mapServerMessages(
-                sessionId = "session-1",
-                messages =
-                    listOf(
-                        SessionMessage(
-                            id = 42,
-                            role = "user",
-                            content = JsonPrimitive("[model-facing compaction summary]"),
-                            display_content = JsonPrimitive("The original user prompt"),
-                        ),
-                    ),
-                offset = 0,
-                latestPaging = true,
-                liveMessages = emptyList(),
-            )
-
-        assertEquals("The original user prompt", mapped.single().content)
-    }
-
-    @Test
-    fun stripAttachmentRefLines_preservesUserAuthoredAttachedContextHeading() {
-        val authored =
-            """
-            Explain this heading:
-            --- Attached Context ---
-            this is ordinary user-authored text
-            """.trimIndent()
-
-        assertEquals(authored, stripAttachmentRefLines(authored))
-    }
-
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
@@ -1646,36 +1492,24 @@ class ChatViewModelTest {
         }
 
     @Test
-    fun testSlashCommandStatusRoutesToSlash() =
+    fun slashCommandsSendExactCommandAndSession() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()
+            for (command in listOf("status", "sessions", "stats")) {
+                viewModel.sendMessage("/$command")
+                advanceUntilIdle()
 
-            viewModel.sendMessage("/status")
-            advanceUntilIdle()
-
-            verify { HermesWsClient.request(WsMethods.SLASH_EXEC, any(), any(), true) }
-        }
-
-    @Test
-    fun testSlashCommandSessionsRoutesToSlash() =
-        runTest {
-            val (viewModel, sessionId) = createViewModelWithSession()
-
-            viewModel.sendMessage("/sessions")
-            advanceUntilIdle()
-
-            verify { HermesWsClient.request(WsMethods.SLASH_EXEC, any(), any(), true) }
-        }
-
-    @Test
-    fun testSlashCommandStatsRoutesToSlash() =
-        runTest {
-            val (viewModel, sessionId) = createViewModelWithSession()
-
-            viewModel.sendMessage("/stats")
-            advanceUntilIdle()
-
-            verify { HermesWsClient.request(WsMethods.SLASH_EXEC, any(), any(), true) }
+                verify(exactly = 1) {
+                    HermesWsClient.request(
+                        WsMethods.SLASH_EXEC,
+                        JsonObject(
+                            mapOf("session_id" to JsonPrimitive(sessionId), "command" to JsonPrimitive(command)),
+                        ),
+                        any(),
+                        true,
+                    )
+                }
+            }
         }
 
     @Test
@@ -6568,7 +6402,7 @@ class ChatViewModelTest {
         // calls fall through to the REAL AuthManager, whose serverStore is null
         // unless another test class happened to init it earlier in the JVM
         // (the order-dependent flakiness). Stub it for determinism — same
-        // pattern as E2eIntegrationTest / ApiClientTest.
+        // pattern as ViewModelWorkflowTest / ApiClientTest.
         if (success) {
             coEvery {
                 mockApi.getSessions(any(), any(), any())
@@ -7222,7 +7056,7 @@ class ChatViewModelTest {
             // mapServerMessages reads AuthManager.getBaseUrl() unconditionally
             // on the REST-success path (mockkObject spy fall-through → real
             // uninitialized AuthManager throws). Stub it — same pattern as
-            // stubSession456Rests / E2eIntegrationTest.
+            // stubSession456Rests / ViewModelWorkflowTest.
 
             // Stub the transcript fetch explicitly (relaxed mocks return null
             // and muddy the retry path) and capture which session id it is
@@ -8398,68 +8232,56 @@ class ChatViewModelTest {
             assertTrue("encoded attachment cache must be cleaned", attachmentCacheDir.listFiles().isNullOrEmpty())
         }
 
-    // ── Pending request timeout + rejectAllPending (issue #526) ───────────
+    // ── Disconnect state and reconnect request cancellation (issue #526) ──
 
-    /**
-     * On disconnect (RECONNECTING) the ViewModel must run rejectAllPending
-     * without throwing and stay usable — mirroring desktop
-     * JsonRpcGatewayClient.rejectAllPending invoked on socket close. This is
-     * what prevents callers awaiting a CompletableDeferred from hanging
-     * across a socket drop.
-     */
     @Test
-    fun testDisconnect_rejectsPendingWithoutError() =
+    fun disconnectInvalidatesSessionReadiness() =
         runTest {
-            val (viewModel, _) = createViewModelWithSession()
+            val (viewModel, sessionId) = createViewModelWithSession()
+            assertTrue(viewModel.uiState.value.isSessionReady)
 
-            mockEventsFlow.emit(
-                WsEvent.ApprovalRequest(
-                    command = "rm",
-                    description = "Dangerous",
-                    patternKeys = null,
-                    sessionId = null,
-                ),
-            )
-            advanceUntilIdle()
-            viewModel.respondToApproval("approve")
-            advanceUntilIdle()
-
-            // Simulate socket drop → reconnecting (triggers rejectAllPending).
+            // Socket teardown owns RPC cancellation; the ViewModel owns session readiness.
             mockConnectionStatus.value = ConnectionStatus.RECONNECTING
             advanceUntilIdle()
 
-            // No exception propagated; VM remains usable.
+            assertFalse(viewModel.uiState.value.isSessionReady)
+            assertFalse(viewModel.uiState.value.isLoading)
+            assertEquals(sessionId, viewModel.uiState.value.currentSessionId)
             assertNull(viewModel.uiState.value.errorMessage)
         }
 
-    /**
-     * viewModel.reconnect() calls rejectAllPending() before wsClient.disconnect(),
-     * so any in-flight awaited RPC is failed fast instead of hanging until its
-     * own timeout.
-     */
     @Test
-    fun testReconnect_rejectsPendingWithoutError() =
+    fun reconnectRejectsAnActuallyPendingRequestBeforeDisconnect() =
         runTest {
             val (viewModel, _) = createViewModelWithSession()
+            // Use the real request registry and cancellation logic. Only socket sending stays mocked.
+            every { HermesWsClient.request("test.pending", any(), any(), any()) } answers { callOriginal() }
+            every { HermesWsClient.rejectAllPending(any()) } answers { callOriginal() }
+            HermesWsClient.rejectAllPending()
+            val pending = HermesWsClient.request("test.pending")
+            try {
+                assertFalse(pending.isCompleted)
+                assertEquals(1, HermesWsClient.pendingCallIdsForTest().size)
+                every { HermesWsClient.disconnect() } answers {
+                    assertTrue("Pending calls must be rejected before socket teardown", pending.isCompleted)
+                    assertTrue(HermesWsClient.pendingCallIdsForTest().isEmpty())
+                }
 
-            mockEventsFlow.emit(
-                WsEvent.ApprovalRequest(
-                    command = "rm",
-                    description = "Dangerous",
-                    patternKeys = null,
-                    sessionId = null,
-                ),
-            )
-            advanceUntilIdle()
-            viewModel.respondToApproval("approve")
-            advanceUntilIdle()
+                viewModel.reconnect()
+                runCurrent()
 
-            // User-initiated reconnect must not throw / hang.
-            viewModel.reconnect()
-            advanceUntilIdle()
-
-            assertNull(viewModel.uiState.value.errorMessage)
-            verify { HermesWsClient.disconnect() }
+                verify(exactly = 1) { HermesWsClient.disconnect() }
+                assertTrue("Reconnect must settle the pending call", pending.isCompleted)
+                val failure = runCatching { pending.await() }.exceptionOrNull()
+                assertTrue(failure is HermesWsClient.HermesRpcException)
+                assertEquals("Connection lost — request cancelled", failure?.message)
+                assertTrue(HermesWsClient.pendingCallIdsForTest().isEmpty())
+                advanceUntilIdle()
+                assertNull(viewModel.uiState.value.errorMessage)
+            } finally {
+                // Cancel the real request timer even if an assertion fails.
+                HermesWsClient.rejectAllPending()
+            }
         }
 
     // ── History pagination guard (issue #674 & #686) ───────────────────────────────

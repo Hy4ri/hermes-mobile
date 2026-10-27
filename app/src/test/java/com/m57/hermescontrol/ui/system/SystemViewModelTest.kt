@@ -132,6 +132,11 @@ class SystemViewModelTest {
             viewModel.uiState.value.status
                 ?.gateway_pid,
         )
+        assertEquals(
+            25.0,
+            viewModel.uiState.value.stats
+                ?.cpu_percent,
+        )
         assertFalse(viewModel.uiState.value.isLoading)
     }
 
@@ -229,5 +234,18 @@ class SystemViewModelTest {
         coVerify(exactly = 0) { mockApi.getActionStatus(any()) }
         assertNull(viewModel.uiState.value.activeAction)
         verify { mockApp.getString(R.string.system_action_failed, *anyVararg()) }
+    }
+
+    @Test
+    fun `triggerBackup triggers backup and displays toast`() {
+        stubDiagnosticReads()
+        coEvery { mockApi.triggerBackup(any()) } returns Response.success(ActionResponse())
+
+        val viewModel = newViewModel()
+        viewModel.triggerBackup()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify(exactly = 1) { mockApi.triggerBackup(any()) }
+        assertEquals("Backup triggered", viewModel.uiState.value.toastMessage)
     }
 }

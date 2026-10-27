@@ -473,4 +473,35 @@ class PluginsViewModelTest {
         assertNull(viewModel.uiState.value.toastMessage)
         coVerify(exactly = 1) { mockApi.getPlugins() }
     }
+
+    @Test
+    fun `togglePlugin applies optimistic update and enables plugin`() {
+        val plugin = PluginInfo("plugin-1", "Desc", "1.0", null, "disabled")
+        coEvery { mockApi.getPlugins() } returns Response.success(PluginsHubResponse(listOf(plugin)))
+        coEvery { mockApi.enablePlugin("plugin-1") } returns Response.success(Unit)
+
+        val viewModel = PluginsViewModel()
+        viewModel.loadPlugins()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1, viewModel.uiState.value.plugins.size)
+        assertFalse(
+            viewModel.uiState.value.plugins[0]
+                .enabled,
+        )
+
+        viewModel.togglePlugin(viewModel.uiState.value.plugins[0])
+        // Optimistic toggle check before async network call settles
+        assertTrue(
+            viewModel.uiState.value.plugins[0]
+                .enabled,
+        )
+
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue(
+            viewModel.uiState.value.plugins[0]
+                .enabled,
+        )
+        coVerify(exactly = 1) { mockApi.enablePlugin("plugin-1") }
+    }
 }

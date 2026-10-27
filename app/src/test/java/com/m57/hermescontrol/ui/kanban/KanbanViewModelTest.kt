@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.kanban
 
+import com.m57.hermescontrol.data.model.CreateTaskResponse
 import com.m57.hermescontrol.data.model.KanbanBoard
 import com.m57.hermescontrol.data.model.KanbanBoardResponse
 import com.m57.hermescontrol.data.model.KanbanBoardsResponse
@@ -488,5 +489,98 @@ class KanbanViewModelTest {
                 match { it.status == "done" && it.summary == "Shipped it" && it.result == "Shipped it" },
             )
         }
+    }
+
+    @Test
+    fun `loadBoards sets selected board and tasks`() {
+        val board = KanbanBoard("board-1", "Backlog", null)
+        val task = KanbanTask("task-1", "Do laundry", null, "todo", null)
+        coEvery { mockApi.getBoards(any()) } returns
+            Response.success(KanbanBoardsResponse(listOf(board), "board-1"))
+        coEvery { mockApi.getBoard("board-1", any(), any()) } returns
+            Response.success(KanbanBoardResponse(listOf(KanbanColumn("todo", listOf(task))), null, null))
+
+        val vm = createViewModel()
+        vm.loadBoards()
+        settle()
+
+        assertEquals(
+            "board-1",
+            vm.uiState.value.selectedBoard
+                ?.id,
+        )
+        assertEquals(1, vm.uiState.value.tasks.size)
+        assertEquals(
+            "todo",
+            vm.uiState.value.tasks[0]
+                .status,
+        )
+    }
+
+    @Test
+    fun `moveTask to ready transitions task status`() {
+        val board = KanbanBoard("board-1", "Backlog", null)
+        val task = KanbanTask("task-1", "Do laundry", null, "todo", null)
+        coEvery { mockApi.getBoards(any()) } returns
+            Response.success(KanbanBoardsResponse(listOf(board), "board-1"))
+        coEvery { mockApi.getBoard("board-1", any(), any()) } returns
+            Response.success(KanbanBoardResponse(listOf(KanbanColumn("todo", listOf(task))), null, null))
+
+        val vm = createViewModel()
+        vm.loadBoards()
+        settle()
+
+        coEvery {
+            mockApi.updateTask(
+                eq("task-1"),
+                eq("board-1"),
+                any(),
+            )
+        } returns Response.success(UpdateTaskResponse(task = task.copy(status = "ready")))
+        coEvery { mockApi.getBoard("board-1", any(), any()) } returns
+            Response.success(
+                KanbanBoardResponse(
+                    listOf(
+                        KanbanColumn("todo", emptyList()),
+                        KanbanColumn("ready", listOf(task.copy(status = "ready"))),
+                    ),
+                    null,
+                    null,
+                ),
+            )
+
+        vm.moveTask(vm.uiState.value.tasks[0], KanbanTaskAction.READY)
+        settle()
+
+        assertEquals(
+            "ready",
+            vm.uiState.value.tasks[0]
+                .status,
+        )
+    }
+
+    @Test
+    fun `createTask creates task and sets success toast`() {
+        val board = KanbanBoard("board-1", "Backlog", null)
+        coEvery { mockApi.getBoards(any()) } returns
+            Response.success(KanbanBoardsResponse(listOf(board), "board-1"))
+        coEvery { mockApi.getBoard("board-1", any(), any()) } returns
+            Response.success(KanbanBoardResponse(listOf(KanbanColumn("todo", emptyList())), null, null))
+
+        val vm = createViewModel()
+        vm.loadBoards()
+        settle()
+
+        coEvery { mockApi.createTask(any(), any()) } returns
+            Response.success(
+                CreateTaskResponse(
+                    task = KanbanTask("task-2", "Fresh task", status = "todo"),
+                ),
+            )
+
+        vm.createTask("Fresh task", null, "todo")
+        settle()
+
+        assertEquals("Task created successfully", vm.uiState.value.toastMessage)
     }
 }

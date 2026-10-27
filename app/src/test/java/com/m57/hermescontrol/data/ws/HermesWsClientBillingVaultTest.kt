@@ -21,7 +21,6 @@ import io.mockk.unmockkAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -45,6 +44,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 class HermesWsClientBillingVaultTest {
     private lateinit var mockWebServer: MockWebServer
+    private val serverClosed = CountDownLatch(1)
 
     @Before
     fun setUp() {
@@ -82,17 +82,24 @@ class HermesWsClientBillingVaultTest {
 
     @After
     fun tearDown() {
-        AuthManager.resetAuthStateForTest()
-        HermesWsClient.releaseExternalActivityConnectionLease()
-        HermesWsClient.releaseBackgroundConnectionLease()
-        HermesWsClient.disconnect(clearPendingMessages = true)
-        runBlocking {
-            withTimeoutOrNull(5000) {
-                HermesWsClient.connectionStatus.first { it == ConnectionStatus.DISCONNECTED }
+        try {
+            AuthManager.resetAuthStateForTest()
+            HermesWsClient.releaseExternalActivityConnectionLease()
+            HermesWsClient.releaseBackgroundConnectionLease()
+            HermesWsClient.disconnect(clearPendingMessages = true)
+            runBlocking {
+                withTimeout(5000) {
+                    HermesWsClient.connectionStatus.first { it == ConnectionStatus.DISCONNECTED }
+                }
+            }
+            assertTrue("Server WebSocket must finish closing", serverClosed.await(5, TimeUnit.SECONDS))
+        } finally {
+            try {
+                mockWebServer.shutdown()
+            } finally {
+                unmockkAll()
             }
         }
-        runCatching { mockWebServer.shutdown() }
-        unmockkAll()
     }
 
     private fun connectClient() {
@@ -116,29 +123,31 @@ class HermesWsClientBillingVaultTest {
             }
 
         mockWebServer.enqueue(
-            MockResponse().withWebSocketUpgrade(
-                object : WebSocketListener() {
-                    override fun onOpen(
-                        webSocket: WebSocket,
-                        response: Response,
-                    ) = opened.countDown()
+            MockResponse().withClosingWebSocketUpgrade(
+                onClosed = { _, _, _ -> serverClosed.countDown() },
+                delegate =
+                    object : WebSocketListener() {
+                        override fun onOpen(
+                            webSocket: WebSocket,
+                            response: Response,
+                        ) = opened.countDown()
 
-                    override fun onMessage(
-                        webSocket: WebSocket,
-                        text: String,
-                    ) {
-                        val json = OkHttpProvider.json.parseToJsonElement(text) as? JsonObject ?: return
-                        val name = (json["method"] as? JsonPrimitive)?.content
-                        if (name == "subscription.change") {
-                            frameRef.set(json)
-                            captured.countDown()
-                            val id = (json["id"] as? JsonPrimitive)?.content ?: "1"
-                            webSocket.send(
-                                """{"jsonrpc":"2.0","id":"$id","result":$serverResultJson}""",
-                            )
+                        override fun onMessage(
+                            webSocket: WebSocket,
+                            text: String,
+                        ) {
+                            val json = OkHttpProvider.json.parseToJsonElement(text) as? JsonObject ?: return
+                            val name = (json["method"] as? JsonPrimitive)?.content
+                            if (name == "subscription.change") {
+                                frameRef.set(json)
+                                captured.countDown()
+                                val id = (json["id"] as? JsonPrimitive)?.content ?: "1"
+                                webSocket.send(
+                                    """{"jsonrpc":"2.0","id":"$id","result":$serverResultJson}""",
+                                )
+                            }
                         }
-                    }
-                },
+                    },
             ),
         )
 
@@ -186,29 +195,31 @@ class HermesWsClientBillingVaultTest {
             }
 
         mockWebServer.enqueue(
-            MockResponse().withWebSocketUpgrade(
-                object : WebSocketListener() {
-                    override fun onOpen(
-                        webSocket: WebSocket,
-                        response: Response,
-                    ) = opened.countDown()
+            MockResponse().withClosingWebSocketUpgrade(
+                onClosed = { _, _, _ -> serverClosed.countDown() },
+                delegate =
+                    object : WebSocketListener() {
+                        override fun onOpen(
+                            webSocket: WebSocket,
+                            response: Response,
+                        ) = opened.countDown()
 
-                    override fun onMessage(
-                        webSocket: WebSocket,
-                        text: String,
-                    ) {
-                        val json = OkHttpProvider.json.parseToJsonElement(text) as? JsonObject ?: return
-                        val name = (json["method"] as? JsonPrimitive)?.content
-                        if (name == "vault.unlock") {
-                            frameRef.set(json)
-                            captured.countDown()
-                            val id = (json["id"] as? JsonPrimitive)?.content ?: "1"
-                            webSocket.send(
-                                """{"jsonrpc":"2.0","id":"$id","result":$serverResultJson}""",
-                            )
+                        override fun onMessage(
+                            webSocket: WebSocket,
+                            text: String,
+                        ) {
+                            val json = OkHttpProvider.json.parseToJsonElement(text) as? JsonObject ?: return
+                            val name = (json["method"] as? JsonPrimitive)?.content
+                            if (name == "vault.unlock") {
+                                frameRef.set(json)
+                                captured.countDown()
+                                val id = (json["id"] as? JsonPrimitive)?.content ?: "1"
+                                webSocket.send(
+                                    """{"jsonrpc":"2.0","id":"$id","result":$serverResultJson}""",
+                                )
+                            }
                         }
-                    }
-                },
+                    },
             ),
         )
 
@@ -254,29 +265,31 @@ class HermesWsClientBillingVaultTest {
             }
 
         mockWebServer.enqueue(
-            MockResponse().withWebSocketUpgrade(
-                object : WebSocketListener() {
-                    override fun onOpen(
-                        webSocket: WebSocket,
-                        response: Response,
-                    ) = opened.countDown()
+            MockResponse().withClosingWebSocketUpgrade(
+                onClosed = { _, _, _ -> serverClosed.countDown() },
+                delegate =
+                    object : WebSocketListener() {
+                        override fun onOpen(
+                            webSocket: WebSocket,
+                            response: Response,
+                        ) = opened.countDown()
 
-                    override fun onMessage(
-                        webSocket: WebSocket,
-                        text: String,
-                    ) {
-                        val json = OkHttpProvider.json.parseToJsonElement(text) as? JsonObject ?: return
-                        val name = (json["method"] as? JsonPrimitive)?.content
-                        if (name == "vault.lock") {
-                            frameRef.set(json)
-                            captured.countDown()
-                            val id = (json["id"] as? JsonPrimitive)?.content ?: "1"
-                            webSocket.send(
-                                """{"jsonrpc":"2.0","id":"$id","result":$serverResultJson}""",
-                            )
+                        override fun onMessage(
+                            webSocket: WebSocket,
+                            text: String,
+                        ) {
+                            val json = OkHttpProvider.json.parseToJsonElement(text) as? JsonObject ?: return
+                            val name = (json["method"] as? JsonPrimitive)?.content
+                            if (name == "vault.lock") {
+                                frameRef.set(json)
+                                captured.countDown()
+                                val id = (json["id"] as? JsonPrimitive)?.content ?: "1"
+                                webSocket.send(
+                                    """{"jsonrpc":"2.0","id":"$id","result":$serverResultJson}""",
+                                )
+                            }
                         }
-                    }
-                },
+                    },
             ),
         )
 
@@ -317,29 +330,31 @@ class HermesWsClientBillingVaultTest {
             }
 
         mockWebServer.enqueue(
-            MockResponse().withWebSocketUpgrade(
-                object : WebSocketListener() {
-                    override fun onOpen(
-                        webSocket: WebSocket,
-                        response: Response,
-                    ) = opened.countDown()
+            MockResponse().withClosingWebSocketUpgrade(
+                onClosed = { _, _, _ -> serverClosed.countDown() },
+                delegate =
+                    object : WebSocketListener() {
+                        override fun onOpen(
+                            webSocket: WebSocket,
+                            response: Response,
+                        ) = opened.countDown()
 
-                    override fun onMessage(
-                        webSocket: WebSocket,
-                        text: String,
-                    ) {
-                        val json = OkHttpProvider.json.parseToJsonElement(text) as? JsonObject ?: return
-                        val name = (json["method"] as? JsonPrimitive)?.content
-                        if (name == "vault.lock") {
-                            frameRef.set(json)
-                            captured.countDown()
-                            val id = (json["id"] as? JsonPrimitive)?.content ?: "1"
-                            webSocket.send(
-                                """{"jsonrpc":"2.0","id":"$id","result":$serverResultJson}""",
-                            )
+                        override fun onMessage(
+                            webSocket: WebSocket,
+                            text: String,
+                        ) {
+                            val json = OkHttpProvider.json.parseToJsonElement(text) as? JsonObject ?: return
+                            val name = (json["method"] as? JsonPrimitive)?.content
+                            if (name == "vault.lock") {
+                                frameRef.set(json)
+                                captured.countDown()
+                                val id = (json["id"] as? JsonPrimitive)?.content ?: "1"
+                                webSocket.send(
+                                    """{"jsonrpc":"2.0","id":"$id","result":$serverResultJson}""",
+                                )
+                            }
                         }
-                    }
-                },
+                    },
             ),
         )
 
@@ -381,29 +396,31 @@ class HermesWsClientBillingVaultTest {
             }
 
         mockWebServer.enqueue(
-            MockResponse().withWebSocketUpgrade(
-                object : WebSocketListener() {
-                    override fun onOpen(
-                        webSocket: WebSocket,
-                        response: Response,
-                    ) = opened.countDown()
+            MockResponse().withClosingWebSocketUpgrade(
+                onClosed = { _, _, _ -> serverClosed.countDown() },
+                delegate =
+                    object : WebSocketListener() {
+                        override fun onOpen(
+                            webSocket: WebSocket,
+                            response: Response,
+                        ) = opened.countDown()
 
-                    override fun onMessage(
-                        webSocket: WebSocket,
-                        text: String,
-                    ) {
-                        val json = OkHttpProvider.json.parseToJsonElement(text) as? JsonObject ?: return
-                        val name = (json["method"] as? JsonPrimitive)?.content
-                        if (name == "subscription.state") {
-                            frameRef.set(json)
-                            captured.countDown()
-                            val id = (json["id"] as? JsonPrimitive)?.content ?: "1"
-                            webSocket.send(
-                                """{"jsonrpc":"2.0","id":"$id","result":$serverResultJson}""",
-                            )
+                        override fun onMessage(
+                            webSocket: WebSocket,
+                            text: String,
+                        ) {
+                            val json = OkHttpProvider.json.parseToJsonElement(text) as? JsonObject ?: return
+                            val name = (json["method"] as? JsonPrimitive)?.content
+                            if (name == "subscription.state") {
+                                frameRef.set(json)
+                                captured.countDown()
+                                val id = (json["id"] as? JsonPrimitive)?.content ?: "1"
+                                webSocket.send(
+                                    """{"jsonrpc":"2.0","id":"$id","result":$serverResultJson}""",
+                                )
+                            }
                         }
-                    }
-                },
+                    },
             ),
         )
 

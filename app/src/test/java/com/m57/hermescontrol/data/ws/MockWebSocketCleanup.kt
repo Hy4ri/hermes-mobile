@@ -9,8 +9,14 @@ import okio.ByteString
 /**
  * Keep the test listener's behavior, but acknowledge peer close frames so MockWebServer's
  * WebSocket task can finish. WebSocketListener's default onClosing is a no-op.
+ *
+ * An optional [onClosed] callback can be provided to observe the real server-side closed state,
+ * invoked in a `finally` block even if [delegate].onClosed throws.
  */
-internal fun MockResponse.withClosingWebSocketUpgrade(delegate: WebSocketListener): MockResponse =
+internal fun MockResponse.withClosingWebSocketUpgrade(
+    delegate: WebSocketListener,
+    onClosed: (webSocket: WebSocket, code: Int, reason: String) -> Unit = { _, _, _ -> },
+): MockResponse =
     withWebSocketUpgrade(
         object : WebSocketListener() {
             override fun onOpen(
@@ -45,7 +51,13 @@ internal fun MockResponse.withClosingWebSocketUpgrade(delegate: WebSocketListene
                 webSocket: WebSocket,
                 code: Int,
                 reason: String,
-            ) = delegate.onClosed(webSocket, code, reason)
+            ) {
+                try {
+                    delegate.onClosed(webSocket, code, reason)
+                } finally {
+                    onClosed(webSocket, code, reason)
+                }
+            }
 
             override fun onFailure(
                 webSocket: WebSocket,

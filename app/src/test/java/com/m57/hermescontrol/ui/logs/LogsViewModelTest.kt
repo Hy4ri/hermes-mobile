@@ -17,6 +17,8 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import retrofit2.Response
@@ -53,8 +55,11 @@ class LogsViewModelTest {
         stubLogs()
         val vm = LogsViewModel()
         vm.loadLogs()
+        assertTrue(vm.uiState.value.isLoading)
+
         settle()
 
+        assertFalse(vm.uiState.value.isLoading)
         coVerify {
             mockApi.getLogs(
                 file = "agent",

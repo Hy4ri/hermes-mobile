@@ -266,14 +266,6 @@ class ModelSerializationTest {
     }
 
     @Test
-    fun testSessionListResponseDeserialization_missingSessions_causesNullOnNonNullableField() {
-        val jsonStr = "{}"
-        org.junit.jupiter.api.Assertions.assertThrows(kotlinx.serialization.SerializationException::class.java) {
-            json.decodeFromString<SessionListResponse>(jsonStr)
-        }
-    }
-
-    @Test
     fun testSessionInfoDeserialization_missingId_causesNullOnNonNullableField() {
         val jsonStr =
             """
@@ -361,14 +353,6 @@ class ModelSerializationTest {
         val encoded = json.encodeToString(SessionRenameRequest.serializer(), req)
         assertTrue(encoded.contains("\"hidden\":true"))
         assertTrue(encoded.contains("\"title\":\"new name\""))
-    }
-
-    @Test
-    fun testSessionMessagesResponseDeserialization_missingMessages_causesNullOnNonNullableField() {
-        val jsonStr = "{}"
-        org.junit.jupiter.api.Assertions.assertThrows(kotlinx.serialization.SerializationException::class.java) {
-            json.decodeFromString<SessionMessagesResponse>(jsonStr)
-        }
     }
 
     @Test

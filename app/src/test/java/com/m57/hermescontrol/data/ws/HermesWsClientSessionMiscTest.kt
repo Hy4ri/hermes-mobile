@@ -47,6 +47,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 class HermesWsClientSessionMiscTest {
     private lateinit var mockWebServer: MockWebServer
+    private val serverClosed = CountDownLatch(1)
 
     @Before
     fun setUp() {
@@ -84,15 +85,31 @@ class HermesWsClientSessionMiscTest {
 
     @After
     fun tearDown() {
-        AuthManager.resetAuthStateForTest()
-        HermesWsClient.releaseExternalActivityConnectionLease()
-        HermesWsClient.releaseBackgroundConnectionLease()
-        HermesWsClient.disconnect(clearPendingMessages = true)
-        runBlocking {
-            withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.DISCONNECTED } }
+        try {
+            AuthManager.resetAuthStateForTest()
+            HermesWsClient.releaseExternalActivityConnectionLease()
+            HermesWsClient.releaseBackgroundConnectionLease()
+            HermesWsClient.disconnect(clearPendingMessages = true)
+            runBlocking {
+                withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.DISCONNECTED } }
+            }
+            assertTrue("Server WebSocket must finish closing", serverClosed.await(5, TimeUnit.SECONDS))
+        } finally {
+            try {
+                mockWebServer.shutdown()
+            } finally {
+                unmockkAll()
+            }
         }
-        runCatching { mockWebServer.shutdown() }
-        unmockkAll()
+    }
+
+    private fun enqueueWebSocketUpgrade(listener: WebSocketListener) {
+        mockWebServer.enqueue(
+            MockResponse().withClosingWebSocketUpgrade(
+                delegate = listener,
+                onClosed = { _, _, _ -> serverClosed.countDown() },
+            ),
+        )
     }
 
     private fun connectClient() {
@@ -108,27 +125,25 @@ class HermesWsClientSessionMiscTest {
         val captured = CountDownLatch(1)
         val frameRef = AtomicReference<JsonObject?>(null)
 
-        mockWebServer.enqueue(
-            MockResponse().withWebSocketUpgrade(
-                object : WebSocketListener() {
-                    override fun onOpen(
-                        webSocket: WebSocket,
-                        response: Response,
-                    ) = opened.countDown()
+        enqueueWebSocketUpgrade(
+            object : WebSocketListener() {
+                override fun onOpen(
+                    webSocket: WebSocket,
+                    response: Response,
+                ) = opened.countDown()
 
-                    override fun onMessage(
-                        webSocket: WebSocket,
-                        text: String,
-                    ) {
-                        val json = OkHttpProvider.json.parseToJsonElement(text) as? JsonObject ?: return
-                        val name = (json["method"] as? JsonPrimitive)?.content
-                        if (name == "session.list") {
-                            frameRef.set(json)
-                            captured.countDown()
-                        }
+                override fun onMessage(
+                    webSocket: WebSocket,
+                    text: String,
+                ) {
+                    val json = OkHttpProvider.json.parseToJsonElement(text) as? JsonObject ?: return
+                    val name = (json["method"] as? JsonPrimitive)?.content
+                    if (name == "session.list") {
+                        frameRef.set(json)
+                        captured.countDown()
                     }
-                },
-            ),
+                }
+            },
         )
 
         connectClient()
@@ -163,27 +178,25 @@ class HermesWsClientSessionMiscTest {
         val captured = CountDownLatch(1)
         val frameRef = AtomicReference<JsonObject?>(null)
 
-        mockWebServer.enqueue(
-            MockResponse().withWebSocketUpgrade(
-                object : WebSocketListener() {
-                    override fun onOpen(
-                        webSocket: WebSocket,
-                        response: Response,
-                    ) = opened.countDown()
+        enqueueWebSocketUpgrade(
+            object : WebSocketListener() {
+                override fun onOpen(
+                    webSocket: WebSocket,
+                    response: Response,
+                ) = opened.countDown()
 
-                    override fun onMessage(
-                        webSocket: WebSocket,
-                        text: String,
-                    ) {
-                        val json = OkHttpProvider.json.parseToJsonElement(text) as? JsonObject ?: return
-                        val name = (json["method"] as? JsonPrimitive)?.content
-                        if (name == "session.list") {
-                            frameRef.set(json)
-                            captured.countDown()
-                        }
+                override fun onMessage(
+                    webSocket: WebSocket,
+                    text: String,
+                ) {
+                    val json = OkHttpProvider.json.parseToJsonElement(text) as? JsonObject ?: return
+                    val name = (json["method"] as? JsonPrimitive)?.content
+                    if (name == "session.list") {
+                        frameRef.set(json)
+                        captured.countDown()
                     }
-                },
-            ),
+                }
+            },
         )
 
         AuthManager.setActiveProfileId("active-profile-sessions")
@@ -213,31 +226,29 @@ class HermesWsClientSessionMiscTest {
         val captured = CountDownLatch(1)
         val frameRef = AtomicReference<JsonObject?>(null)
 
-        mockWebServer.enqueue(
-            MockResponse().withWebSocketUpgrade(
-                object : WebSocketListener() {
-                    override fun onOpen(
-                        webSocket: WebSocket,
-                        response: Response,
-                    ) = opened.countDown()
+        enqueueWebSocketUpgrade(
+            object : WebSocketListener() {
+                override fun onOpen(
+                    webSocket: WebSocket,
+                    response: Response,
+                ) = opened.countDown()
 
-                    override fun onMessage(
-                        webSocket: WebSocket,
-                        text: String,
-                    ) {
-                        val json = OkHttpProvider.json.parseToJsonElement(text) as? JsonObject ?: return
-                        val name = (json["method"] as? JsonPrimitive)?.content
-                        if (name == "prompt.btw") {
-                            frameRef.set(json)
-                            captured.countDown()
-                            val id = (json["id"] as? JsonPrimitive)?.content ?: "1"
-                            webSocket.send(
-                                """{"jsonrpc":"2.0","id":"$id","result":{"task_id":"task-async-123","status":"queued"}}""",
-                            )
-                        }
+                override fun onMessage(
+                    webSocket: WebSocket,
+                    text: String,
+                ) {
+                    val json = OkHttpProvider.json.parseToJsonElement(text) as? JsonObject ?: return
+                    val name = (json["method"] as? JsonPrimitive)?.content
+                    if (name == "prompt.btw") {
+                        frameRef.set(json)
+                        captured.countDown()
+                        val id = (json["id"] as? JsonPrimitive)?.content ?: "1"
+                        webSocket.send(
+                            """{"jsonrpc":"2.0","id":"$id","result":{"task_id":"task-async-123","status":"queued"}}""",
+                        )
                     }
-                },
-            ),
+                }
+            },
         )
 
         connectClient()
@@ -285,31 +296,29 @@ class HermesWsClientSessionMiscTest {
                 )
             }
 
-        mockWebServer.enqueue(
-            MockResponse().withWebSocketUpgrade(
-                object : WebSocketListener() {
-                    override fun onOpen(
-                        webSocket: WebSocket,
-                        response: Response,
-                    ) = opened.countDown()
+        enqueueWebSocketUpgrade(
+            object : WebSocketListener() {
+                override fun onOpen(
+                    webSocket: WebSocket,
+                    response: Response,
+                ) = opened.countDown()
 
-                    override fun onMessage(
-                        webSocket: WebSocket,
-                        text: String,
-                    ) {
-                        val json = OkHttpProvider.json.parseToJsonElement(text) as? JsonObject ?: return
-                        val name = (json["method"] as? JsonPrimitive)?.content
-                        if (name == "session.usage") {
-                            frameRef.set(json)
-                            captured.countDown()
-                            val id = (json["id"] as? JsonPrimitive)?.content ?: "1"
-                            webSocket.send(
-                                """{"jsonrpc":"2.0","id":"$id","result":$serverResultJson}""",
-                            )
-                        }
+                override fun onMessage(
+                    webSocket: WebSocket,
+                    text: String,
+                ) {
+                    val json = OkHttpProvider.json.parseToJsonElement(text) as? JsonObject ?: return
+                    val name = (json["method"] as? JsonPrimitive)?.content
+                    if (name == "session.usage") {
+                        frameRef.set(json)
+                        captured.countDown()
+                        val id = (json["id"] as? JsonPrimitive)?.content ?: "1"
+                        webSocket.send(
+                            """{"jsonrpc":"2.0","id":"$id","result":$serverResultJson}""",
+                        )
                     }
-                },
-            ),
+                }
+            },
         )
 
         connectClient()
@@ -341,31 +350,29 @@ class HermesWsClientSessionMiscTest {
         val captured = CountDownLatch(1)
         val frameRef = AtomicReference<JsonObject?>(null)
 
-        mockWebServer.enqueue(
-            MockResponse().withWebSocketUpgrade(
-                object : WebSocketListener() {
-                    override fun onOpen(
-                        webSocket: WebSocket,
-                        response: Response,
-                    ) = opened.countDown()
+        enqueueWebSocketUpgrade(
+            object : WebSocketListener() {
+                override fun onOpen(
+                    webSocket: WebSocket,
+                    response: Response,
+                ) = opened.countDown()
 
-                    override fun onMessage(
-                        webSocket: WebSocket,
-                        text: String,
-                    ) {
-                        val json = OkHttpProvider.json.parseToJsonElement(text) as? JsonObject ?: return
-                        val name = (json["method"] as? JsonPrimitive)?.content
-                        if (name == "session.compress") {
-                            frameRef.set(json)
-                            captured.countDown()
-                            val id = (json["id"] as? JsonPrimitive)?.content ?: "1"
-                            webSocket.send(
-                                """{"jsonrpc":"2.0","id":"$id","result":{"status":"compressed"}}""",
-                            )
-                        }
+                override fun onMessage(
+                    webSocket: WebSocket,
+                    text: String,
+                ) {
+                    val json = OkHttpProvider.json.parseToJsonElement(text) as? JsonObject ?: return
+                    val name = (json["method"] as? JsonPrimitive)?.content
+                    if (name == "session.compress") {
+                        frameRef.set(json)
+                        captured.countDown()
+                        val id = (json["id"] as? JsonPrimitive)?.content ?: "1"
+                        webSocket.send(
+                            """{"jsonrpc":"2.0","id":"$id","result":{"status":"compressed"}}""",
+                        )
                     }
-                },
-            ),
+                }
+            },
         )
 
         connectClient()
@@ -409,31 +416,29 @@ class HermesWsClientSessionMiscTest {
                 put("new_session_id", "sess-branched-99")
             }
 
-        mockWebServer.enqueue(
-            MockResponse().withWebSocketUpgrade(
-                object : WebSocketListener() {
-                    override fun onOpen(
-                        webSocket: WebSocket,
-                        response: Response,
-                    ) = opened.countDown()
+        enqueueWebSocketUpgrade(
+            object : WebSocketListener() {
+                override fun onOpen(
+                    webSocket: WebSocket,
+                    response: Response,
+                ) = opened.countDown()
 
-                    override fun onMessage(
-                        webSocket: WebSocket,
-                        text: String,
-                    ) {
-                        val json = OkHttpProvider.json.parseToJsonElement(text) as? JsonObject ?: return
-                        val name = (json["method"] as? JsonPrimitive)?.content
-                        if (name == "session.branch") {
-                            frameRef.set(json)
-                            captured.countDown()
-                            val id = (json["id"] as? JsonPrimitive)?.content ?: "1"
-                            webSocket.send(
-                                """{"jsonrpc":"2.0","id":"$id","result":$serverResult}""",
-                            )
-                        }
+                override fun onMessage(
+                    webSocket: WebSocket,
+                    text: String,
+                ) {
+                    val json = OkHttpProvider.json.parseToJsonElement(text) as? JsonObject ?: return
+                    val name = (json["method"] as? JsonPrimitive)?.content
+                    if (name == "session.branch") {
+                        frameRef.set(json)
+                        captured.countDown()
+                        val id = (json["id"] as? JsonPrimitive)?.content ?: "1"
+                        webSocket.send(
+                            """{"jsonrpc":"2.0","id":"$id","result":$serverResult}""",
+                        )
                     }
-                },
-            ),
+                }
+            },
         )
 
         connectClient()
@@ -471,31 +476,29 @@ class HermesWsClientSessionMiscTest {
                 put("whole_branch_session_id", "sess-whole-branched-101")
             }
 
-        mockWebServer.enqueue(
-            MockResponse().withWebSocketUpgrade(
-                object : WebSocketListener() {
-                    override fun onOpen(
-                        webSocket: WebSocket,
-                        response: Response,
-                    ) = opened.countDown()
+        enqueueWebSocketUpgrade(
+            object : WebSocketListener() {
+                override fun onOpen(
+                    webSocket: WebSocket,
+                    response: Response,
+                ) = opened.countDown()
 
-                    override fun onMessage(
-                        webSocket: WebSocket,
-                        text: String,
-                    ) {
-                        val json = OkHttpProvider.json.parseToJsonElement(text) as? JsonObject ?: return
-                        val name = (json["method"] as? JsonPrimitive)?.content
-                        if (name == "session.branch_whole") {
-                            frameRef.set(json)
-                            captured.countDown()
-                            val id = (json["id"] as? JsonPrimitive)?.content ?: "1"
-                            webSocket.send(
-                                """{"jsonrpc":"2.0","id":"$id","result":$serverResult}""",
-                            )
-                        }
+                override fun onMessage(
+                    webSocket: WebSocket,
+                    text: String,
+                ) {
+                    val json = OkHttpProvider.json.parseToJsonElement(text) as? JsonObject ?: return
+                    val name = (json["method"] as? JsonPrimitive)?.content
+                    if (name == "session.branch_whole") {
+                        frameRef.set(json)
+                        captured.countDown()
+                        val id = (json["id"] as? JsonPrimitive)?.content ?: "1"
+                        webSocket.send(
+                            """{"jsonrpc":"2.0","id":"$id","result":$serverResult}""",
+                        )
                     }
-                },
-            ),
+                }
+            },
         )
 
         connectClient()
@@ -534,31 +537,29 @@ class HermesWsClientSessionMiscTest {
                 put("tools", 800)
             }
 
-        mockWebServer.enqueue(
-            MockResponse().withWebSocketUpgrade(
-                object : WebSocketListener() {
-                    override fun onOpen(
-                        webSocket: WebSocket,
-                        response: Response,
-                    ) = opened.countDown()
+        enqueueWebSocketUpgrade(
+            object : WebSocketListener() {
+                override fun onOpen(
+                    webSocket: WebSocket,
+                    response: Response,
+                ) = opened.countDown()
 
-                    override fun onMessage(
-                        webSocket: WebSocket,
-                        text: String,
-                    ) {
-                        val json = OkHttpProvider.json.parseToJsonElement(text) as? JsonObject ?: return
-                        val name = (json["method"] as? JsonPrimitive)?.content
-                        if (name == "session.context_breakdown") {
-                            frameRef.set(json)
-                            captured.countDown()
-                            val id = (json["id"] as? JsonPrimitive)?.content ?: "1"
-                            webSocket.send(
-                                """{"jsonrpc":"2.0","id":"$id","result":$serverResult}""",
-                            )
-                        }
+                override fun onMessage(
+                    webSocket: WebSocket,
+                    text: String,
+                ) {
+                    val json = OkHttpProvider.json.parseToJsonElement(text) as? JsonObject ?: return
+                    val name = (json["method"] as? JsonPrimitive)?.content
+                    if (name == "session.context_breakdown") {
+                        frameRef.set(json)
+                        captured.countDown()
+                        val id = (json["id"] as? JsonPrimitive)?.content ?: "1"
+                        webSocket.send(
+                            """{"jsonrpc":"2.0","id":"$id","result":$serverResult}""",
+                        )
                     }
-                },
-            ),
+                }
+            },
         )
 
         connectClient()

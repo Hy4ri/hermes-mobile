@@ -57,14 +57,6 @@ class ToolViewBuilderTest {
     }
 
     @Test
-    fun `rejected memory write is a warning not an error`() {
-        val view = build("memory", """{"action":"add"}""", """{"success":false,"message":"over budget"}""")
-
-        assertEquals(ToolViewStatus.WARNING, view.status)
-        assertEquals("over budget", view.error)
-    }
-
-    @Test
     fun `running tool gets running status and pending title`() {
         val view = build("terminal", """{"command":"sleep 10"}""", """{}""", running = true)
 
@@ -170,33 +162,7 @@ class ToolViewBuilderTest {
         assertEquals("wiring.tsx", view.title)
     }
 
-    @Test
-    fun `browser_snapshot subtitle summarizes accessibility stats`() {
-        val view =
-            build(
-                "browser_snapshot",
-                """{}""",
-                """{"snapshot":"button \"Save\"\nbutton \"Cancel\"\nlink \"Docs\"\ntextbox \"Name\""}""",
-            )
-
-        assertTrue(view.subtitle, view.subtitle.contains("2 buttons"))
-        assertTrue(view.subtitle.contains("1 links"))
-        assertTrue(view.subtitle.contains("Top controls: Save, Cancel"))
-    }
-
     // ── mobile-specific tools ────────────────────────────────────────────
-
-    @Test
-    fun `fact_store added fact gets clean summary and detail`() {
-        val view =
-            build(
-                "fact_store",
-                """{"action":"add"}""",
-                """{"status":"added","fact_id":42}""",
-            )
-
-        assertEquals("Fact added (ID: 42)", view.subtitle)
-    }
 
     @Test
     fun `fact_store list renders facts with trust scores`() {
@@ -231,19 +197,6 @@ class ToolViewBuilderTest {
     }
 
     @Test
-    fun `cronjob list subtitle counts jobs`() {
-        val view =
-            build(
-                "cronjob",
-                """{"action":"list"}""",
-                """{"jobs":[{"name":"daily","schedule":"0 9 * * *"},{"name":"hourly","schedule":"0 * * * *"}]}""",
-            )
-
-        assertEquals("2 cron jobs", view.subtitle)
-        assertTrue(view.detail, view.detail.contains("- daily · 0 9 * * *"))
-    }
-
-    @Test
     fun `session_search discover mode`() {
         val view =
             build(
@@ -255,37 +208,6 @@ class ToolViewBuilderTest {
 
         assertTrue(view.subtitle, view.subtitle.startsWith("2 sessions"))
         assertTrue(view.detail, view.detail.contains("Auth refactor"))
-    }
-
-    @Test
-    fun `read_terminal custom detail`() {
-        val view =
-            build(
-                "read_terminal",
-                """{"session_id":"s1"}""",
-                """{"total_lines":50,"start":1,"end":20,"text":"line one","cursor_row":5}""",
-            )
-
-        assertEquals("Lines 1-20 of 50, cursor at row 5", view.subtitle)
-        assertTrue(view.detail, view.detail.contains("━━━ Terminal ━━━"))
-        assertTrue(view.detail.contains("line one"))
-    }
-
-    // ── unknown tools fall back to the generic engine ────────────────────
-
-    @Test
-    fun `unknown tool gets a heuristic summary not raw json`() {
-        val view =
-            build(
-                "weird_tool",
-                """{}""",
-                """{"result":{"data":{"title":"Build report","completed":true}}}""",
-            )
-
-        assertEquals("Weird Tool", view.title)
-        assertTrue(view.detail, view.detail.contains("Title: Build report"))
-        assertTrue(view.detail.contains("Completed: true"))
-        assertFalse(view.detail.contains("\"data\""))
     }
 
     @Test

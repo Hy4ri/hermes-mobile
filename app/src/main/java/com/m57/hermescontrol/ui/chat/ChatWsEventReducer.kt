@@ -476,7 +476,7 @@ object ChatWsEventReducer {
         mediaUrl: (path: String) -> String?,
     ): ReducerResult {
         val failure = replyFailureFromPayload(event.rawPayload, event.text)
-        if (failure != null) return onReplyFailure(state, streamingState, event, failure)
+        if (failure != null) return onReplyFailure(state, streamingState, event, failure, mediaUrl)
         if (GatewayNotice.isInterruptSentinel(
                 event.text,
             )
@@ -554,6 +554,10 @@ object ChatWsEventReducer {
             } else {
                 TokenEstimator.estimate(text).takeIf { it > 0 }
             }
+        // Review P1 (#1700): the completion payload is authoritative. A base row
+        // sealed earlier (interrupt acknowledgement) carries a stale
+        // persistedContent from its own partial — clear it so withHostMedia
+        // derives from the fresh final text, never the old projection.
         val msg =
             (
                 streaming?.copy(
@@ -565,6 +569,7 @@ object ChatWsEventReducer {
                     tps = tps,
                     completionId = event.completionId,
                     serverRowId = finalRowId ?: streaming.serverRowId,
+                    persistedContent = null,
                 ) ?: ChatMessage(
                     role = MessageRole.ASSISTANT,
                     content = text,
@@ -605,6 +610,7 @@ object ChatWsEventReducer {
         streamingState: StreamingState,
         event: WsEvent.MessageComplete,
         failure: ReplyFailure,
+        mediaUrl: (path: String) -> String?,
     ): ReducerResult {
         val usageState = event.rawPayload?.let(::parseUsageSnapshot)?.let { applyUsageSnapshot(state, it) } ?: state
         val streaming = streamingState.streamingMessage
@@ -643,14 +649,19 @@ object ChatWsEventReducer {
                             role = MessageRole.ASSISTANT,
                             content = "",
                         )
-                base.copy(
-                    id = checkNotNull(projectionMessageId),
-                    content = text,
-                    reasoningText = reasoning,
-                    isStreaming = false,
-                    finishTimestamp = System.currentTimeMillis(),
-                    completionId = completionId,
-                )
+                base
+                    .copy(
+                        id = checkNotNull(projectionMessageId),
+                        content = text,
+                        reasoningText = reasoning,
+                        isStreaming = false,
+                        finishTimestamp = System.currentTimeMillis(),
+                        completionId = completionId,
+                        // Review P2 (#1700): a failed partial can still carry a bare
+                        // MEDIA: line — derive the attachment so the visible text
+                        // never keeps the directive. The projection stays transient:
+                        // onReplyFailure emits no PersistMessage for it.
+                    ).withHostMedia(mediaUrl)
             } else {
                 null
             }

@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.keys
 
+import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.model.EnvVarConfig
 import com.m57.hermescontrol.data.model.EnvVarUpdate
 import com.m57.hermescontrol.data.remote.ApiClient
@@ -12,9 +13,11 @@ import io.mockk.mockkObject
 import io.mockk.unmockkObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.job
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -166,12 +169,13 @@ class KeysViewModelTest {
             val mockApi = mockk<HermesApiService>()
             mockkObject(ApiClient)
             every { ApiClient.hermesApi } returns mockApi
+            lateinit var viewModel: KeysViewModel
             try {
                 coEvery { mockApi.getEnvVars() } returns
                     Response.success(mapOf("KEY1" to EnvVarConfig(true, "value1", "desc", null, null, false)))
                 coEvery { mockApi.updateEnvVar(any()) } returns Response.success(Unit)
 
-                val viewModel = KeysViewModel()
+                viewModel = KeysViewModel()
                 viewModel.loadKeys()
 
                 val loadedState =
@@ -194,7 +198,15 @@ class KeysViewModelTest {
                 assertEquals("Key updated successfully", updatedState.toastMessage)
                 coVerify { mockApi.updateEnvVar(EnvVarUpdate("KEY1", "newValue")) }
             } finally {
+                // The real IO hop may still be finishing a refresh. Do not let it resume after resetMain().
+                viewModel.drainBackgroundWork()
                 unmockkObject(ApiClient)
             }
         }
+
+    private suspend fun KeysViewModel.drainBackgroundWork() {
+        viewModelScope.coroutineContext.job.children
+            .toList()
+            .forEach { it.cancelAndJoin() }
+    }
 }

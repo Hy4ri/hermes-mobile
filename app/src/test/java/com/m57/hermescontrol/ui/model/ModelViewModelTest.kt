@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.model
 
+import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.model.ActiveProfileResponse
@@ -28,7 +29,9 @@ import io.mockk.unmockkAll
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.job
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -394,29 +397,35 @@ class ModelViewModelTest {
                     getCurrentScope = { null },
                     ioDispatcher = testDispatcher,
                 )
-            viewModel.loadAll()
-            advanceUntilIdle()
+            try {
+                viewModel.loadAll()
+                advanceUntilIdle()
 
-            assertEquals(1, viewModel.uiState.value.providers.size)
-            assertEquals(
-                "default",
-                viewModel.uiState.value.activeProfile
-                    ?.name,
-            )
-            assertEquals(
-                "llama3",
-                viewModel.uiState.value.activeProfile
-                    ?.model,
-            )
+                assertEquals(1, viewModel.uiState.value.providers.size)
+                assertEquals(
+                    "default",
+                    viewModel.uiState.value.activeProfile
+                        ?.name,
+                )
+                assertEquals(
+                    "llama3",
+                    viewModel.uiState.value.activeProfile
+                        ?.model,
+                )
 
-            viewModel.selectModel("ollama", "llama3")
+                viewModel.selectModel("ollama", "llama3")
 
-            // ModelViewModel.selectModel uses Dispatchers.IO internally.
-            // Suspend on uiState terminal toast message to safely await without static Dispatchers mocking.
-            viewModel.uiState.first { it.toastMessage == "Successfully set profile model to llama3" }
+                // ModelViewModel.selectModel uses Dispatchers.IO internally.
+                // Suspend on uiState terminal toast message to safely await without static Dispatchers mocking.
+                viewModel.uiState.first { it.toastMessage == "Successfully set profile model to llama3" }
 
-            coVerify { mockApiService.updateProfileModel("default", any()) }
-            assertEquals("Successfully set profile model to llama3", viewModel.uiState.value.toastMessage)
+                coVerify { mockApiService.updateProfileModel("default", any()) }
+                assertEquals("Successfully set profile model to llama3", viewModel.uiState.value.toastMessage)
+            } finally {
+                viewModel.viewModelScope.coroutineContext.job.children
+                    .toList()
+                    .forEach { it.cancelAndJoin() }
+            }
         }
 
     @Test
@@ -469,15 +478,20 @@ class ModelViewModelTest {
                     getCurrentScope = { null },
                     ioDispatcher = testDispatcher,
                 )
+            try {
+                // Default loadAll() must call ensureLoaded with refresh = false
+                viewModel.loadAll()
+                advanceUntilIdle()
 
-            // Default loadAll() must call ensureLoaded with refresh = false
-            viewModel.loadAll()
-            advanceUntilIdle()
+                // Pull-to-refresh path must call ensureLoaded with refresh = true
+                viewModel.loadAll(refresh = true)
+                advanceUntilIdle()
 
-            // Pull-to-refresh path must call ensureLoaded with refresh = true
-            viewModel.loadAll(refresh = true)
-            advanceUntilIdle()
-
-            assertEquals(listOf(false, true), capturedRefresh)
+                assertEquals(listOf(false, true), capturedRefresh)
+            } finally {
+                viewModel.viewModelScope.coroutineContext.job.children
+                    .toList()
+                    .forEach { it.cancelAndJoin() }
+            }
         }
 }

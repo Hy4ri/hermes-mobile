@@ -60,19 +60,43 @@
               "mips-android-sysimage-license"
             ];
           }).androidsdk;
+
+        # Android CLI (agent tooling: Compose preview render, APK analysis,
+        # device control). nixpkgs lags upstream, so pin the version here.
+        # Upstream ships x86_64-linux and aarch64-darwin builds only.
+        androidCliVersion = "1.1.16717390";
+        androidCliHashes = {
+          x86_64-linux = "sha256-s07Quu7/oqruJyDYJJG5dYNWluLlaEBEkHi+yIVDZWQ=";
+          aarch64-darwin = "sha256-6cbhn17YFC4ol+C2i0duF2hjPldAqlS/wjR2fMJkAf4=";
+        };
+        androidCliPlatforms = {
+          x86_64-linux = "linux_x86_64";
+          aarch64-darwin = "darwin_arm64";
+        };
+        androidCli = pkgs.android-cli.overrideAttrs (_: {
+          version = androidCliVersion;
+          src = pkgs.fetchurl {
+            url = "https://dl.google.com/android/cli/${androidCliVersion}/${androidCliPlatforms.${system}}/android-cli";
+            hash = androidCliHashes.${system};
+          };
+        });
       in
       {
         devShells.default = pkgs.mkShell {
-          buildInputs = with pkgs; [
-            # Java 21 (required for AGP 9.x / Gradle 9.x)
-            jdk21
+          buildInputs =
+            # android-cli first: cmdline-tools also ships an `android`
+            # bootstrap that downloads an unpinned CLI at runtime.
+            pkgs.lib.optional (androidCliHashes ? ${system}) androidCli
+            ++ (with pkgs; [
+              # Java 21 (required for AGP 9.x / Gradle 9.x)
+              jdk21
 
-            # Android SDK (platforms, build-tools, platform-tools, emulator, system-images)
-            androidSdk
+              # Android SDK (platforms, build-tools, platform-tools, emulator, system-images)
+              androidSdk
 
-            # Linting
-            ktlint
-          ];
+              # Linting
+              ktlint
+            ]);
 
           # Point everything at the Nix-managed SDK
           ANDROID_HOME = "${androidSdk}/libexec/android-sdk";

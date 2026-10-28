@@ -1112,6 +1112,7 @@ class ChatViewModel(
                     isSyncingMessages = false
                     resetTimelineState()
                     cancelResumeRetry()
+                    modelSwitchDelegate.resetTransientOperations()
                     _uiState.update {
                         it.copy(isSessionReady = false, isLoadingOlder = false, isResumeRetrying = false)
                     }

@@ -9,8 +9,10 @@ import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.data.remote.NetworkError
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.ws.contract.ConfigSetParams
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -22,6 +24,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -740,5 +743,256 @@ class ChatModelSwitchDelegateTest {
             )
 
             assertTrue(assistantMessages.isEmpty())
+        }
+
+    @Test
+    fun setReasoningLevel_onCancellationDuringRpc_clearsPendingReasoningLevelAndRethrows() =
+        testScope.runTest {
+            val gate1 = CompletableDeferred<JsonElement>()
+            val gate2 = CompletableDeferred<JsonElement>()
+            var callIndex = 0
+            val requestedLevels = mutableListOf<String?>()
+            val customDelegate =
+                ChatModelSwitchDelegate(
+                    scope = testScope,
+                    ioDispatcher = testDispatcher,
+                    uiState = uiState,
+                    runtimeSessionId = { runtimeId },
+                    wsSend = { _, _ -> },
+                    trackRequest = { _, _ -> },
+                    addAssistantMessage = {},
+                    handleSlashCommand = {},
+                    fetchContextUsage = {},
+                    dataScopeFlow = dataScope,
+                    wsRequest = { params ->
+                        requestedLevels.add(params.value)
+                        callIndex++
+                        if (callIndex == 1) gate1.await() else gate2.await()
+                    },
+                )
+
+            customDelegate.setReasoningLevel("high")
+            runCurrent()
+            assertEquals("high", uiState.value.pendingReasoningLevel)
+            assertEquals(1, callIndex)
+            assertEquals("high", requestedLevels.first())
+
+            gate1.cancel(CancellationException("Scope cancelled"))
+            advanceUntilIdle()
+
+            // Pending reasoning level must be cleared upon cancellation
+            assertNull(uiState.value.pendingReasoningLevel)
+            assertNull(uiState.value.reasoningLevel)
+
+            // Immediate retry on the same delegate instance reaches RPC and completes cleanly
+            customDelegate.setReasoningLevel("medium")
+            runCurrent()
+            assertEquals("medium", uiState.value.pendingReasoningLevel)
+            assertEquals(2, callIndex)
+            assertEquals("medium", requestedLevels.last())
+
+            gate2.complete(
+                kotlinx.serialization.json.buildJsonObject {
+                    put("key", kotlinx.serialization.json.JsonPrimitive("reasoning"))
+                    put("value", kotlinx.serialization.json.JsonPrimitive("medium"))
+                },
+            )
+            advanceUntilIdle()
+
+            assertNull(uiState.value.pendingReasoningLevel)
+            assertEquals("medium", uiState.value.reasoningLevel)
+        }
+
+    @Test
+    fun setReasoningLevel_onSocketRejectAllPending_clearsPendingAndAllowsImmediateRetry() =
+        testScope.runTest {
+            val gate1 = CompletableDeferred<JsonElement>()
+            val gate2 = CompletableDeferred<JsonElement>()
+            var callIndex = 0
+            val requestedLevels = mutableListOf<String?>()
+            val customDelegate =
+                ChatModelSwitchDelegate(
+                    scope = testScope,
+                    ioDispatcher = testDispatcher,
+                    uiState = uiState,
+                    runtimeSessionId = { runtimeId },
+                    wsSend = { _, _ -> },
+                    trackRequest = { _, _ -> },
+                    addAssistantMessage = {},
+                    handleSlashCommand = {},
+                    fetchContextUsage = {},
+                    dataScopeFlow = dataScope,
+                    wsRequest = { params ->
+                        requestedLevels.add(params.value)
+                        callIndex++
+                        if (callIndex == 1) gate1.await() else gate2.await()
+                    },
+                )
+
+            customDelegate.setReasoningLevel("high")
+            runCurrent()
+            assertEquals("high", uiState.value.pendingReasoningLevel)
+            assertEquals(1, callIndex)
+
+            // Simulate RpcChannel.rejectAllPending() failure
+            gate1.completeExceptionally(
+                com.m57.hermescontrol.data.ws.HermesWsClient
+                    .HermesRpcException("Connection lost — request cancelled"),
+            )
+            advanceUntilIdle()
+
+            assertNull(uiState.value.pendingReasoningLevel)
+            assertNotNull(uiState.value.errorMessage)
+            assertTrue(uiState.value.errorMessage?.contains("Connection lost") == true)
+
+            // Must allow immediate retry on the same delegate instance and settle cleanly
+            customDelegate.setReasoningLevel("low")
+            runCurrent()
+            assertEquals("low", uiState.value.pendingReasoningLevel)
+            assertEquals(2, callIndex)
+            assertEquals("low", requestedLevels.last())
+
+            gate2.complete(
+                kotlinx.serialization.json.buildJsonObject {
+                    put("key", kotlinx.serialization.json.JsonPrimitive("reasoning"))
+                    put("value", kotlinx.serialization.json.JsonPrimitive("low"))
+                },
+            )
+            advanceUntilIdle()
+
+            assertNull(uiState.value.pendingReasoningLevel)
+            assertEquals("low", uiState.value.reasoningLevel)
+        }
+
+    @Test
+    fun setReasoningLevel_resetA_thenStartB_lateACompletionOrFinallyCannotClearB() =
+        testScope.runTest {
+            val gateA = CompletableDeferred<JsonElement>()
+            val gateB = CompletableDeferred<JsonElement>()
+            var callCount = 0
+            val customDelegate =
+                ChatModelSwitchDelegate(
+                    scope = testScope,
+                    ioDispatcher = testDispatcher,
+                    uiState = uiState,
+                    runtimeSessionId = { runtimeId },
+                    wsSend = { _, _ -> },
+                    trackRequest = { _, _ -> },
+                    addAssistantMessage = {},
+                    handleSlashCommand = {},
+                    fetchContextUsage = {},
+                    dataScopeFlow = dataScope,
+                    wsRequest = {
+                        callCount++
+                        if (callCount == 1) gateA.await() else gateB.await()
+                    },
+                )
+
+            // Start op A
+            customDelegate.setReasoningLevel("high")
+            runCurrent()
+            assertEquals("high", uiState.value.pendingReasoningLevel)
+
+            // Reset A (without draining scheduler)
+            customDelegate.reset()
+            assertNull(uiState.value.pendingReasoningLevel)
+
+            // Start op B immediately so B is pending while A is still suspended/cancelling
+            customDelegate.setReasoningLevel("medium")
+            runCurrent()
+            assertEquals("medium", uiState.value.pendingReasoningLevel)
+
+            // Now cancel gateA; scheduler runs A's cancellation / finally while B is awaiting
+            gateA.cancel(CancellationException("A cancelled"))
+            runCurrent()
+            // A's cleanup must NOT clear B's pending status
+            assertEquals("medium", uiState.value.pendingReasoningLevel)
+
+            // B completes successfully
+            gateB.complete(
+                kotlinx.serialization.json.buildJsonObject {
+                    put("key", kotlinx.serialization.json.JsonPrimitive("reasoning"))
+                    put("value", kotlinx.serialization.json.JsonPrimitive("medium"))
+                },
+            )
+            advanceUntilIdle()
+
+            assertNull(uiState.value.pendingReasoningLevel)
+            assertEquals("medium", uiState.value.reasoningLevel)
+        }
+
+    @Test
+    fun setReasoningLevel_successfulAck_preservesFreshSessionInfoWireState() =
+        testScope.runTest {
+            val gate = CompletableDeferred<JsonElement>()
+            val customDelegate =
+                ChatModelSwitchDelegate(
+                    scope = testScope,
+                    ioDispatcher = testDispatcher,
+                    uiState = uiState,
+                    runtimeSessionId = { runtimeId },
+                    wsSend = { _, _ -> },
+                    trackRequest = { _, _ -> },
+                    addAssistantMessage = {},
+                    handleSlashCommand = {},
+                    fetchContextUsage = {},
+                    dataScopeFlow = dataScope,
+                    wsRequest = { gate.await() },
+                )
+
+            customDelegate.setReasoningLevel("high")
+            runCurrent()
+            assertEquals("high", uiState.value.pendingReasoningLevel)
+            assertNull(uiState.value.reasoningWireLevel)
+
+            // While in-flight, an authoritative session.info arrives setting wire level
+            uiState.update { it.copy(reasoningWireLevel = "high-wire-128k") }
+
+            // ACK arrives
+            gate.complete(
+                kotlinx.serialization.json.buildJsonObject {
+                    put("key", kotlinx.serialization.json.JsonPrimitive("reasoning"))
+                    put("value", kotlinx.serialization.json.JsonPrimitive("high"))
+                },
+            )
+            advanceUntilIdle()
+
+            assertEquals("high", uiState.value.reasoningLevel)
+            assertNull(uiState.value.pendingReasoningLevel)
+            // Fresh wire state must be preserved and not clobbered
+            assertEquals("high-wire-128k", uiState.value.reasoningWireLevel)
+        }
+
+    @Test
+    fun setReasoningLevel_whenCancelledBeforeCoroutineRuns_pendingClearedOrNotStuck() =
+        testScope.runTest {
+            // Create an active child job/scope, call setReasoningLevel, and cancel BEFORE running scheduler
+            val childJob = Job()
+            val childScope = kotlinx.coroutines.CoroutineScope(testDispatcher + childJob)
+            val customDelegate =
+                ChatModelSwitchDelegate(
+                    scope = childScope,
+                    ioDispatcher = testDispatcher,
+                    uiState = uiState,
+                    runtimeSessionId = { runtimeId },
+                    wsSend = { _, _ -> },
+                    trackRequest = { _, _ -> },
+                    addAssistantMessage = {},
+                    handleSlashCommand = {},
+                    fetchContextUsage = {},
+                    dataScopeFlow = dataScope,
+                    wsRequest = { JsonNull },
+                )
+
+            customDelegate.setReasoningLevel("high")
+            // Synchronously pending is set
+            assertEquals("high", uiState.value.pendingReasoningLevel)
+
+            // Cancel the child job before runCurrent() executes the coroutine body
+            childJob.cancel(CancellationException("Cancelled before launch"))
+            advanceUntilIdle()
+
+            // Pending reasoning level must not remain stuck
+            assertNull(uiState.value.pendingReasoningLevel)
         }
 }

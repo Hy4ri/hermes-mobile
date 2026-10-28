@@ -56,6 +56,7 @@ import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.unmockkAll
 import io.mockk.verify
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -71,6 +72,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -6202,6 +6204,36 @@ class ChatViewModelTest {
             runCurrent()
 
             assertEquals("ultra", viewModel.uiState.value.reasoningLevel)
+        }
+
+    @Test
+    fun testDisconnect_clearsPendingReasoningEffort() =
+        runTest {
+            val gate = CompletableDeferred<JsonElement>()
+            coEvery {
+                HermesWsClient.call(
+                    RpcMethods.CONFIG_SET,
+                    match<ConfigSetParams> { it.key == "reasoning" },
+                    any(),
+                    any(),
+                )
+            } coAnswers { gate.await() }
+
+            val (viewModel, _) = createViewModelWithSession()
+            // Set reasoning level with suspended typed CONFIG_SET RPC
+            viewModel.setReasoningLevel("high")
+            runCurrent()
+            assertEquals("high", viewModel.uiState.value.pendingReasoningLevel)
+
+            // Simulate socket drop / disconnect
+            mockConnectionStatus.value = ConnectionStatus.DISCONNECTED
+            runCurrent()
+
+            // Disconnect must clear pending reasoning state through ViewModel connectionStatus wiring
+            assertNull(viewModel.uiState.value.pendingReasoningLevel)
+
+            // Unblock gate to prevent coroutine leakage
+            gate.cancel(CancellationException("Test teardown"))
         }
 
     @Test

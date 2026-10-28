@@ -476,25 +476,37 @@ class ChatModelSwitchDelegate(
         unconfirmedTargetModel = null
     }
 
-    fun reset() {
+    /**
+     * Resets in-flight transient model, fast, and reasoning switch operations.
+     * Increments sequence counters so late callbacks cannot regain ownership after disconnect.
+     * Unlike [reset], does not discard cached model options, data scope, lastConfirmedModel, or model info capabilities.
+     */
+    fun resetTransientOperations() {
         pendingModelSwitchRequests.clear()
         pendingFastSwitchRequests.clear()
         activeModelSwitchConfirmation = null
         optimisticPreviousModel = null
-        lastConfirmedModel = null
         unconfirmedTargetModel = null
+        modelSwitchSequence++
         reasoningOpSequence++
         reasoningJob?.cancel()
         reasoningJob = null
-        modelInfoCapabilities = null
-        modelInfoModel = null
-        modelInfoScope = null
         uiState.update {
             it.copy(
+                modelSwitchConfirmMessage = null,
+                isFastModeChanging = false,
                 pendingReasoningLevel = null,
                 reasoningWireLevel = null,
             )
         }
+    }
+
+    fun reset() {
+        resetTransientOperations()
+        lastConfirmedModel = null
+        modelInfoCapabilities = null
+        modelInfoModel = null
+        modelInfoScope = null
     }
 
     fun setReasoningLevel(
@@ -530,7 +542,7 @@ class ChatModelSwitchDelegate(
         }
 
         reasoningJob?.cancel()
-        reasoningJob =
+        val job =
             scope.launch(ioDispatcher) {
                 try {
                     val params =
@@ -550,40 +562,68 @@ class ChatModelSwitchDelegate(
                             null
                         }
 
-                    if (opSeq == reasoningOpSequence && capturedScope == dataScopeFlow.value) {
-                        val ackLevel =
-                            if (wsRequest != null) {
-                                val map = result?.toAny() as? Map<*, *>
-                                val resKey = map?.get("key") as? String
-                                val resVal = map?.get("value") as? String
-                                if (resKey != "reasoning" || resVal.isNullOrEmpty()) {
-                                    throw IllegalStateException("Invalid reasoning config.set response")
-                                }
-                                resVal
-                            } else {
-                                level
+                    val ackLevel =
+                        if (wsRequest != null) {
+                            val map = result?.toAny() as? Map<*, *>
+                            val resKey = map?.get("key") as? String
+                            val resVal = map?.get("value") as? String
+                            if (resKey != "reasoning" || resVal.isNullOrEmpty()) {
+                                throw IllegalStateException("Invalid reasoning config.set response")
                             }
+                            resVal
+                        } else {
+                            level
+                        }
 
-                        uiState.update { state ->
+                    uiState.update { state ->
+                        if (opSeq == reasoningOpSequence && capturedScope == dataScopeFlow.value) {
                             state.copy(
                                 reasoningLevel = ackLevel,
-                                pendingReasoningLevel = null,
                             )
+                        } else {
+                            state
                         }
                     }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    if (opSeq == reasoningOpSequence && capturedScope == dataScopeFlow.value) {
-                        uiState.update { state ->
+                    uiState.update { state ->
+                        if (opSeq == reasoningOpSequence && capturedScope == dataScopeFlow.value) {
                             state.copy(
-                                pendingReasoningLevel = null,
                                 errorMessage = "Could not confirm reasoning change: ${e.message ?: e.toString()}",
                             )
+                        } else {
+                            state
+                        }
+                    }
+                } finally {
+                    uiState.update { state ->
+                        if (opSeq == reasoningOpSequence &&
+                            capturedScope == dataScopeFlow.value &&
+                            state.pendingReasoningLevel == level
+                        ) {
+                            state.copy(pendingReasoningLevel = null)
+                        } else {
+                            state
                         }
                     }
                 }
             }
+        job.invokeOnCompletion { cause ->
+            if (cause is CancellationException) {
+                uiState.update { state ->
+                    if (opSeq == reasoningOpSequence &&
+                        capturedScope == dataScopeFlow.value &&
+                        state.pendingReasoningLevel == level
+                    ) {
+                        state.copy(pendingReasoningLevel = null)
+                    } else {
+                        state
+                    }
+                }
+            }
+        }
+        reasoningJob = job
     }
 
     fun getModelCapabilities(

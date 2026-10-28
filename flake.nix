@@ -73,12 +73,33 @@
           x86_64-linux = "linux_x86_64";
           aarch64-darwin = "darwin_arm64";
         };
-        androidCli = pkgs.android-cli.overrideAttrs (_: {
+        androidCli = pkgs.android-cli.overrideAttrs (old: {
           version = androidCliVersion;
           src = pkgs.fetchurl {
             url = "https://dl.google.com/android/cli/${androidCliVersion}/${androidCliPlatforms.${system}}/android-cli";
             hash = androidCliHashes.${system};
           };
+          # `preview render` runs a bundled JRE that dlopens AWT's X11 libs.
+          # NixOS has no global copies, so give them to the CLI only.
+          nativeBuildInputs =
+            (old.nativeBuildInputs or [ ])
+            ++ pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux pkgs.makeWrapper;
+          postInstall =
+            (old.postInstall or "")
+            + pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
+              wrapProgram $out/bin/android --prefix LD_LIBRARY_PATH : ${
+                pkgs.lib.makeLibraryPath (
+                  with pkgs;
+                  [
+                    libx11
+                    libxext
+                    libxi
+                    libxrender
+                    libxtst
+                  ]
+                )
+              }
+            '';
         });
       in
       {

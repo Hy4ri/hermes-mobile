@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.data.ws
 
+import com.m57.hermescontrol.data.ws.contract.DESKTOP_SESSION_SOURCE
+import com.m57.hermescontrol.data.ws.contract.GUI_CREATE_SOURCE
 import com.m57.hermescontrol.data.ws.contract.RpcMethod
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -10,10 +12,12 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
@@ -37,6 +41,7 @@ internal class RpcChannel(
     private val resolveStoredSessionId: (String?) -> String? = { it },
     private val logParseFailure: (Exception) -> Unit = {},
     private val decorateParams: (String, Map<String, Any>) -> Map<String, Any> = { _, p -> p },
+    private val createSourceHost: () -> String = { "" },
 ) {
     /** A single in-flight [request] awaiting its RPC result/error. */
     private data class PendingCall(
@@ -49,6 +54,12 @@ internal class RpcChannel(
     private val requestId = AtomicInteger(0)
     private val pendingCalls = ConcurrentHashMap<String, PendingCall>()
     private val capabilityRequestIds = ConcurrentHashMap.newKeySet<String>()
+
+    /** #1711: hosts that refused `source: "desktop"` on `session.create` and take `"gui"`. */
+    private val guiCreateHosts = ConcurrentHashMap.newKeySet<String>()
+
+    /** In-flight `session.create` requests sent with `"desktop"`, by id, with their host. */
+    private val desktopCreates = ConcurrentHashMap<String, Pair<String, JsonRpcRequest>>()
 
     fun nextId(): String = requestId.incrementAndGet().toString()
 
@@ -100,11 +111,40 @@ internal class RpcChannel(
     ): JsonRpcRequest {
         val id = nextId()
         val decorated = decorateParams(method, params)
-        return JsonRpcRequest(
-            id = id,
-            method = method,
-            params = decorated.mapValues { it.value.toJsonElement() },
-        )
+        val request =
+            JsonRpcRequest(
+                id = id,
+                method = method,
+                params = decorated.mapValues { it.value.toJsonElement() },
+            )
+        if (method != WsMethods.SESSION_CREATE || request.source() != DESKTOP_SESSION_SOURCE) return request
+        val host = createSourceHost()
+        if (host in guiCreateHosts) return request.withGuiSource()
+        desktopCreates[id] = host to request
+        return request
+    }
+
+    private fun JsonRpcRequest.source(): String? = (params["source"] as? JsonPrimitive)?.contentOrNull
+
+    private fun JsonRpcRequest.withGuiSource(): JsonRpcRequest =
+        copy(params = params + ("source" to JsonPrimitive(GUI_CREATE_SOURCE)))
+
+    /**
+     * #1711: the session-authority gateway refuses the stored label `"desktop"` on
+     * `session.create` with 4001 `fields: ["source"]`. Send the same request id again with
+     * `"gui"`, so callers see one create, and keep `"gui"` for that host.
+     */
+    private fun retryCreateWithGuiSource(event: WsEvent.RpcError): Boolean {
+        val (host, sent) = desktopCreates.remove(event.id) ?: return false
+        if (!isSourceRefusal(event.error)) return false
+        guiCreateHosts.add(host)
+        return sendFrame(encodeRequest(sent.withGuiSource()))
+    }
+
+    private fun isSourceRefusal(error: JsonRpcError): Boolean {
+        if (error.code != 4001) return false
+        val fields = (error.data as? JsonObject)?.get("fields") as? JsonArray ?: return false
+        return fields.any { (it as? JsonPrimitive)?.contentOrNull == "source" }
     }
 
     fun encodeRequest(request: JsonRpcRequest): String = json.encodeToString(request)
@@ -340,12 +380,14 @@ internal class RpcChannel(
         if (consumeCapabilityResponse(event)) return
         when (event) {
             is WsEvent.RpcResult -> {
+                desktopCreates.remove(event.id)
                 onResult(event.id)
                 removeQueuedMessage(event.id)
                 resolvePending(event.id, event.result, null)
             }
 
             is WsEvent.RpcError -> {
+                if (retryCreateWithGuiSource(event)) return
                 onError(event.id)
                 if (pendingCalls[event.id]?.suppressErrorEvent == true) {
                     // Opt-in suppression: the caller already handles the

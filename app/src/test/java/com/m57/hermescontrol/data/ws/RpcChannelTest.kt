@@ -61,6 +61,7 @@ class RpcChannelTest {
         resolveStoredSessionId: (String?) -> String? = { it },
         val logParseFailureCallback: (Exception) -> Unit = {},
         decorateParams: (String, Map<String, Any>) -> Map<String, Any> = { _, p -> p },
+        createSourceHost: () -> String = { "" },
     ) {
         val sentRequests = mutableListOf<SentRequestRecord>()
         val sentFrames = mutableListOf<String>()
@@ -101,6 +102,7 @@ class RpcChannelTest {
                 resolveStoredSessionId = resolveStoredSessionId,
                 logParseFailure = logParseFailureCallback,
                 decorateParams = decorateParams,
+                createSourceHost = createSourceHost,
             )
 
         data class SentRequestRecord(
@@ -786,5 +788,79 @@ class RpcChannelTest {
             assertEquals("reason", completeEvent.reasoning)
             assertEquals("active-session", completeEvent.sessionId)
             assertEquals("stored-active-session", completeEvent.storedSessionId)
+        }
+
+    private fun sourceRefusal(
+        id: String,
+        field: String = "source",
+    ) = """{"jsonrpc":"2.0","id":"$id","error":{"code":4001,"message":"invalid_params",""" +
+        """"data":{"reason":"invalid_params","fields":["$field"]}}}"""
+
+    private fun sentSource(frame: String): String? =
+        (testJson.decodeFromString<JsonRpcRequest>(frame).params["source"] as? JsonPrimitive)?.content
+
+    @Test
+    fun sessionCreateRefusedForDesktopSourceIsResentOnceWithGuiAndHostKeepsGui() =
+        runTest {
+            val events = mutableListOf<WsEvent>()
+            var host = "https://gateway.example/"
+            val gateway = FakeGateway(scope = this, json = testJson, createSourceHost = { host })
+            val replayTracker =
+                ReplayTracker(
+                    scope = this,
+                    fetchEventsSince = { SessionEventsSinceResult() },
+                    emitEvent = { events.add(it) },
+                )
+            val desktop = mapOf("source" to JsonPrimitive("desktop"))
+
+            val first = gateway.channel.createRequest(WsMethods.SESSION_CREATE, desktop)
+            assertEquals(JsonPrimitive("desktop"), first.params["source"])
+
+            gateway.channel.handleIncomingFrame(sourceRefusal(first.id), replayTracker) { events.add(it) }
+
+            assertTrue("the refusal is not shown to callers", events.isEmpty())
+            val retry = testJson.decodeFromString<JsonRpcRequest>(gateway.sentFrames.single())
+            assertEquals(first.id, retry.id)
+            assertEquals(JsonPrimitive("gui"), retry.params["source"])
+
+            // A refusal of the retry itself reaches callers: there is no second retry.
+            gateway.channel.handleIncomingFrame(sourceRefusal(first.id), replayTracker) { events.add(it) }
+            assertTrue(events.single() is WsEvent.RpcError)
+
+            val next = gateway.channel.createRequest(WsMethods.SESSION_CREATE, desktop)
+            assertEquals(JsonPrimitive("gui"), next.params["source"])
+
+            host = "https://standalone.example/"
+            val other = gateway.channel.createRequest(WsMethods.SESSION_CREATE, desktop)
+            assertEquals(JsonPrimitive("desktop"), other.params["source"])
+            assertEquals(1, gateway.sentFrames.size)
+            assertEquals("gui", sentSource(gateway.sentFrames.single()))
+        }
+
+    @Test
+    fun sessionCreateRefusalForAnotherFieldOrMethodIsNotRetried() =
+        runTest {
+            val events = mutableListOf<WsEvent>()
+            val gateway = FakeGateway(scope = this, json = testJson)
+            val replayTracker =
+                ReplayTracker(
+                    scope = this,
+                    fetchEventsSince = { SessionEventsSinceResult() },
+                    emitEvent = { events.add(it) },
+                )
+            val desktop = mapOf("source" to JsonPrimitive("desktop"))
+
+            val create = gateway.channel.createRequest(WsMethods.SESSION_CREATE, desktop)
+            gateway.channel.handleIncomingFrame(
+                sourceRefusal(create.id, field = "cwd"),
+                replayTracker,
+            ) { events.add(it) }
+            val resume = gateway.channel.createRequest(WsMethods.SESSION_RESUME, desktop)
+            gateway.channel.handleIncomingFrame(sourceRefusal(resume.id), replayTracker) { events.add(it) }
+
+            assertTrue(gateway.sentFrames.isEmpty())
+            assertEquals(2, events.count { it is WsEvent.RpcError })
+            val later = gateway.channel.createRequest(WsMethods.SESSION_CREATE, desktop)
+            assertEquals(JsonPrimitive("desktop"), later.params["source"])
         }
 }

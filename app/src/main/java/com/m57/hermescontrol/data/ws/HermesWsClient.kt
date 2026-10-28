@@ -2,6 +2,7 @@ package com.m57.hermescontrol.data.ws
 
 import android.util.Log
 import androidx.annotation.VisibleForTesting
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.contract.ClientCapabilitiesParams
@@ -100,6 +101,7 @@ object HermesWsClient {
             resolveStoredSessionId = { ActiveSessionHolder.resolveStoredSessionId(it) },
             logParseFailure = { e -> Log.e(TAG, "Failed to parse message: ${e.javaClass.simpleName}") },
             decorateParams = { method, params -> WsProfileParams.decorate(method, params) },
+            createSourceHost = { AuthManager.baseUrlFlow.value },
         )
 
     private val transport: WsTransport =

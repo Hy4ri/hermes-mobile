@@ -21,8 +21,15 @@ data class SessionCreateParams(
  * (`_resolve_session_source`), which on a headless backend is `"tui"`; a resumed runtime then
  * reads as a surface switch and loses the `desktop_ui` toolset (#1450). One constant so the
  * create and resume call sites cannot drift apart again.
+ *
+ * The session-authority gateway accepts only creation labels on `session.create`; there the
+ * Desktop surface is `"gui"` (stored as `"desktop"`). A create it refuses for `source` is sent
+ * again once with [GUI_CREATE_SOURCE], and that host keeps the label (#1711, `RpcChannel`).
  */
 const val DESKTOP_SESSION_SOURCE = "desktop"
+
+/** The gateway's `session.create` label for the Desktop surface (`session_policy.SURFACES`). */
+const val GUI_CREATE_SOURCE = "gui"
 
 @Serializable
 data class SessionResumeParams(

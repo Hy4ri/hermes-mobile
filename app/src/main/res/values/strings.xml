@@ -210,6 +210,13 @@
     <string name="projects_suggestions_title">From your sessions</string>
     <string name="projects_delete_title">Delete %1$s?</string>
     <string name="projects_delete_message">The project and its folder list are removed. Chats are kept and fall back to their folder name in History.</string>
+    <string name="projects_action_browse_folder">Browse folders</string>
+    <string name="projects_picker_title">Select folder</string>
+    <string name="projects_picker_select_folder">Select this folder</string>
+    <string name="projects_picker_up_desc">Up to parent folder</string>
+    <string name="projects_picker_empty">No subfolders found</string>
+    <string name="projects_picker_loading_path">Loading…</string>
+    <string name="projects_picker_path_unavailable">Path unavailable</string>
     <plurals name="projects_folder_count">
         <item quantity="one">%d folder</item>
         <item quantity="other">%d folders</item>

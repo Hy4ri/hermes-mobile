@@ -11,6 +11,9 @@ import com.m57.hermescontrol.ui.chat.ChatPersistenceRepository
 import com.m57.hermescontrol.ui.chat.MessageRole
 import com.m57.hermescontrol.ui.chat.mergeCachedTranscriptPage
 import com.m57.hermescontrol.ui.chat.mergeTranscriptWithLive
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import net.zetetic.database.sqlcipher.driver.SQLCipherDriver
 import org.json.JSONObject
@@ -22,6 +25,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicInteger
 
 /** Executes the generated Room DAO against SQLCipher, rather than reproducing its SQL in a fake. */
 @RunWith(AndroidJUnit4::class)
@@ -429,6 +433,198 @@ class ChatMessagePagingDeviceTest {
                     .id,
             )
         }
+
+    @Test
+    fun reinsertingExistingMessagesUpdatesPayloadWithoutExecutingDuplicateInsertsOrConstraintExceptions() =
+        runBlocking {
+            val interceptedDriver = RecordingSqlCipherDriver(driver())
+            val testDbName = "duplicate-insert-test-${UUID.randomUUID()}.db"
+            val testDb =
+                Room
+                    .databaseBuilder(context, HermesDatabase::class.java, testDbName)
+                    .setDriver(interceptedDriver)
+                    .build()
+            val testRepo = ChatPersistenceRepository(testDb.chatMessageDao())
+
+            try {
+                val initialRows =
+                    (1..20).map { id ->
+                        ChatMessage(
+                            id = "msg-$id",
+                            role = MessageRole.USER,
+                            content = "original-$id",
+                            timestamp = 1000L + id,
+                        )
+                    }
+
+                // Initial insertion: all rows are new.
+                testRepo.persistMessages(initialRows, "test-session")
+
+                val initialInsertStepAttempts = interceptedDriver.chatMessagesInsertStepCount.get()
+                assertTrue("Initial insert should execute INSERT steps", initialInsertStepAttempts >= 20)
+                assertEquals(
+                    "Initial insert should have zero constraint exceptions",
+                    0,
+                    interceptedDriver.constraintExceptionCount.get(),
+                )
+
+                // Re-insert existing rows with updated payload (simulating replay / reconnect)
+                val updatedRows =
+                    (1..20).map { id ->
+                        ChatMessage(
+                            id = "msg-$id",
+                            role = MessageRole.USER,
+                            content = "updated-$id",
+                            timestamp = 2000L + id,
+                        )
+                    }
+
+                val insertStepCountBeforeSecondPersist = interceptedDriver.chatMessagesInsertStepCount.get()
+                testRepo.persistMessages(updatedRows, "test-session")
+                val insertStepsDuringSecondPersist =
+                    interceptedDriver.chatMessagesInsertStepCount.get() - insertStepCountBeforeSecondPersist
+
+                // Zero duplicate INSERT steps or handled constraint exceptions must occur on existing rows
+                assertEquals(
+                    "ZERO duplicate INSERT statement step executions should occur when persisting existing rows",
+                    0,
+                    insertStepsDuringSecondPersist,
+                )
+                assertEquals(
+                    "ZERO constraint exceptions should be thrown/handled when persisting existing rows",
+                    0,
+                    interceptedDriver.constraintExceptionCount.get(),
+                )
+
+                // Verify legitimate latest payload is retained in a single row per id
+                val cached = testRepo.loadPage("test-session", null, 100).messages
+                assertEquals(20, cached.size)
+                updatedRows.forEach { expected ->
+                    val actual = cached.single { it.id == expected.id }
+                    assertEquals(expected.content, actual.content)
+                    assertEquals(expected.timestamp, actual.timestamp)
+                }
+            } finally {
+                testDb.close()
+                context.deleteDatabase(testDbName)
+            }
+        }
+
+    @Test
+    fun concurrentUpsertsOnSameIdPreserveLatestPayloadAndZeroConstraintExceptions() =
+        runBlocking {
+            val interceptedDriver = RecordingSqlCipherDriver(driver())
+            val testDbName = "concurrent-upsert-test-${UUID.randomUUID()}.db"
+            val testDb =
+                Room
+                    .databaseBuilder(context, HermesDatabase::class.java, testDbName)
+                    .setDriver(interceptedDriver)
+                    .build()
+            val testRepo = ChatPersistenceRepository(testDb.chatMessageDao())
+
+            try {
+                val targetId = "concurrent-msg-1"
+                val initial =
+                    ChatMessage(
+                        id = targetId,
+                        role = MessageRole.ASSISTANT,
+                        content = "initial content",
+                        timestamp = 1000L,
+                    )
+                testRepo.persistMessage(initial, "concurrent-session")
+
+                val workers = 8
+                val iterations = 5
+                coroutineScope {
+                    val jobs =
+                        (1..workers).map { workerId ->
+                            launch(Dispatchers.IO) {
+                                for (i in 1..iterations) {
+                                    val updated =
+                                        initial.copy(
+                                            content = "worker-$workerId-iter-$i",
+                                            timestamp = 2000L + workerId * 10 + i,
+                                        )
+                                    testRepo.persistMessage(updated, "concurrent-session")
+                                }
+                            }
+                        }
+                    jobs.forEach { it.join() }
+                }
+
+                assertEquals(
+                    "ZERO constraint exceptions should occur during concurrent upserts",
+                    0,
+                    interceptedDriver.constraintExceptionCount.get(),
+                )
+
+                // Persist deterministic final update and verify payload, identity, order, and anchors
+                val finalPayload =
+                    initial.copy(
+                        content = "deterministic-final-content",
+                        timestamp = 9999L,
+                        reasoningText = "final-reasoning",
+                        completionId = "completion-final",
+                    )
+                testRepo.persistMessage(finalPayload, "concurrent-session")
+
+                val stored = testRepo.loadPage("concurrent-session", null, 10).messages
+                assertEquals(1, stored.size)
+                val storedMsg = stored.single()
+                assertEquals(targetId, storedMsg.id)
+                assertEquals("deterministic-final-content", storedMsg.content)
+                assertEquals(9999L, storedMsg.timestamp)
+                assertEquals("final-reasoning", storedMsg.reasoningText)
+                assertEquals("completion-final", storedMsg.completionId)
+            } finally {
+                testDb.close()
+                context.deleteDatabase(testDbName)
+            }
+        }
+
+    private class RecordingSqlCipherDriver(
+        private val delegate: androidx.sqlite.SQLiteDriver,
+    ) : androidx.sqlite.SQLiteDriver by delegate {
+        val chatMessagesInsertStepCount = AtomicInteger(0)
+        val constraintExceptionCount = AtomicInteger(0)
+
+        override fun open(fileName: String): androidx.sqlite.SQLiteConnection =
+            RecordingConnection(delegate.open(fileName), this)
+    }
+
+    private class RecordingConnection(
+        private val delegate: androidx.sqlite.SQLiteConnection,
+        private val driverTracker: RecordingSqlCipherDriver,
+    ) : androidx.sqlite.SQLiteConnection by delegate {
+        override fun prepare(sql: String): androidx.sqlite.SQLiteStatement {
+            val stmt = delegate.prepare(sql)
+            return RecordingStatement(stmt, sql, driverTracker)
+        }
+    }
+
+    private class RecordingStatement(
+        private val delegate: androidx.sqlite.SQLiteStatement,
+        private val sql: String,
+        private val driverTracker: RecordingSqlCipherDriver,
+    ) : androidx.sqlite.SQLiteStatement by delegate {
+        private val isChatMessageInsert =
+            sql.contains("INSERT", ignoreCase = true) && sql.contains("chat_messages", ignoreCase = true)
+
+        override fun step(): Boolean {
+            if (isChatMessageInsert) {
+                driverTracker.chatMessagesInsertStepCount.incrementAndGet()
+            }
+            try {
+                return delegate.step()
+            } catch (e: Exception) {
+                val msg = e.message.orEmpty()
+                if (msg.contains("UNIQUE", ignoreCase = true) || msg.contains("1555") || msg.contains("2067")) {
+                    driverTracker.constraintExceptionCount.incrementAndGet()
+                }
+                throw e
+            }
+        }
+    }
 
     private fun driver() = SQLCipherDriver("paging-test-only".toByteArray(), null, null)
 

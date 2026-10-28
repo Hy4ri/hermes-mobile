@@ -1337,4 +1337,34 @@ class EventParserTest {
         assertEquals("secret-1", expire.requestId)
         assertEquals("sess-secret-1", expire.sessionId)
     }
+
+    @Test
+    fun testParseAgentStep_handledSilentlyWithoutLogWarning() {
+        val params =
+            mapOf(
+                "type" to "agent.step",
+                "session_id" to "sess-step-1",
+                "payload" to mapOf("step" to 1, "action" to "thought"),
+            )
+        val event = EventParser.parseParams(params)
+        assertTrue(event is WsEvent.Unknown)
+        io.mockk.verify(exactly = 0) {
+            android.util.Log.w(any<String>(), any<String>())
+        }
+    }
+
+    @Test
+    fun testParseTrulyUnknownType_logsWarning() {
+        val params =
+            mapOf(
+                "type" to "truly.unknown.type.xyz",
+                "session_id" to "sess-unknown-1",
+                "payload" to mapOf("key" to "value"),
+            )
+        val event = EventParser.parseParams(params)
+        assertTrue(event is WsEvent.Unknown)
+        io.mockk.verify(atLeast = 1) {
+            android.util.Log.w("EventParser", match<String> { it.contains("truly.unknown.type.xyz") })
+        }
+    }
 }

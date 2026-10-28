@@ -507,6 +507,10 @@ object EventParser {
                 }
             }
 
+            "agent.step" -> {
+                WsEvent.Unknown(rawJson)
+            }
+
             else -> {
                 Log.w(TAG, "Unknown event type: $eventType")
                 WsEvent.Unknown(rawJson)

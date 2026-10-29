@@ -1,9 +1,15 @@
 package com.m57.hermescontrol.data.remote
 
+import android.util.Log
+import io.mockk.every
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
+import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -16,6 +22,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.IOException
 
 /**
  * Unit tests for [PersistentCookieJar] — the issue #470 cookie stack.
@@ -242,6 +249,44 @@ class PersistentCookieJarTest {
             val restarted = PersistentCookieJar(saved)
             restarted.useStore("server-a")
             assertEquals("durable", restarted.getSessionCookieValue())
+        }
+
+    @Test
+    fun failedSaveDoesNotBlockScopeSwitchOrLaterPersistence() =
+        runTest {
+            mockkStatic(Log::class)
+            every { Log.w(any(), any<String>(), any<Throwable>()) } returns 0
+            try {
+                val saved = FakeEncryptedCookieStore()
+                var attempts = 0
+                val store =
+                    object : CookieStore by saved {
+                        override suspend fun save(
+                            serverId: String,
+                            cookies: List<Cookie>,
+                        ) {
+                            attempts++
+                            if (attempts == 1) throw IOException("disk unavailable")
+                            saved.save(serverId, cookies)
+                        }
+                    }
+                val scope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+                val jar = PersistentCookieJar(store, scope)
+                jar.useStore("server-a")
+                jar.saveFromResponse("https://a.local/".toHttpUrl(), listOf(sessionCookie("a.local", "first")))
+                runCurrent()
+
+                jar.useStore("server-b")
+                assertEquals("server-b", jar.currentServer())
+                jar.saveFromResponse("https://b.local/".toHttpUrl(), listOf(sessionCookie("b.local", "later")))
+                jar.useStore("server-c")
+
+                assertEquals(2, attempts)
+                assertEquals("later", saved.load("server-b").single().value)
+                verify(exactly = 1) { Log.w("PersistentCookieJar", any<String>(), any<Throwable>()) }
+            } finally {
+                unmockkStatic(Log::class)
+            }
         }
 
     @Test

@@ -2,6 +2,7 @@ package com.m57.hermescontrol.data.remote
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
 import kotlinx.coroutines.Deferred
@@ -85,32 +86,35 @@ class EncryptedCookieStore(
 
     override suspend fun load(serverId: String): List<Cookie> =
         withContext(Dispatchers.IO) {
-            // Fold in legacy single-cookie storage once per server scope.
-            // This awaits the deferred prefs on the IO dispatcher — never
-            // blocks the caller (e.g. main thread) during app startup.
-            val migrated = readLegacyCookie()
-            val persisted =
-                prefs
-                    .getString(keyFor(serverId), null)
-                    ?.let { raw ->
-                        runCatching {
-                            json.decodeFromString<List<CookieHolder>>(raw).mapNotNull { it.toCookie() }
-                        }.getOrDefault(emptyList())
-                    }.orEmpty()
-            val merged = (persisted + migrated).distinctBy { Triple(it.name, it.domain, it.path) }
-            if (migrated.isNotEmpty()) {
-                // Keep the source until the encrypted copy is durable, including across process death.
-                val encoded = json.encodeToString(merged.map { it.serialize() })
-                check(prefs.edit().putString(keyFor(serverId), encoded).commit()) {
-                    "Unable to migrate encrypted cookies"
+            // Retain the usable cookies even when encrypted storage cannot be read or written.
+            var loaded = emptyList<Cookie>()
+            runCatching {
+                val migrated = readLegacyCookie()
+                loaded = migrated
+                val persisted =
+                    prefs
+                        .getString(keyFor(serverId), null)
+                        ?.let { raw ->
+                            runCatching {
+                                json.decodeFromString<List<CookieHolder>>(raw).mapNotNull { it.toCookie() }
+                            }.getOrDefault(emptyList())
+                        }.orEmpty()
+                loaded = (persisted + migrated).distinctBy { Triple(it.name, it.domain, it.path) }
+                if (migrated.isNotEmpty()) {
+                    // Copy first; a failed commit leaves the source available for the next load.
+                    val encoded = json.encodeToString(loaded.map { it.serialize() })
+                    if (prefs.edit().putString(keyFor(serverId), encoded).commit()) {
+                        legacyPrefsDeferred
+                            ?.await()
+                            ?.edit()
+                            ?.remove(LEGACY_SESSION_COOKIE_KEY)
+                            ?.commit()
+                    } else {
+                        Log.w(TAG, "Unable to migrate encrypted cookies; keeping legacy source")
+                    }
                 }
-                legacyPrefsDeferred
-                    ?.await()
-                    ?.edit()
-                    ?.remove(LEGACY_SESSION_COOKIE_KEY)
-                    ?.commit()
-            }
-            merged
+            }.onFailure { Log.w(TAG, "Unable to load encrypted cookies", it) }
+            loaded
         }
 
     override suspend fun clear(serverId: String) =
@@ -138,6 +142,8 @@ class EncryptedCookieStore(
     private fun keyFor(serverId: String) = "cookies::$serverId"
 
     companion object {
+        private const val TAG = "EncryptedCookieStore"
+
         const val PREFS_FILE = "hermes_secure_cookies"
         const val LEGACY_SESSION_COOKIE_KEY = "session_cookie"
     }

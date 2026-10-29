@@ -1,10 +1,11 @@
 package com.m57.hermescontrol.data.remote
 
+import android.util.Log
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import okhttp3.Cookie
@@ -49,12 +50,12 @@ class PersistentCookieJar(
 
     private val scopeMutex = Mutex()
     private val persistenceLock = Any()
-    private var pendingPersistence: Deferred<Unit>? = null
+    private var pendingPersistence: Job? = null
 
     /** Atomically switch the active server scope and ensure its cookies are loaded. */
     suspend fun useStore(serverId: String) {
         scopeMutex.withLock {
-            synchronized(persistenceLock) { pendingPersistence }?.await()
+            synchronized(persistenceLock) { pendingPersistence }?.join()
             currentServerId.set(serverId)
             ensureLoaded(serverId)
         }
@@ -216,9 +217,10 @@ class PersistentCookieJar(
         synchronized(persistenceLock) {
             val previous = pendingPersistence
             pendingPersistence =
-                storeScope.async {
+                storeScope.launch {
                     previous?.join()
-                    operation()
+                    runCatching { operation() }
+                        .onFailure { Log.w(TAG, "Unable to persist cookies", it) }
                 }
         }
     }
@@ -261,6 +263,8 @@ class PersistentCookieJar(
     }
 
     companion object {
+        private const val TAG = "PersistentCookieJar"
+
         const val DEFAULT_SERVER_ID = "default"
 
         /** Bucket key for migrated sessions, returned only to trusted hosts. */

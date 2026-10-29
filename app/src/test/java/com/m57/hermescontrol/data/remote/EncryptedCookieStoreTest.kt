@@ -2,6 +2,7 @@ package com.m57.hermescontrol.data.remote
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
 import com.m57.hermescontrol.profilelock.FakeSharedPreferences
@@ -19,6 +20,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.io.IOException
 
 class EncryptedCookieStoreTest {
     private val encrypted = spyk(FakeSharedPreferences())
@@ -32,6 +34,9 @@ class EncryptedCookieStoreTest {
         editor = spyk(encrypted.edit())
         every { encrypted.edit() } returns editor
         every { context.applicationContext } returns context
+        mockkStatic(Log::class)
+        every { Log.w(any(), any<String>()) } returns 0
+        every { Log.w(any(), any<String>(), any<Throwable>()) } returns 0
         mockkStatic(MasterKeys::class)
         every { MasterKeys.getOrCreate(any()) } returns "test-key"
         mockkStatic(EncryptedSharedPreferences::class)
@@ -77,10 +82,35 @@ class EncryptedCookieStoreTest {
         runTest {
             every { editor.commit() } returns false
 
-            runCatching { store().load("server-a") }
+            val cookies = store().load("server-a")
 
+            assertEquals("legacy-session", cookies.single().value)
             verify(exactly = 1) { editor.commit() }
             assertEquals("legacy-session", legacy.getString(EncryptedCookieStore.LEGACY_SESSION_COOKIE_KEY, null))
+
+            every { editor.commit() } answers { callOriginal() }
+            assertEquals("legacy-session", store().load("server-a").single().value)
+            assertFalse(legacy.contains(EncryptedCookieStore.LEGACY_SESSION_COOKIE_KEY))
+            verify(exactly = 2) { editor.commit() }
+        }
+
+    @Test
+    fun throwingMigrationCommitStillReturnsLegacyCookie() =
+        runTest {
+            every { editor.commit() } throws IOException("disk unavailable")
+
+            assertEquals("legacy-session", store().load("server-a").single().value)
+            assertTrue(legacy.contains(EncryptedCookieStore.LEGACY_SESSION_COOKIE_KEY))
+        }
+
+    @Test
+    fun failedEncryptedReadStillReturnsLegacyCookie() =
+        runTest {
+            every { encrypted.getString("cookies::server-a", null) } throws
+                IllegalStateException("keystore unavailable")
+
+            assertEquals("legacy-session", store().load("server-a").single().value)
+            assertTrue(legacy.contains(EncryptedCookieStore.LEGACY_SESSION_COOKIE_KEY))
         }
 
     @Test

@@ -225,6 +225,7 @@
     <string name="chat_pending_sending">Envío\u2026</string>
     <string name="chat_pending_accepted">Aceptado por el servidor; esperando transcripción. Enviarlo nuevamente puede duplicarlo.</string>
     <string name="chat_pending_unknown">Entrega desconocida; enviarlo nuevamente puede duplicarlo</string>
+    <string name="chat_pending_owner_unconfirmed">La otra ventana no confirmó este mensaje. Puede que ya se haya enviado. Revisa el chat antes de enviarlo de nuevo.</string>
     <string name="chat_pending_rejected">No entregado; elija Enviar ahora para volver a intentarlo</string>
     <string name="chat_pending_send_now">Enviar ahora</string>
     <string name="chat_pending_send_now_warning">Enviar un mensaje pendiente ahora puede interrumpir el trabajo activo y detener a los agentes secundarios.</string>

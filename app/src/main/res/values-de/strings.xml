@@ -264,6 +264,7 @@
     <string name="chat_pending_sending">Wird gesendet…</string>
     <string name="chat_pending_accepted">Vom Server akzeptiert; Transkript steht noch aus. Erneutes Senden kann sie doppelt senden.</string>
     <string name="chat_pending_unknown">Zustellung unbekannt; erneutes Senden kann sie doppelt senden</string>
+    <string name="chat_pending_owner_unconfirmed">Das andere Fenster hat diese Nachricht nicht bestätigt. Sie wurde vielleicht schon gesendet. Prüfen Sie den Chat, bevor Sie sie erneut senden.</string>
     <string name="chat_pending_rejected">Nicht zugestellt; wähle „Jetzt senden“, um es erneut zu versuchen</string>
     <string name="chat_pending_send_now">Jetzt senden</string>
     <string name="chat_pending_send_now_warning">Das sofortige Senden einer ausstehenden Nachricht kann laufende Arbeit unterbrechen und Sub-Agents stoppen.</string>

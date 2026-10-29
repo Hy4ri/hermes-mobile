@@ -86,6 +86,35 @@ class PendingSendRecoveryTest {
         compose.runOnIdle { assertEquals("uncertain", recovered) }
     }
 
+    @Test
+    fun unconfirmedOwnerExplainsAndSendAgainNeedsConfirmation() {
+        var retried: String? = null
+        compose.setContent {
+            MaterialTheme {
+                PendingSendRecovery(
+                    listOf(uncertain.copy(refusalReason = "SESSION_OWNER_UNCONFIRMED")),
+                    true,
+                    false,
+                    { retried = it },
+                    {},
+                    {},
+                    {},
+                )
+            }
+        }
+        compose.onNodeWithTag("pending_send_recovery").performClick()
+        compose
+            .onNodeWithText(
+                "The other window did not confirm this message. It may already be sent. " +
+                    "Check the chat before you send it again.",
+            ).assertIsDisplayed()
+        compose.onNodeWithTag("pending_new_conversation_uncertain").assertDoesNotExist()
+        compose.onNodeWithTag("pending_retry_uncertain").performClick()
+        compose.runOnIdle { assertNull(retried) }
+        compose.onNodeWithTag("pending_retry_confirm").performClick()
+        compose.runOnIdle { assertEquals("uncertain", retried) }
+    }
+
     private fun assertRetryKept(send: PendingSend) {
         compose.setContent {
             MaterialTheme {

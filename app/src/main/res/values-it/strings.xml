@@ -208,6 +208,7 @@
     <string name="chat_pending_sending">Invio in corso\u2026</string>
     <string name="chat_pending_accepted">Accettato dal server; in attesa della trascrizione. L\'invio di nuovo potrebbe duplicarlo.</string>
     <string name="chat_pending_unknown">Consegna sconosciuta; l\'invio di nuovo potrebbe duplicarlo</string>
+    <string name="chat_pending_owner_unconfirmed">L\'altra finestra non ha confermato questo messaggio. Potrebbe essere già stato inviato. Controlla la chat prima di inviarlo di nuovo.</string>
     <string name="chat_pending_rejected">Non consegnato; seleziona Invia ora per riprovare</string>
     <string name="chat_pending_send_now">Invia ora</string>
     <string name="chat_pending_send_now_warning">L\'invio immediato di un messaggio in sospeso potrebbe interrompere il lavoro attivo e arrestare gli agenti secondari.</string>

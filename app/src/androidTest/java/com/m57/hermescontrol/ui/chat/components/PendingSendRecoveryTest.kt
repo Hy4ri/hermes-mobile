@@ -86,30 +86,23 @@ class PendingSendRecoveryTest {
         compose.runOnIdle { assertEquals("uncertain", recovered) }
     }
 
-    @Test
-    fun otherAndMissingRefusalReasonsKeepRetry() {
+    private fun assertRetryKept(send: PendingSend) {
         compose.setContent {
             MaterialTheme {
-                PendingSendRecovery(
-                    listOf(
-                        uncertain.copy(id = "missing", state = PendingSendState.REJECTED),
-                        uncertain.copy(id = "other", state = PendingSendState.REJECTED, refusalReason = "OTHER"),
-                    ),
-                    true,
-                    false,
-                    {},
-                    {},
-                    {},
-                    {},
-                )
+                PendingSendRecovery(listOf(send), true, false, {}, {}, {}, {})
             }
         }
         compose.onNodeWithTag("pending_send_recovery").performClick()
-        for (id in listOf("missing", "other")) {
-            compose.onNodeWithTag("pending_retry_$id").performScrollTo().assertIsDisplayed()
-            compose.onNodeWithTag("pending_new_conversation_$id").assertDoesNotExist()
-        }
+        compose.onNodeWithTag("pending_retry_${send.id}").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("pending_new_conversation_${send.id}").assertDoesNotExist()
     }
+
+    @Test
+    fun missingRefusalReasonKeepsRetry() = assertRetryKept(uncertain.copy(state = PendingSendState.REJECTED))
+
+    @Test
+    fun otherRefusalReasonKeepsRetry() =
+        assertRetryKept(uncertain.copy(state = PendingSendState.REJECTED, refusalReason = "OTHER"))
 
     @Test
     fun uncertainRetryRequiresExplicitConfirmation() {

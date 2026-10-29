@@ -1299,6 +1299,250 @@ class ChatWsEventReducerTest {
     }
 
     @Test
+    fun testSessionUsage_fallbackModelUpdatesActiveModelAndDenominator() {
+        val initialCaps =
+            com.m57.hermescontrol.data.model
+                .ModelCapabilities(supports_tools = true, fast = true)
+        val state =
+            ChatUiState(
+                currentSessionId = "session-1",
+                currentSessionModel = "openai/gpt-4o",
+                currentModelCapabilities = initialCaps,
+                reasoningLevel = "high",
+                reasoningWireLevel = "high-effort",
+                fullContextTokens = 128_000L,
+            )
+        val usagePayload =
+            mapOf(
+                "usage" to
+                    mapOf(
+                        "model" to "gemini-2.5-flash",
+                        "context_max" to 1_000_000L,
+                    ),
+            )
+        val result =
+            ChatWsEventReducer.reduce(
+                state = state,
+                streamingState = StreamingState(),
+                event = WsEvent.SessionUsage(data = usagePayload, sessionId = "session-1"),
+                currentSessionId = "session-1",
+            )
+
+        assertEquals("gemini-2.5-flash", result.state.currentSessionModel)
+        assertEquals(1_000_000L, result.state.fullContextTokens)
+        assertEquals("high", result.state.reasoningLevel)
+        assertNull(result.state.reasoningWireLevel)
+        assertNull(result.state.currentModelCapabilities)
+    }
+
+    @Test
+    fun testSessionUsage_fallbackModelNamespacedPreservedWithoutStaleProvider() {
+        val initialCaps =
+            com.m57.hermescontrol.data.model
+                .ModelCapabilities(supports_tools = true)
+        val state =
+            ChatUiState(
+                currentSessionId = "session-1",
+                currentSessionModel = "openai/gpt-4o",
+                currentModelCapabilities = initialCaps,
+                fullContextTokens = 128_000L,
+            )
+        val usagePayload =
+            mapOf(
+                "usage" to
+                    mapOf(
+                        "model" to "google/gemini-2.5-flash",
+                    ),
+            )
+        val result =
+            ChatWsEventReducer.reduce(
+                state = state,
+                streamingState = StreamingState(),
+                event = WsEvent.SessionUsage(data = usagePayload, sessionId = "session-1"),
+                currentSessionId = "session-1",
+            )
+
+        assertEquals("google/gemini-2.5-flash", result.state.currentSessionModel)
+        assertNull(result.state.fullContextTokens)
+        assertNull(result.state.currentModelCapabilities)
+    }
+
+    @Test
+    fun testSessionUsage_unchangedModelPreservesQualifiedLabelAndWireState() {
+        val initialCaps =
+            com.m57.hermescontrol.data.model
+                .ModelCapabilities(supports_tools = true)
+        // Test full match, suffix match, case-insensitive match, and openrouter/anthropic/claude-3-5-sonnet with wire anthropic/claude-3-5-sonnet
+        val cases =
+            listOf(
+                "openai/gpt-4o" to "openai/gpt-4o",
+                "openai/gpt-4o" to "gpt-4o",
+                "openai/gpt-4o" to "GPT-4O",
+                "openrouter/anthropic/claude-3-5-sonnet" to "anthropic/claude-3-5-sonnet",
+            )
+        for ((currentLabel, wireModel) in cases) {
+            val state =
+                ChatUiState(
+                    currentSessionId = "session-1",
+                    currentSessionModel = currentLabel,
+                    currentModelCapabilities = initialCaps,
+                    reasoningLevel = "high",
+                    reasoningWireLevel = "wire-high",
+                    fullContextTokens = 128_000L,
+                )
+            val usagePayload =
+                mapOf(
+                    "usage" to
+                        mapOf(
+                            "model" to wireModel,
+                        ),
+                )
+            val result =
+                ChatWsEventReducer.reduce(
+                    state = state,
+                    streamingState = StreamingState(),
+                    event = WsEvent.SessionUsage(data = usagePayload, sessionId = "session-1"),
+                    currentSessionId = "session-1",
+                )
+
+            assertEquals(currentLabel, result.state.currentSessionModel)
+            assertEquals("wire-high", result.state.reasoningWireLevel)
+            assertEquals(128_000L, result.state.fullContextTokens)
+            assertEquals(initialCaps, result.state.currentModelCapabilities)
+        }
+    }
+
+    @Test
+    fun testSessionUsage_blankOrNullModelLeavesModelUntouchedAndUpdatesIncrementalUsage() {
+        val initialCaps =
+            com.m57.hermescontrol.data.model
+                .ModelCapabilities(supports_tools = true)
+        for (blankModel in listOf(null, "", "   ")) {
+            val state =
+                ChatUiState(
+                    currentSessionId = "session-1",
+                    currentSessionModel = "openai/gpt-4o",
+                    currentModelCapabilities = initialCaps,
+                    reasoningWireLevel = "wire-high",
+                    fullContextTokens = 128_000L,
+                    sessionUsage = UsageSnapshotResponse(outputTokens = 500L),
+                )
+            val usageMap = mutableMapOf<String, Any?>("output" to 750L, "context_used" to 300L)
+            if (blankModel != null) usageMap["model"] = blankModel
+            val usagePayload = mapOf("usage" to usageMap)
+            val result =
+                ChatWsEventReducer.reduce(
+                    state = state,
+                    streamingState = StreamingState(),
+                    event = WsEvent.SessionUsage(data = usagePayload, sessionId = "session-1"),
+                    currentSessionId = "session-1",
+                )
+
+            assertEquals("openai/gpt-4o", result.state.currentSessionModel)
+            assertEquals("wire-high", result.state.reasoningWireLevel)
+            assertEquals(128_000L, result.state.fullContextTokens)
+            assertEquals(initialCaps, result.state.currentModelCapabilities)
+            assertEquals(750L, result.state.sessionUsage?.outputTokens)
+            assertEquals(300L, result.state.usedContextTokens)
+        }
+    }
+
+    @Test
+    fun testSessionUsage_foreignSessionModelUpdateIsRejected() {
+        val state =
+            ChatUiState(
+                currentSessionId = "session-1",
+                currentSessionModel = "openai/gpt-4o",
+            )
+        val usagePayload =
+            mapOf(
+                "usage" to
+                    mapOf(
+                        "model" to "foreign-fallback-model",
+                    ),
+            )
+        val result =
+            ChatWsEventReducer.reduce(
+                state = state,
+                streamingState = StreamingState(),
+                event = WsEvent.SessionUsage(data = usagePayload, sessionId = "session-other"),
+                currentSessionId = "session-1",
+            )
+
+        assertEquals("openai/gpt-4o", result.state.currentSessionModel)
+    }
+
+    @Test
+    fun testMessageComplete_foreignSessionModelUpdateIsRejected() {
+        val state =
+            ChatUiState(
+                currentSessionId = "session-1",
+                currentSessionModel = "openai/gpt-4o",
+            )
+        val result =
+            ChatWsEventReducer.reduce(
+                state = state,
+                streamingState = StreamingState(),
+                event =
+                    WsEvent.MessageComplete(
+                        text = "other session reply",
+                        sessionId = "session-other",
+                        rawPayload =
+                            mapOf(
+                                "usage" to
+                                    mapOf(
+                                        "model" to "foreign-fallback-model",
+                                    ),
+                            ),
+                    ),
+                currentSessionId = "session-1",
+            )
+
+        assertEquals("openai/gpt-4o", result.state.currentSessionModel)
+    }
+
+    @Test
+    fun testMessageComplete_fallbackModelUpdatesActiveModel() {
+        val initialCaps =
+            com.m57.hermescontrol.data.model
+                .ModelCapabilities(supports_tools = true)
+        val state =
+            ChatUiState(
+                currentSessionId = "session-1",
+                currentSessionModel = "anthropic/claude-3-7-sonnet",
+                currentModelCapabilities = initialCaps,
+                fullContextTokens = 200_000L,
+                reasoningLevel = "low",
+                reasoningWireLevel = "clamped-low",
+            )
+        val result =
+            ChatWsEventReducer.reduce(
+                state = state,
+                streamingState = StreamingState(),
+                event =
+                    WsEvent.MessageComplete(
+                        text = "hello fallback",
+                        sessionId = "session-1",
+                        rawPayload =
+                            mapOf(
+                                "usage" to
+                                    mapOf(
+                                        "model" to "claude-3-5-haiku",
+                                        "context_max" to 150_000L,
+                                    ),
+                            ),
+                    ),
+                currentSessionId = "session-1",
+            )
+
+        assertEquals("claude-3-5-haiku", result.state.currentSessionModel)
+        assertEquals(150_000L, result.state.fullContextTokens)
+        assertEquals("low", result.state.reasoningLevel)
+        assertNull(result.state.reasoningWireLevel)
+        assertNull(result.state.currentModelCapabilities)
+    }
+
+    @Test
     fun testSessionUsage_retainsCompleteSnapshotAndUpdatesConvenienceState() {
         val state = ChatUiState(currentSessionId = "session-1")
         val result =
@@ -1970,5 +2214,41 @@ class ChatWsEventReducerTest {
         assertEquals("Chart incoming", partial.content)
         assertEquals(listOf("gw:///opt/data/chart.png"), partial.attachments?.map { it.uri })
         assertTrue(result.effects.none { it is ReducerEffect.PersistMessage })
+    }
+
+    @Test
+    fun retainedReplyFailureDoesNotOverwriteCurrentModelWindowOrCapabilities() {
+        val initialCaps =
+            com.m57.hermescontrol.data.model
+                .ModelCapabilities(supports_tools = true)
+        val state =
+            ChatUiState(
+                currentSessionId = "session-1",
+                currentSessionModel = "anthropic/claude-3-7-sonnet",
+                currentModelCapabilities = initialCaps,
+                fullContextTokens = 200_000L,
+            )
+        val inflight =
+            mapOf(
+                "status" to "error",
+                "assistant" to "Failed turn",
+                "usage" to
+                    mapOf(
+                        "model" to "old-historical-model",
+                        "context_max" to 32_000L,
+                    ),
+            )
+        val result =
+            ChatWsEventReducer.reduceRetainedReplyFailure(
+                state,
+                inflight,
+                "session-1",
+            )
+
+        // Historical error usage must NOT overwrite resumed authoritative model/window/capabilities
+        assertEquals("anthropic/claude-3-7-sonnet", result.state.currentSessionModel)
+        assertEquals(200_000L, result.state.fullContextTokens)
+        assertEquals(initialCaps, result.state.currentModelCapabilities)
+        assertTrue(result.state.replyFailureProjection != null)
     }
 }

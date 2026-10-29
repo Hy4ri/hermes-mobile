@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.data.update
 
+import com.m57.hermescontrol.data.remote.TlsTestContext
+import com.m57.hermescontrol.data.remote.TlsTestIdentity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
@@ -12,6 +14,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.io.File
@@ -23,6 +26,10 @@ import java.util.concurrent.TimeUnit
  * only the opt-in path may scan the releases list.
  */
 class AppUpdateCheckerNetworkTest {
+    private val identity = TlsTestIdentity("server")
+    private val serverTls = TlsTestContext(identity)
+    private val clientTls = TlsTestContext(trusted = listOf(identity.certificate))
+    private val secureServers = mutableListOf<MockWebServer>()
     private lateinit var server: MockWebServer
 
     @Before
@@ -34,6 +41,7 @@ class AppUpdateCheckerNetworkTest {
     @After
     fun tearDown() {
         server.shutdown()
+        secureServers.forEach { it.shutdown() }
     }
 
     private fun checker(
@@ -45,6 +53,24 @@ class AppUpdateCheckerNetworkTest {
             apiBaseUrl = server.url("/repos/Hy4ri/hermes-mobile").toString(),
             nowMs = nowMs,
             metadataTtlMs = metadataTtlMs,
+        )
+
+    private fun httpsServer(): MockWebServer =
+        MockWebServer().apply {
+            useHttps(serverTls.sslSocketFactory(), false)
+            start()
+            secureServers.add(this)
+        }
+
+    private fun httpsChecker(): AppUpdateChecker =
+        AppUpdateChecker(
+            client =
+                OkHttpClient
+                    .Builder()
+                    .sslSocketFactory(clientTls.sslSocketFactory(), clientTls.trustManager)
+                    .followRedirects(true)
+                    .followSslRedirects(true)
+                    .build(),
         )
 
     private fun enqueue(
@@ -159,15 +185,16 @@ class AppUpdateCheckerNetworkTest {
     @Test
     fun downloadApk_cancellingCoroutineCancelsNetworkAndDeletesPartialFile() =
         runTest {
-            server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
+            val secure = httpsServer()
+            secure.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
             val destination = File.createTempFile("hermes-update", ".apk")
             destination.writeText("partial")
             val download =
                 launch(Dispatchers.IO) {
-                    checker().downloadApk(server.url("/slow.apk").toString(), destination) {}
+                    httpsChecker().downloadApk(secure.url("/slow.apk").toString(), destination) {}
                 }
 
-            assertEquals("/slow.apk", server.takeRequest(5, TimeUnit.SECONDS)?.path)
+            assertEquals("/slow.apk", secure.takeRequest(5, TimeUnit.SECONDS)?.path)
             download.cancelAndJoin()
 
             assertFalse(destination.exists())
@@ -183,6 +210,85 @@ class AppUpdateCheckerNetworkTest {
 
             assertFalse(downloaded)
             assertFalse(destination.exists())
+        }
+
+    @Test
+    fun downloadApk_rejectsHttpBeforeSendingRequest() =
+        runTest {
+            enqueue("insecure APK")
+            val destination = File.createTempFile("hermes-http-update", ".apk")
+            destination.writeText("partial")
+            try {
+                val result = checker().downloadApk(server.url("/release.apk").toString(), destination) {}
+
+                assertFalse(result)
+                assertFalse(destination.exists())
+                assertEquals(0, server.requestCount)
+            } finally {
+                destination.delete()
+            }
+        }
+
+    @Test
+    fun downloadApk_acceptsHttpsCaseInsensitively() =
+        runTest {
+            val secure = httpsServer()
+            secure.enqueue(MockResponse().setBody("secure APK"))
+            val destination = File.createTempFile("hermes-https-update", ".apk")
+            try {
+                val url = secure.url("/release.apk").toString().replaceFirst("https:", "HTTPS:")
+                val result = httpsChecker().downloadApk(url, destination) {}
+
+                assertTrue(result)
+                assertEquals("secure APK", destination.readText())
+                assertEquals("/release.apk", secure.takeRequest(5, TimeUnit.SECONDS)?.path)
+            } finally {
+                destination.delete()
+            }
+        }
+
+    @Test
+    fun downloadApk_rejectsHttpsDowngradeBeforeSendingHttpRequest() =
+        runTest {
+            val secure = httpsServer()
+            secure.enqueue(
+                MockResponse().setResponseCode(302).addHeader("Location", server.url("/insecure.apk")),
+            )
+            enqueue("insecure APK")
+            val destination = File.createTempFile("hermes-downgrade-update", ".apk")
+            destination.writeText("partial")
+            try {
+                val result = httpsChecker().downloadApk(secure.url("/release.apk").toString(), destination) {}
+
+                assertFalse(result)
+                assertFalse(destination.exists())
+                assertEquals("/release.apk", secure.takeRequest(5, TimeUnit.SECONDS)?.path)
+                assertEquals(0, server.requestCount)
+            } finally {
+                destination.delete()
+            }
+        }
+
+    @Test
+    fun downloadApk_followsHttpsRedirectToAnotherServer() =
+        runTest {
+            val first = httpsServer()
+            val second = httpsServer()
+            first.enqueue(
+                MockResponse().setResponseCode(302).addHeader("Location", second.url("/signed.apk")),
+            )
+            second.enqueue(MockResponse().setBody("secure redirected APK"))
+            val destination = File.createTempFile("hermes-redirect-update", ".apk")
+            try {
+                val result = httpsChecker().downloadApk(first.url("/release.apk").toString(), destination) {}
+
+                assertTrue(result)
+                assertEquals("secure redirected APK", destination.readText())
+                assertEquals("/release.apk", first.takeRequest(5, TimeUnit.SECONDS)?.path)
+                assertEquals("/signed.apk", second.takeRequest(5, TimeUnit.SECONDS)?.path)
+            } finally {
+                destination.delete()
+            }
         }
 
     private companion object {

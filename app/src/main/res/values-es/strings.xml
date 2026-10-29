@@ -2067,4 +2067,7 @@
     <string name="db_unavailable_retry">Reintentar</string>
     <string name="db_unavailable_reset">Apartar y empezar de nuevo</string>
     <string name="db_unavailable_reset_confirm">Los archivos de la base de datos se renombrarán con el sufijo .corrupt, no se borrarán. El historial local empezará vacío.</string>
+    <string name="chat_pending_owned_elsewhere">Este chat está abierto en otra ventana. ¿Iniciar una conversación nueva con este mensaje?</string>
+    <string name="chat_pending_new_conversation">Nueva conversación</string>
+    <string name="chat_pending_attachments_not_carried">Los archivos adjuntos no se trasladaron. Añádelos de nuevo en la conversación nueva.</string>
 </resources>

@@ -2071,4 +2071,7 @@
     <string name="db_unavailable_retry">Erneut versuchen</string>
     <string name="db_unavailable_reset">Beiseite verschieben und neu beginnen</string>
     <string name="db_unavailable_reset_confirm">Die Datenbankdateien werden mit der Endung .corrupt umbenannt, nicht gelöscht. Der lokale Chatverlauf beginnt leer.</string>
+    <string name="chat_pending_owned_elsewhere">Dieser Chat ist in einem anderen Fenster geöffnet. Eine neue Unterhaltung mit dieser Nachricht beginnen?</string>
+    <string name="chat_pending_new_conversation">Neue Unterhaltung</string>
+    <string name="chat_pending_attachments_not_carried">Anhänge wurden nicht übernommen. Füge sie in der neuen Unterhaltung erneut hinzu.</string>
 </resources>

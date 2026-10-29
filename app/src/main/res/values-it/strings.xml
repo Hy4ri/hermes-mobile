@@ -1932,4 +1932,7 @@
     <string name="db_unavailable_retry">Riprova</string>
     <string name="db_unavailable_reset">Metti da parte e ricomincia</string>
     <string name="db_unavailable_reset_confirm">I file del database verranno rinominati con il suffisso .corrupt, non eliminati. La cronologia locale ripartirà vuota.</string>
+    <string name="chat_pending_owned_elsewhere">Questa chat è aperta in un’altra finestra. Iniziare una nuova conversazione con questo messaggio?</string>
+    <string name="chat_pending_new_conversation">Nuova conversazione</string>
+    <string name="chat_pending_attachments_not_carried">Gli allegati non sono stati trasferiti. Aggiungili di nuovo nella nuova conversazione.</string>
 </resources>

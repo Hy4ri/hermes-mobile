@@ -4,8 +4,11 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.BusySendMode
+import com.m57.hermescontrol.data.ws.JsonRpcError
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 /** The receipt stays on device until REST confirms a user row; a gateway queue is only volatile. */
 @Serializable
@@ -27,6 +30,8 @@ data class PendingSend(
     val requiresExactReconciliation: Boolean = false,
     /** Local acknowledgment is not proof of delivery and never gates queue draining. */
     val userOrderingReleased: Boolean = false,
+    /** Machine-readable gateway refusal; absent in receipts stored by older app versions. */
+    val refusalReason: String? = null,
 )
 
 @Serializable
@@ -209,3 +214,11 @@ internal fun messagesWithoutUnconfirmedReceipts(
 /** #1427: normal submission/acceptance stays in the transcript, not in recovery. */
 internal val PendingSend.needsRecovery: Boolean
     get() = state != PendingSendState.SENDING && state != PendingSendState.ACCEPTED
+
+internal const val SESSION_NOT_OWNED = "SESSION_NOT_OWNED"
+
+/** Only a string-valued reason in an object is part of the gateway refusal contract. */
+internal fun refusalReasonOf(error: JsonRpcError): String? {
+    val reason = (error.data as? JsonObject)?.get("reason") as? JsonPrimitive ?: return null
+    return reason.takeIf { it.isString }?.content
+}

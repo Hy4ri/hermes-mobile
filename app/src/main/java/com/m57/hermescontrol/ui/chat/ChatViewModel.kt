@@ -610,6 +610,7 @@ class ChatViewModel(
         val generation: Long,
         val mainTurnEpoch: Long,
         val originalPending: PendingSend? = null,
+        val recoveryReceipt: PendingSend? = null,
     )
 
     private data class PendingBranchRequest(
@@ -671,6 +672,7 @@ class ChatViewModel(
     )
 
     private var pendingInitialPrompt: PendingPrompt? = null
+    private var pendingNewConversationSend: PendingSend? = null
 
     /** Shared content waiting for the new session it was routed to (#1601); survives session resets. */
     private var stagedShare: IncomingShare? = null
@@ -2226,6 +2228,12 @@ class ChatViewModel(
                 loadSessions()
                 fetchContextUsage()
 
+                val recovery = pendingNewConversationSend
+                pendingNewConversationSend = null
+                if (recovery != null && recovery.scope == sendScope()) {
+                    queueRecoveredSend(recovery, storageId, runtimeId)
+                }
+
                 // Issue #969: Drain prompt queued while session creation was in-flight.
                 val pending = pendingInitialPrompt
                 pendingInitialPrompt = null
@@ -2666,6 +2674,7 @@ class ChatViewModel(
                 markPendingSend(
                     messageId,
                     if (code != null && code in 4000..4999) PendingSendState.REJECTED else PendingSendState.UNKNOWN,
+                    refusalReason = (error as? JsonRpcError)?.let(::refusalReasonOf),
                 )
                 removeUnconfirmedBubble(messageId)
             }
@@ -2705,6 +2714,7 @@ class ChatViewModel(
         }
 
         if (method == WsMethods.SESSION_CREATE) {
+            pendingNewConversationSend = null
             val pending = pendingInitialPrompt
             pendingInitialPrompt = null
             publishPendingSends()
@@ -2979,6 +2989,7 @@ class ChatViewModel(
                         pendingReceipt = staged,
                         rollbackReceipt = reservation.originalPending,
                         deleteSnapshotOnRollback = true,
+                        onSubmitted = reservation.recoveryReceipt?.let { row -> { completeRecoveredSend(row) } },
                     ).join()
                 }
             }
@@ -3092,8 +3103,9 @@ class ChatViewModel(
     private fun markPendingSend(
         messageId: String,
         state: PendingSendState,
+        refusalReason: String? = null,
     ) {
-        sendStore.update(messageId) { it.copy(state = state) }
+        sendStore.update(messageId) { it.copy(state = state, refusalReason = refusalReason) }
         if (state != PendingSendState.ACCEPTED) acceptedTurnEpochById.remove(messageId)
         publishPendingSends()
         // #1427: settled/uncertain receipts remain recoverable, but cannot freeze later sends.
@@ -3382,6 +3394,95 @@ class ChatViewModel(
             }
         if (!removed) return
         publishPendingSends()
+    }
+
+    /** A refused chat cannot accept this send. Keep its receipt until the new send is queued. */
+    @Synchronized
+    fun sendPendingInNewConversation(id: String) {
+        val row = sendStore.all().firstOrNull { it.id == id } ?: return
+        if (pendingNewConversationSend != null ||
+            row.scope != sendScope() ||
+            row.sessionId != _uiState.value.currentSessionId ||
+            row.state != PendingSendState.REJECTED ||
+            row.refusalReason != SESSION_NOT_OWNED ||
+            wsClient.connectionStatus.value != ConnectionStatus.CONNECTED ||
+            !_uiState.value.isSessionReady ||
+            mainTurnBusy ||
+            queueDrainJob?.isActive == true ||
+            sendStore.all().any {
+                it.scope == row.scope && it.sessionId == row.sessionId && it.state == PendingSendState.SENDING
+            } ||
+            synchronized(pendingSendReservationLock) { pendingSendReservations.isNotEmpty() }
+        ) {
+            return
+        }
+        if (row.requiresAttachmentRecovery && row.text.isBlank()) {
+            _uiState.update {
+                it.copy(
+                    errorMessage =
+                        getApplication<Application>().getString(
+                            R.string.chat_pending_attachments_not_carried,
+                        ),
+                )
+            }
+            return
+        }
+        createNewSession(project = _uiState.value.stagedProject)
+        pendingNewConversationSend = row
+    }
+
+    private fun queueRecoveredSend(
+        row: PendingSend,
+        storageId: String,
+        runtimeId: String,
+    ) {
+        val attachments = if (row.requiresAttachmentRecovery) emptyList() else row.attachments
+        val message =
+            ChatMessage(
+                role = MessageRole.USER,
+                content = row.text,
+                attachments = attachments.takeIf { it.isNotEmpty() },
+                messageProvenance = MessageProvenance.LOCAL_PENDING,
+            )
+        enqueuePendingSendReservation(
+            PendingSendReservation(
+                pending =
+                    PendingSend(
+                        id = message.id,
+                        scope = row.scope,
+                        sessionId = storageId,
+                        text = row.text,
+                        attachments = attachments,
+                        mode = BusySendMode.QUEUE,
+                        state = PendingSendState.SENDING,
+                        createdAt = nextPendingSendCreatedAt(),
+                    ),
+                userMessage = message,
+                wasStreaming = false,
+                storageSessionId = storageId,
+                agentSessionId = runtimeId,
+                scope = row.scope,
+                generation = sessionGeneration,
+                mainTurnEpoch = mainTurnEpoch,
+                recoveryReceipt = row,
+            ),
+        )
+    }
+
+    private fun completeRecoveredSend(row: PendingSend) {
+        // The new private snapshots and receipt are already durable, and prompt.submit is queued.
+        if (sendStore.all().firstOrNull { it.id == row.id } != row) return
+        try {
+            removePendingSend(row.id)
+        } catch (_: IllegalStateException) {
+            _uiState.update {
+                it.copy(errorMessage = getApplication<Application>().getString(R.string.chat_pending_remove_failed))
+            }
+            return
+        }
+        if (row.requiresAttachmentRecovery && row.attachments.isNotEmpty()) {
+            addSystemMessage(getApplication<Application>().getString(R.string.chat_pending_attachments_not_carried))
+        }
     }
 
     /** A manual promotion is the only path that may retry an uncertain send. */
@@ -3871,6 +3972,7 @@ class ChatViewModel(
         rollbackReceipt: PendingSend? = null,
         deleteSnapshotOnRollback: Boolean = false,
         outboundAlreadyStarted: Boolean = false,
+        onSubmitted: (() -> Unit)? = null,
     ): Job {
         val dispatchGeneration = owner.generation
         AuthManager.setLastOpenedSessionId(storageSessionId)
@@ -3901,6 +4003,7 @@ class ChatViewModel(
             val preparedAttachments = mutableListOf<PreparedAttachment>()
             var receiptCommitted = outboundAlreadyStarted
             var outboundStarted = outboundAlreadyStarted
+            var submitted = false
 
             suspend fun <T> enqueueOwned(action: () -> T): T? {
                 val value =
@@ -4135,6 +4238,7 @@ class ChatViewModel(
                                 owner.agentSessionId,
                                 fullText,
                                 onSent = { id ->
+                                    submitted = true
                                     trackOutgoingRequest(
                                         id,
                                         msgToPersist.id,
@@ -4147,6 +4251,35 @@ class ChatViewModel(
                             )
                         }
                     if (sent == null) return@launch
+                }
+                if (onSubmitted != null) {
+                    withCurrentSendOwner(owner) {
+                        if (submitted) {
+                            onSubmitted()
+                        } else {
+                            failOutgoingBeforeSubmit(
+                                msgToPersist.id,
+                                getApplication<Application>().getString(R.string.chat_pending_rejected),
+                                dispatchGeneration,
+                            )
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                if (onSubmitted == null || submitted || e is CancellationException) throw e
+                Log.e(TAG, "Failed to queue recovered message", e)
+                withCurrentSendOwner(owner) {
+                    // A failed outbox write must not hide the failure or retire the source receipt.
+                    runCatching { markPendingSend(msgToPersist.id, PendingSendState.REJECTED) }
+                    if (isCurrentSendContext(owner)) {
+                        removeUnconfirmedBubble(msgToPersist.id)
+                        _uiState.update {
+                            it.copy(
+                                errorMessage = getApplication<Application>().getString(R.string.chat_pending_rejected),
+                                isAgentTyping = mainTurnBusy,
+                            )
+                        }
+                    }
                 }
             } finally {
                 preparedAttachments.forEach { it.encodedFile.delete() }
@@ -6436,6 +6569,7 @@ class ChatViewModel(
         runtimeSessionId = null
         catalogCwd = null
         pendingInitialPrompt = null
+        pendingNewConversationSend = null
         ActiveSessionHolder.clear()
         cacheJob?.cancel()
         hydrationJob?.cancel()

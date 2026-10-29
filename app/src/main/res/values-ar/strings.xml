@@ -2016,4 +2016,7 @@
     <string name="db_unavailable_retry">إعادة المحاولة</string>
     <string name="db_unavailable_reset">نقلها جانباً والبدء من جديد</string>
     <string name="db_unavailable_reset_confirm">سيتم إعادة تسمية ملفات القاعدة بلاحقة .corrupt دون حذفها. سيبدأ سجل المحادثات المحلي فارغاً.</string>
+    <string name="chat_pending_owned_elsewhere">هذه المحادثة مفتوحة في نافذة أخرى. هل تريد بدء محادثة جديدة بهذه الرسالة؟</string>
+    <string name="chat_pending_new_conversation">محادثة جديدة</string>
+    <string name="chat_pending_attachments_not_carried">لم تُنقل المرفقات. أضفها مجددًا في المحادثة الجديدة.</string>
 </resources>

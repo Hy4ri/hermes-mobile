@@ -257,6 +257,308 @@ class ChatViewModelTest {
         unmockkAll()
     }
 
+    private suspend fun TestScope.refuseOwnedSend(
+        viewModel: ChatViewModel,
+        store: ChatSendStore,
+    ): PendingSend {
+        viewModel.sendMessage("Recover this message")
+        advanceUntilIdle()
+        mockEventsFlow.emit(
+            WsEvent.RpcError(
+                "req-msg-$reqCount",
+                JsonRpcError(4090, "Owned elsewhere", buildJsonObject { put("reason", "SESSION_NOT_OWNED") }),
+            ),
+        )
+        advanceUntilIdle()
+        return store.all().single()
+    }
+
+    @Test
+    fun ownershipRefusalPersistsMachineReason() =
+        runTest {
+            val store = ChatSendStore()
+            val (vm, _) = createViewModelWithSession(sendStore = store)
+            val refused = refuseOwnedSend(vm, store)
+            assertEquals(PendingSendState.REJECTED, refused.state)
+            assertEquals("SESSION_NOT_OWNED", refused.refusalReason)
+        }
+
+    @Test
+    fun recoveryCreatesSessionThenQueuesBeforeRemovingOldReceiptAndIgnoresDoubleTap() =
+        runTest {
+            val store = ChatSendStore()
+            val (vm, _) = createViewModelWithSession(sendStore = store)
+            val refused = refuseOwnedSend(vm, store)
+            val requestsBefore = sentRequestMethods.count { it.first == WsMethods.SESSION_CREATE }
+            vm.sendPendingInNewConversation(refused.id)
+            vm.sendPendingInNewConversation(refused.id)
+            advanceUntilIdle()
+            assertEquals(requestsBefore + 1, sentRequestMethods.count { it.first == WsMethods.SESSION_CREATE })
+            assertEquals(listOf(refused), store.all())
+            val createId = sentRequestMethods.last { it.first == WsMethods.SESSION_CREATE }.second
+            every { HermesWsClient.sendMessage("new-runtime", refused.text, any(), any()) } answers {
+                assertTrue(
+                    "Replacement must be durable before old receipt removal",
+                    store.all().any {
+                        it.id != refused.id && it.sessionId == "new-storage" && it.text == refused.text
+                    },
+                )
+                assertTrue("Old receipt must survive until the replacement is queued", store.all().contains(refused))
+                arg<((String) -> Unit)?>(2)?.invoke("recovered-submit")
+                "recovered-submit"
+            }
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    createId,
+                    mapOf(
+                        "session_id" to "new-runtime",
+                        "stored_session_id" to "new-storage",
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+            assertFalse(store.all().any { it.id == refused.id })
+            assertEquals("new-storage", store.all().single().sessionId)
+            verify(exactly = 1) { HermesWsClient.sendMessage("new-runtime", refused.text, any(), any()) }
+        }
+
+    @Test
+    fun recoverySessionCreationFailureKeepsOriginalReceipt() =
+        runTest {
+            val store = ChatSendStore()
+            val (vm, _) = createViewModelWithSession(sendStore = store)
+            val refused = refuseOwnedSend(vm, store)
+            val createsBefore = sentRequestMethods.count { it.first == WsMethods.SESSION_CREATE }
+            vm.sendPendingInNewConversation(refused.id)
+            advanceUntilIdle()
+            assertEquals(createsBefore + 1, sentRequestMethods.count { it.first == WsMethods.SESSION_CREATE })
+            val createId = sentRequestMethods.last { it.first == WsMethods.SESSION_CREATE }.second
+            mockEventsFlow.emit(WsEvent.RpcError(createId, JsonRpcError(4000, "Cannot create session")))
+            advanceUntilIdle()
+            assertEquals(listOf(refused), store.all())
+            assertNotNull(vm.uiState.value.errorMessage)
+        }
+
+    @Test
+    fun recoveryCopiesPrivateAttachmentsAndUploadsThemIntoNewSession() =
+        runTest {
+            val store = ChatSendStore()
+            val (vm, _) = createViewModelWithSession(sendStore = store)
+            val refused = refuseOwnedSend(vm, store)
+            val source = java.io.File(attachmentFilesDir, "chat-send/${refused.id}/0")
+            source.parentFile.mkdirs()
+            source.writeBytes(byteArrayOf(1, 2, 3))
+            val sourceUri = mockk<Uri>()
+            val snapshotUri = mockk<Uri>()
+            val resolver = mockk<ContentResolver>()
+            lateinit var snapshot: java.io.File
+            mockkStatic(Uri::class)
+            every { Uri.parse("file://old-private-snapshot") } returns sourceUri
+            every { Uri.parse("file://new-private-snapshot") } returns snapshotUri
+            every { Uri.fromFile(any()) } answers {
+                snapshot = firstArg()
+                snapshotUri
+            }
+            every { snapshotUri.toString() } returns "file://new-private-snapshot"
+            every { app.contentResolver } returns resolver
+            every { resolver.openInputStream(sourceUri) } answers { source.inputStream() }
+            every { resolver.openInputStream(snapshotUri) } answers { snapshot.inputStream() }
+            mockkConstructor(android.util.Base64OutputStream::class)
+            every { anyConstructed<android.util.Base64OutputStream>().write(any<ByteArray>(), any(), any()) } returns
+                Unit
+            every { anyConstructed<android.util.Base64OutputStream>().close() } returns Unit
+            every { HermesWsClient.request(WsMethods.FILE_ATTACH, any(), any()) } answers {
+                assertTrue("Keep original snapshot until upload succeeds", source.exists())
+                CompletableDeferred<Any?>(mapOf("ref_text" to "@file:new-note.txt"))
+            }
+            val withAttachment =
+                refused.copy(
+                    attachments =
+                        listOf(
+                            Attachment("file://old-private-snapshot", "note.txt", "text/plain", 3),
+                        ),
+                )
+            store.put(withAttachment)
+            vm.sendPendingInNewConversation(refused.id)
+            advanceUntilIdle()
+            val createId = sentRequestMethods.last { it.first == WsMethods.SESSION_CREATE }.second
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    createId,
+                    mapOf(
+                        "session_id" to "new-runtime",
+                        "stored_session_id" to "new-storage",
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+            val replacement = store.all().single()
+            assertEquals("new-storage", replacement.sessionId)
+            assertEquals("file://new-private-snapshot", replacement.attachments.single().uri)
+            assertTrue("Replacement owns an independent snapshot", snapshot.exists())
+            assertFalse("Retired receipt can release only the old snapshot", source.exists())
+            verify(exactly = 1) {
+                HermesWsClient.request(
+                    WsMethods.FILE_ATTACH,
+                    match {
+                        (it["session_id"] as? JsonPrimitive)?.content ==
+                            "new-runtime"
+                    },
+                    any(),
+                )
+            }
+            verify(exactly = 1) {
+                HermesWsClient.sendMessage("new-runtime", "@file:new-note.txt\n\n${refused.text}", any(), any())
+            }
+        }
+
+    @Test
+    fun recoveryOfLegacyAttachmentsMovesOnlyTextAndExplainsWhatWasNotCarried() =
+        runTest {
+            every { app.getString(com.m57.hermescontrol.R.string.chat_pending_attachments_not_carried) } returns
+                "Attachments were not carried. Add them again in the new conversation."
+            val store = ChatSendStore()
+            val (vm, _) = createViewModelWithSession(sendStore = store)
+            val refused = refuseOwnedSend(vm, store)
+            store.put(
+                refused.copy(
+                    attachments =
+                        listOf(
+                            Attachment("content://lost-permission", "note.txt", "text/plain", 3),
+                        ),
+                ),
+            )
+            assertTrue(store.all().single().requiresAttachmentRecovery)
+            vm.sendPendingInNewConversation(refused.id)
+            advanceUntilIdle()
+            val createId = sentRequestMethods.last { it.first == WsMethods.SESSION_CREATE }.second
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    createId,
+                    mapOf(
+                        "session_id" to "new-runtime",
+                        "stored_session_id" to "new-storage",
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+            assertTrue(
+                store
+                    .all()
+                    .single()
+                    .attachments
+                    .isEmpty(),
+            )
+            assertEquals("new-storage", store.all().single().sessionId)
+            assertTrue(
+                vm.uiState.value.messages.any {
+                    it.role == MessageRole.SYSTEM && it.content ==
+                        "Attachments were not carried. Add them again in the new conversation."
+                },
+            )
+            verify(exactly = 0) { HermesWsClient.request(WsMethods.FILE_ATTACH, any(), any()) }
+            verify(exactly = 1) { HermesWsClient.sendMessage("new-runtime", refused.text, any(), any()) }
+        }
+
+    @Test
+    fun recoveryDoesNotSendAfterUserStartsAnotherSession() =
+        runTest {
+            val store = ChatSendStore()
+            val (vm, _) = createViewModelWithSession(sendStore = store)
+            val refused = refuseOwnedSend(vm, store)
+            vm.sendPendingInNewConversation(refused.id)
+            advanceUntilIdle()
+            val createId = sentRequestMethods.last { it.first == WsMethods.SESSION_CREATE }.second
+            vm.createNewSession()
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.RpcResult(createId, mapOf("session_id" to "stale-runtime")))
+            advanceUntilIdle()
+            assertEquals(listOf(refused), store.all())
+            verify(exactly = 0) { HermesWsClient.sendMessage("stale-runtime", any(), any(), any()) }
+        }
+
+    @Test
+    fun recoveryTransportRefusalKeepsOriginalReceiptAndSurfacesError() =
+        runTest {
+            every { app.getString(com.m57.hermescontrol.R.string.chat_pending_rejected) } returns
+                "Not delivered; choose Send now to retry"
+            val store = ChatSendStore()
+            val (vm, _) = createViewModelWithSession(sendStore = store)
+            val refused = refuseOwnedSend(vm, store)
+            // WsTransport can return an ID without onSent when the frame cannot enter its queue.
+            every { HermesWsClient.sendMessage("new-runtime", any(), any(), any()) } returns "not-enqueued"
+            vm.sendPendingInNewConversation(refused.id)
+            advanceUntilIdle()
+            val createId = sentRequestMethods.last { it.first == WsMethods.SESSION_CREATE }.second
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    createId,
+                    mapOf(
+                        "session_id" to "new-runtime",
+                        "stored_session_id" to "new-storage",
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+            assertTrue(store.all().contains(refused))
+            assertEquals("Not delivered; choose Send now to retry", vm.uiState.value.errorMessage)
+        }
+
+    @Test
+    fun recoveryOutboxCommitFailureKeepsOriginalReceiptAndSurfacesError() =
+        runTest {
+            every { app.getString(com.m57.hermescontrol.R.string.chat_pending_rejected) } returns
+                "Not delivered; choose Send now to retry"
+            val store = spyk(ChatSendStore())
+            val (vm, _) = createViewModelWithSession(sendStore = store)
+            val refused = refuseOwnedSend(vm, store)
+            every { store.put(match { it.sessionId == "new-storage" }) } throws
+                IllegalStateException("Could not save chat send queue")
+            vm.sendPendingInNewConversation(refused.id)
+            advanceUntilIdle()
+            val createId = sentRequestMethods.last { it.first == WsMethods.SESSION_CREATE }.second
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    createId,
+                    mapOf(
+                        "session_id" to "new-runtime",
+                        "stored_session_id" to "new-storage",
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals(listOf(refused), store.all())
+            assertEquals("Not delivered; choose Send now to retry", vm.uiState.value.errorMessage)
+            verify(exactly = 0) { HermesWsClient.sendMessage("new-runtime", any(), any(), any()) }
+        }
+
+    @Test
+    fun recoveryQueuePersistenceFailureKeepsOriginalReceipt() =
+        runTest {
+            val repo = spyk(fakeRepo)
+            val store = ChatSendStore()
+            val (vm, _) = createViewModelWithSession(sendStore = store, repository = repo)
+            val refused = refuseOwnedSend(vm, store)
+            coEvery { repo.persistMessage(match { it.content == refused.text }, "new-storage") } throws
+                IllegalStateException("Disk full")
+            vm.sendPendingInNewConversation(refused.id)
+            advanceUntilIdle()
+            val createId = sentRequestMethods.last { it.first == WsMethods.SESSION_CREATE }.second
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    createId,
+                    mapOf(
+                        "session_id" to "new-runtime",
+                        "stored_session_id" to "new-storage",
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals(listOf(refused), store.all())
+            assertNotNull(vm.uiState.value.errorMessage)
+            verify(exactly = 0) { HermesWsClient.sendMessage("new-runtime", any(), any(), any()) }
+        }
+
     @Test
     fun pastedImages_areAddedOnlyToCapturedReadySessionWithoutSubmitting() =
         runTest(testDispatcher) {

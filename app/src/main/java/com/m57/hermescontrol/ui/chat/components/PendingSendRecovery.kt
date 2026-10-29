@@ -45,6 +45,7 @@ import com.m57.hermescontrol.ui.chat.ImageViewerModel
 import com.m57.hermescontrol.ui.chat.InlineAttachment
 import com.m57.hermescontrol.ui.chat.PendingSend
 import com.m57.hermescontrol.ui.chat.PendingSendState
+import com.m57.hermescontrol.ui.chat.SESSION_NOT_OWNED
 import com.m57.hermescontrol.ui.chat.needsRecovery
 import com.m57.hermescontrol.ui.chat.pendingSendActivityWarning
 
@@ -61,6 +62,7 @@ fun PendingSendRecovery(
     onRemoveAcknowledged: (PendingSend) -> Unit,
     onOpenAttachment: (Attachment) -> Unit = {},
     onImageClick: (ImageViewerModel) -> Unit = {},
+    onNewConversation: (String) -> Unit = {},
 ) {
     val recoverySends = sends.filter { it.needsRecovery }
     if (recoverySends.isEmpty()) return
@@ -191,7 +193,11 @@ fun PendingSendRecovery(
                                             }
 
                                             PendingSendState.REJECTED -> {
-                                                R.string.chat_pending_rejected
+                                                if (send.refusalReason == SESSION_NOT_OWNED) {
+                                                    R.string.chat_pending_owned_elsewhere
+                                                } else {
+                                                    R.string.chat_pending_rejected
+                                                }
                                             }
                                         },
                                     ),
@@ -267,34 +273,55 @@ fun PendingSendRecovery(
                                             ),
                                         modifier = Modifier.heightIn(min = 48.dp).testTag("pending_discard_${send.id}"),
                                     ) {
-                                        Text(stringResource(R.string.chat_pending_discard))
+                                        Text(
+                                            stringResource(
+                                                if (send.refusalReason == SESSION_NOT_OWNED) {
+                                                    R.string.action_discard
+                                                } else {
+                                                    R.string.chat_pending_discard
+                                                },
+                                            ),
+                                        )
                                     }
                                 }
-                                FilledTonalButton(
-                                    onClick = {
-                                        if (mainTurnBusy ||
-                                            send.state == PendingSendState.ACCEPTED ||
-                                            send.state == PendingSendState.UNKNOWN
-                                        ) {
-                                            retryId = send.id
-                                        } else {
-                                            onSendAgain(send.id)
-                                        }
-                                    },
-                                    enabled = canSend && !submissionInFlight && !send.requiresAttachmentRecovery,
-                                    modifier = Modifier.heightIn(min = 48.dp).testTag("pending_retry_${send.id}"),
-                                ) {
-                                    Text(
-                                        stringResource(
-                                            if (send.state == PendingSendState.ACCEPTED ||
+                                if (send.refusalReason == SESSION_NOT_OWNED) {
+                                    FilledTonalButton(
+                                        onClick = { onNewConversation(send.id) },
+                                        enabled = canSend && !submissionInFlight && !mainTurnBusy,
+                                        modifier =
+                                            Modifier
+                                                .heightIn(min = 48.dp)
+                                                .testTag("pending_new_conversation_${send.id}"),
+                                    ) {
+                                        Text(stringResource(R.string.chat_pending_new_conversation))
+                                    }
+                                } else {
+                                    FilledTonalButton(
+                                        onClick = {
+                                            if (mainTurnBusy ||
+                                                send.state == PendingSendState.ACCEPTED ||
                                                 send.state == PendingSendState.UNKNOWN
                                             ) {
-                                                R.string.chat_pending_send_again
+                                                retryId = send.id
                                             } else {
-                                                R.string.chat_pending_send_now
-                                            },
-                                        ),
-                                    )
+                                                onSendAgain(send.id)
+                                            }
+                                        },
+                                        enabled = canSend && !submissionInFlight && !send.requiresAttachmentRecovery,
+                                        modifier = Modifier.heightIn(min = 48.dp).testTag("pending_retry_${send.id}"),
+                                    ) {
+                                        Text(
+                                            stringResource(
+                                                if (send.state == PendingSendState.ACCEPTED ||
+                                                    send.state == PendingSendState.UNKNOWN
+                                                ) {
+                                                    R.string.chat_pending_send_again
+                                                } else {
+                                                    R.string.chat_pending_send_now
+                                                },
+                                            ),
+                                        )
+                                    }
                                 }
                             }
                             if (!canSend) {
@@ -386,9 +413,15 @@ fun PendingSendRecovery(
         )
     }
     recoverySends.firstOrNull { it.id == discardId && it.state != PendingSendState.UNKNOWN }?.let { send ->
+        val discardLabel =
+            if (send.refusalReason == SESSION_NOT_OWNED) {
+                R.string.action_discard
+            } else {
+                R.string.chat_pending_discard
+            }
         AlertDialog(
             onDismissRequest = { discardId = null },
-            title = { Text(stringResource(R.string.chat_pending_discard)) },
+            title = { Text(stringResource(discardLabel)) },
             text = { Text(stringResource(R.string.chat_pending_discard_warning)) },
             confirmButton = {
                 TextButton(
@@ -404,7 +437,7 @@ fun PendingSendRecovery(
                             "pending_discard_confirm",
                         ),
                 ) {
-                    Text(stringResource(R.string.chat_pending_discard))
+                    Text(stringResource(discardLabel))
                 }
             },
             dismissButton = {

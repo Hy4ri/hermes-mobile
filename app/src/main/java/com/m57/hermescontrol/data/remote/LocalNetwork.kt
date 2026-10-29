@@ -2,6 +2,9 @@ package com.m57.hermescontrol.data.remote
 
 import java.net.InetAddress
 import java.net.URI
+import java.util.Locale
+
+private const val TAILSCALE_MAGICDNS_SUFFIX = ".ts.net"
 
 /**
  * Android 17 (API 37) gates local-network access behind the
@@ -12,9 +15,16 @@ import java.net.URI
  * Connections to loopback (the default `127.0.0.1:9119` gateway on-device) and
  * to public/remote hosts do NOT require the permission — only true LAN hosts do.
  *
+ * Tailscale MagicDNS hostnames (*.ts.net) resolve to CGNAT addresses (100.64/10)
+ * on a tailnet. We classify them as local before DNS resolution so that if DNS fails
+ * at launch (for example, Tailscale VPN not up yet), the LAN gate still requests
+ * permission. Funnel names are public, the only cost is one extra permission prompt.
+ *
  * @return true when [host] resolves to an address Android 17 gates behind local-network permission.
  */
 fun isLocalNetworkHost(host: String): Boolean {
+    if (isTailscaleMagicDnsName(host)) return true
+
     val addr =
         runCatching { InetAddress.getByName(host) }.getOrNull() ?: return false
     if (addr.isLoopbackAddress) return false
@@ -40,6 +50,16 @@ fun isLocalNetworkHost(host: String): Boolean {
         // 100.64.0.0/10 CGNAT
         else -> false
     }
+}
+
+private fun isTailscaleMagicDnsName(host: String): Boolean {
+    var trimmed = host.trim()
+    if (trimmed.endsWith('.')) {
+        trimmed = trimmed.substring(0, trimmed.length - 1)
+    }
+    val lower = trimmed.lowercase(Locale.ROOT)
+    return lower.endsWith(TAILSCALE_MAGICDNS_SUFFIX) &&
+        lower.length > TAILSCALE_MAGICDNS_SUFFIX.length
 }
 
 /**

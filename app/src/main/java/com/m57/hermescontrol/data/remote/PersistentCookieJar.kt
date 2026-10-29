@@ -1,9 +1,10 @@
 package com.m57.hermescontrol.data.remote
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import okhttp3.Cookie
@@ -47,10 +48,13 @@ class PersistentCookieJar(
     @Volatile private var currentServerId = AtomicReference(initialServerId)
 
     private val scopeMutex = Mutex()
+    private val persistenceLock = Any()
+    private var pendingPersistence: Deferred<Unit>? = null
 
     /** Atomically switch the active server scope and ensure its cookies are loaded. */
     suspend fun useStore(serverId: String) {
         scopeMutex.withLock {
+            synchronized(persistenceLock) { pendingPersistence }?.await()
             currentServerId.set(serverId)
             ensureLoaded(serverId)
         }
@@ -189,8 +193,8 @@ class PersistentCookieJar(
             val persisted = store.load(serverId)
             val byHost = ConcurrentHashMap<String, MutableList<Cookie>>()
             for (cookie in persisted) {
-                // Blank domain => host-only (e.g. legacy migrated session cookie).
-                // Bucket it under a wildcard "*" so it is returned for every host.
+                // Legacy sessions use "*". Retain the blank-domain fallback for older stores.
+                // The wildcard bucket is only returned to trusted hosts.
                 val host = cookie.domain.removePrefix(".").ifBlank { WILDCARD_HOST }
                 byHost.getOrPut(host) { mutableListOf() }.add(cookie)
             }
@@ -203,8 +207,20 @@ class PersistentCookieJar(
 
     private fun persist(serverId: String) {
         val snapshot =
-            cache[serverId]?.values?.flatten()?.toList() ?: return
-        storeScope.launch { store.save(serverId, snapshot) }
+            cache[serverId]?.values?.flatMap { bucket -> synchronized(bucket) { bucket.toList() } } ?: return
+        enqueuePersistence { store.save(serverId, snapshot) }
+    }
+
+    /** Keep saves and clears in order, even when a store operation suspends. */
+    private fun enqueuePersistence(operation: suspend () -> Unit) {
+        synchronized(persistenceLock) {
+            val previous = pendingPersistence
+            pendingPersistence =
+                storeScope.async {
+                    previous?.join()
+                    operation()
+                }
+        }
     }
 
     /**
@@ -233,7 +249,7 @@ class PersistentCookieJar(
         cache.remove(scope)
         loadedScopes.remove(scope)
         loadLatches.remove(scope)
-        storeScope.launch { store.clear(scope) }
+        enqueuePersistence { store.clear(scope) }
     }
 
     /** Clear every server scope (logout / full reset). */
@@ -241,13 +257,13 @@ class PersistentCookieJar(
         cache.clear()
         loadedScopes.clear()
         loadLatches.clear()
-        storeScope.launch { store.clearAll() }
+        enqueuePersistence { store.clearAll() }
     }
 
     companion object {
         const val DEFAULT_SERVER_ID = "default"
 
-        /** Bucket key for host-only (blank-domain) cookies, returned for any host. */
+        /** Bucket key for migrated sessions, returned only to trusted hosts. */
         const val WILDCARD_HOST = "*"
     }
 }

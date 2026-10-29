@@ -92,6 +92,7 @@ import com.m57.hermescontrol.data.model.AttachmentSource
 import com.m57.hermescontrol.data.model.reasoningSupport
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.session.SessionAttentionStore
+import com.m57.hermescontrol.data.session.SessionReadMarker
 import com.m57.hermescontrol.data.session.sessionAttentionScopeKey
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
@@ -215,7 +216,12 @@ fun ChatScreen(
             sessionAttentionScopeKey(AuthManager.currentDataScope()),
             state.currentSessionId,
         )
-        onPauseOrDispose { SessionAttentionStore.setViewing(null, null) }
+        // Shared read watermark: mark read now and again on leaving, so every device clears the Done badge.
+        val markReadOnLeave = SessionReadMarker.shared.chatOpened(state.currentSessionId)
+        onPauseOrDispose {
+            SessionAttentionStore.setViewing(null, null)
+            markReadOnLeave()
+        }
     }
     // Snapshot-backed search state — read directly so only the scopes that
     // read its fields recompose on search changes (bar, matched bubbles).

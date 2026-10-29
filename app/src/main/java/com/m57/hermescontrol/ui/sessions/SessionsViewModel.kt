@@ -26,7 +26,12 @@ import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.remote.safeApiRead
 import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.data.session.SessionAttentionStore
+import com.m57.hermescontrol.data.session.SessionMutationFence
+import com.m57.hermescontrol.data.session.SessionReadMarker
+import com.m57.hermescontrol.data.session.fenceSessionPatch
+import com.m57.hermescontrol.data.session.fetchSessionMutationFence
 import com.m57.hermescontrol.data.session.sessionAttentionScopeKey
+import com.m57.hermescontrol.data.session.sharedStatusOf
 import com.m57.hermescontrol.data.ws.ChangeEventHub
 import com.m57.hermescontrol.data.ws.ChangeEvents
 import com.m57.hermescontrol.data.ws.ConnectionStatus
@@ -51,8 +56,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonPrimitive
 import java.util.Locale
 import java.util.UUID
 
@@ -151,13 +154,29 @@ data class SessionsUiState(
     val liveStatuses: Map<String, SessionLiveStatus> = emptyMap(),
     // Issue #1642: Done/Failed marks for sessions finished since the user last opened them.
     val attention: Map<String, SessionLiveStatus> = emptyMap(),
+    // Reads made on this phone (session id → epoch seconds); hides a stale shared unread flag.
+    val localReads: Map<String, Double> = emptyMap(),
     // Named projects used to label each row with the workspace it belongs to.
     val projects: List<ProjectInfo> = emptyList(),
 ) {
     val isSearchMode: Boolean get() = searchQuery.isNotBlank()
 
-    /** The badge for [sessionId]: live gateway state first, else a Done/Failed mark, else none. */
-    fun statusFor(sessionId: String): SessionLiveStatus? = liveStatuses[sessionId] ?: attention[sessionId]
+    /**
+     * The badge for [sessionId]: live gateway state first, then this phone's Done/Failed mark, then the
+     * shared-database fallback (turns from desktop, Signal, other gateways), else none.
+     */
+    fun statusFor(
+        sessionId: String,
+        nowSeconds: Double = System.currentTimeMillis() / 1000.0,
+    ): SessionLiveStatus? =
+        liveStatuses[sessionId] ?: attention[sessionId]
+            ?: sessions.firstOrNull { it.id == sessionId }?.let {
+                sharedStatusOf(
+                    it,
+                    localReads[sessionId],
+                    nowSeconds,
+                )
+            }
 
     val archivedQuery: String? get() = if (showArchived) "only" else null
 
@@ -265,6 +284,11 @@ class SessionsViewModel(
 
     init {
         viewModelScope.launch { SessionAttentionStore.marks.collect { refreshAttention() } }
+        viewModelScope.launch {
+            SessionReadMarker.shared.localReads.collect { reads ->
+                _uiState.update { if (it.localReads == reads) it else it.copy(localReads = reads) }
+            }
+        }
         // Scope transitions are driven by ProfileSwitchCoordinator (profile switch and
         // connection switch). An additional AuthManager.dataScopeFlow collector would
         // double-fire on the same transition and reset/refetch History twice.
@@ -1637,44 +1661,15 @@ class SessionsViewModel(
         sessionId: String,
         body: SessionRenameRequest,
         profile: String? = body.profile,
-    ): SessionRenameRequest {
+    ): SessionRenameRequest =
         // The PATCH reads the profile off the BODY (not the ?profile= query rewrite);
         // without it a non-launch profile's session is "not found" (issue #1670).
-        val scoped = body.copy(profile = profile)
-        val fence = mutationFence(api, sessionId) ?: return scoped
-        return scoped.copy(
-            requestId = UUID.randomUUID().toString(),
-            expectedRevision = fence.revision,
-            expectedGeneration = fence.generation,
-        )
-    }
+        fenceSessionPatch(api, sessionId, body.copy(profile = profile))
 
-    private data class MutationFence(
-        val revision: Int,
-        val generation: Int?,
-    )
-
-    /** Null when the backend has no snapshot endpoint (older backends take unfenced writes). */
     private suspend fun mutationFence(
         api: HermesApiService,
         sessionId: String,
-    ): MutationFence? {
-        val snapshot = (safeApiCall { api.getSessionMutationSnapshot(sessionId) } as? NetworkResult.Success)?.data
-        val revision =
-            snapshot
-                ?.runtimeRevision
-                ?.jsonPrimitive
-                ?.contentOrNull
-                ?.toIntOrNull() ?: return null
-        return MutationFence(
-            revision = revision,
-            generation =
-                snapshot.runtimeGeneration
-                    ?.jsonPrimitive
-                    ?.contentOrNull
-                    ?.toIntOrNull(),
-        )
-    }
+    ): SessionMutationFence? = fetchSessionMutationFence(api, sessionId)
 
     private fun finishPrune(
         deleted: Int,

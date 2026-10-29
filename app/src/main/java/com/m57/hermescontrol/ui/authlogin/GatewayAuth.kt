@@ -41,8 +41,11 @@ data class GatewayAuthInfo(
 )
 
 /**
- * Read the dashboard's sign-in options. Returns null for a non-success or unparsable status
- * response. Network failures propagate so the caller can recognize client-certificate failures.
+ * Read the dashboard's sign-in options. Returns null for an unparsable or unsupported status
+ * response. When `/api/status` is protected with HTTP 401 (e.g. behind an authenticating reverse
+ * proxy), attempts to read `/api/auth/providers` directly: if supported providers are published,
+ * returns authentication requirements with password-only options. Network failures propagate so
+ * the caller can recognize client-certificate failures.
  */
 suspend fun probeGatewayAuth(
     client: OkHttpClient,
@@ -54,11 +57,23 @@ suspend fun probeGatewayAuth(
             .url(endpoint.resolve("api/status").toString())
             .get()
             .build()
-    val statusJson =
-        client.newCall(request).await().use { resp ->
-            if (!resp.isSuccessful) return null
-            resp.body.string()
+    val resp = client.newCall(request).await()
+    if (!resp.isSuccessful) {
+        val status = resp.code
+        resp.close()
+        if (status == 401) {
+            val providers = fetchAuthProviders(client, endpoint).orEmpty()
+            if (providers.isNotEmpty()) {
+                return GatewayAuthInfo(
+                    authRequired = true,
+                    providers = providers,
+                    browserSupported = false,
+                )
+            }
         }
+        return null
+    }
+    val statusJson = resp.use { it.body.string() }
 
     val authRequired: Boolean
     val providerNames: List<String>

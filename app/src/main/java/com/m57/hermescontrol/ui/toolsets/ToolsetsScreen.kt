@@ -98,7 +98,6 @@ fun ToolsetsScreen(
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.loadToolsets() },
-                    modifier = Modifier,
                 )
             }
 
@@ -108,7 +107,6 @@ fun ToolsetsScreen(
                     subtitle = stringResource(R.string.toolsets_empty_desc),
                     onAction = { viewModel.loadToolsets() },
                     actionLabel = stringResource(R.string.content_desc_refresh),
-                    modifier = Modifier,
                 )
             }
 

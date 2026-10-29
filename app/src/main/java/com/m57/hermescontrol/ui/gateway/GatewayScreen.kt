@@ -77,7 +77,6 @@ fun GatewayScreen(
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.loadStatus() },
-                    modifier = Modifier,
                 )
             }
 

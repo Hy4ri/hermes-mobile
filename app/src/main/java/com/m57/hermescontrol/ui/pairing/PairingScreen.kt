@@ -77,7 +77,6 @@ fun PairingScreen(
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.loadPairing() },
-                    modifier = Modifier,
                 )
             }
 
@@ -86,7 +85,6 @@ fun PairingScreen(
                 EmptyState(
                     title = stringResource(R.string.pairing_empty_title),
                     subtitle = stringResource(R.string.pairing_empty_desc),
-                    modifier = Modifier,
                 )
             }
 

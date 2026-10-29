@@ -114,7 +114,6 @@ fun ProvidersScreen(
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.load() },
-                    modifier = Modifier,
                 )
             }
 
@@ -122,7 +121,6 @@ fun ProvidersScreen(
                 EmptyState(
                     title = stringResource(R.string.providers_empty_title),
                     subtitle = stringResource(R.string.providers_empty_desc),
-                    modifier = Modifier,
                 )
             }
 

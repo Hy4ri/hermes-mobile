@@ -144,7 +144,6 @@ fun ToolsetDetailScreen(
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.loadConfig() },
-                    modifier = Modifier,
                 )
             }
 
@@ -154,7 +153,6 @@ fun ToolsetDetailScreen(
                     subtitle = stringResource(R.string.toolsets_empty_desc),
                     onAction = { viewModel.loadConfig() },
                     actionLabel = stringResource(R.string.content_desc_refresh),
-                    modifier = Modifier,
                 )
             }
 

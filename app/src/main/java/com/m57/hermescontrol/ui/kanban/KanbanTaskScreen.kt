@@ -169,7 +169,6 @@ fun KanbanTaskScreen(
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.loadTask(boardSlug, taskId) },
-                    modifier = Modifier,
                 )
             }
 

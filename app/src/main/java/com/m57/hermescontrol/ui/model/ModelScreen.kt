@@ -116,7 +116,6 @@ fun ModelScreen(
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.loadAll() },
-                    modifier = Modifier,
                 )
             }
 
@@ -130,7 +129,6 @@ fun ModelScreen(
                     subtitle = stringResource(R.string.model_empty_desc),
                     actionLabel = stringResource(R.string.empty_action_configure_model),
                     onAction = { NavigationController.navigateTo(SettingsConnection) },
-                    modifier = Modifier,
                 )
             }
 

@@ -182,7 +182,6 @@ fun AchievementsScreen(
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.loadAchievements() },
-                    modifier = Modifier,
                 )
             }
 
@@ -191,7 +190,6 @@ fun AchievementsScreen(
                     title = stringResource(R.string.achievements_empty_title),
                     subtitle = stringResource(R.string.achievements_empty_desc),
                     icon = Icons.Filled.Refresh,
-                    modifier = Modifier,
                 )
             }
 

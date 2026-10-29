@@ -218,7 +218,6 @@ fun ProfilesScreen(
                     ErrorState(
                         message = state.errorMessage ?: "",
                         onRetry = { viewModel.loadProfiles() },
-                        modifier = Modifier,
                     )
                 }
 
@@ -228,7 +227,6 @@ fun ProfilesScreen(
                         subtitle = stringResource(R.string.profiles_empty_desc),
                         onAction = { viewModel.loadProfiles() },
                         actionLabel = stringResource(R.string.content_desc_refresh),
-                        modifier = Modifier,
                     )
                 }
 
@@ -238,7 +236,6 @@ fun ProfilesScreen(
                         subtitle = stringResource(R.string.profiles_all_hidden_desc),
                         onAction = { viewModel.toggleShowHidden() },
                         actionLabel = stringResource(R.string.profiles_show_hidden),
-                        modifier = Modifier,
                     )
                 }
 

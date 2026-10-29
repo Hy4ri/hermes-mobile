@@ -213,7 +213,6 @@ fun FilesScreen(
                     ErrorState(
                         message = state.errorMessage ?: "",
                         onRetry = viewModel::refresh,
-                        modifier = Modifier,
                     )
                 }
 
@@ -223,7 +222,6 @@ fun FilesScreen(
                         subtitle = stringResource(R.string.files_empty_desc),
                         onAction = viewModel::refresh,
                         actionLabel = stringResource(R.string.content_desc_refresh),
-                        modifier = Modifier,
                     )
                 }
 

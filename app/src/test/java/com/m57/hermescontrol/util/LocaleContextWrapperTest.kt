@@ -23,6 +23,11 @@ class LocaleContextWrapperTest {
     }
 
     @Test
+    fun japaneseLanguageCode() {
+        assertEquals("ja", LocaleContextWrapper.localeForCode("ja").language)
+    }
+
+    @Test
     fun italianLanguageCode() {
         val locale = LocaleContextWrapper.localeForCode("it")
         assertEquals("it", locale.language)

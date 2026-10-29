@@ -34,6 +34,7 @@ internal fun supportedLanguages(): List<Pair<String, String>> =
         "en" to stringResource(R.string.language_english),
         "ar" to stringResource(R.string.language_arabic),
         "zh" to stringResource(R.string.language_chinese),
+        "ja" to stringResource(R.string.language_japanese),
         "ko" to stringResource(R.string.language_korean),
         "it" to stringResource(R.string.language_italian),
         "es" to stringResource(R.string.language_spanish),

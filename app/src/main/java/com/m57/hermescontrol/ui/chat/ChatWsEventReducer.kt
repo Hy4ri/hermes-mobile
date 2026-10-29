@@ -20,13 +20,52 @@ private fun Double?.validTpsOrNull(): Double? = takeIf { it != null && it.isFini
 internal fun applyUsageSnapshot(
     state: ChatUiState,
     snapshot: com.m57.hermescontrol.data.model.UsageSnapshotResponse,
+    allowModelUpdate: Boolean,
 ): ChatUiState {
     val validTps = snapshot.avgTps?.takeIf { it.isFinite() && it > 0.0 }
+    val rawModel = snapshot.model?.trim()
+    val isModelNonBlank = !rawModel.isNullOrBlank()
+
+    var newModel = state.currentSessionModel
+    var newCapabilities = state.currentModelCapabilities
+    var newReasoningWireLevel = state.reasoningWireLevel
+    var newFullContextTokens = state.fullContextTokens
+
+    if (allowModelUpdate) {
+        if (isModelNonBlank) {
+            val currentModel = state.currentSessionModel
+            val isUnchanged =
+                if (currentModel == null) {
+                    false
+                } else if (rawModel.equals(currentModel, ignoreCase = true)) {
+                    true
+                } else if (currentModel.contains('/')) {
+                    rawModel.equals(currentModel.substringAfter('/'), ignoreCase = true)
+                } else {
+                    false
+                }
+
+            if (!isUnchanged) {
+                newModel = rawModel
+                newCapabilities = null
+                newReasoningWireLevel = null
+                newFullContextTokens = snapshot.contextMax?.takeIf { it > 0L }
+            } else {
+                newFullContextTokens = snapshot.contextMax?.takeIf { it > 0L } ?: state.fullContextTokens
+            }
+        } else {
+            newFullContextTokens = snapshot.contextMax?.takeIf { it > 0L } ?: state.fullContextTokens
+        }
+    }
+
     return state.copy(
+        currentSessionModel = newModel,
+        currentModelCapabilities = newCapabilities,
+        reasoningWireLevel = newReasoningWireLevel,
         sessionUsage = snapshot.mergeWith(state.sessionUsage),
         compressionCount = snapshot.compressions ?: state.compressionCount,
         usedContextTokens = snapshot.contextUsed?.takeIf { it > 0L } ?: state.usedContextTokens,
-        fullContextTokens = snapshot.contextMax?.takeIf { it > 0L } ?: state.fullContextTokens,
+        fullContextTokens = newFullContextTokens,
         latestTps = validTps ?: state.latestTps,
     )
 }
@@ -104,6 +143,7 @@ object ChatWsEventReducer {
             ),
             currentSessionId,
             mediaUrl,
+            allowModelUpdate = false,
         )
     }
 
@@ -113,6 +153,7 @@ object ChatWsEventReducer {
         event: WsEvent,
         currentSessionId: String? = null,
         mediaUrl: (path: String) -> String? = { null },
+        allowModelUpdate: Boolean = true,
     ): ReducerResult {
         val eventSessionId =
             when (event) {
@@ -147,7 +188,7 @@ object ChatWsEventReducer {
         if (eventSessionId != null && (currentSessionId == null || eventSessionId != currentSessionId)) {
             return ReducerResult(state = state, streamingState = streamingState)
         }
-        val result = reduceInternal(state, streamingState, event, mediaUrl)
+        val result = reduceInternal(state, streamingState, event, mediaUrl, allowModelUpdate)
         val hydratedTodos =
             if (result.state.todos.isEmpty() && result.state.messages.isNotEmpty()) {
                 hydrateTodosFromMessages(result.state.messages)
@@ -166,6 +207,7 @@ object ChatWsEventReducer {
         streamingState: StreamingState,
         event: WsEvent,
         mediaUrl: (path: String) -> String?,
+        allowModelUpdate: Boolean,
     ): ReducerResult =
         when (event) {
             is WsEvent.GatewayReady -> onGatewayReady(state, streamingState)
@@ -180,7 +222,7 @@ object ChatWsEventReducer {
 
             is WsEvent.ReasoningAvailable -> onReasoningAvailable(state, streamingState, event)
 
-            is WsEvent.MessageComplete -> onMessageComplete(state, streamingState, event, mediaUrl)
+            is WsEvent.MessageComplete -> onMessageComplete(state, streamingState, event, mediaUrl, allowModelUpdate)
 
             is WsEvent.MessageDone -> onMessageDone(state, streamingState, mediaUrl)
 
@@ -204,7 +246,7 @@ object ChatWsEventReducer {
 
             is WsEvent.BtwComplete -> onBtwComplete(state, streamingState, event)
 
-            is WsEvent.SessionUsage -> onSessionUsage(state, streamingState, event)
+            is WsEvent.SessionUsage -> onSessionUsage(state, streamingState, event, allowModelUpdate)
 
             is WsEvent.TodoUpdated -> onTodoUpdated(state, streamingState, event)
 
@@ -474,17 +516,18 @@ object ChatWsEventReducer {
         streamingState: StreamingState,
         event: WsEvent.MessageComplete,
         mediaUrl: (path: String) -> String?,
+        allowModelUpdate: Boolean,
     ): ReducerResult {
         val failure = replyFailureFromPayload(event.rawPayload, event.text)
-        if (failure != null) return onReplyFailure(state, streamingState, event, failure, mediaUrl)
+        if (failure != null) return onReplyFailure(state, streamingState, event, failure, mediaUrl, allowModelUpdate)
         if (GatewayNotice.isInterruptSentinel(
                 event.text,
             )
         ) {
-            return onInterruptNotice(state, streamingState, event, mediaUrl)
+            return onInterruptNotice(state, streamingState, event, mediaUrl, allowModelUpdate)
         }
         val finalSnapshot = event.rawPayload?.let(::parseUsageSnapshot)
-        val usageState = finalSnapshot?.let { applyUsageSnapshot(state, it) } ?: state
+        val usageState = finalSnapshot?.let { applyUsageSnapshot(state, it, allowModelUpdate) } ?: state
         val turnUsage = finalSnapshot?.deltaFrom(streamingState.turnUsageBaseline)
         val streaming = streamingState.interruptedMessage ?: streamingState.streamingMessage
         // Prefer the authoritative reasoning carried in the message.complete
@@ -611,8 +654,11 @@ object ChatWsEventReducer {
         event: WsEvent.MessageComplete,
         failure: ReplyFailure,
         mediaUrl: (path: String) -> String?,
+        allowModelUpdate: Boolean,
     ): ReducerResult {
-        val usageState = event.rawPayload?.let(::parseUsageSnapshot)?.let { applyUsageSnapshot(state, it) } ?: state
+        val usageState =
+            event.rawPayload?.let(::parseUsageSnapshot)?.let { applyUsageSnapshot(state, it, allowModelUpdate) }
+                ?: state
         val streaming = streamingState.streamingMessage
         val text =
             if (event.rawPayload?.get("partial") == true) {
@@ -1181,8 +1227,11 @@ object ChatWsEventReducer {
         streamingState: StreamingState,
         event: WsEvent.MessageComplete,
         mediaUrl: (path: String) -> String?,
+        allowModelUpdate: Boolean,
     ): ReducerResult {
-        val usageState = event.rawPayload?.let(::parseUsageSnapshot)?.let { applyUsageSnapshot(state, it) } ?: state
+        val usageState =
+            event.rawPayload?.let(::parseUsageSnapshot)?.let { applyUsageSnapshot(state, it, allowModelUpdate) }
+                ?: state
         val text = event.text.trim()
         val effects = mutableListOf<ReducerEffect>()
         var messages = usageState.messages
@@ -1391,11 +1440,15 @@ object ChatWsEventReducer {
         state: ChatUiState,
         streamingState: StreamingState,
         event: WsEvent.SessionUsage,
+        allowModelUpdate: Boolean,
     ): ReducerResult {
         val snapshot =
             parseUsageSnapshot(event.data)
                 ?: return ReducerResult(state = state, streamingState = streamingState)
-        return ReducerResult(state = applyUsageSnapshot(state, snapshot), streamingState = streamingState)
+        return ReducerResult(
+            state = applyUsageSnapshot(state, snapshot, allowModelUpdate),
+            streamingState = streamingState,
+        )
     }
 }
 

@@ -100,6 +100,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -266,7 +267,7 @@ data class ChatUiState(
     val modelSwitchConfirmMessage: String? = null,
     // #1588: multi-turn /undo N waits here for confirmation before command.dispatch.
     val undoConfirmCount: Int? = null,
-    // Current session's active model label (provider/model), shown in the chip
+    // Active model label shown in the chip: provider/model when known, otherwise the model-only identifier.
     val currentSessionModel: String? = null,
     // Per-model reasoning capabilities for the current session's model
     // (issue #946). Null when unknown — UI offers full scale.
@@ -739,11 +740,27 @@ class ChatViewModel(
     /** Tracks the auto-clear coroutine for reaction animations. */
     private var reactionClearJob: Job? = null
 
-    /** Last confirmed model label pushed by SessionInfo or SessionResume from backend (issue #1103). */
+    /** Last confirmed model label from backend session metadata or accepted live usage (issue #1103, #1721). */
     private var lastConfirmedSessionModel: String? = null
 
     /** Model generation counter to prevent stale context writes across switches (issue #1103). */
     private var modelGeneration: Long = 0L
+
+    /** Generation at the last main-turn start; retained until the next start to reject late usage (#1721). */
+    private var activeTurnModelGeneration: Long = 0L
+
+    private fun confirmModelIfChanged(
+        oldModel: String?,
+        newModel: String?,
+    ) {
+        if (newModel != null && !newModel.equals(oldModel, ignoreCase = true) &&
+            newModel.equals(_uiState.value.currentSessionModel, ignoreCase = true) &&
+            !modelSwitchDelegate.isSwitchPending()
+        ) {
+            lastConfirmedSessionModel = newModel
+            modelSwitchDelegate.onModelConfirmed(newModel)
+        }
+    }
 
     /** Request sequence counter for fetchContextUsage calls. */
     private var contextFetchSequence: Long = 0L
@@ -1337,6 +1354,12 @@ class ChatViewModel(
             else -> {}
         }
 
+        val isSwitchPending = modelSwitchDelegate.isSwitchPending()
+        val isStaleTurnUsage = activeTurnModelGeneration != modelGeneration
+        val allowModelUpdate = !isSwitchPending && !isStaleTurnUsage
+
+        val oldModel = _uiState.value.currentSessionModel
+
         // First, let the reducer compute the new state and any effects
         val result =
             ChatWsEventReducer.reduce(
@@ -1347,11 +1370,14 @@ class ChatViewModel(
                 // #1696: resolve MEDIA: directives inside the reduction so every
                 // seal path derives attachments synchronously.
                 mediaUrl = ::gatewayMediaUrl,
+                allowModelUpdate = allowModelUpdate,
             )
 
         // Apply the new state
         _uiState.update { result.state }
         _streamingState.update { result.streamingState }
+
+        confirmModelIfChanged(oldModel, result.state.currentSessionModel)
 
         // Process side-effects from the reducer
         dispatchReducerEffects(result.effects)
@@ -1398,6 +1424,7 @@ class ChatViewModel(
                 if (isCurrentSession(event.sessionId)) {
                     mainTurnEpoch++
                     mainTurnBusy = true
+                    activeTurnModelGeneration = modelGeneration
                 }
                 // The server accepted a prompt for this session — its DB row
                 // now exists (created lazily at prompt.submit), so a reconnect
@@ -6398,6 +6425,7 @@ class ChatViewModel(
         contextUsageJob?.cancel()
         contextUsageJob = null
         modelGeneration++
+        activeTurnModelGeneration = modelGeneration
         contextDetailJob?.cancel()
         contextDetailJob = null
         contextDetailOwner = null
@@ -6967,7 +6995,7 @@ class ChatViewModel(
         _uiState.update { it.copy(fullContextTokens = null) }
     }
 
-    private fun isCurrentContextFetch(
+    private fun isCurrentContextOwner(
         sessionId: String,
         targetSessionGeneration: Long,
         targetModelGeneration: Long,
@@ -6979,9 +7007,21 @@ class ChatViewModel(
             _uiState.value.currentSessionId == sessionId &&
             contextUsageOwner?.let { owner ->
                 owner.scope == AuthManager.currentDataScope() && owner.runtimeId == runtimeSessionId &&
-                    owner.model == _uiState.value.currentSessionModel &&
                     (owner.scope != null || owner.profile == AuthManager.activeProfileId.value)
             } == true
+
+    private fun isCurrentContextFetch(
+        sessionId: String,
+        targetSessionGeneration: Long,
+        targetModelGeneration: Long,
+        targetRequestSequence: Long,
+    ): Boolean =
+        isCurrentContextOwner(
+            sessionId,
+            targetSessionGeneration,
+            targetModelGeneration,
+            targetRequestSequence,
+        ) && contextUsageOwner?.model == _uiState.value.currentSessionModel
 
     internal fun isMatchingModel(
         currentModel: String?,
@@ -7164,18 +7204,43 @@ class ChatViewModel(
                             coroutineContext.ensureActive()
                             val snapshot = usage?.let { parseUsageSnapshot(it) }
                             if (snapshot != null) {
-                                _uiState.update { current ->
-                                    if (!isCurrentContextFetch(
-                                            sessionId,
-                                            targetSessionGeneration,
-                                            targetModelGeneration,
-                                            targetRequestSequence,
-                                        )
-                                    ) {
-                                        current
-                                    } else {
-                                        applyUsageSnapshot(current, snapshot)
+                                val previousState =
+                                    _uiState.getAndUpdate { current ->
+                                        if (!isCurrentContextFetch(
+                                                sessionId,
+                                                targetSessionGeneration,
+                                                targetModelGeneration,
+                                                targetRequestSequence,
+                                            )
+                                        ) {
+                                            current
+                                        } else {
+                                            applyUsageSnapshot(
+                                                current,
+                                                snapshot,
+                                                allowModelUpdate = !modelSwitchDelegate.isSwitchPending(),
+                                            )
+                                        }
                                     }
+                                val committedState = _uiState.value
+                                val trimmedModel = snapshot.model?.trim()
+                                val isAcceptedSnapshotModel =
+                                    !trimmedModel.isNullOrBlank() &&
+                                        committedState.currentSessionModel?.equals(trimmedModel, ignoreCase = true) ==
+                                        true
+                                if (isCurrentContextOwner(
+                                        sessionId,
+                                        targetSessionGeneration,
+                                        targetModelGeneration,
+                                        targetRequestSequence,
+                                    ) &&
+                                    isAcceptedSnapshotModel &&
+                                    !modelSwitchDelegate.isSwitchPending()
+                                ) {
+                                    confirmModelIfChanged(
+                                        previousState.currentSessionModel,
+                                        committedState.currentSessionModel,
+                                    )
                                 }
                             }
                         } catch (e: CancellationException) {

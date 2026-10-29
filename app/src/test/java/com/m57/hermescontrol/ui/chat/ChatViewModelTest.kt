@@ -1737,6 +1737,390 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun testFallbackModel_followedByDismissedConfirmation_revertsToFallbackModel() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            var reqCounter = 0
+            var lastReqId = ""
+            every { HermesWsClient.send(RpcMethods.CONFIG_SET, any<ConfigSetParams>(), any()) } answers {
+                val id = "req-cfg-dismiss-${++reqCounter}"
+                lastReqId = id
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            // Establish the initial confirmed model via SessionInfo
+            mockEventsFlow.emit(
+                WsEvent.SessionInfo(
+                    mapOf("model" to "gpt-4o", "provider" to "openai"),
+                    sessionId = sessionId,
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals("openai/gpt-4o", viewModel.uiState.value.currentSessionModel)
+
+            // Turn completes with automatic fallback model via SessionUsage
+            mockEventsFlow.emit(
+                WsEvent.SessionUsage(
+                    data = mapOf("usage" to mapOf("model" to "gemini-2.5-flash")),
+                    sessionId = sessionId,
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals("gemini-2.5-flash", viewModel.uiState.value.currentSessionModel)
+
+            // User attempts manual switch to an expensive model
+            viewModel.sendSlashModel("opencode-free", "muse-spark-1.3-contributor-free")
+            advanceUntilIdle()
+            assertEquals("opencode-free/muse-spark-1.3-contributor-free", viewModel.uiState.value.currentSessionModel)
+
+            // Backend requires confirmation
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    id = lastReqId,
+                    result =
+                        mapOf(
+                            "key" to "model",
+                            "value" to "muse-spark-1.3-contributor-free",
+                            "confirm_required" to true,
+                            "confirm_message" to "Meta training warning",
+                        ),
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals("Meta training warning", viewModel.uiState.value.modelSwitchConfirmMessage)
+
+            // User dismisses confirmation -> must revert to fallback model, NOT old openai/gpt-4o
+            viewModel.dismissModelSwitchConfirm()
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.modelSwitchConfirmMessage)
+            assertEquals("gemini-2.5-flash", viewModel.uiState.value.currentSessionModel)
+        }
+
+    @Test
+    fun testFallbackModel_followedByRpcError_revertsToFallbackModel() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            var reqCounter = 0
+            var lastReqId = ""
+            every { HermesWsClient.send(RpcMethods.CONFIG_SET, any<ConfigSetParams>(), any()) } answers {
+                val id = "req-cfg-err-${++reqCounter}"
+                lastReqId = id
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            // Establish the initial confirmed model via SessionInfo
+            mockEventsFlow.emit(
+                WsEvent.SessionInfo(
+                    mapOf("model" to "gpt-4o", "provider" to "openai"),
+                    sessionId = sessionId,
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals("openai/gpt-4o", viewModel.uiState.value.currentSessionModel)
+
+            // Fallback via MessageComplete
+            mockEventsFlow.emit(
+                WsEvent.MessageComplete(
+                    text = "turn response",
+                    sessionId = sessionId,
+                    rawPayload = mapOf("usage" to mapOf("model" to "gemini-2.5-flash")),
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals("gemini-2.5-flash", viewModel.uiState.value.currentSessionModel)
+
+            // User attempts manual switch to a model that errors
+            viewModel.sendSlashModel("anthropic", "claude-3-7-sonnet")
+            advanceUntilIdle()
+            assertEquals("anthropic/claude-3-7-sonnet", viewModel.uiState.value.currentSessionModel)
+
+            // Backend returns RPC error
+            mockEventsFlow.emit(
+                WsEvent.RpcError(
+                    id = lastReqId,
+                    error = JsonRpcError(code = -32603, message = "Model not found"),
+                ),
+            )
+            advanceUntilIdle()
+
+            // Must revert to observed fallback model, NOT openai/gpt-4o
+            assertEquals("gemini-2.5-flash", viewModel.uiState.value.currentSessionModel)
+        }
+
+    @Test
+    fun testInFlightManualSwitch_protectedAgainstLateUsageAndMessageComplete() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            var reqCounter = 0
+            every { HermesWsClient.send(RpcMethods.CONFIG_SET, any<ConfigSetParams>(), any()) } answers {
+                val id = "req-cfg-inflight-${++reqCounter}"
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            // Establish confirmed model via SessionInfo
+            mockEventsFlow.emit(
+                WsEvent.SessionInfo(
+                    mapOf("model" to "gpt-4o", "provider" to "openai"),
+                    sessionId = sessionId,
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals("openai/gpt-4o", viewModel.uiState.value.currentSessionModel)
+
+            // Initiate manual switch to claude-3-5-sonnet (in flight, unconfirmed)
+            viewModel.sendSlashModel("anthropic", "claude-3-5-sonnet")
+            advanceUntilIdle()
+            assertEquals("anthropic/claude-3-5-sonnet", viewModel.uiState.value.currentSessionModel)
+
+            // Late SessionUsage push event arrives from old turn with old context_max
+            mockEventsFlow.emit(
+                WsEvent.SessionUsage(
+                    data =
+                        mapOf(
+                            "usage" to
+                                mapOf(
+                                    "model" to "old-fallback-model",
+                                    "context_max" to 32_000L,
+                                ),
+                        ),
+                    sessionId = sessionId,
+                ),
+            )
+            advanceUntilIdle()
+            // In-flight manual model must NOT be overwritten, nor attach old window
+            assertEquals("anthropic/claude-3-5-sonnet", viewModel.uiState.value.currentSessionModel)
+            assertNull(viewModel.uiState.value.fullContextTokens)
+
+            // Late MessageComplete arrives from old turn
+            mockEventsFlow.emit(
+                WsEvent.MessageComplete(
+                    text = "done",
+                    sessionId = sessionId,
+                    rawPayload =
+                        mapOf(
+                            "usage" to
+                                mapOf(
+                                    "model" to "old-fallback-model",
+                                    "context_max" to 32_000L,
+                                ),
+                        ),
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals("anthropic/claude-3-5-sonnet", viewModel.uiState.value.currentSessionModel)
+            assertNull(viewModel.uiState.value.fullContextTokens)
+        }
+
+    @Test
+    fun testNewerConfirmedManualSwitch_rejectsLateOldUsage_andAcceptsSubsequentNewFallback() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            var reqCounter = 0
+            every { HermesWsClient.send(RpcMethods.CONFIG_SET, any<ConfigSetParams>(), any()) } answers {
+                val id = "req-cfg-newer-${++reqCounter}"
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            // 1. Establish initial model
+            mockEventsFlow.emit(
+                WsEvent.SessionInfo(
+                    mapOf("model" to "gpt-4o", "provider" to "openai"),
+                    sessionId = sessionId,
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals("openai/gpt-4o", viewModel.uiState.value.currentSessionModel)
+
+            // 2. Old turn starts
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId = sessionId))
+            advanceUntilIdle()
+
+            // 3. While turn is active, user initiates manual selection in toolbar
+            viewModel.sendSlashModel("anthropic", "claude-3-5-sonnet")
+            advanceUntilIdle()
+            assertEquals("anthropic/claude-3-5-sonnet", viewModel.uiState.value.currentSessionModel)
+
+            // 4. SessionInfo arrives confirming the new selection (isSwitchPending becomes false)
+            mockEventsFlow.emit(
+                WsEvent.SessionInfo(
+                    mapOf("model" to "claude-3-5-sonnet", "provider" to "anthropic"),
+                    sessionId = sessionId,
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals("anthropic/claude-3-5-sonnet", viewModel.uiState.value.currentSessionModel)
+            val confirmedWindow = viewModel.uiState.value.fullContextTokens
+
+            // 5. Old turn completes with old-turn usage and completion carrying an old model and old context_max
+            mockEventsFlow.emit(
+                WsEvent.SessionUsage(
+                    data =
+                        mapOf(
+                            "usage" to
+                                mapOf(
+                                    "model" to "old-stale-model",
+                                    "context_max" to 32_000L,
+                                ),
+                        ),
+                    sessionId = sessionId,
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals("anthropic/claude-3-5-sonnet", viewModel.uiState.value.currentSessionModel)
+            assertEquals(confirmedWindow, viewModel.uiState.value.fullContextTokens)
+
+            mockEventsFlow.emit(
+                WsEvent.MessageComplete(
+                    text = "old reply",
+                    sessionId = sessionId,
+                    rawPayload =
+                        mapOf(
+                            "usage" to
+                                mapOf(
+                                    "model" to "old-stale-model",
+                                    "context_max" to 32_000L,
+                                ),
+                        ),
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals("anthropic/claude-3-5-sonnet", viewModel.uiState.value.currentSessionModel)
+            assertEquals(confirmedWindow, viewModel.uiState.value.fullContextTokens)
+
+            // Another late old SessionUsage arrives after completion
+            mockEventsFlow.emit(
+                WsEvent.SessionUsage(
+                    data =
+                        mapOf(
+                            "usage" to
+                                mapOf(
+                                    "model" to "old-stale-model",
+                                    "context_max" to 32_000L,
+                                ),
+                        ),
+                    sessionId = sessionId,
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals("anthropic/claude-3-5-sonnet", viewModel.uiState.value.currentSessionModel)
+            assertEquals(confirmedWindow, viewModel.uiState.value.fullContextTokens)
+
+            // 6. A subsequent NEW turn starts on the new model
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId = sessionId))
+            advanceUntilIdle()
+
+            // 7. During this new turn, gateway falls back to gemini-2.5-flash
+            mockEventsFlow.emit(
+                WsEvent.MessageComplete(
+                    text = "new reply with fallback",
+                    sessionId = sessionId,
+                    rawPayload =
+                        mapOf(
+                            "usage" to
+                                mapOf(
+                                    "model" to "gemini-2.5-flash",
+                                    "context_max" to 1_000_000L,
+                                ),
+                        ),
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals("gemini-2.5-flash", viewModel.uiState.value.currentSessionModel)
+            assertEquals(1_000_000L, viewModel.uiState.value.fullContextTokens)
+        }
+
+    @Test
+    fun testFetchContextUsage_sessionUsageRpcUpdatesFallbackModel() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            // Establish confirmed model via SessionInfo
+            mockEventsFlow.emit(
+                WsEvent.SessionInfo(
+                    mapOf("model" to "gpt-4o", "provider" to "openai"),
+                    sessionId = sessionId,
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals("openai/gpt-4o", viewModel.uiState.value.currentSessionModel)
+
+            // Stub typed context breakdown (old-model breakdown) and typed session.usage RPCs
+            coEvery {
+                HermesWsClient.call(
+                    RpcMethods.SESSION_CONTEXT_BREAKDOWN,
+                    any(),
+                    any(),
+                    any(),
+                )
+            } returns
+                buildJsonObject {
+                    put("model", "openai/gpt-4o")
+                    put("context_used", 1000L)
+                    put("context_max", 128000L)
+                }
+            coEvery {
+                HermesWsClient.call(
+                    RpcMethods.SESSION_USAGE,
+                    any(),
+                    any(),
+                    any(),
+                )
+            } returns
+                buildJsonObject {
+                    put(
+                        "usage",
+                        buildJsonObject {
+                            put("model", "gemini-2.5-flash")
+                            put("compressions", 2)
+                            put("context_max", 1_000_000L)
+                        },
+                    )
+                }
+
+            viewModel.fetchContextUsage()
+            advanceUntilIdle()
+
+            assertEquals("gemini-2.5-flash", viewModel.uiState.value.currentSessionModel)
+            assertEquals(1_000_000L, viewModel.uiState.value.fullContextTokens)
+            assertEquals(2, viewModel.uiState.value.compressionCount)
+
+            // Restub SESSION_USAGE without model so subsequent refetches during rollback cannot mask stale bookkeeping
+            coEvery { HermesWsClient.call(RpcMethods.SESSION_USAGE, any(), any(), any()) } returns buildJsonObject {}
+
+            // Manual switch fails via RPC error -> must rollback to the RPC-obtained fallback model
+            var rpcReqId = ""
+            every { HermesWsClient.send(RpcMethods.CONFIG_SET, any<ConfigSetParams>(), any()) } answers {
+                val id = "req-cfg-rpc-err"
+                rpcReqId = id
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            viewModel.sendSlashModel("anthropic", "claude-3-7-sonnet")
+            advanceUntilIdle()
+            assertEquals("anthropic/claude-3-7-sonnet", viewModel.uiState.value.currentSessionModel)
+
+            mockEventsFlow.emit(
+                WsEvent.RpcError(
+                    id = rpcReqId,
+                    error = JsonRpcError(code = -32603, message = "Model not found"),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals("gemini-2.5-flash", viewModel.uiState.value.currentSessionModel)
+        }
+
+    @Test
     fun testUndoCommand_dispatchesAndPrefillsComposer() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()

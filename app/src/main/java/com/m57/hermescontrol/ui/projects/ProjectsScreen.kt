@@ -34,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,6 +54,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.applock.AlertDialog
 import com.m57.hermescontrol.applock.ModalBottomSheet
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.DiscoveredRepo
 import com.m57.hermescontrol.data.model.ProjectInfo
 import com.m57.hermescontrol.theme.LocalSpacing
@@ -83,7 +85,15 @@ fun ProjectsScreen(
     viewModel: ProjectsViewModel = viewModel { ProjectsViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var addFolderTarget by remember { mutableStateOf<ProjectInfo?>(null) }
+    val dataScope by AuthManager.dataScopeFlow.collectAsStateWithLifecycle()
+    var addFolderTarget by remember(dataScope) { mutableStateOf<ProjectInfo?>(null) }
+
+    LaunchedEffect(dataScope) {
+        if (state.editor != null) {
+            viewModel.dismissEditor()
+        }
+        addFolderTarget = null
+    }
 
     ToastEffect(toastMessage = state.toastMessage, onClearToast = viewModel::clearToast)
 
@@ -396,6 +406,7 @@ private fun ProjectEditorSheet(
     var description by rememberSaveable(draft.id) { mutableStateOf(draft.description) }
     var folder by rememberSaveable(draft.id) { mutableStateOf(draft.folder) }
     var color by rememberSaveable(draft.id) { mutableStateOf(draft.color) }
+    var showFolderPicker by rememberSaveable(draft.id) { mutableStateOf(false) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -424,6 +435,17 @@ private fun ProjectEditorSheet(
                     supportingText = { Text(stringResource(R.string.projects_field_folder_hint)) },
                     singleLine = true,
                     textStyle = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Ltr),
+                    trailingIcon = {
+                        IconButton(
+                            onClick = { showFolderPicker = true },
+                            modifier = Modifier.testTag("project_folder_browse_button"),
+                        ) {
+                            Icon(
+                                Icons.Filled.Folder,
+                                contentDescription = stringResource(R.string.projects_action_browse_folder),
+                            )
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth().testTag("project_folder_field"),
                 )
             } else {
@@ -455,6 +477,16 @@ private fun ProjectEditorSheet(
                 }
             }
         }
+    }
+
+    if (showFolderPicker) {
+        RemoteFolderPickerDialog(
+            onSelectFolder = { selectedPath ->
+                folder = selectedPath
+                showFolderPicker = false
+            },
+            onDismiss = { showFolderPicker = false },
+        )
     }
 }
 
@@ -526,26 +558,49 @@ private fun AddFolderDialog(
     onDismiss: () -> Unit,
 ) {
     var path by rememberSaveable { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.projects_action_add_folder)) },
-        text = {
-            OutlinedTextField(
-                value = path,
-                onValueChange = { path = it },
-                label = { Text(stringResource(R.string.projects_field_folder)) },
-                supportingText = { Text(stringResource(R.string.projects_field_folder_hint)) },
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Ltr),
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = { onAdd(path) }, enabled = path.isNotBlank()) {
-                Text(stringResource(R.string.projects_action_add))
-            }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
-    )
+    var showFolderPicker by rememberSaveable { mutableStateOf(false) }
+
+    if (showFolderPicker) {
+        RemoteFolderPickerDialog(
+            onSelectFolder = { selectedPath ->
+                path = selectedPath
+                showFolderPicker = false
+            },
+            onDismiss = { showFolderPicker = false },
+        )
+    } else {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(stringResource(R.string.projects_action_add_folder)) },
+            text = {
+                OutlinedTextField(
+                    value = path,
+                    onValueChange = { path = it },
+                    label = { Text(stringResource(R.string.projects_field_folder)) },
+                    supportingText = { Text(stringResource(R.string.projects_field_folder_hint)) },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Ltr),
+                    trailingIcon = {
+                        IconButton(
+                            onClick = { showFolderPicker = true },
+                            modifier = Modifier.testTag("add_folder_browse_button"),
+                        ) {
+                            Icon(
+                                Icons.Filled.Folder,
+                                contentDescription = stringResource(R.string.projects_action_browse_folder),
+                            )
+                        }
+                    },
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { onAdd(path) }, enabled = path.isNotBlank()) {
+                    Text(stringResource(R.string.projects_action_add))
+                }
+            },
+            dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+        )
+    }
 }
 
 private fun ProjectInfo.displayName(): String = name.trim().ifEmpty { slug ?: id }

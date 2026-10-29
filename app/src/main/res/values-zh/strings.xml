@@ -1926,4 +1926,7 @@
     <string name="db_unavailable_retry">重试</string>
     <string name="db_unavailable_reset">移开并重新开始</string>
     <string name="db_unavailable_reset_confirm">数据库文件将被重命名为带 .corrupt 后缀，不会被删除。本地聊天记录将从空白开始。</string>
+    <string name="chat_pending_owned_elsewhere">此聊天已在另一个窗口中打开。要用这条消息开始新对话吗？</string>
+    <string name="chat_pending_new_conversation">新对话</string>
+    <string name="chat_pending_attachments_not_carried">附件未转移。请在新对话中重新添加。</string>
 </resources>

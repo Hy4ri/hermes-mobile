@@ -2019,4 +2019,7 @@
     <string name="db_unavailable_retry">다시 시도</string>
     <string name="db_unavailable_reset">따로 옮기고 새로 시작</string>
     <string name="db_unavailable_reset_confirm">데이터베이스 파일은 삭제되지 않고 .corrupt 접미사로 이름이 변경됩니다. 로컬 채팅 기록은 비어 있는 상태로 시작합니다.</string>
+    <string name="chat_pending_owned_elsewhere">이 채팅은 다른 창에서 열려 있습니다. 이 메시지로 새 대화를 시작할까요?</string>
+    <string name="chat_pending_new_conversation">새 대화</string>
+    <string name="chat_pending_attachments_not_carried">첨부 파일이 옮겨지지 않았습니다. 새 대화에서 다시 추가하세요.</string>
 </resources>

@@ -25,6 +25,27 @@ class ChatSendStoreTest {
         }
 
     @Test
+    fun rejectedReasonSurvivesStoredRowsAndLegacyRowLoadsWithoutReason() {
+        var saved: String? =
+            """[{"id":"old","scope":"scope","sessionId":"session","text":"old prompt","mode":"QUEUE","state":"REJECTED"}]"""
+        val prefs = mockk<SharedPreferences>()
+        val editor = mockk<SharedPreferences.Editor>()
+        every { prefs.getString("rows", null) } answers { saved }
+        every { prefs.edit() } returns editor
+        every { editor.putString("rows", any()) } answers {
+            saved = secondArg()
+            editor
+        }
+        every { editor.commit() } returns true
+        val store = ChatSendStore(prefs)
+        assertEquals(null, store.all().single().refusalReason)
+        store.update("old") { it.copy(refusalReason = "SESSION_NOT_OWNED") }
+        val restored = ChatSendStore(prefs).all().single()
+        assertEquals(PendingSendState.REJECTED, restored.state)
+        assertEquals("SESSION_NOT_OWNED", restored.refusalReason)
+    }
+
+    @Test
     fun durableAliasConfirmsAttachmentAndSteerNormalizedReceipt() {
         val local = ChatMessage("send-1", MessageRole.USER, "See attachment")
         val rest =

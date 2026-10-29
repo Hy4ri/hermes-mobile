@@ -1041,6 +1041,7 @@ fun ChatScreen(
                     canSend = state.isConnected && state.isSessionReady,
                     mainTurnBusy = state.isMainTurnBusy,
                     onSendAgain = viewModel::sendQueuedNow,
+                    onNewConversation = viewModel::sendPendingInNewConversation,
                     onDiscard = viewModel::discardPendingSend,
                     onAcknowledge = viewModel::acknowledgePendingSend,
                     onRemoveAcknowledged = viewModel::removeAcknowledgedPendingSend,

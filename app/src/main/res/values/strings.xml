@@ -2074,4 +2074,7 @@
     <string name="db_unavailable_retry">Retry</string>
     <string name="db_unavailable_reset">Move aside and start fresh</string>
     <string name="db_unavailable_reset_confirm">The database files will be renamed with a .corrupt suffix, not deleted. Local chat history will start empty.</string>
+    <string name="chat_pending_owned_elsewhere">This chat is open in another window. Start a new conversation with this message?</string>
+    <string name="chat_pending_new_conversation">New conversation</string>
+    <string name="chat_pending_attachments_not_carried">Attachments were not carried. Add them again in the new conversation.</string>
 </resources>

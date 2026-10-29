@@ -59,6 +59,59 @@ class PendingSendRecoveryTest {
     }
 
     @Test
+    fun ownershipRefusalOffersNewConversationAndDiscardInsteadOfRetry() {
+        var recovered: String? = null
+        compose.setContent {
+            MaterialTheme {
+                PendingSendRecovery(
+                    listOf(uncertain.copy(state = PendingSendState.REJECTED, refusalReason = "SESSION_NOT_OWNED")),
+                    true,
+                    false,
+                    {},
+                    {},
+                    {},
+                    {},
+                    onNewConversation = { recovered = it },
+                )
+            }
+        }
+        compose.onNodeWithTag("pending_send_recovery").performClick()
+        compose.onNodeWithTag("pending_retry_uncertain").assertDoesNotExist()
+        compose.onNodeWithTag("pending_discard_uncertain").assertIsDisplayed()
+        compose.onNodeWithText("Discard").assertIsDisplayed()
+        compose
+            .onNodeWithText("This chat is open in another window. Start a new conversation with this message?")
+            .assertIsDisplayed()
+        compose.onNodeWithTag("pending_new_conversation_uncertain").performClick()
+        compose.runOnIdle { assertEquals("uncertain", recovered) }
+    }
+
+    @Test
+    fun otherAndMissingRefusalReasonsKeepRetry() {
+        compose.setContent {
+            MaterialTheme {
+                PendingSendRecovery(
+                    listOf(
+                        uncertain.copy(id = "missing", state = PendingSendState.REJECTED),
+                        uncertain.copy(id = "other", state = PendingSendState.REJECTED, refusalReason = "OTHER"),
+                    ),
+                    true,
+                    false,
+                    {},
+                    {},
+                    {},
+                    {},
+                )
+            }
+        }
+        compose.onNodeWithTag("pending_send_recovery").performClick()
+        for (id in listOf("missing", "other")) {
+            compose.onNodeWithTag("pending_retry_$id").assertIsDisplayed()
+            compose.onNodeWithTag("pending_new_conversation_$id").assertDoesNotExist()
+        }
+    }
+
+    @Test
     fun uncertainRetryRequiresExplicitConfirmation() {
         var retried: String? = null
         compose.setContent {

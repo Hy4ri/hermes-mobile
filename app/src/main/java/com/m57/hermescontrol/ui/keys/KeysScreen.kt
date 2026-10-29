@@ -227,14 +227,14 @@ fun KeysScreen(
         Box(modifier = Modifier.fillMaxSize()) {
             when {
                 state.isLoading && !hasAnyVars -> {
-                    SkeletonListState(modifier = Modifier.padding(paddingValues))
+                    SkeletonListState()
                 }
 
                 state.errorMessage != null && !hasAnyVars -> {
                     ErrorState(
                         message = state.errorMessage ?: "",
                         onRetry = { viewModel.loadKeys() },
-                        modifier = Modifier.padding(paddingValues),
+                        modifier = Modifier,
                     )
                 }
 
@@ -244,7 +244,7 @@ fun KeysScreen(
                         subtitle = stringResource(R.string.keys_empty_desc),
                         onAction = { viewModel.loadKeys() },
                         actionLabel = stringResource(R.string.content_desc_refresh),
-                        modifier = Modifier.padding(paddingValues),
+                        modifier = Modifier,
                     )
                 }
 

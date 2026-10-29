@@ -175,14 +175,14 @@ fun AchievementsScreen(
     ) { paddingValues ->
         when {
             state.isLoading && state.achievements.isEmpty() -> {
-                SkeletonListState(modifier = Modifier.padding(paddingValues))
+                SkeletonListState()
             }
 
             state.errorMessage != null && state.achievements.isEmpty() -> {
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.loadAchievements() },
-                    modifier = Modifier.padding(paddingValues),
+                    modifier = Modifier,
                 )
             }
 
@@ -191,7 +191,7 @@ fun AchievementsScreen(
                     title = stringResource(R.string.achievements_empty_title),
                     subtitle = stringResource(R.string.achievements_empty_desc),
                     icon = Icons.Filled.Refresh,
-                    modifier = Modifier.padding(paddingValues),
+                    modifier = Modifier,
                 )
             }
 

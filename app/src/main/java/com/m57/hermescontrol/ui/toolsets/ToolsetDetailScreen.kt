@@ -137,14 +137,14 @@ fun ToolsetDetailScreen(
     ) { paddingValues ->
         when {
             state.isLoading && config == null -> {
-                SkeletonListState(modifier = Modifier.padding(paddingValues))
+                SkeletonListState()
             }
 
             state.errorMessage != null && config == null -> {
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.loadConfig() },
-                    modifier = Modifier.padding(paddingValues),
+                    modifier = Modifier,
                 )
             }
 
@@ -154,7 +154,7 @@ fun ToolsetDetailScreen(
                     subtitle = stringResource(R.string.toolsets_empty_desc),
                     onAction = { viewModel.loadConfig() },
                     actionLabel = stringResource(R.string.content_desc_refresh),
-                    modifier = Modifier.padding(paddingValues),
+                    modifier = Modifier,
                 )
             }
 

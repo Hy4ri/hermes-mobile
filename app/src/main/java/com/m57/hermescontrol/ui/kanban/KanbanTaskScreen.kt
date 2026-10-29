@@ -162,14 +162,14 @@ fun KanbanTaskScreen(
     ) { paddingValues ->
         when {
             state.isLoading && state.detail == null -> {
-                SkeletonListState(modifier = Modifier.padding(paddingValues))
+                SkeletonListState()
             }
 
             state.errorMessage != null && state.detail == null -> {
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.loadTask(boardSlug, taskId) },
-                    modifier = Modifier.padding(paddingValues),
+                    modifier = Modifier,
                 )
             }
 

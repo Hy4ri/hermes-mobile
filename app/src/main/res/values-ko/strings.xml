@@ -1254,6 +1254,7 @@
     <string name="chat_pending_sending">전송 중…</string>
     <string name="chat_pending_accepted">서버에서 수락됨; 대화 기록 대기 중. 다시 보내면 중복될 수 있습니다.</string>
     <string name="chat_pending_unknown">전달 여부를 알 수 없습니다. 다시 보내면 중복될 수 있습니다.</string>
+    <string name="chat_pending_owner_unconfirmed">다른 창에서 이 메시지를 확인하지 않았습니다. 이미 전송되었을 수 있습니다. 다시 보내기 전에 채팅을 확인하세요.</string>
     <string name="chat_pending_rejected">전달되지 않았습니다. 지금 보내기를 눌러 재시도하세요.</string>
     <string name="chat_pending_send_now">지금 보내기</string>
     <string name="chat_pending_send_now_warning">대기 중인 메시지를 지금 보내면 진행 중인 작업이 중단되고 하위 에이전트가 멈출 수 있습니다.</string>

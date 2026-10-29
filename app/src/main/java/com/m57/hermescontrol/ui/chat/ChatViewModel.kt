@@ -2671,10 +2671,15 @@ class ChatViewModel(
                 publishPendingSends()
                 drainPendingQueue()
             } else {
+                val reason = (error as? JsonRpcError)?.let(::refusalReasonOf)
                 markPendingSend(
                     messageId,
-                    if (code != null && code in 4000..4999) PendingSendState.REJECTED else PendingSendState.UNKNOWN,
-                    refusalReason = (error as? JsonRpcError)?.let(::refusalReasonOf),
+                    if (code != null && code in 4000..4999 && reason != SESSION_OWNER_UNCONFIRMED) {
+                        PendingSendState.REJECTED
+                    } else {
+                        PendingSendState.UNKNOWN
+                    },
+                    refusalReason = reason,
                 )
                 removeUnconfirmedBubble(messageId)
             }

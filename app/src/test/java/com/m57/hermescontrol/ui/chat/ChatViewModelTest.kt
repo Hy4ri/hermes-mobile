@@ -260,13 +260,18 @@ class ChatViewModelTest {
     private suspend fun TestScope.refuseOwnedSend(
         viewModel: ChatViewModel,
         store: ChatSendStore,
+        reason: String? = "SESSION_NOT_OWNED",
     ): PendingSend {
         viewModel.sendMessage("Recover this message")
         advanceUntilIdle()
         mockEventsFlow.emit(
             WsEvent.RpcError(
                 "req-msg-$reqCount",
-                JsonRpcError(4090, "Owned elsewhere", buildJsonObject { put("reason", "SESSION_NOT_OWNED") }),
+                JsonRpcError(
+                    4090,
+                    "Owned elsewhere",
+                    reason?.let { buildJsonObject { put("reason", it) } },
+                ),
             ),
         )
         advanceUntilIdle()
@@ -281,6 +286,35 @@ class ChatViewModelTest {
             val refused = refuseOwnedSend(vm, store)
             assertEquals(PendingSendState.REJECTED, refused.state)
             assertEquals("SESSION_NOT_OWNED", refused.refusalReason)
+        }
+
+    @Test
+    fun unconfirmedOwnerRefusalIsUncertainAndNeverReplayed() =
+        runTest {
+            val store = ChatSendStore()
+            val (vm, _) = createViewModelWithSession(sendStore = store)
+            val refused = refuseOwnedSend(vm, store, "SESSION_OWNER_UNCONFIRMED")
+            assertEquals(PendingSendState.UNKNOWN, refused.state)
+            assertEquals("SESSION_OWNER_UNCONFIRMED", refused.refusalReason)
+            advanceUntilIdle()
+            verify(exactly = 1) { HermesWsClient.sendMessage(any(), "Recover this message", any(), any()) }
+            assertEquals(PendingSendState.UNKNOWN, store.all().single { it.id == refused.id }.state)
+        }
+
+    @Test
+    fun refusalWithoutReasonStaysRejected() =
+        runTest {
+            val store = ChatSendStore()
+            val (vm, _) = createViewModelWithSession(sendStore = store)
+            assertEquals(PendingSendState.REJECTED, refuseOwnedSend(vm, store, null).state)
+        }
+
+    @Test
+    fun busyOwnerRefusalStaysRejected() =
+        runTest {
+            val store = ChatSendStore()
+            val (vm, _) = createViewModelWithSession(sendStore = store)
+            assertEquals(PendingSendState.REJECTED, refuseOwnedSend(vm, store, "SESSION_OWNER_BUSY").state)
         }
 
     @Test

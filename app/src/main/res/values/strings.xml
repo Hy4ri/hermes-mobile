@@ -320,6 +320,7 @@
     <string name="chat_pending_sending">Sending\u2026</string>
     <string name="chat_pending_accepted">Accepted by server; awaiting transcript. Sending again may duplicate it.</string>
     <string name="chat_pending_unknown">Delivery unknown; sending again may duplicate it</string>
+    <string name="chat_pending_owner_unconfirmed">The other window did not confirm this message. It may already be sent. Check the chat before you send it again.</string>
     <string name="chat_pending_rejected">Not delivered; choose Send now to retry</string>
     <string name="chat_pending_send_now">Send now</string>
     <string name="chat_pending_send_now_warning">Sending a pending message now may interrupt active work and stop child agents.</string>

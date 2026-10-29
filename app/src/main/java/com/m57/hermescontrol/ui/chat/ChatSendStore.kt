@@ -217,6 +217,9 @@ internal val PendingSend.needsRecovery: Boolean
 
 internal const val SESSION_NOT_OWNED = "SESSION_NOT_OWNED"
 
+/** The owner did not confirm in time; the message may already be queued there, so delivery is uncertain. */
+internal const val SESSION_OWNER_UNCONFIRMED = "SESSION_OWNER_UNCONFIRMED"
+
 /** Only a string-valued reason in an object is part of the gateway refusal contract. */
 internal fun refusalReasonOf(error: JsonRpcError): String? {
     val reason = (error.data as? JsonObject)?.get("reason") as? JsonPrimitive ?: return null

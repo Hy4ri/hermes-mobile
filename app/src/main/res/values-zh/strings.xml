@@ -1520,6 +1520,7 @@
     <string name="chat_pending_sending">正在发送…</string>
     <string name="chat_pending_accepted">服务器已接收，等待写入聊天记录。再次发送可能造成重复。</string>
     <string name="chat_pending_unknown">送达状态未知；再次发送可能重复</string>
+    <string name="chat_pending_owner_unconfirmed">另一个窗口没有确认这条消息。它可能已经发送。再次发送之前，请先查看聊天。</string>
     <string name="chat_pending_rejected">未送达；点按“立即发送”重试</string>
     <string name="chat_pending_send_now">立即发送</string>
     <string name="chat_pending_send_now_warning">现在发送待处理消息可能会中断当前任务并停止子代理。</string>

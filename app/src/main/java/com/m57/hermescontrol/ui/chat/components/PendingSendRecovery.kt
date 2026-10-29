@@ -46,6 +46,7 @@ import com.m57.hermescontrol.ui.chat.InlineAttachment
 import com.m57.hermescontrol.ui.chat.PendingSend
 import com.m57.hermescontrol.ui.chat.PendingSendState
 import com.m57.hermescontrol.ui.chat.SESSION_NOT_OWNED
+import com.m57.hermescontrol.ui.chat.SESSION_OWNER_UNCONFIRMED
 import com.m57.hermescontrol.ui.chat.needsRecovery
 import com.m57.hermescontrol.ui.chat.pendingSendActivityWarning
 
@@ -185,7 +186,9 @@ fun PendingSendRecovery(
                                             }
 
                                             PendingSendState.UNKNOWN -> {
-                                                if (send.userOrderingReleased) {
+                                                if (send.refusalReason == SESSION_OWNER_UNCONFIRMED) {
+                                                    R.string.chat_pending_owner_unconfirmed
+                                                } else if (send.userOrderingReleased) {
                                                     R.string.chat_pending_unknown_released
                                                 } else {
                                                     R.string.chat_pending_unknown

@@ -1559,6 +1559,7 @@
 <string name="chat_pending_sending">جارٍ الإرسال…</string>
 <string name="chat_pending_accepted">قبلها الخادم؛ بانتظار ظهورها في السجل. قد تؤدي إعادة الإرسال إلى تكرارها.</string>
 <string name="chat_pending_unknown">حالة التسليم غير معروفة؛ قد يؤدي الإرسال مجددًا إلى تكرارها</string>
+    <string name="chat_pending_owner_unconfirmed">لم تؤكد النافذة الأخرى استلام هذه الرسالة. ربما أُرسلت بالفعل. تحقق من المحادثة قبل إرسالها مرة أخرى.</string>
 <string name="chat_pending_rejected">لم تُسلّم؛ اختر الإرسال الآن لإعادة المحاولة</string>
 <string name="chat_pending_send_now">إرسال الآن</string>
 <string name="chat_pending_send_now_warning">قد يقطع إرسال رسالة معلّقة الآن العمل الجاري ويوقف الوكلاء الفرعيين.</string>

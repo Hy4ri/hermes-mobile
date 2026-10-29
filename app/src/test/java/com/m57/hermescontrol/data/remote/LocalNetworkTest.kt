@@ -47,4 +47,17 @@ class LocalNetworkTest {
         assertFalse(needsLocalNetworkPermission("not-a-url"))
         assertFalse(needsLocalNetworkPermission(""))
     }
+
+    @Test
+    fun `tailscale magicdns names require permission without resolving`() {
+        assertTrue(isLocalNetworkHost("foo.tail1234.ts.net"))
+        assertTrue(isLocalNetworkHost("FOO.Tail1234.TS.NET"))
+        assertTrue(isLocalNetworkHost("foo.tail1234.ts.net."))
+        assertTrue(isLocalNetworkHost("  foo.ts.net  "))
+        assertFalse(isLocalNetworkHost("ts.net"))
+        assertFalse(isLocalNetworkHost("ts.net."))
+        assertFalse(isLocalNetworkHost("notts.net"))
+        assertFalse(isLocalNetworkHost("example.com"))
+        assertFalse(isLocalNetworkHost("foo.ts.net.evil.com"))
+    }
 }

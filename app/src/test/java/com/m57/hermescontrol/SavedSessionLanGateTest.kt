@@ -31,4 +31,10 @@ class SavedSessionLanGateTest {
         assertFalse(needsSavedSessionLanGate(37, "saved", false, "http://127.0.0.1:9119/"))
         assertFalse(needsSavedSessionLanGate(37, "saved", false, "https://8.8.8.8/"))
     }
+
+    @Test
+    fun tailscaleNameOnApi37RequiresGateEvenWithoutDns() {
+        assertTrue(needsSavedSessionLanGate(37, null, true, "http://box.tail1234.ts.net:9119/"))
+        assertFalse(needsSavedSessionLanGate(36, null, true, "http://box.tail1234.ts.net:9119/"))
+    }
 }

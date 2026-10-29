@@ -1,13 +1,18 @@
 package com.m57.hermescontrol.data.remote
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import okhttp3.Cookie
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -22,6 +27,7 @@ import org.junit.Test
  * - async persistence round-trip through the fake store
  * - pruning of expired (but not session) cookies
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class PersistentCookieJarTest {
     private fun makeJar(): PersistentCookieJar =
         PersistentCookieJar(
@@ -201,6 +207,41 @@ class PersistentCookieJarTest {
             jar2.useStore("persist-scope")
             val reloaded = jar2.loadForRequest("http://p.local/".toHttpUrl())
             assertEquals("persisted-value", reloaded.firstOrNull()?.value)
+        }
+
+    @Test
+    fun scopeSwitchWaitsForInFlightPersistence() =
+        runTest {
+            val saved = FakeEncryptedCookieStore()
+            val started = CompletableDeferred<Unit>()
+            val release = CompletableDeferred<Unit>()
+            val store =
+                object : CookieStore by saved {
+                    override suspend fun save(
+                        serverId: String,
+                        cookies: List<Cookie>,
+                    ) {
+                        started.complete(Unit)
+                        release.await()
+                        saved.save(serverId, cookies)
+                    }
+                }
+            val jar = PersistentCookieJar(store, CoroutineScope(StandardTestDispatcher(testScheduler)))
+            jar.useStore("server-a")
+            jar.saveFromResponse("https://a.local/".toHttpUrl(), listOf(sessionCookie("a.local", "durable")))
+            started.await()
+
+            val switching = launch { jar.useStore("server-b") }
+            runCurrent()
+            assertFalse(switching.isCompleted)
+            assertEquals("server-a", jar.currentServer())
+
+            release.complete(Unit)
+            switching.join()
+            assertEquals("server-b", jar.currentServer())
+            val restarted = PersistentCookieJar(saved)
+            restarted.useStore("server-a")
+            assertEquals("durable", restarted.getSessionCookieValue())
         }
 
     @Test

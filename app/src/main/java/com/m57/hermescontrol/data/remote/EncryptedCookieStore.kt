@@ -48,7 +48,8 @@ interface CookieStore {
  * `hermes_session_at` value in `AuthManager`'s prefs under
  * [LEGACY_SESSION_COOKIE_KEY]. [load] transparently folds any such legacy
  * value into the requested [serverId] scope on first read so existing gated
- * sessions keep working without a re-login.
+ * sessions keep working without a re-login. The encrypted copy is committed
+ * before the legacy source is removed.
  */
 class EncryptedCookieStore(
     private val context: Context,
@@ -77,7 +78,9 @@ class EncryptedCookieStore(
         cookies: List<Cookie>,
     ) = withContext(Dispatchers.IO) {
         val serialized = cookies.map { it.serialize() }
-        prefs.edit().putString(keyFor(serverId), json.encodeToString(serialized)).apply()
+        check(prefs.edit().putString(keyFor(serverId), json.encodeToString(serialized)).commit()) {
+            "Unable to persist encrypted cookies"
+        }
     }
 
     override suspend fun load(serverId: String): List<Cookie> =
@@ -85,35 +88,43 @@ class EncryptedCookieStore(
             // Fold in legacy single-cookie storage once per server scope.
             // This awaits the deferred prefs on the IO dispatcher — never
             // blocks the caller (e.g. main thread) during app startup.
-            val migrated = maybeMigrateLegacy(serverId)
-            val raw = prefs.getString(keyFor(serverId), null) ?: return@withContext migrated
-            runCatching {
-                json
-                    .decodeFromString<List<CookieHolder>>(raw)
-                    .mapNotNull { it.toCookie() }
-                    .plus(migrated)
-                    .distinctBy { Triple(it.name, it.domain, it.path) }
-            }.getOrDefault(migrated)
+            val migrated = readLegacyCookie()
+            val persisted =
+                prefs
+                    .getString(keyFor(serverId), null)
+                    ?.let { raw ->
+                        runCatching {
+                            json.decodeFromString<List<CookieHolder>>(raw).mapNotNull { it.toCookie() }
+                        }.getOrDefault(emptyList())
+                    }.orEmpty()
+            val merged = (persisted + migrated).distinctBy { Triple(it.name, it.domain, it.path) }
+            if (migrated.isNotEmpty()) {
+                // Keep the source until the encrypted copy is durable, including across process death.
+                val encoded = json.encodeToString(merged.map { it.serialize() })
+                check(prefs.edit().putString(keyFor(serverId), encoded).commit()) {
+                    "Unable to migrate encrypted cookies"
+                }
+                legacyPrefsDeferred
+                    ?.await()
+                    ?.edit()
+                    ?.remove(LEGACY_SESSION_COOKIE_KEY)
+                    ?.commit()
+            }
+            merged
         }
 
     override suspend fun clear(serverId: String) =
         withContext(Dispatchers.IO) {
-            prefs.edit().remove(keyFor(serverId)).apply()
+            check(prefs.edit().remove(keyFor(serverId)).commit()) { "Unable to clear encrypted cookies" }
         }
 
     override suspend fun clearAll() =
         withContext(Dispatchers.IO) {
-            prefs.edit().clear().apply()
+            check(prefs.edit().clear().commit()) { "Unable to clear encrypted cookies" }
         }
 
-    /**
-     * If a legacy `hermes_session_at` value exists and we have not yet folded
-     * it into [serverId], wrap it as a host-less session cookie and clear the
-     * legacy key so the migration is one-shot. Awaits the deferred legacy
-     * prefs on the IO dispatcher so [load] (already on IO) never blocks the
-     * caller thread.
-     */
-    private suspend fun maybeMigrateLegacy(serverId: String): List<Cookie> {
+    /** Read the legacy source without removing it; [load] commits the encrypted copy first. */
+    private suspend fun readLegacyCookie(): List<Cookie> {
         val prefs =
             legacyPrefsDeferred?.await()
                 ?: return emptyList()
@@ -121,7 +132,6 @@ class EncryptedCookieStore(
             prefs.getString(LEGACY_SESSION_COOKIE_KEY, null)
                 ?: return emptyList()
         if (legacy.isBlank()) return emptyList()
-        prefs.edit().remove(LEGACY_SESSION_COOKIE_KEY).apply()
         return wrapSessionCookie(legacy)?.let { listOf(it) } ?: emptyList()
     }
 

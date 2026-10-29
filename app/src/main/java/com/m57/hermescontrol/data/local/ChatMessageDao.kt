@@ -1,9 +1,10 @@
 package com.m57.hermescontrol.data.local
 
 import androidx.room3.Dao
+import androidx.room3.Insert
 import androidx.room3.Query
 import androidx.room3.Transaction
-import androidx.room3.Upsert
+import androidx.room3.Update
 import com.m57.hermescontrol.ui.chat.isPermanentlyLocal
 
 @Dao
@@ -52,8 +53,11 @@ interface ChatMessageDao {
     @Query("SELECT MAX(sort_order) FROM chat_messages WHERE session_id = :sessionId AND sort_group = 0")
     suspend fun latestCanonicalOrder(sessionId: String): Long?
 
-    @Upsert
-    suspend fun writeMessage(message: ChatMessageEntity)
+    @Insert
+    suspend fun insertMessage(message: ChatMessageEntity)
+
+    @Update
+    suspend fun updateMessage(message: ChatMessageEntity)
 
     // Allocate once, in the same transaction as the write. Content/clock updates never move a local row.
     @Transaction
@@ -75,7 +79,7 @@ interface ChatMessageDao {
             } else {
                 message.localAnchorOrder
             }
-        writeMessage(
+        val resolved =
             message.copy(
                 restId = restId,
                 messageProvenance =
@@ -91,8 +95,14 @@ interface ChatMessageDao {
                 sortOrder = canonicalOrder ?: existing?.sortOrder ?: nextLocalOrder(),
                 localAnchorOrder = anchor,
                 localPredecessorId = existing?.localPredecessorId ?: message.localPredecessorId,
-            ),
-        )
+            )
+        // Issue #1717: Room 3 @Upsert tries INSERT first, causing handled SQLite PRIMARY KEY conflict log noise.
+        // Route transactionally known existing rows to @Update and proven-new rows to @Insert.
+        if (existing != null) {
+            updateMessage(resolved)
+        } else {
+            insertMessage(resolved)
+        }
     }
 
     @Transaction
@@ -135,13 +145,13 @@ interface ChatMessageDao {
             if (row.isSessionStartMarker()) {
                 // Its original -1 placement predates the replaced history. Keep its identity,
                 // but seat it at the replacement boundary ahead of later local events.
-                writeMessage(row.copy(localAnchorOrder = tail, localPredecessorId = null))
+                updateMessage(row.copy(localAnchorOrder = tail, localPredecessorId = null))
             } else {
                 if (row.restId != null && canonicalMessageOrder(row.restId, sessionId) != null) {
                     // Preserve identity and payload, but remove obsolete confirmed aliases from all cache pages.
-                    writeMessage(row.copy(messageProvenance = "COMPRESSED_ALIAS"))
+                    updateMessage(row.copy(messageProvenance = "COMPRESSED_ALIAS"))
                 } else {
-                    writeMessage(
+                    updateMessage(
                         row.copy(
                             sortGroup = 1,
                             sortOrder = if (row.sortGroup == 0) nextLocalOrder() else row.sortOrder,

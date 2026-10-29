@@ -77,9 +77,16 @@ class FakeChatMessageDao : ChatMessageDao {
     override suspend fun latestCanonicalOrder(sessionId: String): Long? =
         messages.values.filter { it.sessionId == sessionId && it.sortGroup == 0 }.maxOfOrNull { it.sortOrder }
 
-    override suspend fun writeMessage(message: ChatMessageEntity) {
-        if (message.id !in messages) insertionSequence++
+    override suspend fun insertMessage(message: ChatMessageEntity) {
+        check(message.id !in messages) { "UNIQUE constraint failed: chat_messages.id (duplicate id=${message.id})" }
+        insertionSequence++
         messages[message.id] = message
+    }
+
+    override suspend fun updateMessage(message: ChatMessageEntity) {
+        if (message.id in messages) {
+            messages[message.id] = message
+        }
     }
 
     override suspend fun deleteCanonicalIds(

@@ -465,9 +465,9 @@ fun CronJobEditorDialog(
                         }
                     }
                 },
-            ) { padding ->
+            ) {
                 if (state.isLoading) {
-                    LoadingState(modifier = Modifier.padding(padding))
+                    LoadingState()
                 } else {
                     Column(
                         modifier =

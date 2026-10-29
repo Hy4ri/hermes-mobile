@@ -431,14 +431,14 @@ fun KanbanScreen(
     ) { paddingValues ->
         when {
             state.isLoading && state.boards.isEmpty() -> {
-                SkeletonListState(modifier = Modifier.padding(paddingValues))
+                SkeletonListState()
             }
 
             state.errorMessage != null -> {
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.loadBoards() },
-                    modifier = Modifier.padding(paddingValues),
+                    modifier = Modifier,
                 )
             }
 
@@ -450,7 +450,7 @@ fun KanbanScreen(
                         Text(
                             text = state.errorMessage ?: "",
                             color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(paddingValues),
+                            modifier = Modifier,
                         )
                     } else {
                         Column(

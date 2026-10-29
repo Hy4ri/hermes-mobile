@@ -70,14 +70,14 @@ fun PairingScreen(
         val pairing = state.pairing
         when {
             state.isLoading && pairing == null -> {
-                SkeletonListState(modifier = Modifier.padding(paddingValues))
+                SkeletonListState()
             }
 
             state.errorMessage != null && pairing == null -> {
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.loadPairing() },
-                    modifier = Modifier.padding(paddingValues),
+                    modifier = Modifier,
                 )
             }
 
@@ -86,7 +86,7 @@ fun PairingScreen(
                 EmptyState(
                     title = stringResource(R.string.pairing_empty_title),
                     subtitle = stringResource(R.string.pairing_empty_desc),
-                    modifier = Modifier.padding(paddingValues),
+                    modifier = Modifier,
                 )
             }
 

@@ -313,8 +313,8 @@ private fun SkeletonRow(height: Dp) {
  * @param rowHeight height of each placeholder row (default 72dp — same as a
  *   one-line `NavigationDrawerItem`). Override per-screen to match real row
  *   geometry when known.
- * @param modifier outer modifier; pass `Modifier.padding(paddingValues)` from
- *   the scaffold so the skeleton offsets for the top bar like real content does.
+ * @param modifier outer modifier. Do not pass a [HermesScaffold] content
+ *   lambda's padding values; HermesScaffold already applies scaffold insets.
  */
 @Composable
 fun SkeletonListState(

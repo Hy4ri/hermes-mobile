@@ -206,14 +206,14 @@ fun FilesScreen(
         Box(modifier = Modifier.fillMaxSize()) {
             when {
                 state.isLoading && !hasEntries -> {
-                    SkeletonListState(modifier = Modifier.padding(paddingValues))
+                    SkeletonListState()
                 }
 
                 state.errorMessage != null && !hasEntries -> {
                     ErrorState(
                         message = state.errorMessage ?: "",
                         onRetry = viewModel::refresh,
-                        modifier = Modifier.padding(paddingValues),
+                        modifier = Modifier,
                     )
                 }
 
@@ -223,7 +223,7 @@ fun FilesScreen(
                         subtitle = stringResource(R.string.files_empty_desc),
                         onAction = viewModel::refresh,
                         actionLabel = stringResource(R.string.content_desc_refresh),
-                        modifier = Modifier.padding(paddingValues),
+                        modifier = Modifier,
                     )
                 }
 

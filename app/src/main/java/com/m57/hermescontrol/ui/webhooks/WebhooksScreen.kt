@@ -251,14 +251,14 @@ fun WebhooksScreen(
     ) { paddingValues ->
         when {
             state.isLoading && state.baseUrl == null -> {
-                SkeletonListState(modifier = Modifier.padding(paddingValues))
+                SkeletonListState()
             }
 
             state.errorMessage != null && state.baseUrl == null -> {
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.loadWebhooks() },
-                    modifier = Modifier.padding(paddingValues),
+                    modifier = Modifier,
                 )
             }
 

@@ -73,12 +73,11 @@ fun DetailDialog(
                 title = { Text(title, style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = NavIcon.Back(onDismiss),
                 isRefreshing = false,
-            ) { padding ->
+            ) {
                 val visibleRows = rows.filter { !it.value.isNullOrBlank() }
                 Column(
                     modifier =
                         Modifier
-                            .padding(padding)
                             .fillMaxWidth()
                             .verticalScroll(rememberScrollState())
                             .padding(16.dp),

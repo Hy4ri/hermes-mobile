@@ -95,7 +95,7 @@ fun selectLatestUpdate(
 
 private fun hasUsableApk(release: UpdateInfo): Boolean =
     !release.draft && release.apkAsset?.browserDownloadUrl?.toHttpUrlOrNull()?.let {
-        it.scheme == "http" || it.scheme == "https"
+        it.scheme == "https"
     } == true
 
 private fun isEligibleRelease(
@@ -170,6 +170,21 @@ open class AppUpdateChecker(
     private val metadataTtlMs: Long = 60_000L,
 ) {
     private val scanMutex = Mutex()
+
+    // Enforce HTTPS on each exchange, before sending a redirect request.
+    // Keep metadata requests on the caller's client; only APK downloads use this policy.
+    private val downloadClient by lazy {
+        client
+            .newBuilder()
+            // Never switch scheme on redirect; the interceptor below stays as a second guard.
+            .followSslRedirects(false)
+            .addNetworkInterceptor { chain ->
+                if (chain.request().url.scheme != "https") {
+                    throw IOException("Refusing insecure APK download redirect")
+                }
+                chain.proceed(chain.request())
+            }.build()
+    }
 
     /**
      * Fetch the newest installable release metadata.
@@ -486,7 +501,7 @@ open class AppUpdateChecker(
     /**
      * Stream a release APK asset to [dest], reporting progress 0..1 via
      * [onProgress]. True on success; false (with the partial file deleted)
-     * on any HTTP or I/O failure.
+     * on any HTTP or I/O failure. Only HTTPS URLs and redirects are accepted.
      */
     open suspend fun downloadApk(
         url: String,
@@ -497,7 +512,7 @@ open class AppUpdateChecker(
             val request =
                 try {
                     val httpUrl =
-                        url.toHttpUrlOrNull()?.takeIf { it.scheme == "http" || it.scheme == "https" }
+                        url.toHttpUrlOrNull()?.takeIf { it.scheme == "https" }
                             ?: run {
                                 failDownload(continuation, dest)
                                 return@suspendCancellableCoroutine
@@ -509,7 +524,7 @@ open class AppUpdateChecker(
                 }
             val call =
                 try {
-                    client.newCall(request)
+                    downloadClient.newCall(request)
                 } catch (_: Exception) {
                     failDownload(continuation, dest)
                     return@suspendCancellableCoroutine
@@ -534,7 +549,7 @@ open class AppUpdateChecker(
                         var succeeded = false
                         try {
                             response.use {
-                                if (response.isSuccessful) {
+                                if (response.isSuccessful && response.request.url.scheme == "https") {
                                     val body = response.body
                                     val total = body.contentLength()
                                     dest.outputStream().use { out ->

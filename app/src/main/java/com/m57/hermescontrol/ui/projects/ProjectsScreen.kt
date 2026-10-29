@@ -63,6 +63,7 @@ import com.m57.hermescontrol.ui.common.ConfirmDialog
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.FilterChipRow
+import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.ManageableItemCard
 import com.m57.hermescontrol.ui.common.NavIcon
@@ -104,9 +105,11 @@ fun ProjectsScreen(
         isRefreshing = state.isLoading && state.projects.isNotEmpty(),
         onRefresh = viewModel::load,
         actions = {
-            IconButton(onClick = { viewModel.startCreate() }) {
-                Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.projects_action_new))
-            }
+            HermesIconButton(
+                imageVector = Icons.Filled.Add,
+                label = stringResource(R.string.projects_action_new),
+                onClick = { viewModel.startCreate() },
+            )
         },
     ) {
         when {

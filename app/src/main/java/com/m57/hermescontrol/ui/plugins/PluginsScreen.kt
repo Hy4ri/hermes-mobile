@@ -60,6 +60,7 @@ import com.m57.hermescontrol.ui.common.DetailDialog
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.ExposedDropdownField
+import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.ManageableFilterRow
 import com.m57.hermescontrol.ui.common.ManageableItemCard
@@ -206,12 +207,11 @@ fun PluginsScreen(
         },
         actions = {
             if (state.selectedTab == PluginsTab.INSTALLED) {
-                IconButton(onClick = { showInstallSheet = true }) {
-                    Icon(
-                        imageVector = Icons.Default.InstallDesktop,
-                        contentDescription = stringResource(R.string.plugins_install_heading),
-                    )
-                }
+                HermesIconButton(
+                    imageVector = Icons.Default.InstallDesktop,
+                    label = stringResource(R.string.plugins_install_heading),
+                    onClick = { showInstallSheet = true },
+                )
             }
         },
     ) { _ ->

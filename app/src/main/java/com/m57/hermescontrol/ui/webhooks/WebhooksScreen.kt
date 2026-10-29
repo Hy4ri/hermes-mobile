@@ -53,6 +53,7 @@ import com.m57.hermescontrol.data.model.WebhookSubscription
 import com.m57.hermescontrol.ui.common.DetailDialog
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
+import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
@@ -241,12 +242,11 @@ fun WebhooksScreen(
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadWebhooks(forceRefresh = true) },
         actions = {
-            IconButton(onClick = { viewModel.showCreateDialog() }) {
-                Icon(
-                    imageVector = Icons.Filled.Add,
-                    contentDescription = stringResource(R.string.webhooks_action_add),
-                )
-            }
+            HermesIconButton(
+                imageVector = Icons.Filled.Add,
+                label = stringResource(R.string.webhooks_action_add),
+                onClick = { viewModel.showCreateDialog() },
+            )
         },
     ) { paddingValues ->
         when {

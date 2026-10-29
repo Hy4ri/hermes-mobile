@@ -28,7 +28,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -57,6 +56,7 @@ import com.m57.hermescontrol.data.model.Achievement
 import com.m57.hermescontrol.data.model.RecentUnlock
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
+import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
@@ -139,12 +139,11 @@ fun AchievementsScreen(
         modifier = modifier,
         actions = {
             Box {
-                IconButton(onClick = { showMenu = true }) {
-                    Icon(
-                        imageVector = Icons.Default.MoreVert,
-                        contentDescription = stringResource(R.string.achievements_menu_desc),
-                    )
-                }
+                HermesIconButton(
+                    imageVector = Icons.Default.MoreVert,
+                    label = stringResource(R.string.achievements_menu_desc),
+                    onClick = { showMenu = true },
+                )
                 DropdownMenu(
                     expanded = showMenu,
                     onDismissRequest = { showMenu = false },

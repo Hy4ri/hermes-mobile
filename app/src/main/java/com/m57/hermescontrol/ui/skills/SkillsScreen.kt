@@ -8,7 +8,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -26,6 +25,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.ToastEffect
@@ -68,12 +68,11 @@ fun SkillsScreen(
         },
         actions = {
             if (state.viewMode == SkillsViewMode.INSTALLED) {
-                IconButton(onClick = { viewModel.updateSkillsFromHub() }) {
-                    Icon(
-                        imageVector = Icons.Filled.CloudDownload,
-                        contentDescription = stringResource(R.string.content_desc_update_skills_hub),
-                    )
-                }
+                HermesIconButton(
+                    imageVector = Icons.Filled.CloudDownload,
+                    label = stringResource(R.string.content_desc_update_skills_hub),
+                    onClick = { viewModel.updateSkillsFromHub() },
+                )
             }
         },
     ) { padding ->

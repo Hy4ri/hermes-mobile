@@ -81,6 +81,7 @@ import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.common.ErrorState
+import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
@@ -320,19 +321,17 @@ fun KanbanScreen(
         title = { Text(stringResource(R.string.kanban_board_title)) },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         actions = {
-            IconButton(onClick = { showFilterSheet = true }) {
-                Icon(
-                    imageVector = Icons.Default.FilterList,
-                    contentDescription = stringResource(R.string.kanban_filter),
-                )
-            }
+            HermesIconButton(
+                imageVector = Icons.Default.FilterList,
+                label = stringResource(R.string.kanban_filter),
+                onClick = { showFilterSheet = true },
+            )
             Box {
-                IconButton(onClick = { showBoardMenu = true }) {
-                    Icon(
-                        imageVector = Icons.Default.MoreVert,
-                        contentDescription = stringResource(R.string.kanban_board_options),
-                    )
-                }
+                HermesIconButton(
+                    imageVector = Icons.Default.MoreVert,
+                    label = stringResource(R.string.kanban_board_options),
+                    onClick = { showBoardMenu = true },
+                )
                 DropdownMenu(
                     expanded = showBoardMenu,
                     onDismissRequest = { showBoardMenu = false },

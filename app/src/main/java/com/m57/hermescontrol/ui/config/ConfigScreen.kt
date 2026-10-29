@@ -70,6 +70,7 @@ import com.m57.hermescontrol.applock.PrivateExposedDropdownMenu
 import com.m57.hermescontrol.data.model.ConfigSchemaResponse
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.ExposedDropdownField
+import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
@@ -107,12 +108,11 @@ fun ConfigScreen(
         onRefresh = { viewModel.loadAll(forceRefresh = true) },
         actions = {
             if (!state.yamlMode && state.modifiedKeys.isNotEmpty()) {
-                IconButton(onClick = { viewModel.saveConfig() }) {
-                    Icon(
-                        imageVector = Icons.Filled.Save,
-                        contentDescription = stringResource(R.string.config_save_changes),
-                    )
-                }
+                HermesIconButton(
+                    imageVector = Icons.Filled.Save,
+                    label = stringResource(R.string.config_save_changes),
+                    onClick = { viewModel.saveConfig() },
+                )
             }
         },
     ) { paddingValues ->

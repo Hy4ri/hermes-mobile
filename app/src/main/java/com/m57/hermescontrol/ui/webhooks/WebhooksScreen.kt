@@ -258,7 +258,6 @@ fun WebhooksScreen(
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.loadWebhooks() },
-                    modifier = Modifier,
                 )
             }
 

@@ -234,7 +234,6 @@ fun KeysScreen(
                     ErrorState(
                         message = state.errorMessage ?: "",
                         onRetry = { viewModel.loadKeys() },
-                        modifier = Modifier,
                     )
                 }
 
@@ -244,7 +243,6 @@ fun KeysScreen(
                         subtitle = stringResource(R.string.keys_empty_desc),
                         onAction = { viewModel.loadKeys() },
                         actionLabel = stringResource(R.string.content_desc_refresh),
-                        modifier = Modifier,
                     )
                 }
 

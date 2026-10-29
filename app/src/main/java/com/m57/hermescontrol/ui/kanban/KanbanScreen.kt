@@ -438,7 +438,6 @@ fun KanbanScreen(
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.loadBoards() },
-                    modifier = Modifier,
                 )
             }
 
@@ -450,7 +449,6 @@ fun KanbanScreen(
                         Text(
                             text = state.errorMessage ?: "",
                             color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier,
                         )
                     } else {
                         Column(

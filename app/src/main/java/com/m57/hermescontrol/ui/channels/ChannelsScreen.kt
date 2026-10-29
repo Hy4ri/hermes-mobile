@@ -142,7 +142,6 @@ fun ChannelsScreen(
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.loadPlatforms() },
-                    modifier = Modifier,
                 )
             }
 
@@ -152,7 +151,6 @@ fun ChannelsScreen(
                     subtitle = stringResource(R.string.channels_empty_desc),
                     actionLabel = stringResource(R.string.empty_action_connect_telegram),
                     onAction = { viewModel.startTelegramOnboarding() },
-                    modifier = Modifier,
                 )
             }
 

@@ -125,7 +125,6 @@ fun ConfigScreen(
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.loadAll() },
-                    modifier = Modifier,
                 )
             }
 
@@ -142,7 +141,6 @@ fun ConfigScreen(
                     onYamlTextChange = viewModel::setYamlText,
                     onYamlSave = viewModel::saveYamlConfig,
                     onResetCategory = viewModel::resetCategoryToDefaults,
-                    modifier = Modifier,
                 )
             }
         }

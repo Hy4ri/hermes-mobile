@@ -106,7 +106,7 @@ class PendingSendRecoveryTest {
         }
         compose.onNodeWithTag("pending_send_recovery").performClick()
         for (id in listOf("missing", "other")) {
-            compose.onNodeWithTag("pending_retry_$id").assertIsDisplayed()
+            compose.onNodeWithTag("pending_retry_$id").performScrollTo().assertIsDisplayed()
             compose.onNodeWithTag("pending_new_conversation_$id").assertDoesNotExist()
         }
     }

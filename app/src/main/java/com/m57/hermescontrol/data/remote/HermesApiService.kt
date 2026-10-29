@@ -270,6 +270,12 @@ interface HermesApiService : KanbanApiService {
     // Archive/unarchive rides the same PATCH /api/sessions/{id} — body carries only
     // {archived} plus the mutation fence (backend SessionRename model; issue #1496).
     @PATCH("api/sessions/{id}")
+    suspend fun setSessionRead(
+        @Path("id", encoded = true) sessionId: String,
+        @Body body: SessionRenameRequest,
+    ): Response<Unit>
+
+    @PATCH("api/sessions/{id}")
     suspend fun setSessionArchived(
         @Path("id", encoded = true) sessionId: String,
         @Body body: SessionRenameRequest,

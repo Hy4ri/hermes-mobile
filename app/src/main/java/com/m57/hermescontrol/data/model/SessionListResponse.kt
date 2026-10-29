@@ -88,6 +88,14 @@ data class SessionInfo(
     // Epoch seconds of the latest message (backend-computed, present on all
     // list rows). Recency source of truth; started_at is the fallback.
     val last_active: Double? = null,
+    // Shared session-database fields (epoch seconds), set by every surface: desktop, Signal, other
+    // gateways. Null against a backend that predates them. `unread` is the backend's derived read state
+    // (`last_read_at` watermark vs `last_active`; no watermark = read), the flag desktop paints from.
+    val last_activity_at: Double? = null,
+    val last_activity_description: String? = null,
+    val last_read_at: Double? = null,
+    @Serializable(with = LenientNullableBooleanSerializer::class)
+    val unread: Boolean? = null,
     // Original root id when this row is a compression-projected tip. Branch
     // children reference the ROOT id in parent_session_id, so tree building
     // must alias this id to this row (desktop byVisibleId parity).
@@ -131,6 +139,8 @@ data class SessionRenameRequest(
     val pinned: Boolean? = null,
     val hidden: Boolean? = null,
     val archived: Boolean? = null,
+    // Read watermark: false = read now, true = unread, null = leave (backend SessionRename.unread).
+    val unread: Boolean? = null,
     // Mutation identity, as for DELETE: current backends refuse an unfenced PATCH
     // (409 client_upgrade_required). Omitted on older backends, which accept that.
     @SerialName("request_id") val requestId: String? = null,

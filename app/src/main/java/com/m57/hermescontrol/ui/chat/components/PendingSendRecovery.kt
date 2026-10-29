@@ -12,7 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Warning
@@ -105,7 +105,7 @@ fun PendingSendRecovery(
                 modifier = Modifier.weight(1f),
             )
             Icon(
-                Icons.Filled.ChevronRight,
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
                 modifier = Modifier.size(20.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,

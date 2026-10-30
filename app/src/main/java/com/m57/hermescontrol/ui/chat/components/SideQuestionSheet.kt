@@ -36,12 +36,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.applock.ModalBottomSheet
 import com.m57.hermescontrol.ui.chat.BtwUiState
 import com.m57.hermescontrol.ui.chat.MarkdownText
+import com.m57.hermescontrol.ui.common.HermesTooltip
 
 /**
  * Bottom sheet displaying a context-aware side question and its answer (issue #1015, `/btw`).
@@ -91,15 +94,17 @@ fun SideQuestionSheet(
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                 }
-                IconButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.size(32.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Close",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                HermesTooltip(stringResource(R.string.action_close)) {
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = stringResource(R.string.action_close),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
 
@@ -207,23 +212,25 @@ fun SideQuestionSheet(
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary,
                             )
-                            IconButton(
-                                onClick = {
-                                    val clipboard =
-                                        context.getSystemService(
-                                            Context.CLIPBOARD_SERVICE,
-                                        ) as? ClipboardManager
-                                    clipboard?.setPrimaryClip(ClipData.newPlainText("Side Question Answer", answer))
-                                    Toast.makeText(context, "Copied answer", Toast.LENGTH_SHORT).show()
-                                },
-                                modifier = Modifier.size(24.dp),
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.ContentCopy,
-                                    contentDescription = "Copy answer",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(16.dp),
-                                )
+                            HermesTooltip(stringResource(R.string.content_desc_copy)) {
+                                IconButton(
+                                    onClick = {
+                                        val clipboard =
+                                            context.getSystemService(
+                                                Context.CLIPBOARD_SERVICE,
+                                            ) as? ClipboardManager
+                                        clipboard?.setPrimaryClip(ClipData.newPlainText("Side Question Answer", answer))
+                                        Toast.makeText(context, "Copied answer", Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier.size(24.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ContentCopy,
+                                        contentDescription = stringResource(R.string.content_desc_copy),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                }
                             }
                         }
                         Spacer(modifier = Modifier.height(8.dp))

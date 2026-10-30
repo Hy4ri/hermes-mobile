@@ -60,6 +60,7 @@ import com.m57.hermescontrol.ui.chat.ChatConnectorsUiState
 import com.m57.hermescontrol.ui.chat.ConnectorActionState
 import com.m57.hermescontrol.ui.chat.ConnectorUiItem
 import com.m57.hermescontrol.ui.chat.ConnectorsLoadPhase
+import com.m57.hermescontrol.ui.common.HermesTooltip
 
 /**
  * Visual elements for a connector status badge.
@@ -348,27 +349,31 @@ fun SessionIntegrationsContent(
                 )
             }
 
-            IconButton(
-                onClick = onRefresh,
-                enabled = !uiState.isLoading && !isSessionBlank,
-                modifier = Modifier.testTag("session_integrations_refresh_button"),
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Refresh,
-                    contentDescription = stringResource(R.string.session_integrations_refresh),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            HermesTooltip(stringResource(R.string.session_integrations_refresh)) {
+                IconButton(
+                    onClick = onRefresh,
+                    enabled = !uiState.isLoading && !isSessionBlank,
+                    modifier = Modifier.testTag("session_integrations_refresh_button"),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Refresh,
+                        contentDescription = stringResource(R.string.session_integrations_refresh),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
 
-            IconButton(
-                onClick = onDismiss,
-                modifier = Modifier.testTag("session_integrations_close_button"),
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Close,
-                    contentDescription = stringResource(R.string.session_integrations_close),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            HermesTooltip(stringResource(R.string.session_integrations_close)) {
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.testTag("session_integrations_close_button"),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = stringResource(R.string.session_integrations_close),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
 
@@ -402,16 +407,18 @@ fun SessionIntegrationsContent(
                         color = MaterialTheme.colorScheme.onErrorContainer,
                         modifier = Modifier.weight(1f),
                     )
-                    IconButton(
-                        onClick = onClearError,
-                        modifier = Modifier.size(48.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Close,
-                            contentDescription = stringResource(R.string.session_integrations_close),
-                            tint = MaterialTheme.colorScheme.onErrorContainer,
-                            modifier = Modifier.size(24.dp),
-                        )
+                    HermesTooltip(stringResource(R.string.session_integrations_close)) {
+                        IconButton(
+                            onClick = onClearError,
+                            modifier = Modifier.size(48.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = stringResource(R.string.session_integrations_close),
+                                tint = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.size(24.dp),
+                            )
+                        }
                     }
                 }
             }

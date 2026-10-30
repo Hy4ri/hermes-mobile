@@ -79,6 +79,7 @@ import com.m57.hermescontrol.ui.chat.SubagentControlState
 import com.m57.hermescontrol.ui.chat.SubagentIndicator
 import com.m57.hermescontrol.ui.chat.SubagentTranscriptUiState
 import com.m57.hermescontrol.ui.chat.TodoItem
+import com.m57.hermescontrol.ui.common.HermesTooltip
 
 /**
  * Inspection sheet displaying active & completed subagent tasks and agent todos (issue #1030).
@@ -159,11 +160,13 @@ fun SubagentInspectionSheet(
                     )
                 }
 
-                IconButton(onClick = onDismiss) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Close",
-                    )
+                HermesTooltip(stringResource(R.string.action_close)) {
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = stringResource(R.string.action_close),
+                        )
+                    }
                 }
             }
 
@@ -353,15 +356,17 @@ private fun ProcessInspectionCard(
                 if (isKilling) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                 } else {
-                    IconButton(
-                        onClick = onKill,
-                        modifier = Modifier.size(36.dp).testTag("process_kill_${process.sessionId}"),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Stop,
-                            contentDescription = stringResource(R.string.processes_kill_cd),
-                            tint = LocalHermesStatusColors.current.error,
-                        )
+                    HermesTooltip(stringResource(R.string.processes_kill_cd)) {
+                        IconButton(
+                            onClick = onKill,
+                            modifier = Modifier.size(36.dp).testTag("process_kill_${process.sessionId}"),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Stop,
+                                contentDescription = stringResource(R.string.processes_kill_cd),
+                                tint = LocalHermesStatusColors.current.error,
+                            )
+                        }
                     }
                 }
             }
@@ -912,26 +917,28 @@ private fun InspectionItemCard(
                                 textStyle = MaterialTheme.typography.bodySmall,
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            IconButton(
-                                onClick = {
-                                    if (controlsEnabled && steerText.isNotBlank()) {
-                                        onSteer?.invoke(steerText)
-                                        steerText = ""
-                                        showSteerInput = false
-                                    }
-                                },
-                                enabled = controlsEnabled && steerText.isNotBlank(),
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.Send,
-                                    contentDescription = stringResource(R.string.subagent_action_steer),
-                                    tint =
+                            HermesTooltip(stringResource(R.string.subagent_action_steer)) {
+                                IconButton(
+                                    onClick = {
                                         if (controlsEnabled && steerText.isNotBlank()) {
-                                            MaterialTheme.colorScheme.primary
-                                        } else {
-                                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                                        },
-                                )
+                                            onSteer?.invoke(steerText)
+                                            steerText = ""
+                                            showSteerInput = false
+                                        }
+                                    },
+                                    enabled = controlsEnabled && steerText.isNotBlank(),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.Send,
+                                        contentDescription = stringResource(R.string.subagent_action_steer),
+                                        tint =
+                                            if (controlsEnabled && steerText.isNotBlank()) {
+                                                MaterialTheme.colorScheme.primary
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                            },
+                                    )
+                                }
                             }
                         }
                     }
@@ -1106,16 +1113,18 @@ private fun SubagentTranscriptView(
                                 color = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.weight(1f),
                             )
-                            IconButton(
-                                onClick = onRetry,
-                                modifier = Modifier.size(24.dp),
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Autorenew,
-                                    contentDescription = stringResource(R.string.subagent_transcript_retry),
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(16.dp),
-                                )
+                            HermesTooltip(stringResource(R.string.subagent_transcript_retry)) {
+                                IconButton(
+                                    onClick = onRetry,
+                                    modifier = Modifier.size(24.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Autorenew,
+                                        contentDescription = stringResource(R.string.subagent_transcript_retry),
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                }
                             }
                         }
                     }

@@ -27,7 +27,6 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -52,6 +51,7 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
+import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
@@ -152,27 +152,23 @@ fun LogsScreen(
         onRefresh = { viewModel.loadLogs(forceRefresh = true) },
         actions = {
             // Pause / Resume toggle
-            IconButton(onClick = { pauseScroll = !pauseScroll }) {
-                Icon(
-                    imageVector = if (pauseScroll) Icons.Filled.PlayArrow else Icons.Filled.Pause,
-                    contentDescription =
-                        stringResource(
-                            if (pauseScroll) R.string.logs_action_resume else R.string.logs_action_pause,
-                        ),
-                )
-            }
+            HermesIconButton(
+                imageVector = if (pauseScroll) Icons.Filled.PlayArrow else Icons.Filled.Pause,
+                label =
+                    stringResource(
+                        if (pauseScroll) R.string.logs_action_resume else R.string.logs_action_pause,
+                    ),
+                onClick = { pauseScroll = !pauseScroll },
+            )
             // Share / Export
-            IconButton(
+            HermesIconButton(
+                imageVector = Icons.Filled.Share,
+                label = stringResource(R.string.logs_action_export),
                 onClick = {
                     shareLogs(context, exportText)
                 },
                 enabled = filteredLogs.isNotEmpty(),
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Share,
-                    contentDescription = stringResource(R.string.logs_action_export),
-                )
-            }
+            )
         },
     ) {
         when {

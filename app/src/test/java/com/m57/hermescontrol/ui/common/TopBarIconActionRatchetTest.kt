@@ -67,6 +67,10 @@ class TopBarIconActionRatchetTest {
                 "ui/common/HermesScaffold.kt",
                 "ui/sessions/SessionsScreen.kt",
                 "ui/chat/ChatScreen.kt",
+                "ui/logs/LogsScreen.kt",
+                "ui/skills/SkillsScreen.kt",
+                "ui/achievements/AchievementsScreen.kt",
+                "ui/bots/group/GroupChatScreen.kt",
             )
 
         fun countRawIconButtons(

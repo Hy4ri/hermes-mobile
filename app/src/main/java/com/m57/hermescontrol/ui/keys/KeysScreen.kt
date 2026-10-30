@@ -93,6 +93,7 @@ import com.m57.hermescontrol.data.model.EnvVarConfig
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
+import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
@@ -216,12 +217,11 @@ fun KeysScreen(
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadKeys(forceRefresh = true) },
         actions = {
-            IconButton(onClick = { viewModel.openAddDialog() }) {
-                Icon(
-                    imageVector = Icons.Filled.Add,
-                    contentDescription = stringResource(R.string.content_desc_add_key),
-                )
-            }
+            HermesIconButton(
+                imageVector = Icons.Filled.Add,
+                label = stringResource(R.string.content_desc_add_key),
+                onClick = { viewModel.openAddDialog() },
+            )
         },
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize()) {

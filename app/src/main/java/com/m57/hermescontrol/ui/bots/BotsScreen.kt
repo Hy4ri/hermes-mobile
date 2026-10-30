@@ -74,6 +74,7 @@ import com.m57.hermescontrol.data.model.ProfileInfo
 import com.m57.hermescontrol.ui.common.BotAvatar
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
+import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SkeletonListState
@@ -236,54 +237,44 @@ fun BotsScreen(
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         actions = {
             if (!isSearchActive) {
-                IconButton(
+                HermesIconButton(
+                    imageVector = Icons.Filled.GroupAdd,
+                    label = stringResource(R.string.bots_action_create_group),
                     onClick = { showCreateGroupDialog = true },
                     modifier = Modifier.testTag("bots_action_create_group"),
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.GroupAdd,
-                        contentDescription = stringResource(R.string.bots_action_create_group),
-                    )
-                }
-                IconButton(
+                )
+                HermesIconButton(
+                    imageVector = Icons.Filled.Add,
+                    label = stringResource(R.string.bots_action_create),
                     onClick = { showCreateDialog = true },
                     modifier = Modifier.testTag("bots_action_create"),
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Add,
-                        contentDescription = stringResource(R.string.bots_action_create),
-                    )
-                }
-                IconButton(
+                )
+                HermesIconButton(
+                    imageVector = Icons.Filled.Search,
+                    label = stringResource(R.string.bots_search_placeholder),
                     onClick = { isSearchActive = true },
                     modifier = Modifier.testTag("bots_action_search"),
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Search,
-                        contentDescription = stringResource(R.string.bots_search_placeholder),
-                    )
-                }
+                )
             }
             if (state.hasHiddenBots) {
-                IconButton(
+                HermesIconButton(
+                    imageVector =
+                        if (state.showHidden) {
+                            Icons.Filled.VisibilityOff
+                        } else {
+                            Icons.Filled.Visibility
+                        },
+                    label =
+                        stringResource(
+                            if (state.showHidden) {
+                                R.string.bots_hide_hidden
+                            } else {
+                                R.string.bots_show_hidden
+                            },
+                        ),
                     onClick = { viewModel.toggleShowHidden() },
                     modifier = Modifier.testTag("bots_action_toggle_hidden"),
-                ) {
-                    Icon(
-                        imageVector =
-                            if (state.showHidden) {
-                                Icons.Filled.VisibilityOff
-                            } else {
-                                Icons.Filled.Visibility
-                            },
-                        contentDescription =
-                            if (state.showHidden) {
-                                stringResource(R.string.bots_hide_hidden)
-                            } else {
-                                stringResource(R.string.bots_show_hidden)
-                            },
-                    )
-                }
+                )
             }
         },
         isRefreshing = state.isRefreshing,

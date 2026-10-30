@@ -63,6 +63,7 @@ import com.m57.hermescontrol.data.model.ManagedFileEntry
 import com.m57.hermescontrol.ui.chat.normalizeFrameworkMime
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
+import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SkeletonListState
@@ -169,12 +170,11 @@ fun FilesScreen(
         onRefresh = viewModel::refresh,
         actions = {
             if (state.parentPath != null) {
-                IconButton(onClick = viewModel::navigateUp) {
-                    Icon(
-                        imageVector = Icons.Filled.ArrowUpward,
-                        contentDescription = stringResource(R.string.files_action_up),
-                    )
-                }
+                HermesIconButton(
+                    imageVector = Icons.Filled.ArrowUpward,
+                    label = stringResource(R.string.files_action_up),
+                    onClick = viewModel::navigateUp,
+                )
             }
             IconButton(
                 onClick = { uploadLauncher.launch("*/*") },

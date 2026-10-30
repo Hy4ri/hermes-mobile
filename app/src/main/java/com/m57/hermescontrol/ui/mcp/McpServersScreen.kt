@@ -42,6 +42,7 @@ import com.m57.hermescontrol.data.model.McpServer
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
+import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.ManageableFilterRow
 import com.m57.hermescontrol.ui.common.NavIcon
@@ -59,18 +60,16 @@ import com.m57.hermescontrol.ui.mcp.components.ServerCard
 fun McpServersActions(viewModel: McpServersViewModel) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     if (state.selectedTab == McpTab.INSTALLED) {
-        IconButton(onClick = { viewModel.toggleAddForm() }) {
-            Icon(
-                imageVector = if (state.showAddForm) Icons.Filled.Close else Icons.Filled.Add,
-                contentDescription = stringResource(R.string.mcp_servers_add_server),
-            )
-        }
-        IconButton(onClick = { viewModel.toggleImportDialog() }) {
-            Icon(
-                imageVector = Icons.Filled.UploadFile,
-                contentDescription = stringResource(R.string.mcp_servers_action_import_json),
-            )
-        }
+        HermesIconButton(
+            imageVector = if (state.showAddForm) Icons.Filled.Close else Icons.Filled.Add,
+            label = stringResource(R.string.mcp_servers_add_server),
+            onClick = { viewModel.toggleAddForm() },
+        )
+        HermesIconButton(
+            imageVector = Icons.Filled.UploadFile,
+            label = stringResource(R.string.mcp_servers_action_import_json),
+            onClick = { viewModel.toggleImportDialog() },
+        )
         IconButton(
             onClick = { viewModel.testAllServers() },
             enabled = !state.isTestingAll && state.servers.any { it.enabled },

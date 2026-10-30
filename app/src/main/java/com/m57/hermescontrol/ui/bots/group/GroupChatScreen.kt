@@ -51,8 +51,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
@@ -107,6 +105,7 @@ import com.m57.hermescontrol.ui.chat.formatTimestamp
 import com.m57.hermescontrol.ui.common.BotAvatar
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
+import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SkeletonListState
@@ -193,26 +192,20 @@ fun GroupChatScreen(
         navigationIcon = NavIcon.Back(onBack),
         actions = {
             if (state.activeSpeaker != null) {
-                IconButton(
+                HermesIconButton(
+                    imageVector = Icons.Filled.Stop,
+                    label = stringResource(R.string.group_chat_action_stop),
                     onClick = { viewModel.stopGeneration() },
                     modifier = Modifier.testTag("group_chat_stop_button"),
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Stop,
-                        contentDescription = stringResource(R.string.group_chat_action_stop),
-                        tint = MaterialTheme.colorScheme.error,
-                    )
-                }
-            }
-            IconButton(
-                onClick = { showSettingsDialog = true },
-                modifier = Modifier.testTag("group_chat_settings_button"),
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Settings,
-                    contentDescription = stringResource(R.string.group_chat_action_settings),
+                    tint = MaterialTheme.colorScheme.error,
                 )
             }
+            HermesIconButton(
+                imageVector = Icons.Filled.Settings,
+                label = stringResource(R.string.group_chat_action_settings),
+                onClick = { showSettingsDialog = true },
+                modifier = Modifier.testTag("group_chat_settings_button"),
+            )
         },
         modifier = modifier,
     ) {

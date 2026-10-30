@@ -65,6 +65,7 @@ import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.ExposedDropdownField
+import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.NavIcon
@@ -101,12 +102,11 @@ fun CronJobsScreen(
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadCronJobs(forceRefresh = true) },
         actions = {
-            IconButton(onClick = { viewModel.openNewJobDialog() }) {
-                Icon(
-                    imageVector = Icons.Filled.Add,
-                    contentDescription = stringResource(R.string.cron_action_add),
-                )
-            }
+            HermesIconButton(
+                imageVector = Icons.Filled.Add,
+                label = stringResource(R.string.cron_action_add),
+                onClick = { viewModel.openNewJobDialog() },
+            )
         },
     ) {
         when {

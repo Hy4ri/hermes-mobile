@@ -73,6 +73,7 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.profilelock.ProfileLockSetDialog
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
+import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SkeletonListState
@@ -168,37 +169,33 @@ fun ProfilesScreen(
         actions = {
             if (!isBuildingProfile) {
                 if (state.hasHiddenProfiles) {
-                    IconButton(
+                    HermesIconButton(
+                        imageVector =
+                            if (state.showHidden) {
+                                Icons.Default.VisibilityOff
+                            } else {
+                                Icons.Default.Visibility
+                            },
+                        label =
+                            stringResource(
+                                if (state.showHidden) {
+                                    R.string.profiles_hide_hidden
+                                } else {
+                                    R.string.profiles_show_hidden
+                                },
+                            ),
                         onClick = { viewModel.toggleShowHidden() },
                         modifier = Modifier.testTag("profiles_action_toggle_hidden"),
-                    ) {
-                        Icon(
-                            imageVector =
-                                if (state.showHidden) {
-                                    Icons.Default.VisibilityOff
-                                } else {
-                                    Icons.Default.Visibility
-                                },
-                            contentDescription =
-                                stringResource(
-                                    if (state.showHidden) {
-                                        R.string.profiles_hide_hidden
-                                    } else {
-                                        R.string.profiles_show_hidden
-                                    },
-                                ),
-                        )
-                    }
-                }
-                IconButton(onClick = {
-                    isBuildingProfile = true
-                    viewModel.loadBuilderData()
-                }) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = stringResource(R.string.profiles_create),
                     )
                 }
+                HermesIconButton(
+                    imageVector = Icons.Default.Add,
+                    label = stringResource(R.string.profiles_create),
+                    onClick = {
+                        isBuildingProfile = true
+                        viewModel.loadBuilderData()
+                    },
+                )
             }
         },
     ) { paddingValues ->

@@ -89,6 +89,7 @@ import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.chat.MarkdownText
 import com.m57.hermescontrol.ui.common.ErrorState
+import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SkeletonListState
@@ -148,13 +149,12 @@ fun KanbanTaskScreen(
         },
         navigationIcon = NavIcon.Back(onBack),
         actions = {
-            IconButton(onClick = { showDeleteDialog = true }) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = stringResource(R.string.kanban_delete_task),
-                    tint = MaterialTheme.colorScheme.error,
-                )
-            }
+            HermesIconButton(
+                imageVector = Icons.Default.Delete,
+                label = stringResource(R.string.kanban_delete_task),
+                onClick = { showDeleteDialog = true },
+                tint = MaterialTheme.colorScheme.error,
+            )
         },
         drawerGesturesEnabled = false,
         isRefreshing = state.isLoading,

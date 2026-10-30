@@ -33,6 +33,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.data.model.reasoningSupport
+import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.kanban.KanbanModelOverride
 import com.m57.hermescontrol.ui.kanban.supportedKanbanReasoningEfforts
 import com.m57.hermescontrol.ui.model.components.ModelPickerDialog
@@ -102,16 +103,18 @@ fun KanbanModelOverrideEditor(
                 }
 
                 if (!override.isInherited && enabled) {
-                    IconButton(
-                        onClick = { onOverrideChange(override.copy(model = "", provider = "")) },
-                        modifier = Modifier.size(40.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = stringResource(R.string.kanban_model_clear),
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                    HermesTooltip(stringResource(R.string.kanban_model_clear)) {
+                        IconButton(
+                            onClick = { onOverrideChange(override.copy(model = "", provider = "")) },
+                            modifier = Modifier.size(40.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = stringResource(R.string.kanban_model_clear),
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             }

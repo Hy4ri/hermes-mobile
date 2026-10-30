@@ -41,6 +41,7 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.common.ManageableFilterRow
 import com.m57.hermescontrol.ui.common.ManageableItemCard
 import com.m57.hermescontrol.ui.common.ManageableToggle
@@ -121,11 +122,13 @@ fun ToolsetsScreen(
                         ) {
                             Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)
                             Spacer(modifier = Modifier.height(16.dp))
-                            IconButton(onClick = { viewModel.loadToolsets() }) {
-                                Icon(
-                                    imageVector = Icons.Filled.Refresh,
-                                    contentDescription = stringResource(R.string.action_retry),
-                                )
+                            HermesTooltip(stringResource(R.string.action_retry)) {
+                                IconButton(onClick = { viewModel.loadToolsets() }) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Refresh,
+                                        contentDescription = stringResource(R.string.action_retry),
+                                    )
+                                }
                             }
                         }
                     } else {

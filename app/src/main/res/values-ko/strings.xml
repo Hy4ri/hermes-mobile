@@ -1050,6 +1050,7 @@
     <string name="action_dismiss">닫기</string>
     <string name="action_done">완료</string>
     <string name="action_close">닫기</string>
+    <string name="action_remove">제거</string>
 
     <!-- Processes Screen -->
     <string name="processes_kill_title">프로세스 종료?</string>

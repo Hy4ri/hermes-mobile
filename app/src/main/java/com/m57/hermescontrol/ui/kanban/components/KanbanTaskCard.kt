@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.KanbanTask
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
+import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.kanban.KanbanArcState
 import com.m57.hermescontrol.ui.kanban.KanbanRuntimeHelper
 
@@ -147,16 +148,18 @@ fun KanbanTaskCard(
                     )
                     if (onActionClick != null) {
                         Spacer(modifier = Modifier.width(4.dp))
-                        IconButton(
-                            onClick = { onActionClick(task) },
-                            modifier = Modifier.size(24.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.MoreVert,
-                                contentDescription = stringResource(R.string.kanban_task_actions),
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                        HermesTooltip(stringResource(R.string.kanban_task_actions)) {
+                            IconButton(
+                                onClick = { onActionClick(task) },
+                                modifier = Modifier.size(24.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = stringResource(R.string.kanban_task_actions),
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     }
                 }

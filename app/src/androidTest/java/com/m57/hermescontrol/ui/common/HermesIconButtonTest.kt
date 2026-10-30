@@ -2,6 +2,8 @@ package com.m57.hermescontrol.ui.common
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -76,5 +78,23 @@ class HermesIconButtonTest {
 
         // One node announces the label: no duplicate TalkBack description.
         composeTestRule.onAllNodesWithContentDescription("Refresh").assertCountEquals(1)
+    }
+
+    @Test
+    fun hermesTooltip_longPressShowsLabel_andKeepsInnerDescriptionSingle() {
+        composeTestRule.setContent {
+            HermesControlTheme {
+                HermesTooltip("Delete") {
+                    IconButton(onClick = {}) {
+                        Icon(Icons.Filled.Refresh, contentDescription = "Delete")
+                    }
+                }
+            }
+        }
+
+        composeTestRule.onAllNodesWithContentDescription("Delete").assertCountEquals(1)
+        composeTestRule.onNodeWithText("Delete").assertDoesNotExist()
+        composeTestRule.onNodeWithContentDescription("Delete").performTouchInput { longClick() }
+        composeTestRule.onNodeWithText("Delete").assertIsDisplayed()
     }
 }

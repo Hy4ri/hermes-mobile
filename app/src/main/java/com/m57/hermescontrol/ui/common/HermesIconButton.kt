@@ -16,6 +16,28 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 
 /**
+ * Long-press/hover tooltip anchored below [content]. Use it directly for icon
+ * actions that are not a plain [HermesIconButton] (progress swaps, tonal or
+ * outlined buttons, toggles) so they share the same tooltip (#1651). The
+ * wrapped control keeps its own accessibility description.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HermesTooltip(
+    label: String,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Below),
+        tooltip = { PlainTooltip { Text(label) } },
+        state = rememberTooltipState(),
+        modifier = modifier,
+        content = content,
+    )
+}
+
+/**
  * Icon-only top-bar action with a single localized [label] that is both its
  * long-press/hover tooltip and its accessibility description (#1651).
  *
@@ -24,7 +46,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
  * announcing the same label — one string, two affordances, no drift.
  * Optional [tint] defaults to [LocalContentColor.current] (e.g. error tint for destructive actions).
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HermesIconButton(
     imageVector: ImageVector,
@@ -34,11 +55,7 @@ fun HermesIconButton(
     enabled: Boolean = true,
     tint: Color = LocalContentColor.current,
 ) {
-    TooltipBox(
-        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Below),
-        tooltip = { PlainTooltip { Text(label) } },
-        state = rememberTooltipState(),
-    ) {
+    HermesTooltip(label) {
         IconButton(
             onClick = onClick,
             modifier = modifier,

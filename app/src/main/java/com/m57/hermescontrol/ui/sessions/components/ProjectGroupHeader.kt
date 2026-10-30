@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.theme.parseProjectColor
+import com.m57.hermescontrol.ui.common.HermesTooltip
 
 /** Collapsible History group header: the project's color dot, its name and how many chats it holds. */
 @Composable
@@ -65,13 +66,15 @@ fun ProjectGroupHeader(
             modifier = Modifier.weight(1f),
         )
         if (onNewChat != null) {
-            IconButton(onClick = onNewChat, modifier = Modifier.size(32.dp)) {
-                Icon(
-                    imageVector = Icons.Filled.Add,
-                    contentDescription = stringResource(R.string.sessions_project_new_chat, label),
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp),
-                )
+            HermesTooltip(stringResource(R.string.sessions_project_new_chat, label)) {
+                IconButton(onClick = onNewChat, modifier = Modifier.size(32.dp)) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = stringResource(R.string.sessions_project_new_chat, label),
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
             }
         }
         Icon(

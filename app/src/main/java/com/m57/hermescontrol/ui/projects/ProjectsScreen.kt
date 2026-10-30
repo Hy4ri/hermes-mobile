@@ -65,6 +65,7 @@ import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.FilterChipRow
 import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.common.ManageableItemCard
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
@@ -297,29 +298,40 @@ private fun ProjectCard(
             project.folders.forEach { folder ->
                 val primary = folder.isPrimary == true
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(
-                        onClick = { onSetPrimary(folder.path) },
-                        enabled = !busy && !primary,
-                        modifier = Modifier.size(36.dp),
-                    ) {
-                        Icon(
-                            if (primary) Icons.Filled.Star else Icons.Filled.StarBorder,
-                            contentDescription =
-                                stringResource(
-                                    if (primary) {
-                                        R.string.projects_folder_primary
-                                    } else {
-                                        R.string.projects_folder_make_primary
-                                    },
-                                ),
-                            tint =
+                    HermesTooltip(
+                        label =
+                            stringResource(
                                 if (primary) {
-                                    MaterialTheme.colorScheme.primary
+                                    R.string.projects_folder_primary
                                 } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                    R.string.projects_folder_make_primary
                                 },
-                            modifier = Modifier.size(18.dp),
-                        )
+                            ),
+                    ) {
+                        IconButton(
+                            onClick = { onSetPrimary(folder.path) },
+                            enabled = !busy && !primary,
+                            modifier = Modifier.size(36.dp),
+                        ) {
+                            Icon(
+                                if (primary) Icons.Filled.Star else Icons.Filled.StarBorder,
+                                contentDescription =
+                                    stringResource(
+                                        if (primary) {
+                                            R.string.projects_folder_primary
+                                        } else {
+                                            R.string.projects_folder_make_primary
+                                        },
+                                    ),
+                                tint =
+                                    if (primary) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
                     }
                     Text(
                         folder.path,
@@ -328,16 +340,18 @@ private fun ProjectCard(
                         overflow = TextOverflow.StartEllipsis,
                         modifier = Modifier.weight(1f).padding(horizontal = spacing.xs),
                     )
-                    IconButton(
-                        onClick = { onRemoveFolder(folder.path) },
-                        enabled = !busy,
-                        modifier = Modifier.size(36.dp),
-                    ) {
-                        Icon(
-                            Icons.Filled.Close,
-                            contentDescription = stringResource(R.string.projects_folder_remove, folder.path),
-                            modifier = Modifier.size(18.dp),
-                        )
+                    HermesTooltip(stringResource(R.string.projects_folder_remove, folder.path)) {
+                        IconButton(
+                            onClick = { onRemoveFolder(folder.path) },
+                            enabled = !busy,
+                            modifier = Modifier.size(36.dp),
+                        ) {
+                            Icon(
+                                Icons.Filled.Close,
+                                contentDescription = stringResource(R.string.projects_folder_remove, folder.path),
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
                     }
                 }
             }
@@ -439,14 +453,16 @@ private fun ProjectEditorSheet(
                     singleLine = true,
                     textStyle = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Ltr),
                     trailingIcon = {
-                        IconButton(
-                            onClick = { showFolderPicker = true },
-                            modifier = Modifier.testTag("project_folder_browse_button"),
-                        ) {
-                            Icon(
-                                Icons.Filled.Folder,
-                                contentDescription = stringResource(R.string.projects_action_browse_folder),
-                            )
+                        HermesTooltip(stringResource(R.string.projects_action_browse_folder)) {
+                            IconButton(
+                                onClick = { showFolderPicker = true },
+                                modifier = Modifier.testTag("project_folder_browse_button"),
+                            ) {
+                                Icon(
+                                    Icons.Filled.Folder,
+                                    contentDescription = stringResource(R.string.projects_action_browse_folder),
+                                )
+                            }
                         }
                     },
                     modifier = Modifier.fillMaxWidth().testTag("project_folder_field"),
@@ -584,14 +600,16 @@ private fun AddFolderDialog(
                     singleLine = true,
                     textStyle = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Ltr),
                     trailingIcon = {
-                        IconButton(
-                            onClick = { showFolderPicker = true },
-                            modifier = Modifier.testTag("add_folder_browse_button"),
-                        ) {
-                            Icon(
-                                Icons.Filled.Folder,
-                                contentDescription = stringResource(R.string.projects_action_browse_folder),
-                            )
+                        HermesTooltip(stringResource(R.string.projects_action_browse_folder)) {
+                            IconButton(
+                                onClick = { showFolderPicker = true },
+                                modifier = Modifier.testTag("add_folder_browse_button"),
+                            ) {
+                                Icon(
+                                    Icons.Filled.Folder,
+                                    contentDescription = stringResource(R.string.projects_action_browse_folder),
+                                )
+                            }
                         }
                     },
                 )

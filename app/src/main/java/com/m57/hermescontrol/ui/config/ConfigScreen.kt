@@ -72,6 +72,7 @@ import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.ExposedDropdownField
 import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
 import com.m57.hermescontrol.ui.common.SkeletonListState
@@ -776,16 +777,18 @@ private fun CompactIconButton(
     contentDescription: String,
     onClick: () -> Unit,
 ) {
-    Icon(
-        imageVector = icon,
-        contentDescription = contentDescription,
-        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier =
-            Modifier
-                .padding(start = 4.dp)
-                .size(18.dp)
-                .clickable(onClick = onClick),
-    )
+    HermesTooltip(contentDescription) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier =
+                Modifier
+                    .padding(start = 4.dp)
+                    .size(18.dp)
+                    .clickable(onClick = onClick),
+        )
+    }
 }
 
 /**

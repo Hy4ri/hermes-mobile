@@ -1191,6 +1191,7 @@
     <string name="action_dismiss">忽略</string>
     <string name="action_done">完成</string>
     <string name="action_close">关闭</string>
+    <string name="action_remove">移除</string>
     <string name="update_notice_banner_text">Hermes Mobile %1$s 已可用</string>
     <string name="update_notice_banner_action">更新</string>
     <string name="processes_kill_title">结束进程？</string>

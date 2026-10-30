@@ -1427,6 +1427,7 @@
     <string name="action_dismiss">Descartar</string>
     <string name="action_done">Hecho</string>
     <string name="action_close">Cerrar</string>
+    <string name="action_remove">Quitar</string>
 
     <!-- Update notice banner (issue #890) -->
     <string name="update_notice_banner_text">Hermes Mobile%1$sestá disponible</string>

@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.HubSkill
 import com.m57.hermescontrol.data.model.Skill
+import com.m57.hermescontrol.ui.common.HermesTooltip
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -162,17 +163,19 @@ fun SkillsStep(
                     singleLine = true,
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                IconButton(
-                    onClick = { onSearchHub(hubSearchQuery) },
-                    enabled = hubSearchQuery.isNotBlank() && !isSearchingHub,
-                ) {
-                    if (isSearchingHub) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = "Search",
-                        )
+                HermesTooltip(stringResource(R.string.chat_action_search)) {
+                    IconButton(
+                        onClick = { onSearchHub(hubSearchQuery) },
+                        enabled = hubSearchQuery.isNotBlank() && !isSearchingHub,
+                    ) {
+                        if (isSearchingHub) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = stringResource(R.string.chat_action_search),
+                            )
+                        }
                     }
                 }
             }
@@ -205,15 +208,17 @@ fun SkillsStep(
                                 text = skillName,
                                 style = MaterialTheme.typography.bodyMedium,
                             )
-                            IconButton(
-                                onClick = { onAddedHubSkillsChange(addedHubSkills - skillName) },
-                                modifier = Modifier.size(24.dp),
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Remove",
-                                    modifier = Modifier.size(16.dp),
-                                )
+                            HermesTooltip(stringResource(R.string.action_remove)) {
+                                IconButton(
+                                    onClick = { onAddedHubSkillsChange(addedHubSkills - skillName) },
+                                    modifier = Modifier.size(24.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = stringResource(R.string.action_remove),
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                }
                             }
                         }
                     }
@@ -285,7 +290,7 @@ fun SkillsStep(
                                 if (isAdded) {
                                     Icon(
                                         imageVector = Icons.Default.Delete,
-                                        contentDescription = "Remove",
+                                        contentDescription = stringResource(R.string.action_remove),
                                         modifier = Modifier.size(16.dp),
                                     )
                                 } else {

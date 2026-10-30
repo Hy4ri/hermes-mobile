@@ -41,6 +41,46 @@ class TopBarIconActionRatchetTest {
     }
 
     @Test
+    fun everyIconButtonOutsideTheExclusionsIsWrappedInATooltip() {
+        val rootDir = resolveMainJavaRoot()
+        val uiDir = File(rootDir, "ui")
+        val offenders =
+            uiDir
+                .walkTopDown()
+                .filter { it.isFile && it.extension == "kt" }
+                .map { it to it.relativeTo(rootDir).invariantSeparatorsPath }
+                .filter { (_, rel) -> rel !in TOOLTIP_EXCLUSIONS && rel !in MIGRATED_TOP_BARS }
+                .flatMap { (file, rel) ->
+                    val cleaned = stripCommentsAndStrings(file.readText())
+                    val raw = countRawIconButtons(cleaned, rel).size
+                    val wrapped = Regex("""\bHermesTooltip\(""").findAll(cleaned).count()
+                    if (raw >
+                        wrapped
+                    ) {
+                        sequenceOf("$rel: $raw raw IconButton( vs $wrapped HermesTooltip(")
+                    } else {
+                        emptySequence()
+                    }
+                }.toList()
+
+        assertEquals(
+            "IconButton( without a matching HermesTooltip( wrapper — use HermesIconButton or wrap " +
+                "the button in HermesTooltip so it gets a long-press tooltip (#1651). If the file " +
+                "must stay raw, add it to TOOLTIP_EXCLUSIONS with a reason:",
+            emptyList<String>(),
+            offenders,
+        )
+    }
+
+    @Test
+    fun exclusionsPointAtExistingFiles() {
+        val rootDir = resolveMainJavaRoot()
+        TOOLTIP_EXCLUSIONS.keys.forEach { rel ->
+            assertTrue("Stale exclusion: $rel", File(rootDir, rel).isFile)
+        }
+    }
+
+    @Test
     fun scannerSelfTestDetectsRawCallsAndIgnoresWrappedAndCommentedOnes() {
         val sample =
             """
@@ -73,12 +113,80 @@ class TopBarIconActionRatchetTest {
                 "ui/bots/group/GroupChatScreen.kt",
             )
 
+        /**
+         * Files that deliberately keep raw icon buttons, with the reason. Chat composer,
+         * message bubbles, and viewers are a separate card (high-traffic UI).
+         */
+        val TOOLTIP_EXCLUSIONS: Map<String, String> =
+            mapOf(
+                "ui/common/AppUpdateDialog.kt" to
+                    "Dialog or sheet: migrated in the follow-up PR",
+                "ui/common/WhatsNewDialog.kt" to
+                    "Dialog or sheet: migrated in the follow-up PR",
+                "ui/channels/components/TelegramOnboardingDialog.kt" to
+                    "Dialog or sheet: migrated in the follow-up PR",
+                "ui/chat/components/SessionIntegrationsSheet.kt" to
+                    "Dialog or sheet: migrated in the follow-up PR",
+                "ui/chat/components/SideQuestionSheet.kt" to
+                    "Dialog or sheet: migrated in the follow-up PR",
+                "ui/chat/components/SubagentInspectionSheet.kt" to
+                    "Dialog or sheet: migrated in the follow-up PR",
+                "ui/kanban/components/KanbanOrchestrationDialog.kt" to
+                    "Dialog or sheet: migrated in the follow-up PR",
+                "ui/model/components/MoaConfigDialog.kt" to
+                    "Dialog or sheet: migrated in the follow-up PR",
+                "ui/model/components/ModelPickerDialog.kt" to
+                    "Dialog or sheet: migrated in the follow-up PR",
+                "ui/projects/RemoteFolderPickerDialog.kt" to
+                    "Dialog or sheet: migrated in the follow-up PR",
+                "ui/skills/components/SkillEditorDialog.kt" to
+                    "Dialog or sheet: migrated in the follow-up PR",
+                "ui/chat/InlineAttachment.kt" to
+                    "Chat composer, bubble, or viewer: separate card (#1651 phase 4)",
+                "ui/chat/fullbleed/FullBleedAgentMessage.kt" to
+                    "Chat composer, bubble, or viewer: separate card (#1651 phase 4)",
+                "ui/chat/ToolBubble.kt" to
+                    "Chat composer, bubble, or viewer: separate card (#1651 phase 4)",
+                "ui/chat/UserBubble.kt" to
+                    "Chat composer, bubble, or viewer: separate card (#1651 phase 4)",
+                "ui/chat/components/ChatComposer.kt" to
+                    "Chat composer, bubble, or viewer: separate card (#1651 phase 4)",
+                "ui/chat/components/ComposerToolbar.kt" to
+                    "Chat composer, bubble, or viewer: separate card (#1651 phase 4)",
+                "ui/chat/components/ChatSearchBar.kt" to
+                    "Chat composer, bubble, or viewer: separate card (#1651 phase 4)",
+                "ui/chat/components/ClarifyDictationButton.kt" to
+                    "Chat composer, bubble, or viewer: separate card (#1651 phase 4)",
+                "ui/chat/components/CodeTerminalCard.kt" to
+                    "Chat composer, bubble, or viewer: separate card (#1651 phase 4)",
+                "ui/chat/components/MediaViewerDialog.kt" to
+                    "Chat composer, bubble, or viewer: separate card (#1651 phase 4)",
+                "ui/chat/components/ImageViewerContent.kt" to
+                    "Chat composer, bubble, or viewer: separate card (#1651 phase 4)",
+                "ui/chat/components/ReplyErrorCard.kt" to
+                    "Chat composer, bubble, or viewer: separate card (#1651 phase 4)",
+                "ui/bots/group/components/GroupChatComposer.kt" to
+                    "Chat composer, bubble, or viewer: separate card (#1651 phase 4)",
+                "ui/bots/group/components/GroupMessageCard.kt" to
+                    "Chat composer, bubble, or viewer: separate card (#1651 phase 4)",
+                "ui/authlogin/AuthLoginScreen.kt" to
+                    "Password visibility toggle has contentDescription = null",
+                "ui/settings/components/VaultSection.kt" to
+                    "Password visibility toggle has contentDescription = null",
+                "ui/chat/components/VaultPromptCards.kt" to
+                    "Password visibility toggles have contentDescription = null",
+                "ui/keys/KeysScreen.kt" to
+                    "Visibility toggles and field clear have contentDescription = null",
+                "ui/cron/CronJobsScreen.kt" to
+                    "Editor save is a text button with a progress swap, not icon-only",
+            )
+
         fun countRawIconButtons(
             code: String,
             relativePath: String,
         ): List<String> {
             val cleaned = stripCommentsAndStrings(code)
-            return Regex("""(?<!Hermes)IconButton\(""")
+            return Regex("""(?<!Hermes)(?<!Compact)IconButton\(""")
                 .findAll(cleaned)
                 .map { match ->
                     val line = cleaned.substring(0, match.range.first).count { it == '\n' } + 1

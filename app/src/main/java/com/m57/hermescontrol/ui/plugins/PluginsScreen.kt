@@ -62,6 +62,7 @@ import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.ExposedDropdownField
 import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.common.ManageableFilterRow
 import com.m57.hermescontrol.ui.common.ManageableItemCard
 import com.m57.hermescontrol.ui.common.ManageableToggle
@@ -635,21 +636,30 @@ internal fun PluginCard(
         actions = {
             // Visibility toggle (only for active plugins with dashboard manifests)
             if (plugin.installed && plugin.hasDashboardManifest) {
-                IconButton(
-                    onClick = { viewModel.togglePluginVisibility(plugin) },
-                    enabled = !busy,
-                    modifier = Modifier.size(32.dp),
+                HermesTooltip(
+                    label =
+                        if (plugin.userHidden) {
+                            stringResource(R.string.plugins_show_in_sidebar)
+                        } else {
+                            stringResource(R.string.plugins_hide_from_sidebar)
+                        },
                 ) {
-                    Icon(
-                        if (plugin.userHidden) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                        contentDescription =
-                            if (plugin.userHidden) {
-                                stringResource(R.string.plugins_show_in_sidebar)
-                            } else {
-                                stringResource(R.string.plugins_hide_from_sidebar)
-                            },
-                        modifier = Modifier.size(18.dp),
-                    )
+                    IconButton(
+                        onClick = { viewModel.togglePluginVisibility(plugin) },
+                        enabled = !busy,
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            if (plugin.userHidden) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                            contentDescription =
+                                if (plugin.userHidden) {
+                                    stringResource(R.string.plugins_show_in_sidebar)
+                                } else {
+                                    stringResource(R.string.plugins_hide_from_sidebar)
+                                },
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
                 }
             }
 

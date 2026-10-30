@@ -58,6 +58,7 @@ import com.m57.hermescontrol.data.remote.ClientCertificates
 import com.m57.hermescontrol.data.remote.ServerCaRestrictions
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.common.NavIcon
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -138,25 +139,29 @@ internal fun ClientCertificatesPage(onBack: () -> Unit) {
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
-                            IconButton(onClick = {
-                                previous = url
-                                editingTls = entry.tls
-                                editing = true
-                            }) {
-                                Icon(Icons.Filled.Edit, stringResource(R.string.mtls_edit), Modifier.size(18.dp))
+                            HermesTooltip(stringResource(R.string.mtls_edit)) {
+                                IconButton(onClick = {
+                                    previous = url
+                                    editingTls = entry.tls
+                                    editing = true
+                                }) {
+                                    Icon(Icons.Filled.Edit, stringResource(R.string.mtls_edit), Modifier.size(18.dp))
+                                }
                             }
-                            IconButton(onClick = {
-                                deleting = url
-                                deletingTls = entry.tls
-                                deleteExpected = if (entry.tls) caBindings else bindings
-                                deleteError = false
-                            }) {
-                                Icon(
-                                    Icons.Filled.Close,
-                                    stringResource(R.string.mtls_delete),
-                                    Modifier.size(18.dp),
-                                    tint = MaterialTheme.colorScheme.error,
-                                )
+                            HermesTooltip(stringResource(R.string.mtls_delete)) {
+                                IconButton(onClick = {
+                                    deleting = url
+                                    deletingTls = entry.tls
+                                    deleteExpected = if (entry.tls) caBindings else bindings
+                                    deleteError = false
+                                }) {
+                                    Icon(
+                                        Icons.Filled.Close,
+                                        stringResource(R.string.mtls_delete),
+                                        Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.error,
+                                    )
+                                }
                             }
                         }
                     }

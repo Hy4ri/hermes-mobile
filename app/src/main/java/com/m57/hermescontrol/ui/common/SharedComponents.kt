@@ -242,15 +242,17 @@ fun SearchBar(
                     innerTextField()
                 }
                 if (query.isNotEmpty()) {
-                    IconButton(
-                        onClick = { onQueryChange("") },
-                        modifier = Modifier.size(20.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Close,
-                            contentDescription = stringResource(R.string.content_desc_clear_search),
-                            modifier = Modifier.size(16.dp),
-                        )
+                    HermesTooltip(stringResource(R.string.content_desc_clear_search)) {
+                        IconButton(
+                            onClick = { onQueryChange("") },
+                            modifier = Modifier.size(20.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = stringResource(R.string.content_desc_clear_search),
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
                     }
                 }
             }

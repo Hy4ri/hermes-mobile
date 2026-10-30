@@ -67,6 +67,7 @@ import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.ExposedDropdownField
 import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SkeletonListState
@@ -239,53 +240,63 @@ fun CronJobsScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.End,
                                 ) {
-                                    IconButton(
-                                        onClick = { viewModel.openEditJobDialog(job.id) },
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Edit,
-                                            contentDescription = stringResource(R.string.cron_action_edit),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
+                                    HermesTooltip(stringResource(R.string.cron_action_edit)) {
+                                        IconButton(
+                                            onClick = { viewModel.openEditJobDialog(job.id) },
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Filled.Edit,
+                                                contentDescription = stringResource(R.string.cron_action_edit),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
                                     }
                                     if (displayState.canPause) {
-                                        IconButton(
-                                            onClick = { viewModel.pauseCronJob(job.id) },
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Filled.Pause,
-                                                contentDescription = stringResource(R.string.cron_action_pause),
-                                                tint = MaterialTheme.colorScheme.primary,
-                                            )
+                                        HermesTooltip(stringResource(R.string.cron_action_pause)) {
+                                            IconButton(
+                                                onClick = { viewModel.pauseCronJob(job.id) },
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Filled.Pause,
+                                                    contentDescription = stringResource(R.string.cron_action_pause),
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                )
+                                            }
                                         }
                                     } else if (displayState.canResume) {
+                                        HermesTooltip(stringResource(R.string.cron_action_resume)) {
+                                            IconButton(
+                                                onClick = { viewModel.resumeCronJob(job.id) },
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Filled.PlayArrow,
+                                                    contentDescription = stringResource(R.string.cron_action_resume),
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                )
+                                            }
+                                        }
+                                    }
+                                    HermesTooltip(stringResource(R.string.cron_action_run)) {
                                         IconButton(
-                                            onClick = { viewModel.resumeCronJob(job.id) },
+                                            onClick = { viewModel.triggerCronJob(job.id) },
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Filled.PlayArrow,
-                                                contentDescription = stringResource(R.string.cron_action_resume),
-                                                tint = MaterialTheme.colorScheme.primary,
+                                                imageVector = Icons.Filled.Refresh,
+                                                contentDescription = stringResource(R.string.cron_action_run),
+                                                tint = MaterialTheme.colorScheme.secondary,
                                             )
                                         }
                                     }
-                                    IconButton(
-                                        onClick = { viewModel.triggerCronJob(job.id) },
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Refresh,
-                                            contentDescription = stringResource(R.string.cron_action_run),
-                                            tint = MaterialTheme.colorScheme.secondary,
-                                        )
-                                    }
-                                    IconButton(
-                                        onClick = { viewModel.requestDeleteJob(job) },
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Delete,
-                                            contentDescription = stringResource(R.string.action_delete),
-                                            tint = MaterialTheme.colorScheme.error,
-                                        )
+                                    HermesTooltip(stringResource(R.string.action_delete)) {
+                                        IconButton(
+                                            onClick = { viewModel.requestDeleteJob(job) },
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Filled.Delete,
+                                                contentDescription = stringResource(R.string.action_delete),
+                                                tint = MaterialTheme.colorScheme.error,
+                                            )
+                                        }
                                     }
                                 }
                             }

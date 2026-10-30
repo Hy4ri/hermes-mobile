@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.Skill
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
+import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.common.ManageableItemCard
 import com.m57.hermescontrol.ui.common.ManageableToggle
 
@@ -60,30 +61,34 @@ fun SkillCard(
             }
         },
         actions = {
-            IconButton(onClick = onAction) {
-                Icon(
-                    imageVector = Icons.Filled.Edit,
-                    contentDescription = stringResource(R.string.content_desc_edit_skill),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            HermesTooltip(stringResource(R.string.content_desc_edit_skill)) {
+                IconButton(onClick = onAction) {
+                    Icon(
+                        imageVector = Icons.Filled.Edit,
+                        contentDescription = stringResource(R.string.content_desc_edit_skill),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             if (onUninstall != null) {
                 val statusColors = LocalHermesStatusColors.current
-                IconButton(
-                    onClick = onUninstall,
-                    enabled = !isUninstalling,
-                ) {
-                    if (isUninstalling) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Filled.CloudOff,
-                            contentDescription = stringResource(R.string.content_desc_uninstall_skill),
-                            tint = statusColors.error,
-                        )
+                HermesTooltip(stringResource(R.string.content_desc_uninstall_skill)) {
+                    IconButton(
+                        onClick = onUninstall,
+                        enabled = !isUninstalling,
+                    ) {
+                        if (isUninstalling) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Filled.CloudOff,
+                                contentDescription = stringResource(R.string.content_desc_uninstall_skill),
+                                tint = statusColors.error,
+                            )
+                        }
                     }
                 }
             }

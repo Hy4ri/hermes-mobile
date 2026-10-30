@@ -38,6 +38,7 @@ import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.common.InfoRow
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SectionHeader
@@ -326,19 +327,23 @@ private fun JobCard(
                 }
                 StatusBadge(label, type)
                 if (job.status == "running" && job.canPause) {
-                    IconButton(onClick = onPause, enabled = !busy) {
-                        Icon(
-                            Icons.Filled.Pause,
-                            contentDescription = stringResource(R.string.local_models_action_pause),
-                        )
+                    HermesTooltip(stringResource(R.string.local_models_action_pause)) {
+                        IconButton(onClick = onPause, enabled = !busy) {
+                            Icon(
+                                Icons.Filled.Pause,
+                                contentDescription = stringResource(R.string.local_models_action_pause),
+                            )
+                        }
                     }
                 }
                 if (job.canResume) {
-                    IconButton(onClick = onResume, enabled = !busy) {
-                        Icon(
-                            Icons.Filled.PlayArrow,
-                            contentDescription = stringResource(R.string.local_models_action_resume),
-                        )
+                    HermesTooltip(stringResource(R.string.local_models_action_resume)) {
+                        IconButton(onClick = onResume, enabled = !busy) {
+                            Icon(
+                                Icons.Filled.PlayArrow,
+                                contentDescription = stringResource(R.string.local_models_action_resume),
+                            )
+                        }
                     }
                 }
             }

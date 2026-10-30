@@ -66,6 +66,7 @@ import com.m57.hermescontrol.data.model.ToolsetProvider
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.StatusBadge
@@ -447,59 +448,67 @@ private fun ToolsetEnvVarRow(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    IconButton(
-                        onClick = { editing = true },
-                        enabled = !saving && !deleting,
-                        modifier = Modifier.size(36.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Edit,
-                            contentDescription = editDesc,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                    if (revealedValue == null) {
+                    HermesTooltip(editDesc) {
                         IconButton(
-                            onClick = onReveal,
-                            enabled = envVar.isSet && !saving && !deleting,
-                            modifier = Modifier.size(36.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Visibility,
-                                contentDescription = revealDesc,
-                                modifier = Modifier.size(18.dp),
-                            )
-                        }
-                    } else {
-                        IconButton(
-                            onClick = onHide,
-                            modifier = Modifier.size(36.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.VisibilityOff,
-                                contentDescription = hideDesc,
-                                modifier = Modifier.size(18.dp),
-                            )
-                        }
-                    }
-                    if (envVar.isSet) {
-                        IconButton(
-                            onClick = onRequestDelete,
+                            onClick = { editing = true },
                             enabled = !saving && !deleting,
                             modifier = Modifier.size(36.dp),
                         ) {
-                            if (deleting) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp,
-                                )
-                            } else {
+                            Icon(
+                                imageVector = Icons.Filled.Edit,
+                                contentDescription = editDesc,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                    }
+                    if (revealedValue == null) {
+                        HermesTooltip(revealDesc) {
+                            IconButton(
+                                onClick = onReveal,
+                                enabled = envVar.isSet && !saving && !deleting,
+                                modifier = Modifier.size(36.dp),
+                            ) {
                                 Icon(
-                                    imageVector = Icons.Filled.Delete,
-                                    contentDescription = clearDesc,
+                                    imageVector = Icons.Filled.Visibility,
+                                    contentDescription = revealDesc,
                                     modifier = Modifier.size(18.dp),
-                                    tint = MaterialTheme.colorScheme.error,
                                 )
+                            }
+                        }
+                    } else {
+                        HermesTooltip(hideDesc) {
+                            IconButton(
+                                onClick = onHide,
+                                modifier = Modifier.size(36.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.VisibilityOff,
+                                    contentDescription = hideDesc,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                        }
+                    }
+                    if (envVar.isSet) {
+                        HermesTooltip(clearDesc) {
+                            IconButton(
+                                onClick = onRequestDelete,
+                                enabled = !saving && !deleting,
+                                modifier = Modifier.size(36.dp),
+                            ) {
+                                if (deleting) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Filled.Delete,
+                                        contentDescription = clearDesc,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.error,
+                                    )
+                                }
                             }
                         }
                     }

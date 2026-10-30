@@ -1473,6 +1473,7 @@
     <string name="action_dismiss">閉じる</string>
     <string name="action_done">完了</string>
     <string name="action_close">閉じる</string>
+    <string name="action_remove">削除</string>
 
     <!-- Update notice banner (issue #890) -->
     <string name="update_notice_banner_text">Hermes Mobileの新しいバージョン（%1$s）があります</string>

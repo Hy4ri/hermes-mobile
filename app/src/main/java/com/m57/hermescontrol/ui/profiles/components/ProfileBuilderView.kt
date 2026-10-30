@@ -50,6 +50,7 @@ import com.m57.hermescontrol.applock.AlertDialog
 import com.m57.hermescontrol.data.model.CreateProfileRequest
 import com.m57.hermescontrol.data.model.McpServerConfigInput
 import com.m57.hermescontrol.data.model.ModelProvider
+import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.profiles.ProfilesUiState
 import com.m57.hermescontrol.ui.profiles.ProfilesViewModel
 
@@ -485,13 +486,15 @@ private fun McpStep(
                                     )
                                 }
                             }
-                            IconButton(
-                                onClick = { onMcpServersChange(mcpServers - server) },
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = stringResource(R.string.profile_remove_server),
-                                )
+                            HermesTooltip(stringResource(R.string.profile_remove_server)) {
+                                IconButton(
+                                    onClick = { onMcpServersChange(mcpServers - server) },
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = stringResource(R.string.profile_remove_server),
+                                    )
+                                }
                             }
                         }
                     }

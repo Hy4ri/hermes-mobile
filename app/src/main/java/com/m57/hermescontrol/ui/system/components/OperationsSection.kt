@@ -44,6 +44,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.Spacing
+import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.common.SectionHeader
 import com.m57.hermescontrol.ui.common.StatusBadge
 import com.m57.hermescontrol.ui.common.StatusBadgeType
@@ -383,15 +384,17 @@ fun LazyListScope.operationsSection(
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.weight(1f),
                             )
-                            IconButton(onClick = {
-                                @Suppress("DEPRECATION")
-                                clipboardManager.setText(AnnotatedString(url))
-                            }) {
-                                Icon(
-                                    Icons.Filled.ContentCopy,
-                                    contentDescription = stringResource(R.string.system_debug_share_copy_all),
-                                    modifier = Modifier.size(16.dp),
-                                )
+                            HermesTooltip(stringResource(R.string.system_debug_share_copy_all)) {
+                                IconButton(onClick = {
+                                    @Suppress("DEPRECATION")
+                                    clipboardManager.setText(AnnotatedString(url))
+                                }) {
+                                    Icon(
+                                        Icons.Filled.ContentCopy,
+                                        contentDescription = stringResource(R.string.system_debug_share_copy_all),
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                }
                             }
                         }
                     }

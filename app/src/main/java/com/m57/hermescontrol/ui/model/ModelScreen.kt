@@ -62,6 +62,7 @@ import com.m57.hermescontrol.applock.AlertDialog
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
 import com.m57.hermescontrol.ui.common.SkeletonListState
@@ -613,11 +614,14 @@ private fun PinnedSectionCard(
                     )
                 }
 
-                IconButton(onClick = onToggleExpanded) {
-                    Icon(
-                        imageVector = if (isExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-                        contentDescription = stringResource(R.string.content_desc_pinned_section_toggle),
-                    )
+                HermesTooltip(stringResource(R.string.content_desc_pinned_section_toggle)) {
+                    IconButton(onClick = onToggleExpanded) {
+                        Icon(
+                            imageVector =
+                                if (isExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                            contentDescription = stringResource(R.string.content_desc_pinned_section_toggle),
+                        )
+                    }
                 }
             }
 
@@ -686,15 +690,17 @@ private fun PinnedSectionCard(
                                             tint = MaterialTheme.colorScheme.primary,
                                         )
                                     }
-                                    IconButton(
-                                        onClick = { onUnpin(pinned.providerSlug, pinned.modelName) },
-                                        modifier = Modifier.size(24.dp),
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.PushPin,
-                                            contentDescription = stringResource(R.string.content_desc_unpin_model),
-                                            tint = MaterialTheme.colorScheme.primary,
-                                        )
+                                    HermesTooltip(stringResource(R.string.content_desc_unpin_model)) {
+                                        IconButton(
+                                            onClick = { onUnpin(pinned.providerSlug, pinned.modelName) },
+                                            modifier = Modifier.size(24.dp),
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Filled.PushPin,
+                                                contentDescription = stringResource(R.string.content_desc_unpin_model),
+                                                tint = MaterialTheme.colorScheme.primary,
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -892,31 +898,40 @@ private fun ProviderCard(
                                             pinnedModels.any {
                                                 it.providerSlug == provider.slug && it.modelName == model
                                             }
-                                        IconButton(
-                                            onClick = {
+                                        HermesTooltip(
+                                            label =
                                                 if (isPinned) {
-                                                    onUnpin(provider.slug, model)
+                                                    stringResource(R.string.content_desc_unpin_model)
                                                 } else {
-                                                    onPin(provider.slug, model)
-                                                }
-                                            },
-                                            modifier = Modifier.size(24.dp),
+                                                    "Pin model"
+                                                },
                                         ) {
-                                            Icon(
-                                                imageVector =
+                                            IconButton(
+                                                onClick = {
                                                     if (isPinned) {
-                                                        Icons.Filled.PushPin
+                                                        onUnpin(provider.slug, model)
                                                     } else {
-                                                        Icons.Outlined.PushPin
-                                                    },
-                                                contentDescription =
-                                                    if (isPinned) {
-                                                        stringResource(R.string.content_desc_unpin_model)
-                                                    } else {
-                                                        "Pin model"
-                                                    },
-                                                tint = MaterialTheme.colorScheme.primary,
-                                            )
+                                                        onPin(provider.slug, model)
+                                                    }
+                                                },
+                                                modifier = Modifier.size(24.dp),
+                                            ) {
+                                                Icon(
+                                                    imageVector =
+                                                        if (isPinned) {
+                                                            Icons.Filled.PushPin
+                                                        } else {
+                                                            Icons.Outlined.PushPin
+                                                        },
+                                                    contentDescription =
+                                                        if (isPinned) {
+                                                            stringResource(R.string.content_desc_unpin_model)
+                                                        } else {
+                                                            "Pin model"
+                                                        },
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                )
+                                            }
                                         }
                                     }
                                 }

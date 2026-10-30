@@ -1220,6 +1220,7 @@
 <string name="action_dismiss">تجاهل</string>
 <string name="action_done">تم</string>
 <string name="action_close">إغلاق</string>
+    <string name="action_remove">إزالة</string>
 <string name="update_notice_banner_text">يتوفر إصدار جديد من Hermes Mobile %1$s</string>
 <string name="update_notice_banner_action">تحديث</string>
 <string name="update_dialog_title">التحديث إلى %1$s</string>

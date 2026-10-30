@@ -75,6 +75,7 @@ import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.ToastEffect
@@ -412,14 +413,21 @@ fun ProfilesScreen(
                                                 var showMenu by remember { mutableStateOf(false) }
 
                                                 Box {
-                                                    IconButton(onClick = { showMenu = true }) {
-                                                        Icon(
-                                                            imageVector = Icons.Default.MoreVert,
-                                                            contentDescription =
-                                                                stringResource(
-                                                                    R.string.profiles_more_options,
-                                                                ),
-                                                        )
+                                                    HermesTooltip(
+                                                        label =
+                                                            stringResource(
+                                                                R.string.profiles_more_options,
+                                                            ),
+                                                    ) {
+                                                        IconButton(onClick = { showMenu = true }) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.MoreVert,
+                                                                contentDescription =
+                                                                    stringResource(
+                                                                        R.string.profiles_more_options,
+                                                                    ),
+                                                            )
+                                                        }
                                                     }
 
                                                     DropdownMenu(

@@ -65,6 +65,7 @@ import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.ToastEffect
@@ -176,29 +177,31 @@ fun FilesScreen(
                     onClick = viewModel::navigateUp,
                 )
             }
-            IconButton(
-                onClick = { uploadLauncher.launch("*/*") },
-                enabled = !state.isUploading,
-            ) {
-                if (state.isUploading) {
-                    val progress = state.uploadProgress
-                    if (progress != null) {
-                        CircularProgressIndicator(
-                            progress = { progress },
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                        )
+            HermesTooltip(stringResource(R.string.files_action_upload)) {
+                IconButton(
+                    onClick = { uploadLauncher.launch("*/*") },
+                    enabled = !state.isUploading,
+                ) {
+                    if (state.isUploading) {
+                        val progress = state.uploadProgress
+                        if (progress != null) {
+                            CircularProgressIndicator(
+                                progress = { progress },
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                            )
+                        } else {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                            )
+                        }
                     } else {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
+                        Icon(
+                            imageVector = Icons.Filled.Upload,
+                            contentDescription = stringResource(R.string.files_action_upload),
                         )
                     }
-                } else {
-                    Icon(
-                        imageVector = Icons.Filled.Upload,
-                        contentDescription = stringResource(R.string.files_action_upload),
-                    )
                 }
             }
         },
@@ -400,13 +403,15 @@ private fun FileRow(
                     strokeWidth = 2.dp,
                 )
             } else if (onDelete != null && entry != null && !entry.isDirectory) {
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        imageVector = Icons.Filled.Delete,
-                        contentDescription = stringResource(R.string.files_action_delete),
-                        tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(20.dp),
-                    )
+                HermesTooltip(stringResource(R.string.files_action_delete)) {
+                    IconButton(onClick = onDelete) {
+                        Icon(
+                            imageVector = Icons.Filled.Delete,
+                            contentDescription = stringResource(R.string.files_action_delete),
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
                 }
             }
         }

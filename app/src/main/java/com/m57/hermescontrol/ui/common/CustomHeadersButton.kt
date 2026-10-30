@@ -116,15 +116,26 @@ private fun CustomHeadersDialog(
                         visualTransformation =
                             if (visible) VisualTransformation.None else PasswordVisualTransformation(),
                         trailingIcon = {
-                            IconButton(onClick = { visible = !visible }) {
-                                Icon(
-                                    imageVector =
-                                        if (visible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                    contentDescription =
-                                        stringResource(
-                                            if (visible) R.string.custom_headers_hide else R.string.custom_headers_show,
-                                        ),
-                                )
+                            HermesTooltip(
+                                label =
+                                    stringResource(
+                                        if (visible) R.string.custom_headers_hide else R.string.custom_headers_show,
+                                    ),
+                            ) {
+                                IconButton(onClick = { visible = !visible }) {
+                                    Icon(
+                                        imageVector =
+                                            if (visible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                        contentDescription =
+                                            stringResource(
+                                                if (visible) {
+                                                    R.string.custom_headers_hide
+                                                } else {
+                                                    R.string.custom_headers_show
+                                                },
+                                            ),
+                                    )
+                                }
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),

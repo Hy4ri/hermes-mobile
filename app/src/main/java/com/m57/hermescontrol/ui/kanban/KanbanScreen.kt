@@ -83,6 +83,7 @@ import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
 import com.m57.hermescontrol.ui.common.SkeletonListState
@@ -494,25 +495,29 @@ fun KanbanScreen(
                                 ) {
                                     LiveStatusPill(isLive = state.isLive)
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    IconButton(onClick = { showFilterSheet = true }) {
-                                        Icon(
-                                            imageVector = Icons.Default.FilterList,
-                                            contentDescription = stringResource(R.string.kanban_filters),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
+                                    HermesTooltip(stringResource(R.string.kanban_filters)) {
+                                        IconButton(onClick = { showFilterSheet = true }) {
+                                            Icon(
+                                                imageVector = Icons.Default.FilterList,
+                                                contentDescription = stringResource(R.string.kanban_filters),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
                                     }
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    IconButton(
-                                        onClick = {
-                                            createTaskDefaultColumn = DEFAULT_COLUMN
-                                            showAddTaskDialog = true
-                                        },
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Add,
-                                            contentDescription = stringResource(R.string.kanban_add_task),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
+                                    HermesTooltip(stringResource(R.string.kanban_add_task)) {
+                                        IconButton(
+                                            onClick = {
+                                                createTaskDefaultColumn = DEFAULT_COLUMN
+                                                showAddTaskDialog = true
+                                            },
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Add,
+                                                contentDescription = stringResource(R.string.kanban_add_task),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
                                     }
                                 }
 
@@ -592,43 +597,60 @@ fun KanbanScreen(
                                                     )
                                                     Spacer(modifier = Modifier.weight(1f))
                                                     if (KanbanStatusConstraints.isUserWritableTarget(colName)) {
+                                                        HermesTooltip(
+                                                            label =
+                                                                stringResource(
+                                                                    R.string.kanban_add_to_column,
+                                                                    colName,
+                                                                ),
+                                                        ) {
+                                                            IconButton(
+                                                                onClick = {
+                                                                    createTaskDefaultColumn = colName
+                                                                    showAddTaskDialog = true
+                                                                },
+                                                                modifier = Modifier.size(32.dp),
+                                                            ) {
+                                                                Icon(
+                                                                    imageVector = Icons.Default.Add,
+                                                                    contentDescription =
+                                                                        stringResource(
+                                                                            R.string.kanban_add_to_column,
+                                                                            colName,
+                                                                        ),
+                                                                    modifier = Modifier.size(16.dp),
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                    HermesTooltip(
+                                                        label =
+                                                            stringResource(
+                                                                R.string.kanban_expand_column,
+                                                                colName,
+                                                            ),
+                                                    ) {
                                                         IconButton(
                                                             onClick = {
-                                                                createTaskDefaultColumn = colName
-                                                                showAddTaskDialog = true
+                                                                viewModel.toggleColumnCollapse(
+                                                                    colName,
+                                                                    boardHasWork,
+                                                                    colTasks.size,
+                                                                )
                                                             },
                                                             modifier = Modifier.size(32.dp),
                                                         ) {
                                                             Icon(
-                                                                imageVector = Icons.Default.Add,
+                                                                imageVector =
+                                                                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
                                                                 contentDescription =
                                                                     stringResource(
-                                                                        R.string.kanban_add_to_column,
+                                                                        R.string.kanban_expand_column,
                                                                         colName,
                                                                     ),
                                                                 modifier = Modifier.size(16.dp),
                                                             )
                                                         }
-                                                    }
-                                                    IconButton(
-                                                        onClick = {
-                                                            viewModel.toggleColumnCollapse(
-                                                                colName,
-                                                                boardHasWork,
-                                                                colTasks.size,
-                                                            )
-                                                        },
-                                                        modifier = Modifier.size(32.dp),
-                                                    ) {
-                                                        Icon(
-                                                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                                            contentDescription =
-                                                                stringResource(
-                                                                    R.string.kanban_expand_column,
-                                                                    colName,
-                                                                ),
-                                                            modifier = Modifier.size(16.dp),
-                                                        )
                                                     }
                                                 }
                                             }
@@ -656,44 +678,60 @@ fun KanbanScreen(
                                                     )
                                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                                         if (KanbanStatusConstraints.isUserWritableTarget(colName)) {
+                                                            HermesTooltip(
+                                                                label =
+                                                                    stringResource(
+                                                                        R.string.kanban_add_to_column,
+                                                                        colName,
+                                                                    ),
+                                                            ) {
+                                                                IconButton(
+                                                                    onClick = {
+                                                                        createTaskDefaultColumn = colName
+                                                                        showAddTaskDialog = true
+                                                                    },
+                                                                    modifier = Modifier.size(28.dp),
+                                                                ) {
+                                                                    Icon(
+                                                                        imageVector = Icons.Default.Add,
+                                                                        contentDescription =
+                                                                            stringResource(
+                                                                                R.string.kanban_add_to_column,
+                                                                                colName,
+                                                                            ),
+                                                                        modifier = Modifier.size(18.dp),
+                                                                    )
+                                                                }
+                                                            }
+                                                        }
+                                                        HermesTooltip(
+                                                            label =
+                                                                stringResource(
+                                                                    R.string.kanban_collapse_column,
+                                                                    colName,
+                                                                ),
+                                                        ) {
                                                             IconButton(
                                                                 onClick = {
-                                                                    createTaskDefaultColumn = colName
-                                                                    showAddTaskDialog = true
+                                                                    viewModel.toggleColumnCollapse(
+                                                                        colName,
+                                                                        boardHasWork,
+                                                                        colTasks.size,
+                                                                    )
                                                                 },
                                                                 modifier = Modifier.size(28.dp),
                                                             ) {
                                                                 Icon(
-                                                                    imageVector = Icons.Default.Add,
+                                                                    imageVector =
+                                                                        Icons.AutoMirrored.Filled.KeyboardArrowLeft,
                                                                     contentDescription =
                                                                         stringResource(
-                                                                            R.string.kanban_add_to_column,
+                                                                            R.string.kanban_collapse_column,
                                                                             colName,
                                                                         ),
                                                                     modifier = Modifier.size(18.dp),
                                                                 )
                                                             }
-                                                        }
-                                                        IconButton(
-                                                            onClick = {
-                                                                viewModel.toggleColumnCollapse(
-                                                                    colName,
-                                                                    boardHasWork,
-                                                                    colTasks.size,
-                                                                )
-                                                            },
-                                                            modifier = Modifier.size(28.dp),
-                                                        ) {
-                                                            Icon(
-                                                                imageVector =
-                                                                    Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                                                                contentDescription =
-                                                                    stringResource(
-                                                                        R.string.kanban_collapse_column,
-                                                                        colName,
-                                                                    ),
-                                                                modifier = Modifier.size(18.dp),
-                                                            )
                                                         }
                                                     }
                                                 }
@@ -1057,16 +1095,18 @@ fun KanbanScreen(
                                     ) {
                                         Text(stringResource(R.string.kanban_bulk_delete))
                                     }
-                                    IconButton(
-                                        onClick = {
-                                            isMultiSelectMode = false
-                                            selectedTaskIds = emptySet()
-                                        },
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Close,
-                                            contentDescription = stringResource(R.string.kanban_close_multi_select),
-                                        )
+                                    HermesTooltip(stringResource(R.string.kanban_close_multi_select)) {
+                                        IconButton(
+                                            onClick = {
+                                                isMultiSelectMode = false
+                                                selectedTaskIds = emptySet()
+                                            },
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Close,
+                                                contentDescription = stringResource(R.string.kanban_close_multi_select),
+                                            )
+                                        }
                                     }
                                 }
                             }

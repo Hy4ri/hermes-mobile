@@ -128,12 +128,14 @@ fun AppUpdateDialog(
                             )
                         }
                     }
-                    IconButton(onClick = onDismiss) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = stringResource(R.string.action_dismiss),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                    HermesTooltip(stringResource(R.string.action_dismiss)) {
+                        IconButton(onClick = onDismiss) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = stringResource(R.string.action_dismiss),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
 

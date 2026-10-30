@@ -46,6 +46,7 @@ import com.m57.hermescontrol.applock.PrivateExposedDropdownMenu
 import com.m57.hermescontrol.data.model.KanbanProfile
 import com.m57.hermescontrol.data.model.OrchestrationSettings
 import com.m57.hermescontrol.data.model.OrchestrationSettingsUpdate
+import com.m57.hermescontrol.ui.common.HermesTooltip
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -271,41 +272,45 @@ private fun ProfileDescriptionEditor(
                     if (isDescribing) {
                         CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                     } else {
-                        IconButton(
-                            onClick = {
-                                isDescribing = true
-                                onAutoDescribe { desc ->
-                                    isDescribing = false
-                                    if (desc != null) draft = desc
-                                }
-                            },
-                            modifier = Modifier.size(32.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AutoAwesome,
-                                contentDescription = stringResource(R.string.kanban_auto_describe),
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
+                        HermesTooltip(stringResource(R.string.kanban_auto_describe)) {
+                            IconButton(
+                                onClick = {
+                                    isDescribing = true
+                                    onAutoDescribe { desc ->
+                                        isDescribing = false
+                                        if (desc != null) draft = desc
+                                    }
+                                },
+                                modifier = Modifier.size(32.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AutoAwesome,
+                                    contentDescription = stringResource(R.string.kanban_auto_describe),
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                            }
                         }
                     }
 
-                    IconButton(
-                        onClick = { onSave(draft.trim()) },
-                        enabled = draft.trim() != profile.description.trim(),
-                        modifier = Modifier.size(32.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Save,
-                            contentDescription = stringResource(R.string.action_save),
-                            modifier = Modifier.size(16.dp),
-                            tint =
-                                if (draft.trim() != profile.description.trim()) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-                                },
-                        )
+                    HermesTooltip(stringResource(R.string.action_save)) {
+                        IconButton(
+                            onClick = { onSave(draft.trim()) },
+                            enabled = draft.trim() != profile.description.trim(),
+                            modifier = Modifier.size(32.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Save,
+                                contentDescription = stringResource(R.string.action_save),
+                                modifier = Modifier.size(16.dp),
+                                tint =
+                                    if (draft.trim() != profile.description.trim()) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                                    },
+                            )
+                        }
                     }
                 }
             }

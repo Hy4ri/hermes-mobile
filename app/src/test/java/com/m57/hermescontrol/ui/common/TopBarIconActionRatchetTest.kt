@@ -119,28 +119,6 @@ class TopBarIconActionRatchetTest {
          */
         val TOOLTIP_EXCLUSIONS: Map<String, String> =
             mapOf(
-                "ui/common/AppUpdateDialog.kt" to
-                    "Dialog or sheet: migrated in the follow-up PR",
-                "ui/common/WhatsNewDialog.kt" to
-                    "Dialog or sheet: migrated in the follow-up PR",
-                "ui/channels/components/TelegramOnboardingDialog.kt" to
-                    "Dialog or sheet: migrated in the follow-up PR",
-                "ui/chat/components/SessionIntegrationsSheet.kt" to
-                    "Dialog or sheet: migrated in the follow-up PR",
-                "ui/chat/components/SideQuestionSheet.kt" to
-                    "Dialog or sheet: migrated in the follow-up PR",
-                "ui/chat/components/SubagentInspectionSheet.kt" to
-                    "Dialog or sheet: migrated in the follow-up PR",
-                "ui/kanban/components/KanbanOrchestrationDialog.kt" to
-                    "Dialog or sheet: migrated in the follow-up PR",
-                "ui/model/components/MoaConfigDialog.kt" to
-                    "Dialog or sheet: migrated in the follow-up PR",
-                "ui/model/components/ModelPickerDialog.kt" to
-                    "Dialog or sheet: migrated in the follow-up PR",
-                "ui/projects/RemoteFolderPickerDialog.kt" to
-                    "Dialog or sheet: migrated in the follow-up PR",
-                "ui/skills/components/SkillEditorDialog.kt" to
-                    "Dialog or sheet: migrated in the follow-up PR",
                 "ui/chat/InlineAttachment.kt" to
                     "Chat composer, bubble, or viewer: separate card (#1651 phase 4)",
                 "ui/chat/fullbleed/FullBleedAgentMessage.kt" to

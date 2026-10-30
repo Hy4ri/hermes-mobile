@@ -52,6 +52,7 @@ import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiRead
 import com.m57.hermescontrol.theme.HermesControlTheme
 import com.m57.hermescontrol.theme.LocalSpacing
+import com.m57.hermescontrol.ui.common.HermesTooltip
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -340,16 +341,18 @@ fun RemoteFolderPickerContent(
             modifier = Modifier.fillMaxWidth().padding(bottom = spacing.xs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(
-                onClick = onNavigateUp,
-                enabled = state.parentPath != null && !state.isLoading,
-                modifier = Modifier.size(48.dp).testTag("remote_folder_picker_up"),
-            ) {
-                Icon(
-                    Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = stringResource(R.string.projects_picker_up_desc),
-                    modifier = Modifier.size(24.dp),
-                )
+            HermesTooltip(stringResource(R.string.projects_picker_up_desc)) {
+                IconButton(
+                    onClick = onNavigateUp,
+                    enabled = state.parentPath != null && !state.isLoading,
+                    modifier = Modifier.size(48.dp).testTag("remote_folder_picker_up"),
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.projects_picker_up_desc),
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
             }
             Spacer(modifier = Modifier.width(spacing.xs))
             val displayPath =
@@ -400,14 +403,16 @@ fun RemoteFolderPickerContent(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error,
                         )
-                        IconButton(
-                            onClick = onRetry,
-                            modifier = Modifier.size(48.dp),
-                        ) {
-                            Icon(
-                                Icons.Filled.Refresh,
-                                contentDescription = stringResource(R.string.action_retry),
-                            )
+                        HermesTooltip(stringResource(R.string.action_retry)) {
+                            IconButton(
+                                onClick = onRetry,
+                                modifier = Modifier.size(48.dp),
+                            ) {
+                                Icon(
+                                    Icons.Filled.Refresh,
+                                    contentDescription = stringResource(R.string.action_retry),
+                                )
+                            }
                         }
                     }
                 }
@@ -438,14 +443,16 @@ fun RemoteFolderPickerContent(
                                     color = MaterialTheme.colorScheme.error,
                                     modifier = Modifier.weight(1f),
                                 )
-                                IconButton(
-                                    onClick = onRetry,
-                                    modifier = Modifier.size(48.dp),
-                                ) {
-                                    Icon(
-                                        Icons.Filled.Refresh,
-                                        contentDescription = stringResource(R.string.action_retry),
-                                    )
+                                HermesTooltip(stringResource(R.string.action_retry)) {
+                                    IconButton(
+                                        onClick = onRetry,
+                                        modifier = Modifier.size(48.dp),
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.Refresh,
+                                            contentDescription = stringResource(R.string.action_retry),
+                                        )
+                                    }
                                 }
                             }
                         }

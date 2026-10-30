@@ -100,6 +100,7 @@ class HermesWsClientCharacterizationTest {
         HermesWsClient.releaseExternalActivityConnectionLease()
         HermesWsClient.releaseBackgroundConnectionLease()
         HermesWsClient.disconnect(clearPendingMessages = true)
+        HermesWsClient.awaitOpenSocketIdleForTest()
         runBlocking {
             withTimeout(3000) {
                 HermesWsClient.connectionStatus.first { it == ConnectionStatus.DISCONNECTED }

@@ -122,6 +122,7 @@ class HermesWsClientTest {
             HermesWsClient.releaseExternalActivityConnectionLease()
             HermesWsClient.releaseBackgroundConnectionLease()
             HermesWsClient.disconnect(clearPendingMessages = true)
+            HermesWsClient.awaitOpenSocketIdleForTest()
         } finally {
             try {
                 mockWebServer.shutdown()

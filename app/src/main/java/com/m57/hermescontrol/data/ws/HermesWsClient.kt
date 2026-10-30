@@ -394,6 +394,9 @@ object HermesWsClient {
     internal var outboundDrainJobForTest: Job? by transport::outboundDrainJobForTest
 
     @VisibleForTesting
+    internal fun awaitOpenSocketIdleForTest() = transport.awaitOpenSocketIdleForTest()
+
+    @VisibleForTesting
     internal fun scheduleReconnectForTest() = transport.scheduleReconnectForTest()
 
     @VisibleForTesting

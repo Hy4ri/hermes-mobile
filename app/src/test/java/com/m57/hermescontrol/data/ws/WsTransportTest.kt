@@ -12,8 +12,11 @@ import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -492,4 +495,38 @@ class WsTransportTest {
             assertFalse(disconnectedResult)
             assertTrue(fixture.transport.messageQueueForTest.isEmpty())
         }
+
+    @Test
+    fun awaitOpenSocketIdleWaitsForInFlightHandshakeToFinish() {
+        val entered = java.util.concurrent.CountDownLatch(1)
+        val release = java.util.concurrent.CountDownLatch(1)
+        val finished =
+            java.util.concurrent.atomic
+                .AtomicBoolean(false)
+        every { AuthManager.serverStore } answers {
+            entered.countDown()
+            release.await()
+            finished.set(true)
+            throw IllegalStateException("store uninitialized")
+        }
+        // Own the handshake's failure path: the unmocked AuthManager throws after the latch, and that
+        // must not reach the JVM-wide handler where a later runTest would report it.
+        val scope =
+            CoroutineScope(
+                kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.CoroutineExceptionHandler { _, _ -> },
+            )
+        try {
+            val fixture = Fixture(scope, testJson)
+            fixture.transport.openSocket()
+            assertTrue(entered.await(5, java.util.concurrent.TimeUnit.SECONDS))
+            Thread { Thread.sleep(200).also { release.countDown() } }.start()
+
+            fixture.transport.awaitOpenSocketIdleForTest()
+
+            assertTrue("handshake must be finished when the helper returns", finished.get())
+        } finally {
+            release.countDown()
+            scope.cancel()
+        }
+    }
 }

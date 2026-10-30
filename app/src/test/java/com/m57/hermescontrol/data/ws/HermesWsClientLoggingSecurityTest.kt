@@ -100,6 +100,7 @@ class HermesWsClientLoggingSecurityTest {
         HermesWsClient.rejectAllPending()
         HermesWsClient.releaseExternalActivityConnectionLease()
         HermesWsClient.disconnect(clearPendingMessages = true)
+        HermesWsClient.awaitOpenSocketIdleForTest()
         unmockkAll()
     }
 

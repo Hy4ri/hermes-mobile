@@ -22,7 +22,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -53,6 +55,7 @@ internal class WsTransport(
 ) {
     companion object {
         private const val TAG = "HermesWsClient"
+        private const val OPEN_SOCKET_IDLE_TIMEOUT_MS = 10_000L
         private const val MAX_OUTBOUND_MESSAGE_BYTES = 16 * 1024 * 1024
         private const val OUTBOUND_DRAIN_TIMEOUT_MS = 60_000L
     }
@@ -80,6 +83,9 @@ internal class WsTransport(
 
     @Volatile
     private var outboundDrainJob: Job? = null
+
+    /** In-flight [openSocket] handshakes, tracked so tests can drain them before removing global mocks. */
+    private val openSocketJobs = ConcurrentHashMap.newKeySet<Job>()
 
     private val networkCollectorStarted = AtomicBoolean(false)
 
@@ -567,26 +573,29 @@ internal class WsTransport(
                 if (intentionalClose.get()) return
                 connectionGeneration.incrementAndGet()
             }
-        scope.launch(Dispatchers.IO) {
-            if (!refreshWsTicketIfNeeded(generation)) {
-                Log.w(TAG, "Aborting openSocket: WS ticket refresh failed")
-                return@launch
-            }
-            if (!isCurrentGeneration(generation)) return@launch
-            val url = AuthManager.wsUrl()
-            val safeUrl = url.replace(Regex("token=[^&]+"), "token=REDACTED")
-            if (BuildConfig.DEBUG) Log.d(TAG, "Connecting to $safeUrl")
+        val job =
+            scope.launch(Dispatchers.IO) {
+                if (!refreshWsTicketIfNeeded(generation)) {
+                    Log.w(TAG, "Aborting openSocket: WS ticket refresh failed")
+                    return@launch
+                }
+                if (!isCurrentGeneration(generation)) return@launch
+                val url = AuthManager.wsUrl()
+                val safeUrl = url.replace(Regex("token=[^&]+"), "token=REDACTED")
+                if (BuildConfig.DEBUG) Log.d(TAG, "Connecting to $safeUrl")
 
-            val request = Request.Builder().url(url).build()
-            val newSocket = OkHttpProvider.websocket.newWebSocket(request, WsListenerImpl(generation))
-            synchronized(outboundLock) {
-                if (connectionGeneration.get() == generation && !intentionalClose.get()) {
-                    webSocket = newSocket
-                } else {
-                    newSocket.cancel()
+                val request = Request.Builder().url(url).build()
+                val newSocket = OkHttpProvider.websocket.newWebSocket(request, WsListenerImpl(generation))
+                synchronized(outboundLock) {
+                    if (connectionGeneration.get() == generation && !intentionalClose.get()) {
+                        webSocket = newSocket
+                    } else {
+                        newSocket.cancel()
+                    }
                 }
             }
-        }
+        openSocketJobs.add(job)
+        job.invokeOnCompletion { openSocketJobs.remove(job) }
     }
 
     private fun isCurrentGeneration(generation: Int): Boolean =
@@ -848,6 +857,12 @@ internal class WsTransport(
         synchronized(outboundLock) {
             reconnectPolicy.setBackoffForTest(initialMillis)
         }
+    }
+
+    /** Blocks until every [openSocket] handshake has finished, so none can touch AuthManager after a test unmocks it. */
+    @VisibleForTesting
+    internal fun awaitOpenSocketIdleForTest() {
+        runBlocking { withTimeout(OPEN_SOCKET_IDLE_TIMEOUT_MS) { openSocketJobs.toList().forEach { it.join() } } }
     }
 
     @VisibleForTesting

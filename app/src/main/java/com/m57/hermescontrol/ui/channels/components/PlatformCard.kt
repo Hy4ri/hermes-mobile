@@ -42,6 +42,7 @@ import com.m57.hermescontrol.data.model.MessagingPlatformUpdate
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.channels.ConfigureForm
 import com.m57.hermescontrol.ui.common.ConfirmDialog
+import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.common.ManageableItemCard
 import com.m57.hermescontrol.ui.common.ManageableToggle
 import com.m57.hermescontrol.ui.common.StatusBadge
@@ -158,19 +159,21 @@ internal fun PlatformCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f),
                     )
-                    IconButton(
-                        onClick = {
-                            scope.launch {
-                                clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, ingressUrl)))
-                            }
-                        },
-                        modifier = Modifier.size(32.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.ContentCopy,
-                            contentDescription = stringResource(R.string.channels_copy_ingress_url),
-                            modifier = Modifier.size(18.dp),
-                        )
+                    HermesTooltip(stringResource(R.string.channels_copy_ingress_url)) {
+                        IconButton(
+                            onClick = {
+                                scope.launch {
+                                    clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, ingressUrl)))
+                                }
+                            },
+                            modifier = Modifier.size(32.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.ContentCopy,
+                                contentDescription = stringResource(R.string.channels_copy_ingress_url),
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
                     }
                 }
             }
@@ -240,21 +243,23 @@ internal fun PlatformCard(
                 )
             }
 
-            IconButton(
-                onClick = { showRemoveConfirm = true },
-                enabled = !isRemoving,
-            ) {
-                if (isRemoving) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        strokeWidth = 2.dp,
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Filled.Delete,
-                        contentDescription = stringResource(R.string.platform_disconnect_desc),
-                        tint = MaterialTheme.colorScheme.error,
-                    )
+            HermesTooltip(stringResource(R.string.platform_disconnect_desc)) {
+                IconButton(
+                    onClick = { showRemoveConfirm = true },
+                    enabled = !isRemoving,
+                ) {
+                    if (isRemoving) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Filled.Delete,
+                            contentDescription = stringResource(R.string.platform_disconnect_desc),
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                    }
                 }
             }
         },

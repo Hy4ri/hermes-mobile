@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.McpServer
 import com.m57.hermescontrol.theme.Spacing
+import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.common.ManageableItemCard
 import com.m57.hermescontrol.ui.common.ManageableToggle
 import com.m57.hermescontrol.ui.common.StatusBadge
@@ -237,15 +238,17 @@ fun ServerCard(
                     Text(stringResource(R.string.mcp_servers_action_test), maxLines = 1)
                 }
             }
-            IconButton(
-                onClick = { viewModel.deleteServer(server.name) },
-                enabled = !server.isPluginOwned,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Delete,
-                    contentDescription = stringResource(R.string.action_delete),
-                    tint = MaterialTheme.colorScheme.error,
-                )
+            HermesTooltip(stringResource(R.string.action_delete)) {
+                IconButton(
+                    onClick = { viewModel.deleteServer(server.name) },
+                    enabled = !server.isPluginOwned,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Delete,
+                        contentDescription = stringResource(R.string.action_delete),
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                }
             }
         },
     )
@@ -284,11 +287,17 @@ fun EnvVarSection(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    IconButton(
-                        onClick = { viewModel.removeEnvVar(server.name, key) },
-                        enabled = !server.isPluginOwned,
-                    ) {
-                        Icon(Icons.Filled.Close, contentDescription = "Remove", modifier = Modifier.size(16.dp))
+                    HermesTooltip(stringResource(R.string.action_remove)) {
+                        IconButton(
+                            onClick = { viewModel.removeEnvVar(server.name, key) },
+                            enabled = !server.isPluginOwned,
+                        ) {
+                            Icon(
+                                Icons.Filled.Close,
+                                contentDescription = stringResource(R.string.action_remove),
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
                     }
                 }
             }

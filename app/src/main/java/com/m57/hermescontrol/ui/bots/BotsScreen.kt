@@ -76,6 +76,7 @@ import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.ToastEffect
@@ -206,19 +207,21 @@ fun BotsScreen(
                     placeholder = { Text(stringResource(R.string.bots_search_placeholder)) },
                     singleLine = true,
                     trailingIcon = {
-                        IconButton(
-                            onClick = {
-                                if (state.searchQuery.isNotEmpty()) {
-                                    viewModel.setSearchQuery("")
-                                } else {
-                                    isSearchActive = false
-                                }
-                            },
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Close,
-                                contentDescription = stringResource(R.string.action_cancel),
-                            )
+                        HermesTooltip(stringResource(R.string.action_cancel)) {
+                            IconButton(
+                                onClick = {
+                                    if (state.searchQuery.isNotEmpty()) {
+                                        viewModel.setSearchQuery("")
+                                    } else {
+                                        isSearchActive = false
+                                    }
+                                },
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Close,
+                                    contentDescription = stringResource(R.string.action_cancel),
+                                )
+                            }
                         }
                     },
                     modifier =
@@ -644,15 +647,17 @@ private fun BotCard(
                     )
                 }
             }
-            IconButton(
-                onClick = onEditClick,
-                modifier = Modifier.testTag("bot_edit_button_${profile.name}"),
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Edit,
-                    contentDescription = stringResource(R.string.bots_edit_title),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            HermesTooltip(stringResource(R.string.bots_edit_title)) {
+                IconButton(
+                    onClick = onEditClick,
+                    modifier = Modifier.testTag("bot_edit_button_${profile.name}"),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Edit,
+                        contentDescription = stringResource(R.string.bots_edit_title),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }
@@ -736,15 +741,17 @@ private fun GroupCard(
                     }
                 }
             }
-            IconButton(
-                onClick = onDisbandClick,
-                modifier = Modifier.testTag("group_disband_button_${group.name}"),
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.DeleteOutline,
-                    contentDescription = stringResource(R.string.bots_group_disband),
-                    tint = MaterialTheme.colorScheme.error,
-                )
+            HermesTooltip(stringResource(R.string.bots_group_disband)) {
+                IconButton(
+                    onClick = onDisbandClick,
+                    modifier = Modifier.testTag("group_disband_button_${group.name}"),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.DeleteOutline,
+                        contentDescription = stringResource(R.string.bots_group_disband),
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                }
             }
         }
     }

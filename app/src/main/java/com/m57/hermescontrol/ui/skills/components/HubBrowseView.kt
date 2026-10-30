@@ -42,6 +42,7 @@ import com.m57.hermescontrol.ui.common.DetailDialog
 import com.m57.hermescontrol.ui.common.DetailRow
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
+import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.listItemSpacing
 import com.m57.hermescontrol.ui.skills.SkillsUiState
@@ -77,24 +78,28 @@ fun HubBrowseView(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (hubQuery.isNotEmpty()) {
-                        IconButton(onClick = {
-                            onHubQueryChange("")
-                            onClearSearch()
-                        }) {
-                            Icon(
-                                imageVector = Icons.Filled.Close,
-                                contentDescription = stringResource(R.string.action_clear),
-                            )
+                        HermesTooltip(stringResource(R.string.action_clear)) {
+                            IconButton(onClick = {
+                                onHubQueryChange("")
+                                onClearSearch()
+                            }) {
+                                Icon(
+                                    imageVector = Icons.Filled.Close,
+                                    contentDescription = stringResource(R.string.action_clear),
+                                )
+                            }
                         }
                     }
-                    IconButton(
-                        onClick = { onSearch(hubQuery) },
-                        enabled = hubQuery.isNotBlank(),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Search,
-                            contentDescription = stringResource(R.string.skills_hub_search_button),
-                        )
+                    HermesTooltip(stringResource(R.string.skills_hub_search_button)) {
+                        IconButton(
+                            onClick = { onSearch(hubQuery) },
+                            enabled = hubQuery.isNotBlank(),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Search,
+                                contentDescription = stringResource(R.string.skills_hub_search_button),
+                            )
+                        }
                     }
                 }
             },

@@ -91,6 +91,7 @@ import com.m57.hermescontrol.ui.chat.MarkdownText
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.ToastEffect
@@ -708,12 +709,14 @@ private fun TaskOverviewTab(
                             color = MaterialTheme.colorScheme.primary,
                         )
                         if (!isEditingDescription) {
-                            IconButton(onClick = { isEditingDescription = true }) {
-                                Icon(
-                                    Icons.Filled.Edit,
-                                    contentDescription = stringResource(R.string.kanban_edit_description),
-                                    modifier = Modifier.size(16.dp),
-                                )
+                            HermesTooltip(stringResource(R.string.kanban_edit_description)) {
+                                IconButton(onClick = { isEditingDescription = true }) {
+                                    Icon(
+                                        Icons.Filled.Edit,
+                                        contentDescription = stringResource(R.string.kanban_edit_description),
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                }
                             }
                         }
                     }
@@ -1377,20 +1380,24 @@ private fun TaskFilesTab(
                                     )
                                 }
                             }
-                            IconButton(onClick = {
-                                attachmentToDownload = att
-                                downloadLauncher.launch(att.filename)
-                            }) {
-                                Icon(
-                                    Icons.Filled.Download,
-                                    contentDescription = stringResource(R.string.kanban_download_attachment),
-                                )
+                            HermesTooltip(stringResource(R.string.kanban_download_attachment)) {
+                                IconButton(onClick = {
+                                    attachmentToDownload = att
+                                    downloadLauncher.launch(att.filename)
+                                }) {
+                                    Icon(
+                                        Icons.Filled.Download,
+                                        contentDescription = stringResource(R.string.kanban_download_attachment),
+                                    )
+                                }
                             }
-                            IconButton(onClick = { attachmentToDelete = att }, enabled = !isDeleting) {
-                                Icon(
-                                    Icons.Filled.Delete,
-                                    contentDescription = stringResource(R.string.kanban_delete_attachment),
-                                )
+                            HermesTooltip(stringResource(R.string.kanban_delete_attachment)) {
+                                IconButton(onClick = { attachmentToDelete = att }, enabled = !isDeleting) {
+                                    Icon(
+                                        Icons.Filled.Delete,
+                                        contentDescription = stringResource(R.string.kanban_delete_attachment),
+                                    )
+                                }
                             }
                         }
                     }

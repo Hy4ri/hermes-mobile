@@ -1313,6 +1313,7 @@
     <string name="action_dismiss">Ignora</string>
     <string name="action_done">Fine</string>
     <string name="action_close">Chiudi</string>
+    <string name="action_remove">Rimuovi</string>
     <string name="update_notice_banner_text">È disponibile Hermes Mobile %1$s</string>
     <string name="update_notice_banner_action">Aggiorna</string>
     <string name="update_dialog_title">Aggiorna a %1$s</string>

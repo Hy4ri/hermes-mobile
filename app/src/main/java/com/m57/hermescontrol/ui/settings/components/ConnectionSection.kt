@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.config.resolveBaseUrl
+import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.settings.SectionCard
 import com.m57.hermescontrol.ui.settings.SettingsUiState
 import com.m57.hermescontrol.ui.settings.SettingsViewModel
@@ -115,30 +116,34 @@ internal fun ConnectionSection(
                             )
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(0.dp)) {
-                            IconButton(
-                                onClick = { viewModel.openEditProfile(profile.id) },
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Edit,
-                                    contentDescription = stringResource(R.string.settings_action_edit_profile),
-                                    modifier = Modifier.size(18.dp),
-                                    tint =
-                                        if (isActive) {
-                                            MaterialTheme.colorScheme.onPrimaryContainer
-                                        } else {
-                                            MaterialTheme.colorScheme.onSurfaceVariant
-                                        },
-                                )
+                            HermesTooltip(stringResource(R.string.settings_action_edit_profile)) {
+                                IconButton(
+                                    onClick = { viewModel.openEditProfile(profile.id) },
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Edit,
+                                        contentDescription = stringResource(R.string.settings_action_edit_profile),
+                                        modifier = Modifier.size(18.dp),
+                                        tint =
+                                            if (isActive) {
+                                                MaterialTheme.colorScheme.onPrimaryContainer
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                            },
+                                    )
+                                }
                             }
-                            IconButton(
-                                onClick = { viewModel.requestDeleteProfile(profile.id) },
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Close,
-                                    contentDescription = stringResource(R.string.content_desc_delete_profile),
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(18.dp),
-                                )
+                            HermesTooltip(stringResource(R.string.content_desc_delete_profile)) {
+                                IconButton(
+                                    onClick = { viewModel.requestDeleteProfile(profile.id) },
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Close,
+                                        contentDescription = stringResource(R.string.content_desc_delete_profile),
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                }
                             }
                         }
                     }

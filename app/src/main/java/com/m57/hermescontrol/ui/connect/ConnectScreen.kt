@@ -60,6 +60,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.applock.DropdownMenu
+import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.common.PressureBanner
 
 @Composable
@@ -312,21 +313,30 @@ fun ConnectScreen(
                                     PasswordVisualTransformation()
                                 },
                             trailingIcon = {
-                                IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                    Icon(
-                                        imageVector =
-                                            if (passwordVisible) {
-                                                Icons.Filled.Visibility
-                                            } else {
-                                                Icons.Filled.VisibilityOff
-                                            },
-                                        contentDescription =
-                                            if (passwordVisible) {
-                                                stringResource(R.string.content_desc_hide_token)
-                                            } else {
-                                                stringResource(R.string.content_desc_show_token)
-                                            },
-                                    )
+                                HermesTooltip(
+                                    label =
+                                        if (passwordVisible) {
+                                            stringResource(R.string.content_desc_hide_token)
+                                        } else {
+                                            stringResource(R.string.content_desc_show_token)
+                                        },
+                                ) {
+                                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                        Icon(
+                                            imageVector =
+                                                if (passwordVisible) {
+                                                    Icons.Filled.Visibility
+                                                } else {
+                                                    Icons.Filled.VisibilityOff
+                                                },
+                                            contentDescription =
+                                                if (passwordVisible) {
+                                                    stringResource(R.string.content_desc_hide_token)
+                                                } else {
+                                                    stringResource(R.string.content_desc_show_token)
+                                                },
+                                        )
+                                    }
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),

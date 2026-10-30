@@ -95,6 +95,7 @@ import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
 import com.m57.hermescontrol.ui.common.SectionHeader
@@ -614,22 +615,24 @@ private fun EnvVarCard(
                 }
 
                 if (!isEditing) {
-                    IconButton(
-                        onClick = onRequestDelete,
-                        enabled = !isDeleting,
-                    ) {
-                        if (isDeleting) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.error,
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Filled.Delete,
-                                contentDescription = stringResource(R.string.content_desc_delete_key),
-                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
-                            )
+                    HermesTooltip(stringResource(R.string.content_desc_delete_key)) {
+                        IconButton(
+                            onClick = onRequestDelete,
+                            enabled = !isDeleting,
+                        ) {
+                            if (isDeleting) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Filled.Delete,
+                                    contentDescription = stringResource(R.string.content_desc_delete_key),
+                                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
+                                )
+                            }
                         }
                     }
                 }
@@ -751,43 +754,49 @@ private fun EnvVarCard(
                         }
                         Row {
                             if (config.isSet) {
-                                IconButton(onClick = if (isRevealed) onHide else onReveal) {
-                                    Icon(
-                                        imageVector =
-                                            if (isRevealed) {
-                                                Icons.Filled.VisibilityOff
-                                            } else {
-                                                Icons.Filled.Visibility
-                                            },
-                                        contentDescription = stringResource(R.string.keys_action_toggle_visibility),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                                if (isRevealed && !revealedValue.isNullOrEmpty()) {
-                                    IconButton(onClick = {
-                                        val text = AnnotatedString(revealedValue)
-                                        scope.launch {
-                                            clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, text)))
-                                        }
-                                        onShowToast(copiedMessage)
-                                    }) {
+                                HermesTooltip(stringResource(R.string.keys_action_toggle_visibility)) {
+                                    IconButton(onClick = if (isRevealed) onHide else onReveal) {
                                         Icon(
-                                            imageVector = Icons.Outlined.ContentCopy,
-                                            contentDescription = stringResource(R.string.keys_action_copy),
+                                            imageVector =
+                                                if (isRevealed) {
+                                                    Icons.Filled.VisibilityOff
+                                                } else {
+                                                    Icons.Filled.Visibility
+                                                },
+                                            contentDescription = stringResource(R.string.keys_action_toggle_visibility),
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
                                     }
                                 }
+                                if (isRevealed && !revealedValue.isNullOrEmpty()) {
+                                    HermesTooltip(stringResource(R.string.keys_action_copy)) {
+                                        IconButton(onClick = {
+                                            val text = AnnotatedString(revealedValue)
+                                            scope.launch {
+                                                clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, text)))
+                                            }
+                                            onShowToast(copiedMessage)
+                                        }) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.ContentCopy,
+                                                contentDescription = stringResource(R.string.keys_action_copy),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
+                                }
                             }
-                            IconButton(onClick = {
-                                editedValue = if (isRevealed) revealedValue.orEmpty() else ""
-                                isEditing = true
-                            }) {
-                                Icon(
-                                    imageVector = Icons.Filled.Edit,
-                                    contentDescription = stringResource(R.string.content_desc_edit),
-                                    tint = MaterialTheme.colorScheme.primary,
-                                )
+                            HermesTooltip(stringResource(R.string.content_desc_edit)) {
+                                IconButton(onClick = {
+                                    editedValue = if (isRevealed) revealedValue.orEmpty() else ""
+                                    isEditing = true
+                                }) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Edit,
+                                        contentDescription = stringResource(R.string.content_desc_edit),
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
                             }
                         }
                     }

@@ -44,6 +44,7 @@ import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.common.ManageableFilterRow
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SkeletonListState
@@ -70,20 +71,22 @@ fun McpServersActions(viewModel: McpServersViewModel) {
             label = stringResource(R.string.mcp_servers_action_import_json),
             onClick = { viewModel.toggleImportDialog() },
         )
-        IconButton(
-            onClick = { viewModel.testAllServers() },
-            enabled = !state.isTestingAll && state.servers.any { it.enabled },
-        ) {
-            if (state.isTestingAll) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(18.dp),
-                    strokeWidth = 2.dp,
-                )
-            } else {
-                Icon(
-                    imageVector = Icons.Filled.Science,
-                    contentDescription = stringResource(R.string.mcp_servers_action_test_all),
-                )
+        HermesTooltip(stringResource(R.string.mcp_servers_action_test_all)) {
+            IconButton(
+                onClick = { viewModel.testAllServers() },
+                enabled = !state.isTestingAll && state.servers.any { it.enabled },
+            ) {
+                if (state.isTestingAll) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Filled.Science,
+                        contentDescription = stringResource(R.string.mcp_servers_action_test_all),
+                    )
+                }
             }
         }
     }

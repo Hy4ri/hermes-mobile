@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
@@ -102,7 +104,15 @@ fun ProjectPickerSheet(
 ) {
     val spacing = LocalSpacing.current
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(modifier = Modifier.fillMaxWidth().padding(bottom = spacing.lg)) {
+        // #1741: with enough projects the sheet is taller than the screen and ModalBottomSheet
+        // does not scroll its content, so the rows past the fold used to be unreachable.
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = spacing.lg),
+        ) {
             Text(
                 title,
                 style = MaterialTheme.typography.titleMedium,

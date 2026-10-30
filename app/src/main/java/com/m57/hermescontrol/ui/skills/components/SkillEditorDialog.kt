@@ -31,6 +31,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.applock.AlertDialog
 import com.m57.hermescontrol.applock.Dialog
 import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.NavIcon
 
@@ -103,21 +104,23 @@ internal fun SkillEditorDialog(
                     ),
                 actions = {
                     if (!isLoading) {
-                        IconButton(
-                            onClick = { onSave(textFieldState.text.toString()) },
-                            enabled = !isSaving,
-                        ) {
-                            if (isSaving) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.fillMaxSize(0.6f),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Filled.Save,
-                                    contentDescription = stringResource(R.string.content_desc_save_changes),
-                                )
+                        HermesTooltip(stringResource(R.string.content_desc_save_changes)) {
+                            IconButton(
+                                onClick = { onSave(textFieldState.text.toString()) },
+                                enabled = !isSaving,
+                            ) {
+                                if (isSaving) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.fillMaxSize(0.6f),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Filled.Save,
+                                        contentDescription = stringResource(R.string.content_desc_save_changes),
+                                    )
+                                }
                             }
                         }
                     }

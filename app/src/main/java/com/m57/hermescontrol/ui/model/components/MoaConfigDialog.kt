@@ -40,6 +40,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.applock.AlertDialog
 import com.m57.hermescontrol.data.model.MoaConfigPreset
 import com.m57.hermescontrol.data.model.MoaModelSlot
+import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.common.SearchBar
 
 @Composable
@@ -318,8 +319,10 @@ private fun MoaConfigEditor(
                 modifier = Modifier.weight(1f).height(48.dp),
                 textStyle = MaterialTheme.typography.bodySmall,
             )
-            IconButton(onClick = onAddPreset, enabled = newPresetName.isNotBlank()) {
-                Icon(Icons.Outlined.Add, contentDescription = stringResource(R.string.moa_add_preset))
+            HermesTooltip(stringResource(R.string.moa_add_preset)) {
+                IconButton(onClick = onAddPreset, enabled = newPresetName.isNotBlank()) {
+                    Icon(Icons.Outlined.Add, contentDescription = stringResource(R.string.moa_add_preset))
+                }
             }
         }
 
@@ -349,8 +352,14 @@ private fun MoaConfigEditor(
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                 ) { Text("Change", style = MaterialTheme.typography.labelSmall) }
                 if (effectivePreset.reference_models.size > 1) {
-                    IconButton(onClick = { onRemoveReference(index) }, modifier = Modifier.size(24.dp)) {
-                        Icon(Icons.Filled.Close, contentDescription = "Remove", modifier = Modifier.size(14.dp))
+                    HermesTooltip(stringResource(R.string.action_remove)) {
+                        IconButton(onClick = { onRemoveReference(index) }, modifier = Modifier.size(24.dp)) {
+                            Icon(
+                                Icons.Filled.Close,
+                                contentDescription = stringResource(R.string.action_remove),
+                                modifier = Modifier.size(14.dp),
+                            )
+                        }
                     }
                 }
             }

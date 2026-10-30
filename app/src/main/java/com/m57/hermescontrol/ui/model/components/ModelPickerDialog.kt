@@ -43,6 +43,7 @@ import com.m57.hermescontrol.applock.AlertDialog
 import com.m57.hermescontrol.data.model.ModelCapabilities
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
+import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.SearchBar
 
@@ -88,16 +89,18 @@ fun ModelPickerDialog(
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f),
                 )
-                IconButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.size(32.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Close",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp),
-                    )
+                HermesTooltip(stringResource(R.string.action_close)) {
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = stringResource(R.string.action_close),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
                 }
             }
         },
@@ -368,28 +371,39 @@ private fun ModelItemCard(
                 ModelCapabilitySummary(capabilities)
             }
             if (onPinToggle != null) {
-                IconButton(
-                    onClick = onPinToggle,
-                    modifier = Modifier.size(32.dp),
-                ) {
-                    Icon(
-                        imageVector = if (isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
-                        contentDescription =
-                            stringResource(
-                                if (isPinned) {
-                                    R.string.content_desc_unpin_model
-                                } else {
-                                    R.string.content_desc_pin_model
-                                },
-                            ),
-                        tint =
+                HermesTooltip(
+                    label =
+                        stringResource(
                             if (isPinned) {
-                                MaterialTheme.colorScheme.primary
+                                R.string.content_desc_unpin_model
                             } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                R.string.content_desc_pin_model
                             },
-                        modifier = Modifier.size(16.dp),
-                    )
+                        ),
+                ) {
+                    IconButton(
+                        onClick = onPinToggle,
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            imageVector = if (isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
+                            contentDescription =
+                                stringResource(
+                                    if (isPinned) {
+                                        R.string.content_desc_unpin_model
+                                    } else {
+                                        R.string.content_desc_pin_model
+                                    },
+                                ),
+                            tint =
+                                if (isPinned) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                },
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
                 }
             }
         }

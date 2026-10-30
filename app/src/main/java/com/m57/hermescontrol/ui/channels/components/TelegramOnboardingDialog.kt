@@ -34,6 +34,7 @@ import com.m57.hermescontrol.applock.AlertDialog
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.channels.ChannelsUiState
 import com.m57.hermescontrol.ui.channels.OnboardingPhase
+import com.m57.hermescontrol.ui.common.HermesTooltip
 
 @Composable
 internal fun TelegramOnboardingDialog(
@@ -132,12 +133,14 @@ internal fun TelegramOnboardingDialog(
                                     text = id,
                                     style = MaterialTheme.typography.bodyMedium,
                                 )
-                                IconButton(onClick = { onRemoveAllowedId(id) }) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Close,
-                                        contentDescription = "Remove",
-                                        modifier = Modifier.size(18.dp),
-                                    )
+                                HermesTooltip(stringResource(R.string.action_remove)) {
+                                    IconButton(onClick = { onRemoveAllowedId(id) }) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Close,
+                                            contentDescription = stringResource(R.string.action_remove),
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -152,11 +155,13 @@ internal fun TelegramOnboardingDialog(
                                 singleLine = true,
                                 modifier = Modifier.weight(1f),
                             )
-                            IconButton(onClick = onAddAllowedId) {
-                                Icon(
-                                    Icons.Filled.Add,
-                                    contentDescription = stringResource(R.string.tg_onboarding_add_user_id),
-                                )
+                            HermesTooltip(stringResource(R.string.tg_onboarding_add_user_id)) {
+                                IconButton(onClick = onAddAllowedId) {
+                                    Icon(
+                                        Icons.Filled.Add,
+                                        contentDescription = stringResource(R.string.tg_onboarding_add_user_id),
+                                    )
+                                }
                             }
                         }
                     }

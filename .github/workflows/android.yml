@@ -252,8 +252,9 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   build:
     name: Build Debug APK
-    needs: [pr-template, changes]
-    if: ${{ !cancelled() && needs.pr-template.result != 'failure' && needs.changes.outputs.code == 'true' }}
+    # Not gated on pr-template: contributors need the APK to take the screenshots the template asks for.
+    needs: [changes]
+    if: ${{ !cancelled() && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -295,8 +296,9 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   release-compile:
     name: Release Compile Check
-    needs: [pr-template, changes]
-    if: ${{ !cancelled() && needs.pr-template.result != 'failure' && needs.changes.outputs.code == 'true' }}
+    # Not gated on pr-template, same as build: a release-only compile error shows before the template is fixed.
+    needs: [changes]
+    if: ${{ !cancelled() && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

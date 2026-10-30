@@ -156,7 +156,9 @@ def render(problems, repo):
         MARKER,
         "### 🚧 PR description is incomplete",
         "",
-        "CI is **paused** until this is fixed, so no runner minutes are wasted on an unreviewable PR.",
+        "Lint and tests are **paused** until this is fixed, so no runner minutes are wasted on an unreviewable PR. "
+        "The debug APK still builds: download `hermescontrol-debug-apk` from the *Android CI/CD* run's Artifacts "
+        "and install it to take your screenshots.",
         "",
     ]
     for i, (problem, fix) in enumerate(problems, 1):

@@ -68,6 +68,51 @@ class ReconnectPolicyTest {
     }
 
     @Test
+    fun aServerNotReadyFailurePinsTheCeilingToTheShortLane() {
+        // 5xx from the ticket endpoint = the server is up but not ready (restarting gateway).
+        // Doubling there is what kept the client away ~20 s after the gateway was serving again.
+        val policy = ReconnectPolicy()
+
+        policy.advance(serverNotReady = true)
+        assertEquals(3_000L, policy.currentBackoff)
+
+        // Repeated 5xx stay on the short ceiling instead of walking to the 30 s lane.
+        repeat(6) { policy.advance(serverNotReady = true) }
+        assertEquals(3_000L, policy.currentBackoff)
+    }
+
+    @Test
+    fun aServerNotReadyFailurePullsAnExistingLongBackoffBackDown() {
+        val policy = ReconnectPolicy()
+        repeat(5) { policy.advance() } // transport errors: 1s→2s→4s→8s→16s→30s
+        assertEquals(30_000L, policy.currentBackoff)
+
+        policy.advance(serverNotReady = true)
+        assertEquals(3_000L, policy.currentBackoff)
+    }
+
+    @Test
+    fun transportFailuresStillDoubleAfterAServerNotReadyFailure() {
+        // The two modes must not leak into each other: once the endpoint answers a transport error,
+        // the client earns the normal exponential lane again.
+        val policy = ReconnectPolicy()
+        policy.advance(serverNotReady = true)
+        assertEquals(3_000L, policy.currentBackoff)
+
+        policy.advance()
+        assertEquals(6_000L, policy.currentBackoff)
+    }
+
+    @Test
+    fun theServerNotReadyCeilingKeepsTheNextDelayUnderThreeSeconds() {
+        val policy = ReconnectPolicy(random = { 0.999 })
+        policy.advance(serverNotReady = true)
+
+        // 0.999 * 3000 = 2997: the wait a booting gateway sees never exceeds the short ceiling.
+        assertEquals(2_997L, policy.nextDelayMs())
+    }
+
+    @Test
     fun resetRestoresInitialBackoffOf1000() {
         val policy = ReconnectPolicy()
         policy.advance()

@@ -275,7 +275,10 @@ internal class WsTransport(
                 ticketResult.httpCode != null && ticketResult.httpCode >= 500 -> ConnectionStatus.RECONNECTING
                 else -> ConnectionStatus.DISCONNECTED
             }
-        return handleWsTicketRefreshFailure(status, generation)
+        // A 5xx means the server is reachable but not ready (a gateway restart answers 502/503
+        // until it is up): retry on the short ceiling instead of doubling the backoff.
+        val serverNotReady = ticketResult.httpCode?.let { it >= 500 } == true
+        return handleWsTicketRefreshFailure(status, generation, serverNotReady)
     }
 
     suspend fun mintWsTicket(): String? {
@@ -349,12 +352,13 @@ internal class WsTransport(
     private fun handleWsTicketRefreshFailure(
         status: ConnectionStatus,
         generation: Int,
+        serverNotReady: Boolean = false,
     ): Boolean {
         synchronized(outboundLock) {
             if (!isCurrentGeneration(generation)) return false
             rpcChannel.rejectAllPending()
             _connectionStatus.value = status
-            if (status == ConnectionStatus.RECONNECTING) scheduleReconnect()
+            if (status == ConnectionStatus.RECONNECTING) scheduleReconnect(serverNotReady)
         }
         return false
     }
@@ -601,7 +605,7 @@ internal class WsTransport(
     private fun isCurrentGeneration(generation: Int): Boolean =
         connectionGeneration.get() == generation && !intentionalClose.get()
 
-    private fun scheduleReconnect() {
+    private fun scheduleReconnect(serverNotReady: Boolean = false) {
         synchronized(outboundLock) {
             if (intentionalClose.get() ||
                 _connectionStatus.value == ConnectionStatus.AUTH_EXPIRED ||
@@ -620,7 +624,7 @@ internal class WsTransport(
                 return
             }
             val reconnectDelay = reconnectPolicy.nextDelayMs()
-            reconnectPolicy.advance()
+            reconnectPolicy.advance(serverNotReady)
             if (BuildConfig.DEBUG) Log.d(TAG, "Reconnecting in ${reconnectDelay}ms …")
 
             reconnectJob =

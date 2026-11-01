@@ -64,11 +64,13 @@ object CronExpressionFormatter {
     ): String? {
         if (minutePart.startsWith("*/") && hourPart == "*" && domPart == "*" && monthPart == "*" && dowPart == "*") {
             val step = minutePart.substring(2).toIntOrNull()
-            if (step != null) return "Every $step minutes"
+            // #1750: steps reset each hour; only divisors of 60 describe a uniform interval.
+            if (step != null && step in 1..59 && 60 % step == 0) return "Every $step minutes"
         }
         if (minutePart == "0" && hourPart.startsWith("*/") && domPart == "*" && monthPart == "*" && dowPart == "*") {
             val step = hourPart.substring(2).toIntOrNull()
-            if (step != null) return "Every $step hours"
+            // #1750: steps reset at midnight; other intervals keep the original schedule.
+            if (step != null && step in 1..23 && 24 % step == 0) return "Every $step hours"
         }
         if (minutePart == "0" && hourPart == "0" && domPart == "*" && monthPart == "*" && dowPart == "*") {
             return "Every day at midnight"

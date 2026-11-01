@@ -350,6 +350,25 @@ preferences. Saving an empty list removes the headers for that URL.
 
 Have multiple gateways? Switch between them in **Settings → Connection profiles**. Each profile stores its own host, port, and token.
 
+### SSH tunnel
+
+If the dashboard is bound to loopback on its own host, or the phone cannot route to it, the app can carry the session over SSH instead of exposing the
+gateway. Configure it from **SSH tunnel** on the sign-in screen (next to **Custom headers**) or from **Settings → Connection → SSH tunnel**.
+
+- **SSH server / port / username** is the host the phone can already reach.
+- **Remote host / port** is the dashboard address as seen from that SSH server — usually `127.0.0.1` and `9119`.
+- Authentication is either the SSH **password** or an OpenSSH/PEM **private key** with an optional passphrase. Credentials are stored in the app's
+  encrypted preferences, never in `server_store.json`.
+- The dashboard **URL is unchanged**: the app opens a local forward on `127.0.0.1` and routes that origin's sockets through it, so cookies, TLS/mTLS
+  bindings, custom headers and WebSocket URLs keep the identity you configured. `ssh -L 9119:127.0.0.1:9119 user@host` describes the same setup.
+
+Host keys are trusted on first use only. The first connection stops and shows the `SHA256:` fingerprint; nothing is stored until you confirm it.
+A **changed** host key fails the connection (use **Forget stored host key** only after you reinstalled the server). The tunnel reconnects with
+backoff while it is enabled, and stops on logout or when the connection profile changes.
+
+The tunnel is an alternative transport, not extra authentication: complete the Hermes sign-in as usual, and keep the SSH server itself patched and
+restricted to key authentication where possible.
+
 ---
 
 ## Contributing

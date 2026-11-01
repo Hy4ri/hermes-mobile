@@ -41,6 +41,37 @@ class CronExpressionFormatterTest {
     }
 
     @Test
+    fun testMinuteStepsThatResetBeforeTheirNextIntervalKeepRawSchedule() {
+        // */40 fires at :00 and :40, then again at :00 (only 20 minutes later).
+        for (schedule in listOf("*/7 * * * *", "*/40 * * * *", "*/45 * * * *")) {
+            assertEquals(schedule, CronExpressionFormatter.cronToHumanReadable(schedule))
+        }
+    }
+
+    @Test
+    fun testHourStepsThatResetBeforeTheirNextIntervalKeepRawSchedule() {
+        // */7 fires at 00:00, 07:00, 14:00, 21:00, then 00:00 (only 3 hours later).
+        for (schedule in listOf("0 */5 * * *", "0 */7 * * *")) {
+            assertEquals(schedule, CronExpressionFormatter.cronToHumanReadable(schedule))
+        }
+    }
+
+    @Test
+    fun testUniformStepDescriptionsArePreserved() {
+        assertEquals("Every 2 minutes", CronExpressionFormatter.cronToHumanReadable("*/2 * * * *"))
+        assertEquals("Every 30 minutes", CronExpressionFormatter.cronToHumanReadable("*/30 * * * *"))
+        assertEquals("Every 3 hours", CronExpressionFormatter.cronToHumanReadable("0 */3 * * *"))
+        assertEquals("Every 12 hours", CronExpressionFormatter.cronToHumanReadable("0 */12 * * *"))
+    }
+
+    @Test
+    fun testZeroNegativeAndOutOfRangeStepsKeepRawSchedule() {
+        for (schedule in listOf("*/0 * * * *", "*/-1 * * * *", "*/60 * * * *", "0 */0 * * *", "0 */24 * * *")) {
+            assertEquals(schedule, CronExpressionFormatter.cronToHumanReadable(schedule))
+        }
+    }
+
+    @Test
     fun testExceptionFallback() {
         // This will cause an IndexOutOfBoundsException because 15 is out of bounds for monthNames
         assertEquals("Raw: 0 12 1 15 *", CronExpressionFormatter.cronToHumanReadable("0 12 1 15 *"))

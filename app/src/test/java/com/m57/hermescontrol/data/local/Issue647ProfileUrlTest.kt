@@ -47,6 +47,7 @@ class Issue647ProfileUrlTest {
     fun setUp() {
         mockPrefs = mockk(relaxed = true)
         every { mockPrefs.getString("server_custom_headers", null) } returns null
+        every { mockPrefs.getString("ssh_tunnel_configs", null) } returns null
         mockEditor = mockk(relaxed = true)
         mockContext = mockk(relaxed = true)
 

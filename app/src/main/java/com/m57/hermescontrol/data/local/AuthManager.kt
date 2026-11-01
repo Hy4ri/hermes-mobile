@@ -21,6 +21,8 @@ import com.m57.hermescontrol.data.remote.CookieManager
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.ServerHeaders
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
+import com.m57.hermescontrol.data.tunnel.SshTunnelController
+import com.m57.hermescontrol.data.tunnel.SshTunnelStore
 import com.m57.hermescontrol.profilelock.ProfileLock
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
@@ -220,6 +222,8 @@ object AuthManager {
                             )
                         migrateLegacyDefaultIfNeeded(p)
                         ServerHeaders.initialize(p)
+                        // Preserve sign-in UI on a corrupt blob; transport stays fail-closed until repaired.
+                        runCatching { SshTunnelStore.initialize(p) }
                         synchronized(this@AuthManager) {
                             readyPrefs = p
                             cachedToken = getTokenInternal(p)
@@ -235,6 +239,7 @@ object AuthManager {
                             current.copy(wsAuthParam = selected?.wsAuthParam ?: current.wsAuthParam)
                         }
                         _selectedProfileFlow.value = state.selectedProfileId
+                        SshTunnelController.applyForBaseUrl(state.resolvedBaseUrl)
                         _baseUrlFlow.value = state.resolvedBaseUrl
                         val profileId = normalizedProfileId(state.selectedProfileId)
                         CookieManager.initialize(context, prefs, profileId)
@@ -515,7 +520,9 @@ object AuthManager {
         // profile, so a connection-profile switch must re-emit the NEW
         // server's URL (previously stale — reactive consumers saw the old
         // server's URL after a switch).
-        _baseUrlFlow.value = serverStore.getLatestState().resolvedBaseUrl
+        val baseUrl = serverStore.getLatestState().resolvedBaseUrl
+        SshTunnelController.applyForBaseUrl(baseUrl)
+        _baseUrlFlow.value = baseUrl
         _selectedProfileFlow.value = normalizedId
         synchronized(this) {
             tokenInitialized = false
@@ -631,6 +638,8 @@ object AuthManager {
         }
         _activeProfileId.value = null
         _baseUrlFlow.value = ""
+        SshTunnelController.stop()
+        SshTunnelStore.resetForTest()
     }
 
     @VisibleForTesting
@@ -722,6 +731,7 @@ object AuthManager {
                     CleartextPolicy.ALLOW_WITH_WARNING,
                 ).baseUrl
                 .toString()
+        SshTunnelController.applyForBaseUrl(normalized)
         _baseUrlFlow.value = normalized
         val selectedId =
             getSelectedProfileId() ?: run {

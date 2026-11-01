@@ -63,6 +63,7 @@ import com.m57.hermescontrol.data.remote.ClientCertificates
 import com.m57.hermescontrol.profilelock.LockedLandingContent
 import com.m57.hermescontrol.profilelock.ProfileLock
 import com.m57.hermescontrol.ui.common.CustomHeadersButton
+import com.m57.hermescontrol.ui.common.SshTunnelButton
 
 @Composable
 fun AuthLoginScreen(
@@ -222,6 +223,12 @@ fun AuthLoginScreen(
             )
 
             CustomHeadersButton(
+                baseUrl = state.baseUrl,
+                enabled = !state.probing && !state.isLoading,
+                onSaved = { viewModel.requestProbe(context) },
+            )
+
+            SshTunnelButton(
                 baseUrl = state.baseUrl,
                 enabled = !state.probing && !state.isLoading,
                 onSaved = { viewModel.requestProbe(context) },

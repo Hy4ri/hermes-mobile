@@ -25,6 +25,9 @@ import com.m57.hermescontrol.data.remote.isClientCertificateAuthenticationFailur
 import com.m57.hermescontrol.data.remote.requiresLocalNetworkPermission
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
+import com.m57.hermescontrol.data.tunnel.SshTunnelController
+import com.m57.hermescontrol.data.tunnel.SshTunnelState
+import com.m57.hermescontrol.ui.common.sshTunnelFailureMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -226,7 +229,10 @@ class AuthLoginViewModel(
         pendingLanProfileId = null
         _uiState.update { it.copy(lanPermissionNeeded = false) }
         viewModelScope.launch {
-            val required = withContext(Dispatchers.IO) { requiresLocalNetworkPermission(sdkVersion, url) }
+            // LAN permission check MUST precede SSH connect/dial.
+            // When an SSH tunnel is configured, its host decides the network gate.
+            val tunnelHost = withContext(Dispatchers.IO) { SshTunnelController.configFor(url)?.host }
+            val required = withContext(Dispatchers.IO) { requiresLocalNetworkPermission(sdkVersion, url, tunnelHost) }
             if (attempt != permissionAttempt || !isCurrentLanTarget(url, profileId)) return@launch
             if (required &&
                 ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_LOCAL_NETWORK) !=
@@ -234,11 +240,42 @@ class AuthLoginViewModel(
             ) {
                 pendingLanUrl = url
                 pendingLanProfileId = profileId
-                pendingLanAction = action
+                // Re-enter requestWithLanPermission after grant so prepare is never bypassed.
+                pendingLanAction = { requestWithLanPermission(context, url, profileId, action) }
                 _uiState.update { it.copy(lanPermissionNeeded = true, errorMessage = null) }
-            } else {
-                action()
+                return@launch
             }
+
+            // An SSH tunnel has to be dialed before the first dashboard request, and it
+            // replaces the URL host as the address the platform actually connects to.
+            val tunnel = withContext(Dispatchers.IO) { SshTunnelController.prepareForBaseUrl(url) }
+            if (attempt != permissionAttempt || !isCurrentLanTarget(url, profileId)) return@launch
+            val tunnelFailure =
+                when (tunnel) {
+                    is SshTunnelState.Failed -> {
+                        app.getString(sshTunnelFailureMessage(tunnel.reason))
+                    }
+
+                    is SshTunnelState.AwaitingHostKey -> {
+                        app.getString(R.string.ssh_tunnel_error_host_key_unconfirmed, tunnel.fingerprint)
+                    }
+
+                    is SshTunnelState.Connecting -> {
+                        app.getString(R.string.ssh_tunnel_status_connecting)
+                    }
+
+                    is SshTunnelState.Connected, SshTunnelState.Disabled -> {
+                        null
+                    }
+                }
+            if (tunnelFailure != null) {
+                if (isCurrentLanTarget(url, profileId)) {
+                    _uiState.update { it.copy(errorMessage = tunnelFailure) }
+                }
+                return@launch
+            }
+
+            action()
         }
     }
 

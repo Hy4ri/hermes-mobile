@@ -2084,4 +2084,42 @@
     <string name="chat_pending_owned_elsewhere">This chat is open in another window. Start a new conversation with this message?</string>
     <string name="chat_pending_new_conversation">New conversation</string>
     <string name="chat_pending_attachments_not_carried">Attachments were not carried. Add them again in the new conversation.</string>
+
+    <!-- SSH tunnel (optional connection transport) -->
+    <string name="ssh_tunnel_title">SSH tunnel</string>
+    <string name="ssh_tunnel_desc">Reach this dashboard through an SSH server. The URL above stays the same; only the connection is carried by SSH. Credentials are stored encrypted on this device.</string>
+    <string name="ssh_tunnel_enable">Connect through SSH</string>
+    <string name="ssh_tunnel_host">SSH server</string>
+    <string name="ssh_tunnel_port">SSH port</string>
+    <string name="ssh_tunnel_username">SSH username</string>
+    <string name="ssh_tunnel_auth_password">Password</string>
+    <string name="ssh_tunnel_auth_key">Private key</string>
+    <string name="ssh_tunnel_password">SSH password</string>
+    <string name="ssh_tunnel_private_key">Private key (OpenSSH or PEM)</string>
+    <string name="ssh_tunnel_passphrase">Key passphrase (optional)</string>
+    <string name="ssh_tunnel_remote_desc">Dashboard address as seen from the SSH server:</string>
+    <string name="ssh_tunnel_remote_host">Remote host</string>
+    <string name="ssh_tunnel_remote_port">Remote port</string>
+    <string name="ssh_tunnel_status_off">Tunnel disabled.</string>
+    <string name="ssh_tunnel_status_connecting">Connecting to the SSH server…</string>
+    <string name="ssh_tunnel_status_connected">Tunnel up on 127.0.0.1:%1$d</string>
+    <string name="ssh_tunnel_status_awaiting_key">First connection to this server. Verify the host key before trusting it: %1$s %2$s</string>
+    <string name="ssh_tunnel_trust_key">Trust this host key</string>
+    <string name="ssh_tunnel_forget_key">Forget stored host key</string>
+    <string name="ssh_tunnel_error_host">Enter the SSH server address.</string>
+    <string name="ssh_tunnel_error_port">Enter an SSH port between 1 and 65535.</string>
+    <string name="ssh_tunnel_error_username">Enter the SSH username.</string>
+    <string name="ssh_tunnel_error_password">Enter the SSH password.</string>
+    <string name="ssh_tunnel_error_private_key">Paste an unencrypted or passphrase-protected private key.</string>
+    <string name="ssh_tunnel_error_remote_host">Enter the dashboard host as seen from the SSH server.</string>
+    <string name="ssh_tunnel_error_remote_port">Enter a remote port between 1 and 65535.</string>
+    <string name="ssh_tunnel_error_save">Could not save the SSH tunnel settings.</string>
+    <string name="ssh_tunnel_error_unreachable">SSH tunnel: the SSH server could not be reached.</string>
+    <string name="ssh_tunnel_error_authentication">SSH tunnel: the SSH server rejected these credentials.</string>
+    <string name="ssh_tunnel_error_host_key_changed">SSH tunnel: the host key changed since the last connection. Forget the stored key only if you re-installed the server.</string>
+    <string name="ssh_tunnel_error_forwarding">SSH tunnel: the SSH server refused to open the forward.</string>
+    <string name="ssh_tunnel_error_unknown">SSH tunnel failed.</string>
+    <string name="ssh_tunnel_error_host_key_unconfirmed">SSH tunnel: confirm the host key in the SSH tunnel settings (fingerprint %1$s).</string>
+    <string name="ssh_tunnel_error_load">Could not load SSH tunnel settings. Existing settings cannot be overwritten.</string>
+    <string name="ssh_tunnel_loopback_warning">The tunnel binds to a local port on 127.0.0.1; other apps on this device may connect to the open local port.</string>
 </resources>

@@ -1,5 +1,9 @@
 package com.m57.hermescontrol.data.remote
 
+import com.m57.hermescontrol.data.tunnel.SshTunnelDns
+import com.m57.hermescontrol.data.tunnel.SshTunnelInterceptor
+import com.m57.hermescontrol.data.tunnel.SshTunnelProxySelector
+import com.m57.hermescontrol.data.tunnel.SshTunnelSocketFactory
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.Authenticator
 import okhttp3.Call
@@ -29,6 +33,10 @@ internal suspend fun verifyClientCertificate(
     val client =
         OkHttpClient
             .Builder()
+            .dns(SshTunnelDns)
+            .socketFactory(SshTunnelSocketFactory)
+            .proxySelector(SshTunnelProxySelector)
+            .addInterceptor(SshTunnelInterceptor)
             .sslSocketFactory(context.socketFactory, trust)
             .connectionPool(pool)
             .cookieJar(CookieJar.NO_COOKIES)

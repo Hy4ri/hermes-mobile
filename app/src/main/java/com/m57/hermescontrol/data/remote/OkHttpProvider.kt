@@ -1,5 +1,9 @@
 package com.m57.hermescontrol.data.remote
 
+import com.m57.hermescontrol.data.tunnel.SshTunnelDns
+import com.m57.hermescontrol.data.tunnel.SshTunnelInterceptor
+import com.m57.hermescontrol.data.tunnel.SshTunnelProxySelector
+import com.m57.hermescontrol.data.tunnel.SshTunnelSocketFactory
 import com.m57.hermescontrol.data.ws.ConnectionHealth
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
@@ -34,6 +38,11 @@ object OkHttpProvider {
         OkHttpClient
             .Builder()
             .let(ClientCertificates::configure)
+            // Keep origin identity, but never dial direct while an enabled tunnel is down.
+            .dns(SshTunnelDns)
+            .socketFactory(SshTunnelSocketFactory)
+            .proxySelector(SshTunnelProxySelector)
+            .addInterceptor(SshTunnelInterceptor)
             .cookieJar(resolveCookieJar())
             .addNetworkInterceptor(ServerHeadersInterceptor())
             .connectionPool(connectionPool)

@@ -61,3 +61,10 @@
 # Keep screen object class names because their simpleNames are used for bottom nav selection and storage.
 -keep class * extends androidx.navigation3.runtime.NavKey { *; }
 
+# ── JSch (optional SSH tunnel) ───────────────────────────────────────────
+# JSch resolves cipher/key-exchange implementations by name at runtime and
+# probes for optional BouncyCastle classes that are not shipped.
+-keep class com.jcraft.jsch.** { *; }
+-dontwarn com.jcraft.jsch.**
+-dontwarn org.bouncycastle.**
+-dontwarn org.ietf.jgss.**

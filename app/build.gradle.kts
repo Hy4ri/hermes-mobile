@@ -187,6 +187,7 @@ dependencies {
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.kotlinx.serialization)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.jsch)
 
     // Native Compose LaTeX rendering
     implementation(libs.latex.base)

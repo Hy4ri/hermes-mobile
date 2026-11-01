@@ -47,6 +47,7 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.DatabaseUnavailableException
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.remote.requiresLocalNetworkPermission
+import com.m57.hermescontrol.data.tunnel.SshTunnelController
 import com.m57.hermescontrol.data.update.UpdateNoticeManager
 import com.m57.hermescontrol.data.update.WhatsNewNotice
 import com.m57.hermescontrol.data.ws.HermesWsClient
@@ -72,7 +73,8 @@ internal fun needsSavedSessionLanGate(
     token: String?,
     gatedMode: Boolean,
     url: String,
-): Boolean = (gatedMode || !token.isNullOrBlank()) && requiresLocalNetworkPermission(sdkInt, url)
+    tunnelSshHost: String? = null,
+): Boolean = (gatedMode || !token.isNullOrBlank()) && requiresLocalNetworkPermission(sdkInt, url, tunnelSshHost)
 
 class MainActivity : ComponentActivity() {
     companion object {
@@ -288,7 +290,14 @@ class MainActivity : ComponentActivity() {
         LaunchedEffect(token, gatedMode, url) {
             val required =
                 withContext(Dispatchers.IO) {
-                    needsSavedSessionLanGate(Build.VERSION.SDK_INT, token, gatedMode, url)
+                    // A tunneled connection dials the SSH server, so it decides the LAN gate.
+                    needsSavedSessionLanGate(
+                        Build.VERSION.SDK_INT,
+                        token,
+                        gatedMode,
+                        url,
+                        SshTunnelController.configFor(url)?.host,
+                    )
                 }
             val grantedOrNotRequired =
                 !required || ContextCompat.checkSelfPermission(

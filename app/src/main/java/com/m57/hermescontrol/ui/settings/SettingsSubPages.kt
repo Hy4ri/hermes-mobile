@@ -35,6 +35,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.applock.AppLockSettingsSection
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
+import com.m57.hermescontrol.ui.common.SshTunnelButton
 import com.m57.hermescontrol.ui.settings.components.AboutSection
 import com.m57.hermescontrol.ui.settings.components.AppearanceSection
 import com.m57.hermescontrol.ui.settings.components.BehaviorSection
@@ -104,6 +105,8 @@ internal fun SettingsConnectionPage(
                 },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(stringResource(R.string.tls_mtls_title)) }
+
+            SshTunnelButton(baseUrl = state.baseUrl, onSaved = {})
 
             ServerTrustSection()
 

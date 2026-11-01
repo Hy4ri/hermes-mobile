@@ -80,8 +80,18 @@ fun needsLocalNetworkPermission(baseUrl: String): Boolean {
  * requires the `ACCESS_LOCAL_NETWORK` runtime permission; earlier APIs and
  * loopback/public hosts do not. Pure so it can be unit-tested without mocking
  * [android.os.Build.VERSION.SDK_INT].
+ *
+ * When an SSH tunnel carries the connection, the traffic never reaches
+ * [baseUrl]'s host: the socket goes to the SSH server instead, so the SSH host
+ * decides the gate. Passing the tunneled URL's own host would either prompt for
+ * a permission the platform never checks or skip a prompt it does check.
  */
 fun requiresLocalNetworkPermission(
     sdkInt: Int,
     baseUrl: String,
-): Boolean = sdkInt >= 37 && needsLocalNetworkPermission(baseUrl)
+    tunnelSshHost: String? = null,
+): Boolean {
+    if (sdkInt < 37) return false
+    val host = tunnelSshHost?.takeIf { it.isNotBlank() }
+    return if (host != null) isLocalNetworkHost(host) else needsLocalNetworkPermission(baseUrl)
+}

@@ -10,6 +10,7 @@ import androidx.core.app.NotificationCompat
 import com.m57.hermescontrol.MainActivity
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.applock.AppLockStore
+import com.m57.hermescontrol.data.local.AgentDisplayName
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
 
 /** Builds and posts the notifications for gateway requests (approval, clarify, credentials). */
@@ -108,7 +109,7 @@ internal object RequestNotifications {
         NotificationCompat
             .Builder(context, ChatNotificationService.CHAT_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(context.getString(R.string.notif_title))
+            .setContentTitle(AgentDisplayName.current.value)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(NotificationCompat.PRIORITY_HIGH)

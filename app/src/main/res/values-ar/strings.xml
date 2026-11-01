@@ -1860,6 +1860,10 @@
     <string name="profile_lock_landing_body">تم قفل تسجيل الدخول واتصالات الخادم. يمكن للمالك إيقاف القفل لتسجيل الدخول مجددًا.</string>
     <string name="profile_lock_locked_to">مقفل على %1$s</string>
     <string name="profile_lock_menu_item">قفل على هذا الملف الشخصي</string>
+    <string name="agent_name_menu_item">اسم الوكيل على هذا الجهاز</string>
+    <string name="agent_name_title">اسم الوكيل</string>
+    <string name="agent_name_label">الاسم لـ %1$s</string>
+    <string name="agent_name_hint">على هذا الجهاز فقط. اتركه فارغًا لاستخدام اسم الملف الشخصي.</string>
     <string name="profile_lock_pin_confirm_label">تأكيد رمز PIN</string>
     <string name="profile_lock_pin_invalid">استخدم من 4 إلى 8 أرقام.</string>
     <string name="profile_lock_pin_label">رمز PIN (من 4 إلى 8 أرقام)</string>

@@ -14,6 +14,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
 import com.m57.hermescontrol.MainActivity
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.local.AgentDisplayName
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.ActiveSessionsResponse
 import com.m57.hermescontrol.data.remote.NetworkMonitor
@@ -439,7 +440,7 @@ class ChatNotificationService : Service() {
             NotificationCompat
                 .Builder(this, CHAT_CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notification)
-                .setContentTitle(getString(R.string.notif_title))
+                .setContentTitle(AgentDisplayName.current.value)
                 .setContentText(text)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(text))
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -555,7 +556,7 @@ class ChatNotificationService : Service() {
             NotificationCompat
                 .Builder(this, CHAT_CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notification)
-                .setContentTitle(ref.title ?: getString(R.string.notif_title))
+                .setContentTitle(ref.title ?: AgentDisplayName.current.value)
                 .setContentText(body)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(body))
                 .setPriority(NotificationCompat.PRIORITY_HIGH)

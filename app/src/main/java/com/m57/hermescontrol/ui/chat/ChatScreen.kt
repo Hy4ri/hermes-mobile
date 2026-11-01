@@ -86,6 +86,7 @@ import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.applock.AlertDialog
 import com.m57.hermescontrol.applock.DropdownMenu
+import com.m57.hermescontrol.data.local.AgentDisplayName
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.AttachmentSource
@@ -552,8 +553,10 @@ fun ChatScreen(
         pinTopBar = true,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                // #1747: an untitled chat shows the active profile's agent name.
+                val agentName by AgentDisplayName.current.collectAsStateWithLifecycle()
                 AutoScrollingTitleText(
-                    text = state.chatTitle,
+                    text = state.chatTitle.ifBlank { agentName },
                     modifier = Modifier.weight(1f),
                     style =
                         MaterialTheme.typography.titleMedium.copy(

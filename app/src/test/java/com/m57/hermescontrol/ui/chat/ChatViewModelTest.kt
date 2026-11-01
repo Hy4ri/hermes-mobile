@@ -1265,7 +1265,7 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             assertNull(viewModel.uiState.value.currentSessionId)
-            assertEquals("Hermes", viewModel.uiState.value.chatTitle)
+            assertEquals("", viewModel.uiState.value.chatTitle)
         }
 
     @Test

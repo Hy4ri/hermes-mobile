@@ -9,6 +9,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.applock.AppLockStore
+import com.m57.hermescontrol.data.local.AgentDisplayName
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.HermesWsClient
@@ -63,7 +64,7 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
         NotificationCompat
             .Builder(context, ChatNotificationService.CHAT_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Hermes")
+            .setContentTitle(AgentDisplayName.current.value)
             .setContentText("Replied")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)

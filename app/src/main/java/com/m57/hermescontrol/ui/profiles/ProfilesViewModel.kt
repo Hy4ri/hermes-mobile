@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.profiles
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.AgentDisplayName
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.local.SwrCache
@@ -449,6 +450,7 @@ class ProfilesViewModel(
                 }
             when (result) {
                 is NetworkResult.Success -> {
+                    AgentDisplayName.rename(AuthManager.dataScopeFlow.value?.connectionProfileId, oldName, newName)
                     _uiState.update {
                         it.copy(
                             toastMessage = "Profile '$oldName' renamed to '$newName'",
@@ -478,6 +480,7 @@ class ProfilesViewModel(
                 }
             when (result) {
                 is NetworkResult.Success -> {
+                    AgentDisplayName.set(AuthManager.dataScopeFlow.value?.connectionProfileId, name, null)
                     _uiState.update {
                         it.copy(
                             toastMessage = "Profile '$name' deleted",

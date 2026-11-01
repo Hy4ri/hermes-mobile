@@ -116,6 +116,7 @@ fun ProfilesScreen(
 
     var isBuildingProfile by remember { mutableStateOf(false) }
     var lockProfileName by remember { mutableStateOf<String?>(null) }
+    var agentNameProfile by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
 
     LaunchedEffect(dataScope) {
@@ -124,6 +125,14 @@ fun ProfilesScreen(
     }
 
     ToastEffect(toastMessage = state.toastMessage, onClearToast = viewModel::clearToast)
+
+    agentNameProfile?.let { name ->
+        AgentNameDialog(
+            connectionProfileId = dataScope?.connectionProfileId,
+            profileName = name,
+            onDismiss = { agentNameProfile = null },
+        )
+    }
 
     lockProfileName?.let { name ->
         val enabledToast = stringResource(R.string.profile_lock_enabled_toast, name)
@@ -455,6 +464,17 @@ fun ProfilesScreen(
                                                                 modifier = Modifier.testTag("profiles_action_lock"),
                                                             )
                                                         }
+                                                        // #1747: device-local agent name for this profile.
+                                                        DropdownMenuItem(
+                                                            text = {
+                                                                Text(stringResource(R.string.agent_name_menu_item))
+                                                            },
+                                                            onClick = {
+                                                                showMenu = false
+                                                                agentNameProfile = profile.name
+                                                            },
+                                                            modifier = Modifier.testTag("profiles_action_agent_name"),
+                                                        )
                                                         if (profile.is_default != true) {
                                                             DropdownMenuItem(
                                                                 text = {

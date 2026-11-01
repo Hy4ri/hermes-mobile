@@ -1,9 +1,14 @@
 package com.m57.hermescontrol.ui.common
 
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -12,6 +17,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -22,13 +28,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.applock.AlertDialog
+import com.m57.hermescontrol.data.remote.requiresLocalNetworkPermission
 import com.m57.hermescontrol.data.tunnel.SshAuthMode
 import com.m57.hermescontrol.data.tunnel.SshTunnelConfig
 import com.m57.hermescontrol.data.tunnel.SshTunnelController
@@ -37,6 +47,7 @@ import com.m57.hermescontrol.data.tunnel.SshTunnelProblem
 import com.m57.hermescontrol.data.tunnel.SshTunnelState
 import com.m57.hermescontrol.data.tunnel.SshTunnelStore
 import com.m57.hermescontrol.data.tunnel.tunnelOriginOf
+import com.m57.hermescontrol.theme.HermesControlTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -102,12 +113,13 @@ private fun SshTunnelDialog(
     dashboardHost: String,
     onClosed: (saved: Boolean) -> Unit,
 ) {
-    val stored = remember(origin) { SshTunnelStore.get(origin) }
+    val context = LocalContext.current
+    var persistedConfig by remember(origin) { mutableStateOf(SshTunnelStore.get(origin)) }
     var draft by remember(origin) {
         mutableStateOf(
-            stored ?: SshTunnelConfig(
+            persistedConfig ?: SshTunnelConfig(
                 host = dashboardHost,
-                username = SshTunnelConfig.DEFAULT_SSH_USER,
+                username = "",
                 remoteHost = SshTunnelConfig.DEFAULT_REMOTE_HOST,
                 remotePort =
                     runCatching { java.net.URI(origin).port }
@@ -116,32 +128,77 @@ private fun SshTunnelDialog(
             ),
         )
     }
-    var error by remember(origin) { mutableStateOf<Int?>(null) }
+    var error by remember(origin) {
+        mutableStateOf<Int?>(if (SshTunnelStore.loadFailed) R.string.ssh_tunnel_error_load else null)
+    }
     var saving by remember(origin) { mutableStateOf(false) }
     var saved by remember(origin) { mutableStateOf(false) }
     val tunnelState by SshTunnelController.state.collectAsStateWithLifecycle()
+    val activeOrigin by SshTunnelController.activeOrigin.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
 
+    var pendingSaveConfig by remember(origin) { mutableStateOf<SshTunnelConfig?>(null) }
+
+    suspend fun saveConfig(config: SshTunnelConfig) {
+        saving = true
+        error = null
+        try {
+            withContext(Dispatchers.IO) {
+                SshTunnelStore.save(origin, config)
+                SshTunnelController.applyForBaseUrl(origin)
+            }
+            persistedConfig = config
+            saved = true
+        } catch (_: IOException) {
+            error = R.string.ssh_tunnel_error_save
+        } finally {
+            saving = false
+        }
+    }
+
+    val lanPermissionLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            val pending = pendingSaveConfig
+            pendingSaveConfig = null
+            if (pending != null) {
+                if (granted) {
+                    scope.launch { saveConfig(pending) }
+                } else {
+                    error = R.string.connect_error_lan_permission_denied
+                }
+            }
+        }
+
     fun persist() {
-        val problem = draft.problem()
-        if (draft.enabled && problem != null) {
+        if (SshTunnelStore.loadFailed) {
+            error = R.string.ssh_tunnel_error_load
+            return
+        }
+        val toSave = draft
+        val problem = toSave.problem()
+        if (toSave.enabled && problem != null) {
             error = sshTunnelProblemMessage(problem)
             return
         }
         error = null
         saving = true
         scope.launch {
-            try {
+            // Host classification can resolve DNS; never run it on the UI thread.
+            val requiresLan =
                 withContext(Dispatchers.IO) {
-                    SshTunnelStore.save(origin, draft)
-                    SshTunnelController.applyForBaseUrl(origin)
+                    toSave.enabled && requiresLocalNetworkPermission(Build.VERSION.SDK_INT, origin, toSave.host)
                 }
-                saved = true
-            } catch (_: IOException) {
-                error = R.string.ssh_tunnel_error_save
-            } finally {
+            if (requiresLan && ContextCompat.checkSelfPermission(
+                    context,
+                    android.Manifest.permission.ACCESS_LOCAL_NETWORK,
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                pendingSaveConfig = toSave
                 saving = false
+                lanPermissionLauncher.launch(android.Manifest.permission.ACCESS_LOCAL_NETWORK)
+                return@launch
             }
+            saveConfig(toSave)
         }
     }
 
@@ -168,6 +225,7 @@ private fun SshTunnelDialog(
                     )
                     Switch(
                         checked = draft.enabled,
+                        enabled = !saving,
                         onCheckedChange = {
                             draft =
                                 draft.copy(
@@ -317,8 +375,22 @@ private fun SshTunnelDialog(
                     )
                 }
                 error?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
-                if (saved) {
-                    SshTunnelStatus(state = tunnelState, sshHost = draft.host)
+                if (draft.enabled) {
+                    Text(
+                        text = stringResource(R.string.ssh_tunnel_loopback_warning),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (activeOrigin == origin) {
+                    val persisted = persistedConfig
+                    if (persisted != null) {
+                        SshTunnelStatus(
+                            state = tunnelState,
+                            persistedHost = persisted.host,
+                            persistedPort = persisted.port,
+                        )
+                    }
                 }
             }
         },
@@ -338,7 +410,8 @@ private fun SshTunnelDialog(
 @Composable
 private fun SshTunnelStatus(
     state: SshTunnelState,
-    sshHost: String,
+    persistedHost: String,
+    persistedPort: Int,
 ) {
     val message =
         when (state) {
@@ -377,14 +450,76 @@ private fun SshTunnelStatus(
                 },
         )
         if (state is SshTunnelState.AwaitingHostKey) {
-            Button(onClick = { SshTunnelController.acceptPendingHostKey() }) {
+            Button(
+                onClick = {
+                    SshTunnelController.acceptPendingHostKey(
+                        host = state.host,
+                        keyType = state.keyType,
+                        fingerprint = state.fingerprint,
+                    )
+                },
+            ) {
                 Text(stringResource(R.string.ssh_tunnel_trust_key))
             }
         }
         if (state is SshTunnelState.Failed && state.reason == SshTunnelFailure.HOST_KEY_CHANGED) {
-            TextButton(onClick = { SshTunnelController.forgetHostKey(sshHost) }) {
+            TextButton(
+                onClick = {
+                    SshTunnelController.forgetHostKey(
+                        host = persistedHost,
+                        port = persistedPort,
+                    )
+                },
+            ) {
                 Text(stringResource(R.string.ssh_tunnel_forget_key))
             }
+        }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun SshTunnelStatusConnectedPreview() {
+    HermesControlTheme {
+        Surface(modifier = Modifier.padding(16.dp)) {
+            SshTunnelStatus(
+                state = SshTunnelState.Connected(localPort = 54321),
+                persistedHost = "ssh.example.com",
+                persistedPort = 22,
+            )
+        }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun SshTunnelStatusAwaitingKeyPreview() {
+    HermesControlTheme {
+        Surface(modifier = Modifier.padding(16.dp)) {
+            SshTunnelStatus(
+                state =
+                    SshTunnelState.AwaitingHostKey(
+                        host = "ssh.example.com",
+                        keyType = "ssh-ed25519",
+                        fingerprint = "SHA256:abc123xyz456",
+                    ),
+                persistedHost = "ssh.example.com",
+                persistedPort = 22,
+            )
+        }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun SshTunnelStatusHostKeyChangedPreview() {
+    HermesControlTheme {
+        Surface(modifier = Modifier.padding(16.dp)) {
+            SshTunnelStatus(
+                state = SshTunnelState.Failed(SshTunnelFailure.HOST_KEY_CHANGED),
+                persistedHost = "ssh.example.com",
+                persistedPort = 2222,
+            )
         }
     }
 }

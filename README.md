@@ -365,6 +365,11 @@ gateway. Configure it from **SSH tunnel** on the sign-in screen (next to **Custo
 Host keys are trusted on first use only. The first connection stops and shows the `SHA256:` fingerprint; nothing is stored until you confirm it.
 A **changed** host key fails the connection (use **Forget stored host key** only after you reinstalled the server). The tunnel reconnects with
 backoff while it is enabled, and stops on logout or when the connection profile changes.
+Requests never fall back to a direct connection while an SSH tunnel is enabled, including during startup and reconnect.
+Host-key trust is separate for each SSH host and port.
+
+**Local access:** the forward listens on a loopback port on this phone. Other apps on the phone can connect to that port while the tunnel is up.
+Enable dashboard authentication even when the dashboard is bound to remote loopback; SSH does not isolate the local forward from other apps.
 
 The tunnel is an alternative transport, not extra authentication: complete the Hermes sign-in as usual, and keep the SSH server itself patched and
 restricted to key authentication where possible.

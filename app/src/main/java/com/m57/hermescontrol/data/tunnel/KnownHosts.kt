@@ -11,11 +11,10 @@ enum class HostKeyStatus {
 }
 
 /**
- * An OpenSSH `known_hosts` file, reduced to the fields this app needs:
- * `host keytype base64`. Only plain host names are written (no hashing, no
- * wildcards, no ports), so the file stays readable and editable by hand.
+ * An OpenSSH `known_hosts` file, storing trust entries:
+ * `host keytype base64`. Non-default ports are stored using OpenSSH format `[host]:port`.
  *
- * Keys are kept per (host, key type) so a server that offers both an Ed25519
+ * Keys are kept per (host identity, key type) so a server that offers both an Ed25519
  * and an RSA host key does not look like a key change when it switches.
  */
 class KnownHosts private constructor(
@@ -74,15 +73,62 @@ class KnownHosts private constructor(
             return KnownHosts(parsed)
         }
 
-        /** `[fe80::1]:2222` and `example.com:2222` are stored as the bare host. */
+        /**
+         * Computes the trust identity string for a given host and port.
+         * Default port 22 or non-positive ports yield the bare host name.
+         * Non-default ports yield `[host]:port` (OpenSSH known_hosts convention).
+         */
+        fun identity(
+            host: String,
+            port: Int = 22,
+        ): String {
+            val bare = bareHost(host)
+            if (bare.isEmpty()) return ""
+            return if (port == 22 || port <= 0) bare else "[$bare]:$port"
+        }
+
+        /**
+         * Normalizes a host string for known_hosts lookup/storage:
+         * preserves non-default port if present (or parses `[host]:port`),
+         * normalizes default port 22 or bare host to bare host.
+         */
         fun normalizeHost(host: String): String {
+            val trimmed = host.trim()
+            if (trimmed.startsWith('[') && trimmed.contains(']')) {
+                val inside = trimmed.substringAfter('[').substringBefore(']')
+                val after = trimmed.substringAfter(']', "")
+                if (after.startsWith(':')) {
+                    val port = after.removePrefix(":").toIntOrNull()
+                    if (port != null && port != 22 && port > 0) {
+                        return "[$inside]:$port"
+                    }
+                }
+                return inside
+            }
+            val lastColon = trimmed.lastIndexOf(':')
+            val hasSingleColon = trimmed.indexOf(':') == lastColon
+            if (hasSingleColon && lastColon > 0) {
+                val name = trimmed.substring(0, lastColon)
+                val port = trimmed.substring(lastColon + 1).toIntOrNull()
+                if (port != null && port != 22 && port > 0) {
+                    return "[$name]:$port"
+                }
+                return name
+            }
+            return trimmed
+        }
+
+        /** Extracts the bare host without brackets or port. */
+        private fun bareHost(host: String): String {
             val trimmed = host.trim()
             if (trimmed.startsWith('[') && trimmed.contains(']')) {
                 return trimmed.substringAfter('[').substringBefore(']')
             }
             val lastColon = trimmed.lastIndexOf(':')
             val hasSingleColon = trimmed.indexOf(':') == lastColon
-            if (hasSingleColon && lastColon > 0) return trimmed.substring(0, lastColon)
+            if (hasSingleColon && lastColon > 0) {
+                return trimmed.substring(0, lastColon)
+            }
             return trimmed
         }
 

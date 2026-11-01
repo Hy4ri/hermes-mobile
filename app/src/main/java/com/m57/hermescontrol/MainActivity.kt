@@ -324,6 +324,13 @@ class MainActivity : ComponentActivity() {
                 launcher.launch(android.Manifest.permission.ACCESS_LOCAL_NETWORK)
             }
         }
+        LaunchedEffect(startupLanState, url) {
+            if (startupLanState == StartupLanState.Ready) {
+                withContext(Dispatchers.IO) {
+                    SshTunnelController.applyForBaseUrl(url)
+                }
+            }
+        }
         when (startupLanState) {
             StartupLanState.ChooseConnection -> {
                 AuthLoginScreen(

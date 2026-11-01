@@ -5,7 +5,6 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.IOException
-import java.util.Locale
 
 /**
  * Per-origin SSH tunnel settings, persisted in AuthManager's encrypted
@@ -21,25 +20,42 @@ object SshTunnelStore {
     private val json = Json { ignoreUnknownKeys = true }
 
     @Volatile
+    var loadFailed: Boolean = false
+        private set
+
+    @Volatile
     private var configured: Map<String, SshTunnelConfig> = emptyMap()
 
     private var preferences: SharedPreferences? = null
 
     @Synchronized
     fun initialize(encryptedPreferences: SharedPreferences) {
-        val stored = encryptedPreferences.getString(KEY, null)
-        configured =
-            if (stored == null) {
-                emptyMap()
-            } else {
-                try {
-                    json.decodeFromString<Map<String, SshTunnelConfig>>(stored)
-                } catch (_: SerializationException) {
-                    // Parser messages echo the input, which contains credentials.
-                    throw IOException("Could not read SSH tunnel settings")
-                }
-            }
         preferences = encryptedPreferences
+        configured = emptyMap()
+        loadFailed = true
+        try {
+            val stored = encryptedPreferences.getString(KEY, null)
+            configured =
+                if (stored == null) {
+                    emptyMap()
+                } else {
+                    json.decodeFromString<Map<String, SshTunnelConfig>>(stored)
+                }
+            loadFailed = false
+        } catch (_: Exception) {
+            configured = emptyMap()
+            loadFailed = true
+            // Parser or keystore/prefs messages might echo inputs containing credentials.
+            throw IOException("Could not read SSH tunnel settings")
+        }
+    }
+
+    @androidx.annotation.VisibleForTesting
+    @Synchronized
+    internal fun resetForTest() {
+        preferences = null
+        configured = emptyMap()
+        loadFailed = false
     }
 
     fun get(origin: String?): SshTunnelConfig? = origin?.let { configured[it] }
@@ -52,14 +68,20 @@ object SshTunnelStore {
         origin: String,
         config: SshTunnelConfig,
     ) {
-        val prefs = checkNotNull(preferences) { "SSH tunnel settings are not initialized" }
+        if (loadFailed) {
+            throw IOException("SSH tunnel settings failed to load; cannot overwrite")
+        }
+        val prefs = preferences ?: throw IOException("SSH tunnel settings are not initialized")
         val updated = configured.toMutableMap().apply { put(origin, config) }
         write(prefs, updated)
     }
 
     @Synchronized
     fun delete(origin: String) {
-        val prefs = checkNotNull(preferences) { "SSH tunnel settings are not initialized" }
+        if (loadFailed) {
+            throw IOException("SSH tunnel settings failed to load; cannot overwrite")
+        }
+        val prefs = preferences ?: throw IOException("SSH tunnel settings are not initialized")
         val updated = configured.toMutableMap().apply { remove(origin) }
         write(prefs, updated)
     }
@@ -68,12 +90,15 @@ object SshTunnelStore {
         prefs: SharedPreferences,
         updated: Map<String, SshTunnelConfig>,
     ) {
-        if (!prefs.edit().putString(KEY, json.encodeToString(updated)).commit()) {
+        val success =
+            try {
+                prefs.edit().putString(KEY, json.encodeToString(updated)).commit()
+            } catch (_: Exception) {
+                throw IOException("Could not save SSH tunnel settings")
+            }
+        if (!success) {
             throw IOException("Could not save SSH tunnel settings")
         }
         configured = updated
     }
-
-    /** Origin key with a stable lowercase host, matching [tunnelOrigin]. */
-    fun originKey(origin: String): String = origin.lowercase(Locale.ROOT)
 }

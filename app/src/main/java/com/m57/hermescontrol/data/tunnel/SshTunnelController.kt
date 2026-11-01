@@ -17,6 +17,7 @@ object SshTunnelController {
     private const val SETTLE_TIMEOUT_MS = 20_000L
 
     val state: StateFlow<SshTunnelState> get() = SshTunnelManager.state
+    val activeOrigin: StateFlow<String?> get() = SshTunnelManager.activeOrigin
 
     fun initialize(context: Context) {
         SshTunnelManager.initialize(context)
@@ -42,6 +43,7 @@ object SshTunnelController {
             SshTunnelManager.apply(null)
             return
         }
+
         SshTunnelManager.apply(SshTunnelManager.Target(origin, parsed.host, parsed.port, config))
     }
 
@@ -66,12 +68,19 @@ object SshTunnelController {
         SshTunnelManager.apply(null)
     }
 
-    fun acceptPendingHostKey() {
-        SshTunnelManager.acceptPendingHostKey()
+    fun acceptPendingHostKey(
+        host: String,
+        keyType: String,
+        fingerprint: String,
+    ) {
+        SshTunnelManager.acceptPendingHostKey(host, keyType, fingerprint)
     }
 
-    fun forgetHostKey(host: String) {
-        SshTunnelManager.forgetHostKey(host)
+    fun forgetHostKey(
+        host: String,
+        port: Int,
+    ) {
+        SshTunnelManager.forgetHostKey(host, port)
     }
 
     private fun originOf(baseUrl: String?): String? = tunnelOriginOf(baseUrl)

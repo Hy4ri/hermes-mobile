@@ -1,6 +1,8 @@
 package com.m57.hermescontrol.data.remote
 
 import com.m57.hermescontrol.data.tunnel.SshTunnelDns
+import com.m57.hermescontrol.data.tunnel.SshTunnelInterceptor
+import com.m57.hermescontrol.data.tunnel.SshTunnelProxySelector
 import com.m57.hermescontrol.data.tunnel.SshTunnelSocketFactory
 import com.m57.hermescontrol.data.ws.ConnectionHealth
 import kotlinx.serialization.ExperimentalSerializationApi
@@ -36,11 +38,11 @@ object OkHttpProvider {
         OkHttpClient
             .Builder()
             .let(ClientCertificates::configure)
-            // Optional SSH tunnel (Settings → Connection → SSH tunnel). Both hooks
-            // are no-ops unless a tunnel is running for this origin, so URLs, cookies,
-            // TLS bindings and WebSocket handshakes keep their configured identity.
+            // Keep origin identity, but never dial direct while an enabled tunnel is down.
             .dns(SshTunnelDns)
             .socketFactory(SshTunnelSocketFactory)
+            .proxySelector(SshTunnelProxySelector)
+            .addInterceptor(SshTunnelInterceptor)
             .cookieJar(resolveCookieJar())
             .addNetworkInterceptor(ServerHeadersInterceptor())
             .connectionPool(connectionPool)

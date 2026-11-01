@@ -86,7 +86,6 @@ data class SshTunnelConfig(
         const val DEFAULT_SSH_PORT = 22
         const val DEFAULT_REMOTE_HOST = "127.0.0.1"
         const val DEFAULT_REMOTE_PORT = 9119
-        const val DEFAULT_SSH_USER = "root"
     }
 }
 
@@ -94,7 +93,10 @@ data class SshTunnelConfig(
  * Stable key for a dashboard origin (`scheme://host:port`). Path prefixes,
  * queries and case differences never create a second tunnel.
  */
-fun tunnelOrigin(url: HttpUrl): String = "${url.scheme}://${url.host.lowercase()}:${url.port}"
+fun tunnelOrigin(url: HttpUrl): String {
+    val host = if (':' in url.host) "[${url.host}]" else url.host
+    return "${url.scheme}://$host:${url.port}"
+}
 
 /** [tunnelOrigin] for a raw URL string; null when it is not an http(s) URL. */
 fun tunnelOriginOf(rawUrl: String?): String? {

@@ -229,10 +229,27 @@ class AuthLoginViewModel(
         pendingLanProfileId = null
         _uiState.update { it.copy(lanPermissionNeeded = false) }
         viewModelScope.launch {
+            // LAN permission check MUST precede SSH connect/dial.
+            // When an SSH tunnel is configured, its host decides the network gate.
+            val tunnelHost = withContext(Dispatchers.IO) { SshTunnelController.configFor(url)?.host }
+            val required = withContext(Dispatchers.IO) { requiresLocalNetworkPermission(sdkVersion, url, tunnelHost) }
+            if (attempt != permissionAttempt || !isCurrentLanTarget(url, profileId)) return@launch
+            if (required &&
+                ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_LOCAL_NETWORK) !=
+                PackageManager.PERMISSION_GRANTED
+            ) {
+                pendingLanUrl = url
+                pendingLanProfileId = profileId
+                // Re-enter requestWithLanPermission after grant so prepare is never bypassed.
+                pendingLanAction = { requestWithLanPermission(context, url, profileId, action) }
+                _uiState.update { it.copy(lanPermissionNeeded = true, errorMessage = null) }
+                return@launch
+            }
+
             // An SSH tunnel has to be dialed before the first dashboard request, and it
             // replaces the URL host as the address the platform actually connects to.
             val tunnel = withContext(Dispatchers.IO) { SshTunnelController.prepareForBaseUrl(url) }
-            if (attempt != permissionAttempt) return@launch
+            if (attempt != permissionAttempt || !isCurrentLanTarget(url, profileId)) return@launch
             val tunnelFailure =
                 when (tunnel) {
                     is SshTunnelState.Failed -> {
@@ -243,7 +260,11 @@ class AuthLoginViewModel(
                         app.getString(R.string.ssh_tunnel_error_host_key_unconfirmed, tunnel.fingerprint)
                     }
 
-                    else -> {
+                    is SshTunnelState.Connecting -> {
+                        app.getString(R.string.ssh_tunnel_status_connecting)
+                    }
+
+                    is SshTunnelState.Connected, SshTunnelState.Disabled -> {
                         null
                     }
                 }
@@ -253,20 +274,8 @@ class AuthLoginViewModel(
                 }
                 return@launch
             }
-            val tunnelHost = withContext(Dispatchers.IO) { SshTunnelController.configFor(url)?.host }
-            val required = withContext(Dispatchers.IO) { requiresLocalNetworkPermission(sdkVersion, url, tunnelHost) }
-            if (attempt != permissionAttempt || !isCurrentLanTarget(url, profileId)) return@launch
-            if (required &&
-                ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_LOCAL_NETWORK) !=
-                PackageManager.PERMISSION_GRANTED
-            ) {
-                pendingLanUrl = url
-                pendingLanProfileId = profileId
-                pendingLanAction = action
-                _uiState.update { it.copy(lanPermissionNeeded = true, errorMessage = null) }
-            } else {
-                action()
-            }
+
+            action()
         }
     }
 

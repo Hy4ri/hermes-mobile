@@ -1,13 +1,17 @@
 package com.m57.hermescontrol.data.tunnel
 
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.annotation.VisibleForTesting
+import androidx.core.content.ContextCompat
 import com.jcraft.jsch.HostKey
 import com.jcraft.jsch.HostKeyRepository
 import com.jcraft.jsch.JSch
 import com.jcraft.jsch.JSchException
 import com.jcraft.jsch.Session
 import com.jcraft.jsch.UserInfo
+import com.m57.hermescontrol.data.remote.requiresLocalNetworkPermission
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -21,6 +25,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.util.Base64
@@ -96,17 +102,28 @@ object SshTunnelManager {
     private val _state = MutableStateFlow<SshTunnelState>(SshTunnelState.Disabled)
     val state: StateFlow<SshTunnelState> = _state.asStateFlow()
 
+    private val _activeOrigin = MutableStateFlow<String?>(null)
+    val activeOrigin: StateFlow<String?> = _activeOrigin.asStateFlow()
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    @Volatile
+    private var appContext: Context? = null
 
     @Volatile
     private var knownHosts: KnownHostsFile? = null
 
+    @VisibleForTesting
+    internal var jschFactory: () -> JSch = { JSch() }
+
     private var job: Job? = null
+    private var currentGen: Long = 0L
     private var target: Target? = null
     private var activeSession: Session? = null
     private var pendingHostKey: PresentedHostKey? = null
 
     fun initialize(context: Context) {
+        appContext = context.applicationContext
         initialize(File(context.filesDir, KNOWN_HOSTS_FILE))
     }
 
@@ -130,10 +147,18 @@ object SshTunnelManager {
         val running = job?.isActive == true
         val healthy = _state.value is SshTunnelState.Connected || _state.value is SshTunnelState.Connecting
         if (running && healthy && this.target?.changeToken() == target.changeToken()) return
+
         stopLocked()
-        pendingHostKey = null
+        val generation = ++currentGen
         this.target = target
-        job = scope.launch { supervise(target) }
+        this.pendingHostKey = null
+        _activeOrigin.value = target.origin
+        _state.value = SshTunnelState.Connecting
+
+        // Configure parent routing synchronously before launching connect
+        SshTunnelRouting.configure(target.host, target.port)
+
+        job = scope.launch { supervise(target, generation) }
     }
 
     /** Stops the tunnel and clears the route. */
@@ -142,103 +167,237 @@ object SshTunnelManager {
         stopLocked()
     }
 
-    /** Trusts the key offered on first contact and reconnects. */
+    /**
+     * Trusts the key offered on first contact and reconnects.
+     * Validates all presented fields against the pending host key under synchronization.
+     * File write happens asynchronously on the IO scope without holding the manager lock;
+     * stale generations are fenced before reconnect.
+     */
     @Synchronized
-    fun acceptPendingHostKey() {
+    fun acceptPendingHostKey(
+        host: String,
+        keyType: String,
+        fingerprint: String,
+    ) {
         val pending = pendingHostKey ?: return
+        if (pending.host != host || pending.keyType != keyType || pending.fingerprint != fingerprint) {
+            return
+        }
         val current = target ?: return
         val file = knownHosts ?: return
-        runCatching { file.accept(pending) }
+
+        val captureGen = ++currentGen
+        val oldSession = activeSession
+        activeSession = null
         pendingHostKey = null
+        runCatching { oldSession?.disconnect() }
         job?.cancel()
-        job = scope.launch { supervise(current) }
+
+        _state.value = SshTunnelState.Connecting
+
+        job =
+            scope.launch {
+                try {
+                    file.accept(pending)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    synchronized(SshTunnelManager) {
+                        if (captureGen == currentGen) {
+                            _state.value = SshTunnelState.Failed(SshTunnelFailure.UNKNOWN)
+                        }
+                    }
+                    return@launch
+                }
+
+                synchronized(SshTunnelManager) {
+                    if (captureGen != currentGen) return@launch
+                }
+                supervise(current, captureGen)
+            }
     }
 
-    /** Drops every stored key for the SSH host, so the next connect asks again. */
+    /**
+     * Drops stored keys for the SSH host and port identity, so the next connect asks again.
+     * Identity for port 22 is the bare host; for non-default ports it is `[host]:port`.
+     */
     @Synchronized
-    fun forgetHostKey(host: String) {
+    fun forgetHostKey(
+        host: String,
+        port: Int,
+    ) {
         val file = knownHosts ?: return
-        runCatching { file.forget(host) }
-        val current = target ?: return
-        if (current.config.host.equals(host, ignoreCase = true)) {
+        val identity = KnownHosts.identity(host, port)
+
+        val current = target
+        val matchesTarget =
+            current != null &&
+                current.config.host.equals(host, ignoreCase = true) &&
+                current.config.port == port
+        val captureGen = if (matchesTarget) ++currentGen else currentGen
+        if (matchesTarget) {
+            val oldSession = activeSession
+            activeSession = null
             pendingHostKey = null
             job?.cancel()
-            job = scope.launch { supervise(current) }
+            SshTunnelRouting.activate(null)
+            runCatching { oldSession?.disconnect() }
+            _state.value = SshTunnelState.Connecting
         }
+        val forgetting =
+            scope.launch {
+                try {
+                    file.forget(identity)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: IOException) {
+                    synchronized(SshTunnelManager) {
+                        if (matchesTarget && captureGen == currentGen) {
+                            _state.value = SshTunnelState.Failed(SshTunnelFailure.UNKNOWN)
+                        }
+                    }
+                    return@launch
+                }
+                synchronized(SshTunnelManager) {
+                    if (captureGen != currentGen) return@launch
+                }
+                if (matchesTarget) supervise(current, captureGen)
+            }
+        if (matchesTarget) job = forgetting
     }
 
     private fun stopLocked() {
+        currentGen++
         val session = activeSession
         job?.cancel()
         job = null
         target = null
         activeSession = null
+        pendingHostKey = null
+        _activeOrigin.value = null
+
+        // Parent routing contract: configure(null) plus activate(null)
+        SshTunnelRouting.configure(null, 0)
         SshTunnelRouting.activate(null)
+
         runCatching { session?.disconnect() }
         _state.value = SshTunnelState.Disabled
     }
 
-    private suspend fun supervise(target: Target) {
+    private suspend fun supervise(
+        target: Target,
+        generation: Long,
+    ) {
         var attempt = 0
         while (currentCoroutineContext().isActive) {
-            _state.value = SshTunnelState.Connecting
+            synchronized(this) {
+                if (generation != currentGen) return
+                _state.value = SshTunnelState.Connecting
+            }
+
             val running =
                 try {
-                    connect(target)
+                    connect(target, generation)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Throwable) {
                     val failure = failureOf(e)
-                    val presented = pendingHostKey
-                    when {
-                        failure == SshTunnelFailure.HOST_KEY_CHANGED -> {
-                            _state.value = SshTunnelState.Failed(failure)
-                            return
-                        }
+                    synchronized(this) {
+                        if (generation != currentGen) return
+                        val presented = pendingHostKey
+                        when {
+                            failure == SshTunnelFailure.HOST_KEY_CHANGED -> {
+                                _state.value = SshTunnelState.Failed(failure)
+                                return
+                            }
 
-                        failure == SshTunnelFailure.UNREACHABLE && presented != null -> {
-                            _state.value =
-                                SshTunnelState.AwaitingHostKey(
-                                    host = presented.host,
-                                    keyType = presented.keyType,
-                                    fingerprint = presented.fingerprint,
-                                )
-                            return
-                        }
+                            failure == SshTunnelFailure.UNREACHABLE && presented != null -> {
+                                _state.value =
+                                    SshTunnelState.AwaitingHostKey(
+                                        host = presented.host,
+                                        keyType = presented.keyType,
+                                        fingerprint = presented.fingerprint,
+                                    )
+                                return
+                            }
 
-                        else -> {
-                            _state.value = SshTunnelState.Failed(failure)
-                            attempt++
-                            delay(backoffFor(attempt))
-                            continue
+                            else -> {
+                                _state.value = SshTunnelState.Failed(failure)
+                            }
+                        }
+                    }
+                    attempt++
+                    delay(backoffFor(attempt))
+                    continue
+                }
+
+            try {
+                synchronized(this) {
+                    if (generation != currentGen) {
+                        runCatching { running.session.disconnect() }
+                        return
+                    }
+                    SshTunnelRouting.activate(SshTunnelRoute(target.host, target.port, running.localPort))
+                    _state.value = SshTunnelState.Connected(running.localPort)
+                }
+
+                attempt = 0
+                while (currentCoroutineContext().isActive && running.session.isConnected) {
+                    delay(1_000)
+                }
+            } finally {
+                synchronized(this) {
+                    if (generation == currentGen) {
+                        SshTunnelRouting.activate(null)
+                        if (activeSession === running.session) {
+                            activeSession = null
                         }
                     }
                 }
-
-            _state.value = SshTunnelState.Connected(running.localPort)
-            SshTunnelRouting.activate(SshTunnelRoute(target.host, target.port, running.localPort))
-            attempt = 0
-            while (currentCoroutineContext().isActive && running.session.isConnected) {
-                delay(1_000)
+                runCatching { running.session.disconnect() }
             }
-            SshTunnelRouting.activate(null)
-            runCatching { running.session.disconnect() }
+
             if (currentCoroutineContext().isActive) {
-                _state.value = SshTunnelState.Connecting
+                synchronized(this) {
+                    if (generation != currentGen) return
+                    _state.value = SshTunnelState.Connecting
+                }
                 delay(MIN_BACKOFF_MS)
             }
         }
     }
 
-    private fun connect(target: Target): Running {
+    private fun connect(
+        target: Target,
+        generation: Long,
+    ): Running {
         val file = knownHosts ?: error("SshTunnelManager is not initialized")
         val config = target.config
-        pendingHostKey = null
+        // Every dial, including automatic reconnects, checks permission on the IO thread.
+        val context = appContext
+        if (context != null && Build.VERSION.SDK_INT >= 37 &&
+            ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_LOCAL_NETWORK) !=
+            PackageManager.PERMISSION_GRANTED &&
+            requiresLocalNetworkPermission(Build.VERSION.SDK_INT, target.origin, config.host)
+        ) {
+            throw JSchException("Local network permission is required")
+        }
+
+        synchronized(this) {
+            if (generation != currentGen) throw CancellationException("Stale generation")
+            pendingHostKey = null
+        }
+
         val repository =
             JschHostKeyRepository(file.read()) { presented ->
-                pendingHostKey = presented
+                synchronized(this) {
+                    if (generation == currentGen) {
+                        pendingHostKey = presented
+                    }
+                }
             }
-        val jsch = JSch()
+
+        val jsch = jschFactory()
         if (config.authMode == SshAuthMode.PRIVATE_KEY) {
             val passphrase = config.passphrase.takeIf { it.isNotEmpty() }?.toByteArray(Charsets.UTF_8)
             jsch.addIdentity("hermes-mobile-tunnel", config.privateKey.toByteArray(Charsets.UTF_8), null, passphrase)
@@ -247,7 +406,7 @@ object SshTunnelManager {
         if (config.authMode == SshAuthMode.PASSWORD) {
             session.setPassword(config.password.toByteArray(Charsets.UTF_8))
             session.userInfo = PasswordUserInfo(config.password)
-            session.setConfig("PreferredAuthentications", "password,keyboard-interactive")
+            session.setConfig("PreferredAuthentications", "password")
         } else {
             session.setConfig("PreferredAuthentications", "publickey")
         }
@@ -256,13 +415,32 @@ object SshTunnelManager {
         session.serverAliveInterval = SERVER_ALIVE_INTERVAL_MS
         session.serverAliveCountMax = SERVER_ALIVE_COUNT_MAX
         session.timeout = CONNECT_TIMEOUT_MS
-        activeSession = session
+
+        synchronized(this) {
+            if (generation != currentGen) {
+                runCatching { session.disconnect() }
+                throw CancellationException("Stale generation")
+            }
+            activeSession = session
+        }
+
         try {
             session.connect(CONNECT_TIMEOUT_MS)
             val localPort = forward(session, config)
+            synchronized(this) {
+                if (generation != currentGen) {
+                    runCatching { session.disconnect() }
+                    throw CancellationException("Stale generation")
+                }
+            }
             return Running(session, localPort)
         } catch (e: Throwable) {
             runCatching { session.disconnect() }
+            synchronized(this) {
+                if (activeSession === session) {
+                    activeSession = null
+                }
+            }
             if (repository.lastStatus == HostKeyStatus.CHANGED) throw HostKeyChangedException()
             throw e
         }
@@ -323,7 +501,7 @@ object SshTunnelManager {
         cause: Throwable?,
     ) : Exception("Could not open the SSH forward", cause)
 
-    /** Answers keyboard-interactive password prompts with the saved password. */
+    /** Supplies the saved password for standard password authentication. */
     private class PasswordUserInfo(
         private val password: String,
     ) : UserInfo {
@@ -345,26 +523,53 @@ object SshTunnelManager {
 internal class KnownHostsFile(
     private val file: File,
 ) {
-    fun read(): KnownHosts =
-        KnownHosts.parse(
-            runCatching { file.takeIf { it.exists() }?.readText() }.getOrNull().orEmpty(),
-        )
+    @Synchronized
+    fun read(): KnownHosts {
+        if (!file.exists()) return KnownHosts.parse("")
+        val content =
+            try {
+                file.readText()
+            } catch (e: IOException) {
+                throw IOException("Could not read known_hosts file: ${e.message}", e)
+            }
+        return KnownHosts.parse(content)
+    }
 
+    @Synchronized
     fun accept(presented: PresentedHostKey) {
         write(read().withAccepted(presented.host, presented.keyType, presented.keyBase64))
     }
 
-    fun forget(host: String) {
-        write(read().without(host))
+    @Synchronized
+    fun forget(identity: String) {
+        write(read().without(identity))
     }
 
     private fun write(knownHosts: KnownHosts) {
-        file.parentFile?.mkdirs()
-        file.writeText(knownHosts.serialize())
-        file.setReadable(false, false)
-        file.setWritable(false, false)
-        file.setReadable(true, true)
-        file.setWritable(true, true)
+        val parent = file.parentFile
+        if (parent != null && !parent.exists() && !parent.mkdirs()) {
+            throw IOException("Could not create directory for known_hosts: ${parent.absolutePath}")
+        }
+        val temp = File.createTempFile("known_hosts", ".tmp", parent ?: file.absoluteFile.parentFile)
+        try {
+            FileOutputStream(temp).use { fos ->
+                fos.write(knownHosts.serialize().toByteArray(Charsets.UTF_8))
+                fos.fd.sync()
+            }
+            temp.setReadable(false, false)
+            temp.setWritable(false, false)
+            temp.setReadable(true, true)
+            temp.setWritable(true, true)
+
+            if (!temp.renameTo(file)) throw IOException("Could not replace known_hosts file")
+            file.setReadable(false, false)
+            file.setWritable(false, false)
+            file.setReadable(true, true)
+            file.setWritable(true, true)
+        } catch (e: Throwable) {
+            temp.delete()
+            throw IOException("Could not atomically write known_hosts: ${e.message}", e)
+        }
     }
 }
 
@@ -383,8 +588,8 @@ private class JschHostKeyRepository(
         host: String,
         key: ByteArray,
     ): Int {
-        // JSch passes the raw host key blob (not its base64 text); known_hosts
-        // stores the base64 form, exactly like OpenSSH does.
+        // JSch passes the host as passed to getSession or "[host]:port" if nondefault port.
+        // We match on host identity preserved by KnownHosts.
         val type = KnownHosts.keyType(key)
         val base64 = Base64.getEncoder().encodeToString(key)
         val status = knownHosts.check(host, type, base64)

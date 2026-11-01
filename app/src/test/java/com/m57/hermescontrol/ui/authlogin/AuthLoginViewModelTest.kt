@@ -128,6 +128,7 @@ class AuthLoginViewModelTest {
             viewModel.requestProbe(context)
             withTimeout(5000) { viewModel.uiState.first { it.lanPermissionNeeded } }
             verify(exactly = 0) { mockProbeClient.newCall(any()) }
+            permissionGranted = true
             viewModel.onLanPermissionResult(true)
             withTimeout(5000) { viewModel.uiState.first { it.errorMessage == "Dashboard unreachable" } }
             viewModel.onLanPermissionResult(true)

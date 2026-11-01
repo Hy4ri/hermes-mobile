@@ -76,11 +76,26 @@ class KnownHostsTest {
     }
 
     @Test
-    fun `host ports and brackets are normalized`() {
+    fun `host ports and brackets are normalized preserving port per contract`() {
+        // Default port 22 collapses to bare host
         assertEquals("gateway", KnownHosts.normalizeHost("gateway"))
-        assertEquals("gateway", KnownHosts.normalizeHost("gateway:2222"))
+        assertEquals("gateway", KnownHosts.normalizeHost("gateway:22"))
+        assertEquals("gateway", KnownHosts.normalizeHost("[gateway]:22"))
         assertEquals("fe80::1", KnownHosts.normalizeHost("[fe80::1]:22"))
         assertEquals("fe80::1", KnownHosts.normalizeHost("fe80::1"))
+
+        // Non-default port preserves [host]:port per contract
+        assertEquals("[gateway]:2222", KnownHosts.normalizeHost("[gateway]:2222"))
+        assertEquals("[gateway]:2222", KnownHosts.normalizeHost("gateway:2222"))
+        assertEquals("[fe80::1]:2222", KnownHosts.normalizeHost("[fe80::1]:2222"))
+    }
+
+    @Test
+    fun `identity helper produces normalized host-port identity`() {
+        assertEquals("gateway", KnownHosts.identity("gateway", 22))
+        assertEquals("[gateway]:2222", KnownHosts.identity("gateway", 2222))
+        assertEquals("fe80::1", KnownHosts.identity("fe80::1", 22))
+        assertEquals("[fe80::1]:2222", KnownHosts.identity("fe80::1", 2222))
     }
 
     @Test

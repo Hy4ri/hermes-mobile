@@ -65,6 +65,12 @@ class SshTunnelConfigTest {
     }
 
     @Test
+    fun `IPv6 origins retain brackets and remain parseable`() {
+        assertEquals("http://[2001:db8::1]:9119", tunnelOriginOf("http://[2001:db8::1]:9119/"))
+        assertEquals("http://[::1]:80", tunnelOriginOf("http://[::1]"))
+    }
+
+    @Test
     fun `non http urls have no origin`() {
         assertNull(tunnelOriginOf(null))
         assertNull(tunnelOriginOf(""))

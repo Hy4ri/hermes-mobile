@@ -36,6 +36,7 @@ class ConnectionAuthIsolationTest {
         every { editor.putBoolean(any(), any()) } returns editor
         every { editor.putInt(any(), any()) } returns editor
         every { prefs.getString("server_custom_headers", null) } returns null
+        every { prefs.getString("ssh_tunnel_configs", null) } returns null
         every { prefs.getBoolean("migrated_to_datastore", any()) } returns true
         mockkStatic(android.util.Log::class)
         every { android.util.Log.d(any(), any()) } returns 0

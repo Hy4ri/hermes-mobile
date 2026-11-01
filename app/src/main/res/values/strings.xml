@@ -2120,4 +2120,6 @@
     <string name="ssh_tunnel_error_forwarding">SSH tunnel: the SSH server refused to open the forward.</string>
     <string name="ssh_tunnel_error_unknown">SSH tunnel failed.</string>
     <string name="ssh_tunnel_error_host_key_unconfirmed">SSH tunnel: confirm the host key in the SSH tunnel settings (fingerprint %1$s).</string>
+    <string name="ssh_tunnel_error_load">Could not load SSH tunnel settings. Existing settings cannot be overwritten.</string>
+    <string name="ssh_tunnel_loopback_warning">The tunnel binds to a local port on 127.0.0.1; other apps on this device may connect to the open local port.</string>
 </resources>

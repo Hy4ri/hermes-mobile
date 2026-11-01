@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.data.remote
 
+import com.m57.hermescontrol.data.tunnel.SshTunnelRoute
+import com.m57.hermescontrol.data.tunnel.SshTunnelRouting
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import okhttp3.mockwebserver.MockResponse
@@ -26,6 +28,35 @@ class VerifyClientCertificateTest {
             privateKey = { identity?.keyPair?.private },
             certificateChain = { identity?.let { arrayOf(it.certificate) } },
         )
+
+    @Test
+    fun `isolated certificate verification uses the tunnel and preserves TLS identity`() =
+        runBlocking {
+            MockWebServer().use { server ->
+                server.useHttps(serverTls.sslSocketFactory(), false)
+                server.requireClientAuth()
+                server.enqueue(MockResponse())
+                val url =
+                    server
+                        .url("/")
+                        .newBuilder()
+                        .port(9119)
+                        .build()
+                SshTunnelRouting.configure(url.host, url.port)
+                SshTunnelRouting.activate(SshTunnelRoute(url.host, url.port, server.port))
+                try {
+                    verifyClientCertificate(url, trust, manager(first))
+                    val request = requireNotNull(server.takeRequest(2, TimeUnit.SECONDS))
+                    assertEquals("${url.host}:9119", request.getHeader(":authority") ?: request.getHeader("Host"))
+                    assertEquals(first.certificate, request.handshake!!.peerCertificates.single())
+                    assertNull(request.getHeader("Authorization"))
+                    assertNull(request.getHeader("Cookie"))
+                } finally {
+                    SshTunnelRouting.activate(null)
+                    SshTunnelRouting.configure(null)
+                }
+            }
+        }
 
     @Test
     fun `headers suffice for every status and request carries no credentials`() =

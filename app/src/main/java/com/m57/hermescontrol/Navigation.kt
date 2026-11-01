@@ -6,6 +6,7 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -55,6 +56,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -63,6 +65,7 @@ import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
+import com.m57.hermescontrol.data.local.AgentDisplayName
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.update.WhatsNewNotice
 import com.m57.hermescontrol.data.ws.ConnectionStatus
@@ -78,6 +81,7 @@ import com.m57.hermescontrol.ui.common.LocalDrawerGestureController
 import com.m57.hermescontrol.ui.common.SidebarWidth
 import com.m57.hermescontrol.ui.common.WhatsNewDialog
 import com.m57.hermescontrol.ui.plugins.MemoryProviderDetailScreen
+import com.m57.hermescontrol.ui.profiles.AgentNameDialog
 import com.m57.hermescontrol.ui.settings.ClientCertificatesPage
 import com.m57.hermescontrol.ui.settings.SettingsAboutPage
 import com.m57.hermescontrol.ui.settings.SettingsAppearancePage
@@ -412,12 +416,30 @@ private fun NavigationDrawerBody(
             ConnectionStatus.AUTH_EXPIRED,
             -> LocalHermesStatusColors.current.error
         }
+    val agentName by AgentDisplayName.current.collectAsState()
+    val dataScope by AuthManager.dataScopeFlow.collectAsState()
+    var editAgentName by remember { mutableStateOf(false) }
+    if (editAgentName) {
+        AgentNameDialog(
+            connectionProfileId = dataScope?.connectionProfileId,
+            profileName = dataScope?.activeProfileId ?: AuthManager.DEFAULT_PROFILE_ID,
+            onDismiss = { editAgentName = false },
+        )
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 2.dp),
     ) {
+        // #1747: the active profile's agent name; long-press sets a device-local custom name.
         Text(
-            text = stringResource(R.string.nav_drawer_title),
+            text = agentName,
+            modifier =
+                Modifier
+                    .combinedClickable(
+                        onClick = {},
+                        onLongClick = { editAgentName = true },
+                        onLongClickLabel = stringResource(R.string.agent_name_title),
+                    ).testTag("drawer_agent_name"),
             style =
                 MaterialTheme.typography.headlineSmall.copy(
                     fontWeight = FontWeight.Bold,

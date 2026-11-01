@@ -2029,6 +2029,10 @@
     <!-- Profile lock (#1643) -->
     <string name="profile_lock_title">Profile lock</string>
     <string name="profile_lock_menu_item">Lock to this profile</string>
+    <string name="agent_name_menu_item">Agent name on this device</string>
+    <string name="agent_name_title">Agent name</string>
+    <string name="agent_name_label">Name for %1$s</string>
+    <string name="agent_name_hint">Only on this device. Leave empty to use the profile name.</string>
     <string name="profile_lock_set_title">Lock to %1$s</string>
     <string name="profile_lock_set_body">This device stays on this profile. Only Chat, History, Projects, and Settings stay in the sidebar. Profiles, server connections, credentials, and agent settings need the PIN.</string>
     <string name="profile_lock_pin_label">PIN (4–8 digits)</string>

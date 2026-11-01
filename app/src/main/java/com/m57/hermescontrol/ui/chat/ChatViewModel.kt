@@ -191,7 +191,8 @@ data class ChatUiState(
     val composerSessionId: String? = null,
     val composerGeneration: Long = 0L,
     val sessions: List<SessionUi> = emptyList(),
-    val chatTitle: String = "Hermes",
+    /** Blank means untitled: the chat screen shows the agent name instead (#1747). */
+    val chatTitle: String = "",
     val connectionStatus: ConnectionStatus = ConnectionStatus.DISCONNECTED,
     val isAgentTyping: Boolean = false,
     val isMainTurnBusy: Boolean = false,
@@ -1157,7 +1158,7 @@ class ChatViewModel(
                     refreshProjectsJob = null
                     pendingGoneSessionNotice = false
                     sessionHasServerPresence = false
-                    resetSessionState(sessionId = null, title = "Hermes", isLoading = true)
+                    resetSessionState(sessionId = null, title = "", isLoading = true)
                 }
         }
         // Same wipe when the CONNECTION profile changes (different server):
@@ -1175,7 +1176,7 @@ class ChatViewModel(
                     refreshProjectsJob = null
                     pendingGoneSessionNotice = false
                     sessionHasServerPresence = false
-                    resetSessionState(sessionId = null, title = "Hermes", isLoading = true)
+                    resetSessionState(sessionId = null, title = "", isLoading = true)
                 }
         }
         // Slash-command usage ranking (issue #865): mirror the local usage
@@ -2196,7 +2197,7 @@ class ChatViewModel(
                         isSessionReady = true,
                         isLoading = false,
                         messages = if (pendingInitialPrompt != null) it.messages else emptyList(),
-                        chatTitle = "Hermes",
+                        chatTitle = "",
                         usedContextTokens = null,
                         fullContextTokens = null,
                         contextBreakdown = null,
@@ -2277,7 +2278,7 @@ class ChatViewModel(
                 val generation =
                     resetSessionState(
                         sessionId = storageId,
-                        title = (resultMap["title"] as? String)?.takeIf { it.isNotBlank() } ?: "Hermes",
+                        title = (resultMap["title"] as? String)?.takeIf { it.isNotBlank() }.orEmpty(),
                         isLoading = false,
                     )
                 runtimeSessionId = runtimeId
@@ -5604,7 +5605,7 @@ class ChatViewModel(
     ) {
         // A fresh create has no persisted row until the first prompt.
         sessionHasServerPresence = false
-        val generation = resetSessionState(sessionId = null, title = "Hermes", isLoading = setLoading)
+        val generation = resetSessionState(sessionId = null, title = "", isLoading = setLoading)
         val cwd = project?.launchCwd
         _uiState.update { it.copy(stagedProject = project.takeIf { cwd != null }) }
         viewModelScope.launch(ioDispatcher) {
@@ -6032,7 +6033,8 @@ class ChatViewModel(
         val title =
             _uiState.value.sessions
                 .find { it.id == sessionId }
-                ?.title ?: "Hermes"
+                ?.title
+                .orEmpty()
         val generation = resetSessionState(sessionId, title, isLoading = true)
         AuthManager.setLastOpenedSessionId(sessionId)
         viewModelScope.launch {

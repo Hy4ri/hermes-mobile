@@ -9,6 +9,7 @@ import coil3.gif.AnimatedImageDecoder
 import coil3.gif.GifDecoder
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
+import com.m57.hermescontrol.data.local.AgentDisplayName
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.ComposerDraftStore
 import com.m57.hermescontrol.data.local.SessionListCacheStore
@@ -50,6 +51,7 @@ class HermesControlApp :
         // #1643: load the profile lock before AuthManager so restored selections respect it.
         ProfileLock.init(this)
         AuthManager.init(this)
+        AgentDisplayName.init(this)
         ComposerDraftStore.get(this)
         LauncherShortcuts.initialize(this, appScope)
         NetworkMonitor.init(this)

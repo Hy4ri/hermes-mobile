@@ -116,18 +116,15 @@ class ChatPromptProtocolTest {
                 respondToServerRequest = { id, _ -> respondedServerRequestId = id },
             )
 
+        // q0 is already in lockedAnswers and answer map has empty placeholder (""), so q0 is skipped
+        // and only unlocked question q1 is submitted with clarify.lock
         delegate.respondToClarifyBatch(mapOf("q0" to "", "q1" to "second-answer"))
         dispatcher.scheduler.advanceUntilIdle()
 
-        // clarify.lock should be called for both questions in order, merging lockedAnswers
-        assertEquals(2, locks.size)
+        assertEquals(1, locks.size)
         assertEquals("srq-batch-1", locks[0].requestId)
-        assertEquals("q0", locks[0].questionId)
-        assertEquals("already-locked", locks[0].answer)
-
-        assertEquals("srq-batch-1", locks[1].requestId)
-        assertEquals("q1", locks[1].questionId)
-        assertEquals("second-answer", locks[1].answer)
+        assertEquals("q1", locks[0].questionId)
+        assertEquals("second-answer", locks[0].answer)
 
         // respondToServerRequest is not invoked when canonical clarify.lock handles it
         assertNull(respondedServerRequestId)
@@ -595,5 +592,263 @@ fun legacyCredentialPrompts_withoutServerRequestId_fallBackToRespondVerbs() {
         val activeClarify = uiState.value.clarifyRequest
         assertNotNull(activeClarify)
         assertEquals("srq-new", activeClarify?.serverRequestId)
+    }
+
+    @Test
+    fun canonicalClarifyBatch_doubleSubmit_abortsSecondSubmission() {
+        val mockWsClient = mockk<HermesWsClient>(relaxed = true)
+        every { mockWsClient.canonicalClarifyBatch } returns true
+        val locks = mutableListOf<ClarifyLockParams>()
+
+        coEvery {
+            mockWsClient.call(RpcMethods.CLARIFY_LOCK, any())
+        } coAnswers {
+            locks.add(secondArg<ClarifyLockParams>())
+            ClarifyLockResult(status = "ok", remaining = emptyList())
+        }
+
+        val scope = TestScope(dispatcher)
+        val uiState =
+            MutableStateFlow(
+                ChatUiState(
+                    currentSessionId = "session-1",
+                    clarifyRequest =
+                        ClarifyUi(
+                            text = "",
+                            questions = listOf(ClarifyQuestionUi(qid = "q0", question = "First?")),
+                            serverRequestId = "srq-double",
+                        ),
+                ),
+            )
+
+        val delegate =
+            ChatClarifyDelegate(
+                uiState = uiState,
+                scope = scope,
+                ioDispatcher = dispatcher,
+                persistMessage = { _, _ -> },
+                wsClient = mockWsClient,
+            )
+
+        // Double submit in rapid succession
+        delegate.respondToClarifyBatch(mapOf("q0" to "ans1"))
+        delegate.respondToClarifyBatch(mapOf("q0" to "ans2"))
+        dispatcher.scheduler.advanceUntilIdle()
+
+        // Exactly one call should be processed, not duplicate submissions
+        assertEquals(1, locks.size)
+        assertEquals("ans1", locks[0].answer)
+    }
+
+    @Test
+    fun canonicalClarifyBatch_replacementBetweenAcks_abortsOldLoopAndDoesNotPersistOldAnswer() {
+        val mockWsClient = mockk<HermesWsClient>(relaxed = true)
+        every { mockWsClient.canonicalClarifyBatch } returns true
+        val locks = mutableListOf<ClarifyLockParams>()
+        var persisted = false
+
+        val scope = TestScope(dispatcher)
+        val uiState =
+            MutableStateFlow(
+                ChatUiState(
+                    currentSessionId = "session-1",
+                    clarifyRequest =
+                        ClarifyUi(
+                            text = "",
+                            questions =
+                                listOf(
+                                    ClarifyQuestionUi(qid = "q0", question = "Old Q0?"),
+                                    ClarifyQuestionUi(qid = "q1", question = "Old Q1?"),
+                                ),
+                            serverRequestId = "srq-replace-test",
+                        ),
+                ),
+            )
+
+        coEvery {
+            mockWsClient.call(RpcMethods.CLARIFY_LOCK, any())
+        } answers {
+            val params = secondArg<ClarifyLockParams>()
+            locks.add(params)
+            // While q0 lock was in flight, a replacement clarify request arrives from server
+            uiState.value =
+                uiState.value.copy(
+                    clarifyRequest =
+                        ClarifyUi(
+                            text = "",
+                            questions = listOf(ClarifyQuestionUi(qid = "qNew", question = "New Q?")),
+                            serverRequestId = "srq-new-arrived",
+                        ),
+                )
+            ClarifyLockResult(status = "ok", remaining = listOf("q1"))
+        }
+
+        val delegate =
+            ChatClarifyDelegate(
+                uiState = uiState,
+                scope = scope,
+                ioDispatcher = dispatcher,
+                persistMessage = { _, _ -> persisted = true },
+                wsClient = mockWsClient,
+            )
+
+        delegate.respondToClarifyBatch(mapOf("q0" to "ans0", "q1" to "ans1"))
+        dispatcher.scheduler.advanceUntilIdle()
+
+        // Only first lock q0 was made; after request replaced, subsequent old RPC q1 was NOT sent
+        assertEquals(1, locks.size)
+        assertEquals("q0", locks[0].questionId)
+        // No message persistence for the replaced old request
+        org.junit.Assert.assertFalse(persisted)
+        // Active request remains the new one
+        assertEquals("srq-new-arrived", uiState.value.clarifyRequest?.serverRequestId)
+    }
+
+    @Test
+    fun canonicalClarifyBatch_scopeSwitchBeforeErrorOrExpired_doesNotMutateChangedScope() {
+        val mockWsClient = mockk<HermesWsClient>(relaxed = true)
+        every { mockWsClient.canonicalClarifyBatch } returns true
+        var scopeState: DataScope? = DataScope("ep1", "https://gw", "prof1")
+
+        val scope = TestScope(dispatcher)
+        val uiState =
+            MutableStateFlow(
+                ChatUiState(
+                    currentSessionId = "session-1",
+                    clarifyRequest =
+                        ClarifyUi(
+                            text = "",
+                            questions = listOf(ClarifyQuestionUi(qid = "q0", question = "Q0?")),
+                            serverRequestId = "srq-scope-err",
+                        ),
+                ),
+            )
+
+        coEvery {
+            mockWsClient.call(RpcMethods.CLARIFY_LOCK, any())
+        } answers {
+            // Scope switches while lock is in flight
+            scopeState = DataScope("ep1", "https://gw", "prof2")
+            ClarifyLockResult(status = "expired")
+        }
+
+        val delegate =
+            ChatClarifyDelegate(
+                uiState = uiState,
+                scope = scope,
+                ioDispatcher = dispatcher,
+                persistMessage = { _, _ -> },
+                wsClient = mockWsClient,
+                currentDataScope = { scopeState },
+            )
+
+        delegate.respondToClarifyBatch(mapOf("q0" to "ans0"))
+        dispatcher.scheduler.advanceUntilIdle()
+
+        // Since scope changed, expired state update must NOT touch the new scope/state
+        assertEquals("srq-scope-err", uiState.value.clarifyRequest?.serverRequestId)
+        assertNull(uiState.value.errorMessage)
+    }
+
+    @Test
+    fun canonicalClarifyBatch_nonemptyRemaining_doesNotClaimSettledSuccess() {
+        val mockWsClient = mockk<HermesWsClient>(relaxed = true)
+        every { mockWsClient.canonicalClarifyBatch } returns true
+        var persisted = false
+
+        coEvery {
+            mockWsClient.call(RpcMethods.CLARIFY_LOCK, any())
+        } answers {
+            // Backend reports that qExtra is still remaining unanswered
+            ClarifyLockResult(status = "ok", remaining = listOf("qExtra"))
+        }
+
+        val scope = TestScope(dispatcher)
+        val uiState =
+            MutableStateFlow(
+                ChatUiState(
+                    currentSessionId = "session-1",
+                    clarifyRequest =
+                        ClarifyUi(
+                            text = "",
+                            questions = listOf(ClarifyQuestionUi(qid = "q0", question = "Q0?")),
+                            serverRequestId = "srq-remaining-test",
+                        ),
+                ),
+            )
+
+        val delegate =
+            ChatClarifyDelegate(
+                uiState = uiState,
+                scope = scope,
+                ioDispatcher = dispatcher,
+                persistMessage = { _, _ -> persisted = true },
+                wsClient = mockWsClient,
+            )
+
+        delegate.respondToClarifyBatch(mapOf("q0" to "ans0"))
+        dispatcher.scheduler.advanceUntilIdle()
+
+        // Must not claim settled success:
+        org.junit.Assert.assertFalse(persisted)
+        assertEquals(0, uiState.value.messages.size)
+        // Remains in clarifyRequest
+        assertNotNull(uiState.value.clarifyRequest)
+        assertEquals("Questions still remaining: qExtra", uiState.value.errorMessage)
+        org.junit.Assert.assertFalse(uiState.value.isAgentTyping)
+    }
+
+    @Test
+    fun canonicalClarifyBatch_cancellationAfterFirstAck_preservesAcceptedLocksImmediately() {
+        val mockWsClient = mockk<HermesWsClient>(relaxed = true)
+        every { mockWsClient.canonicalClarifyBatch } returns true
+        var callCount = 0
+
+        coEvery {
+            mockWsClient.call(RpcMethods.CLARIFY_LOCK, any())
+        } answers {
+            callCount++
+            if (callCount == 1) {
+                ClarifyLockResult(status = "ok", remaining = listOf("q1"))
+            } else {
+                throw kotlinx.coroutines.CancellationException("Job cancelled after first lock")
+            }
+        }
+
+        val scope = TestScope(dispatcher)
+        val uiState =
+            MutableStateFlow(
+                ChatUiState(
+                    currentSessionId = "session-1",
+                    clarifyRequest =
+                        ClarifyUi(
+                            text = "",
+                            questions =
+                                listOf(
+                                    ClarifyQuestionUi(qid = "q0", question = "First?"),
+                                    ClarifyQuestionUi(qid = "q1", question = "Second?"),
+                                ),
+                            serverRequestId = "srq-cancel-ack",
+                        ),
+                ),
+            )
+
+        val delegate =
+            ChatClarifyDelegate(
+                uiState = uiState,
+                scope = scope,
+                ioDispatcher = dispatcher,
+                persistMessage = { _, _ -> },
+                wsClient = mockWsClient,
+            )
+
+        delegate.respondToClarifyBatch(mapOf("q0" to "first-ack", "q1" to "second-ans"))
+        dispatcher.scheduler.advanceUntilIdle()
+
+        // Even though cancellation occurred on second call, q0 was committed immediately after its ok response!
+        val activeClarify = uiState.value.clarifyRequest
+        assertNotNull(activeClarify)
+        assertEquals("first-ack", activeClarify?.lockedAnswers?.get("q0"))
+        assertNull(uiState.value.errorMessage)
     }
 }

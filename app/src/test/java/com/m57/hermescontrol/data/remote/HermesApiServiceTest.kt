@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.data.remote
 
+import com.m57.hermescontrol.data.model.LockSkillRequest
 import com.m57.hermescontrol.data.model.ToggleSkillRequest
 import kotlinx.coroutines.test.runTest
 import okhttp3.MediaType.Companion.toMediaType
@@ -75,6 +76,30 @@ class HermesApiServiceTest {
             assertEquals("/api/skills/toggle", recordedRequest.path)
             assertEquals("PUT", recordedRequest.method)
             assertEquals("""{"name":"weather","enabled":true}""", recordedRequest.body.readUtf8())
+        }
+
+    @Test
+    fun testLockSkill_postsCorrectBody() =
+        runTest {
+            mockWebServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setHeader("Content-Type", "application/json")
+                    .setBody("""{"ok":true,"name":"weather","locked":true}"""),
+            )
+
+            val response = apiService.lockSkill(LockSkillRequest(name = "weather", locked = true))
+            assertTrue(response.isSuccessful)
+            val body = response.body()
+            assertNotNull(body)
+            assertTrue(body!!.ok)
+            assertEquals("weather", body.name)
+            assertTrue(body.locked)
+
+            val recordedRequest = mockWebServer.takeRequest()
+            assertEquals("/api/skills/lock", recordedRequest.path)
+            assertEquals("PUT", recordedRequest.method)
+            assertEquals("""{"name":"weather","locked":true}""", recordedRequest.body.readUtf8())
         }
 
     @Test

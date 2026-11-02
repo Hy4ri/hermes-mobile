@@ -53,6 +53,8 @@ import com.m57.hermescontrol.data.model.LocalModelJobIdBody
 import com.m57.hermescontrol.data.model.LocalModelJobsResponse
 import com.m57.hermescontrol.data.model.LocalModelsHardware
 import com.m57.hermescontrol.data.model.LocalModelsStatus
+import com.m57.hermescontrol.data.model.LockSkillRequest
+import com.m57.hermescontrol.data.model.LockSkillResponse
 import com.m57.hermescontrol.data.model.LogResponse
 import com.m57.hermescontrol.data.model.ManagedDirectoryCreate
 import com.m57.hermescontrol.data.model.ManagedFileActionResponse
@@ -392,6 +394,11 @@ interface HermesApiService : KanbanApiService {
     suspend fun toggleSkill(
         @Body body: ToggleSkillRequest,
     ): Response<Unit>
+
+    @PUT("api/skills/lock")
+    suspend fun lockSkill(
+        @Body body: LockSkillRequest,
+    ): Response<LockSkillResponse>
 
     @GET("api/cron/jobs")
     suspend fun getCronJobs(): Response<List<CronJob>>

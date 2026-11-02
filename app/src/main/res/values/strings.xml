@@ -719,6 +719,12 @@
     <string name="skills_source_all">All sources</string>
     <string name="action_discard">Discard</string>
 
+    <string name="skills_lock_title">Lock skill against agent edits</string>
+    <string name="skills_lock_hint">Prevents the agent from modifying or deleting this skill. Your own edits remain allowed.</string>
+    <string name="skills_lock_failed">Failed to update lock: %1$s</string>
+    <string name="skills_detail_locked">Locked against agent edits</string>
+    <string name="skills_detail_unlocked">Unlocked</string>
+
     <string name="content_desc_edit_skill">Edit Skill File</string>
     <string name="content_desc_uninstall_skill">Uninstall Skill</string>
     <string name="content_desc_update_skills_hub">Update Skills from Hub</string>
@@ -1272,6 +1278,7 @@
     <string name="detail_dialog_skills">Skills</string>
     <string name="detail_dialog_created_at">Created</string>
     <string name="detail_dialog_error">Error</string>
+    <string name="detail_dialog_lock_status">Agent Lock</string>
     <string name="detail_dialog_status_enabled">Enabled</string>
     <string name="detail_dialog_status_disabled">Disabled</string>
     <string name="detail_dialog_trust_level">Trust Level</string>

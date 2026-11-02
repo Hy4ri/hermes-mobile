@@ -12,6 +12,7 @@ data class Skill(
     val source: String? = null, // built-in, hub, optional
     val pinned: Boolean? = null,
     val linked_files: List<String>? = null,
+    val locked: Boolean? = null,
 )
 
 @Serializable

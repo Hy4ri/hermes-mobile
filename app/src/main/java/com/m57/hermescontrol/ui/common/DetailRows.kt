@@ -22,6 +22,15 @@ fun Skill.toDetailRows(): List<DetailRow> =
     listOf(
         DetailRow(stringResource(R.string.detail_dialog_category), category),
         DetailRow(stringResource(R.string.detail_dialog_source), source),
+        DetailRow(
+            stringResource(R.string.detail_dialog_lock_status),
+            if (locked == true) {
+                stringResource(R.string.skills_detail_locked)
+            } else {
+                stringResource(R.string.skills_detail_unlocked)
+            },
+            if (locked == true) DetailRowTone.WARNING else DetailRowTone.NEUTRAL,
+        ),
         DetailRow(stringResource(R.string.detail_dialog_description), description),
     )
 

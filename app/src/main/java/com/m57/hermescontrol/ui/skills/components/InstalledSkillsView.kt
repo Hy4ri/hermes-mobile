@@ -24,7 +24,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.Skill
-import com.m57.hermescontrol.ui.common.DetailDialog
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.FilterChipRow
@@ -53,10 +52,17 @@ fun InstalledSkillsView(
     sourceFilter: String?,
     isUninstalling: Boolean,
     uninstallingSkillName: String?,
+    isLockSaving: Boolean = false,
+    lockingSkillName: String? = null,
+    onToggleLock: (String, Boolean) -> Unit = { _, _ -> },
     onRefresh: () -> Unit,
     onBrowseHub: () -> Unit,
 ) {
-    var showDetail by remember { mutableStateOf<Skill?>(null) }
+    var detailSkillName by remember { mutableStateOf<String?>(null) }
+    val selectedSkill =
+        remember(state.skills, detailSkillName) {
+            detailSkillName?.let { name -> state.skills.firstOrNull { it.name == name } }
+        }
 
     val categories =
         remember(state.skills) {
@@ -165,7 +171,7 @@ fun InstalledSkillsView(
                                     null
                                 },
                             isUninstalling = isUninstalling && uninstallingSkillName == skill.name,
-                            onClick = { showDetail = skill },
+                            onClick = { detailSkillName = skill.name },
                         )
                     }
                 }
@@ -173,11 +179,12 @@ fun InstalledSkillsView(
         }
     }
 
-    showDetail?.let { skill ->
-        DetailDialog(
-            title = skill.name,
-            rows = skill.toDetailRows(),
-            onDismiss = { showDetail = null },
+    selectedSkill?.let { skill ->
+        SkillDetailDialog(
+            skill = skill,
+            isLockSaving = isLockSaving && lockingSkillName == skill.name,
+            onToggleLock = { targetLocked -> onToggleLock(skill.name, targetLocked) },
+            onDismiss = { detailSkillName = null },
         )
     }
 }

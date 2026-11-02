@@ -8,6 +8,7 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.HubSkill
+import com.m57.hermescontrol.data.model.LockSkillRequest
 import com.m57.hermescontrol.data.model.SaveSkillContentRequest
 import com.m57.hermescontrol.data.model.Skill
 import com.m57.hermescontrol.data.model.SkillHubInstallRequest
@@ -87,6 +88,9 @@ data class SkillsUiState(
     val isLoadingPreview: Boolean = false,
     // Source filter for installed tab
     val sourceFilter: String? = null,
+    // Skill locking
+    val lockingSkillName: String? = null,
+    val isLocking: Boolean = false,
 )
 
 class SkillsViewModel(
@@ -98,10 +102,13 @@ class SkillsViewModel(
 
     private var loadJob: Job? = null
     private var searchJob: Job? = null
+    private var lockJob: Job? = null
     private val skillsCache = SwrCache<String, List<Skill>>()
     internal var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 
     fun clearScopeOwnedState() {
+        lockJob?.cancel()
+        lockJob = null
         _uiState.update {
             it.copy(
                 isLoading = false,
@@ -119,6 +126,8 @@ class SkillsViewModel(
                 hubPreviewContent = null,
                 isHubPreviewing = false,
                 hubPreviewError = null,
+                lockingSkillName = null,
+                isLocking = false,
             )
         }
     }
@@ -486,6 +495,87 @@ class SkillsViewModel(
                 toastMessage = errorMsg,
             )
         }
+    }
+
+    fun lockSkill(
+        skillName: String,
+        targetLocked: Boolean,
+    ) {
+        if (_uiState.value.isLocking) return
+
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+        val activeProfile = requestScope?.activeProfileId ?: AuthManager.destructiveProfileId()
+
+        _uiState.update { state ->
+            state.copy(
+                lockingSkillName = skillName,
+                isLocking = true,
+            )
+        }
+
+        lockJob =
+            viewModelScope.launch {
+                val result =
+                    withContext(ioDispatcher) {
+                        safeApiCall {
+                            ApiClient.hermesApi.lockSkill(
+                                LockSkillRequest(
+                                    name = skillName,
+                                    locked = targetLocked,
+                                    profile = activeProfile,
+                                ),
+                            )
+                        }
+                    }
+                val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+                if (requestScope != null && currentScope != requestScope) return@launch
+
+                when (result) {
+                    is NetworkResult.Success -> {
+                        val response = result.data
+                        if (response.ok && response.name == skillName) {
+                            _uiState.update { state ->
+                                state.copy(
+                                    isLocking = false,
+                                    lockingSkillName = null,
+                                    skills =
+                                        state.skills.map {
+                                            if (it.name == skillName) it.copy(locked = response.locked) else it
+                                        },
+                                )
+                            }
+                            val updated = _uiState.value.skills
+                            if (requestScope != null) {
+                                skillsCache.put(requestScope.scopedKey(activeProfile), updated)
+                            }
+                        } else {
+                            val app = getApplication<Application>()
+                            _uiState.update { state ->
+                                state.copy(
+                                    isLocking = false,
+                                    lockingSkillName = null,
+                                    toastMessage =
+                                        app.getString(
+                                            R.string.skills_lock_failed,
+                                            "Invalid server response",
+                                        ),
+                                )
+                            }
+                        }
+                    }
+
+                    is NetworkResult.Failure -> {
+                        val app = getApplication<Application>()
+                        _uiState.update { state ->
+                            state.copy(
+                                isLocking = false,
+                                lockingSkillName = null,
+                                toastMessage = app.getString(R.string.skills_lock_failed, result.error.message),
+                            )
+                        }
+                    }
+                }
+            }
     }
 
     fun loadSkillContent(skillName: String) {

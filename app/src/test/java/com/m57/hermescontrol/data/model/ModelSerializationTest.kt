@@ -24,6 +24,7 @@ class ModelSerializationTest {
                 description = "Get current weather info",
                 category = "utility",
                 enabled = true,
+                locked = true,
             )
         val jsonStr = json.encodeToString(skill)
         val deserialized = json.decodeFromString<Skill>(jsonStr)
@@ -31,6 +32,23 @@ class ModelSerializationTest {
         assertEquals(skill.description, deserialized.description)
         assertEquals(skill.category, deserialized.category)
         assertEquals(skill.enabled, deserialized.enabled)
+        assertEquals(true, deserialized.locked)
+    }
+
+    @Test
+    fun testLockSkillRequestAndResponseSerialization() {
+        val req = LockSkillRequest(name = "weather", locked = true, profile = "prod")
+        val reqJson = json.encodeToString(req)
+        val deserializedReq = json.decodeFromString<LockSkillRequest>(reqJson)
+        assertEquals("weather", deserializedReq.name)
+        assertTrue(deserializedReq.locked)
+        assertEquals("prod", deserializedReq.profile)
+
+        val respJson = """{"ok":true,"name":"weather","locked":true}"""
+        val deserializedResp = json.decodeFromString<LockSkillResponse>(respJson)
+        assertTrue(deserializedResp.ok)
+        assertEquals("weather", deserializedResp.name)
+        assertTrue(deserializedResp.locked)
     }
 
     @Test

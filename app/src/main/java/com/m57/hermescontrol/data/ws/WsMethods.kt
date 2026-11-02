@@ -122,6 +122,9 @@ object WsMethods {
     const val SUBAGENT_INTERRUPT = "subagent.interrupt"
     const val SUBAGENT_STEER = "subagent.steer"
 
+    /** Per-conversation counts of live subagents and background processes; needs no attached session (#387). */
+    const val SUBAGENT_ROSTER = "subagent.roster"
+
     // ── Connectors (issue #1091) ───────────────────────────────────────────
 
     const val CONNECTION_RESPOND = "connection.respond"
@@ -225,6 +228,7 @@ object WsMethods {
             PROJECTS_SET_PRIMARY,
             PROJECTS_DISCOVER_REPOS,
             PLUGINS_MANAGE, // methods_tools.py: @_scoped_rpc
+            SUBAGENT_ROSTER, // methods_subagents.py: _profile_db(scope) limits rows to the profile's state.db
             "pet.info", // line 1253
             "pet.info.meta", // line 1279
             "pet.cells", // line 1302

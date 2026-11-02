@@ -2025,4 +2025,10 @@
     <string name="chat_pending_owned_elsewhere">이 채팅은 다른 창에서 열려 있습니다. 이 메시지로 새 대화를 시작할까요?</string>
     <string name="chat_pending_new_conversation">새 대화</string>
     <string name="chat_pending_attachments_not_carried">첨부 파일이 옮겨지지 않았습니다. 새 대화에서 다시 추가하세요.</string>
+    <plurals name="sessions_live_work_subagents_desc">
+        <item quantity="other">하위 에이전트 %1$d개 실행 중</item>
+    </plurals>
+    <plurals name="sessions_live_work_background_desc">
+        <item quantity="other">백그라운드 프로세스 %1$d개 실행 중</item>
+    </plurals>
 </resources>

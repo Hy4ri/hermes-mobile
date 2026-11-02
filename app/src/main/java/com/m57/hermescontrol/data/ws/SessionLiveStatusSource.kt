@@ -2,9 +2,11 @@ package com.m57.hermescontrol.data.ws
 
 import com.m57.hermescontrol.data.model.ActiveSessionsResponse
 import com.m57.hermescontrol.data.model.LiveSessionSnapshot
+import com.m57.hermescontrol.data.model.LiveWorkRoster
 import com.m57.hermescontrol.data.model.SessionLiveStatus
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
 import com.m57.hermescontrol.data.ws.contract.SessionActiveListParams
+import com.m57.hermescontrol.data.ws.contract.SubagentRosterParams
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,6 +23,9 @@ import kotlinx.serialization.serializer
  */
 interface SessionLiveStatusSource {
     suspend fun fetchActiveSessionsSnapshot(): LiveSessionSnapshot?
+
+    /** Live subagent/background counts per stored session (`subagent.roster`, #387). */
+    suspend fun fetchLiveWorkRoster(): LiveWorkRoster = LiveWorkRoster.Unsupported
 
     val events: Flow<WsEvent>
     val connectionStatus: StateFlow<ConnectionStatus>
@@ -153,6 +158,9 @@ class HermesSessionLiveStatusSource(
     private val rpcRequest: suspend () -> Any? = {
         HermesWsClient.call(RpcMethods.SESSION_ACTIVE_LIST, SessionActiveListParams())
     },
+    private val rosterRequest: suspend () -> Any? = {
+        HermesWsClient.call(RpcMethods.SUBAGENT_ROSTER, SubagentRosterParams, suppressErrorEvent = true)
+    },
     eventsProvider: () -> Flow<WsEvent> = { HermesWsClient.events },
     connectionStatusProvider: () -> StateFlow<ConnectionStatus> = { HermesWsClient.connectionStatus },
 ) : SessionLiveStatusSource {
@@ -168,4 +176,21 @@ class HermesSessionLiveStatusSource(
         } catch (_: Exception) {
             null
         }
+
+    override suspend fun fetchLiveWorkRoster(): LiveWorkRoster =
+        try {
+            SubagentRosterDecoder.decode(rosterRequest())?.let { LiveWorkRoster.Counts(it) }
+                ?: LiveWorkRoster.Unavailable
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: HermesWsClient.HermesRpcException) {
+            if (e.code == METHOD_NOT_FOUND) LiveWorkRoster.Unsupported else LiveWorkRoster.Unavailable
+        } catch (_: Exception) {
+            LiveWorkRoster.Unavailable
+        }
+
+    private companion object {
+        /** JSON-RPC "method not found": a gateway older than v0.22.6 has no `subagent.roster`. */
+        const val METHOD_NOT_FOUND = -32601
+    }
 }

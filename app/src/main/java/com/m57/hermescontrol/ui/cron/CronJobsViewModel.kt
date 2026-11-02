@@ -243,6 +243,7 @@ class CronJobsViewModel :
 
     fun stopCronJob(id: String) {
         val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+        if (_uiState.value.stoppingJobIds.contains(id)) return
         _uiState.update { it.copy(stoppingJobIds = it.stoppingJobIds + id) }
         viewModelScope.launch {
             val result =
@@ -251,7 +252,7 @@ class CronJobsViewModel :
                 }
             val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
             if (requestScope != null && currentScope != requestScope) {
-                _uiState.update { it.copy(stoppingJobIds = it.stoppingJobIds - id) }
+                // Request finished after scope switched; do not clear newer scope's state
                 return@launch
             }
             when (result) {
@@ -517,6 +518,24 @@ class CronJobsViewModel :
             _uiState.update { it.copy(editorState = editor.copy(toastMessage = "Schedule is required")) }
             return
         }
+        val validatedGrace =
+            if (editor.grace_minutes.isNotBlank()) {
+                val parsed = editor.grace_minutes.trim().toIntOrNull()
+                if (parsed == null || parsed !in 0..1440) {
+                    _uiState.update {
+                        it.copy(
+                            editorState =
+                                editor.copy(
+                                    toastMessage = "Grace window must be a whole number between 0 and 1440 minutes",
+                                ),
+                        )
+                    }
+                    return
+                }
+                parsed
+            } else {
+                null
+            }
         _uiState.update { it.copy(editorState = editor.copy(isSaving = true)) }
 
         viewModelScope.launch {
@@ -532,7 +551,7 @@ class CronJobsViewModel :
                             )
                         }
                     } else if (editor.isNew) {
-                        createNewJobWithMonitor(editor)
+                        createNewJobWithMonitor(editor, validatedGrace)
                     } else {
                         val updates = mutableMapOf<String, Any?>()
                         if (editor.name.isNotEmpty()) updates["name"] = editor.name
@@ -546,7 +565,7 @@ class CronJobsViewModel :
                         updates["script"] = editor.script.ifBlank { null }
                         updates["workdir"] = editor.workdir.ifBlank { null }
                         updates["timezone"] = editor.timezone.ifBlank { null }
-                        updates["grace_minutes"] = editor.grace_minutes.trim().toIntOrNull()
+                        updates["grace_minutes"] = validatedGrace
                         updates["catch_up"] =
                             when (editor.catch_up) {
                                 "run" -> true
@@ -603,7 +622,10 @@ class CronJobsViewModel :
      * apply. If the monitor update fails, the just-created job is rolled back
      * (deleted) — a half-configured job is worse than no job.
      */
-    private suspend fun createNewJobWithMonitor(editor: CronJobEditorState): NetworkResult<CronJob> {
+    private suspend fun createNewJobWithMonitor(
+        editor: CronJobEditorState,
+        validatedGrace: Int? = null,
+    ): NetworkResult<CronJob> {
         val createdResult =
             safeApiCall {
                 ApiClient.hermesApi.createCronJob(
@@ -619,7 +641,7 @@ class CronJobsViewModel :
                         script = editor.script.ifBlank { null },
                         workdir = editor.workdir.ifBlank { null },
                         timezone = editor.timezone.ifBlank { null },
-                        grace_minutes = editor.grace_minutes.trim().toIntOrNull(),
+                        grace_minutes = validatedGrace,
                         catch_up =
                             when (editor.catch_up) {
                                 "run" -> true

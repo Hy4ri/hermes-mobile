@@ -1397,6 +1397,12 @@
     <string name="cron_stop_nothing_to_stop">No run of this job is in flight</string>
     <string name="cron_stop_requested">Stop requested for running job</string>
     <string name="cron_stop_failed">Failed to stop job: %1$s</string>
+    <string name="cron_detail_live_run">Live run</string>
+    <string name="cron_detail_timezone">Timezone</string>
+    <string name="cron_detail_grace">Grace</string>
+    <string name="cron_detail_grace_value">%1$d min</string>
+    <string name="cron_detail_catch_up">Missed-run policy</string>
+    <string name="cron_edit_error_grace_minutes">Grace window must be a whole number between 0 and 1440 minutes</string>
     <string name="cron_edit_field_no_agent">No agent (script-only)</string>
     <string name="cron_edit_field_run_continuity">Run continuity</string>
     <string name="cron_edit_hint_run_continuity">Inject this job\'s previous output into each run</string>

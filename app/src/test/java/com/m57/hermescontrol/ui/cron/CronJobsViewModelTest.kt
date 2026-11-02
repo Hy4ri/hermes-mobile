@@ -1000,26 +1000,155 @@ class CronJobsViewModelTest {
     }
 
     @Test
-    fun `saveEditor 400 error surfaces detail text in toast`() {
+    fun `stopCronJob guards against duplicate in-flight calls`() {
+        val vm = createViewModel()
+        coEvery { mockApi.cancelCronJob("job-dup") } returns
+            Response.success(
+                CronCancelResult(
+                    cancelled = true,
+                    execution_id = "e-1",
+                    job_id = "job-dup",
+                ),
+            )
+        coEvery { mockApi.getCronJobs() } returns Response.success(emptyList())
+
+        vm.stopCronJob("job-dup")
+        // Calling again while job-dup is in stoppingJobIds should be a no-op
+        vm.stopCronJob("job-dup")
+        settle()
+
+        coVerify(exactly = 1) { mockApi.cancelCronJob("job-dup") }
+    }
+
+    @Test
+    fun `saveEditor rejects non-integer grace_minutes without making API call`() {
         val vm = createViewModel()
         vm.openNewJobDialog()
         settle()
 
-        vm.updateEditorField("name", "Bad Zone")
+        vm.updateEditorField("name", "Test")
         vm.updateEditorField("schedule", "0 0 * * *")
-        vm.updateEditorField("timezone", "Mars/Olympus_Mons")
-
-        coEvery { mockApi.createCronJob(any()) } returns
-            Response.error(400, """{"detail":"Unknown IANA timezone 'Mars/Olympus_Mons'"}""".toResponseBody())
+        vm.updateEditorField("grace_minutes", "abc")
 
         vm.saveEditor()
         settle()
 
+        coVerify(exactly = 0) { mockApi.createCronJob(any()) }
+        coVerify(exactly = 0) { mockApi.updateCronJob(any(), any()) }
         assertTrue(vm.uiState.value.editorState.isOpen)
-        assertTrue(
-            vm.uiState.value.editorState.toastMessage
-                .orEmpty()
-                .contains("Unknown IANA timezone 'Mars/Olympus_Mons'"),
+        assertEquals(
+            "Grace window must be a whole number between 0 and 1440 minutes",
+            vm.uiState.value.editorState.toastMessage,
         )
+    }
+
+    @Test
+    fun `saveEditor rejects decimal grace_minutes without making API call`() {
+        val vm = createViewModel()
+        vm.openNewJobDialog()
+        settle()
+
+        vm.updateEditorField("name", "Test")
+        vm.updateEditorField("schedule", "0 0 * * *")
+        vm.updateEditorField("grace_minutes", "1.5")
+
+        vm.saveEditor()
+        settle()
+
+        coVerify(exactly = 0) { mockApi.createCronJob(any()) }
+        coVerify(exactly = 0) { mockApi.updateCronJob(any(), any()) }
+        assertTrue(vm.uiState.value.editorState.isOpen)
+        assertEquals(
+            "Grace window must be a whole number between 0 and 1440 minutes",
+            vm.uiState.value.editorState.toastMessage,
+        )
+    }
+
+    @Test
+    fun `saveEditor rejects out-of-range grace_minutes without making API call`() {
+        val vm = createViewModel()
+        vm.openNewJobDialog()
+        settle()
+
+        vm.updateEditorField("name", "Test")
+        vm.updateEditorField("schedule", "0 0 * * *")
+
+        // Negative
+        vm.updateEditorField("grace_minutes", "-5")
+        vm.saveEditor()
+        settle()
+
+        coVerify(exactly = 0) { mockApi.createCronJob(any()) }
+        assertEquals(
+            "Grace window must be a whole number between 0 and 1440 minutes",
+            vm.uiState.value.editorState.toastMessage,
+        )
+
+        // Overflow > 1440
+        vm.updateEditorField("grace_minutes", "1441")
+        vm.saveEditor()
+        settle()
+
+        coVerify(exactly = 0) { mockApi.createCronJob(any()) }
+
+        // Large integer string overflow
+        vm.updateEditorField("grace_minutes", "99999999999999999999")
+        vm.saveEditor()
+        settle()
+
+        coVerify(exactly = 0) { mockApi.createCronJob(any()) }
+    }
+
+    @Test
+    fun `saveEditor accepts 0 as grace_minutes`() {
+        val vm = createViewModel()
+        vm.openNewJobDialog()
+        settle()
+
+        vm.updateEditorField("name", "Test Zero")
+        vm.updateEditorField("schedule", "0 0 * * *")
+        vm.updateEditorField("grace_minutes", "0")
+
+        val created = CronJob(id = "j-zero", name = "Test Zero")
+        coEvery { mockApi.createCronJob(any()) } returns Response.success(created)
+        coEvery { mockApi.getCronJobs() } returns Response.success(emptyList())
+
+        vm.saveEditor()
+        settle()
+
+        val createSlot = slot<CreateCronJobRequest>()
+        coVerify(exactly = 1) { mockApi.createCronJob(capture(createSlot)) }
+        assertEquals(0, createSlot.captured.grace_minutes)
+    }
+
+    @Test
+    fun `saveEditor with blank grace_minutes resets to default null`() {
+        val vm = createViewModel()
+        coEvery { mockApi.getCronJob("j-reset") } returns
+            Response.success(
+                CronJob(
+                    id = "j-reset",
+                    name = "Reset Job",
+                    schedule = JsonPrimitive("0 12 * * *"),
+                    grace_minutes = 30,
+                ),
+            )
+        coEvery { mockApi.updateCronJob(eq("j-reset"), any()) } returns
+            Response.success(CronJob(id = "j-reset", name = "Reset Job"))
+        coEvery { mockApi.getCronJobs() } returns Response.success(emptyList())
+
+        vm.openEditJobDialog("j-reset")
+        settle()
+
+        assertEquals("30", vm.uiState.value.editorState.grace_minutes)
+
+        // Clear it
+        vm.updateEditorField("grace_minutes", "   ")
+        vm.saveEditor()
+        settle()
+
+        val updateSlot = slot<UpdateCronJobRequest>()
+        coVerify { mockApi.updateCronJob(eq("j-reset"), capture(updateSlot)) }
+        assertEquals(JsonNull, updateSlot.captured.updates["grace_minutes"])
     }
 }

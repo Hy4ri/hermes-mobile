@@ -195,4 +195,66 @@ class ChatPromptProtocolTest {
                 ?.content,
         )
     }
+
+    @Test
+    fun legacyCredentialPrompts_withoutServerRequestId_fallBackToRespondVerbs() {
+        val scope = TestScope(dispatcher)
+        val uiState = MutableStateFlow(ChatUiState(currentSessionId = "session-1"))
+        val sent = mutableListOf<Pair<String, Map<String, Any>>>()
+        val delegate =
+            ChatCredentialPromptsDelegate(
+                scope = scope,
+                ioDispatcher = dispatcher,
+                uiState = uiState,
+                wsSend = { method, params, _ -> sent += method to params },
+                trackRequest = { _, _ -> },
+                respondToServerRequest = { _, _ -> error("legacy prompt must not use a same-id response") },
+            )
+
+        // Older gateways (no serverRequestId): answer and dismiss each prompt.
+        delegate.handleSecretRequest(WsEvent.SecretRequest("sec-1", "session-1"))
+        delegate.respondToSecret("secret-value")
+        delegate.handleSecretRequest(WsEvent.SecretRequest("sec-2", "session-1"))
+        delegate.dismissSecret()
+        delegate.handleSudoRequest(WsEvent.SudoRequest("sudo-1", "session-1"))
+        delegate.dismissSudo()
+        delegate.handleVaultUnlockRequest(WsEvent.VaultUnlockRequest("unl-1", "session-1"))
+        delegate.respondToVaultUnlock("vault-password")
+        delegate.handleVaultSaveLoginRequest(WsEvent.VaultSaveLoginRequest("save-1", "session-1"))
+        delegate.dismissVaultSaveLogin()
+        delegate.handleVaultCodeRequest(WsEvent.VaultCodeRequest("code-1", "session-1"))
+        delegate.respondToVaultCode("123456")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            listOf(
+                WsMethods.SECRET_RESPOND,
+                WsMethods.SECRET_RESPOND,
+                WsMethods.SUDO_RESPOND,
+                WsMethods.VAULT_UNLOCK_RESPOND,
+                WsMethods.VAULT_SAVE_LOGIN_RESPOND,
+                WsMethods.VAULT_CODE_RESPOND,
+            ),
+            sent.map { it.first },
+        )
+        assertEquals(
+            listOf("sec-1", "sec-2", "sudo-1", "unl-1", "save-1", "code-1"),
+            sent.map { it.second["request_id"] },
+        )
+        assertEquals("secret-value", sent[0].second["value"])
+        assertEquals("", sent[1].second["value"])
+        assertEquals("", sent[2].second["password"])
+        assertEquals("vault-password", sent[3].second["password"])
+        assertEquals("", sent[4].second["login"])
+        assertEquals("123456", sent[5].second["code"])
+    }
+
+    @Test
+    fun legacyRespondVerbs_keepTheirWireNames() {
+        assertEquals("sudo.respond", WsMethods.SUDO_RESPOND)
+        assertEquals("secret.respond", WsMethods.SECRET_RESPOND)
+        assertEquals("vault.unlock.respond", WsMethods.VAULT_UNLOCK_RESPOND)
+        assertEquals("vault.save_login.respond", WsMethods.VAULT_SAVE_LOGIN_RESPOND)
+        assertEquals("vault.code.respond", WsMethods.VAULT_CODE_RESPOND)
+    }
 }

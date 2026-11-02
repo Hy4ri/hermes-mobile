@@ -119,96 +119,217 @@ class ChatClarifyDelegate(
                     displayKind = DisplayKind.CLARIFY_RESPONSE,
                 )
 
-            scope.launch(ioDispatcher) {
-                var lastRemaining: List<String>? = null
-                try {
-                    for (q in questions) {
-                        // Scope/session/request identity guard BEFORE each call:
-                        val currentSessionBefore = uiState.value.currentSessionId
-                        val activeScopeBefore = currentDataScope()
-                        val currentRequestIdBefore = uiState.value.clarifyRequest?.serverRequestId
-                        if (currentSessionBefore != sessionId ||
-                            activeScopeBefore != initialScope ||
-                            currentRequestIdBefore != serverRequestId
-                        ) {
-                            return@launch
-                        }
-
-                        // Skip already-locked rows unless a truly changed nonblank answer is provided
-                        val existingLocked = lockedAnswers[q.qid]
-                        val rawAnswer = finalAnswers[q.qid]
-                        val hasNewNonBlank = answers[q.qid]?.trim()?.isNotEmpty() == true
-                        if (existingLocked != null && (!hasNewNonBlank || rawAnswer == existingLocked)) {
-                            continue
-                        }
-
-                        val lockResult =
-                            wsClient.call(
-                                RpcMethods.CLARIFY_LOCK,
-                                ClarifyLockParams(
-                                    requestId = serverRequestId,
-                                    questionId = q.qid,
-                                    answer = rawAnswer,
-                                ),
-                            )
-
-                        // Scope/session/request identity guard AFTER suspension before state updates:
-                        val currentSessionAfter = uiState.value.currentSessionId
-                        val activeScopeAfter = currentDataScope()
-                        val currentRequestIdAfter = uiState.value.clarifyRequest?.serverRequestId
-                        if (currentSessionAfter != sessionId ||
-                            activeScopeAfter != initialScope ||
-                            currentRequestIdAfter != serverRequestId
-                        ) {
-                            return@launch
-                        }
-
-                        when (lockResult.status) {
-                            "ok" -> {
-                                val acceptedAnswer = rawAnswer.orEmpty()
-                                lastRemaining = lockResult.remaining
-                                // Update accepted locks immediately after each successful response under identity guard:
-                                uiState.update { current ->
-                                    if (current.currentSessionId == sessionId &&
-                                        currentDataScope() == initialScope &&
-                                        current.clarifyRequest?.serverRequestId == serverRequestId
-                                    ) {
-                                        val req = current.clarifyRequest
-                                        val updatedLocked = req.lockedAnswers + (q.qid to acceptedAnswer)
-                                        current.copy(clarifyRequest = req.copy(lockedAnswers = updatedLocked))
-                                    } else {
-                                        current
-                                    }
-                                }
-                            }
-
-                            "expired" -> {
-                                uiState.update { current ->
-                                    if (current.currentSessionId == sessionId &&
-                                        currentDataScope() == initialScope &&
-                                        current.clarifyRequest?.serverRequestId == serverRequestId
-                                    ) {
-                                        current.copy(
-                                            clarifyRequest = null,
-                                            isAgentTyping = false,
-                                            errorMessage = "Clarify request expired",
-                                        )
-                                    } else {
-                                        current
-                                    }
-                                }
+            val job =
+                scope.launch(ioDispatcher) {
+                    var lastRemaining: List<String>? = null
+                    var callsMade = 0
+                    try {
+                        for (q in questions) {
+                            // Scope/session/request identity guard BEFORE each call:
+                            val currentSessionBefore = uiState.value.currentSessionId
+                            val activeScopeBefore = currentDataScope()
+                            val currentRequestIdBefore = uiState.value.clarifyRequest?.serverRequestId
+                            if (currentSessionBefore != sessionId ||
+                                activeScopeBefore != initialScope ||
+                                currentRequestIdBefore != serverRequestId
+                            ) {
                                 return@launch
                             }
 
-                            else -> {
-                                throw IllegalStateException("Unexpected clarify.lock status: ${lockResult.status}")
+                            // Skip already-locked rows unless a truly changed nonblank answer is provided
+                            val existingLocked = lockedAnswers[q.qid]
+                            val rawAnswer = finalAnswers[q.qid]
+                            val hasNewNonBlank = answers[q.qid]?.trim()?.isNotEmpty() == true
+                            if (existingLocked != null && (!hasNewNonBlank || rawAnswer == existingLocked)) {
+                                continue
+                            }
+
+                            callsMade++
+                            val lockResult =
+                                wsClient.call(
+                                    RpcMethods.CLARIFY_LOCK,
+                                    ClarifyLockParams(
+                                        requestId = serverRequestId,
+                                        questionId = q.qid,
+                                        answer = rawAnswer,
+                                    ),
+                                )
+
+                            // Scope/session/request identity guard AFTER suspension before state updates:
+                            val currentSessionAfter = uiState.value.currentSessionId
+                            val activeScopeAfter = currentDataScope()
+                            val currentRequestIdAfter = uiState.value.clarifyRequest?.serverRequestId
+                            if (currentSessionAfter != sessionId ||
+                                activeScopeAfter != initialScope ||
+                                currentRequestIdAfter != serverRequestId
+                            ) {
+                                return@launch
+                            }
+
+                            when (lockResult.status) {
+                                "ok" -> {
+                                    val acceptedAnswer = rawAnswer.orEmpty()
+                                    lastRemaining = lockResult.remaining
+                                    // Update accepted locks immediately after each successful response under identity guard:
+                                    uiState.update { current ->
+                                        if (current.currentSessionId == sessionId &&
+                                            currentDataScope() == initialScope &&
+                                            current.clarifyRequest?.serverRequestId == serverRequestId
+                                        ) {
+                                            val req = current.clarifyRequest
+                                            val updatedLocked = req.lockedAnswers + (q.qid to acceptedAnswer)
+                                            current.copy(clarifyRequest = req.copy(lockedAnswers = updatedLocked))
+                                        } else {
+                                            current
+                                        }
+                                    }
+                                }
+
+                                "expired" -> {
+                                    uiState.update { current ->
+                                        if (current.currentSessionId == sessionId &&
+                                            currentDataScope() == initialScope &&
+                                            current.clarifyRequest?.serverRequestId == serverRequestId
+                                        ) {
+                                            current.copy(
+                                                clarifyRequest = null,
+                                                isAgentTyping = false,
+                                                errorMessage = "Clarify request expired",
+                                            )
+                                        } else {
+                                            current
+                                        }
+                                    }
+                                    return@launch
+                                }
+
+                                else -> {
+                                    throw IllegalStateException("Unexpected clarify.lock status: ${lockResult.status}")
+                                }
                             }
                         }
-                    }
 
-                    // Honor remaining from backend: if server reports questions still remaining,
-                    // do not claim settled success.
-                    if (lastRemaining != null && lastRemaining.isNotEmpty()) {
+                        // Settlement verification:
+                        // 1. If backend reported remaining questions, request is not settled yet.
+                        if (lastRemaining != null && lastRemaining.isNotEmpty()) {
+                            uiState.update { current ->
+                                if (current.currentSessionId == sessionId &&
+                                    currentDataScope() == initialScope &&
+                                    current.clarifyRequest?.serverRequestId == serverRequestId
+                                ) {
+                                    current.copy(
+                                        isAgentTyping = false,
+                                        errorMessage = "Questions still remaining: ${lastRemaining.joinToString(", ")}",
+                                    )
+                                } else {
+                                    current
+                                }
+                            }
+                            return@launch
+                        }
+
+                        // 2. If all questions were already locked locally and no RPC was made,
+                        // do not infer completion from absence of calls without backend confirmation.
+                        if (callsMade == 0) {
+                            val probeQ = questions.firstOrNull()
+                            if (probeQ != null) {
+                                val probeAns = finalAnswers[probeQ.qid]
+                                val probeResult =
+                                    wsClient.call(
+                                        RpcMethods.CLARIFY_LOCK,
+                                        ClarifyLockParams(
+                                            requestId = serverRequestId,
+                                            questionId = probeQ.qid,
+                                            answer = probeAns,
+                                        ),
+                                    )
+
+                                if (currentDataScope() != initialScope ||
+                                    uiState.value.currentSessionId != sessionId ||
+                                    uiState.value.clarifyRequest?.serverRequestId != serverRequestId
+                                ) {
+                                    return@launch
+                                }
+
+                                when (probeResult.status) {
+                                    "expired" -> {
+                                        // The batch already ended on backend
+                                        uiState.update { current ->
+                                            if (current.currentSessionId == sessionId &&
+                                                currentDataScope() == initialScope &&
+                                                current.clarifyRequest?.serverRequestId == serverRequestId
+                                            ) {
+                                                current.copy(
+                                                    clarifyRequest = null,
+                                                    isAgentTyping = false,
+                                                    errorMessage = "Clarify request expired",
+                                                )
+                                            } else {
+                                                current
+                                            }
+                                        }
+                                        return@launch
+                                    }
+
+                                    "ok" -> {
+                                        if (probeResult.remaining?.isNotEmpty() == true) {
+                                            uiState.update { current ->
+                                                if (current.currentSessionId == sessionId &&
+                                                    currentDataScope() == initialScope &&
+                                                    current.clarifyRequest?.serverRequestId == serverRequestId
+                                                ) {
+                                                    val rem = probeResult.remaining.joinToString(", ")
+                                                    current.copy(
+                                                        isAgentTyping = false,
+                                                        errorMessage = "Questions still remaining: $rem",
+                                                    )
+                                                } else {
+                                                    current
+                                                }
+                                            }
+                                            return@launch
+                                        }
+                                        // Empty remaining confirmed by server!
+                                    }
+
+                                    else -> {
+                                        throw IllegalStateException(
+                                            "Unexpected clarify.lock probe status: ${probeResult.status}",
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // All locks settled and confirmed by server!
+                        // Atomic compare-and-set loop without side-effects inside lambda:
+                        var committed = false
+                        while (true) {
+                            val current = uiState.value
+                            if (current.currentSessionId != sessionId ||
+                                currentDataScope() != initialScope ||
+                                current.clarifyRequest?.serverRequestId != serverRequestId
+                            ) {
+                                break
+                            }
+                            val next =
+                                current.copy(
+                                    clarifyRequest = null,
+                                    messages = current.messages + userMessage,
+                                    isAgentTyping = true,
+                                )
+                            if (uiState.compareAndSet(current, next)) {
+                                committed = true
+                                break
+                            }
+                        }
+
+                        if (committed) {
+                            persistMessage(userMessage, sessionId)
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
                         uiState.update { current ->
                             if (current.currentSessionId == sessionId &&
                                 currentDataScope() == initialScope &&
@@ -216,55 +337,18 @@ class ChatClarifyDelegate(
                             ) {
                                 current.copy(
                                     isAgentTyping = false,
-                                    errorMessage = "Questions still remaining: ${lastRemaining.joinToString(", ")}",
+                                    errorMessage = e.message ?: "Failed to lock clarify answer",
                                 )
                             } else {
                                 current
                             }
                         }
-                        return@launch
                     }
-
-                    // All locks settled! Atomically verify identity guard before committing completion
-                    var committed = false
-                    uiState.update { current ->
-                        if (current.currentSessionId == sessionId &&
-                            currentDataScope() == initialScope &&
-                            current.clarifyRequest?.serverRequestId == serverRequestId
-                        ) {
-                            committed = true
-                            current.copy(
-                                clarifyRequest = null,
-                                messages = current.messages + userMessage,
-                                isAgentTyping = true,
-                            )
-                        } else {
-                            current
-                        }
-                    }
-
-                    if (committed) {
-                        persistMessage(userMessage, sessionId)
-                    }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    uiState.update { current ->
-                        if (current.currentSessionId == sessionId &&
-                            currentDataScope() == initialScope &&
-                            current.clarifyRequest?.serverRequestId == serverRequestId
-                        ) {
-                            current.copy(
-                                isAgentTyping = false,
-                                errorMessage = e.message ?: "Failed to lock clarify answer",
-                            )
-                        } else {
-                            current
-                        }
-                    }
-                } finally {
-                    inFlightCanonicalBatch.remove(inFlightKey)
                 }
+
+            // Guaranteed single-flight cleanup even if scope is canceled before body begins:
+            job.invokeOnCompletion {
+                inFlightCanonicalBatch.remove(inFlightKey)
             }
             return
         }

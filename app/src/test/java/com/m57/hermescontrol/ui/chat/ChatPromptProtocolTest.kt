@@ -851,4 +851,183 @@ fun legacyCredentialPrompts_withoutServerRequestId_fallBackToRespondVerbs() {
         assertEquals("first-ack", activeClarify?.lockedAnswers?.get("q0"))
         assertNull(uiState.value.errorMessage)
     }
+
+    @Test
+    fun canonicalClarifyBatch_cancelBeforeStartThenRetry_releasesInFlightReservation() {
+        val mockWsClient = mockk<HermesWsClient>(relaxed = true)
+        every { mockWsClient.canonicalClarifyBatch } returns true
+        val locks = mutableListOf<ClarifyLockParams>()
+
+        coEvery {
+            mockWsClient.call(RpcMethods.CLARIFY_LOCK, any())
+        } answers {
+            locks.add(secondArg<ClarifyLockParams>())
+            ClarifyLockResult(status = "ok", remaining = emptyList())
+        }
+
+        val testJob = kotlinx.coroutines.Job().apply { cancel() }
+        val canceledScope = kotlinx.coroutines.CoroutineScope(dispatcher + testJob)
+
+        val uiState =
+            MutableStateFlow(
+                ChatUiState(
+                    currentSessionId = "session-1",
+                    clarifyRequest =
+                        ClarifyUi(
+                            text = "",
+                            questions = listOf(ClarifyQuestionUi(qid = "q0", question = "First?")),
+                            serverRequestId = "srq-cancel-start",
+                        ),
+                ),
+            )
+
+        val delegate =
+            ChatClarifyDelegate(
+                uiState = uiState,
+                scope = canceledScope,
+                ioDispatcher = dispatcher,
+                persistMessage = { _, _ -> },
+                wsClient = mockWsClient,
+            )
+
+        // First attempt on canceled scope
+        delegate.respondToClarifyBatch(mapOf("q0" to "ans1"))
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(0, locks.size)
+
+        // Now retry with active scope
+        val activeScope = TestScope(dispatcher)
+        val retryDelegate =
+            ChatClarifyDelegate(
+                uiState = uiState,
+                scope = activeScope,
+                ioDispatcher = dispatcher,
+                persistMessage = { _, _ -> },
+                wsClient = mockWsClient,
+            )
+
+        // Reservation must have been released by invokeOnCompletion, so retry succeeds!
+        retryDelegate.respondToClarifyBatch(mapOf("q0" to "ans-retry"))
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1, locks.size)
+        assertEquals("ans-retry", locks[0].answer)
+    }
+
+    @Test
+    fun canonicalClarifyBatch_casConflict_doesNotCausePhantomPersist() {
+        val mockWsClient = mockk<HermesWsClient>(relaxed = true)
+        every { mockWsClient.canonicalClarifyBatch } returns true
+        var persisted = false
+
+        coEvery {
+            mockWsClient.call(RpcMethods.CLARIFY_LOCK, any())
+        } answers {
+            ClarifyLockResult(status = "ok", remaining = emptyList())
+        }
+
+        val scope = TestScope(dispatcher)
+        val originalClarify =
+            ClarifyUi(
+                text = "",
+                questions = listOf(ClarifyQuestionUi(qid = "q0", question = "First?")),
+                serverRequestId = "srq-cas-conflict",
+            )
+        val uiState =
+            MutableStateFlow(
+                ChatUiState(
+                    currentSessionId = "session-1",
+                    clarifyRequest = originalClarify,
+                ),
+            )
+
+        // Spy on uiState to inject a concurrent CAS change that swaps out the clarifyRequest
+        // right when compareAndSet is about to execute!
+        val delegate =
+            ChatClarifyDelegate(
+                uiState = uiState,
+                scope = scope,
+                ioDispatcher = dispatcher,
+                persistMessage = { _, _ -> persisted = true },
+                wsClient = mockWsClient,
+            )
+
+        // Before coroutine commits settlement, swap out the request
+        delegate.respondToClarifyBatch(mapOf("q0" to "answer"))
+        // Simulate concurrent state replacement right before advance:
+        uiState.value =
+            uiState.value.copy(
+                clarifyRequest =
+                    ClarifyUi(
+                        text = "",
+                        questions = listOf(ClarifyQuestionUi(qid = "qOther", question = "Replaced?")),
+                        serverRequestId = "srq-different",
+                    ),
+            )
+
+        dispatcher.scheduler.advanceUntilIdle()
+
+        // Because clarifyRequest was replaced, CAS loop fails matching request guard and aborts without persisting phantom message!
+        org.junit.Assert.assertFalse(persisted)
+        assertEquals(0, uiState.value.messages.size)
+        assertEquals("srq-different", uiState.value.clarifyRequest?.serverRequestId)
+    }
+
+    @Test
+    fun canonicalClarifyBatch_allAlreadyLocked_probesBackendForSettlementConfirmation() {
+        val mockWsClient = mockk<HermesWsClient>(relaxed = true)
+        every { mockWsClient.canonicalClarifyBatch } returns true
+        val locks = mutableListOf<ClarifyLockParams>()
+        var persisted = false
+
+        coEvery {
+            mockWsClient.call(RpcMethods.CLARIFY_LOCK, any())
+        } answers {
+            locks.add(secondArg<ClarifyLockParams>())
+            // Server confirms that remaining is empty
+            ClarifyLockResult(status = "ok", remaining = emptyList())
+        }
+
+        val scope = TestScope(dispatcher)
+        val uiState =
+            MutableStateFlow(
+                ChatUiState(
+                    currentSessionId = "session-1",
+                    clarifyRequest =
+                        ClarifyUi(
+                            text = "",
+                            questions =
+                                listOf(
+                                    ClarifyQuestionUi(qid = "q0", question = "First?"),
+                                    ClarifyQuestionUi(qid = "q1", question = "Second?"),
+                                ),
+                            serverRequestId = "srq-all-locked",
+                            lockedAnswers = mapOf("q0" to "ans0", "q1" to "ans1"),
+                        ),
+                ),
+            )
+
+        val delegate =
+            ChatClarifyDelegate(
+                uiState = uiState,
+                scope = scope,
+                ioDispatcher = dispatcher,
+                persistMessage = { _, _ -> persisted = true },
+                wsClient = mockWsClient,
+            )
+
+        // Pass empty answers so all questions match already-locked state
+        delegate.respondToClarifyBatch(emptyMap())
+        dispatcher.scheduler.advanceUntilIdle()
+
+        // Probe call was sent to backend to confirm server settlement!
+        assertEquals(1, locks.size)
+        assertEquals("q0", locks[0].questionId)
+        assertEquals("ans0", locks[0].answer)
+        // Settlement confirmed by server response, so message is persisted!
+        org.junit.Assert.assertTrue(persisted)
+        assertNull(uiState.value.clarifyRequest)
+        assertEquals(1, uiState.value.messages.size)
+    }
 }

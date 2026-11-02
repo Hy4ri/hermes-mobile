@@ -63,10 +63,20 @@ object WsMethods {
 
     /** List unresolved approvals for a session (reconnect replay). */
     const val APPROVAL_PENDING = "approval.pending"
+
+    // ── Legacy credential-prompt replies (older-gateway fallback) ─────────
+    // Current gateways send sudo/secret/vault prompts as JSON-RPC
+    // server→client requests and expect a same-id response (hermes-agent
+    // ebe8cda8ea, 2026-09-14; mobile #1119). These five *.respond verbs are
+    // NOT in the current gateway method registry. Keep them: gateways up to
+    // v2026.9.11 still send *.request notifications and wait for these
+    // verbs. ChatCredentialPromptsDelegate sends them only when the prompt
+    // has no serverRequestId. Delete them once the app drops those gateways.
     const val SUDO_RESPOND = "sudo.respond"
     const val SECRET_RESPOND = "secret.respond"
 
     // ── Credential Vault (issue #1090) ────────────────────────────────────
+    // The three vault *.respond verbs below are legacy fallbacks (see above).
     const val VAULT_UNLOCK_RESPOND = "vault.unlock.respond"
     const val VAULT_SAVE_LOGIN_RESPOND = "vault.save_login.respond"
     const val VAULT_CODE_RESPOND = "vault.code.respond"
@@ -81,7 +91,13 @@ object WsMethods {
     /** Ultra-lightweight liveness check and round-trip latency measurement. */
     const val PING = "ping"
 
-    /** Inline WebSocket read-loop ping, bypasses server thread pool dispatch. */
+    /**
+     * Inline WebSocket read-loop ping, bypasses server thread pool dispatch.
+     *
+     * Served: tui_gateway/ws.py answers it in the read loop before the method
+     * registry, so a registry census (@method / canonical_method) does not
+     * list it. Used by ConnectionHealth through HermesWsClient.
+     */
     const val GATEWAY_PING = "gateway.ping"
     const val CLIENT_CAPABILITIES = "client.capabilities"
 

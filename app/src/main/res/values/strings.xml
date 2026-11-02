@@ -1365,9 +1365,11 @@
     <string name="cron_status_paused">Paused</string>
     <string name="cron_status_completed">Completed</string>
     <string name="cron_status_error">Error</string>
+    <string name="cron_status_running">Running</string>
     <string name="cron_action_pause">Pause</string>
     <string name="cron_action_resume">Resume</string>
     <string name="cron_action_run">Run</string>
+    <string name="cron_action_stop">Stop</string>
     <string name="cron_action_edit">Edit</string>
     <string name="cron_action_add">Add cron job</string>
     <string name="cron_edit_title">Edit Cron Job</string>
@@ -1384,6 +1386,17 @@
     <string name="cron_edit_field_base_url">Base URL</string>
     <string name="cron_edit_field_script">Script</string>
     <string name="cron_edit_field_workdir">Work Directory</string>
+    <string name="cron_edit_field_timezone">Timezone</string>
+    <string name="cron_edit_hint_timezone">e.g. America/New_York or UTC (blank to inherit)</string>
+    <string name="cron_edit_field_grace_minutes">Grace window (minutes)</string>
+    <string name="cron_edit_hint_grace_minutes">e.g. 30 (0 = never catch up, blank = default)</string>
+    <string name="cron_edit_field_catch_up">Missed-run policy</string>
+    <string name="cron_catch_up_default">Default (follow system)</string>
+    <string name="cron_catch_up_run">Run once on catch-up</string>
+    <string name="cron_catch_up_skip">Skip missed runs</string>
+    <string name="cron_stop_nothing_to_stop">No run of this job is in flight</string>
+    <string name="cron_stop_requested">Stop requested for running job</string>
+    <string name="cron_stop_failed">Failed to stop job: %1$s</string>
     <string name="cron_edit_field_no_agent">No agent (script-only)</string>
     <string name="cron_edit_field_run_continuity">Run continuity</string>
     <string name="cron_edit_hint_run_continuity">Inject this job\'s previous output into each run</string>

@@ -23,6 +23,28 @@ data class CronJobFireError(
 )
 
 @Serializable
+data class CronJobExecution(
+    val id: String? = null,
+    val status: String? = null,
+    val error: String? = null,
+    val claimed_at: String? = null,
+)
+
+/**
+ * Result of POST /api/cron/jobs/{id}/cancel.
+ * cancelled is false when no run was in flight.
+ */
+@Serializable
+data class CronCancelResult(
+    val cancelled: Boolean,
+    val execution_id: String? = null,
+    val detail: String? = null,
+    val job_id: String? = null,
+    val success: Boolean? = null,
+    val status: String? = null,
+)
+
+@Serializable
 data class CronJob(
     val id: String,
     val name: String,
@@ -39,6 +61,12 @@ data class CronJob(
     // Missed scheduled-fire stamp (gateway unreachable / api_server not bound).
     // Nested {at, detail} object — see CronJobFireError.
     val last_fire_error: CronJobFireError? = null,
+    val latest_execution: CronJobExecution? = null,
+    val live_execution: CronJobExecution? = null,
+    // Missed-run policy & timezone knobs (v0.22.6)
+    val timezone: String? = null,
+    val grace_minutes: Int? = null,
+    val catch_up: Boolean? = null,
     // Full editor fields — all optional with defaults for backward compat
     val enabled: Boolean? = null,
     val prompt: String? = null,
@@ -75,4 +103,17 @@ data class CronJob(
     /** The configured monitor source (script or URL), if any. */
     val monitorSource: String?
         get() = monitor_script ?: monitor_url
+
+    /**
+     * Whether this job has an execution currently in flight (claimed or running).
+     * Sourced from either live_execution or latest_execution.
+     */
+    val isRunInFlight: Boolean
+        get() {
+            val liveStatus = live_execution?.status?.lowercase()
+            val latestStatus = latest_execution?.status?.lowercase()
+            return live_execution != null ||
+                liveStatus == "claimed" || liveStatus == "running" ||
+                latestStatus == "claimed" || latestStatus == "running"
+        }
 }

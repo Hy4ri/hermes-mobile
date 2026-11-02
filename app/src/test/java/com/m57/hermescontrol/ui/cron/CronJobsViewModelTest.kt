@@ -4,6 +4,7 @@ import com.m57.hermescontrol.data.model.CreateCronJobRequest
 import com.m57.hermescontrol.data.model.CronBlueprint
 import com.m57.hermescontrol.data.model.CronBlueprintField
 import com.m57.hermescontrol.data.model.CronBlueprintListResponse
+import com.m57.hermescontrol.data.model.CronCancelResult
 import com.m57.hermescontrol.data.model.CronJob
 import com.m57.hermescontrol.data.model.CronJobFireError
 import com.m57.hermescontrol.data.model.DeliveryTarget
@@ -841,5 +842,184 @@ class CronJobsViewModelTest {
                 .isEmpty(),
         )
         assertNull(vm.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun `stopCronJob success when cancelled requests refresh and notifies`() {
+        val vm = createViewModel()
+        val runningJob = CronJob(id = "job-stop", name = "Runner")
+        coEvery { mockApi.cancelCronJob("job-stop") } returns
+            Response.success(
+                CronCancelResult(
+                    cancelled = true,
+                    execution_id = "e-1",
+                    job_id = "job-stop",
+                    detail = "Cancel requested",
+                ),
+            )
+        coEvery { mockApi.getCronJobs() } returns Response.success(listOf(runningJob))
+
+        vm.stopCronJob("job-stop")
+        settle()
+
+        coVerify { mockApi.cancelCronJob("job-stop") }
+        coVerify { mockApi.getCronJobs() }
+        assertFalse(
+            vm.uiState.value.stoppingJobIds
+                .contains("job-stop"),
+        )
+        assertEquals("Stop requested for running job", vm.uiState.value.toastMessage)
+    }
+
+    @Test
+    fun `stopCronJob success when nothing in flight surfaces detail`() {
+        val vm = createViewModel()
+        coEvery { mockApi.cancelCronJob("job-idle") } returns
+            Response.success(
+                CronCancelResult(
+                    cancelled = false,
+                    job_id = "job-idle",
+                    detail = "No run of this job is in flight — nothing to cancel.",
+                ),
+            )
+
+        vm.stopCronJob("job-idle")
+        settle()
+
+        coVerify { mockApi.cancelCronJob("job-idle") }
+        assertFalse(
+            vm.uiState.value.stoppingJobIds
+                .contains("job-idle"),
+        )
+        assertEquals("No run of this job is in flight — nothing to cancel.", vm.uiState.value.toastMessage)
+    }
+
+    @Test
+    fun `stopCronJob failure surfaces error message`() {
+        val vm = createViewModel()
+        coEvery { mockApi.cancelCronJob("job-err") } returns
+            Response.error(400, """{"detail":"Failed to stop"}""".toResponseBody())
+
+        vm.stopCronJob("job-err")
+        settle()
+
+        coVerify { mockApi.cancelCronJob("job-err") }
+        assertFalse(
+            vm.uiState.value.stoppingJobIds
+                .contains("job-err"),
+        )
+        assertTrue(
+            vm.uiState.value.toastMessage
+                .orEmpty()
+                .contains("Failed to stop"),
+        )
+    }
+
+    @Test
+    fun `openEditJobDialog loads timezone grace and catch_up`() {
+        val vm = createViewModel()
+        coEvery { mockApi.getCronJob("j-policy") } returns
+            Response.success(
+                CronJob(
+                    id = "j-policy",
+                    name = "Policy Job",
+                    schedule = JsonPrimitive("0 12 * * *"),
+                    timezone = "America/New_York",
+                    grace_minutes = 30,
+                    catch_up = true,
+                ),
+            )
+
+        vm.openEditJobDialog("j-policy")
+        settle()
+
+        val editor = vm.uiState.value.editorState
+        assertEquals("America/New_York", editor.timezone)
+        assertEquals("30", editor.grace_minutes)
+        assertEquals("run", editor.catch_up)
+    }
+
+    @Test
+    fun `saveEditor sends timezone grace and catch_up on update`() {
+        val vm = createViewModel()
+        coEvery { mockApi.getCronJob("j-edit-policy") } returns
+            Response.success(
+                CronJob(
+                    id = "j-edit-policy",
+                    name = "Policy Job",
+                    schedule = JsonPrimitive("0 12 * * *"),
+                ),
+            )
+        coEvery { mockApi.updateCronJob(eq("j-edit-policy"), any()) } returns
+            Response.success(CronJob(id = "j-edit-policy", name = "Policy Job"))
+        coEvery { mockApi.getCronJobs() } returns Response.success(emptyList())
+
+        vm.openEditJobDialog("j-edit-policy")
+        settle()
+
+        vm.updateEditorField("timezone", "Asia/Amman")
+        vm.updateEditorField("grace_minutes", "60")
+        vm.updateEditorField("catch_up", "skip")
+
+        vm.saveEditor()
+        settle()
+
+        val updateSlot = slot<UpdateCronJobRequest>()
+        coVerify { mockApi.updateCronJob(eq("j-edit-policy"), capture(updateSlot)) }
+        assertEquals(JsonPrimitive("Asia/Amman"), updateSlot.captured.updates["timezone"])
+        assertEquals(JsonPrimitive(60), updateSlot.captured.updates["grace_minutes"])
+        assertEquals(JsonPrimitive(false), updateSlot.captured.updates["catch_up"])
+        assertFalse(vm.uiState.value.editorState.isOpen)
+    }
+
+    @Test
+    fun `saveEditor sends timezone grace and catch_up on create`() {
+        val vm = createViewModel()
+        vm.openNewJobDialog()
+        settle()
+
+        vm.updateEditorField("name", "New Policy Job")
+        vm.updateEditorField("schedule", "0 0 * * *")
+        vm.updateEditorField("timezone", "UTC")
+        vm.updateEditorField("grace_minutes", "15")
+        vm.updateEditorField("catch_up", "run")
+
+        val created = CronJob(id = "j-new-policy", name = "New Policy Job")
+        coEvery { mockApi.createCronJob(any()) } returns Response.success(created)
+        coEvery { mockApi.getCronJobs() } returns Response.success(emptyList())
+
+        vm.saveEditor()
+        settle()
+
+        val createSlot = slot<CreateCronJobRequest>()
+        coVerify { mockApi.createCronJob(capture(createSlot)) }
+        assertEquals("UTC", createSlot.captured.timezone)
+        assertEquals(15, createSlot.captured.grace_minutes)
+        assertEquals(true, createSlot.captured.catch_up)
+        assertFalse(vm.uiState.value.editorState.isOpen)
+    }
+
+    @Test
+    fun `saveEditor 400 error surfaces detail text in toast`() {
+        val vm = createViewModel()
+        vm.openNewJobDialog()
+        settle()
+
+        vm.updateEditorField("name", "Bad Zone")
+        vm.updateEditorField("schedule", "0 0 * * *")
+        vm.updateEditorField("timezone", "Mars/Olympus_Mons")
+
+        coEvery { mockApi.createCronJob(any()) } returns
+            Response.error(400, """{"detail":"Unknown IANA timezone 'Mars/Olympus_Mons'"}""".toResponseBody())
+
+        vm.saveEditor()
+        settle()
+
+        assertTrue(vm.uiState.value.editorState.isOpen)
+        assertTrue(
+            vm.uiState.value.editorState.toastMessage
+                .orEmpty()
+                .contains("Unknown IANA timezone 'Mars/Olympus_Mons'"),
+        )
     }
 }

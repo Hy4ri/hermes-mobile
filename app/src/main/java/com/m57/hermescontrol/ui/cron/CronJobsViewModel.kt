@@ -38,6 +38,7 @@ data class CronJobsUiState(
     val jobs: List<CronJob> = emptyList(),
     val errorMessage: String? = null,
     val toastMessage: String? = null,
+    val stoppingJobIds: Set<String> = emptySet(),
     // Delete-confirm state (non-null while the confirm dialog is up)
     val deleteTarget: CronJob? = null,
     // Editor state
@@ -62,6 +63,9 @@ data class CronJobEditorState(
     val base_url: String = "",
     val script: String = "",
     val workdir: String = "",
+    val timezone: String = "",
+    val grace_minutes: String = "",
+    val catch_up: String = "default", // "default" | "run" | "skip"
     val enabled: Boolean = true,
     val no_agent: Boolean = false,
     // Run continuity: when true, the job's own previous output is injected
@@ -110,6 +114,7 @@ class CronJobsViewModel :
                 isLoading = false,
                 jobs = emptyList(),
                 errorMessage = null,
+                stoppingJobIds = emptySet(),
                 deleteTarget = null,
                 editorState = CronJobEditorState(),
             )
@@ -231,6 +236,49 @@ class CronJobsViewModel :
 
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "Failed to trigger cron job: ${result.error.message}") }
+                }
+            }
+        }
+    }
+
+    fun stopCronJob(id: String) {
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+        _uiState.update { it.copy(stoppingJobIds = it.stoppingJobIds + id) }
+        viewModelScope.launch {
+            val result =
+                withContext(ioDispatcher) {
+                    safeApiCall { ApiClient.hermesApi.cancelCronJob(id) }
+                }
+            val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+            if (requestScope != null && currentScope != requestScope) {
+                _uiState.update { it.copy(stoppingJobIds = it.stoppingJobIds - id) }
+                return@launch
+            }
+            when (result) {
+                is NetworkResult.Success -> {
+                    val cancelRes = result.data
+                    val message =
+                        if (cancelRes.cancelled) {
+                            "Stop requested for running job"
+                        } else {
+                            cancelRes.detail ?: "No run of this job is in flight"
+                        }
+                    _uiState.update {
+                        it.copy(
+                            stoppingJobIds = it.stoppingJobIds - id,
+                            toastMessage = message,
+                        )
+                    }
+                    loadCronJobs(forceRefresh = true)
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            stoppingJobIds = it.stoppingJobIds - id,
+                            toastMessage = "Failed to stop job: ${result.error.message}",
+                        )
+                    }
                 }
             }
         }
@@ -371,6 +419,14 @@ class CronJobsViewModel :
                                     base_url = job.base_url.orEmpty(),
                                     script = job.script.orEmpty(),
                                     workdir = job.workdir.orEmpty(),
+                                    timezone = job.timezone.orEmpty(),
+                                    grace_minutes = job.grace_minutes?.toString().orEmpty(),
+                                    catch_up =
+                                        when (job.catch_up) {
+                                            true -> "run"
+                                            false -> "skip"
+                                            null -> "default"
+                                        },
                                     enabled = job.enabled ?: true,
                                     no_agent = job.no_agent ?: false,
                                     runContinuity = job.context_from?.contains("self") ?: false,
@@ -489,6 +545,14 @@ class CronJobsViewModel :
                         updates["base_url"] = editor.base_url.ifBlank { null }
                         updates["script"] = editor.script.ifBlank { null }
                         updates["workdir"] = editor.workdir.ifBlank { null }
+                        updates["timezone"] = editor.timezone.ifBlank { null }
+                        updates["grace_minutes"] = editor.grace_minutes.trim().toIntOrNull()
+                        updates["catch_up"] =
+                            when (editor.catch_up) {
+                                "run" -> true
+                                "skip" -> false
+                                else -> null
+                            }
                         updates["no_agent"] = editor.no_agent
                         // Run continuity: send ["self"] when on, null (clears) when off.
                         updates["context_from"] = if (editor.runContinuity) listOf("self") else null
@@ -554,6 +618,14 @@ class CronJobsViewModel :
                         base_url = editor.base_url.ifBlank { null },
                         script = editor.script.ifBlank { null },
                         workdir = editor.workdir.ifBlank { null },
+                        timezone = editor.timezone.ifBlank { null },
+                        grace_minutes = editor.grace_minutes.trim().toIntOrNull(),
+                        catch_up =
+                            when (editor.catch_up) {
+                                "run" -> true
+                                "skip" -> false
+                                else -> null
+                            },
                         no_agent = editor.no_agent,
                         context_from = if (editor.runContinuity) listOf("self") else null,
                         monitor_script = editor.monitor_script.ifBlank { null },
@@ -630,6 +702,12 @@ class CronJobsViewModel :
             "script" -> copy(script = value)
 
             "workdir" -> copy(workdir = value)
+
+            "timezone" -> copy(timezone = value)
+
+            "grace_minutes" -> copy(grace_minutes = value)
+
+            "catch_up" -> copy(catch_up = value)
 
             "run_continuity" -> copy(runContinuity = value.toBooleanStrictOrNull() ?: false)
 

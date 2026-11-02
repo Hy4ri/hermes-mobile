@@ -18,6 +18,9 @@ data class CreateCronJobRequest(
     val workdir: String? = null,
     val no_agent: Boolean = false,
     val repeat: Int? = null,
+    val timezone: String? = null,
+    val grace_minutes: Int? = null,
+    val catch_up: Boolean? = null,
     // Monitor mode. NOTE: the backend REST create model does not carry these
     // yet (they are silently dropped on POST) — the ViewModel applies them
     // via a follow-up PUT; keep them here for forward compatibility.

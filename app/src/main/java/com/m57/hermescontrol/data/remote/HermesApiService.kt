@@ -23,6 +23,7 @@ import com.m57.hermescontrol.data.model.CreateWebhookRequest
 import com.m57.hermescontrol.data.model.CredentialPoolAddRequest
 import com.m57.hermescontrol.data.model.CredentialPoolResponse
 import com.m57.hermescontrol.data.model.CronBlueprintListResponse
+import com.m57.hermescontrol.data.model.CronCancelResult
 import com.m57.hermescontrol.data.model.CronJob
 import com.m57.hermescontrol.data.model.CuratorResponse
 import com.m57.hermescontrol.data.model.DebugShareRequest
@@ -433,6 +434,11 @@ interface HermesApiService : KanbanApiService {
     suspend fun triggerCronJob(
         @Path("id") id: String,
     ): Response<Unit>
+
+    @POST("api/cron/jobs/{id}/cancel")
+    suspend fun cancelCronJob(
+        @Path("id") id: String,
+    ): Response<CronCancelResult>
 
     @DELETE("api/cron/jobs/{id}")
     suspend fun deleteCronJob(

@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.ui.cron
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.DataScope
@@ -98,8 +99,9 @@ data class CronJobEditorState(
             }
 }
 
-class CronJobsViewModel :
-    ViewModel(),
+class CronJobsViewModel(
+    application: Application,
+) : AndroidViewModel(application),
     ToastHost {
     private val _uiState = MutableStateFlow(CronJobsUiState())
     val uiState: StateFlow<CronJobsUiState> = _uiState.asStateFlow()
@@ -260,9 +262,12 @@ class CronJobsViewModel :
                     val cancelRes = result.data
                     val message =
                         if (cancelRes.cancelled) {
-                            "Stop requested for running job"
+                            getApplication<Application>().getString(com.m57.hermescontrol.R.string.cron_stop_requested)
                         } else {
-                            cancelRes.detail ?: "No run of this job is in flight"
+                            cancelRes.detail
+                                ?: getApplication<Application>().getString(
+                                    com.m57.hermescontrol.R.string.cron_stop_nothing_to_stop,
+                                )
                         }
                     _uiState.update {
                         it.copy(
@@ -277,7 +282,11 @@ class CronJobsViewModel :
                     _uiState.update {
                         it.copy(
                             stoppingJobIds = it.stoppingJobIds - id,
-                            toastMessage = "Failed to stop job: ${result.error.message}",
+                            toastMessage =
+                                getApplication<Application>().getString(
+                                    com.m57.hermescontrol.R.string.cron_stop_failed,
+                                    result.error.message,
+                                ),
                         )
                     }
                 }
@@ -526,7 +535,10 @@ class CronJobsViewModel :
                         it.copy(
                             editorState =
                                 editor.copy(
-                                    toastMessage = "Grace window must be a whole number between 0 and 1440 minutes",
+                                    toastMessage =
+                                        getApplication<Application>().getString(
+                                            com.m57.hermescontrol.R.string.cron_edit_error_grace_minutes,
+                                        ),
                                 ),
                         )
                     }

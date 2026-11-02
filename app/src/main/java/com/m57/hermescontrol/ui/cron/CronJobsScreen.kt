@@ -85,7 +85,7 @@ import com.m57.hermescontrol.util.CronExpressionFormatter
 fun CronJobsScreen(
     modifier: Modifier = Modifier,
     onOpenDrawer: (() -> Unit)? = null,
-    viewModel: CronJobsViewModel = viewModel { CronJobsViewModel() },
+    viewModel: CronJobsViewModel = viewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val dataScope by AuthManager.dataScopeFlow.collectAsStateWithLifecycle()

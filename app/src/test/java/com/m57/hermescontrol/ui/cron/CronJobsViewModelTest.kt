@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.cron
 
+import android.app.Application
 import com.m57.hermescontrol.data.model.CreateCronJobRequest
 import com.m57.hermescontrol.data.model.CronBlueprint
 import com.m57.hermescontrol.data.model.CronBlueprintField
@@ -44,6 +45,7 @@ import java.io.IOException
 class CronJobsViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private val mockApi = mockk<HermesApiService>(relaxed = true)
+    private val mockApp = mockk<Application>(relaxed = true)
 
     private val morningBrief =
         CronBlueprint(
@@ -71,7 +73,7 @@ class CronJobsViewModelTest {
         )
 
     private fun createViewModel(): CronJobsViewModel {
-        val vm = CronJobsViewModel()
+        val vm = CronJobsViewModel(mockApp)
         vm.ioDispatcher = testDispatcher
         testDispatcher.scheduler.advanceUntilIdle()
         return vm
@@ -102,6 +104,16 @@ class CronJobsViewModelTest {
         Dispatchers.setMain(testDispatcher)
         mockkObject(ApiClient)
         every { ApiClient.hermesApi } returns mockApi
+        every { mockApp.getString(com.m57.hermescontrol.R.string.cron_stop_requested) } returns
+            "Stop requested for running job"
+        every { mockApp.getString(com.m57.hermescontrol.R.string.cron_stop_nothing_to_stop) } returns
+            "No run of this job is in flight"
+        every { mockApp.getString(eq(com.m57.hermescontrol.R.string.cron_stop_failed), any()) } answers {
+            val err = secondArg<Array<out Any>>().firstOrNull() ?: ""
+            "Failed to stop job: $err"
+        }
+        every { mockApp.getString(com.m57.hermescontrol.R.string.cron_edit_error_grace_minutes) } returns
+            "Grace window must be a whole number between 0 and 1440 minutes"
         stubEditorData()
     }
 
@@ -1150,5 +1162,49 @@ class CronJobsViewModelTest {
         val updateSlot = slot<UpdateCronJobRequest>()
         coVerify { mockApi.updateCronJob(eq("j-reset"), capture(updateSlot)) }
         assertEquals(JsonNull, updateSlot.captured.updates["grace_minutes"])
+    }
+
+    @Test
+    fun `stopCronJob uses localized string resolver for toast feedback`() {
+        val app = mockk<Application>()
+        every { app.getString(com.m57.hermescontrol.R.string.cron_stop_requested) } returns "CUSTOM_STOP_MESSAGE"
+        val vm = CronJobsViewModel(app)
+        vm.ioDispatcher = testDispatcher
+        coEvery { mockApi.cancelCronJob("j-resolve") } returns
+            Response.success(
+                CronCancelResult(
+                    cancelled = true,
+                    execution_id = "e-1",
+                    job_id = "j-resolve",
+                ),
+            )
+        coEvery { mockApi.getCronJobs() } returns Response.success(emptyList())
+
+        vm.stopCronJob("j-resolve")
+        settle()
+
+        io.mockk.verify { app.getString(com.m57.hermescontrol.R.string.cron_stop_requested) }
+        assertEquals("CUSTOM_STOP_MESSAGE", vm.uiState.value.toastMessage)
+    }
+
+    @Test
+    fun `saveEditor uses localized string resolver for grace validation failure`() {
+        val app = mockk<Application>()
+        every { app.getString(com.m57.hermescontrol.R.string.cron_edit_error_grace_minutes) } returns
+            "CUSTOM_GRACE_ERROR"
+        val vm = CronJobsViewModel(app)
+        vm.ioDispatcher = testDispatcher
+
+        vm.openNewJobDialog()
+        settle()
+        vm.updateEditorField("name", "Test")
+        vm.updateEditorField("schedule", "0 0 * * *")
+        vm.updateEditorField("grace_minutes", "invalid")
+
+        vm.saveEditor()
+        settle()
+
+        io.mockk.verify { app.getString(com.m57.hermescontrol.R.string.cron_edit_error_grace_minutes) }
+        assertEquals("CUSTOM_GRACE_ERROR", vm.uiState.value.editorState.toastMessage)
     }
 }

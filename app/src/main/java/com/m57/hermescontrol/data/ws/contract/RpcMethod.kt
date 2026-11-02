@@ -76,6 +76,13 @@ object RpcMethods {
             PromptReceiptResult.serializer(),
         )
 
+    val CLARIFY_LOCK: RpcMethod<ClarifyLockParams, ClarifyLockResult> =
+        RpcMethod(
+            WsMethods.CLARIFY_LOCK,
+            ClarifyLockParams.serializer(),
+            ClarifyLockResult.serializer(),
+        )
+
     val SESSION_INTERRUPT: RpcMethod<SessionInterruptParams, SessionInterruptResult> =
         RpcMethod(
             WsMethods.SESSION_INTERRUPT,
@@ -589,6 +596,7 @@ object RpcMethods {
             PROMPT_SUBMIT,
             PROMPT_CANCEL,
             PROMPT_RECEIPT,
+            CLARIFY_LOCK,
             SESSION_INTERRUPT,
             SESSION_STEER,
             SESSION_REDIRECT,

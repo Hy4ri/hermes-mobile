@@ -549,6 +549,7 @@ internal class WsTransport(
                         sessionId = sessionId,
                         text = text,
                         queued = queued.takeIf { it },
+                        clarifyBatch = true.takeIf { rpcChannel.canonicalClarifyBatch },
                     ).let { rpcChannel.encodeParams(RpcMethods.PROMPT_SUBMIT, it) },
             ),
             onSent = onSent,

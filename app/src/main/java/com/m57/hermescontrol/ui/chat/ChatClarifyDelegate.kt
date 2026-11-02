@@ -1,7 +1,12 @@
 package com.m57.hermescontrol.ui.chat
 
+import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsMethods
+import com.m57.hermescontrol.data.ws.contract.ClarifyLockParams
+import com.m57.hermescontrol.data.ws.contract.RpcMethods
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +39,7 @@ class ChatClarifyDelegate(
     private val wsClient: HermesWsClient = HermesWsClient,
     private val trackRequest: (String, String) -> Unit = { _, _ -> },
     private val respondToServerRequest: ((String, JsonElement) -> Unit)? = null,
+    private val currentDataScope: () -> DataScope? = { runCatching { AuthManager.currentDataScope() }.getOrNull() },
 ) {
     fun respondToClarify(option: String) {
         val clarify = uiState.value.clarifyRequest
@@ -64,6 +70,136 @@ class ChatClarifyDelegate(
         val lockedAnswers = clarify?.lockedAnswers.orEmpty()
         val isBatch = !clarify?.questions.isNullOrEmpty()
         val questions = clarify?.resolvedQuestions.orEmpty()
+        val initialScope = currentDataScope()
+
+        if (serverRequestId != null && wsClient.canonicalClarifyBatch && isBatch) {
+            val finalAnswers =
+                buildMap {
+                    putAll(lockedAnswers)
+                    answers.forEach { (qid, answer) ->
+                        answer.trim().takeIf { it.isNotEmpty() }?.let { put(qid, it) }
+                    }
+                }
+
+            val displayContent =
+                if (questions.size > 1) {
+                    questions
+                        .mapIndexed { index, q ->
+                            val ans = finalAnswers[q.qid].orEmpty()
+                            "${index + 1}. ${ans.ifEmpty { "(Skipped)" }}"
+                        }.joinToString("\n")
+                } else {
+                    val loneAns = finalAnswers.values.firstOrNull() ?: singleFallbackAnswer?.trim().orEmpty()
+                    loneAns
+                }
+
+            val userMessage =
+                ChatMessage(
+                    role = MessageRole.USER,
+                    content = displayContent,
+                    displayKind = DisplayKind.CLARIFY_RESPONSE,
+                )
+
+            scope.launch(ioDispatcher) {
+                val acknowledgedLocks = mutableMapOf<String, String>()
+                try {
+                    for (q in questions) {
+                        // Scope/session guard before each call:
+                        // Ensure session and profile/connection scope have not changed.
+                        val currentSession = uiState.value.currentSessionId
+                        val activeScope = currentDataScope()
+                        if (currentSession != sessionId || activeScope != initialScope) {
+                            return@launch
+                        }
+
+                        // If already locked on server, skip re-locking unless a new answer is provided
+                        if (q.qid in lockedAnswers && q.qid !in answers) {
+                            acknowledgedLocks[q.qid] = lockedAnswers[q.qid].orEmpty()
+                            continue
+                        }
+
+                        val rawAnswer = finalAnswers[q.qid]
+                        val lockResult =
+                            wsClient.call(
+                                RpcMethods.CLARIFY_LOCK,
+                                ClarifyLockParams(
+                                    requestId = serverRequestId,
+                                    questionId = q.qid,
+                                    answer = rawAnswer,
+                                ),
+                            )
+
+                        when (lockResult.status) {
+                            "ok" -> {
+                                acknowledgedLocks[q.qid] = rawAnswer.orEmpty()
+                            }
+
+                            "expired" -> {
+                                uiState.update { current ->
+                                    if (current.currentSessionId == sessionId &&
+                                        current.clarifyRequest?.serverRequestId == serverRequestId
+                                    ) {
+                                        current.copy(
+                                            clarifyRequest = null,
+                                            isAgentTyping = false,
+                                            errorMessage = "Clarify request expired",
+                                        )
+                                    } else {
+                                        current
+                                    }
+                                }
+                                return@launch
+                            }
+
+                            else -> {
+                                // Unknown status is rejected as an error, preserving acknowledged locks
+                                throw IllegalStateException("Unexpected clarify.lock status: ${lockResult.status}")
+                            }
+                        }
+                    }
+
+                    // All questions locked successfully!
+                    val sessionStillMatches = uiState.value.currentSessionId == sessionId
+                    val activeScope = currentDataScope()
+                    if (sessionStillMatches && activeScope == initialScope) {
+                        uiState.update { current ->
+                            if (current.currentSessionId == sessionId &&
+                                current.clarifyRequest?.serverRequestId == serverRequestId
+                            ) {
+                                current.copy(
+                                    clarifyRequest = null,
+                                    messages = current.messages + userMessage,
+                                    isAgentTyping = true,
+                                )
+                            } else {
+                                current
+                            }
+                        }
+                        persistMessage(userMessage, sessionId)
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    uiState.update { current ->
+                        if (current.currentSessionId == sessionId &&
+                            current.clarifyRequest?.serverRequestId == serverRequestId
+                        ) {
+                            val updatedLocked = current.clarifyRequest.lockedAnswers + acknowledgedLocks
+                            current.copy(
+                                clarifyRequest = current.clarifyRequest.copy(lockedAnswers = updatedLocked),
+                                isAgentTyping = false,
+                                errorMessage = e.message ?: "Failed to lock clarify answer",
+                            )
+                        } else {
+                            current
+                        }
+                    }
+                }
+            }
+            return
+        }
+
+        // ── Fallback for non-canonical / older gateways ──────────────────────────
         uiState.update { it.copy(clarifyRequest = null) }
 
         val displayContent =

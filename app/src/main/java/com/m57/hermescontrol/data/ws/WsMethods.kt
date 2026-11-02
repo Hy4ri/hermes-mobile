@@ -56,6 +56,7 @@ object WsMethods {
     const val PROMPT_RECEIPT = "prompt.receipt"
     const val PROMPT_BTW = "prompt.btw"
     const val CLARIFY_RESPOND = "clarify.respond"
+    const val CLARIFY_LOCK = "clarify.lock"
     const val APPROVAL_RESPOND = "approval.respond"
 
     /** Ack that the client rendered a pending approval (desktop parity). */

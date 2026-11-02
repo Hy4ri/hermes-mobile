@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tls_mtls_title">Настройка TLS и mTLS</string>
+    <string name="tls_mtls_help">TLS ограничивает, какой центр сертификации (CA) может аутентифицировать сервер. mTLS выбирает вашу клиентскую идентичность. Оба варианта можно настроить для одного имени хоста и HTTPS-порта.</string>
+    <string name="tls_mtls_type">Тип конфигурации</string>
+    <string name="tls_mtls_delete_help">Удалить конфигурацию %2$s для %1$s? Сертификат Android при этом не удаляется.</string>
+    <string name="tls_restriction_help">Цепочка сертификатов сервера должна вести к выбранному CA, который должен быть разрешён активной глобальной настройкой доверия. Выбор пользовательского CA не включает «Доверять пользовательским CA». Без конфигурации TLS применяется глобальное доверие. Изменения конфигурации применяются сразу.</string>
+    <string name="tls_ca_certificate">Ограничение CA сервера</string>
+    <string name="tls_ca_picker">Выбрать CA Android</string>
+    <string name="tls_ca_system">Системный</string>
+    <string name="tls_ca_user">Пользовательский</string>
+    <string name="tls_ca_details">Сведения о сертификате CA</string>
+    <string name="tls_ca_source">Источник: %1$s</string>
+    <string name="tls_ca_subject">Субъект: %1$s</string>
+    <string name="tls_ca_issuer">Издатель: %1$s</string>
+    <string name="tls_ca_validity">Действителен с %1$s по %2$s</string>
+    <string name="tls_ca_fingerprint">SHA-256: %1$s</string>
+    <string name="tls_ca_empty">В этом источнике нет сертификатов CA.</string>
+    <string name="tls_ca_load_error">Не удалось прочитать хранилище CA Android. Откройте выбор заново и попробуйте снова.</string>
+    <string name="tls_ca_loading">Чтение хранилища CA Android…</string>
+    <string name="tls_type_tls">TLS: ограничение CA сервера</string>
+    <string name="tls_type_mtls">mTLS: клиентская идентичность</string>
+</resources>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_pending_delivery_unverified">Доставка не подтверждена: это не значит, что работа ещё выполняется. Проверьте доставку перед повтором, чтобы не отправить сообщение дважды.</string>
+    <string name="chat_pending_unknown_released">Не подтверждено · отмечено локально</string>
+    <string name="chat_pending_continue_queue">Принять к сведению без повторной отправки</string>
+    <string name="chat_pending_continue_title">Принять к сведению неподтверждённую отправку?</string>
+    <string name="chat_pending_continue_warning">После этого локальную запись ожидания можно будет при желании убрать. Доставка не подтверждается, это сообщение не отправляется повторно, беседа и вложения не удаляются. Новые сообщения можно отправлять и без принятия этой записи к сведению.</string>
+    <string name="chat_pending_continue_confirm">Принять к сведению</string>
+    <string name="chat_pending_remove">Убрать из ожидающих</string>
+    <string name="chat_pending_remove_title">Убрать это ожидающее сообщение?</string>
+    <string name="chat_pending_remove_warning">Удаляется только локальная запись ожидания. Доставка не подтверждается, беседа и вложения не удаляются. Сообщение не будет отправлено повторно, и повторить его из этой панели вы больше не сможете.</string>
+    <string name="chat_pending_remove_confirm">Убрать</string>
+    <string name="chat_pending_remove_failed">Не удалось убрать запись ожидания. Она сохранена; попробуйте снова.</string>
+    <string name="chat_pending_acknowledge_failed">Не удалось отметить запись ожидания. Она сохранена; попробуйте снова.</string>
+</resources>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_reply_failed_title">Hermes не смог завершить этот ответ</string>
+    <string name="chat_reply_failed_description">Во время ответа Hermes что-то пошло не так. Откройте подробности или журналы, чтобы понять причину.</string>
+    <string name="chat_reply_failed_details">Подробности</string>
+    <string name="chat_reply_failed_details_collapsed">Свернуто</string>
+    <string name="chat_reply_failed_details_expanded">Развернуто</string>
+    <string name="chat_reply_failed_copy">Копировать сведения об ошибке</string>
+    <string name="chat_reply_failed_logs">Открыть журналы</string>
+    <string name="chat_reply_failed_share">Поделиться диагностикой</string>
+    <string name="chat_reply_failed_share_note">Проверьте сведения перед отправкой. Диагностика содержит эту ошибку и версию приложения, но не вашу беседу и вложения.</string>
+    <string name="chat_reply_failed_dismiss">Скрыть ошибку</string>
+
+    <string name="chat_reply_failed_copied">Сведения об ошибке скопированы</string>
+    <string name="chat_reply_failed_share_unavailable">Нет приложения для отправки диагностики</string>
+</resources>

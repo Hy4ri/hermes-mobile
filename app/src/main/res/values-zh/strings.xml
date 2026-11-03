@@ -1312,6 +1312,7 @@
     <string name="model_picker_loading">正在加载模型…</string>
     <string name="model_picker_no_models">没有可用模型。</string>
     <string name="model_picker_search">搜索模型和提供商…</string>
+    <string name="model_picker_use_default">使用默认模型</string>
     <string name="model_reset_all_auto">全部重置为自动</string>
     <string name="model_search_placeholder">搜索模型…</string>
     <string name="model_set_aux">设置辅助：%1$s</string>

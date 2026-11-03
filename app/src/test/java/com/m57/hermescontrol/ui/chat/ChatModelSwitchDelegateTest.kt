@@ -995,4 +995,66 @@ class ChatModelSwitchDelegateTest {
             // Pending reasoning level must not remain stuck
             assertNull(uiState.value.pendingReasoningLevel)
         }
+
+    @Test
+    fun resetSessionModel_dispatchesConfigSetWithResetValue_andClearsPinFlag() =
+        testScope.runTest {
+            uiState.update {
+                it.copy(
+                    showModelPicker = true,
+                    hasSessionModelPin = true,
+                    currentSessionModel = "anthropic/claude-3-5-sonnet",
+                )
+            }
+
+            delegate.resetSessionModel()
+            advanceUntilIdle()
+
+            // Picker is closed and hasSessionModelPin optimistically cleared
+            assertFalse(uiState.value.showModelPicker)
+            assertFalse(uiState.value.hasSessionModelPin)
+
+            // Sent config.set key=model value=reset
+            assertEquals(1, sentParams.size)
+            assertEquals("model", sentParams[0].key)
+            assertEquals("reset", sentParams[0].value)
+            assertEquals("runtime-1", sentParams[0].sessionId)
+
+            // Response with warning/reset_done
+            delegate.handleConfigSetResult(
+                id = "req-1",
+                result =
+                    mapOf(
+                        "key" to "model",
+                        "value" to "claude-3-haiku",
+                        "scope" to "session",
+                        "warning" to "Session model override cleared",
+                    ),
+            )
+
+            // Warning message surfaced to chat
+            assertEquals(listOf("⚠ Session model override cleared"), assistantMessages)
+            assertFalse(uiState.value.hasSessionModelPin)
+        }
+
+    @Test
+    fun handleConfigSetError_whenResetFails_restoresPinFlagAndPreviousModel() =
+        testScope.runTest {
+            uiState.update {
+                it.copy(
+                    hasSessionModelPin = true,
+                    currentSessionModel = "anthropic/claude-3-5-sonnet",
+                )
+            }
+
+            delegate.resetSessionModel()
+            advanceUntilIdle()
+            assertFalse(uiState.value.hasSessionModelPin)
+
+            delegate.handleConfigSetError("req-1", "Unknown model: reset")
+
+            // Reverted back to pinned model and pin flag restored
+            assertEquals("anthropic/claude-3-5-sonnet", uiState.value.currentSessionModel)
+            assertTrue(uiState.value.hasSessionModelPin)
+        }
 }

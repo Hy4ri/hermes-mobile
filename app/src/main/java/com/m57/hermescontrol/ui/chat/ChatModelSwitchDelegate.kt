@@ -255,6 +255,7 @@ class ChatModelSwitchDelegate(
                 it.copy(
                     showModelPicker = false,
                     modelPickerLoading = false,
+                    hasSessionModelPin = true,
                 )
             }
             return
@@ -268,12 +269,28 @@ class ChatModelSwitchDelegate(
                 showModelPicker = false,
                 modelPickerLoading = false,
                 currentSessionModel = targetModelLabel,
+                hasSessionModelPin = true,
                 fullContextTokens = null,
             )
         }
         onModelSwitchInitiated()
         syncCurrentModelCapabilities()
         handleSlashCommand("/model $model --provider $provider --session")
+    }
+
+    /**
+     * Resets the session model override (/model reset) so the gateway drops
+     * the session pin and reverts to config.yaml's configured default model.
+     */
+    fun resetSessionModel() {
+        uiState.update {
+            it.copy(
+                showModelPicker = false,
+                modelPickerLoading = false,
+                hasSessionModelPin = false,
+            )
+        }
+        handleModelSwitch("/model reset")
     }
 
     fun handleModelSwitch(
@@ -291,6 +308,7 @@ class ChatModelSwitchDelegate(
             } else {
                 command.trim()
             }
+        val isReset = spec.equals("reset", ignoreCase = true)
         val previousModel = lastConfirmedModel ?: optimisticPreviousModel ?: uiState.value.currentSessionModel
         // Retain optimisticPreviousModel for consumeOptimisticPreviousModel() when SessionInfo arrives.
         if (optimisticPreviousModel == null && !spec.equals(uiState.value.currentSessionModel, ignoreCase = true)) {
@@ -299,6 +317,11 @@ class ChatModelSwitchDelegate(
             onModelSwitchInitiated()
         }
         unconfirmedTargetModel = spec
+        if (isReset) {
+            uiState.update { it.copy(hasSessionModelPin = false) }
+        } else if (spec.isNotBlank()) {
+            uiState.update { it.copy(hasSessionModelPin = true) }
+        }
         val switchSeq = ++modelSwitchSequence
         val params =
             ConfigSetParams(
@@ -422,6 +445,7 @@ class ChatModelSwitchDelegate(
     ) {
         val pendingModel = pendingModelSwitchRequests.remove(id)
         if (pendingModel != null && pendingModel.sequence == modelSwitchSequence) {
+            val isReset = pendingModel.spec.equals("reset", ignoreCase = true)
             val revertModel = lastConfirmedModel ?: pendingModel.previousModel
             optimisticPreviousModel = null
             unconfirmedTargetModel = null
@@ -432,6 +456,7 @@ class ChatModelSwitchDelegate(
                         currentSessionModel = revertModel,
                         fullContextTokens = null,
                         modelSwitchConfirmMessage = null,
+                        hasSessionModelPin = if (isReset) true else it.hasSessionModelPin,
                     )
                 }
                 syncCurrentModelCapabilities()
@@ -442,6 +467,7 @@ class ChatModelSwitchDelegate(
                     it.copy(
                         fullContextTokens = null,
                         modelSwitchConfirmMessage = null,
+                        hasSessionModelPin = if (isReset) true else it.hasSessionModelPin,
                     )
                 }
                 onModelSwitchInitiated()

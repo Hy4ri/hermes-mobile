@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -67,6 +68,8 @@ fun ModelPickerDialog(
     isLoading: Boolean = false,
     pinnedModels: List<PinnedModel> = emptyList(),
     onPinToggle: ((provider: String, model: String) -> Unit)? = null,
+    showUseDefaultOption: Boolean = false,
+    onUseDefault: (() -> Unit)? = null,
     onSelect: (provider: String, model: String) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -184,6 +187,51 @@ fun ModelPickerDialog(
                         modifier = Modifier.heightIn(max = 420.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
+                        if (showUseDefaultOption && onUseDefault != null && pickerQuery.isBlank()) {
+                            item(key = "use-default-model-row") {
+                                Surface(
+                                    modifier =
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 2.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .clickable(onClick = onUseDefault),
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                    border =
+                                        BorderStroke(
+                                            width = 1.dp,
+                                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                                        ),
+                                ) {
+                                    Row(
+                                        modifier =
+                                            Modifier.padding(
+                                                start = 12.dp,
+                                                end = 12.dp,
+                                                top = 8.dp,
+                                                bottom = 8.dp,
+                                            ),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.RestartAlt,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                        Text(
+                                            text = stringResource(R.string.model_picker_use_default),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.primary,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
                         // ── Pinned section ──
                         if (filteredPinned.isNotEmpty()) {
                             item(key = "pinned-header") {

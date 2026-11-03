@@ -24,6 +24,8 @@ import okhttp3.WebSocketListener
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -97,10 +99,13 @@ class GatewayContractFramesTest {
     private fun captureFrame(
         method: String,
         beforeConnect: () -> Unit = {},
+        readyPayload: String? = null,
+        capabilityResult: String = """{"canonical_clarify_batch":true}""",
         trigger: () -> Unit = {},
     ): JsonObject {
         val opened = CountDownLatch(1)
         val captured = CountDownLatch(1)
+        val capabilitiesReplied = CountDownLatch(1)
         val frame = AtomicReference<JsonObject?>(null)
         mockWebServer.enqueue(
             MockResponse().withClosingWebSocketUpgrade(
@@ -108,7 +113,14 @@ class GatewayContractFramesTest {
                     override fun onOpen(
                         webSocket: WebSocket,
                         response: Response,
-                    ) = opened.countDown()
+                    ) {
+                        if (readyPayload != null) {
+                            webSocket.send(
+                                """{"method":"event","params":{"type":"gateway.ready","payload":$readyPayload}}""",
+                            )
+                        }
+                        opened.countDown()
+                    }
 
                     override fun onMessage(
                         webSocket: WebSocket,
@@ -116,6 +128,12 @@ class GatewayContractFramesTest {
                     ) {
                         val json = OkHttpProvider.json.parseToJsonElement(text) as? JsonObject ?: return
                         val name = (json["method"] as? JsonPrimitive)?.content
+                        if (name == WsMethods.CLIENT_CAPABILITIES) {
+                            webSocket.send("""{"id":${json["id"]},"result":$capabilityResult}""")
+                            capabilitiesReplied.countDown()
+                        } else if (name == WsMethods.GATEWAY_PING) {
+                            webSocket.send("""{"id":${json["id"]},"result":{}}""")
+                        }
                         if (frame.get() == null && name == method) {
                             frame.set(json)
                             captured.countDown()
@@ -130,6 +148,11 @@ class GatewayContractFramesTest {
             withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED } }
         }
         assertTrue(opened.await(5, TimeUnit.SECONDS))
+        if (readyPayload != null) {
+            assertTrue("No capability negotiation", capabilitiesReplied.await(5, TimeUnit.SECONDS))
+            // The ping reply follows the capability reply on the same socket.
+            runBlocking { withTimeout(5000) { HermesWsClient.request(WsMethods.GATEWAY_PING).await() } }
+        }
         trigger()
         assertTrue("No '$method' frame reached the server", captured.await(5, TimeUnit.SECONDS))
         return requireNotNull(frame.get())
@@ -147,6 +170,44 @@ class GatewayContractFramesTest {
         assertMatchesContract(
             captureFrame(WsMethods.PROMPT_SUBMIT) { HermesWsClient.sendMessage("s1", "hello", queued = true) },
         )
+    }
+
+    @Test
+    fun legacyPromptOmitsClarifyBatchDespiteAdvertisedCapability() {
+        val frame =
+            captureFrame(WsMethods.PROMPT_SUBMIT, readyPayload = "{}") {
+                HermesWsClient.sendMessage("s1", "hello", queued = true)
+            }
+        assertTrue(HermesWsClient.canonicalClarifyBatch)
+        val params = frame["params"] as JsonObject
+        assertFalse("Legacy prompt.submit must omit clarify_batch", params.containsKey("clarify_batch"))
+    }
+
+    @Test
+    fun promptClarifyBatchRequiresBothRouteAuthorityAndCapability() {
+        for (route in listOf("true", "false", null)) {
+            for (capability in listOf("true", "false", null, "\"true\"")) {
+                HermesWsClient.disconnect(clearPendingMessages = true)
+                val frame =
+                    captureFrame(
+                        WsMethods.PROMPT_SUBMIT,
+                        readyPayload = route?.let { """{"session_authority":$it}""" } ?: "{}",
+                        capabilityResult = capability?.let { """{"canonical_clarify_batch":$it}""" } ?: "{}",
+                    ) { HermesWsClient.sendMessage("s1", "hello", queued = true) }
+                val params = frame["params"] as JsonObject
+                assertEquals(
+                    "route=$route capability=$capability",
+                    route == "true" && capability == "true",
+                    params.containsKey("clarify_batch"),
+                )
+                if (params.containsKey("clarify_batch")) assertEquals(JsonPrimitive(true), params["clarify_batch"])
+                assertEquals(JsonPrimitive("s1"), params["session_id"])
+                assertEquals(JsonPrimitive("hello"), params["text"])
+                assertEquals(JsonPrimitive(true), params["queued"])
+                assertEquals(capability == "true", HermesWsClient.canonicalClarifyBatch)
+                assertMatchesContract(frame)
+            }
+        }
     }
 
     @Test

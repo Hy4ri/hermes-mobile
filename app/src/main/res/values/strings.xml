@@ -1552,6 +1552,9 @@
     <string name="auth_login_action_browser">Sign in with %1$s</string>
     <string name="auth_login_browser_desc">This dashboard signs in with %1$s. A browser tab opens for the sign-in, then returns here.</string>
     <string name="auth_login_browser_waiting">Finish signing in in the browser, then return to Hermes Mobile…</string>
+    <string name="login_keepalive_channel">Sign-in</string>
+    <string name="login_keepalive_title">Signing in…</string>
+    <string name="login_keepalive_text">Finish signing in in the browser, then return to Hermes Mobile.</string>
     <string name="auth_login_error_browser_unsupported">This dashboard is too old for browser sign-in. Update Hermes Agent on the server.</string>
     <string name="auth_login_error_browser_no_browser">No browser available to open the sign-in page.</string>
     <string name="auth_login_error_browser_denied">Sign-in was not completed (%1$s).</string>

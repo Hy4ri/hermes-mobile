@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.remote.CookieManager
+import com.m57.hermescontrol.data.remote.LoginKeepAliveService
 import com.m57.hermescontrol.data.remote.LoopbackCallbackServer
 import com.m57.hermescontrol.data.remote.NativeCallback
 import com.m57.hermescontrol.data.remote.NativePkce
@@ -200,6 +201,7 @@ sealed interface BrowserLoginResult {
  * Blocking: call from an IO context.
  */
 suspend fun runNativeBrowserLogin(
+    context: Context,
     client: OkHttpClient,
     endpoint: ServerEndpoint,
     provider: String,
@@ -223,17 +225,27 @@ suspend fun runNativeBrowserLogin(
                 redirectUri = server.redirectUri,
                 state = clientState,
             )
+        // Keep the process responsive while the browser is in front: Android pauses
+        // background app threads (including the loopback listener) once the Custom Tab
+        // takes focus, which would otherwise stall the RFC 8252 callback. A foreground
+        // service pins the process so the loopback thread stays runnable.
+        LoginKeepAliveService.start(context)
         try {
             openBrowser(authorizeUrl.toString())
         } catch (e: Exception) {
             Log.w(TAG, "Could not open browser: ${e.javaClass.simpleName}")
+            LoginKeepAliveService.stop(context)
             return@use BrowserLoginResult.NoBrowser
         }
-        when (val callback = server.awaitCallback(clientState, timeoutMs)) {
-            is NativeCallback.Code -> redeemBrowserCode(client, endpoint, callback.code, verifier)
-            is NativeCallback.Denied -> BrowserLoginResult.Denied(callback.error)
-            NativeCallback.TimedOut -> BrowserLoginResult.TimedOut
-            NativeCallback.Closed -> BrowserLoginResult.Cancelled
+        try {
+            when (val callback = server.awaitCallback(clientState, timeoutMs)) {
+                is NativeCallback.Code -> redeemBrowserCode(client, endpoint, callback.code, verifier)
+                is NativeCallback.Denied -> BrowserLoginResult.Denied(callback.error)
+                NativeCallback.TimedOut -> BrowserLoginResult.TimedOut
+                NativeCallback.Closed -> BrowserLoginResult.Cancelled
+            }
+        } finally {
+            LoginKeepAliveService.stop(context)
         }
     }
 }

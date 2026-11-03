@@ -927,7 +927,7 @@ class ChatViewModel(
             scope = viewModelScope,
             backend =
                 com.m57.hermescontrol.data.remote
-                    .ChatReloginAuthenticator(ioDispatcher = ioDispatcher),
+                    .ChatReloginAuthenticator(context = application.applicationContext, ioDispatcher = ioDispatcher),
             browserErrorText = { result ->
                 com.m57.hermescontrol.ui.authlogin
                     .browserLoginErrorText(getApplication(), result)

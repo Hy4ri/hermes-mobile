@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.data.remote
 
+import android.content.Context
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.ui.authlogin.BrowserLoginResult
 import com.m57.hermescontrol.ui.authlogin.GatewayAuthInfo
@@ -25,6 +26,7 @@ import java.util.concurrent.TimeUnit
  * Extracted from [com.m57.hermescontrol.ui.chat.ChatViewModel] to isolate raw OkHttp network calls.
  */
 class ChatReloginAuthenticator(
+    private val context: Context,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ReloginBackend {
     /** The active gateway's sign-in options, or null when it is unreachable. */
@@ -49,7 +51,13 @@ class ChatReloginAuthenticator(
     ): BrowserLoginResult =
         withContext(ioDispatcher) {
             val result =
-                runNativeBrowserLogin(OkHttpProvider.probe, AuthManager.endpointForBuild(), provider, openBrowser)
+                runNativeBrowserLogin(
+                    context,
+                    OkHttpProvider.probe,
+                    AuthManager.endpointForBuild(),
+                    provider,
+                    openBrowser,
+                )
             if (result is BrowserLoginResult.Success) {
                 AuthManager.setWsAuthParam("ticket")
                 AuthManager.setToken(result.wsTicket)

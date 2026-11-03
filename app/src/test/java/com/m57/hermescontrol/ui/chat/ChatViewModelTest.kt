@@ -33,6 +33,7 @@ import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.JsonRpcError
 import com.m57.hermescontrol.data.ws.ModelCatalogStore
+import com.m57.hermescontrol.data.ws.SegmentStamp
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.data.ws.contract.ConfigSetParams
@@ -13535,5 +13536,490 @@ class ChatViewModelTest {
             store.put(released.copy(attempts = released.attempts + 1))
             vm.removeAcknowledgedPendingSend(released)
             assertEquals(released.attempts + 1, store.all().single().attempts)
+        }
+
+    @Test
+    fun streamDeduplication_interruptionDoesNotAdvanceCursorAndAllowsReplay() =
+        runTest {
+            val (vm, session) = createViewModelWithSession()
+            // 1. Start turn
+            mockEventsFlow.emit(WsEvent.MessageStart(session, "turn1"))
+            advanceUntilIdle()
+
+            // 2. Stream first token
+            mockEventsFlow.emit(
+                WsEvent.MessageToken("Hello ", session, SegmentStamp("turn1", 0, offset = 0)),
+            )
+            advanceUntilIdle()
+            assertEquals(
+                "Hello ",
+                vm.streamingState.value.streamingMessage
+                    ?.content,
+            )
+
+            // 3. Trigger interruption
+            val stateField = ChatViewModel::class.java.getDeclaredField("_streamingState").apply { isAccessible = true }
+
+            @Suppress("UNCHECKED_CAST")
+            val streamingState = stateField.get(vm) as MutableStateFlow<StreamingState>
+            streamingState.value =
+                streamingState.value.copy(
+                    interruptedMessage = ChatMessage("msg-1", MessageRole.ASSISTANT, "Hello "),
+                )
+
+            // 4. Trailing delta arriving while interrupted is discarded and does NOT advance appliedEnd
+            mockEventsFlow.emit(
+                WsEvent.MessageToken("discarded", session, SegmentStamp("turn1", 0, offset = 6)),
+            )
+            advanceUntilIdle()
+
+            // 5. Clear interrupted message (simulating interruption complete / authoritative settlement)
+            streamingState.value = streamingState.value.copy(interruptedMessage = null)
+
+            // 6. When the turn's replay arrives from offset 6, it is admitted rather than treated as a duplicate!
+            mockEventsFlow.emit(
+                WsEvent.MessageToken("world", session, SegmentStamp("turn1", 0, offset = 6)),
+            )
+            advanceUntilIdle()
+            assertEquals(
+                "Hello world",
+                vm.streamingState.value.streamingMessage
+                    ?.content,
+            )
+        }
+
+    @Test
+    fun streamDeduplication_gapRecoveryThrottlesToSingleRequestAndQuarantinesDeltas() =
+        runTest {
+            val (vm, session) = createViewModelWithSession()
+            mockEventsFlow.emit(WsEvent.MessageStart(session, "turn1"))
+            advanceUntilIdle()
+
+            // Stream contiguous offset 0..3
+            mockEventsFlow.emit(
+                WsEvent.MessageToken("abc", session, SegmentStamp("turn1", 0, offset = 0)),
+            )
+            advanceUntilIdle()
+            assertEquals(
+                "abc",
+                vm.streamingState.value.streamingMessage
+                    ?.content,
+            )
+
+            // Now send a gap delta (offset 10 instead of 3), followed by another gap delta (offset 15)
+            // This should trigger transcript reconciliation exactly once without re-launching on the second delta
+            mockEventsFlow.emit(
+                WsEvent.MessageToken("gap1", session, SegmentStamp("turn1", 0, offset = 10)),
+            )
+            mockEventsFlow.emit(
+                WsEvent.MessageToken("gap2", session, SegmentStamp("turn1", 0, offset = 15)),
+            )
+            advanceUntilIdle()
+
+            // Ongoing gapped deltas were quarantined and dropped; transcript was not corrupted
+            assertEquals(
+                "abc",
+                vm.streamingState.value.streamingMessage
+                    ?.content,
+            )
+
+            // When authoritative completion arrives, quarantine is cleared
+            mockEventsFlow.emit(
+                WsEvent.MessageComplete(
+                    text = "abc",
+                    sessionId = session,
+                    rawPayload = mapOf("turn_id" to "turn1", "status" to "ok"),
+                ),
+            )
+            advanceUntilIdle()
+        }
+
+    @Test
+    fun regression_completionWithoutRawTurnId_afterStampedGap() =
+        runTest {
+            // Case 1: MessageComplete arrives without rawPayload["turn_id"] after a stamped gap.
+            val (vm, session) = createViewModelWithSession()
+            mockEventsFlow.emit(WsEvent.MessageStart(session, "turn1"))
+            advanceUntilIdle()
+
+            // Stream token 0..3
+            mockEventsFlow.emit(
+                WsEvent.MessageToken("abc", session, SegmentStamp("turn1", 0, offset = 0)),
+            )
+            advanceUntilIdle()
+
+            // Gap detected -> turn quarantined
+            mockEventsFlow.emit(
+                WsEvent.MessageToken("gap", session, SegmentStamp("turn1", 0, offset = 10)),
+            )
+            advanceUntilIdle()
+
+            // Completion arrives WITHOUT turn_id in rawPayload (older/minimal backend)
+            mockEventsFlow.emit(
+                WsEvent.MessageComplete(
+                    text = "abc final",
+                    sessionId = session,
+                    rawPayload = mapOf("status" to "ok"), // NO turn_id
+                ),
+            )
+            advanceUntilIdle()
+
+            // Assert: final text is intact from authoritative completion
+            assertEquals(
+                "abc final",
+                vm.uiState.value.messages
+                    .lastOrNull()
+                    ?.content,
+            )
+            assertNull(vm.streamingState.value.streamingMessage)
+        }
+
+    @Test
+    fun regression_delayedStaleHistoryResponse_afterLiveCompletion() =
+        runTest {
+            // Case 2: Held REST response completes AFTER live MessageComplete already finalized state.
+            val restResponseDeferred = CompletableDeferred<Response<SessionMessagesResponse>>()
+            coEvery {
+                ApiClient.hermesApi.getSessionMessages(any(), any(), any(), any(), any())
+            } coAnswers {
+                restResponseDeferred.await()
+            }
+
+            val (vm, session) = createViewModelWithSession()
+            mockEventsFlow.emit(WsEvent.MessageStart(session, "turn1"))
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(
+                WsEvent.MessageToken("hello", session, SegmentStamp("turn1", 0, offset = 0)),
+            )
+            advanceUntilIdle()
+
+            // Gap triggers loadSessionMessages (held at REST call)
+            mockEventsFlow.emit(
+                WsEvent.MessageToken("gap", session, SegmentStamp("turn1", 0, offset = 20)),
+            )
+            advanceUntilIdle()
+
+            // Live MessageComplete arrives while REST is still pending
+            mockEventsFlow.emit(
+                WsEvent.MessageComplete(
+                    text = "hello world authoritative",
+                    sessionId = session,
+                    rawPayload = mapOf("turn_id" to "turn1", "status" to "ok"),
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals(
+                "hello world authoritative",
+                vm.uiState.value.messages
+                    .lastOrNull()
+                    ?.content,
+            )
+
+            // Now release the older/stale REST response (snapshot taken before turn completion was saved)
+            val staleRestRow =
+                SessionMessage(
+                    id = 999,
+                    role = "assistant",
+                    content = kotlinx.serialization.json.JsonPrimitive("stale snapshot"),
+                )
+            restResponseDeferred.complete(
+                Response.success(
+                    SessionMessagesResponse(messages = listOf(staleRestRow), offset = 0, total = 1),
+                ),
+            )
+            advanceUntilIdle()
+
+            // Assert: live completed message was NOT overwritten by stale snapshot
+            assertTrue(
+                vm.uiState.value.messages
+                    .any { it.content == "hello world authoritative" },
+            )
+        }
+
+    @Test
+    fun regression_gapRecovery_replayCompletedTurnWithTurnId_doesNotReviveStreamingAndKeepsOneMessage() =
+        runTest {
+            // Case 3a: prefix -> gap -> held REST -> MessageComplete WITH turn_id -> release REST -> replay missing/overlapping/new-suffix deltas + late start
+            val restResponseDeferred = CompletableDeferred<Response<SessionMessagesResponse>>()
+            coEvery {
+                ApiClient.hermesApi.getSessionMessages(any(), any(), any(), any(), any())
+            } coAnswers {
+                restResponseDeferred.await()
+            }
+
+            val (vm, session) = createViewModelWithSession()
+            mockEventsFlow.emit(WsEvent.MessageStart(session, "turn1"))
+            advanceUntilIdle()
+
+            // 1. Prefix: offset 0..5 "Hello"
+            mockEventsFlow.emit(
+                WsEvent.MessageToken("Hello", session, SegmentStamp("turn1", 0, offset = 0)),
+            )
+            advanceUntilIdle()
+            assertEquals(
+                "Hello",
+                vm.streamingState.value.streamingMessage
+                    ?.content,
+            )
+
+            // 2. Stamped gap: offset 20 (gap triggers loadSessionMessages, held at REST)
+            mockEventsFlow.emit(
+                WsEvent.MessageToken("gap", session, SegmentStamp("turn1", 0, offset = 20)),
+            )
+            advanceUntilIdle()
+
+            // 3. Authoritative MessageComplete WITH turn_id arrives
+            mockEventsFlow.emit(
+                WsEvent.MessageComplete(
+                    text = "Hello world authoritative",
+                    sessionId = session,
+                    rawPayload = mapOf("turn_id" to "turn1", "status" to "ok"),
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals(
+                "Hello world authoritative",
+                vm.uiState.value.messages
+                    .lastOrNull()
+                    ?.content,
+            )
+            assertNull(vm.streamingState.value.streamingMessage)
+
+            // 4. Release stale REST response
+            restResponseDeferred.complete(
+                Response.success(
+                    SessionMessagesResponse(messages = emptyList(), offset = 0, total = 0),
+                ),
+            )
+            advanceUntilIdle()
+
+            // 5. Replay arrives: missing piece (offset 5..11), overlapping piece (offset 0..11),
+            // new suffix (offset 25..30), plus late MessageStart for turn1
+            mockEventsFlow.emit(WsEvent.MessageStart(session, "turn1"))
+            mockEventsFlow.emit(
+                WsEvent.MessageToken(" world", session, SegmentStamp("turn1", 0, offset = 5)),
+            )
+            mockEventsFlow.emit(
+                WsEvent.MessageToken("Hello world", session, SegmentStamp("turn1", 0, offset = 0)),
+            )
+            mockEventsFlow.emit(
+                WsEvent.MessageToken(" extra", session, SegmentStamp("turn1", 0, offset = 25)),
+            )
+            advanceUntilIdle()
+
+            // Assert: streaming must NOT be revived, and exactly one authoritative assistant message exists
+            assertNull(
+                "Streaming message must not be revived by replayed deltas of completed turn",
+                vm.streamingState.value.streamingMessage,
+            )
+            val assistantMessages =
+                vm.uiState.value.messages
+                    .filter { it.role == MessageRole.ASSISTANT }
+            assertEquals(1, assistantMessages.size)
+            assertEquals("Hello world authoritative", assistantMessages.single().content)
+        }
+
+    @Test
+    fun regression_gapRecovery_replayCompletedTurnWithoutTurnId_doesNotReviveStreamingAndKeepsOneMessage() =
+        runTest {
+            // Case 3b: prefix -> gap -> held REST -> MessageComplete WITHOUT turn_id -> release REST -> replay deltas + late start
+            val restResponseDeferred = CompletableDeferred<Response<SessionMessagesResponse>>()
+            coEvery {
+                ApiClient.hermesApi.getSessionMessages(any(), any(), any(), any(), any())
+            } coAnswers {
+                restResponseDeferred.await()
+            }
+
+            val (vm, session) = createViewModelWithSession()
+            mockEventsFlow.emit(WsEvent.MessageStart(session, "turn1"))
+            advanceUntilIdle()
+
+            // 1. Prefix: offset 0..5 "Hello"
+            mockEventsFlow.emit(
+                WsEvent.MessageToken("Hello", session, SegmentStamp("turn1", 0, offset = 0)),
+            )
+            advanceUntilIdle()
+
+            // 2. Stamped gap: offset 20
+            mockEventsFlow.emit(
+                WsEvent.MessageToken("gap", session, SegmentStamp("turn1", 0, offset = 20)),
+            )
+            advanceUntilIdle()
+
+            // 3. MessageComplete WITHOUT turn_id in rawPayload
+            mockEventsFlow.emit(
+                WsEvent.MessageComplete(
+                    text = "Hello world authoritative without turnId",
+                    sessionId = session,
+                    rawPayload = mapOf("status" to "ok"), // NO turn_id
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals(
+                "Hello world authoritative without turnId",
+                vm.uiState.value.messages
+                    .lastOrNull()
+                    ?.content,
+            )
+            assertNull(vm.streamingState.value.streamingMessage)
+
+            // 4. Release stale REST response
+            restResponseDeferred.complete(
+                Response.success(
+                    SessionMessagesResponse(messages = emptyList(), offset = 0, total = 0),
+                ),
+            )
+            advanceUntilIdle()
+
+            // 5. Replay deltas + late start
+            mockEventsFlow.emit(WsEvent.MessageStart(session, "turn1"))
+            mockEventsFlow.emit(
+                WsEvent.MessageToken(" world", session, SegmentStamp("turn1", 0, offset = 5)),
+            )
+            mockEventsFlow.emit(
+                WsEvent.MessageToken("Hello world", session, SegmentStamp("turn1", 0, offset = 0)),
+            )
+            mockEventsFlow.emit(
+                WsEvent.MessageToken(" extra", session, SegmentStamp("turn1", 0, offset = 25)),
+            )
+            advanceUntilIdle()
+
+            // Assert: streaming must NOT be revived, and exactly one authoritative assistant message exists
+            assertNull(
+                "Streaming message must not be revived by replayed deltas of completed turn",
+                vm.streamingState.value.streamingMessage,
+            )
+            val assistantMessages =
+                vm.uiState.value.messages
+                    .filter { it.role == MessageRole.ASSISTANT }
+            assertEquals(1, assistantMessages.size)
+            assertEquals("Hello world authoritative without turnId", assistantMessages.single().content)
+        }
+
+    @Test
+    fun regression_oldSessionRecovery_afterSwitchingSession_discardsStaleResponse() =
+        runTest {
+            // Case 4a: Switching session while a gap recovery is in flight discards the old session's recovery
+            val restResponseDeferred = CompletableDeferred<Response<SessionMessagesResponse>>()
+            coEvery {
+                ApiClient.hermesApi.getSessionMessages("session-1", any(), any(), any(), any())
+            } coAnswers {
+                restResponseDeferred.await()
+            }
+            coEvery {
+                ApiClient.hermesApi.getSessionMessages("session-2", any(), any(), any(), any())
+            } returns
+                Response.success(
+                    SessionMessagesResponse(
+                        messages =
+                            listOf(
+                                SessionMessage(
+                                    id = 200,
+                                    role = "assistant",
+                                    content = kotlinx.serialization.json.JsonPrimitive("Session 2 content"),
+                                ),
+                            ),
+                        offset = 0,
+                        total = 1,
+                    ),
+                )
+
+            val (vm, session1) = createViewModelWithSession()
+            mockEventsFlow.emit(WsEvent.MessageStart(session1, "turn1"))
+            advanceUntilIdle()
+
+            // Trigger gap recovery on session1 (held)
+            mockEventsFlow.emit(
+                WsEvent.MessageToken("gap", session1, SegmentStamp("turn1", 0, offset = 50)),
+            )
+            advanceUntilIdle()
+
+            // Switch session to session-2
+            vm.switchSession("session-2")
+            advanceUntilIdle()
+
+            // Complete stale session1 REST response
+            restResponseDeferred.complete(
+                Response.success(
+                    SessionMessagesResponse(
+                        messages =
+                            listOf(
+                                SessionMessage(
+                                    id = 100,
+                                    role = "assistant",
+                                    content = kotlinx.serialization.json.JsonPrimitive("Stale session 1 content"),
+                                ),
+                            ),
+                        offset = 0,
+                        total = 1,
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertFalse(
+                vm.uiState.value.messages
+                    .any { it.content == "Stale session 1 content" },
+            )
+            assertEquals("session-2", vm.uiState.value.currentSessionId)
+        }
+
+    @Test
+    fun regression_oldScopeRecovery_afterSwitchingDataScope_discardsStaleResponse() =
+        runTest {
+            // Case 4b: Switching DataScope (server/profile change) while gap recovery is in flight discards stale response
+            val restResponseDeferred = CompletableDeferred<Response<SessionMessagesResponse>>()
+            coEvery {
+                ApiClient.hermesApi.getSessionMessages(any(), any(), any(), any(), any())
+            } coAnswers {
+                restResponseDeferred.await()
+            }
+
+            val scopeA =
+                DataScope(connectionProfileId = "pA", baseUrl = "http://server-a/", activeProfileId = "default")
+            val scopeB =
+                DataScope(connectionProfileId = "pB", baseUrl = "http://server-b/", activeProfileId = "default")
+            every { AuthManager.currentDataScope() } returns scopeA
+
+            val (vm, session) = createViewModelWithSession()
+            mockEventsFlow.emit(WsEvent.MessageStart(session, "turn1"))
+            advanceUntilIdle()
+
+            // Trigger gap recovery under scopeA (held)
+            mockEventsFlow.emit(
+                WsEvent.MessageToken("gap", session, SegmentStamp("turn1", 0, offset = 50)),
+            )
+            advanceUntilIdle()
+
+            // ProfileSwitchCoordinator emits profile switch -> DataScope flips to scopeB
+            every { AuthManager.currentDataScope() } returns scopeB
+            mockSwitchFlow.emit("scopeB")
+            advanceUntilIdle()
+
+            // Complete the stale scopeA REST response
+            restResponseDeferred.complete(
+                Response.success(
+                    SessionMessagesResponse(
+                        messages =
+                            listOf(
+                                SessionMessage(
+                                    id = 100,
+                                    role = "assistant",
+                                    content = kotlinx.serialization.json.JsonPrimitive("Stale scopeA content"),
+                                ),
+                            ),
+                        offset = 0,
+                        total = 1,
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
+            // Assert: scopeB state is NOT polluted by stale scopeA response
+            assertFalse(
+                vm.uiState.value.messages
+                    .any { it.content == "Stale scopeA content" },
+            )
         }
 }

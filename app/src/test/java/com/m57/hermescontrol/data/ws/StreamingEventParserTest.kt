@@ -25,6 +25,12 @@ class StreamingEventParserTest {
                 """{"session_id":[],"text":true}""",
                 """{"session_id":{},"text":{}}""",
                 """{"text":[]}""",
+                """{"text":"lo","turn_id":"t1","segment":1,"offset":3}""",
+                """{"text":"lo","turn_id":"t1","segment":0}""",
+                """{"text":"lo","turn_id":"t1","segment":-1,"offset":3}""",
+                """{"text":"lo","turn_id":"","segment":0,"offset":0}""",
+                """{"text":"lo","turn_id":7,"segment":"0","offset":1.5}""",
+                """{"text":"lo","turn_id":"t1","segment":9999999999,"offset":0}""",
             )
         for (type in types) {
             for (session in sessions + null) {

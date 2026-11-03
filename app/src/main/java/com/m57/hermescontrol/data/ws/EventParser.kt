@@ -3,7 +3,9 @@ package com.m57.hermescontrol.data.ws
 import android.util.Log
 import com.m57.hermescontrol.data.model.parseMessageReactions
 import com.m57.hermescontrol.ui.chat.extractTodosFromMap
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * Converts raw [JsonRpcResponse] objects into typed [WsEvent] instances.
@@ -47,17 +49,32 @@ object EventParser {
             eventType == "thinking.delta" || eventType == "reasoning.delta"
         ) {
             val sessionId = jsonParams.eventSessionId()
-            val token = (jsonParams["payload"] as? JsonObject)?.get("text").eventStringOrNull() ?: ""
+            val payload = jsonParams["payload"] as? JsonObject
+            val token = payload?.get("text").eventStringOrNull() ?: ""
             return when (eventType) {
-                "thinking.delta" -> WsEvent.ThinkingDelta(token, sessionId)
-                "reasoning.delta" -> WsEvent.ReasoningDelta(token, sessionId)
-                else -> WsEvent.MessageToken(token, sessionId)
+                "thinking.delta" -> {
+                    WsEvent.ThinkingDelta(token, sessionId)
+                }
+
+                "reasoning.delta" -> {
+                    WsEvent.ReasoningDelta(token, sessionId)
+                }
+
+                else -> {
+                    val stamp =
+                        payload?.let {
+                            segmentStampOf(it["turn_id"].scalar(), it["segment"].scalar(), it["offset"].scalar())
+                        }
+                    WsEvent.MessageToken(token, sessionId, stamp)
+                }
             }
         }
         @Suppress("UNCHECKED_CAST")
         val params = jsonParams.toAny() as Map<String, Any?>
         return parseParams(params, rawJson)
     }
+
+    private fun JsonElement?.scalar(): Any? = (this as? JsonPrimitive)?.toAny()
 
     /**
      * Parses an event object (bare params map containing `type`, `session_id`, `seq`, `payload`).
@@ -98,12 +115,17 @@ object EventParser {
             }
 
             "message.start" -> {
-                WsEvent.MessageStart(sessionId)
+                WsEvent.MessageStart(sessionId, turnIdOf(payload?.get("turn_id")))
             }
 
             "message.token", "message.delta" -> {
                 val token = payload?.get("text") as? String ?: ""
-                WsEvent.MessageToken(token, sessionId)
+                val stamp = payload?.let { segmentStampOf(it["turn_id"], it["segment"], it["offset"]) }
+                WsEvent.MessageToken(token, sessionId, stamp)
+            }
+
+            "message.interim" -> {
+                WsEvent.MessageInterim(sessionId, payload?.let { segmentStampOf(it["turn_id"], it["segment"], null) })
             }
 
             "thinking.delta" -> {

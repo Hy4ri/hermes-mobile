@@ -159,6 +159,7 @@ object ChatWsEventReducer {
             when (event) {
                 is WsEvent.MessageStart -> event.sessionId
                 is WsEvent.MessageToken -> event.sessionId
+                is WsEvent.MessageInterim -> event.sessionId
                 is WsEvent.ThinkingDelta -> event.sessionId
                 is WsEvent.ReasoningDelta -> event.sessionId
                 is WsEvent.MessageComplete -> event.sessionId
@@ -306,6 +307,9 @@ object ChatWsEventReducer {
 
             // ReactionEvent is handled by the ViewModel — purely cosmetic animation
             is WsEvent.ReactionEvent -> ReducerResult(state = state, streamingState = streamingState)
+
+            // MessageInterim seals a segment for StreamSegmentGate; reducer is a no-op
+            is WsEvent.MessageInterim -> ReducerResult(state = state, streamingState = streamingState)
 
             is WsEvent.MessageReactionUpdated -> onMessageReaction(state, streamingState, event)
 

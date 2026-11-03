@@ -42,10 +42,12 @@ import com.m57.hermescontrol.data.ws.CommandCatalog
 import com.m57.hermescontrol.data.ws.ConnectionOperationParser
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.EventParser
+import com.m57.hermescontrol.data.ws.GateAdmission
 import com.m57.hermescontrol.data.ws.HermesProjectsSource
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.JsonRpcError
 import com.m57.hermescontrol.data.ws.ProjectsSource
+import com.m57.hermescontrol.data.ws.StreamSegmentGate
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.data.ws.contract.CommandDispatchParams
@@ -560,6 +562,14 @@ class ChatViewModel(
     fun abandonConnectionBrowser(): Boolean = connectionBrowserReturnTracker.abandon()
 
     private val _streamingState = MutableStateFlow(StreamingState())
+
+    // Issue #382: application-boundary stream deduplication gate
+    private val streamSegmentGate =
+        StreamSegmentGate(
+            scopeKeyProvider = {
+                runCatching { AuthManager.currentDataScope()?.inMemoryKey() }.getOrNull() ?: "default"
+            },
+        )
 
     /** Maps an in-flight RPC id to its method for UI error labeling. */
     private val idToMethod = ConcurrentHashMap<String, String>()
@@ -1343,9 +1353,51 @@ class ChatViewModel(
             connectionOperationDelegate.acceptUpdate(event.snapshot)
         }
 
+        // The interrupted partial is already sealed. Discard trailing deltas before
+        // gate admission so cancelled tokens never advance the applied offset cursor.
+        if (event is WsEvent.MessageToken &&
+            _streamingState.value.interruptedMessage != null &&
+            isCurrentSession(event.sessionId)
+        ) {
+            return
+        }
+
+        // Issue #382: Gate stream tokens/starts at the accepted application boundary,
+        // immediately before reduction and synchronous text streaming.
+        val effectiveEvent =
+            if (isCurrentSession(turnSessionId ?: (event as? WsEvent.MessageToken)?.sessionId)) {
+                when (val admission = streamSegmentGate.evaluate(event)) {
+                    is GateAdmission.Accept -> {
+                        admission.event
+                    }
+
+                    is GateAdmission.Drop -> {
+                        return
+                    }
+
+                    is GateAdmission.GapDetected -> {
+                        Log.w(
+                            TAG,
+                            "Stream gap detected in session ${admission.sessionId} turn ${admission.turnId}: " +
+                                "expected offset ${admission.expectedOffset}, got ${admission.incomingOffset}. " +
+                                "Quarantining turn and requesting transcript resync.",
+                        )
+                        val storageId =
+                            ActiveSessionHolder.resolveStoredSessionId(admission.sessionId) ?: admission.sessionId
+                        // Bounded recovery: only trigger if hydration is not already in flight
+                        if (hydrationJob?.isActive != true) {
+                            loadSessionMessages(storageId, sessionGeneration)
+                        }
+                        return
+                    }
+                }
+            } else {
+                event
+            }
+
         // Flush any throttled reasoning before a state transition so the
         // finalized/orphan message carries the latest reasoning text.
-        when (event) {
+        when (effectiveEvent) {
             is WsEvent.MessageStart,
             is WsEvent.MessageComplete,
             is WsEvent.MessageDone,
@@ -1368,7 +1420,7 @@ class ChatViewModel(
             ChatWsEventReducer.reduce(
                 _uiState.value,
                 _streamingState.value,
-                event,
+                effectiveEvent,
                 runtimeSessionId ?: _uiState.value.currentSessionId,
                 // #1696: resolve MEDIA: directives inside the reduction so every
                 // seal path derives attachments synchronously.
@@ -1406,11 +1458,8 @@ class ChatViewModel(
             }
 
             is WsEvent.MessageToken -> {
-                // The interrupted partial is already sealed. Wait for its authoritative
-                // completion instead of letting trailing deltas create a second stream.
-                if (_streamingState.value.interruptedMessage != null && isCurrentSession(event.sessionId)) return
                 if (isCurrentSession(event.sessionId)) mainTurnBusy = true
-                streamingController.handleMessageToken(event)
+                streamingController.handleMessageToken(effectiveEvent as WsEvent.MessageToken)
             }
 
             is WsEvent.ThinkingDelta -> {
@@ -1440,6 +1489,11 @@ class ChatViewModel(
                 if (isCurrentSession(event.sessionId)) {
                     mainTurnBusy = false
                     lastMainCompletionAt = System.currentTimeMillis()
+                    event.sessionId?.let { sid ->
+                        (event.rawPayload?.get("turn_id") as? String)?.let { tid ->
+                            streamSegmentGate.markTurnCompleted(sid, tid)
+                        }
+                    }
                     retireReceiptForPersistedTurn(parsePersistedTurn(event.rawPayload))
                     refreshSendReceipts()
                 }

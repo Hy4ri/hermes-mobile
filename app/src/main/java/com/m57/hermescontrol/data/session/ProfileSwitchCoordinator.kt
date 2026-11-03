@@ -1,11 +1,9 @@
 package com.m57.hermescontrol.data.session
 
 import com.m57.hermescontrol.data.local.AuthManager
-import com.m57.hermescontrol.data.model.SetActiveProfileRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkError
 import com.m57.hermescontrol.data.remote.NetworkResult
-import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.profilelock.ProfileLock
 import kotlinx.coroutines.CoroutineDispatcher
@@ -24,7 +22,7 @@ import kotlinx.coroutines.withContext
  * of a pile of scattered patches.
  *
  * Order matters:
- *  1. Flip the server's sticky active profile (REST).
+ *  1. (No server call: the active profile is local to this device, #1764.)
  *  2. Persist the LOCAL selection — the REST interceptor (``?profile=``) and
  *     the WS params injector (``params.profile``) now scope everything to the
  *     new profile. The per-server token fallback (phase 1) keeps auth intact:
@@ -59,12 +57,8 @@ object ProfileSwitchCoordinator {
         switchMutex.withLock {
             // #1643: refuse before the REST call so the server's sticky profile never flips.
             if (!ProfileLock.allowsActiveProfile(name)) return@withLock lockedFailure()
-            val result =
-                withContext(ioDispatcher) {
-                    safeApiCall { ApiClient.hermesApi.setActiveProfile(SetActiveProfileRequest(name)) }
-                }
-            if (result !is NetworkResult.Success) return@withLock result
-
+            // #1764: the active profile is local to this device. The server's sticky
+            // profile is shared by every client, so it is never flipped from here.
             AuthManager.setActiveProfileId(name)
             _switched.emit(name)
             // The ticket mint inside connect() does blocking network I/O — it must
@@ -75,7 +69,7 @@ object ProfileSwitchCoordinator {
                 HermesWsClient.disconnect(clearPendingMessages = true)
                 HermesWsClient.connect()
             }
-            result
+            NetworkResult.Success(Unit)
         }
 
     /**

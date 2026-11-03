@@ -189,7 +189,7 @@ class ViewModelWorkflowTest {
 
             // Step 5: User triggers a cron job
             coEvery { mockApiService.triggerCronJob("job-1") } returns Response.success(Unit)
-            val cronViewModel = track(CronJobsViewModel().also { it.ioDispatcher = testDispatcher })
+            val cronViewModel = track(CronJobsViewModel(mockApp).also { it.ioDispatcher = testDispatcher })
             cronViewModel.triggerCronJob("job-1")
             advanceUntilIdle()
 

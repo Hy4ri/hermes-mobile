@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
@@ -57,6 +58,7 @@ import com.m57.hermescontrol.applock.AlertDialog
 import com.m57.hermescontrol.applock.Dialog
 import com.m57.hermescontrol.applock.PrivateExposedDropdownMenu
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.model.CronBlueprint
 import com.m57.hermescontrol.data.model.CronBlueprintField
 import com.m57.hermescontrol.data.model.CronJob
@@ -83,14 +85,23 @@ import com.m57.hermescontrol.util.CronExpressionFormatter
 fun CronJobsScreen(
     modifier: Modifier = Modifier,
     onOpenDrawer: (() -> Unit)? = null,
-    viewModel: CronJobsViewModel = viewModel { CronJobsViewModel() },
+    viewModel: CronJobsViewModel = viewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val dataScope by AuthManager.dataScopeFlow.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
-    var selectedJob by remember { mutableStateOf<CronJob?>(null) }
+    var selectedJobScopeId by remember { mutableStateOf<Pair<DataScope?, String>?>(null) }
+    val selectedJob =
+        remember(state.jobs, selectedJobScopeId, dataScope) {
+            if (selectedJobScopeId?.first == dataScope) {
+                state.jobs.firstOrNull { it.id == selectedJobScopeId?.second }
+            } else {
+                null
+            }
+        }
 
     LaunchedEffect(dataScope) {
+        selectedJobScopeId = null
         viewModel.clearScopeOwnedState()
         viewModel.loadCronJobs()
     }
@@ -143,7 +154,7 @@ fun CronJobsScreen(
                             modifier =
                                 Modifier
                                     .fillMaxWidth()
-                                    .clickable(onClick = { selectedJob = job }),
+                                    .clickable(onClick = { selectedJobScopeId = dataScope to job.id }),
                             colors =
                                 CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -162,6 +173,12 @@ fun CronJobsScreen(
                                         fontWeight = FontWeight.SemiBold,
                                         modifier = Modifier.weight(1f),
                                     )
+                                    if (job.isRunInFlight) {
+                                        StatusBadge(
+                                            text = stringResource(R.string.cron_status_running),
+                                            status = StatusBadgeType.INFO,
+                                        )
+                                    }
                                     StatusBadge(
                                         text =
                                             when (displayState) {
@@ -251,6 +268,28 @@ fun CronJobsScreen(
                                             )
                                         }
                                     }
+                                    if (job.isRunInFlight || state.stoppingJobIds.contains(job.id)) {
+                                        HermesTooltip(stringResource(R.string.cron_action_stop)) {
+                                            IconButton(
+                                                onClick = { viewModel.stopCronJob(job.id) },
+                                                enabled = !state.stoppingJobIds.contains(job.id),
+                                            ) {
+                                                if (state.stoppingJobIds.contains(job.id)) {
+                                                    CircularProgressIndicator(
+                                                        modifier = Modifier.height(18.dp).width(18.dp),
+                                                        strokeWidth = 2.dp,
+                                                        color = MaterialTheme.colorScheme.error,
+                                                    )
+                                                } else {
+                                                    Icon(
+                                                        imageVector = Icons.Filled.Stop,
+                                                        contentDescription = stringResource(R.string.cron_action_stop),
+                                                        tint = MaterialTheme.colorScheme.error,
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
                                     if (displayState.canPause) {
                                         HermesTooltip(stringResource(R.string.cron_action_pause)) {
                                             IconButton(
@@ -326,10 +365,16 @@ fun CronJobsScreen(
     // ── Run Details Dialog ──
     selectedJob?.let { job ->
         AlertDialog(
-            onDismissRequest = { selectedJob = null },
+            onDismissRequest = { selectedJobScopeId = null },
             title = { Text(job.name, style = MaterialTheme.typography.titleLarge) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
+                    if (job.isRunInFlight) {
+                        RunDetailRow(
+                            stringResource(R.string.cron_detail_live_run),
+                            stringResource(R.string.cron_status_running),
+                        )
+                    }
                     RunDetailRow(
                         "Status",
                         when (job.lastRunStatus) {
@@ -359,10 +404,51 @@ fun CronJobsScreen(
                     }
                     job.script?.let { if (it.isNotBlank()) RunDetailRow("Script", it) }
                     job.monitorSource?.let { if (it.isNotBlank()) RunDetailRow("Monitor", it) }
+                    job.timezone?.let {
+                        if (it.isNotBlank()) {
+                            RunDetailRow(
+                                stringResource(R.string.cron_detail_timezone),
+                                it,
+                            )
+                        }
+                    }
+                    job.grace_minutes?.let {
+                        RunDetailRow(
+                            stringResource(R.string.cron_detail_grace),
+                            stringResource(R.string.cron_detail_grace_value, it),
+                        )
+                    }
+                    job.catch_up?.let {
+                        RunDetailRow(
+                            stringResource(R.string.cron_detail_catch_up),
+                            if (it) {
+                                stringResource(
+                                    R.string.cron_catch_up_run,
+                                )
+                            } else {
+                                stringResource(R.string.cron_catch_up_skip)
+                            },
+                        )
+                    }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { selectedJob = null }) { Text("Close") }
+                TextButton(onClick = { selectedJobScopeId = null }) { Text(stringResource(R.string.action_close)) }
+            },
+            dismissButton = {
+                if (job.isRunInFlight || state.stoppingJobIds.contains(job.id)) {
+                    val targetId = job.id
+                    val isStopping = state.stoppingJobIds.contains(targetId)
+                    TextButton(
+                        onClick = { viewModel.stopCronJob(targetId) },
+                        enabled = !isStopping,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.cron_action_stop),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
             },
         )
     }
@@ -404,6 +490,8 @@ fun CronJobEditorDialog(
     val hasChanges =
         state.name.isNotEmpty() || state.schedule.isNotEmpty() ||
             state.prompt.isNotEmpty() || state.skills.isNotEmpty() ||
+            state.timezone.isNotEmpty() || state.grace_minutes.isNotEmpty() ||
+            state.catch_up != "default" ||
             state.monitor_script.isNotEmpty() || state.monitor_url.isNotEmpty() ||
             state.monitorMode != "off"
 
@@ -618,6 +706,50 @@ fun CronJobEditorDialog(
                                 label = { Text(stringResource(R.string.cron_edit_field_workdir)) },
                                 modifier = Modifier.fillMaxWidth(),
                                 singleLine = true,
+                            )
+
+                            // Timezone
+                            OutlinedTextField(
+                                value = state.timezone,
+                                onValueChange = { onFieldChange("timezone", it) },
+                                label = { Text(stringResource(R.string.cron_edit_field_timezone)) },
+                                placeholder = { Text(stringResource(R.string.cron_edit_hint_timezone)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                            )
+
+                            // Grace window (minutes)
+                            OutlinedTextField(
+                                value = state.grace_minutes,
+                                onValueChange = { onFieldChange("grace_minutes", it) },
+                                label = { Text(stringResource(R.string.cron_edit_field_grace_minutes)) },
+                                placeholder = { Text(stringResource(R.string.cron_edit_hint_grace_minutes)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                            )
+
+                            // Missed-run policy dropdown
+                            val defaultChoiceLabel = stringResource(R.string.cron_catch_up_default)
+                            val runChoiceLabel = stringResource(R.string.cron_catch_up_run)
+                            val skipChoiceLabel = stringResource(R.string.cron_catch_up_skip)
+                            ExposedDropdownField(
+                                label = stringResource(R.string.cron_edit_field_catch_up),
+                                options = listOf(defaultChoiceLabel, runChoiceLabel, skipChoiceLabel),
+                                selectedValue =
+                                    when (state.catch_up) {
+                                        "run" -> runChoiceLabel
+                                        "skip" -> skipChoiceLabel
+                                        else -> defaultChoiceLabel
+                                    },
+                                onOptionSelected = { selected ->
+                                    val choice =
+                                        when (selected) {
+                                            runChoiceLabel -> "run"
+                                            skipChoiceLabel -> "skip"
+                                            else -> "default"
+                                        }
+                                    onFieldChange("catch_up", choice)
+                                },
                             )
 
                             // No Agent toggle
@@ -958,6 +1090,180 @@ private fun DeliverField(
                         expanded = false
                     },
                 )
+            }
+        }
+    }
+}
+
+// ── Compose Previews ──
+
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true, widthDp = 360)
+@Composable
+private fun CronJobsListCardPreview() {
+    com.m57.hermescontrol.theme.HermesControlTheme {
+        androidx.compose.material3.Surface(modifier = Modifier.padding(16.dp)) {
+            val sampleJob =
+                CronJob(
+                    id = "j-sample",
+                    name = "Database Backup & Sync",
+                    schedule = kotlinx.serialization.json.JsonPrimitive("0 2 * * *"),
+                    state = "active",
+                    timezone = "America/New_York",
+                    grace_minutes = 30,
+                    catch_up = true,
+                    live_execution =
+                        com.m57.hermescontrol.data.model.CronJobExecution(
+                            id = "exec-1",
+                            status = "running",
+                        ),
+                )
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = sampleJob.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.weight(1f),
+                        )
+                        StatusBadge(
+                            text = stringResource(R.string.cron_status_running),
+                            status = StatusBadgeType.INFO,
+                        )
+                        StatusBadge(
+                            text = stringResource(R.string.cron_status_scheduled),
+                            status = StatusBadgeType.SUCCESS,
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = CronExpressionFormatter.cronToHumanReadable(sampleJob.scheduleText),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        IconButton(onClick = {}) {
+                            Icon(Icons.Filled.Edit, contentDescription = "Edit")
+                        }
+                        IconButton(onClick = {}) {
+                            Icon(Icons.Filled.Stop, contentDescription = "Stop", tint = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true, widthDp = 360, heightDp = 1200)
+@Composable
+private fun CronJobEditorDialogPreview() {
+    com.m57.hermescontrol.theme.HermesControlTheme {
+        androidx.compose.material3.Surface {
+            CronJobEditorDialog(
+                state =
+                    CronJobEditorState(
+                        isOpen = true,
+                        isNew = false,
+                        jobId = "j-preview",
+                        name = "Daily Report",
+                        schedule = "0 9 * * 1-5",
+                        timezone = "America/New_York",
+                        grace_minutes = "45",
+                        catch_up = "run",
+                    ),
+                onFieldChange = { _, _ -> },
+                onToggleNoAgent = {},
+                onToggleRunContinuity = {},
+                onSetMonitorMode = {},
+                onSelectBlueprint = {},
+                onBlueprintFieldChange = { _, _ -> },
+                onSave = {},
+                onDismiss = {},
+                onClearToast = {},
+            )
+        }
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true, widthDp = 360)
+@Composable
+private fun CronJobDetailDialogPreview() {
+    val spacing = LocalSpacing.current
+    com.m57.hermescontrol.theme.HermesControlTheme {
+        androidx.compose.material3.Surface(
+            shape = MaterialTheme.shapes.extraLarge,
+            tonalElevation = 6.dp,
+            modifier = Modifier.padding(16.dp),
+        ) {
+            val sampleJob =
+                CronJob(
+                    id = "j-preview",
+                    name = "Daily Report",
+                    schedule = kotlinx.serialization.json.JsonPrimitive("0 9 * * 1-5"),
+                    state = "active",
+                    timezone = "America/New_York",
+                    grace_minutes = 45,
+                    catch_up = true,
+                    live_execution =
+                        com.m57.hermescontrol.data.model
+                            .CronJobExecution(id = "e1", status = "running"),
+                    last_status = "success",
+                    last_run_at = "2026-11-02T09:00:00Z",
+                )
+            Column(modifier = Modifier.padding(spacing.lg)) {
+                Text(sampleJob.name, style = MaterialTheme.typography.titleLarge)
+                Spacer(modifier = Modifier.height(spacing.md))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    RunDetailRow(
+                        stringResource(R.string.cron_detail_live_run),
+                        stringResource(R.string.cron_status_running),
+                    )
+                    RunDetailRow("Status", sampleJob.lastRunStatus)
+                    sampleJob.last_run_at?.let { RunDetailRow("Last run", it) }
+                    RunDetailRow("Schedule", CronExpressionFormatter.cronToHumanReadable(sampleJob.scheduleText))
+                    sampleJob.timezone?.let { RunDetailRow(stringResource(R.string.cron_detail_timezone), it) }
+                    sampleJob.grace_minutes?.let {
+                        RunDetailRow(
+                            stringResource(R.string.cron_detail_grace),
+                            stringResource(R.string.cron_detail_grace_value, it),
+                        )
+                    }
+                    sampleJob.catch_up?.let {
+                        RunDetailRow(
+                            stringResource(R.string.cron_detail_catch_up),
+                            if (it) {
+                                stringResource(
+                                    R.string.cron_catch_up_run,
+                                )
+                            } else {
+                                stringResource(R.string.cron_catch_up_skip)
+                            },
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(spacing.lg))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = {}) {
+                        Text(
+                            text = stringResource(R.string.cron_action_stop),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    TextButton(onClick = {}) { Text(stringResource(R.string.action_close)) }
+                }
             }
         }
     }

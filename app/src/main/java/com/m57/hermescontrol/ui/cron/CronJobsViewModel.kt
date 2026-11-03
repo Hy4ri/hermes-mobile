@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.ui.cron
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.DataScope
@@ -38,6 +39,7 @@ data class CronJobsUiState(
     val jobs: List<CronJob> = emptyList(),
     val errorMessage: String? = null,
     val toastMessage: String? = null,
+    val stoppingJobIds: Set<String> = emptySet(),
     // Delete-confirm state (non-null while the confirm dialog is up)
     val deleteTarget: CronJob? = null,
     // Editor state
@@ -62,6 +64,9 @@ data class CronJobEditorState(
     val base_url: String = "",
     val script: String = "",
     val workdir: String = "",
+    val timezone: String = "",
+    val grace_minutes: String = "",
+    val catch_up: String = "default", // "default" | "run" | "skip"
     val enabled: Boolean = true,
     val no_agent: Boolean = false,
     // Run continuity: when true, the job's own previous output is injected
@@ -94,8 +99,9 @@ data class CronJobEditorState(
             }
 }
 
-class CronJobsViewModel :
-    ViewModel(),
+class CronJobsViewModel(
+    application: Application,
+) : AndroidViewModel(application),
     ToastHost {
     private val _uiState = MutableStateFlow(CronJobsUiState())
     val uiState: StateFlow<CronJobsUiState> = _uiState.asStateFlow()
@@ -110,6 +116,7 @@ class CronJobsViewModel :
                 isLoading = false,
                 jobs = emptyList(),
                 errorMessage = null,
+                stoppingJobIds = emptySet(),
                 deleteTarget = null,
                 editorState = CronJobEditorState(),
             )
@@ -231,6 +238,57 @@ class CronJobsViewModel :
 
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "Failed to trigger cron job: ${result.error.message}") }
+                }
+            }
+        }
+    }
+
+    fun stopCronJob(id: String) {
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+        if (_uiState.value.stoppingJobIds.contains(id)) return
+        _uiState.update { it.copy(stoppingJobIds = it.stoppingJobIds + id) }
+        viewModelScope.launch {
+            val result =
+                withContext(ioDispatcher) {
+                    safeApiCall { ApiClient.hermesApi.cancelCronJob(id) }
+                }
+            val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+            if (requestScope != null && currentScope != requestScope) {
+                // Request finished after scope switched; do not clear newer scope's state
+                return@launch
+            }
+            when (result) {
+                is NetworkResult.Success -> {
+                    val cancelRes = result.data
+                    val message =
+                        if (cancelRes.cancelled) {
+                            getApplication<Application>().getString(com.m57.hermescontrol.R.string.cron_stop_requested)
+                        } else {
+                            cancelRes.detail
+                                ?: getApplication<Application>().getString(
+                                    com.m57.hermescontrol.R.string.cron_stop_nothing_to_stop,
+                                )
+                        }
+                    _uiState.update {
+                        it.copy(
+                            stoppingJobIds = it.stoppingJobIds - id,
+                            toastMessage = message,
+                        )
+                    }
+                    loadCronJobs(forceRefresh = true)
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            stoppingJobIds = it.stoppingJobIds - id,
+                            toastMessage =
+                                getApplication<Application>().getString(
+                                    com.m57.hermescontrol.R.string.cron_stop_failed,
+                                    result.error.message,
+                                ),
+                        )
+                    }
                 }
             }
         }
@@ -371,6 +429,14 @@ class CronJobsViewModel :
                                     base_url = job.base_url.orEmpty(),
                                     script = job.script.orEmpty(),
                                     workdir = job.workdir.orEmpty(),
+                                    timezone = job.timezone.orEmpty(),
+                                    grace_minutes = job.grace_minutes?.toString().orEmpty(),
+                                    catch_up =
+                                        when (job.catch_up) {
+                                            true -> "run"
+                                            false -> "skip"
+                                            null -> "default"
+                                        },
                                     enabled = job.enabled ?: true,
                                     no_agent = job.no_agent ?: false,
                                     runContinuity = job.context_from?.contains("self") ?: false,
@@ -461,6 +527,27 @@ class CronJobsViewModel :
             _uiState.update { it.copy(editorState = editor.copy(toastMessage = "Schedule is required")) }
             return
         }
+        val validatedGrace =
+            if (editor.grace_minutes.isNotBlank()) {
+                val parsed = editor.grace_minutes.trim().toIntOrNull()
+                if (parsed == null || parsed !in 0..1440) {
+                    _uiState.update {
+                        it.copy(
+                            editorState =
+                                editor.copy(
+                                    toastMessage =
+                                        getApplication<Application>().getString(
+                                            com.m57.hermescontrol.R.string.cron_edit_error_grace_minutes,
+                                        ),
+                                ),
+                        )
+                    }
+                    return
+                }
+                parsed
+            } else {
+                null
+            }
         _uiState.update { it.copy(editorState = editor.copy(isSaving = true)) }
 
         viewModelScope.launch {
@@ -476,7 +563,7 @@ class CronJobsViewModel :
                             )
                         }
                     } else if (editor.isNew) {
-                        createNewJobWithMonitor(editor)
+                        createNewJobWithMonitor(editor, validatedGrace)
                     } else {
                         val updates = mutableMapOf<String, Any?>()
                         if (editor.name.isNotEmpty()) updates["name"] = editor.name
@@ -489,6 +576,14 @@ class CronJobsViewModel :
                         updates["base_url"] = editor.base_url.ifBlank { null }
                         updates["script"] = editor.script.ifBlank { null }
                         updates["workdir"] = editor.workdir.ifBlank { null }
+                        updates["timezone"] = editor.timezone.ifBlank { null }
+                        updates["grace_minutes"] = validatedGrace
+                        updates["catch_up"] =
+                            when (editor.catch_up) {
+                                "run" -> true
+                                "skip" -> false
+                                else -> null
+                            }
                         updates["no_agent"] = editor.no_agent
                         // Run continuity: send ["self"] when on, null (clears) when off.
                         updates["context_from"] = if (editor.runContinuity) listOf("self") else null
@@ -539,7 +634,10 @@ class CronJobsViewModel :
      * apply. If the monitor update fails, the just-created job is rolled back
      * (deleted) — a half-configured job is worse than no job.
      */
-    private suspend fun createNewJobWithMonitor(editor: CronJobEditorState): NetworkResult<CronJob> {
+    private suspend fun createNewJobWithMonitor(
+        editor: CronJobEditorState,
+        validatedGrace: Int? = null,
+    ): NetworkResult<CronJob> {
         val createdResult =
             safeApiCall {
                 ApiClient.hermesApi.createCronJob(
@@ -554,6 +652,14 @@ class CronJobsViewModel :
                         base_url = editor.base_url.ifBlank { null },
                         script = editor.script.ifBlank { null },
                         workdir = editor.workdir.ifBlank { null },
+                        timezone = editor.timezone.ifBlank { null },
+                        grace_minutes = validatedGrace,
+                        catch_up =
+                            when (editor.catch_up) {
+                                "run" -> true
+                                "skip" -> false
+                                else -> null
+                            },
                         no_agent = editor.no_agent,
                         context_from = if (editor.runContinuity) listOf("self") else null,
                         monitor_script = editor.monitor_script.ifBlank { null },
@@ -630,6 +736,12 @@ class CronJobsViewModel :
             "script" -> copy(script = value)
 
             "workdir" -> copy(workdir = value)
+
+            "timezone" -> copy(timezone = value)
+
+            "grace_minutes" -> copy(grace_minutes = value)
+
+            "catch_up" -> copy(catch_up = value)
 
             "run_continuity" -> copy(runContinuity = value.toBooleanStrictOrNull() ?: false)
 

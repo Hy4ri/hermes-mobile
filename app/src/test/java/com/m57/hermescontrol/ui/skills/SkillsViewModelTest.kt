@@ -3,6 +3,8 @@ package com.m57.hermescontrol.ui.skills
 import android.app.Application
 import com.m57.hermescontrol.data.model.ActionResponse
 import com.m57.hermescontrol.data.model.HubSkill
+import com.m57.hermescontrol.data.model.LockSkillRequest
+import com.m57.hermescontrol.data.model.LockSkillResponse
 import com.m57.hermescontrol.data.model.Skill
 import com.m57.hermescontrol.data.model.SkillHubPreviewResponse
 import com.m57.hermescontrol.data.model.SkillHubSearchResponse
@@ -19,6 +21,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
+import io.mockk.unmockkObject
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -443,6 +446,301 @@ class SkillsViewModelTest {
             vm.uiState.value.toastMessage!!
                 .contains("HTTP 500"),
         )
+    }
+
+    @Test
+    fun `lockSkill leaves confirmed state unchanged while saving and updates confirmed state on success`() {
+        val skill = Skill("Skill 1", "Description 1", "Category 1", true, locked = false)
+        val deferredResponse = CompletableDeferred<Response<LockSkillResponse>>()
+        coEvery { mockApi.getSkills() } returns Response.success(listOf(skill))
+        coEvery {
+            mockApi.lockSkill(
+                LockSkillRequest(
+                    name = "Skill 1",
+                    locked = true,
+                    profile = "default",
+                ),
+            )
+        } coAnswers { deferredResponse.await() }
+
+        val vm = createViewModel()
+        vm.loadSkills()
+        settle()
+
+        assertEquals(
+            false,
+            vm.uiState.value.skills[0]
+                .locked,
+        )
+
+        vm.lockSkill("Skill 1", true)
+        // Verify confirmed state remains unchanged while saving (state-honest)
+        assertEquals(
+            false,
+            vm.uiState.value.skills[0]
+                .locked,
+        )
+        assertEquals(true, vm.uiState.value.isLocking)
+        assertEquals("Skill 1", vm.uiState.value.lockingSkillName)
+
+        // Complete network call
+        deferredResponse.complete(
+            Response.success(LockSkillResponse(ok = true, name = "Skill 1", locked = true)),
+        )
+        settle()
+
+        // Verify confirmed state is updated only after successful response
+        assertEquals(
+            true,
+            vm.uiState.value.skills[0]
+                .locked,
+        )
+        assertEquals(false, vm.uiState.value.isLocking)
+        assertNull(vm.uiState.value.lockingSkillName)
+        assertNull(vm.uiState.value.toastMessage)
+    }
+
+    @Test
+    fun `lockSkill failure leaves confirmed state unchanged and surfaces localized error`() {
+        every { app.getString(com.m57.hermescontrol.R.string.skills_lock_failed, *anyVararg()) } answers {
+            val formatArg = (args[1] as Array<*>)[0]
+            "Failed to update lock: $formatArg"
+        }
+        val errorResponse =
+            Response.error<LockSkillResponse>(
+                500,
+                """{"detail":"Could not lock 'Skill 1': skills/.usage.json is not writable."}""".toResponseBody(
+                    "application/json".toMediaTypeOrNull(),
+                ),
+            )
+        val skill = Skill("Skill 1", "Description 1", "Category 1", true, locked = false)
+        coEvery { mockApi.getSkills() } returns Response.success(listOf(skill))
+        coEvery {
+            mockApi.lockSkill(
+                LockSkillRequest(
+                    name = "Skill 1",
+                    locked = true,
+                    profile = "default",
+                ),
+            )
+        } returns errorResponse
+
+        val vm = createViewModel()
+        vm.loadSkills()
+        settle()
+
+        assertEquals(
+            false,
+            vm.uiState.value.skills[0]
+                .locked,
+        )
+
+        vm.lockSkill("Skill 1", true)
+        // Remains unchanged during saving
+        assertEquals(
+            false,
+            vm.uiState.value.skills[0]
+                .locked,
+        )
+        assertEquals(true, vm.uiState.value.isLocking)
+
+        settle()
+        // Still unchanged after failure
+        assertEquals(
+            false,
+            vm.uiState.value.skills[0]
+                .locked,
+        )
+        assertEquals(false, vm.uiState.value.isLocking)
+        assertNull(vm.uiState.value.lockingSkillName)
+        assertNotNull(vm.uiState.value.toastMessage)
+        assertTrue(
+            vm.uiState.value.toastMessage!!
+                .contains("skills/.usage.json is not writable"),
+        )
+    }
+
+    @Test
+    fun `lockSkill populates active profile for non-default profile`() {
+        val skill = Skill("Skill 1", "Description 1", "Category 1", true, locked = false)
+        coEvery { mockApi.getSkills() } returns Response.success(listOf(skill))
+        coEvery {
+            mockApi.lockSkill(
+                LockSkillRequest(
+                    name = "Skill 1",
+                    locked = true,
+                    profile = "staging",
+                ),
+            )
+        } returns Response.success(LockSkillResponse(ok = true, name = "Skill 1", locked = true))
+
+        mockkObject(com.m57.hermescontrol.data.local.AuthManager)
+        every {
+            com.m57.hermescontrol.data.local.AuthManager
+                .currentDataScope()
+        } returns
+            com.m57.hermescontrol.data.local.DataScope(
+                connectionProfileId = "conn-1",
+                baseUrl = "http://10.0.2.2:8000",
+                activeProfileId = "staging",
+            )
+
+        val vm = createViewModel()
+        vm.loadSkills()
+        settle()
+
+        vm.lockSkill("Skill 1", true)
+        settle()
+
+        assertEquals(
+            true,
+            vm.uiState.value.skills[0]
+                .locked,
+        )
+        coVerify(exactly = 1) {
+            mockApi.lockSkill(
+                LockSkillRequest(
+                    name = "Skill 1",
+                    locked = true,
+                    profile = "staging",
+                ),
+            )
+        }
+        unmockkObject(com.m57.hermescontrol.data.local.AuthManager)
+    }
+
+    @Test
+    fun `lockSkill handles mismatched or ok false response safely`() {
+        every { app.getString(com.m57.hermescontrol.R.string.skills_lock_failed, *anyVararg()) } answers {
+            val formatArg = (args[1] as Array<*>)[0]
+            "Failed to update lock: $formatArg"
+        }
+        val skill = Skill("Skill 1", "Description 1", "Category 1", true, locked = false)
+        coEvery { mockApi.getSkills() } returns Response.success(listOf(skill))
+        coEvery {
+            mockApi.lockSkill(
+                LockSkillRequest(
+                    name = "Skill 1",
+                    locked = true,
+                    profile = "default",
+                ),
+            )
+        } returns Response.success(LockSkillResponse(ok = false, name = "Skill 1", locked = false))
+
+        val vm = createViewModel()
+        vm.loadSkills()
+        settle()
+
+        vm.lockSkill("Skill 1", true)
+        settle()
+
+        assertEquals(
+            false,
+            vm.uiState.value.skills[0]
+                .locked,
+        )
+        assertEquals(false, vm.uiState.value.isLocking)
+        assertNotNull(vm.uiState.value.toastMessage)
+        assertTrue(
+            vm.uiState.value.toastMessage!!
+                .contains("Invalid server response"),
+        )
+    }
+
+    @Test
+    fun `lockSkill serializes mutations rejecting concurrent requests while one is pending`() {
+        val skillA = Skill("Skill A", "Description A", "Category A", true, locked = false)
+        val skillB = Skill("Skill B", "Description B", "Category B", true, locked = false)
+        val deferredResponseA = CompletableDeferred<Response<LockSkillResponse>>()
+
+        coEvery { mockApi.getSkills() } returns Response.success(listOf(skillA, skillB))
+        coEvery {
+            mockApi.lockSkill(
+                LockSkillRequest(
+                    name = "Skill A",
+                    locked = true,
+                    profile = "default",
+                ),
+            )
+        } coAnswers { deferredResponseA.await() }
+
+        val vm = createViewModel()
+        vm.loadSkills()
+        settle()
+
+        // Dispatch first lock mutation on Skill A
+        vm.lockSkill("Skill A", true)
+        assertEquals(true, vm.uiState.value.isLocking)
+        assertEquals("Skill A", vm.uiState.value.lockingSkillName)
+
+        // Attempt concurrent lock mutation on Skill B while A is in flight
+        vm.lockSkill("Skill B", true)
+        // Guard must prevent Skill B from overwriting state or dispatching API call
+        assertEquals(true, vm.uiState.value.isLocking)
+        assertEquals("Skill A", vm.uiState.value.lockingSkillName)
+        coVerify(exactly = 0) {
+            mockApi.lockSkill(match { it.name == "Skill B" })
+        }
+
+        // Complete Skill A request
+        deferredResponseA.complete(
+            Response.success(LockSkillResponse(ok = true, name = "Skill A", locked = true)),
+        )
+        settle()
+
+        assertEquals(false, vm.uiState.value.isLocking)
+        assertNull(vm.uiState.value.lockingSkillName)
+        assertEquals(
+            true,
+            vm.uiState.value.skills
+                .first { it.name == "Skill A" }
+                .locked,
+        )
+        assertEquals(
+            false,
+            vm.uiState.value.skills
+                .first { it.name == "Skill B" }
+                .locked,
+        )
+    }
+
+    @Test
+    fun `clearScopeOwnedState cancels in-flight lockJob and resets busy state so scope change allows new operation`() {
+        val skill = Skill("Skill 1", "Description 1", "Category 1", true, locked = false)
+        val deferredResponse = CompletableDeferred<Response<LockSkillResponse>>()
+        coEvery { mockApi.getSkills() } returns Response.success(listOf(skill))
+        coEvery {
+            mockApi.lockSkill(
+                LockSkillRequest(
+                    name = "Skill 1",
+                    locked = true,
+                    profile = "default",
+                ),
+            )
+        } coAnswers { deferredResponse.await() }
+
+        val vm = createViewModel()
+        vm.loadSkills()
+        settle()
+
+        vm.lockSkill("Skill 1", true)
+        assertEquals(true, vm.uiState.value.isLocking)
+        assertEquals("Skill 1", vm.uiState.value.lockingSkillName)
+
+        // Scope changes (e.g. user switches connection or logs out)
+        vm.clearScopeOwnedState()
+        assertEquals(false, vm.uiState.value.isLocking)
+        assertNull(vm.uiState.value.lockingSkillName)
+
+        // Stale network response resolves after clearScopeOwnedState
+        deferredResponse.complete(
+            Response.success(LockSkillResponse(ok = true, name = "Skill 1", locked = true)),
+        )
+        settle()
+
+        // Verify cancelled job never resurrects busy state or leaks data
+        assertEquals(false, vm.uiState.value.isLocking)
+        assertNull(vm.uiState.value.lockingSkillName)
     }
 
     @Test

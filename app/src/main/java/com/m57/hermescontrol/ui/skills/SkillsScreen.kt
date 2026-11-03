@@ -119,6 +119,9 @@ fun SkillsScreen(
                         sourceFilter = state.sourceFilter,
                         isUninstalling = state.isUninstalling,
                         uninstallingSkillName = state.uninstallingSkillName,
+                        isLockSaving = state.isLocking,
+                        lockingSkillName = state.lockingSkillName,
+                        onToggleLock = viewModel::lockSkill,
                         onRefresh = viewModel::loadSkills,
                         onBrowseHub = { viewModel.setViewMode(SkillsViewMode.HUB) },
                     )

@@ -311,7 +311,7 @@ class ChatPromptProtocolTest {
     }
 
     @Test
-fun legacyCredentialPrompts_withoutServerRequestId_fallBackToRespondVerbs() {
+    fun legacyCredentialPrompts_withoutServerRequestId_fallBackToRespondVerbs() {
         val scope = TestScope(dispatcher)
         val uiState = MutableStateFlow(ChatUiState(currentSessionId = "session-1"))
         val sent = mutableListOf<Pair<String, Map<String, Any>>>()
@@ -370,7 +370,9 @@ fun legacyCredentialPrompts_withoutServerRequestId_fallBackToRespondVerbs() {
         assertEquals("vault.unlock.respond", WsMethods.VAULT_UNLOCK_RESPOND)
         assertEquals("vault.save_login.respond", WsMethods.VAULT_SAVE_LOGIN_RESPOND)
         assertEquals("vault.code.respond", WsMethods.VAULT_CODE_RESPOND)
+    }
 
+    @Test
     fun canonicalClarifyBatch_deterministicFailureAfterFirstAck_preservesAcceptedAnswersOnRetry() {
         val mockWsClient = mockk<HermesWsClient>(relaxed = true)
         every { mockWsClient.canonicalClarifyBatch } returns true

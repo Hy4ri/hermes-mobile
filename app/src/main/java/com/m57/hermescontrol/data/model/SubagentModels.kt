@@ -50,3 +50,25 @@ data class SubagentTailResponse(
     /** Returns authoritative transcript text across backend schema variants. */
     fun content(): String = text ?: tail ?: ""
 }
+
+/** Live work owned by one stored conversation, from `subagent.roster` (#387). */
+data class LiveWorkCounts(
+    val subagents: Int = 0,
+    val background: Int = 0,
+) {
+    val isEmpty: Boolean get() = subagents <= 0 && background <= 0
+}
+
+/** Outcome of one `subagent.roster` read (#387). */
+sealed interface LiveWorkRoster {
+    /** Counts keyed by stored session id; a conversation with no live work is absent. */
+    data class Counts(
+        val bySessionId: Map<String, LiveWorkCounts>,
+    ) : LiveWorkRoster
+
+    /** The gateway has no `subagent.roster` (-32601): stop asking on this connection. */
+    data object Unsupported : LiveWorkRoster
+
+    /** Any other failure (timeout, disconnect, malformed reply): counts are unknown, not zero. */
+    data object Unavailable : LiveWorkRoster
+}

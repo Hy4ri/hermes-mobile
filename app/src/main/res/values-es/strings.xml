@@ -2073,4 +2073,14 @@
     <string name="chat_pending_owned_elsewhere">Este chat está abierto en otra ventana. ¿Iniciar una conversación nueva con este mensaje?</string>
     <string name="chat_pending_new_conversation">Nueva conversación</string>
     <string name="chat_pending_attachments_not_carried">Los archivos adjuntos no se trasladaron. Añádelos de nuevo en la conversación nueva.</string>
+    <plurals name="sessions_live_work_subagents_desc">
+        <item quantity="one">%1$d subagente en ejecución</item>
+        <item quantity="many">%1$d subagentes en ejecución</item>
+        <item quantity="other">%1$d subagentes en ejecución</item>
+    </plurals>
+    <plurals name="sessions_live_work_background_desc">
+        <item quantity="one">%1$d proceso en segundo plano en ejecución</item>
+        <item quantity="many">%1$d procesos en segundo plano en ejecución</item>
+        <item quantity="other">%1$d procesos en segundo plano en ejecución</item>
+    </plurals>
 </resources>

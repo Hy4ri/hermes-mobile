@@ -55,6 +55,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.model.LiveWorkCounts
 import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.model.SessionLiveStatus
 import com.m57.hermescontrol.data.model.SessionTreeItem
@@ -179,6 +180,7 @@ fun SessionCard(
     isArchived: Boolean = false,
     historyActionsEnabled: Boolean = true,
     liveStatus: SessionLiveStatus? = null,
+    liveWork: LiveWorkCounts? = null,
     project: SessionProject? = null,
     nowMillis: Long = System.currentTimeMillis(),
     highlightBackground: Color,
@@ -278,6 +280,7 @@ fun SessionCard(
                         session = session,
                         showSource = !isSelecting,
                         liveStatus = liveStatus,
+                        liveWork = liveWork?.takeUnless { it.isEmpty },
                         palette = palette,
                     )
                 }
@@ -416,13 +419,14 @@ private fun SessionCardFooter(
     session: SessionInfo,
     showSource: Boolean,
     liveStatus: SessionLiveStatus?,
+    liveWork: LiveWorkCounts?,
     palette: SessionCardPalette,
 ) {
     val spacing = LocalSpacing.current
     val messageCount = session.message_count ?: 0
     val model = session.model?.trim().orEmpty()
     val srcIcon = sourceIcon(session.source)
-    val hasBadges = session.hidden == true || liveStatus != null
+    val hasBadges = session.hidden == true || liveStatus != null || liveWork != null
 
     Layout(
         contents =
@@ -484,6 +488,9 @@ private fun SessionCardFooter(
                                     liveStatus = liveStatus,
                                     sessionId = session.id,
                                 )
+                            }
+                            if (liveWork != null) {
+                                SessionLiveWorkIndicator(counts = liveWork, sessionId = session.id)
                             }
                         }
                     }

@@ -1938,4 +1938,14 @@
     <string name="chat_pending_owned_elsewhere">Questa chat è aperta in un’altra finestra. Iniziare una nuova conversazione con questo messaggio?</string>
     <string name="chat_pending_new_conversation">Nuova conversazione</string>
     <string name="chat_pending_attachments_not_carried">Gli allegati non sono stati trasferiti. Aggiungili di nuovo nella nuova conversazione.</string>
+    <plurals name="sessions_live_work_subagents_desc">
+        <item quantity="one">%1$d subagente in esecuzione</item>
+        <item quantity="many">%1$d subagenti in esecuzione</item>
+        <item quantity="other">%1$d subagenti in esecuzione</item>
+    </plurals>
+    <plurals name="sessions_live_work_background_desc">
+        <item quantity="one">%1$d processo in background in esecuzione</item>
+        <item quantity="many">%1$d processi in background in esecuzione</item>
+        <item quantity="other">%1$d processi in background in esecuzione</item>
+    </plurals>
 </resources>

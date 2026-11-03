@@ -1932,4 +1932,10 @@
     <string name="chat_pending_owned_elsewhere">此聊天已在另一个窗口中打开。要用这条消息开始新对话吗？</string>
     <string name="chat_pending_new_conversation">新对话</string>
     <string name="chat_pending_attachments_not_carried">附件未转移。请在新对话中重新添加。</string>
+    <plurals name="sessions_live_work_subagents_desc">
+        <item quantity="other">%1$d 个子代理正在运行</item>
+    </plurals>
+    <plurals name="sessions_live_work_background_desc">
+        <item quantity="other">%1$d 个后台进程正在运行</item>
+    </plurals>
 </resources>

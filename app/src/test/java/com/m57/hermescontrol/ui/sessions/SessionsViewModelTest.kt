@@ -3,6 +3,8 @@ package com.m57.hermescontrol.ui.sessions
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.model.LiveSessionSnapshot
+import com.m57.hermescontrol.data.model.LiveWorkCounts
+import com.m57.hermescontrol.data.model.LiveWorkRoster
 import com.m57.hermescontrol.data.model.ProjectInfo
 import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.model.SessionListResponse
@@ -67,6 +69,14 @@ class SessionsViewModelTest {
             fetchCallCount++
             val deferred = snapshotDeferred
             return if (deferred != null) deferred.await() else snapshotToReturn
+        }
+
+        var rosterToReturn: LiveWorkRoster = LiveWorkRoster.Counts(emptyMap())
+        var rosterCallCount = 0
+
+        override suspend fun fetchLiveWorkRoster(): LiveWorkRoster {
+            rosterCallCount++
+            return rosterToReturn
         }
 
         override val events: Flow<WsEvent> = eventsFlow
@@ -975,6 +985,112 @@ class SessionsViewModelTest {
         assertFalse(vm.uiState.value.pinnedExpanded)
         vm.togglePinnedExpanded()
         assertTrue(vm.uiState.value.pinnedExpanded)
+    }
+
+    // ── Live subagent/background counts (issue #387) ─────────────────────
+
+    @Test
+    fun `roster counts hydrate liveWork on connect and refresh replaces them`() {
+        val source = FakeSessionLiveStatusSource()
+        source.rosterToReturn = LiveWorkRoster.Counts(mapOf("stored-1" to LiveWorkCounts(subagents = 2)))
+
+        val vm = createViewModel(source)
+        vm.startLiveStatusTracking()
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(LiveWorkCounts(subagents = 2), vm.uiState.value.liveWork["stored-1"])
+
+        // The child finished: the next answer omits the row, so the badge goes away.
+        source.rosterToReturn = LiveWorkRoster.Counts(mapOf("stored-2" to LiveWorkCounts(background = 1)))
+        vm.refreshLiveStatuses()
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(mapOf("stored-2" to LiveWorkCounts(background = 1)), vm.uiState.value.liveWork)
+        vm.stopLiveStatusTracking()
+    }
+
+    @Test
+    fun `unsupported roster stops asking without an error until the connection changes`() {
+        val source = FakeSessionLiveStatusSource()
+        source.rosterToReturn = LiveWorkRoster.Unsupported
+
+        val vm = createViewModel(source)
+        vm.startLiveStatusTracking()
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(1, source.rosterCallCount)
+
+        vm.refreshLiveStatuses()
+        testDispatcher.scheduler.advanceTimeBy(65_000)
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(1, source.rosterCallCount)
+        assertTrue(
+            vm.uiState.value.liveWork
+                .isEmpty(),
+        )
+        assertNull(vm.uiState.value.errorMessage)
+        assertNull(vm.uiState.value.toastMessage)
+
+        // A reconnect may reach an upgraded gateway: ask once more.
+        source.rosterToReturn = LiveWorkRoster.Counts(mapOf("stored-1" to LiveWorkCounts(subagents = 1)))
+        source.connectionStatusFlow.value = ConnectionStatus.DISCONNECTED
+        testDispatcher.scheduler.runCurrent()
+        source.connectionStatusFlow.value = ConnectionStatus.CONNECTED
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(2, source.rosterCallCount)
+        assertEquals(LiveWorkCounts(subagents = 1), vm.uiState.value.liveWork["stored-1"])
+        vm.stopLiveStatusTracking()
+    }
+
+    @Test
+    fun `failed roster read clears counts and later reads retry`() {
+        val source = FakeSessionLiveStatusSource()
+        source.rosterToReturn = LiveWorkRoster.Counts(mapOf("stored-1" to LiveWorkCounts(subagents = 1)))
+
+        val vm = createViewModel(source)
+        vm.startLiveStatusTracking()
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(1, vm.uiState.value.liveWork.size)
+
+        source.rosterToReturn = LiveWorkRoster.Unavailable
+        vm.refreshLiveStatuses()
+        testDispatcher.scheduler.runCurrent()
+        assertTrue(
+            vm.uiState.value.liveWork
+                .isEmpty(),
+        )
+
+        source.rosterToReturn = LiveWorkRoster.Counts(mapOf("stored-1" to LiveWorkCounts(background = 3)))
+        vm.refreshLiveStatuses()
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(LiveWorkCounts(background = 3), vm.uiState.value.liveWork["stored-1"])
+        assertEquals(3, source.rosterCallCount)
+        vm.stopLiveStatusTracking()
+    }
+
+    @Test
+    fun `disconnect and stop clear liveWork`() {
+        val source = FakeSessionLiveStatusSource()
+        source.rosterToReturn = LiveWorkRoster.Counts(mapOf("stored-1" to LiveWorkCounts(subagents = 1)))
+
+        val vm = createViewModel(source)
+        vm.startLiveStatusTracking()
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(1, vm.uiState.value.liveWork.size)
+
+        source.connectionStatusFlow.value = ConnectionStatus.DISCONNECTED
+        testDispatcher.scheduler.runCurrent()
+        assertTrue(
+            vm.uiState.value.liveWork
+                .isEmpty(),
+        )
+
+        source.connectionStatusFlow.value = ConnectionStatus.CONNECTED
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(1, vm.uiState.value.liveWork.size)
+
+        vm.stopLiveStatusTracking()
+        assertTrue(
+            vm.uiState.value.liveWork
+                .isEmpty(),
+        )
     }
 
     // ── Live Session Status Tracking (issue #1101) ───────────────────────

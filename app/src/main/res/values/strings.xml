@@ -2122,4 +2122,12 @@
     <string name="ssh_tunnel_error_host_key_unconfirmed">SSH tunnel: confirm the host key in the SSH tunnel settings (fingerprint %1$s).</string>
     <string name="ssh_tunnel_error_load">Could not load SSH tunnel settings. Existing settings cannot be overwritten.</string>
     <string name="ssh_tunnel_loopback_warning">The tunnel binds to a local port on 127.0.0.1; other apps on this device may connect to the open local port.</string>
+    <plurals name="sessions_live_work_subagents_desc">
+        <item quantity="one">%1$d subagent running</item>
+        <item quantity="other">%1$d subagents running</item>
+    </plurals>
+    <plurals name="sessions_live_work_background_desc">
+        <item quantity="one">%1$d background process running</item>
+        <item quantity="other">%1$d background processes running</item>
+    </plurals>
 </resources>

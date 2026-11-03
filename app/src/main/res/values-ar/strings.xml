@@ -2026,4 +2026,20 @@
     <string name="chat_pending_owned_elsewhere">هذه المحادثة مفتوحة في نافذة أخرى. هل تريد بدء محادثة جديدة بهذه الرسالة؟</string>
     <string name="chat_pending_new_conversation">محادثة جديدة</string>
     <string name="chat_pending_attachments_not_carried">لم تُنقل المرفقات. أضفها مجددًا في المحادثة الجديدة.</string>
+    <plurals name="sessions_live_work_subagents_desc">
+        <item quantity="zero">لا وكلاء فرعيون قيد التشغيل</item>
+        <item quantity="one">وكيل فرعي واحد قيد التشغيل</item>
+        <item quantity="two">وكيلان فرعيان قيد التشغيل</item>
+        <item quantity="few">%1$d وكلاء فرعيين قيد التشغيل</item>
+        <item quantity="many">%1$d وكيلًا فرعيًا قيد التشغيل</item>
+        <item quantity="other">%1$d وكيل فرعي قيد التشغيل</item>
+    </plurals>
+    <plurals name="sessions_live_work_background_desc">
+        <item quantity="zero">لا عمليات خلفية قيد التشغيل</item>
+        <item quantity="one">عملية خلفية واحدة قيد التشغيل</item>
+        <item quantity="two">عمليتان خلفيتان قيد التشغيل</item>
+        <item quantity="few">%1$d عمليات خلفية قيد التشغيل</item>
+        <item quantity="many">%1$d عملية خلفية قيد التشغيل</item>
+        <item quantity="other">%1$d عملية خلفية قيد التشغيل</item>
+    </plurals>
 </resources>

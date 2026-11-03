@@ -1917,4 +1917,10 @@
     <string name="trust_user_cas_description">システムの認証局に加えて、Androidのユーザー証明書ストアへ追加した認証局も、すべての接続で信頼します。この設定を有効にすると、その認証局がアプリの接続先サーバーを認証できるようになります。証明書とホスト名の検証は継続します。初期設定では無効です。</string>
     <string name="trust_user_cas_save_failed">信頼設定を保存できませんでした。もう一度お試しください。</string>
     <string name="trust_user_cas_restart_required">変更を反映するにはアプリを再起動してください。</string>
+    <plurals name="sessions_live_work_subagents_desc">
+        <item quantity="other">%1$d 個のサブエージェントが実行中</item>
+    </plurals>
+    <plurals name="sessions_live_work_background_desc">
+        <item quantity="other">%1$d 個のバックグラウンドプロセスが実行中</item>
+    </plurals>
 </resources>

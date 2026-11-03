@@ -1279,4 +1279,22 @@ class ChatModelSwitchDelegateTest {
             assertEquals(1, sentParams.size)
             assertEquals(snapshot, uiState.value)
         }
+
+    @Test
+    fun obsoleteConfirmationClick_doesNotReleaseNewResetGuard() =
+        testScope.runTest {
+            delegate.resetSessionModel()
+            advanceUntilIdle()
+            delegate.handleConfigSetResult("req-1", mapOf("confirm_required" to true))
+            delegate.handleModelSwitch("/model other-model")
+            advanceUntilIdle()
+            delegate.resetSessionModel()
+            advanceUntilIdle()
+            assertTrue(uiState.value.isModelResetPending)
+            delegate.confirmModelSwitchExpensive()
+            assertTrue(uiState.value.isModelResetPending)
+            delegate.resetSessionModel()
+            advanceUntilIdle()
+            assertEquals(3, sentParams.size)
+        }
 }

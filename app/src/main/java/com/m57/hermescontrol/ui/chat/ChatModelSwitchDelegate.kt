@@ -437,14 +437,11 @@ class ChatModelSwitchDelegate(
     }
 
     fun confirmModelSwitchExpensive() {
-        val pending = activeModelSwitchConfirmation
+        val pending = activeModelSwitchConfirmation ?: return
         activeModelSwitchConfirmation = null
+        if (!ownsRequest(pending)) return
         uiState.update { it.copy(modelSwitchConfirmMessage = null) }
-        if (pending != null && ownsRequest(pending)) {
-            handleModelSwitch(pending.spec, confirmExpensive = true)
-        } else {
-            uiState.update { it.copy(isModelResetPending = false) }
-        }
+        handleModelSwitch(pending.spec, confirmExpensive = true)
     }
 
     fun toggleFastMode() {

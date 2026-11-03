@@ -61,6 +61,10 @@ object HermesWsClient {
 
     val events: SharedFlow<WsEvent> = parsedEvents.asSharedFlow()
 
+    private fun emitParsed(event: WsEvent) {
+        parsedEvents.tryEmit(event)
+    }
+
     private val connectionHealth =
         ConnectionHealth(
             scope = wsScope,
@@ -81,7 +85,7 @@ object HermesWsClient {
             fetchEventsSince = {
                 call(RpcMethods.SESSION_EVENTS_SINCE, it, timeoutMs = 10_000L)
             },
-            emitEvent = { parsedEvents.tryEmit(it) },
+            emitEvent = ::emitParsed,
             resolveStoredSessionId = { ActiveSessionHolder.resolveStoredSessionId(it) },
             onReplayFailure = { sid, e -> Log.w(TAG, "Replay failed for session $sid: ${e.message}") },
         )
@@ -113,7 +117,7 @@ object HermesWsClient {
             replayTracker = replayTracker,
             rpcChannel = rpcChannel,
             onRawMessage = { rawFrame ->
-                rpcChannel.handleIncomingFrame(rawFrame, replayTracker) { event -> parsedEvents.tryEmit(event) }
+                rpcChannel.handleIncomingFrame(rawFrame, replayTracker, ::emitParsed)
             },
         )
 

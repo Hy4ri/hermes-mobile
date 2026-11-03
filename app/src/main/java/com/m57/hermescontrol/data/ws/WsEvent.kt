@@ -22,11 +22,24 @@ sealed class WsEvent {
 
     data class MessageStart(
         val sessionId: String?,
+        /** Prompt-turn identity (backend v0.22.6+); null on older backends. */
+        val turnId: String? = null,
     ) : WsEvent()
 
     data class MessageToken(
         val token: String,
         val sessionId: String?,
+        /** Segment identity of a `message.delta` (backend v0.22.6+); null on older backends. */
+        val stamp: SegmentStamp? = null,
+    ) : WsEvent()
+
+    /**
+     * `message.interim`: the agent sealed one reply segment. The chat seals
+     * interim text at tool.start, so only [StreamSegmentGate] reads this event.
+     */
+    data class MessageInterim(
+        val sessionId: String?,
+        val stamp: SegmentStamp?,
     ) : WsEvent()
 
     data class ThinkingDelta(

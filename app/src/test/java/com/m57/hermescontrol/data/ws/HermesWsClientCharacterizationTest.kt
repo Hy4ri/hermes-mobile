@@ -171,6 +171,65 @@ class HermesWsClientCharacterizationTest {
     }
 
     @Test
+    fun resentStampedReplyFrames_parsedAndEmittedWithWireStamps() {
+        HermesWsClient.intentionalCloseForTest.set(false)
+        HermesWsClient.connectedForTest.set(true)
+        val dummySocket =
+            mockk<WebSocket>(relaxed = true) {
+                every { send(any<String>()) } returns true
+            }
+        HermesWsClient.webSocketForTest = dummySocket
+        val listener = HermesWsClient.createListenerForTest(HermesWsClient.connectionGenerationForTest.get())
+        val sid = "s-382-${System.nanoTime()}"
+        val streamEvents = Collections.synchronizedList(mutableListOf<WsEvent>())
+        val subscribed = CountDownLatch(1)
+        val barrier = CountDownLatch(1)
+        val collector =
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                HermesWsClient.events
+                    .onSubscription { subscribed.countDown() }
+                    .collect { event ->
+                        when {
+                            event is WsEvent.SessionInfo && event.sessionId == sid -> barrier.countDown()
+                            event is WsEvent.MessageStart && event.sessionId == sid -> streamEvents.add(event)
+                            event is WsEvent.MessageToken && event.sessionId == sid -> streamEvents.add(event)
+                        }
+                    }
+            }
+        try {
+            assertTrue(subscribed.await(3, TimeUnit.SECONDS))
+
+            fun frame(
+                type: String,
+                payload: String,
+            ) =
+                """{"jsonrpc":"2.0","method":"event","params":{"type":"$type","session_id":"$sid","payload":$payload}}"""
+            listOf(
+                frame("message.start", """{"turn_id":"t1"}"""),
+                frame("message.delta", """{"text":"Hel","turn_id":"t1","segment":0,"offset":0}"""),
+                // Second copy of the turn: same start, a full repeat, then an overlap.
+                frame("message.start", """{"turn_id":"t1"}"""),
+                frame("message.delta", """{"text":"Hel","turn_id":"t1","segment":0,"offset":0}"""),
+                frame("message.delta", """{"text":"Hello","turn_id":"t1","segment":0,"offset":0}"""),
+                frame("session.info", "{}"),
+            ).forEach { listener.onMessage(dummySocket, it) }
+            assertTrue(barrier.await(3, TimeUnit.SECONDS))
+            assertEquals(
+                listOf(
+                    WsEvent.MessageStart(sid, "t1"),
+                    WsEvent.MessageToken("Hel", sid, SegmentStamp("t1", 0, 0)),
+                    WsEvent.MessageStart(sid, "t1"),
+                    WsEvent.MessageToken("Hel", sid, SegmentStamp("t1", 0, 0)),
+                    WsEvent.MessageToken("Hello", sid, SegmentStamp("t1", 0, 0)),
+                ),
+                streamEvents.toList(),
+            )
+        } finally {
+            collector.cancel()
+        }
+    }
+
+    @Test
     fun credentialWarning_updatedByGatewayReadyAndSessionInfo_retainedOnBlank_clearedExplicitly() {
         assertNull(HermesWsClient.credentialWarning.value)
 
@@ -521,5 +580,53 @@ class HermesWsClientCharacterizationTest {
             allowReplayResponseLatch.countDown()
             collectorJob.cancel()
         }
+    }
+
+    @Test
+    fun simulation_gateDeduplicatesReplayWithoutAdvancingOnDroppedFrames() {
+        // Contract simulation test: verifies that if frames are lost before reaching the
+        // application boundary, the gate cursor remains at the last seen offset, and
+        // replayed frames up to that offset are dropped while unseen frames are admitted.
+        val gate = StreamSegmentGate(scopeKeyProvider = { "scope1" })
+        val appliedTokens = mutableListOf<String>()
+
+        fun applyAtApplicationBoundary(event: WsEvent) {
+            when (val admission = gate.evaluate(event)) {
+                is GateAdmission.Accept -> {
+                    if (admission.event is WsEvent.MessageToken) {
+                        appliedTokens.add(admission.event.token)
+                    }
+                }
+
+                is GateAdmission.Drop, is GateAdmission.GapDetected -> {}
+            }
+        }
+
+        // 100 contiguous tokens of 1 char each
+        val totalTokens = 100
+        val tokens =
+            (0 until totalTokens).map { idx ->
+                WsEvent.MessageToken(
+                    token = (idx % 10).toString(),
+                    sessionId = "s1",
+                    stamp = SegmentStamp("t1", 0, offset = idx),
+                )
+            }
+
+        // Boundary sees first 50 tokens
+        for (i in 0 until 50) {
+            applyAtApplicationBoundary(tokens[i])
+        }
+        assertEquals(50, appliedTokens.size)
+
+        // Tokens 50..100 were not received yet. When full range replay 0..100 arrives:
+        for (i in 0 until 100) {
+            applyAtApplicationBoundary(tokens[i])
+        }
+
+        // Tokens 0..49 were dropped as duplicates, while tokens 50..99 were accepted for the first time
+        assertEquals(100, appliedTokens.size)
+        val expected = (0 until 100).map { (it % 10).toString() }
+        assertEquals(expected, appliedTokens)
     }
 }

@@ -770,6 +770,89 @@ class EventParserTest {
     }
 
     @Test
+    fun testParseStampedMessageFrames_carrySegmentIdentity() {
+        val start =
+            EventParser.parse(
+                createJsonRpcResponse(
+                    jsonrpc = "2.0",
+                    id = null,
+                    method = "event",
+                    params =
+                        mapOf(
+                            "type" to "message.start",
+                            "session_id" to "s",
+                            "payload" to mapOf("turn_id" to "t1"),
+                        ),
+                ),
+            )
+        assertEquals(WsEvent.MessageStart("s", "t1"), start)
+
+        val deltaParams =
+            mapOf(
+                "type" to "message.delta",
+                "session_id" to "s",
+                "payload" to mapOf("text" to "lo", "turn_id" to "t1", "segment" to 1, "offset" to 3),
+            )
+        val expected = WsEvent.MessageToken("lo", "s", SegmentStamp("t1", 1, 3))
+        // Live fast path and session.events.since replay path agree.
+        assertEquals(
+            expected,
+            EventParser.parse(
+                createJsonRpcResponse(jsonrpc = "2.0", id = null, method = "event", params = deltaParams),
+            ),
+        )
+        assertEquals(expected, EventParser.parseParams(deltaParams))
+
+        val interim =
+            EventParser.parseParams(
+                mapOf(
+                    "type" to "message.interim",
+                    "session_id" to "s",
+                    "payload" to mapOf("text" to "x", "already_streamed" to true, "turn_id" to "t1", "segment" to 0),
+                ),
+            )
+        assertEquals(WsEvent.MessageInterim("s", SegmentStamp("t1", 0)), interim)
+    }
+
+    @Test
+    fun testParseUnstampedOrInvalidStamp_keepsOldShape() {
+        assertEquals(
+            WsEvent.MessageStart("s", null),
+            EventParser.parseParams(mapOf("type" to "message.start", "session_id" to "s")),
+        )
+        assertEquals(
+            WsEvent.MessageToken("hi", "s", null),
+            EventParser.parseParams(
+                mapOf(
+                    "type" to "message.delta",
+                    "session_id" to "s",
+                    "payload" to mapOf("text" to "hi"),
+                ),
+            ),
+        )
+        // A negative segment or empty turn id is not a usable stamp.
+        for (payload in listOf(
+            mapOf("text" to "hi", "turn_id" to "t1", "segment" to -1, "offset" to 0),
+            mapOf("text" to "hi", "turn_id" to "", "segment" to 0, "offset" to 0),
+        )) {
+            assertEquals(
+                WsEvent.MessageToken("hi", "s", null),
+                EventParser.parseParams(mapOf("type" to "message.delta", "session_id" to "s", "payload" to payload)),
+            )
+        }
+        assertEquals(
+            WsEvent.MessageInterim("s", null),
+            EventParser.parseParams(
+                mapOf(
+                    "type" to "message.interim",
+                    "session_id" to "s",
+                    "payload" to mapOf("text" to "x"),
+                ),
+            ),
+        )
+    }
+
+    @Test
     fun testParseMessageComplete_returnsMessageCompleteEvent() {
         val response =
             createJsonRpcResponse(

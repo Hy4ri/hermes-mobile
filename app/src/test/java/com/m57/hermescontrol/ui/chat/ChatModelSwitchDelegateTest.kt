@@ -1293,6 +1293,8 @@ class ChatModelSwitchDelegateTest {
             assertTrue(uiState.value.isModelResetPending)
             delegate.confirmModelSwitchExpensive()
             assertTrue(uiState.value.isModelResetPending)
+            delegate.dismissModelSwitchConfirm()
+            assertTrue(uiState.value.isModelResetPending)
             delegate.resetSessionModel()
             advanceUntilIdle()
             assertEquals(3, sentParams.size)

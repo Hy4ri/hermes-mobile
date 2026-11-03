@@ -417,12 +417,12 @@ class ChatModelSwitchDelegate(
     }
 
     fun dismissModelSwitchConfirm() {
-        val pending = activeModelSwitchConfirmation
+        val pending = activeModelSwitchConfirmation ?: return
         activeModelSwitchConfirmation = null
-        if (pending != null && !ownsRequest(pending)) return
+        if (!ownsRequest(pending)) return
         optimisticPreviousModel = null
         unconfirmedTargetModel = null
-        val revertModel = lastConfirmedModel ?: pending?.previousModel
+        val revertModel = lastConfirmedModel ?: pending.previousModel
         uiState.update {
             it.copy(
                 modelSwitchConfirmMessage = null,

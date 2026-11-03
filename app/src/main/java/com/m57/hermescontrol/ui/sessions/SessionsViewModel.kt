@@ -10,6 +10,8 @@ import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.local.SessionListCacheStore
 import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.BulkDeleteRequest
+import com.m57.hermescontrol.data.model.LiveWorkCounts
+import com.m57.hermescontrol.data.model.LiveWorkRoster
 import com.m57.hermescontrol.data.model.ProjectInfo
 import com.m57.hermescontrol.data.model.PruneRequest
 import com.m57.hermescontrol.data.model.SessionInfo
@@ -152,6 +154,9 @@ data class SessionsUiState(
     val groupByProject: Boolean = false,
     val collapsedProjectGroups: Set<String> = emptySet(),
     val liveStatuses: Map<String, SessionLiveStatus> = emptyMap(),
+    // Issue #387: live subagent/background counts per stored session from `subagent.roster`; empty when the
+    // gateway lacks the method, the last read failed, or the socket is down (unknown never reads as work).
+    val liveWork: Map<String, LiveWorkCounts> = emptyMap(),
     // Issue #1642: Done/Failed marks for sessions finished since the user last opened them.
     val attention: Map<String, SessionLiveStatus> = emptyMap(),
     // Reads made on this phone (session id → epoch seconds); hides a stale shared unread flag.
@@ -278,6 +283,10 @@ class SessionsViewModel(
     private var liveTrackingState = SessionLiveTrackingState()
     private var liveStatusRefreshInFlight = false
     private var liveStatusRefreshPending = false
+    private var liveWorkInFlightGeneration: Long? = null
+
+    // Issue #387: a gateway without `subagent.roster` answered -32601; stop asking until the connection changes.
+    private var liveWorkUnsupported = false
     private var generation: Long = 0
     private var rawPaginationOffset: Int = 0
     private val sessionsPageCache = SwrCache<String, SessionListResponse>()
@@ -420,8 +429,12 @@ class SessionsViewModel(
                 stats = SessionStats(),
                 emptyCount = 0,
                 projects = emptyList(),
+                liveWork = emptyMap(),
             )
         }
+        // The roster is profile scoped and a connection switch can reach another gateway: ask again.
+        liveWorkUnsupported = false
+        requestLiveWorkRoster(trackingGeneration)
         loadSessions()
     }
 
@@ -1787,9 +1800,11 @@ class SessionsViewModel(
                         if (status != ConnectionStatus.CONNECTED) {
                             trackingGeneration++
                             liveTrackingState = SessionLiveStatusReducer.clear()
-                            _uiState.update { it.copy(liveStatuses = emptyMap()) }
+                            liveWorkUnsupported = false
+                            _uiState.update { it.copy(liveStatuses = emptyMap(), liveWork = emptyMap()) }
                         } else {
                             requestLiveStatusSnapshot(++trackingGeneration)
+                            requestLiveWorkRoster(trackingGeneration)
                             loadProjects()
                         }
                     }
@@ -1811,6 +1826,7 @@ class SessionsViewModel(
                         .filter { it.type == ChangeEvents.SESSIONS }
                         .collect {
                             requestLiveStatusSnapshot(trackingGeneration)
+                            requestLiveWorkRoster(trackingGeneration)
                         }
                 }
 
@@ -1819,6 +1835,7 @@ class SessionsViewModel(
                     while (true) {
                         delay(LIVE_STATUS_POLL_INTERVAL_MS)
                         requestLiveStatusSnapshot(trackingGeneration)
+                        requestLiveWorkRoster(trackingGeneration)
                     }
                 }
             }
@@ -1856,12 +1873,61 @@ class SessionsViewModel(
         projectsJob = null
         liveStatusRefreshInFlight = false
         liveStatusRefreshPending = false
+        liveWorkInFlightGeneration = null
+        liveWorkUnsupported = false
         liveTrackingState = SessionLiveStatusReducer.clear()
-        _uiState.update { it.copy(liveStatuses = emptyMap()) }
+        _uiState.update { it.copy(liveStatuses = emptyMap(), liveWork = emptyMap()) }
     }
 
     fun refreshLiveStatuses() {
         requestLiveStatusSnapshot(trackingGeneration)
+        requestLiveWorkRoster(trackingGeneration)
+    }
+
+    /**
+     * Issue #387: read `subagent.roster` for the session-list badges. Skipped on gateways that answered -32601
+     * (no banner: the source suppresses the error event). A failed read clears the counts instead of keeping
+     * stale ones, so a badge only shows work the gateway reported on its latest answer.
+     */
+    private fun requestLiveWorkRoster(gen: Long) {
+        if (liveWorkUnsupported ||
+            liveWorkInFlightGeneration == gen ||
+            trackingJob?.isActive != true ||
+            gen != trackingGeneration ||
+            liveStatusSource.connectionStatus.value != ConnectionStatus.CONNECTED
+        ) {
+            return
+        }
+        liveWorkInFlightGeneration = gen
+        viewModelScope.launch {
+            try {
+                val roster = liveStatusSource.fetchLiveWorkRoster()
+                if (trackingJob?.isActive != true ||
+                    gen != trackingGeneration ||
+                    liveStatusSource.connectionStatus.value != ConnectionStatus.CONNECTED
+                ) {
+                    return@launch
+                }
+                val counts =
+                    when (roster) {
+                        is LiveWorkRoster.Counts -> {
+                            roster.bySessionId
+                        }
+
+                        LiveWorkRoster.Unsupported -> {
+                            liveWorkUnsupported = true
+                            emptyMap()
+                        }
+
+                        LiveWorkRoster.Unavailable -> {
+                            emptyMap()
+                        }
+                    }
+                _uiState.update { if (it.liveWork == counts) it else it.copy(liveWork = counts) }
+            } finally {
+                if (liveWorkInFlightGeneration == gen) liveWorkInFlightGeneration = null
+            }
+        }
     }
 
     private fun requestLiveStatusSnapshot(gen: Long) {

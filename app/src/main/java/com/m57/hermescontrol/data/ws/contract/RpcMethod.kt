@@ -389,6 +389,14 @@ object RpcMethods {
             SubagentSteerResult.serializer(),
         )
 
+    // Passthrough JsonElement result: SubagentRosterDecoder tolerates partial rows (#387).
+    val SUBAGENT_ROSTER: RpcMethod<SubagentRosterParams, JsonElement> =
+        RpcMethod(
+            WsMethods.SUBAGENT_ROSTER,
+            SubagentRosterParams.serializer(),
+            JsonElement.serializer(),
+        )
+
     // Passthrough JsonElement results: callers keep their existing legacy decoders.
     val PROCESS_LIST: RpcMethod<SessionIdParams, JsonElement> =
         RpcMethod(
@@ -623,6 +631,7 @@ object RpcMethods {
             SUBAGENT_TAIL,
             SUBAGENT_INTERRUPT,
             SUBAGENT_STEER,
+            SUBAGENT_ROSTER,
             PROCESS_LIST,
             PROCESS_KILL,
             PROCESS_STOP,

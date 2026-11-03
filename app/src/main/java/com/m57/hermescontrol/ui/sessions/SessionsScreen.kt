@@ -1022,6 +1022,7 @@ fun SessionsScreen(
                                         isArchived = session.archived == true,
                                         historyActionsEnabled = !state.isChangingHistory,
                                         liveStatus = state.statusFor(session.id),
+                                        liveWork = state.liveWork[session.id],
                                         project = project,
                                         nowMillis = nowMillis,
                                         highlightBackground = primaryContainer,

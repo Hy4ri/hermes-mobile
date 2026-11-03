@@ -997,7 +997,7 @@ class ChatModelSwitchDelegateTest {
         }
 
     @Test
-    fun resetSessionModel_dispatchesConfigSetWithResetValue_andClearsPinFlag() =
+    fun resetSessionModel_dispatchesConfigSetWithResetValue_andKeepsPinUntilConfirmed() =
         testScope.runTest {
             uiState.update {
                 it.copy(
@@ -1010,9 +1010,11 @@ class ChatModelSwitchDelegateTest {
             delegate.resetSessionModel()
             advanceUntilIdle()
 
-            // Picker is closed and hasSessionModelPin optimistically cleared
+            // Picker is closed immediately, but hasSessionModelPin stays true until server ACK
             assertFalse(uiState.value.showModelPicker)
-            assertFalse(uiState.value.hasSessionModelPin)
+            assertTrue(uiState.value.hasSessionModelPin)
+            // Model does not optimistically display "reset"
+            assertEquals("anthropic/claude-3-5-sonnet", uiState.value.currentSessionModel)
 
             // Sent config.set key=model value=reset
             assertEquals(1, sentParams.size)
@@ -1020,7 +1022,12 @@ class ChatModelSwitchDelegateTest {
             assertEquals("reset", sentParams[0].value)
             assertEquals("runtime-1", sentParams[0].sessionId)
 
-            // Response with warning/reset_done
+            // Duplicate call while in-flight is suppressed
+            delegate.resetSessionModel()
+            advanceUntilIdle()
+            assertEquals(1, sentParams.size)
+
+            // Response with warning/reset_done and default model in value
             delegate.handleConfigSetResult(
                 id = "req-1",
                 result =
@@ -1032,13 +1039,14 @@ class ChatModelSwitchDelegateTest {
                     ),
             )
 
-            // Warning message surfaced to chat
+            // Warning message surfaced to chat, pin cleared, and default model adopted
             assertEquals(listOf("⚠ Session model override cleared"), assistantMessages)
             assertFalse(uiState.value.hasSessionModelPin)
+            assertEquals("claude-3-haiku", uiState.value.currentSessionModel)
         }
 
     @Test
-    fun handleConfigSetError_whenResetFails_restoresPinFlagAndPreviousModel() =
+    fun resetSessionModel_handlesConfigSetResultWithoutKey() =
         testScope.runTest {
             uiState.update {
                 it.copy(
@@ -1049,12 +1057,77 @@ class ChatModelSwitchDelegateTest {
 
             delegate.resetSessionModel()
             advanceUntilIdle()
+            assertTrue(uiState.value.hasSessionModelPin)
+
+            // Response where "key" is omitted or null
+            delegate.handleConfigSetResult(
+                id = "req-1",
+                result =
+                    mapOf(
+                        "value" to "anthropic/claude-3-haiku",
+                        "scope" to "session",
+                    ),
+            )
+
             assertFalse(uiState.value.hasSessionModelPin)
+            assertEquals("anthropic/claude-3-haiku", uiState.value.currentSessionModel)
+        }
+
+    @Test
+    fun handleConfigSetError_whenResetFails_retainsPinFlagAndAllowsRetry() =
+        testScope.runTest {
+            uiState.update {
+                it.copy(
+                    hasSessionModelPin = true,
+                    currentSessionModel = "anthropic/claude-3-5-sonnet",
+                )
+            }
+
+            delegate.resetSessionModel()
+            advanceUntilIdle()
+            assertTrue(uiState.value.hasSessionModelPin)
 
             delegate.handleConfigSetError("req-1", "Unknown model: reset")
 
-            // Reverted back to pinned model and pin flag restored
+            // Reverted back to pinned model and pin flag preserved
             assertEquals("anthropic/claude-3-5-sonnet", uiState.value.currentSessionModel)
             assertTrue(uiState.value.hasSessionModelPin)
+
+            // In-flight guard is cleared, allowing retry
+            delegate.resetSessionModel()
+            advanceUntilIdle()
+            assertEquals(2, sentParams.size)
+        }
+
+    @Test
+    fun resetSessionModel_resetsPinOnScopeChange() =
+        testScope.runTest {
+            val scopeObserverJob = kotlinx.coroutines.Job()
+            val observerScope = kotlinx.coroutines.CoroutineScope(testDispatcher + scopeObserverJob)
+            delegate.attachScopeObserver(observerScope)
+
+            uiState.update {
+                it.copy(
+                    hasSessionModelPin = true,
+                    currentSessionModel = "anthropic/claude-3-5-sonnet",
+                )
+            }
+
+            delegate.resetSessionModel()
+            advanceUntilIdle()
+            assertTrue(uiState.value.hasSessionModelPin)
+
+            // Switch data scope
+            dataScope.value =
+                DataScope(
+                    connectionProfileId = "conn-2",
+                    baseUrl = "http://localhost:9120",
+                    activeProfileId = "default",
+                    inMemoryAuthGeneration = 2L,
+                )
+            advanceUntilIdle()
+
+            assertFalse(uiState.value.hasSessionModelPin)
+            scopeObserverJob.cancel()
         }
 }

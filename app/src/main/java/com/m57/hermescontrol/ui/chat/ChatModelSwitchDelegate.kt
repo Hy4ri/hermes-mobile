@@ -70,6 +70,7 @@ class ChatModelSwitchDelegate(
     private val pendingModelSwitchRequests = ConcurrentHashMap<String, ActiveModelSwitch>()
     private val pendingFastSwitchRequests = ConcurrentHashMap<String, ActiveFastSwitch>()
     private val fastRejectedModels = ConcurrentHashMap.newKeySet<String>()
+    private var isResetPending: Boolean = false
     private var activeModelSwitchConfirmation: ActiveModelSwitch? = null
     private var optimisticPreviousModel: String? = null
     private var lastConfirmedModel: String? = null
@@ -99,6 +100,7 @@ class ChatModelSwitchDelegate(
                 modelInfoCapabilities = null
                 modelInfoModel = null
                 modelInfoScope = null
+                isResetPending = false
 
                 if (modelOptionsJobScope != newScope) {
                     modelOptionsJob?.cancel()
@@ -112,6 +114,7 @@ class ChatModelSwitchDelegate(
                         modelPickerProviders = emptyList(),
                         modelPickerLoading = shouldReload,
                         currentModelCapabilities = null,
+                        hasSessionModelPin = false,
                     )
                 }
 
@@ -283,13 +286,19 @@ class ChatModelSwitchDelegate(
      * the session pin and reverts to config.yaml's configured default model.
      */
     fun resetSessionModel() {
+        if (isResetPending) return
+        val sessionId = runtimeSessionId()
+        if (sessionId == null) {
+            addAssistantMessage("No active session. Use `/new` to create one.")
+            return
+        }
         uiState.update {
             it.copy(
                 showModelPicker = false,
                 modelPickerLoading = false,
-                hasSessionModelPin = false,
             )
         }
+        isResetPending = true
         handleModelSwitch("/model reset")
     }
 
@@ -310,17 +319,17 @@ class ChatModelSwitchDelegate(
             }
         val isReset = spec.equals("reset", ignoreCase = true)
         val previousModel = lastConfirmedModel ?: optimisticPreviousModel ?: uiState.value.currentSessionModel
-        // Retain optimisticPreviousModel for consumeOptimisticPreviousModel() when SessionInfo arrives.
-        if (optimisticPreviousModel == null && !spec.equals(uiState.value.currentSessionModel, ignoreCase = true)) {
-            optimisticPreviousModel = uiState.value.currentSessionModel
-            uiState.update { it.copy(fullContextTokens = null) }
-            onModelSwitchInitiated()
-        }
-        unconfirmedTargetModel = spec
-        if (isReset) {
-            uiState.update { it.copy(hasSessionModelPin = false) }
-        } else if (spec.isNotBlank()) {
-            uiState.update { it.copy(hasSessionModelPin = true) }
+        if (!isReset) {
+            // Retain optimisticPreviousModel for consumeOptimisticPreviousModel() when SessionInfo arrives.
+            if (optimisticPreviousModel == null && !spec.equals(uiState.value.currentSessionModel, ignoreCase = true)) {
+                optimisticPreviousModel = uiState.value.currentSessionModel
+                uiState.update { it.copy(fullContextTokens = null) }
+                onModelSwitchInitiated()
+            }
+            unconfirmedTargetModel = spec
+            if (spec.isNotBlank()) {
+                uiState.update { it.copy(hasSessionModelPin = true) }
+            }
         }
         val switchSeq = ++modelSwitchSequence
         val params =
@@ -346,7 +355,18 @@ class ChatModelSwitchDelegate(
         val pendingFast = pendingFastSwitchRequests.remove(id)
         val map = result as? Map<*, *> ?: return
         val key = map["key"] as? String
-        if (key == "model") {
+        val isModelKey = key == "model" || (key == null && pending != null)
+        if (isModelKey) {
+            if (pending != null && pending.spec.equals("reset", ignoreCase = true)) {
+                isResetPending = false
+                val resetValue = (map["value"] as? String)?.takeIf { it.isNotBlank() }
+                uiState.update {
+                    it.copy(
+                        hasSessionModelPin = false,
+                        currentSessionModel = resetValue ?: it.currentSessionModel,
+                    )
+                }
+            }
             val confirmRequired = map["confirm_required"] as? Boolean ?: false
             if (confirmRequired) {
                 if (pending != null && pending.sequence == modelSwitchSequence) {
@@ -446,6 +466,9 @@ class ChatModelSwitchDelegate(
         val pendingModel = pendingModelSwitchRequests.remove(id)
         if (pendingModel != null && pendingModel.sequence == modelSwitchSequence) {
             val isReset = pendingModel.spec.equals("reset", ignoreCase = true)
+            if (isReset) {
+                isResetPending = false
+            }
             val revertModel = lastConfirmedModel ?: pendingModel.previousModel
             optimisticPreviousModel = null
             unconfirmedTargetModel = null
@@ -513,6 +536,7 @@ class ChatModelSwitchDelegate(
         activeModelSwitchConfirmation = null
         optimisticPreviousModel = null
         unconfirmedTargetModel = null
+        isResetPending = false
         modelSwitchSequence++
         reasoningOpSequence++
         reasoningJob?.cancel()

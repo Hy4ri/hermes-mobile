@@ -17,6 +17,7 @@ import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.remote.safeApiRead
+import com.m57.hermescontrol.data.session.fetchActiveProfile
 import com.m57.hermescontrol.data.ws.ModelCatalogStore
 import com.m57.hermescontrol.data.ws.ModelOptionsRepository
 import com.m57.hermescontrol.ui.common.ToastHost
@@ -124,7 +125,7 @@ class ModelViewModel(
             // Phase 1: Launch fast lightweight calls first (profiles, aux, moa)
             val activeProfileDeferred =
                 async(ioDispatcher) {
-                    safeApiRead { ApiClient.hermesApi.getActiveProfile() }
+                    fetchActiveProfile()
                 }
             val profilesDeferred =
                 async(ioDispatcher) {
@@ -227,7 +228,7 @@ class ModelViewModel(
         viewModelScope.launch {
             val activeProfileDeferred =
                 async(ioDispatcher) {
-                    safeApiRead { ApiClient.hermesApi.getActiveProfile() }
+                    fetchActiveProfile()
                 }
             val profilesDeferred =
                 async(ioDispatcher) {
@@ -602,7 +603,7 @@ class ModelViewModel(
                 } else {
                     val activeProfileNameResResult =
                         withContext(Dispatchers.IO) {
-                            safeApiRead { ApiClient.hermesApi.getActiveProfile() }
+                            fetchActiveProfile()
                         }
                     when (activeProfileNameResResult) {
                         is NetworkResult.Failure -> {

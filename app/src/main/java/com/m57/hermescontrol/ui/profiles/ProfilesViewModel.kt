@@ -23,6 +23,7 @@ import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.remote.safeApiRead
 import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
+import com.m57.hermescontrol.data.session.fetchActiveProfile
 import com.m57.hermescontrol.ui.common.ToastHost
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -169,7 +170,7 @@ class ProfilesViewModel(
                 coroutineScope {
                     val profilesDeferred = async(ioDispatcher) { safeApiRead { ApiClient.hermesApi.getProfiles() } }
                     val activeDeferred =
-                        async(ioDispatcher) { safeApiRead { ApiClient.hermesApi.getActiveProfile() } }
+                        async(ioDispatcher) { fetchActiveProfile() }
                     val statusDeferred = async(ioDispatcher) { safeApiRead { ApiClient.hermesApi.getStatus() } }
 
                     val profilesResult = profilesDeferred.await()

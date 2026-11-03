@@ -1,7 +1,6 @@
 package com.m57.hermescontrol.data.session
 
 import com.m57.hermescontrol.data.local.AuthManager
-import com.m57.hermescontrol.data.model.SetActiveProfileRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.HermesApiService
 import com.m57.hermescontrol.data.remote.NetworkError
@@ -19,7 +18,6 @@ import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
 import io.mockk.verify
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
@@ -29,13 +27,11 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import retrofit2.Response
 
 /**
  * The switch coordinator is the single atomic profile-switch flow — every
@@ -89,14 +85,13 @@ class ProfileSwitchCoordinatorTest {
     }
 
     @Test
-    fun `success flips server then persists selection then re-dials socket`() =
+    fun `success persists local selection then re-dials socket without touching the server`() =
         runTest {
-            coEvery { mockApi.setActiveProfile(any()) } returns Response.success(Unit)
-
             val result = ProfileSwitchCoordinator.switchProfile("meow")
 
             assertTrue(result is NetworkResult.Success)
-            coVerify { mockApi.setActiveProfile(SetActiveProfileRequest("meow")) }
+            // #1764: the server's sticky profile is shared by all clients; never flip it.
+            coVerify(exactly = 0) { mockApi.setActiveProfile(any()) }
             // Ordering.ORDERED, not SEQUENCE: the point of this test is the relative
             // ORDER of the switch steps. SEQUENCE also demands that NO other call
             // touches the mocked objects in between, which is untestable in a shared
@@ -119,7 +114,6 @@ class ProfileSwitchCoordinatorTest {
     @Test
     fun `success broadcasts the switch so chat wipes before the re-dial`() =
         runTest {
-            coEvery { mockApi.setActiveProfile(any()) } returns Response.success(Unit)
             // Subscribe BEFORE the switch — exactly how ChatViewModel does it.
             val received = Channel<String>(Channel.UNLIMITED)
             backgroundScope.launch {
@@ -134,20 +128,6 @@ class ProfileSwitchCoordinatorTest {
             // wipe BEFORE gateway.ready arrives on the re-dialed socket and
             // auto-creates the fresh session (desktop requestFreshSession).
             assertEquals("meow", received.tryReceive().getOrNull())
-        }
-
-    @Test
-    fun `failure touches nothing`() =
-        runTest {
-            coEvery { mockApi.setActiveProfile(any()) } returns errorResponse(500)
-
-            val result = ProfileSwitchCoordinator.switchProfile("meow")
-
-            assertTrue(result is NetworkResult.Failure)
-            verify(exactly = 0) { AuthManager.setSelectedProfileId(any()) }
-            verify(exactly = 0) { AuthManager.setActiveProfileId(any()) }
-            verify(exactly = 0) { HermesWsClient.disconnect(any()) }
-            verify(exactly = 0) { HermesWsClient.connect() }
         }
 
     @Test
@@ -211,33 +191,17 @@ class ProfileSwitchCoordinatorTest {
     @Test
     fun `concurrent switches serialize and execute sequentially under switch mutex`() =
         runTest {
-            coEvery { mockApi.setActiveProfile(any()) } returns Response.success(Unit)
-
             val order = mutableListOf<String>()
-            val firstResponse = CompletableDeferred<Unit>()
-            coEvery { mockApi.setActiveProfile(SetActiveProfileRequest("p1")) } coAnswers {
-                order.add("p1-start")
-                firstResponse.await()
-                order.add("p1-end")
-                Response.success(Unit)
-            }
-            coEvery { mockApi.setActiveProfile(SetActiveProfileRequest("p2")) } coAnswers {
-                order.add("p2-start")
-                order.add("p2-end")
-                Response.success(Unit)
-            }
+            every { AuthManager.setActiveProfileId(any()) } answers { order.add("${firstArg<String?>()}-set") }
+            every { HermesWsClient.connect() } answers { order.add("connect") }
 
             val job1 = launch { ProfileSwitchCoordinator.switchProfile("p1") }
             val job2 = launch { ProfileSwitchCoordinator.switchProfile("p2") }
-
-            runCurrent()
-            assertEquals(listOf("p1-start"), order)
-            firstResponse.complete(Unit)
             job1.join()
             job2.join()
 
-            // Verify operations for p1 completely finished before p2 began (mutex serialization)
-            assertEquals(listOf("p1-start", "p1-end", "p2-start", "p2-end"), order)
+            // p1 finished completely before p2 began (mutex serialization)
+            assertEquals(listOf("p1-set", "connect", "p2-set", "connect"), order)
         }
 
     @Test
@@ -267,7 +231,6 @@ class ProfileSwitchCoordinatorTest {
             ProfileLock.setStoreForTest(ProfileLockStore(FakeSharedPreferences()))
             try {
                 ProfileLock.enable(ProfileLockTarget("home", "kids"), "4826")
-                coEvery { mockApi.setActiveProfile(any()) } returns Response.success(Unit)
 
                 assertTrue(ProfileSwitchCoordinator.switchProfile("kids") is NetworkResult.Success)
                 verify { AuthManager.setActiveProfileId("kids") }
@@ -296,5 +259,14 @@ class ProfileSwitchCoordinatorTest {
             }
         }
 
-    private fun <T> errorResponse(code: Int): Response<T> = Response.error(code, "{}".toResponseBody(null))
+    @Test
+    fun `fetchActiveProfile prefers the local profile over the server's sticky one`() =
+        runTest {
+            every { AuthManager.activeProfileId } returns kotlinx.coroutines.flow.MutableStateFlow("kids")
+
+            val result = fetchActiveProfile()
+
+            assertEquals("kids", (result as NetworkResult.Success).data.active)
+            coVerify(exactly = 0) { mockApi.getActiveProfile() }
+        }
 }

@@ -1234,4 +1234,49 @@ class ChatModelSwitchDelegateTest {
             advanceUntilIdle()
             assertEquals(2, sentParams.size)
         }
+
+    @Test
+    fun resetNoneAcknowledgment_isIdempotentAndKeepsActionAvailable() =
+        testScope.runTest {
+            uiState.update { it.copy(currentSessionModel = "gpt-4o") }
+            val warning = "No session model override is active — already using `gpt-4o` (the channel/global default)."
+            repeat(2) { index ->
+                delegate.openModelPicker()
+                advanceUntilIdle()
+                assertTrue(uiState.value.modelPickerCanUseDefault)
+                delegate.resetSessionModel()
+                advanceUntilIdle()
+                assertTrue(uiState.value.isModelResetPending)
+                assertEquals("gpt-4o", uiState.value.currentSessionModel)
+                delegate.handleConfigSetResult(
+                    "req-${index + 1}",
+                    mapOf(
+                        "key" to "model",
+                        "value" to "gpt-4o",
+                        "warning" to warning,
+                        "confirm_required" to false,
+                        "scope" to "session",
+                    ),
+                )
+                assertEquals("gpt-4o", uiState.value.currentSessionModel)
+                assertFalse(uiState.value.isModelResetPending)
+            }
+            assertEquals(listOf("⚠ $warning", "⚠ $warning"), assistantMessages)
+            assertEquals(2, sentParams.size)
+        }
+
+    @Test
+    fun resetConfirmationFromPreviousRuntime_cannotSendOrRollBackNewSession() =
+        testScope.runTest {
+            delegate.resetSessionModel()
+            advanceUntilIdle()
+            delegate.handleConfigSetResult("req-1", mapOf("confirm_required" to true))
+            runtimeId = "runtime-2"
+            val snapshot = ChatUiState(currentSessionId = "sess-2", currentSessionModel = "new-session-model")
+            uiState.value = snapshot
+            delegate.confirmModelSwitchExpensive()
+            advanceUntilIdle()
+            assertEquals(1, sentParams.size)
+            assertEquals(snapshot, uiState.value)
+        }
 }

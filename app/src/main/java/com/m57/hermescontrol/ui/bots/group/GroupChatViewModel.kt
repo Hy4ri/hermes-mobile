@@ -3,6 +3,7 @@ package com.m57.hermescontrol.ui.bots.group
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.GroupChatRoomLease
 import com.m57.hermescontrol.data.model.GroupChatRoomMeta
 import com.m57.hermescontrol.data.model.GroupChatSyncFrom
@@ -14,7 +15,9 @@ import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiRead
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
+import com.m57.hermescontrol.data.ws.GateAdmission
 import com.m57.hermescontrol.data.ws.HermesWsClient
+import com.m57.hermescontrol.data.ws.StreamSegmentGate
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.contract.DESKTOP_SESSION_SOURCE
 import com.m57.hermescontrol.data.ws.contract.ProfilesConfigureParams
@@ -79,6 +82,17 @@ class GroupChatViewModel(
     private val _uiState = MutableStateFlow(GroupChatUiState(groupName = groupName))
     val uiState: StateFlow<GroupChatUiState> = _uiState.asStateFlow()
 
+    // Issue #389: stamped stream dedupe, applied only after a token is routed to an
+    // accepted bot message (active stream + bot known). Scoped by profile/server and
+    // by group epoch; per-session, bounded turn history comes from the gate itself.
+    private val streamSegmentGate =
+        StreamSegmentGate(
+            scopeKeyProvider = {
+                val scope = runCatching { AuthManager.currentDataScope()?.inMemoryKey() }.getOrNull() ?: "default"
+                "$scope|$groupName|$activeEpoch"
+            },
+        )
+
     private val localDriverId = "android_" + UUID.randomUUID().toString().take(8)
     private var activeEpoch: String = ""
 
@@ -121,6 +135,7 @@ class GroupChatViewModel(
         activeStreamMsgId.clear()
         sessionToBot.clear()
         sessionLastActivity.clear()
+        streamSegmentGate.reset()
         _uiState.value = GroupChatUiState(groupName = name)
         loadGroup()
     }
@@ -179,13 +194,38 @@ class GroupChatViewModel(
                             val streamId = activeStreamMsgId[sid]
                             val bot = sessionToBot[sid]
                             if (streamId != null && bot != null && event.token.isNotEmpty()) {
+                                // Gate only at the accepted boundary (#389). On a gap the turn is
+                                // quarantined: later deltas drop and the authoritative
+                                // MessageComplete text finalizes the reply, so no partial text
+                                // is ever stitched across the hole.
+                                val token =
+                                    when (val admission = streamSegmentGate.evaluate(event)) {
+                                        is GateAdmission.Accept -> {
+                                            (admission.event as? WsEvent.MessageToken)?.token ?: event.token
+                                        }
+
+                                        is GateAdmission.Drop -> {
+                                            return@collect
+                                        }
+
+                                        is GateAdmission.GapDetected -> {
+                                            Log.w(
+                                                "GroupChatViewModel",
+                                                "Stream gap in ${admission.sessionId} turn ${admission.turnId}: " +
+                                                    "expected ${admission.expectedOffset}, " +
+                                                    "got ${admission.incomingOffset}; awaiting completion",
+                                            )
+                                            return@collect
+                                        }
+                                    }
+                                if (token.isEmpty()) return@collect
                                 _uiState.update { state ->
                                     val existing = state.messages.find { it.id == streamId }
                                     val updatedMessages =
                                         if (existing != null) {
                                             state.messages.map { msg ->
                                                 if (msg.id == streamId) {
-                                                    msg.copy(text = msg.text + event.token)
+                                                    msg.copy(text = msg.text + token)
                                                 } else {
                                                     msg
                                                 }
@@ -198,7 +238,7 @@ class GroupChatViewModel(
                                                     senderDisplayName = bot.effectiveTitle,
                                                     isUser = false,
                                                     avatarMeta = bot.botMeta()?.avatar,
-                                                    text = event.token,
+                                                    text = token,
                                                     isStreaming = true,
                                                 )
                                         }
@@ -319,6 +359,9 @@ class GroupChatViewModel(
                         val sid = event.sessionId?.trim('\"', ' ')
                         if (sid != null) {
                             Log.d("GroupChatViewModel", "MessageComplete for session $sid: '${event.text.take(50)}'")
+                            (event.rawPayload?.get("turn_id") as? String)?.let { tid ->
+                                streamSegmentGate.markTurnCompleted(sid, tid)
+                            }
                             inFlightTurns[sid]?.complete(event.text)
                         }
                     }

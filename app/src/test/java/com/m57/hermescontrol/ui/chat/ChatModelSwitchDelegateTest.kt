@@ -997,137 +997,241 @@ class ChatModelSwitchDelegateTest {
         }
 
     @Test
-    fun resetSessionModel_dispatchesConfigSetWithResetValue_andKeepsPinUntilConfirmed() =
+    fun resetKeepsModelUntilExactKeylessAcknowledgment_andSuppressesDuplicates() =
         testScope.runTest {
-            uiState.update {
-                it.copy(
-                    showModelPicker = true,
-                    hasSessionModelPin = true,
-                    currentSessionModel = "anthropic/claude-3-5-sonnet",
-                )
-            }
-
+            delegate.resetSessionModel()
             delegate.resetSessionModel()
             advanceUntilIdle()
-
-            // Picker is closed immediately, but hasSessionModelPin stays true until server ACK
-            assertFalse(uiState.value.showModelPicker)
-            assertTrue(uiState.value.hasSessionModelPin)
-            // Model does not optimistically display "reset"
-            assertEquals("anthropic/claude-3-5-sonnet", uiState.value.currentSessionModel)
-
-            // Sent config.set key=model value=reset
+            assertTrue(uiState.value.isModelResetPending)
+            assertEquals("anthropic/claude-3", uiState.value.currentSessionModel)
             assertEquals(1, sentParams.size)
-            assertEquals("model", sentParams[0].key)
-            assertEquals("reset", sentParams[0].value)
-            assertEquals("runtime-1", sentParams[0].sessionId)
-
-            // Duplicate call while in-flight is suppressed
-            delegate.resetSessionModel()
-            advanceUntilIdle()
-            assertEquals(1, sentParams.size)
-
-            // Response with warning/reset_done and default model in value
+            assertEquals("model", sentParams.single().key)
+            assertEquals("reset", sentParams.single().value)
+            assertEquals("runtime-1", sentParams.single().sessionId)
+            // The reset helper's exact shape, without methods_config_set._kv's key wrapper.
             delegate.handleConfigSetResult(
-                id = "req-1",
-                result =
-                    mapOf(
-                        "key" to "model",
-                        "value" to "claude-3-haiku",
-                        "scope" to "session",
-                        "warning" to "Session model override cleared",
-                    ),
+                "req-1",
+                mapOf(
+                    "value" to "default-model",
+                    "warning" to "Override cleared",
+                    "scope" to "session",
+                    "confirm_required" to false,
+                ),
             )
-
-            // Warning message surfaced to chat, pin cleared, and default model adopted
-            assertEquals(listOf("⚠ Session model override cleared"), assistantMessages)
-            assertFalse(uiState.value.hasSessionModelPin)
-            assertEquals("claude-3-haiku", uiState.value.currentSessionModel)
+            assertFalse(uiState.value.isModelResetPending)
+            assertEquals("default-model", uiState.value.currentSessionModel)
+            assertEquals(listOf("⚠ Override cleared"), assistantMessages)
         }
 
     @Test
-    fun resetSessionModel_handlesConfigSetResultWithoutKey() =
+    fun resetErrorFromOlderGateway_preservesModelAndAllowsRetry() =
         testScope.runTest {
-            uiState.update {
-                it.copy(
-                    hasSessionModelPin = true,
-                    currentSessionModel = "anthropic/claude-3-5-sonnet",
-                )
-            }
-
             delegate.resetSessionModel()
             advanceUntilIdle()
-            assertTrue(uiState.value.hasSessionModelPin)
-
-            // Response where "key" is omitted or null
-            delegate.handleConfigSetResult(
-                id = "req-1",
-                result =
-                    mapOf(
-                        "value" to "anthropic/claude-3-haiku",
-                        "scope" to "session",
-                    ),
-            )
-
-            assertFalse(uiState.value.hasSessionModelPin)
-            assertEquals("anthropic/claude-3-haiku", uiState.value.currentSessionModel)
-        }
-
-    @Test
-    fun handleConfigSetError_whenResetFails_retainsPinFlagAndAllowsRetry() =
-        testScope.runTest {
-            uiState.update {
-                it.copy(
-                    hasSessionModelPin = true,
-                    currentSessionModel = "anthropic/claude-3-5-sonnet",
-                )
-            }
-
-            delegate.resetSessionModel()
-            advanceUntilIdle()
-            assertTrue(uiState.value.hasSessionModelPin)
-
             delegate.handleConfigSetError("req-1", "Unknown model: reset")
-
-            // Reverted back to pinned model and pin flag preserved
-            assertEquals("anthropic/claude-3-5-sonnet", uiState.value.currentSessionModel)
-            assertTrue(uiState.value.hasSessionModelPin)
-
-            // In-flight guard is cleared, allowing retry
+            assertFalse(uiState.value.isModelResetPending)
+            assertEquals("anthropic/claude-3", uiState.value.currentSessionModel)
             delegate.resetSessionModel()
             advanceUntilIdle()
             assertEquals(2, sentParams.size)
         }
 
     @Test
-    fun resetSessionModel_resetsPinOnScopeChange() =
+    fun resetWithoutRuntime_doesNotSendOrChangeModel() =
         testScope.runTest {
-            val scopeObserverJob = kotlinx.coroutines.Job()
-            val observerScope = kotlinx.coroutines.CoroutineScope(testDispatcher + scopeObserverJob)
-            delegate.attachScopeObserver(observerScope)
-
-            uiState.update {
-                it.copy(
-                    hasSessionModelPin = true,
-                    currentSessionModel = "anthropic/claude-3-5-sonnet",
-                )
-            }
-
+            runtimeId = null
             delegate.resetSessionModel()
             advanceUntilIdle()
-            assertTrue(uiState.value.hasSessionModelPin)
+            assertTrue(sentParams.isEmpty())
+            assertFalse(uiState.value.isModelResetPending)
+            assertEquals("anthropic/claude-3", uiState.value.currentSessionModel)
+        }
 
-            // Switch data scope
-            dataScope.value =
-                DataScope(
-                    connectionProfileId = "conn-2",
-                    baseUrl = "http://localhost:9120",
-                    activeProfileId = "default",
-                    inMemoryAuthGeneration = 2L,
-                )
+    @Test
+    fun reopenedSessionsCanUseDefault_withoutGuessingPinFromModel() =
+        testScope.runTest {
+            // The gateway exposes no pin flag. Same-model and different-model sessions
+            // must both offer the idempotent action after resume binds their runtime.
+            for (model in listOf("default-model", "explicitly-picked-model")) {
+                delegate.reset()
+                uiState.value = ChatUiState(currentSessionId = "reopened", currentSessionModel = model)
+                runtimeId = "resumed-runtime"
+                delegate.openModelPicker()
+                advanceUntilIdle()
+                assertTrue(uiState.value.modelPickerCanUseDefault)
+                delegate.resetSessionModel()
+                advanceUntilIdle()
+                assertEquals("resumed-runtime", sentParams.last().sessionId)
+            }
+            runtimeId = null
+            delegate.openModelPicker()
+            assertFalse(uiState.value.modelPickerCanUseDefault)
+        }
+
+    @Test
+    fun delayedResetAckAndError_doNotOverwriteNewerManualSwitch() =
+        testScope.runTest {
+            delegate.resetSessionModel()
             advanceUntilIdle()
+            delegate.sendSlashModel("openai", "gpt-4o")
+            delegate.handleModelSwitch("/model gpt-4o --provider openai --session")
+            advanceUntilIdle()
+            delegate.handleConfigSetResult("req-1", mapOf("key" to "model", "value" to "old-default"))
+            delegate.handleConfigSetError("req-1", "late failure")
+            assertEquals("openai/gpt-4o", uiState.value.currentSessionModel)
+            assertFalse(uiState.value.isModelResetPending)
+            assertTrue(assistantMessages.isEmpty())
+        }
 
-            assertFalse(uiState.value.hasSessionModelPin)
-            scopeObserverJob.cancel()
+    @Test
+    fun delayedResetAckAfterNewerTypedSwitch_isIgnored() =
+        testScope.runTest {
+            delegate.resetSessionModel()
+            advanceUntilIdle()
+            delegate.handleModelSwitch("/model new-model")
+            advanceUntilIdle()
+            delegate.handleConfigSetResult("req-1", mapOf("value" to "old-default", "scope" to "session"))
+            assertEquals("anthropic/claude-3", uiState.value.currentSessionModel)
+            assertTrue(delegate.isSwitchPending())
+        }
+
+    @Test
+    fun delayedResetAckAndError_cannotMutateAnotherRuntimeSession() =
+        testScope.runTest {
+            delegate.resetSessionModel()
+            advanceUntilIdle()
+            runtimeId = "runtime-2"
+            uiState.value = ChatUiState(currentSessionId = "sess-2", currentSessionModel = "session-2-model")
+            val snapshot = uiState.value
+            delegate.handleConfigSetResult("req-1", mapOf("key" to "model", "value" to "old-default"))
+            delegate.handleConfigSetError("req-1", "late error")
+            assertEquals(snapshot, uiState.value)
+        }
+
+    @Test
+    fun delayedResetAckAndError_cannotMutateAnotherScope_evenWithoutObserver() =
+        testScope.runTest {
+            delegate.resetSessionModel()
+            advanceUntilIdle()
+            dataScope.value = initialDataScope.copy(activeProfileId = "other")
+            uiState.value = ChatUiState(currentSessionModel = "other-profile-model")
+            val snapshot = uiState.value
+            delegate.handleConfigSetError("req-1", "late error")
+            delegate.handleConfigSetResult("req-1", mapOf("key" to "model", "value" to "old-default"))
+            assertEquals(snapshot, uiState.value)
+        }
+
+    @Test
+    fun scopeObserver_clearsPendingResetAndIgnoresLateAcknowledgment() =
+        testScope.runTest {
+            val observerJob = Job()
+            delegate.attachScopeObserver(kotlinx.coroutines.CoroutineScope(testDispatcher + observerJob))
+            runCurrent()
+            delegate.resetSessionModel()
+            advanceUntilIdle()
+            dataScope.value = initialDataScope.copy(activeProfileId = "other")
+            advanceUntilIdle()
+            assertFalse(uiState.value.isModelResetPending)
+            delegate.handleConfigSetResult("req-1", mapOf("key" to "model", "value" to "old-default"))
+            assertEquals("anthropic/claude-3", uiState.value.currentSessionModel)
+            observerJob.cancel()
+        }
+
+    @Test
+    fun resetConfirmation_doesNotApplyBeforeConfirmedAcknowledgment() =
+        testScope.runTest {
+            delegate.resetSessionModel()
+            advanceUntilIdle()
+            delegate.handleConfigSetResult(
+                "req-1",
+                mapOf(
+                    "key" to "model",
+                    "value" to "default-model",
+                    "confirm_required" to true,
+                    "confirm_message" to "Continue?",
+                ),
+            )
+            assertEquals("anthropic/claude-3", uiState.value.currentSessionModel)
+            assertEquals("Continue?", uiState.value.modelSwitchConfirmMessage)
+            assertTrue(uiState.value.isModelResetPending)
+            delegate.confirmModelSwitchExpensive()
+            advanceUntilIdle()
+            assertEquals(true, sentParams.last().confirmExpensiveModel)
+            assertEquals("anthropic/claude-3", uiState.value.currentSessionModel)
+            delegate.handleConfigSetResult(
+                "req-2",
+                mapOf(
+                    "key" to "model",
+                    "value" to "default-model",
+                    "confirm_required" to false,
+                ),
+            )
+            assertEquals("default-model", uiState.value.currentSessionModel)
+            assertFalse(uiState.value.isModelResetPending)
+        }
+
+    @Test
+    fun dismissResetConfirmation_keepsPreviousModelAndAllowsRetry() =
+        testScope.runTest {
+            delegate.resetSessionModel()
+            advanceUntilIdle()
+            delegate.handleConfigSetResult("req-1", mapOf("key" to "model", "confirm_required" to true))
+            delegate.dismissModelSwitchConfirm()
+            assertEquals("anthropic/claude-3", uiState.value.currentSessionModel)
+            assertFalse(uiState.value.isModelResetPending)
+            delegate.resetSessionModel()
+            advanceUntilIdle()
+            assertEquals(2, sentParams.size)
+        }
+
+    @Test
+    fun resetWithMalformedResponseOrCommandEcho_neverDisplaysReset() =
+        testScope.runTest {
+            delegate.resetSessionModel()
+            advanceUntilIdle()
+            delegate.handleConfigSetResult("req-1", null)
+            assertFalse(uiState.value.isModelResetPending)
+            delegate.resetSessionModel()
+            advanceUntilIdle()
+            delegate.handleConfigSetResult("req-2", mapOf("value" to "reset"))
+            assertFalse(uiState.value.isModelResetPending)
+            assertEquals("anthropic/claude-3", uiState.value.currentSessionModel)
+        }
+
+    @Test
+    fun resetAcknowledgmentCannotCrossScopeWithoutObserver() =
+        testScope.runTest {
+            delegate.resetSessionModel()
+            advanceUntilIdle()
+            dataScope.value = initialDataScope.copy(activeProfileId = "other")
+            val snapshot = ChatUiState(currentSessionModel = "other-scope-model")
+            uiState.value = snapshot
+            delegate.handleConfigSetResult("req-1", mapOf("value" to "old-default"))
+            assertEquals(snapshot, uiState.value)
+        }
+
+    @Test
+    fun resetQueuedBeforeSessionSwitchIsNotDispatched() =
+        testScope.runTest {
+            delegate.resetSessionModel()
+            runtimeId = "runtime-2"
+            delegate.reset()
+            advanceUntilIdle()
+            assertTrue(sentParams.isEmpty())
+            assertFalse(uiState.value.isModelResetPending)
+        }
+
+    @Test
+    fun newerSwitchRetiresOldResetConfirmation() =
+        testScope.runTest {
+            delegate.resetSessionModel()
+            advanceUntilIdle()
+            delegate.handleConfigSetResult("req-1", mapOf("confirm_required" to true))
+            delegate.handleModelSwitch("/model new-model")
+            advanceUntilIdle()
+            assertNull(uiState.value.modelSwitchConfirmMessage)
+            delegate.confirmModelSwitchExpensive()
+            advanceUntilIdle()
+            assertEquals(2, sentParams.size)
         }
 }

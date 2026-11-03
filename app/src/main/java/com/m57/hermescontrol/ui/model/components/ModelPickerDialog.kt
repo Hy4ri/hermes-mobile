@@ -69,6 +69,7 @@ fun ModelPickerDialog(
     pinnedModels: List<PinnedModel> = emptyList(),
     onPinToggle: ((provider: String, model: String) -> Unit)? = null,
     showUseDefaultOption: Boolean = false,
+    useDefaultEnabled: Boolean = true,
     onUseDefault: (() -> Unit)? = null,
     onSelect: (provider: String, model: String) -> Unit,
     onDismiss: () -> Unit,
@@ -189,46 +190,7 @@ fun ModelPickerDialog(
                     ) {
                         if (showUseDefaultOption && onUseDefault != null && pickerQuery.isBlank()) {
                             item(key = "use-default-model-row") {
-                                Surface(
-                                    modifier =
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 2.dp)
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .clickable(onClick = onUseDefault),
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = MaterialTheme.colorScheme.surfaceContainerLow,
-                                    border =
-                                        BorderStroke(
-                                            width = 1.dp,
-                                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
-                                        ),
-                                ) {
-                                    Row(
-                                        modifier =
-                                            Modifier.padding(
-                                                start = 12.dp,
-                                                end = 12.dp,
-                                                top = 8.dp,
-                                                bottom = 8.dp,
-                                            ),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.RestartAlt,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(18.dp),
-                                        )
-                                        Text(
-                                            text = stringResource(R.string.model_picker_use_default),
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Medium,
-                                            color = MaterialTheme.colorScheme.primary,
-                                        )
-                                    }
-                                }
+                                UseDefaultModelRow(enabled = useDefaultEnabled, onClick = onUseDefault)
                             }
                         }
 
@@ -467,3 +429,80 @@ internal fun pinnedProviderLabel(
     pinned: PinnedModel,
     providerBySlug: Map<String, ModelProvider>,
 ): String = providerBySlug[pinned.providerSlug]?.name?.takeIf { it.isNotBlank() } ?: pinned.providerSlug
+
+@Composable
+private fun UseDefaultModelRow(
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Surface(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .padding(vertical = 2.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .clickable(enabled = enabled, onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border =
+            BorderStroke(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+            ),
+    ) {
+        Row(
+            modifier =
+                Modifier.padding(
+                    start = 12.dp,
+                    end = 12.dp,
+                    top = 8.dp,
+                    bottom = 8.dp,
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.RestartAlt,
+                contentDescription = null,
+                tint =
+                    if (enabled) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                            .copy(
+                                alpha = 0.38f,
+                            )
+                    },
+                modifier = Modifier.size(18.dp),
+            )
+            Text(
+                text = stringResource(R.string.model_picker_use_default),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                color =
+                    if (enabled) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                            .copy(
+                                alpha = 0.38f,
+                            )
+                    },
+            )
+        }
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(widthDp = 320, showBackground = true)
+@Composable
+private fun UseDefaultModelRowPreview() {
+    com.m57.hermescontrol.theme.HermesControlTheme {
+        Surface {
+            Column(modifier = Modifier.padding(12.dp)) {
+                UseDefaultModelRow(enabled = true, onClick = {})
+                UseDefaultModelRow(enabled = false, onClick = {})
+            }
+        }
+    }
+}

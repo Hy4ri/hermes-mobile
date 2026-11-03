@@ -1174,7 +1174,8 @@ fun ChatScreen(
                 isLoading = state.modelPickerLoading && state.modelPickerProviders.isEmpty(),
                 pinnedModels = state.modelPickerPinned,
                 onPinToggle = { provider, model -> viewModel.togglePinModel(provider, model) },
-                showUseDefaultOption = state.hasSessionModelPin,
+                showUseDefaultOption = state.modelPickerCanUseDefault,
+                useDefaultEnabled = !state.isModelResetPending,
                 onUseDefault = { viewModel.resetSessionModel() },
                 onSelect = { provider, model ->
                     viewModel.sendSlashModel(provider, model)

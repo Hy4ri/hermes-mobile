@@ -79,6 +79,7 @@ internal class RpcChannel(
         capabilityRequestIds.clear()
         declinesNotShown = false
         canonicalClarifyBatch = false
+        sessionAuthority = false
     }
 
     /** Backend advertised (in the `client.capabilities` result) that a 4404 counts as a decline. */
@@ -89,6 +90,11 @@ internal class RpcChannel(
     /** Backend advertised (in the `client.capabilities` result) that it supports canonical clarify batch. */
     @Volatile
     var canonicalClarifyBatch: Boolean = false
+        private set
+
+    /** Legacy routes can advertise clarify.lock support without accepting prompt.submit's clarify_batch. */
+    @Volatile
+    var sessionAuthority: Boolean = false
         private set
 
     fun consumeCapabilityResponse(event: WsEvent): Boolean {
@@ -387,6 +393,10 @@ internal class RpcChannel(
             }
         if (consumeCapabilityResponse(event)) return
         when (event) {
+            is WsEvent.GatewayReady -> {
+                sessionAuthority = event.data?.get("session_authority") == true
+            }
+
             is WsEvent.RpcResult -> {
                 desktopCreates.remove(event.id)
                 onResult(event.id)

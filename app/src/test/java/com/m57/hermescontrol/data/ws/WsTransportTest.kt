@@ -55,6 +55,7 @@ class WsTransportTest {
     ) {
         val outboundLock = Any()
         val rawMessages = mutableListOf<String>()
+        val rawMessageLockHeld = mutableListOf<Boolean>()
         val replayEmittedEvents = mutableListOf<WsEvent>()
         val reconnectPolicy = ReconnectPolicy()
 
@@ -118,7 +119,10 @@ class WsTransportTest {
                 connectionHealth = connectionHealth,
                 replayTracker = replayTracker,
                 rpcChannel = rpcChannel,
-                onRawMessage = { rawMessages.add(it) },
+                onRawMessage = {
+                    rawMessages.add(it)
+                    rawMessageLockHeld.add(Thread.holdsLock(outboundLock))
+                },
             ).also { transportRef = it }
 
         companion object {
@@ -405,6 +409,50 @@ class WsTransportTest {
         }
 
     @Test
+    fun networkReplacementClearsRouteAndCapabilitiesBeforeOpening() =
+        runTest {
+            every { AuthManager.isAutoReconnect() } returns true
+            val fixture = Fixture(this, testJson)
+            fixture.rpcChannel.handleIncomingFrame(
+                """{"method":"event","params":{"type":"gateway.ready","payload":{"session_authority":true}}}""",
+                fixture.replayTracker,
+            ) {}
+            fixture.rpcChannel.registerCapabilityRequest("old-cap")
+            fixture.rpcChannel.consumeCapabilityResponse(
+                WsEvent.RpcResult("old-cap", mapOf("canonical_clarify_batch" to true)),
+            )
+            fixture.rpcChannel.registerCapabilityRequest("late-cap")
+            assertTrue(fixture.rpcChannel.sessionAuthority)
+            assertTrue(fixture.rpcChannel.canonicalClarifyBatch)
+
+            fixture.transport.reconnectForNetworkChange(openReplacement = {
+                assertFalse(fixture.rpcChannel.sessionAuthority)
+                assertFalse(fixture.rpcChannel.canonicalClarifyBatch)
+                assertFalse(
+                    fixture.rpcChannel.consumeCapabilityResponse(
+                        WsEvent.RpcResult("late-cap", mapOf("canonical_clarify_batch" to true)),
+                    ),
+                )
+            })
+        }
+
+    @Test
+    fun incomingFramesShareTheSocketReplacementLockAndIgnoreStaleListeners() =
+        runTest {
+            val fixture = Fixture(this, testJson)
+            val socket = mockk<WebSocket>(relaxed = true)
+            fixture.transport.webSocketForTest = socket
+            val listener = fixture.transport.createListenerForTest(fixture.transport.currentGeneration)
+            listener.onMessage(socket, "ready")
+            assertEquals(listOf(true), fixture.rawMessageLockHeld)
+
+            fixture.transport.reconnectForNetworkChange(networkAvailable = false)
+            listener.onMessage(socket, "stale-ready")
+            listener.onMessage(socket, "stale-capability")
+            assertEquals(listOf("ready"), fixture.rawMessages)
+        }
+
+    @Test
     fun combinedLeasesSurviveIdleBackgroundUntilBothReleased() =
         runTest {
             val fixture = Fixture(this, testJson)
@@ -497,6 +545,44 @@ class WsTransportTest {
         }
 
     @Test
+    fun sendMessageReadsRouteInsideTheSendTransaction() =
+        runTest {
+            val fixture = Fixture(this, testJson)
+            val socket = mockk<WebSocket>(relaxed = true)
+            val frames = mutableListOf<String>()
+            every { socket.send(capture(frames)) } returns true
+            fixture.transport.webSocketForTest = socket
+            fixture.transport.connectedForTest.set(true)
+            fixture.rpcChannel.handleIncomingFrame(
+                """{"method":"event","params":{"type":"gateway.ready","payload":{"session_authority":true}}}""",
+                fixture.replayTracker,
+            ) {}
+            fixture.rpcChannel.registerCapabilityRequest("cap")
+            fixture.rpcChannel.consumeCapabilityResponse(
+                WsEvent.RpcResult("cap", mapOf("canonical_clarify_batch" to true)),
+            )
+            val sender = Thread { fixture.transport.sendMessage("s1", "hello") }
+            try {
+                synchronized(fixture.outboundLock) {
+                    sender.start()
+                    val deadline =
+                        System.nanoTime() +
+                            java.util.concurrent.TimeUnit.SECONDS
+                                .toNanos(5)
+                    while (sender.state != Thread.State.BLOCKED && System.nanoTime() < deadline) Thread.yield()
+                    assertEquals(Thread.State.BLOCKED, sender.state)
+                    fixture.rpcChannel.clearCapabilityRequests()
+                }
+            } finally {
+                sender.join(5000)
+            }
+            assertFalse(sender.isAlive)
+            assertEquals(1, frames.size)
+            val request = testJson.decodeFromString<JsonRpcRequest>(frames.single())
+            assertFalse(request.params.containsKey("clarify_batch"))
+        }
+
+    @Test
     fun awaitOpenSocketIdleWaitsForInFlightHandshakeToFinish() {
         val entered = java.util.concurrent.CountDownLatch(1)
         val release = java.util.concurrent.CountDownLatch(1)
@@ -517,8 +603,18 @@ class WsTransportTest {
             )
         try {
             val fixture = Fixture(scope, testJson)
+            fixture.rpcChannel.handleIncomingFrame(
+                """{"method":"event","params":{"type":"gateway.ready","payload":{"session_authority":true}}}""",
+                fixture.replayTracker,
+            ) {}
+            fixture.rpcChannel.registerCapabilityRequest("cap")
+            fixture.rpcChannel.consumeCapabilityResponse(
+                WsEvent.RpcResult("cap", mapOf("canonical_clarify_batch" to true)),
+            )
             fixture.transport.openSocket()
             assertTrue(entered.await(5, java.util.concurrent.TimeUnit.SECONDS))
+            assertFalse(fixture.rpcChannel.sessionAuthority)
+            assertFalse(fixture.rpcChannel.canonicalClarifyBatch)
             Thread { Thread.sleep(200).also { release.countDown() } }.start()
 
             fixture.transport.awaitOpenSocketIdleForTest()

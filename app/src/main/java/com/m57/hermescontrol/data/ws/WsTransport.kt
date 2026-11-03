@@ -219,6 +219,7 @@ internal class WsTransport(
             connected.set(false)
             connectionHealth.stop()
             shouldOpen = networkAvailable && AuthManager.isAutoReconnect()
+            rpcChannel.clearCapabilityRequests()
             rpcChannel.rejectAllPending()
             _connectionStatus.value =
                 when {
@@ -541,19 +542,24 @@ internal class WsTransport(
         onSent: ((String) -> Unit)? = null,
         queued: Boolean = false,
     ): String =
-        send(
-            rpcChannel.createRequest(
-                method = RpcMethods.PROMPT_SUBMIT.name,
-                params =
-                    PromptSubmitParams(
-                        sessionId = sessionId,
-                        text = text,
-                        queued = queued.takeIf { it },
-                        clarifyBatch = true.takeIf { rpcChannel.canonicalClarifyBatch },
-                    ).let { rpcChannel.encodeParams(RpcMethods.PROMPT_SUBMIT, it) },
-            ),
-            onSent = onSent,
-        )
+        synchronized(outboundLock) {
+            send(
+                rpcChannel.createRequest(
+                    method = RpcMethods.PROMPT_SUBMIT.name,
+                    params =
+                        PromptSubmitParams(
+                            sessionId = sessionId,
+                            text = text,
+                            queued = queued.takeIf { it },
+                            clarifyBatch =
+                                true.takeIf {
+                                    rpcChannel.sessionAuthority && rpcChannel.canonicalClarifyBatch
+                                },
+                        ).let { rpcChannel.encodeParams(RpcMethods.PROMPT_SUBMIT, it) },
+                ),
+                onSent = onSent,
+            )
+        }
 
     fun sendRedirect(
         sessionId: String,
@@ -576,6 +582,7 @@ internal class WsTransport(
         val generation =
             synchronized(outboundLock) {
                 if (intentionalClose.get()) return
+                rpcChannel.clearCapabilityRequests()
                 connectionGeneration.incrementAndGet()
             }
         val job =
@@ -705,10 +712,12 @@ internal class WsTransport(
             webSocket: WebSocket,
             text: String,
         ) {
-            if (!isCurrent() || this@WsTransport.webSocket !== webSocket) return
-            if (BuildConfig.DEBUG) Log.d(TAG, formatSafeIncomingFrameLog(text))
-            connectionHealth.onInboundFrame()
-            onRawMessage(text)
+            synchronized(outboundLock) {
+                if (!isCurrent() || this@WsTransport.webSocket !== webSocket) return
+                if (BuildConfig.DEBUG) Log.d(TAG, formatSafeIncomingFrameLog(text))
+                connectionHealth.onInboundFrame()
+                onRawMessage(text)
+            }
         }
 
         override fun onClosing(

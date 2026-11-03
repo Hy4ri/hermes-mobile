@@ -671,6 +671,52 @@ class RpcChannelTest {
         }
 
     @Test
+    fun gatewayReadyLearnsOnlyBooleanAuthorityBeforeEmittingAndResetRejectsStaleCapabilities() =
+        runTest {
+            val gateway = FakeGateway(this, testJson)
+            val tracker = ReplayTracker(this, { SessionEventsSinceResult() }, {})
+            assertFalse(gateway.channel.sessionAuthority)
+            for (payload in listOf(
+                "{}",
+                "null",
+                "false",
+                """{"session_authority":false}""",
+                """{"session_authority":null}""",
+                """{"session_authority":"true"}""",
+                """{"session_authority":1}""",
+                """{"session_authority":{}}""",
+            )) {
+                gateway.channel.handleIncomingFrame(
+                    """{"method":"event","params":{"type":"gateway.ready","payload":{"session_authority":true}}}""",
+                    tracker,
+                ) { assertTrue(gateway.channel.sessionAuthority) }
+                var emitted = false
+                gateway.channel.handleIncomingFrame(
+                    """{"method":"event","params":{"type":"gateway.ready","payload":$payload}}""",
+                    tracker,
+                ) {
+                    assertTrue(it is WsEvent.GatewayReady)
+                    assertFalse("payload=$payload", gateway.channel.sessionAuthority)
+                    emitted = true
+                }
+                assertTrue(emitted)
+            }
+            gateway.channel.handleIncomingFrame(
+                """{"method":"event","params":{"type":"gateway.ready","payload":{"session_authority":true}}}""",
+                tracker,
+            ) {}
+            gateway.channel.registerCapabilityRequest("late")
+            gateway.channel.clearCapabilityRequests()
+            assertFalse(gateway.channel.sessionAuthority)
+            gateway.channel.handleIncomingFrame(
+                """{"id":"late","result":{"canonical_clarify_batch":true,"session_authority":true}}""",
+                tracker,
+            ) {}
+            assertFalse(gateway.channel.sessionAuthority)
+            assertFalse(gateway.channel.canonicalClarifyBatch)
+        }
+
+    @Test
     fun handleIncomingFrameMalformedJsonInvokesParseFailureAndEmitsUnknown() =
         runTest {
             val parseFailures = mutableListOf<Exception>()

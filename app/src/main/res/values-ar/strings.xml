@@ -1341,6 +1341,7 @@
 <string name="model_picker_loading">جارٍ تحميل النماذج…</string>
 <string name="model_picker_no_models">لا توجد نماذج متاحة.</string>
 <string name="model_picker_search">البحث في النماذج والموفرين...</string>
+    <string name="model_picker_use_default">استخدام النموذج الافتراضي</string>
 <string name="model_reset_all_auto">إعادة ضبط الكل إلى تلقائي</string>
 <string name="model_search_placeholder">البحث في النماذج...</string>
 <string name="model_set_aux">تعيين المساعد: %1$s</string>

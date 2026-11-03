@@ -1671,6 +1671,7 @@
     <string name="model_picker_loading">모델 불러오는 중…</string>
     <string name="model_picker_no_models">사용 가능한 모델 없음.</string>
     <string name="model_picker_search">모델 및 제공자 검색...</string>
+    <string name="model_picker_use_default">기본 모델 사용</string>
     <string name="model_reset_all_auto">모두 자동으로 초기화</string>
     <string name="model_search_placeholder">모델 검색...</string>
     <string name="model_set_aux">보조 모델 설정: %1$s</string>

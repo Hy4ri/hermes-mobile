@@ -270,6 +270,9 @@ data class ChatUiState(
     val modelSwitchConfirmMessage: String? = null,
     // #1588: multi-turn /undo N waits here for confirmation before command.dispatch.
     val undoConfirmCount: Int? = null,
+    // No gateway pin-state field exists. Offer the idempotent action for any live session.
+    val modelPickerCanUseDefault: Boolean = false,
+    val isModelResetPending: Boolean = false,
     // Active model label shown in the chip: provider/model when known, otherwise the model-only identifier.
     val currentSessionModel: String? = null,
     // Per-model reasoning capabilities for the current session's model
@@ -5818,6 +5821,8 @@ class ChatViewModel(
         model: String,
     ) = modelSwitchDelegate.sendSlashModel(provider, model)
 
+    fun resetSessionModel() = modelSwitchDelegate.resetSessionModel()
+
     fun dismissModelSwitchConfirm() = modelSwitchDelegate.dismissModelSwitchConfirm()
 
     fun confirmModelSwitchExpensive() = modelSwitchDelegate.confirmModelSwitchExpensive()
@@ -6677,6 +6682,8 @@ class ChatViewModel(
                 modelPickerLoading = false,
                 modelSwitchConfirmMessage = null,
                 undoConfirmCount = null,
+                modelPickerCanUseDefault = false,
+                isModelResetPending = false,
                 currentSessionModel = null,
                 currentModelCapabilities = null,
                 reasoningLevel = null,

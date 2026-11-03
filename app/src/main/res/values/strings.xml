@@ -1719,6 +1719,7 @@
     <string name="model_picker_loading">Loading models…</string>
     <string name="model_picker_no_models">No models available.</string>
     <string name="model_picker_search">Search models and providers...</string>
+    <string name="model_picker_use_default">Use default model</string>
     <string name="model_reset_all_auto">Reset all to auto</string>
     <string name="model_search_placeholder">Search models...</string>
     <string name="model_set_aux">Set Aux: %1$s</string>

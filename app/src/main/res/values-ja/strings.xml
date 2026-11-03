@@ -1606,6 +1606,7 @@
     <string name="model_picker_loading">モデルを読み込み中…</string>
     <string name="model_picker_no_models">モデルはありません。</string>
     <string name="model_picker_search">モデルやプロバイダーを検索…</string>
+    <string name="model_picker_use_default">デフォルトモデルを使用</string>
     <string name="model_reset_all_auto">すべて自動選択に戻す</string>
     <string name="model_search_placeholder">モデルを検索…</string>
     <string name="model_set_aux">補助モデルを設定：%1$s</string>

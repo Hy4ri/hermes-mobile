@@ -1625,6 +1625,7 @@
     <string name="model_picker_loading">Modelle werden geladen…</string>
     <string name="model_picker_no_models">Keine Modelle verfügbar.</string>
     <string name="model_picker_search">Modelle und Provider suchen…</string>
+    <string name="model_picker_use_default">Standardmodell verwenden</string>
     <string name="model_reset_all_auto">Alle auf Auto zurücksetzen</string>
     <string name="model_search_placeholder">Modelle suchen…</string>
     <string name="model_set_aux">Hilfsmodell festlegen: %1$s</string>

@@ -1435,6 +1435,7 @@
     <string name="model_picker_loading">Caricamento modelli…</string>
     <string name="model_picker_no_models">Nessun modello disponibile.</string>
     <string name="model_picker_search">Cerca modelli e provider…</string>
+    <string name="model_picker_use_default">Usa modello predefinito</string>
     <string name="model_reset_all_auto">Reimposta tutto su auto</string>
     <string name="model_search_placeholder">Cerca modelli…</string>
     <string name="model_set_aux">Imposta ausiliario: %1$s</string>

@@ -1560,6 +1560,7 @@
     <string name="model_picker_loading">Cargando modelos…</string>
     <string name="model_picker_no_models">No hay modelos disponibles.</string>
     <string name="model_picker_search">Buscar modelos y proveedores...</string>
+    <string name="model_picker_use_default">Usar modelo predeterminado</string>
     <string name="model_reset_all_auto">Restablecer todo a automático</string>
     <string name="model_search_placeholder">Buscar modelos...</string>
     <string name="model_set_aux">Establecer auxiliar:%1$s</string>

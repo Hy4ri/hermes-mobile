@@ -231,7 +231,7 @@ class ProfileSwitchCoordinatorTest {
             ProfileLock.setStoreForTest(ProfileLockStore(FakeSharedPreferences()))
             try {
                 ProfileLock.enable(ProfileLockTarget("home", "kids"), "4826")
-    
+
                 assertTrue(ProfileSwitchCoordinator.switchProfile("kids") is NetworkResult.Success)
                 verify { AuthManager.setActiveProfileId("kids") }
             } finally {

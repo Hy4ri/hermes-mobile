@@ -90,7 +90,7 @@ object HermesWsClient {
             onReplayFailure = { sid, e -> Log.w(TAG, "Replay failed for session $sid: ${e.message}") },
         )
 
-    private val rpcChannel: RpcChannel =
+    internal val rpcChannel: RpcChannel =
         RpcChannel(
             scope = wsScope,
             json = OkHttpProvider.json,
@@ -184,6 +184,9 @@ object HermesWsClient {
 
     /** True once this connection's `client.capabilities` reply advertised `declines_not_shown`. */
     val declinesNotShown: Boolean get() = rpcChannel.declinesNotShown
+
+    /** True once this connection's `client.capabilities` reply advertised `canonical_clarify_batch`. */
+    val canonicalClarifyBatch: Boolean get() = rpcChannel.canonicalClarifyBatch
 
     @VisibleForTesting
     val isConnected: Boolean get() = transport.isConnected

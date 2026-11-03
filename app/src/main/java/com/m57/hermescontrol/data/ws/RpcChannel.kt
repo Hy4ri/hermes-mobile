@@ -78,11 +78,17 @@ internal class RpcChannel(
     fun clearCapabilityRequests() {
         capabilityRequestIds.clear()
         declinesNotShown = false
+        canonicalClarifyBatch = false
     }
 
     /** Backend advertised (in the `client.capabilities` result) that a 4404 counts as a decline. */
     @Volatile
     var declinesNotShown: Boolean = false
+        private set
+
+    /** Backend advertised (in the `client.capabilities` result) that it supports canonical clarify batch. */
+    @Volatile
+    var canonicalClarifyBatch: Boolean = false
         private set
 
     fun consumeCapabilityResponse(event: WsEvent): Boolean {
@@ -99,7 +105,9 @@ internal class RpcChannel(
         if (!isCapabilityResponse) return false
 
         if (event is WsEvent.RpcResult) {
-            declinesNotShown = (event.result as? Map<*, *>)?.get("declines_not_shown") == true
+            val result = event.result as? Map<*, *>
+            declinesNotShown = result?.get("declines_not_shown") == true
+            canonicalClarifyBatch = result?.get("canonical_clarify_batch") == true
         }
         removeQueuedMessage(id)
         return true

@@ -41,18 +41,18 @@ object GatewayContract {
     /** Server→client request methods (`x-server-requests`). */
     val serverRequests: Set<String> by lazy { names("x-server-requests") }
 
-    private fun paramsSchema(method: String): JsonObject {
-        val entry =
-            methodEntries
-                .first { it["name"]!!.jsonPrimitive.content == method }
-        val ref =
-            entry["params"]!!
-                .jsonArray
-                .first()
-                .jsonObject["schema"]!!
-                .jsonObject["\$ref"]!!
-                .jsonPrimitive.content
-        return schemas[ref.substringAfterLast('/')]!!.jsonObject
+    private fun paramsSchemas(method: String): List<JsonObject> {
+        val entries = methodEntries.filter { it["name"]!!.jsonPrimitive.content == method }
+        return entries.map { entry ->
+            val ref =
+                entry["params"]!!
+                    .jsonArray
+                    .first()
+                    .jsonObject["schema"]!!
+                    .jsonObject["\$ref"]!!
+                    .jsonPrimitive.content
+            schemas[ref.substringAfterLast('/')]!!.jsonObject
+        }
     }
 
     /**
@@ -65,18 +65,24 @@ object GatewayContract {
         keys: Set<String>,
     ): List<String> {
         if (method !in methods) return listOf("$method is not a contract method")
-        val schema = paramsSchema(method)
-        val properties = schema["properties"]?.jsonObject?.keys.orEmpty()
-        val required = schema["required"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty()
-        val strict = schema["additionalProperties"]?.jsonPrimitive?.boolean == false
-        val problems = mutableListOf<String>()
-        if (strict) {
-            (keys - properties).sorted().forEach {
-                problems += "$method: unknown param '$it' (backend forbids extra keys; allowed: ${properties.sorted()})"
+        val candidateSchemas = paramsSchemas(method)
+        var firstProblems: List<String>? = null
+        for (schema in candidateSchemas) {
+            val properties = schema["properties"]?.jsonObject?.keys.orEmpty()
+            val required = schema["required"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty()
+            val strict = schema["additionalProperties"]?.jsonPrimitive?.boolean == false
+            val problems = mutableListOf<String>()
+            if (strict) {
+                (keys - properties).sorted().forEach {
+                    problems +=
+                        "$method: unknown param '$it' (backend forbids extra keys; allowed: ${properties.sorted()})"
+                }
             }
+            required.filter { it !in keys }.forEach { problems += "$method: missing required param '$it'" }
+            if (problems.isEmpty()) return emptyList()
+            if (firstProblems == null) firstProblems = problems
         }
-        required.filter { it !in keys }.forEach { problems += "$method: missing required param '$it'" }
-        return problems
+        return firstProblems ?: emptyList()
     }
 
     /**
@@ -88,49 +94,55 @@ object GatewayContract {
         descriptor: SerialDescriptor,
     ): List<String> {
         if (method !in methods) return listOf("$method is not a contract method")
-        val schema = paramsSchema(method)
-        val propertiesObj = schema["properties"]?.jsonObject ?: JsonObject(emptyMap())
-        val properties = propertiesObj.keys
-        val required =
-            schema["required"]
-                ?.jsonArray
-                ?.map { it.jsonPrimitive.content }
-                ?.toSet()
-                .orEmpty()
-        val problems = mutableListOf<String>()
+        val candidateSchemas = paramsSchemas(method)
+        var firstProblems: List<String>? = null
+        for (schema in candidateSchemas) {
+            val propertiesObj = schema["properties"]?.jsonObject ?: JsonObject(emptyMap())
+            val properties = propertiesObj.keys
+            val required =
+                schema["required"]
+                    ?.jsonArray
+                    ?.map { it.jsonPrimitive.content }
+                    ?.toSet()
+                    .orEmpty()
+            val problems = mutableListOf<String>()
 
-        val elementNames = (0 until descriptor.elementsCount).map { descriptor.getElementName(it) }.toSet()
+            val elementNames = (0 until descriptor.elementsCount).map { descriptor.getElementName(it) }.toSet()
 
-        for (i in 0 until descriptor.elementsCount) {
-            val name = descriptor.getElementName(i)
-            if (name !in properties) {
-                problems +=
-                    "$method: unknown param '$name' (backend forbids extra keys; allowed: ${properties.sorted()})"
-            }
-        }
-
-        // No exemptions: decorate() skips injection when no profile is active, so a required `profile`
-        // must be declared like any other required param.
-        val missingRequired = required.filter { it !in elementNames }
-        for (missing in missingRequired) {
-            problems += "$method: missing required param '$missing'"
-        }
-
-        for (i in 0 until descriptor.elementsCount) {
-            val name = descriptor.getElementName(i)
-            if (name in required) {
-                if (descriptor.isElementOptional(i)) {
-                    problems += "$method: required param '$name' must not be optional"
-                }
-                val propSchema = propertiesObj[name]?.jsonObject
-                val allowsNull = propSchema?.let { propertyAllowsNull(it) } ?: false
-                if (descriptor.getElementDescriptor(i).isNullable && !allowsNull) {
-                    problems += "$method: required param '$name' must not be nullable unless schema allows null"
+            for (i in 0 until descriptor.elementsCount) {
+                val name = descriptor.getElementName(i)
+                if (name !in properties) {
+                    problems +=
+                        "$method: unknown param '$name' (backend forbids extra keys; allowed: ${properties.sorted()})"
                 }
             }
+
+            // No exemptions: decorate() skips injection when no profile is active, so a required `profile`
+            // must be declared like any other required param.
+            val missingRequired = required.filter { it !in elementNames }
+            for (missing in missingRequired) {
+                problems += "$method: missing required param '$missing'"
+            }
+
+            for (i in 0 until descriptor.elementsCount) {
+                val name = descriptor.getElementName(i)
+                if (name in required) {
+                    if (descriptor.isElementOptional(i)) {
+                        problems += "$method: required param '$name' must not be optional"
+                    }
+                    val propSchema = propertiesObj[name]?.jsonObject
+                    val allowsNull = propSchema?.let { propertyAllowsNull(it) } ?: false
+                    if (descriptor.getElementDescriptor(i).isNullable && !allowsNull) {
+                        problems += "$method: required param '$name' must not be nullable unless schema allows null"
+                    }
+                }
+            }
+
+            if (problems.isEmpty()) return emptyList()
+            if (firstProblems == null) firstProblems = problems
         }
 
-        return problems
+        return firstProblems ?: emptyList()
     }
 
     private fun propertyAllowsNull(propertySchema: JsonObject): Boolean {

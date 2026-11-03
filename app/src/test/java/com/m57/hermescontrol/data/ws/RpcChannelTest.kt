@@ -641,6 +641,36 @@ class RpcChannelTest {
         }
 
     @Test
+    fun consumeCapabilityResponseSetsCanonicalClarifyBatchFlag() =
+        runTest {
+            val gateway = FakeGateway(this, testJson)
+            val capId = "cap-99"
+            gateway.channel.registerCapabilityRequest(capId)
+
+            assertFalse(gateway.channel.canonicalClarifyBatch)
+            assertFalse(gateway.channel.declinesNotShown)
+
+            val event =
+                WsEvent.RpcResult(
+                    id = capId,
+                    result =
+                        mapOf(
+                            "declines_not_shown" to true,
+                            "canonical_clarify_batch" to true,
+                        ),
+                )
+            val consumed = gateway.channel.consumeCapabilityResponse(event)
+            assertTrue(consumed)
+            assertTrue(gateway.channel.canonicalClarifyBatch)
+            assertTrue(gateway.channel.declinesNotShown)
+            assertEquals(listOf(capId), gateway.removedQueuedIds)
+
+            gateway.channel.clearCapabilityRequests()
+            assertFalse(gateway.channel.canonicalClarifyBatch)
+            assertFalse(gateway.channel.declinesNotShown)
+        }
+
+    @Test
     fun handleIncomingFrameMalformedJsonInvokesParseFailureAndEmitsUnknown() =
         runTest {
             val parseFailures = mutableListOf<Exception>()

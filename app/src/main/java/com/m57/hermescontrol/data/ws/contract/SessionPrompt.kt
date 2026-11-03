@@ -44,6 +44,7 @@ data class PromptSubmitParams(
     @SerialName("session_id") val sessionId: String,
     @SerialName("text") val text: String,
     @SerialName("queued") val queued: Boolean? = null,
+    @SerialName("clarify_batch") val clarifyBatch: Boolean? = null,
 )
 
 // tolerant readers: all nullable with null defaults, only fields callers read

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_lock_title">Блокировка приложения</string>
+    <string name="app_lock_prompt">Подтвердите личность, чтобы продолжить</string>
+    <string name="app_lock_locked">Hermes заблокирован. Текущий экран и неотправленные данные сохранены.</string>
+    <string name="app_lock_unlock">Разблокировать</string>
+    <string name="app_lock_unavailable">Нужны PIN-код, графический ключ или пароль устройства. Восстановите защиту устройства, чтобы разблокировать Hermes.</string>
+    <string name="app_lock_security_settings">Открыть настройки безопасности Android</string>
+    <string name="app_lock_auth_cancelled">Аутентификация отменена или не удалась. Попробуйте ещё раз.</string>
+    <string name="app_lock_storage_error">Не удалось сохранить настройки блокировки. Блокировка не отключена. Попробуйте ещё раз.</string>
+    <string name="app_lock_description">Блокировка при холодном запуске и после тайм-аута в фоне. Выключение экрана всегда блокирует. Скриншоты и превью в списке недавних приложений скрыты.</string>
+    <string name="app_lock_notifications">Превью уведомлений — отдельная настройка приватности. Ответы из уведомлений отключены, пока включена блокировка приложения; чтобы ответить, откройте Hermes и разблокируйте его.</string>
+    <string name="app_lock_timeout">Блокировка после фона: %1$s</string>
+    <string name="app_lock_immediately">Сразу</string>
+    <string name="app_lock_30_seconds">30 секунд</string>
+    <string name="app_lock_1_minute">1 минута</string>
+    <string name="app_lock_5_minutes">5 минут</string>
+</resources>

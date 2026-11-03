@@ -481,6 +481,7 @@
     <string name="language_italian">Italiano</string>
     <string name="language_spanish">Español</string>
     <string name="language_german">Deutsch</string>
+    <string name="language_russian">Русский</string>
 
     <!-- Connect Screen -->
     <string name="connect_selected_profile">Profile: %1$s</string>

@@ -39,6 +39,7 @@ internal fun supportedLanguages(): List<Pair<String, String>> =
         "it" to stringResource(R.string.language_italian),
         "es" to stringResource(R.string.language_spanish),
         "de" to stringResource(R.string.language_german),
+        "ru" to stringResource(R.string.language_russian),
     )
 
 /** Display label for a language code, falling back to English for unknown codes. */

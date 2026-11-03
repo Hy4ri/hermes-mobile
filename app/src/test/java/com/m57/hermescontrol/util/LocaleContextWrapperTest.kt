@@ -49,6 +49,15 @@ class LocaleContextWrapperTest {
     }
 
     @Test
+    fun russianLanguageCode() {
+        val locale = LocaleContextWrapper.localeForCode("ru")
+        assertEquals("ru", locale.language)
+        assertEquals("", locale.country)
+        // values-ru resolution depends on the exact language tag, not just the language.
+        assertEquals("ru", locale.toLanguageTag())
+    }
+
+    @Test
     fun regionSeparator_r() {
         val locale = LocaleContextWrapper.localeForCode("zh-rCN")
         assertEquals("zh", locale.language)

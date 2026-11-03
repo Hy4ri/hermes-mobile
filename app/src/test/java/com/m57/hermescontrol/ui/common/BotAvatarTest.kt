@@ -27,7 +27,7 @@ class BotAvatarTest {
         assertTrue(resolveAvatarShape("square", size) is RoundedCornerShape)
         assertTrue(resolveAvatarShape("boxy", size) is RoundedCornerShape)
         assertTrue(resolveAvatarShape("rounded", size) is RoundedCornerShape)
-        assertTrue(resolveAvatarShape("hexagon", size) is CutCornerShape)
+        assertEquals(HexagonShape, resolveAvatarShape("hexagon", size))
         assertTrue(resolveAvatarShape("diamond", size) is CutCornerShape)
     }
 

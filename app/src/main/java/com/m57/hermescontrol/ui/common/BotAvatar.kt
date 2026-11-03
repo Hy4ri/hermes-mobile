@@ -26,13 +26,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
@@ -133,6 +138,32 @@ fun BotAvatar(
 }
 
 /**
+ * Regular pointy-top hexagon inscribed in the largest centered circle of the bounds.
+ */
+object HexagonShape : Shape {
+    override fun createOutline(
+        size: Size,
+        layoutDirection: LayoutDirection,
+        density: Density,
+    ): Outline {
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        val r = minOf(size.width, size.height) / 2f
+        val path =
+            Path().apply {
+                for (i in 0 until 6) {
+                    val angle = Math.toRadians(60.0 * i - 90.0)
+                    val x = cx + r * Math.cos(angle).toFloat()
+                    val y = cy + r * Math.sin(angle).toFloat()
+                    if (i == 0) moveTo(x, y) else lineTo(x, y)
+                }
+                close()
+            }
+        return Outline.Generic(path)
+    }
+}
+
+/**
  * Maps shape name to Compose [Shape].
  */
 fun resolveAvatarShape(
@@ -142,7 +173,8 @@ fun resolveAvatarShape(
     when (shapeKey?.lowercase()?.trim()) {
         "square", "box", "boxy" -> RoundedCornerShape(size * 0.15f)
         "rounded", "nub", "organic" -> RoundedCornerShape(size * 0.32f)
-        "hexagon", "cut", "diamond", "cloud", "sun" -> CutCornerShape(size * 0.25f)
+        "hexagon" -> HexagonShape
+        "cut", "diamond", "cloud", "sun" -> CutCornerShape(size * 0.25f)
         "circle", "round" -> CircleShape
         else -> CircleShape
     }

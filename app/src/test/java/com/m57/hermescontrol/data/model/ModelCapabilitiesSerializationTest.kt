@@ -42,17 +42,18 @@ class ModelCapabilitiesSerializationTest {
         assertNull(explicitNull.capabilities)
     }
 
-    // #421: daybreak is new in v0.22.7; Mobile does not consume it (or ultrafast).
-    // Decode through the production Json and response type, without adding capability support.
+    // #421: daybreak is new in v0.22.7. Since #420 Mobile consumes `daybreak`
+    // (eligibility only); `ultrafast` is still not consumed.
     @Test
     fun v0227CatalogAdditions_preserveExistingFieldsAndOptionalDefaults() {
-        val legacy = """{"fast":false,"reasoning":true}"""
-        val current = """{"fast":false,"reasoning":true,"ultrafast":true,"daybreak":true}"""
-        val explicitNull =
-            """{"fast":false,"reasoning":true,"daybreak":false,"can_disable_reasoning":null}"""
-        val expected = ModelCapabilities(fast = false, reasoning = true)
+        val cases =
+            listOf(
+                """{"fast":false,"reasoning":true}""" to null,
+                """{"fast":false,"reasoning":true,"ultrafast":true,"daybreak":true}""" to true,
+                """{"fast":false,"reasoning":true,"daybreak":false,"can_disable_reasoning":null}""" to false,
+            )
 
-        for (capabilities in listOf(legacy, current, explicitNull)) {
+        for ((capabilities, expectedDaybreak) in cases) {
             val response =
                 json.decodeFromString<ModelOptionsResponse>(
                     """
@@ -62,13 +63,31 @@ class ModelCapabilitiesSerializationTest {
                 )
             val provider = response.providers.single()
             val decoded = provider.capabilities?.get("model")
-            assertEquals(expected, decoded)
+            assertEquals(ModelCapabilities(fast = false, reasoning = true, daybreak = expectedDaybreak), decoded)
             assertEquals(true, decoded?.reasoningSupport)
+            assertEquals(expectedDaybreak, decoded?.daybreak)
             assertNull(decoded?.can_disable_reasoning)
             assertNull(decoded?.supports_tools)
             assertNull(provider.usage)
             assertNull(provider.limit)
         }
+    }
+
+    @Test
+    fun mergedWithCanonical_preservesDaybreakFromCatalog() {
+        val catalog = ModelCapabilities(fast = true, reasoning = true, daybreak = true)
+        val canonical =
+            ModelCapabilities(
+                supports_vision = true,
+                context_window = 128_000L,
+            )
+
+        val merged = catalog.mergedWithCanonical(canonical)
+
+        assertEquals(true, merged?.daybreak)
+        assertEquals(true, merged?.fast)
+        assertEquals(true, merged?.supports_vision)
+        assertEquals(128_000L, merged?.context_window)
     }
 
     @Test

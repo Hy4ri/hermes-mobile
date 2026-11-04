@@ -2198,4 +2198,22 @@
     <string name="hosted_tool">Tool: %1$s</string>
     <string name="hosted_elapsed">Elapsed: %1$ds</string>
     <string name="hosted_progress_age">Last progress: %1$ds ago</string>
+
+    <string name="hosted_context_settings">Room settings</string>
+    <string name="hosted_context_purpose">Purpose</string>
+    <string name="hosted_context_notes">Shared notes</string>
+    <string name="hosted_context_applies_next">Changes apply from the next message.</string>
+    <string name="hosted_context_routing">Who answers unaddressed messages</string>
+    <string name="hosted_context_everyone">Everyone</string>
+    <string name="hosted_context_lead_mode">Lead</string>
+    <string name="hosted_context_lead_member">Lead member</string>
+    <string name="hosted_context_select_member">Select a member</string>
+    <string name="hosted_context_confirmed_lead">Lead: %1$s</string>
+    <string name="hosted_context_lead_unavailable">The lead is no longer a room member. Select a member or choose Everyone.</string>
+    <string name="hosted_context_loading">Loading room settings…</string>
+    <string name="hosted_context_saving">Saving…</string>
+    <string name="hosted_context_load_failed">Could not load room settings. Retry to get the current values.</string>
+    <string name="hosted_context_purpose_count">%1$d / %2$d characters</string>
+    <string name="hosted_context_notes_count">%1$d / %2$d bytes</string>
+    <string name="hosted_context_save_failed">Save not confirmed. Your draft is unchanged. Retry to submit it again.</string>
 </resources>

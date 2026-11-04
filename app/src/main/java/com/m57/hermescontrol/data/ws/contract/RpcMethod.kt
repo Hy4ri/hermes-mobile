@@ -3,6 +3,7 @@ package com.m57.hermescontrol.data.ws.contract
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.HostedApproveReceipt
 import com.m57.hermescontrol.data.ws.HostedCapabilitiesWire
+import com.m57.hermescontrol.data.ws.HostedContextReceipt
 import com.m57.hermescontrol.data.ws.HostedLogPage
 import com.m57.hermescontrol.data.ws.HostedRetryReceipt
 import com.m57.hermescontrol.data.ws.HostedRoomList
@@ -624,6 +625,13 @@ object RpcMethods {
             HostedRoomSnapshot.serializer(),
         )
 
+    val GROUPS_CONTEXT: RpcMethod<HostedContextParams, HostedContextReceipt> =
+        RpcMethod(
+            "groups.context",
+            HostedContextParams.serializer(),
+            HostedContextReceipt.serializer(),
+        )
+
     val GROUPS_LOG: RpcMethod<HostedLogParams, HostedLogPage> =
         RpcMethod(
             WsMethods.GROUPS_LOG,
@@ -740,6 +748,7 @@ object RpcMethods {
             GROUPS_CAPABILITIES,
             GROUPS_LIST,
             GROUPS_STATE,
+            GROUPS_CONTEXT,
             GROUPS_LOG,
             GROUPS_SEND,
             GROUPS_STOP,

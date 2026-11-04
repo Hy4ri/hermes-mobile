@@ -75,3 +75,15 @@ data class HostedApproveParams(
     @SerialName("choice") val choice: String,
     @SerialName("request_id") val requestId: String,
 )
+
+/** Null routing fields are omitted to preserve the server's current routing atomically. */
+@Serializable
+data class HostedContextParams(
+    @SerialName("profile") val profile: String,
+    @SerialName("room_id") val roomId: String,
+    @SerialName("event_id") val eventId: String,
+    @SerialName("purpose") val purpose: String,
+    @SerialName("notes") val notes: String,
+    @SerialName("routing") val routing: String? = null,
+    @SerialName("lead_member_id") val leadMemberId: String? = null,
+)

@@ -2,6 +2,7 @@ package com.m57.hermescontrol.data.ws
 
 import com.m57.hermescontrol.data.ws.contract.HostedApproveParams
 import com.m57.hermescontrol.data.ws.contract.HostedCapabilitiesParams
+import com.m57.hermescontrol.data.ws.contract.HostedContextParams
 import com.m57.hermescontrol.data.ws.contract.HostedListParams
 import com.m57.hermescontrol.data.ws.contract.HostedLogParams
 import com.m57.hermescontrol.data.ws.contract.HostedRetryParams
@@ -44,6 +45,16 @@ interface HostedRoomsSource {
         profile: String,
         roomId: String,
     ): HostedRoomSnapshot
+
+    suspend fun context(
+        profile: String,
+        roomId: String,
+        eventId: String,
+        purpose: String,
+        notes: String,
+        routing: String? = null,
+        leadMemberId: String? = null,
+    ): HostedContextReceipt
 
     suspend fun log(
         profile: String,
@@ -95,6 +106,7 @@ class HermesHostedRoomsSource(
                 supported = supported,
                 driver = wire.driver,
                 maxLogLimit = wire.maxLogLimit,
+                contextSupported = RpcMethods.GROUPS_CONTEXT.name in wire.methods,
             )
         } catch (e: CancellationException) {
             throw e
@@ -119,6 +131,28 @@ class HermesHostedRoomsSource(
         profile: String,
         roomId: String,
     ): HostedRoomSnapshot = caller.call(RpcMethods.GROUPS_STATE, HostedStateParams(profile = profile, roomId = roomId))
+
+    override suspend fun context(
+        profile: String,
+        roomId: String,
+        eventId: String,
+        purpose: String,
+        notes: String,
+        routing: String?,
+        leadMemberId: String?,
+    ): HostedContextReceipt =
+        caller.call(
+            RpcMethods.GROUPS_CONTEXT,
+            HostedContextParams(
+                profile = profile,
+                roomId = roomId,
+                eventId = eventId,
+                purpose = purpose,
+                notes = notes,
+                routing = routing,
+                leadMemberId = leadMemberId,
+            ),
+        )
 
     override suspend fun log(
         profile: String,

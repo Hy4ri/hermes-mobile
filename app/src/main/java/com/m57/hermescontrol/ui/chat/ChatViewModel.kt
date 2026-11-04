@@ -287,6 +287,11 @@ data class ChatUiState(
     // Fast mode / Priority processing state for the current session
     val fastMode: Boolean = false,
     val isFastModeChanging: Boolean = false,
+    // Daybreak: profile-wide `agent.daybreak` (issue #420). [daybreakEnabled] is the
+    // optimistic/confirmed display value; eligibility comes from catalog
+    // `capabilities.daybreak`, never from this flag.
+    val daybreakEnabled: Boolean = false,
+    val daybreakPending: Boolean = false,
     val terminalBackend: String? = null,
     // Context-window meter (issue #756): tokens currently used by the session
     // prompt (numerator) and the active model's full context window (denominator).
@@ -945,6 +950,7 @@ class ChatViewModel(
             fetchContextUsage = { fetchContextUsage() },
             onModelSwitchInitiated = { onModelSwitchInitiated() },
             wsRequest = { params -> wsClient.call(RpcMethods.CONFIG_SET, params) },
+            wsGetRequest = { params -> wsClient.call(RpcMethods.CONFIG_GET, params) },
         ).apply {
             attachScopeObserver(viewModelScope)
         }
@@ -5830,6 +5836,10 @@ class ChatViewModel(
     fun setReasoningLevel(level: String?) = modelSwitchDelegate.setReasoningLevel(level)
 
     fun toggleFastMode() = modelSwitchDelegate.toggleFastMode()
+
+    fun setDaybreak(on: Boolean) = modelSwitchDelegate.setDaybreak(on)
+
+    fun syncDaybreak() = modelSwitchDelegate.syncDaybreak()
 
     fun getModelCapabilities(
         providerSlug: String,

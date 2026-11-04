@@ -8,6 +8,7 @@ import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.data.remote.NetworkError
 import com.m57.hermescontrol.data.remote.NetworkResult
+import com.m57.hermescontrol.data.ws.contract.ConfigGetParams
 import com.m57.hermescontrol.data.ws.contract.ConfigSetParams
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -1278,6 +1279,327 @@ class ChatModelSwitchDelegateTest {
             advanceUntilIdle()
             assertEquals(1, sentParams.size)
             assertEquals(snapshot, uiState.value)
+        }
+
+    // ── Daybreak (issue #420) ──
+
+    private fun daybreakCatalogResponse() =
+        ModelOptionsResponse(
+            providers =
+                listOf(
+                    ModelProvider(
+                        slug = "openai-codex",
+                        name = "Codex",
+                        models = listOf("gpt-daybreak"),
+                        capabilities =
+                            mapOf(
+                                "gpt-daybreak" to ModelCapabilities(fast = true, reasoning = true, daybreak = true),
+                            ),
+                    ),
+                ),
+        )
+
+    private fun daybreakDelegate(
+        setRequest: suspend (ConfigSetParams) -> JsonElement,
+        getRequest: suspend (ConfigGetParams) -> JsonElement,
+    ) = ChatModelSwitchDelegate(
+        scope = testScope,
+        ioDispatcher = testDispatcher,
+        uiState = uiState,
+        runtimeSessionId = { runtimeId },
+        wsSend = { _, _ -> },
+        trackRequest = { _, _ -> },
+        addAssistantMessage = {},
+        handleSlashCommand = {},
+        fetchContextUsage = {},
+        dataScopeFlow = dataScope,
+        getModelOptionsCall = { NetworkResult.Success(daybreakCatalogResponse()) },
+        getPinnedModels = { emptyList() },
+        savePinnedModels = {},
+        wsRequest = setRequest,
+        wsGetRequest = getRequest,
+    )
+
+    private fun daybreakAck(value: Boolean) =
+        kotlinx.serialization.json.buildJsonObject {
+            put("key", kotlinx.serialization.json.JsonPrimitive("daybreak"))
+            put("value", kotlinx.serialization.json.JsonPrimitive(value))
+        }
+
+    private fun daybreakGet(value: Boolean) =
+        kotlinx.serialization.json.buildJsonObject {
+            put("value", kotlinx.serialization.json.JsonPrimitive(value))
+        }
+
+    @Test
+    fun setDaybreak_sendsProfileWideKey_optimisticThenConfirmed() =
+        testScope.runTest {
+            val gate = CompletableDeferred<JsonElement>()
+            val reqParams = mutableListOf<ConfigSetParams>()
+            val customDelegate =
+                daybreakDelegate(
+                    setRequest = { params ->
+                        reqParams.add(params)
+                        gate.await()
+                    },
+                    getRequest = { daybreakGet(false) },
+                )
+            customDelegate.openModelPicker()
+            advanceUntilIdle()
+
+            customDelegate.setDaybreak(true)
+            runCurrent()
+
+            assertTrue(uiState.value.daybreakEnabled)
+            assertTrue(uiState.value.daybreakPending)
+            assertEquals(1, reqParams.size)
+            assertEquals("daybreak", reqParams.first().key)
+            assertEquals("true", reqParams.first().value)
+            assertNull(reqParams.first().sessionId)
+
+            gate.complete(daybreakAck(true))
+            advanceUntilIdle()
+
+            assertTrue(uiState.value.daybreakEnabled)
+            assertFalse(uiState.value.daybreakPending)
+            assertNull(uiState.value.errorMessage)
+        }
+
+    @Test
+    fun setDaybreak_onFailure_restoresConfirmedAndSurfacesError() =
+        testScope.runTest {
+            val customDelegate =
+                daybreakDelegate(
+                    setRequest = { throw RuntimeException("4002 unknown config key: daybreak") },
+                    getRequest = { daybreakGet(true) },
+                )
+            customDelegate.openModelPicker()
+            advanceUntilIdle()
+            customDelegate.syncDaybreak()
+            advanceUntilIdle()
+            assertTrue(uiState.value.daybreakEnabled)
+
+            customDelegate.setDaybreak(false)
+            advanceUntilIdle()
+
+            assertTrue(uiState.value.daybreakEnabled)
+            assertFalse(uiState.value.daybreakPending)
+            assertTrue(uiState.value.errorMessage?.contains("4002") == true)
+        }
+
+    @Test
+    fun setDaybreak_rapidFlips_serializeInClickOrder() =
+        testScope.runTest {
+            val gates = mutableListOf<CompletableDeferred<JsonElement>>()
+            val reqParams = mutableListOf<ConfigSetParams>()
+            val customDelegate =
+                daybreakDelegate(
+                    setRequest = { params ->
+                        reqParams.add(params)
+                        val gate = CompletableDeferred<JsonElement>()
+                        gates.add(gate)
+                        gate.await()
+                    },
+                    getRequest = { daybreakGet(false) },
+                )
+            customDelegate.openModelPicker()
+            advanceUntilIdle()
+
+            customDelegate.setDaybreak(true)
+            customDelegate.setDaybreak(false)
+            runCurrent()
+
+            // Only the first write is on the wire; the second waits behind the mutex.
+            assertEquals(1, reqParams.size)
+            assertTrue(uiState.value.daybreakPending)
+
+            gates[0].complete(daybreakAck(true))
+            runCurrent()
+            assertEquals(2, reqParams.size)
+            assertEquals("false", reqParams[1].value)
+
+            gates[1].complete(daybreakAck(false))
+            advanceUntilIdle()
+
+            assertFalse(uiState.value.daybreakEnabled)
+            assertFalse(uiState.value.daybreakPending)
+        }
+
+    @Test
+    fun syncDaybreak_staleReadAfterWrite_doesNotUndoWrite() =
+        testScope.runTest {
+            val readGate = CompletableDeferred<JsonElement>()
+            val customDelegate =
+                daybreakDelegate(
+                    setRequest = { daybreakAck(true) },
+                    getRequest = { readGate.await() },
+                )
+            customDelegate.openModelPicker()
+            advanceUntilIdle()
+
+            customDelegate.syncDaybreak()
+            runCurrent()
+            customDelegate.setDaybreak(true)
+            advanceUntilIdle()
+            assertTrue(uiState.value.daybreakEnabled)
+
+            // The read started before the write; its stale `false` must be dropped.
+            readGate.complete(daybreakGet(false))
+            advanceUntilIdle()
+
+            assertTrue(uiState.value.daybreakEnabled)
+        }
+
+    @Test
+    fun syncDaybreak_unknownKeyOnOldServer_leavesStateUntouched() =
+        testScope.runTest {
+            val customDelegate =
+                daybreakDelegate(
+                    setRequest = { daybreakAck(false) },
+                    getRequest = { throw RuntimeException("4002 unknown config key: daybreak") },
+                )
+            customDelegate.openModelPicker()
+            advanceUntilIdle()
+
+            customDelegate.syncDaybreak()
+            advanceUntilIdle()
+
+            assertFalse(uiState.value.daybreakEnabled)
+            assertNull(uiState.value.errorMessage)
+        }
+
+    @Test
+    fun setDaybreak_withoutListedCatalog_sendsNothing() =
+        testScope.runTest {
+            var sent = 0
+            val customDelegate =
+                daybreakDelegate(
+                    setRequest = {
+                        sent++
+                        daybreakAck(true)
+                    },
+                    getRequest = { daybreakGet(false) },
+                )
+
+            // Catalog never loaded: daybreak is not listed for this scope.
+            customDelegate.setDaybreak(true)
+            advanceUntilIdle()
+
+            assertEquals(0, sent)
+            assertFalse(uiState.value.daybreakEnabled)
+            assertFalse(uiState.value.daybreakPending)
+        }
+
+    @Test
+    fun daybreak_scopeSwitch_resetsEnabledAndDropsLateAck() =
+        testScope.runTest {
+            val gate = CompletableDeferred<JsonElement>()
+            val customDelegate =
+                daybreakDelegate(
+                    setRequest = { gate.await() },
+                    getRequest = { daybreakGet(false) },
+                )
+            val observerJob = kotlinx.coroutines.Job()
+            customDelegate.attachScopeObserver(kotlinx.coroutines.CoroutineScope(testDispatcher + observerJob))
+            customDelegate.openModelPicker()
+            advanceUntilIdle()
+
+            customDelegate.setDaybreak(true)
+            runCurrent()
+            assertTrue(uiState.value.daybreakEnabled)
+
+            dataScope.value =
+                initialDataScope.copy(connectionProfileId = "conn-2", activeProfileId = "other")
+            advanceUntilIdle()
+            assertFalse(uiState.value.daybreakEnabled)
+
+            gate.complete(daybreakAck(true))
+            advanceUntilIdle()
+            assertFalse(uiState.value.daybreakEnabled)
+            observerJob.cancel()
+        }
+
+    @Test
+    fun setDaybreak_queuedWriteSurvivingScopeSwitch_isNotSent() =
+        testScope.runTest {
+            val gates = mutableListOf<CompletableDeferred<JsonElement>>()
+            val reqParams = mutableListOf<ConfigSetParams>()
+            val customDelegate =
+                daybreakDelegate(
+                    setRequest = { params ->
+                        reqParams.add(params)
+                        val gate = CompletableDeferred<JsonElement>()
+                        gates.add(gate)
+                        gate.await()
+                    },
+                    getRequest = { daybreakGet(false) },
+                )
+            val observerJob = kotlinx.coroutines.Job()
+            customDelegate.attachScopeObserver(kotlinx.coroutines.CoroutineScope(testDispatcher + observerJob))
+            customDelegate.openModelPicker()
+            advanceUntilIdle()
+
+            customDelegate.setDaybreak(true)
+            runCurrent()
+            customDelegate.setDaybreak(false)
+            runCurrent()
+            assertEquals(1, reqParams.size)
+
+            dataScope.value =
+                initialDataScope.copy(connectionProfileId = "conn-2", activeProfileId = "other")
+            runCurrent()
+
+            // The in-flight write finishes; the queued flip must not be decorated
+            // with the new profile and sent on its behalf.
+            gates[0].complete(daybreakAck(true))
+            advanceUntilIdle()
+
+            assertEquals(1, reqParams.size)
+            assertFalse(uiState.value.daybreakEnabled)
+            assertFalse(uiState.value.daybreakPending)
+            observerJob.cancel()
+        }
+
+    @Test
+    fun setDaybreak_oldScopeCompletion_doesNotClearNewScopePending() =
+        testScope.runTest {
+            val gates = mutableListOf<CompletableDeferred<JsonElement>>()
+            val customDelegate =
+                daybreakDelegate(
+                    setRequest = {
+                        val gate = CompletableDeferred<JsonElement>()
+                        gates.add(gate)
+                        gate.await()
+                    },
+                    getRequest = { daybreakGet(false) },
+                )
+            val observerJob = kotlinx.coroutines.Job()
+            customDelegate.attachScopeObserver(kotlinx.coroutines.CoroutineScope(testDispatcher + observerJob))
+            customDelegate.openModelPicker()
+            advanceUntilIdle()
+
+            customDelegate.setDaybreak(true)
+            runCurrent()
+            assertTrue(uiState.value.daybreakPending)
+
+            dataScope.value =
+                initialDataScope.copy(connectionProfileId = "conn-2", activeProfileId = "other")
+            advanceUntilIdle()
+
+            // New-scope flip queues behind the old write, which still holds the mutex.
+            customDelegate.setDaybreak(true)
+            runCurrent()
+
+            gates[0].complete(daybreakAck(true))
+            runCurrent()
+            assertTrue(uiState.value.daybreakPending)
+
+            gates[1].complete(daybreakAck(true))
+            advanceUntilIdle()
+
+            assertTrue(uiState.value.daybreakEnabled)
+            assertFalse(uiState.value.daybreakPending)
+            observerJob.cancel()
         }
 
     @Test

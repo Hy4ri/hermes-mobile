@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -242,6 +243,72 @@ class ModelPickerDialogTest {
 
         composeTestRule.onNodeWithText("gpt-4").assertIsDisplayed()
         composeTestRule.onNodeWithText("openai").assertIsDisplayed()
+    }
+
+    @Test
+    fun daybreakRow_showsOnlyOnCapableRows_andTogglesWithoutSelecting() {
+        var selected: Pair<String, String>? = null
+        val toggled = mutableListOf<Boolean>()
+        composeTestRule.setContent {
+            HermesControlTheme {
+                ModelPickerDialog(
+                    providers =
+                        listOf(
+                            ModelProvider(
+                                slug = "codex",
+                                name = "Codex",
+                                models = listOf("gpt-daybreak", "gpt-plain"),
+                                capabilities =
+                                    mapOf(
+                                        "gpt-daybreak" to ModelCapabilities(daybreak = true),
+                                        "gpt-plain" to ModelCapabilities(fast = true),
+                                    ),
+                            ),
+                        ),
+                    title = "Choose model",
+                    onSelect = { provider, model -> selected = provider to model },
+                    onDismiss = {},
+                    daybreakEnabled = false,
+                    daybreakPending = false,
+                    onDaybreakToggle = { toggled.add(it) },
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithContentDescription("Expand Codex models").performClick()
+
+        // One toggle for the capable row, none for the plain row.
+        composeTestRule.onAllNodesWithContentDescription("Daybreak").assertCountEquals(1)
+        composeTestRule.onNodeWithText("Applies to all sessions in this profile").assertIsDisplayed()
+
+        composeTestRule.onNodeWithContentDescription("Daybreak").performClick()
+        assertEquals(listOf(true), toggled)
+        assertEquals(null, selected)
+    }
+
+    @Test
+    fun daybreakRow_hiddenWhenNoToggleHandler() {
+        composeTestRule.setContent {
+            HermesControlTheme {
+                ModelPickerDialog(
+                    providers =
+                        listOf(
+                            ModelProvider(
+                                slug = "codex",
+                                name = "Codex",
+                                models = listOf("gpt-daybreak"),
+                                capabilities = mapOf("gpt-daybreak" to ModelCapabilities(daybreak = true)),
+                            ),
+                        ),
+                    title = "Choose model",
+                    onSelect = { _, _ -> },
+                    onDismiss = {},
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithContentDescription("Expand Codex models").performClick()
+        composeTestRule.onAllNodesWithContentDescription("Daybreak").assertCountEquals(0)
     }
 
     @Test

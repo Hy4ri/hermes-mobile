@@ -47,6 +47,12 @@ data class ProviderLimit(
 data class ModelCapabilities(
     val fast: Boolean? = null,
     val reasoning: Boolean? = null,
+    /**
+     * Daybreak eligibility (issue #420): the account's Codex catalog lists this model for
+     * `daybreak_blue`. Present-and-true means the profile-wide Daybreak switch may be shown;
+     * it does NOT mean Daybreak is enabled (`agent.daybreak` is read via config.get).
+     */
+    val daybreak: Boolean? = null,
     val can_disable_reasoning: Boolean? = null,
     val supports_tools: Boolean? = null,
     val supports_vision: Boolean? = null,
@@ -65,6 +71,7 @@ fun ModelCapabilities?.mergedWithCanonical(canonical: ModelCapabilities?): Model
     return ModelCapabilities(
         fast = catalog?.fast,
         reasoning = catalog?.reasoning,
+        daybreak = catalog?.daybreak,
         can_disable_reasoning = catalog?.can_disable_reasoning,
         supports_tools = canonical.supports_tools ?: catalog?.supports_tools,
         supports_vision = canonical.supports_vision ?: catalog?.supports_vision,

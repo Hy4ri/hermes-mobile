@@ -1283,6 +1283,8 @@
 <string name="chat_attachment_file">ملف</string>
 <string name="chat_fast_mode_label">سريع</string>
 <string name="model_daybreak_label">Daybreak</string>
+<string name="model_daybreak_on">مفعّل</string>
+<string name="model_daybreak_off">إيقاف</string>
 <string name="model_daybreak_profile_wide">ينطبق على كل الجلسات في هذا الملف الشخصي</string>
 <string name="chat_fast_mode_unavailable">الوضع السريع غير مدعوم لهذا النموذج</string>
 <string name="chat_reasoning_default">الافتراضي</string>

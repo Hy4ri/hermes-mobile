@@ -130,6 +130,7 @@ class ChatModelSwitchDelegate(
     private var daybreakReadSeq: Long = 0L
     private var daybreakWriteSeq: Long = 0L
     private var daybreakPendingWrites: Int = 0
+    private var daybreakGeneration: Long = 0L
     private val daybreakWriteMutex = Mutex()
 
     fun attachScopeObserver(externalScope: CoroutineScope) {
@@ -147,8 +148,12 @@ class ChatModelSwitchDelegate(
                 modelInfoModel = null
                 modelInfoScope = null
                 // Daybreak is per connection + profile: never carry the old scope's value.
+                // Bumping the generation makes every old-scope write's finally-block a no-op,
+                // so it cannot corrupt the new scope's pending count or confirmed value.
                 daybreakConfirmed = false
+                daybreakPendingWrites = 0
                 daybreakReadSeq++
+                daybreakGeneration++
                 resetTransientOperations()
 
                 if (modelOptionsJobScope != newScope) {
@@ -569,11 +574,15 @@ class ChatModelSwitchDelegate(
         if (!daybreakListed()) return
         val capturedScope = dataScopeFlow.value
         val writeSeq = ++daybreakWriteSeq
+        val generation = daybreakGeneration
         daybreakPendingWrites++
         uiState.update { it.copy(daybreakEnabled = on, daybreakPending = true) }
         scope.launch(ioDispatcher) {
             try {
                 daybreakWriteMutex.withLock {
+                    // A write that waited on the mutex across a profile switch must not
+                    // be decorated with the new profile: skip it entirely.
+                    if (capturedScope != dataScopeFlow.value) return@withLock
                     val result =
                         request(
                             ConfigSetParams(
@@ -605,8 +614,11 @@ class ChatModelSwitchDelegate(
                     }
                 }
             } finally {
-                daybreakPendingWrites--
-                uiState.update { it.copy(daybreakPending = daybreakPendingWrites > 0) }
+                // Old-scope completions must not publish into the new scope's pending flag.
+                if (generation == daybreakGeneration) {
+                    daybreakPendingWrites--
+                    uiState.update { it.copy(daybreakPending = daybreakPendingWrites > 0) }
+                }
             }
         }
     }

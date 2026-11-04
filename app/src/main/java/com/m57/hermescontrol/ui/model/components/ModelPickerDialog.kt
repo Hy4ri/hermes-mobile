@@ -38,6 +38,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
@@ -480,10 +483,24 @@ private fun DaybreakToggleRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        val daybreakLabel = stringResource(R.string.model_daybreak_label)
+        val daybreakState =
+            stringResource(
+                if (enabled) {
+                    R.string.model_daybreak_on
+                } else {
+                    R.string.model_daybreak_off
+                },
+            )
         Switch(
             checked = enabled,
             onCheckedChange = onToggle,
             enabled = !pending,
+            modifier =
+                Modifier.semantics {
+                    contentDescription = daybreakLabel
+                    stateDescription = daybreakState
+                },
         )
     }
 }

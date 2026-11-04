@@ -1520,6 +1520,89 @@ class ChatModelSwitchDelegateTest {
         }
 
     @Test
+    fun setDaybreak_queuedWriteSurvivingScopeSwitch_isNotSent() =
+        testScope.runTest {
+            val gates = mutableListOf<CompletableDeferred<JsonElement>>()
+            val reqParams = mutableListOf<ConfigSetParams>()
+            val customDelegate =
+                daybreakDelegate(
+                    setRequest = { params ->
+                        reqParams.add(params)
+                        val gate = CompletableDeferred<JsonElement>()
+                        gates.add(gate)
+                        gate.await()
+                    },
+                    getRequest = { daybreakGet(false) },
+                )
+            val observerJob = kotlinx.coroutines.Job()
+            customDelegate.attachScopeObserver(kotlinx.coroutines.CoroutineScope(testDispatcher + observerJob))
+            customDelegate.openModelPicker()
+            advanceUntilIdle()
+
+            customDelegate.setDaybreak(true)
+            runCurrent()
+            customDelegate.setDaybreak(false)
+            runCurrent()
+            assertEquals(1, reqParams.size)
+
+            dataScope.value =
+                initialDataScope.copy(connectionProfileId = "conn-2", activeProfileId = "other")
+            runCurrent()
+
+            // The in-flight write finishes; the queued flip must not be decorated
+            // with the new profile and sent on its behalf.
+            gates[0].complete(daybreakAck(true))
+            advanceUntilIdle()
+
+            assertEquals(1, reqParams.size)
+            assertFalse(uiState.value.daybreakEnabled)
+            assertFalse(uiState.value.daybreakPending)
+            observerJob.cancel()
+        }
+
+    @Test
+    fun setDaybreak_oldScopeCompletion_doesNotClearNewScopePending() =
+        testScope.runTest {
+            val gates = mutableListOf<CompletableDeferred<JsonElement>>()
+            val customDelegate =
+                daybreakDelegate(
+                    setRequest = {
+                        val gate = CompletableDeferred<JsonElement>()
+                        gates.add(gate)
+                        gate.await()
+                    },
+                    getRequest = { daybreakGet(false) },
+                )
+            val observerJob = kotlinx.coroutines.Job()
+            customDelegate.attachScopeObserver(kotlinx.coroutines.CoroutineScope(testDispatcher + observerJob))
+            customDelegate.openModelPicker()
+            advanceUntilIdle()
+
+            customDelegate.setDaybreak(true)
+            runCurrent()
+            assertTrue(uiState.value.daybreakPending)
+
+            dataScope.value =
+                initialDataScope.copy(connectionProfileId = "conn-2", activeProfileId = "other")
+            advanceUntilIdle()
+
+            // New-scope flip queues behind the old write, which still holds the mutex.
+            customDelegate.setDaybreak(true)
+            runCurrent()
+
+            gates[0].complete(daybreakAck(true))
+            runCurrent()
+            assertTrue(uiState.value.daybreakPending)
+
+            gates[1].complete(daybreakAck(true))
+            advanceUntilIdle()
+
+            assertTrue(uiState.value.daybreakEnabled)
+            assertFalse(uiState.value.daybreakPending)
+            observerJob.cancel()
+        }
+
+    @Test
     fun obsoleteConfirmationClick_doesNotReleaseNewResetGuard() =
         testScope.runTest {
             delegate.resetSessionModel()

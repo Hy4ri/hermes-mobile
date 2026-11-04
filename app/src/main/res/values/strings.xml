@@ -1655,6 +1655,10 @@
     <string name="chat_attachment_photos">Photos</string>
     <string name="chat_attachment_file">File</string>
     <string name="chat_fast_mode_label">Fast</string>
+    <string name="model_daybreak_label">Daybreak</string>
+    <string name="model_daybreak_on">On</string>
+    <string name="model_daybreak_off">Off</string>
+    <string name="model_daybreak_profile_wide">Applies to all sessions in this profile</string>
     <string name="chat_fast_mode_unavailable">Fast mode unavailable for this model</string>
     <string name="chat_reasoning_default">Default</string>
     <string name="chat_reasoning_clamped_desc">Requested %1$s, route sends %2$s</string>

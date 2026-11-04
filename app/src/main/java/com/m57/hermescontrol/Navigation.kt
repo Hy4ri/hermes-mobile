@@ -203,6 +203,12 @@ private fun appEntryProvider(
         )
     }
 
+    entry<HostedRoomsKey> {
+        com.m57.hermescontrol.ui.bots.group.HostedRoomsScreen(
+            onBack = { NavigationController.goBack() },
+        )
+    }
+
     // ── Multi-Agent Group Chat Room ─────────────────────────────────────
     entry<GroupChatKey> { key ->
         com.m57.hermescontrol.ui.bots.group.GroupChatScreen(

@@ -42,6 +42,35 @@ class ModelCapabilitiesSerializationTest {
         assertNull(explicitNull.capabilities)
     }
 
+    // #421: daybreak is new in v0.22.7; Mobile does not consume it (or ultrafast).
+    // Decode through the production Json and response type, without adding capability support.
+    @Test
+    fun v0227CatalogAdditions_preserveExistingFieldsAndOptionalDefaults() {
+        val legacy = """{"fast":false,"reasoning":true}"""
+        val current = """{"fast":false,"reasoning":true,"ultrafast":true,"daybreak":true}"""
+        val explicitNull =
+            """{"fast":false,"reasoning":true,"daybreak":false,"can_disable_reasoning":null}"""
+        val expected = ModelCapabilities(fast = false, reasoning = true)
+
+        for (capabilities in listOf(legacy, current, explicitNull)) {
+            val response =
+                json.decodeFromString<ModelOptionsResponse>(
+                    """
+                    {"providers":[{"slug":"test","name":"Test","models":["model"],
+                      "capabilities":{"model":$capabilities}}]}
+                    """.trimIndent(),
+                )
+            val provider = response.providers.single()
+            val decoded = provider.capabilities?.get("model")
+            assertEquals(expected, decoded)
+            assertEquals(true, decoded?.reasoningSupport)
+            assertNull(decoded?.can_disable_reasoning)
+            assertNull(decoded?.supports_tools)
+            assertNull(provider.usage)
+            assertNull(provider.limit)
+        }
+    }
+
     @Test
     fun canonicalReasoning_takesPrecedenceOverLegacyField() {
         val value =

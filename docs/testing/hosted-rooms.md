@@ -39,3 +39,25 @@ Use test rooms and harmless messages. Do not approve an unsafe command for testi
 ## Limits
 
 Pending-send retry identity is kept in memory across socket reconnects. It is not a durable Android process-recovery queue. If the app exits with an unconfirmed message, inspect the gateway log before sending that text again. Preview renders and JVM tests do not establish live-gateway or physical-device acceptance.
+
+## Backend member progress (#418)
+
+The hosted-room log shows backend member activity separately from legacy stream indicators.
+`round_index` is zero-based on the wire and one-based on screen. The round limit comes from
+`driver_status.max_rounds`. `started_at` and `progress_at` are fractional Unix **seconds**.
+Elapsed time and progress age update only while the screen lifecycle is STARTED. A null time
+or tool shows no invented duration or tool. Missing activity means unavailable, not completed;
+an empty activity list means no live activity was reported, not proof of successful completion.
+
+Additional device checks:
+
+1. Run a harmless multi-member task. Check queued, running, and stopping labels, actual tool,
+   thread, round, and backend round limit. Compare elapsed/progress ages against gateway times.
+2. Background the app, then return. Check that time updates resume from current time.
+3. Retry an indeterminate task. Old tool/progress must disappear immediately and must not return
+   from an outstanding refresh. A new attempt must start with its own backend timestamps.
+4. Change rooms, profiles, and saved connections during work. Reconnect during work. No old
+   activity may survive the ownership change; only a fresh fenced snapshot may restore activity.
+5. Use an older gateway that omits activity. Check the unavailable label, without a false
+   completion or fabricated legacy tool indicator. Check null timestamps and tools.
+6. Check narrow portrait, large text, RTL, and TalkBack with several live members.

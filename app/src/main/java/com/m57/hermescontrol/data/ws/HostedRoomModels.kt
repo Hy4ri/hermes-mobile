@@ -69,6 +69,19 @@ data class HostedDriverStatus(
     @SerialName("counts") val counts: Map<String, Int> = emptyMap(),
     @SerialName("last_error") val lastError: String? = null,
     @SerialName("max_rounds") val maxRounds: Int? = null,
+    @SerialName("member_activity") val memberActivity: List<HostedMemberActivity>? = null,
+)
+
+/** One live room member task/activity entry. */
+@Serializable
+data class HostedMemberActivity(
+    @SerialName("member_id") val memberId: String,
+    @SerialName("status") val status: String,
+    @SerialName("thread_id") val threadId: String? = null,
+    @SerialName("round_index") val roundIndex: Int? = null,
+    @SerialName("started_at") val startedAt: Double? = null,
+    @SerialName("tool") val tool: String? = null,
+    @SerialName("progress_at") val progressAt: Double? = null,
 )
 
 /** A pending action (retry or approval) modeled as a task. */

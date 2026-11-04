@@ -1,6 +1,14 @@
 package com.m57.hermescontrol.data.ws.contract
 
 import com.m57.hermescontrol.data.ws.HermesWsClient
+import com.m57.hermescontrol.data.ws.HostedApproveReceipt
+import com.m57.hermescontrol.data.ws.HostedCapabilitiesWire
+import com.m57.hermescontrol.data.ws.HostedLogPage
+import com.m57.hermescontrol.data.ws.HostedRetryReceipt
+import com.m57.hermescontrol.data.ws.HostedRoomList
+import com.m57.hermescontrol.data.ws.HostedRoomSnapshot
+import com.m57.hermescontrol.data.ws.HostedSendReceipt
+import com.m57.hermescontrol.data.ws.HostedStopReceipt
 import com.m57.hermescontrol.data.ws.WsMethods
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.JsonElement
@@ -595,6 +603,62 @@ object RpcMethods {
             JsonElement.serializer(),
         )
 
+    val GROUPS_CAPABILITIES: RpcMethod<HostedCapabilitiesParams, HostedCapabilitiesWire> =
+        RpcMethod(
+            WsMethods.GROUPS_CAPABILITIES,
+            HostedCapabilitiesParams.serializer(),
+            HostedCapabilitiesWire.serializer(),
+        )
+
+    val GROUPS_LIST: RpcMethod<HostedListParams, HostedRoomList> =
+        RpcMethod(
+            WsMethods.GROUPS_LIST,
+            HostedListParams.serializer(),
+            HostedRoomList.serializer(),
+        )
+
+    val GROUPS_STATE: RpcMethod<HostedStateParams, HostedRoomSnapshot> =
+        RpcMethod(
+            WsMethods.GROUPS_STATE,
+            HostedStateParams.serializer(),
+            HostedRoomSnapshot.serializer(),
+        )
+
+    val GROUPS_LOG: RpcMethod<HostedLogParams, HostedLogPage> =
+        RpcMethod(
+            WsMethods.GROUPS_LOG,
+            HostedLogParams.serializer(),
+            HostedLogPage.serializer(),
+        )
+
+    val GROUPS_SEND: RpcMethod<HostedSendParams, HostedSendReceipt> =
+        RpcMethod(
+            WsMethods.GROUPS_SEND,
+            HostedSendParams.serializer(),
+            HostedSendReceipt.serializer(),
+        )
+
+    val GROUPS_STOP: RpcMethod<HostedStopParams, HostedStopReceipt> =
+        RpcMethod(
+            WsMethods.GROUPS_STOP,
+            HostedStopParams.serializer(),
+            HostedStopReceipt.serializer(),
+        )
+
+    val GROUPS_RETRY: RpcMethod<HostedRetryParams, HostedRetryReceipt> =
+        RpcMethod(
+            WsMethods.GROUPS_RETRY,
+            HostedRetryParams.serializer(),
+            HostedRetryReceipt.serializer(),
+        )
+
+    val GROUPS_APPROVE: RpcMethod<HostedApproveParams, HostedApproveReceipt> =
+        RpcMethod(
+            WsMethods.GROUPS_APPROVE,
+            HostedApproveParams.serializer(),
+            HostedApproveReceipt.serializer(),
+        )
+
     /** Every typed method. GatewayContractTest iterates this; future migrations append here. */
     val all: List<RpcMethod<*, *>> =
         listOf(
@@ -673,5 +737,13 @@ object RpcMethods {
             SLASH_EXEC,
             FILE_ATTACH,
             IMAGE_ATTACH_BYTES,
+            GROUPS_CAPABILITIES,
+            GROUPS_LIST,
+            GROUPS_STATE,
+            GROUPS_LOG,
+            GROUPS_SEND,
+            GROUPS_STOP,
+            GROUPS_RETRY,
+            GROUPS_APPROVE,
         )
 }

@@ -191,6 +191,16 @@ object WsMethods {
     /** Usage bars (token/cost breakdown the legacy credits block rendered). */
     const val USAGE_BARS = "usage.bars"
 
+    // ── Hosted Rooms (issue #416) ───────────────────────────────────────
+    const val GROUPS_CAPABILITIES = "groups.capabilities"
+    const val GROUPS_LIST = "groups.list"
+    const val GROUPS_STATE = "groups.state"
+    const val GROUPS_LOG = "groups.log"
+    const val GROUPS_SEND = "groups.send"
+    const val GROUPS_STOP = "groups.stop"
+    const val GROUPS_RETRY = "groups.retry"
+    const val GROUPS_APPROVE = "groups.approve"
+
     // ── Profile-scoped method set ────────────────────────────────────────
     // Methods that the TUI gateway resolves against the per-profile
     // HERMES_HOME / state.db when `params.profile` is present.

@@ -12,6 +12,7 @@ import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.ws.ModelCatalogStore
+import com.m57.hermescontrol.data.ws.contract.ConfigGetParams
 import com.m57.hermescontrol.data.ws.contract.ConfigSetParams
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
 import com.m57.hermescontrol.data.ws.toAny
@@ -23,6 +24,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonElement
 import java.util.concurrent.ConcurrentHashMap
@@ -42,6 +45,34 @@ private data class ActiveModelSwitch(
 private data class ActiveFastSwitch(
     val targetFast: Boolean,
 )
+
+/** Profile-wide config key for Daybreak (issue #420); persisted as `agent.daybreak`. */
+private const val DAYBREAK_CONFIG_KEY = "daybreak"
+
+/**
+ * Parse a `config.get`/`config.set` daybreak payload. The backend answers a real JSON boolean;
+ * string words are accepted defensively. Anything else is unknown (null), never a guess.
+ */
+private fun parseDaybreakConfigValue(raw: Any?): Boolean? {
+    val map = raw as? Map<*, *> ?: return null
+    return when (val value = map["value"]) {
+        is Boolean -> {
+            value
+        }
+
+        is String -> {
+            when (value.trim().lowercase()) {
+                "true", "1", "on", "yes" -> true
+                "false", "0", "off", "no" -> false
+                else -> null
+            }
+        }
+
+        else -> {
+            null
+        }
+    }
+}
 
 /**
  * Owns model picker loading/caching, in-session model switches, model capabilities,
@@ -68,6 +99,11 @@ class ChatModelSwitchDelegate(
     private val getPinnedModels: () -> List<PinnedModel> = { AuthManager.getPinnedModels() },
     private val savePinnedModels: (List<PinnedModel>) -> Unit = { AuthManager.savePinnedModels(it) },
     private val wsRequest: (suspend (params: ConfigSetParams) -> JsonElement)? = null,
+    /**
+     * Suspend `config.get` used for profile-wide reads (issue #420, key `daybreak`).
+     * Null when the host does not wire it; reads then stay unknown and never mutate state.
+     */
+    private val wsGetRequest: (suspend (params: ConfigGetParams) -> JsonElement)? = null,
 ) {
     private val pendingModelSwitchRequests = ConcurrentHashMap<String, ActiveModelSwitch>()
     private val pendingFastSwitchRequests = ConcurrentHashMap<String, ActiveFastSwitch>()
@@ -87,6 +123,16 @@ class ChatModelSwitchDelegate(
     private var modelInfoModel: String? = null
     private var modelInfoScope: DataScope? = null
 
+    // ── Daybreak (issue #420) ──
+    // Profile-wide `agent.daybreak`, bound to the current DataScope (connection + profile).
+    // Mirrors desktop store/daybreak.ts: confirmed value, stale-read fencing, serialized writes.
+    private var daybreakConfirmed: Boolean = false
+    private var daybreakReadSeq: Long = 0L
+    private var daybreakWriteSeq: Long = 0L
+    private var daybreakPendingWrites: Int = 0
+    private var daybreakGeneration: Long = 0L
+    private val daybreakWriteMutex = Mutex()
+
     fun attachScopeObserver(externalScope: CoroutineScope) {
         externalScope.launch {
             dataScopeFlow.collect { newScope ->
@@ -101,6 +147,13 @@ class ChatModelSwitchDelegate(
                 modelInfoCapabilities = null
                 modelInfoModel = null
                 modelInfoScope = null
+                // Daybreak is per connection + profile: never carry the old scope's value.
+                // Bumping the generation makes every old-scope write's finally-block a no-op,
+                // so it cannot corrupt the new scope's pending count or confirmed value.
+                daybreakConfirmed = false
+                daybreakPendingWrites = 0
+                daybreakReadSeq++
+                daybreakGeneration++
                 resetTransientOperations()
 
                 if (modelOptionsJobScope != newScope) {
@@ -116,6 +169,8 @@ class ChatModelSwitchDelegate(
                         modelPickerLoading = shouldReload,
                         currentModelCapabilities = null,
                         modelPickerCanUseDefault = false,
+                        daybreakEnabled = false,
+                        daybreakPending = false,
                     )
                 }
 
@@ -156,6 +211,9 @@ class ChatModelSwitchDelegate(
         }
         if (!hasCached) {
             loadModelOptions(refresh = false)
+        } else {
+            // Refresh shared picker state on every open, not just first load.
+            syncDaybreak()
         }
     }
 
@@ -209,6 +267,7 @@ class ChatModelSwitchDelegate(
                             )
                         }
                         syncCurrentModelCapabilities()
+                        syncDaybreak()
                     }
 
                     is NetworkResult.Failure -> {
@@ -462,6 +521,104 @@ class ChatModelSwitchDelegate(
             ) { id ->
                 trackRequest(id, RpcMethods.CONFIG_SET.name)
                 pendingFastSwitchRequests[id] = ActiveFastSwitch(target)
+            }
+        }
+    }
+
+    /** Catalog lists Daybreak for at least one model in the current scope. */
+    private fun daybreakListed(): Boolean =
+        cachedModelOptionsScope == dataScopeFlow.value &&
+            cachedModelOptions.any { provider ->
+                provider.capabilities?.values?.any { it.daybreak == true } == true
+            }
+
+    /**
+     * Read the profile's `agent.daybreak` (issue #420). A read never overrides a write: it
+     * applies only when no write started (or is still in flight) since the read began, and
+     * only for the scope that started it. Unknown keys (older gateways) and transport errors
+     * leave the confirmed value untouched — no fallback mutation.
+     */
+    fun syncDaybreak() {
+        val getRequest = wsGetRequest ?: return
+        if (!daybreakListed()) return
+        val capturedScope = dataScopeFlow.value
+        val readSeq = ++daybreakReadSeq
+        val writesAtStart = daybreakWriteSeq
+        scope.launch(ioDispatcher) {
+            val value =
+                try {
+                    parseDaybreakConfigValue(getRequest(ConfigGetParams(key = DAYBREAK_CONFIG_KEY))?.toAny())
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    null
+                }
+            if (value == null) return@launch
+            if (readSeq != daybreakReadSeq || daybreakWriteSeq != writesAtStart || daybreakPendingWrites > 0) {
+                return@launch
+            }
+            if (capturedScope != dataScopeFlow.value) return@launch
+            daybreakConfirmed = value
+            uiState.update { it.copy(daybreakEnabled = value) }
+        }
+    }
+
+    /**
+     * Optimistic Daybreak write (issue #420). Writes to the one profile key go out one at a
+     * time under [daybreakWriteMutex], in click order; each success updates the confirmed
+     * value even while a newer flip is queued. A refusal restores the confirmed value when
+     * it is still the latest flip, and surfaces the error.
+     */
+    fun setDaybreak(on: Boolean) {
+        val request = wsRequest ?: return
+        if (!daybreakListed()) return
+        val capturedScope = dataScopeFlow.value
+        val writeSeq = ++daybreakWriteSeq
+        val generation = daybreakGeneration
+        daybreakPendingWrites++
+        uiState.update { it.copy(daybreakEnabled = on, daybreakPending = true) }
+        scope.launch(ioDispatcher) {
+            try {
+                daybreakWriteMutex.withLock {
+                    // A write that waited on the mutex across a profile switch must not
+                    // be decorated with the new profile: skip it entirely.
+                    if (capturedScope != dataScopeFlow.value) return@withLock
+                    val result =
+                        request(
+                            ConfigSetParams(
+                                key = DAYBREAK_CONFIG_KEY,
+                                value = on.toString(),
+                            ),
+                        )
+                    val responseMap = result?.toAny() as? Map<*, *>
+                    val saved = parseDaybreakConfigValue(responseMap)
+                    if (saved == null || responseMap?.get("key") != DAYBREAK_CONFIG_KEY) {
+                        throw IllegalStateException("Invalid daybreak config.set response")
+                    }
+                    if (capturedScope == dataScopeFlow.value) {
+                        daybreakConfirmed = saved
+                    }
+                    if (writeSeq == daybreakWriteSeq && capturedScope == dataScopeFlow.value) {
+                        uiState.update { it.copy(daybreakEnabled = saved) }
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (writeSeq == daybreakWriteSeq && capturedScope == dataScopeFlow.value) {
+                    uiState.update {
+                        it.copy(
+                            daybreakEnabled = daybreakConfirmed,
+                            errorMessage = "Could not change Daybreak: ${e.message ?: e.toString()}",
+                        )
+                    }
+                }
+            } finally {
+                // Old-scope completions must not publish into the new scope's pending flag.
+                if (generation == daybreakGeneration) {
+                    daybreakPendingWrites--
+                    uiState.update { it.copy(daybreakPending = daybreakPendingWrites > 0) }
+                }
             }
         }
     }

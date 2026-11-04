@@ -1658,6 +1658,10 @@
     <string name="chat_attachment_photos">Photos</string>
     <string name="chat_attachment_file">File</string>
     <string name="chat_fast_mode_label">Fast</string>
+    <string name="model_daybreak_label">Daybreak</string>
+    <string name="model_daybreak_on">On</string>
+    <string name="model_daybreak_off">Off</string>
+    <string name="model_daybreak_profile_wide">Applies to all sessions in this profile</string>
     <string name="chat_fast_mode_unavailable">Fast mode unavailable for this model</string>
     <string name="chat_reasoning_default">Default</string>
     <string name="chat_reasoning_clamped_desc">Requested %1$s, route sends %2$s</string>
@@ -2161,4 +2165,25 @@
         <item quantity="one">%1$d background process running</item>
         <item quantity="other">%1$d background processes running</item>
     </plurals>
+    <string name="hosted_rooms_title">Hosted rooms</string>
+    <string name="hosted_offline">Connect to a gateway to open hosted rooms</string>
+    <string name="hosted_unavailable">This gateway does not support hosted rooms</string>
+    <string name="hosted_legacy_unchanged">Your existing group chats are unchanged. Go back to open them.</string>
+    <string name="hosted_rooms_empty">No hosted rooms</string>
+    <string name="hosted_rooms_setup">Create a hosted room on your gateway, then refresh. Existing group chats are not migrated.</string>
+    <string name="hosted_read_only">Read only: the hosted room driver is unavailable</string>
+    <string name="hosted_log_empty">No room events yet</string>
+    <string name="hosted_retry_title">Retry task</string>
+    <string name="hosted_retry_warning">The previous attempt may have run. Retry this exact task only if you accept possible repeated effects.</string>
+    <string name="hosted_approval_title">Confirm approval response</string>
+    <string name="hosted_allow_once">Allow once</string>
+    <string name="hosted_deny">Deny</string>
+    <string name="hosted_send_uncertain">Send not confirmed. Reconnect and refresh before retrying.</string>
+    <string name="hosted_resend_same">Retry same message</string>
+    <string name="hosted_message">Message</string>
+    <string name="hosted_send">Send</string>
+    <string name="hosted_stop">Stop room</string>
+    <string name="hosted_leave_title">Leave hosted rooms?</string>
+    <string name="hosted_leave_warning">Your last message is not confirmed. The gateway might have accepted it. Check the room log before sending it again.</string>
+    <string name="hosted_leave">Leave</string>
 </resources>

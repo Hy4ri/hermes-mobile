@@ -25,6 +25,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -37,6 +38,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
@@ -71,6 +75,11 @@ fun ModelPickerDialog(
     showUseDefaultOption: Boolean = false,
     useDefaultEnabled: Boolean = true,
     onUseDefault: (() -> Unit)? = null,
+    // Daybreak (issue #420): profile-wide switch, shown only on rows whose
+    // `capabilities.daybreak` is true and only when the host wires the toggle.
+    daybreakEnabled: Boolean = false,
+    daybreakPending: Boolean = false,
+    onDaybreakToggle: ((Boolean) -> Unit)? = null,
     onSelect: (provider: String, model: String) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -233,6 +242,9 @@ fun ModelPickerDialog(
                                     onClick = { onSelect(pinned.providerSlug, pinned.modelName) },
                                     capabilities = caps,
                                     providerLabel = pinnedProviderLabel(pinned, providerBySlug),
+                                    daybreakEnabled = daybreakEnabled,
+                                    daybreakPending = daybreakPending,
+                                    onDaybreakToggle = onDaybreakToggle,
                                 )
                             }
                         }
@@ -318,6 +330,9 @@ fun ModelPickerDialog(
                                             },
                                         onClick = { onSelect(provider.slug, model) },
                                         capabilities = caps,
+                                        daybreakEnabled = daybreakEnabled,
+                                        daybreakPending = daybreakPending,
+                                        onDaybreakToggle = onDaybreakToggle,
                                     )
                                 }
                             }
@@ -340,6 +355,9 @@ private fun ModelItemCard(
     capabilities: ModelCapabilities? = null,
     // Only set where no provider header gives context (pinned rows, #1697).
     providerLabel: String? = null,
+    daybreakEnabled: Boolean = false,
+    daybreakPending: Boolean = false,
+    onDaybreakToggle: ((Boolean) -> Unit)? = null,
 ) {
     Surface(
         modifier =
@@ -379,6 +397,13 @@ private fun ModelItemCard(
                     )
                 }
                 ModelCapabilitySummary(capabilities)
+                if (capabilities?.daybreak == true && onDaybreakToggle != null) {
+                    DaybreakToggleRow(
+                        enabled = daybreakEnabled,
+                        pending = daybreakPending,
+                        onToggle = onDaybreakToggle,
+                    )
+                }
             }
             if (onPinToggle != null) {
                 HermesTooltip(
@@ -429,6 +454,56 @@ internal fun pinnedProviderLabel(
     pinned: PinnedModel,
     providerBySlug: Map<String, ModelProvider>,
 ): String = providerBySlug[pinned.providerSlug]?.name?.takeIf { it.isNotBlank() } ?: pinned.providerSlug
+
+/**
+ * Daybreak switch (issue #420): profile-wide `agent.daybreak`, not per model or session.
+ * The backend applies it only on models this account's catalog lists for Daybreak.
+ */
+@Composable
+private fun DaybreakToggleRow(
+    enabled: Boolean,
+    pending: Boolean,
+    onToggle: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stringResource(R.string.model_daybreak_label),
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = stringResource(R.string.model_daybreak_profile_wide),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        val daybreakLabel = stringResource(R.string.model_daybreak_label)
+        val daybreakState =
+            stringResource(
+                if (enabled) {
+                    R.string.model_daybreak_on
+                } else {
+                    R.string.model_daybreak_off
+                },
+            )
+        Switch(
+            checked = enabled,
+            onCheckedChange = onToggle,
+            enabled = !pending,
+            modifier =
+                Modifier.semantics {
+                    contentDescription = daybreakLabel
+                    stateDescription = daybreakState
+                },
+        )
+    }
+}
 
 @Composable
 private fun UseDefaultModelRow(

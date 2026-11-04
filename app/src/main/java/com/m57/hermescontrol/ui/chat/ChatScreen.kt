@@ -1177,6 +1177,9 @@ fun ChatScreen(
                 showUseDefaultOption = state.modelPickerCanUseDefault,
                 useDefaultEnabled = !state.isModelResetPending,
                 onUseDefault = { viewModel.resetSessionModel() },
+                daybreakEnabled = state.daybreakEnabled,
+                daybreakPending = state.daybreakPending,
+                onDaybreakToggle = { viewModel.setDaybreak(it) },
                 onSelect = { provider, model ->
                     viewModel.sendSlashModel(provider, model)
                 },

@@ -61,3 +61,18 @@ Additional device checks:
 5. Use an older gateway that omits activity. Check the unavailable label, without a false
    completion or fabricated legacy tool indicator. Check null timestamps and tools.
 6. Check narrow portrait, large text, RTL, and TalkBack with several live members.
+
+## Shared context and routing (#417)
+
+The settings action additionally requires `groups.context` in the advertised method list. Its absence does not disable the hosted-room transport. Purpose and shared notes are server-owned context, not the legacy group's local system prompt. Changes apply from the next message.
+
+1. Open settings, edit purpose and notes, and save. Reopen to check the gateway's normalized values. Check another client sees the same context.
+2. Configure lead routing on another client. Edit only notes on Mobile. Confirm the request omits both routing fields and preserves the current gateway policy.
+3. Explicitly select Everyone. Confirm the gateway clears the lead. Select Lead and a current member. Confirm the room header identifies the lead only after server confirmation.
+4. Remove the selected lead externally while settings are open. Confirm new saves require an explicit replacement or Everyone; Mobile must not silently change routing.
+5. Lose the ACK for a lead save, then remove that lead. Retry the unchanged pending payload. Confirm the original event ID is reused and the backend can return its original receipt. Editing the payload must instead create a fresh event ID.
+6. Fail loading or saving. Confirm errors remain visible, retry is available, and failed-save drafts are retained. Reopen settings after external edits to check fresh loading.
+7. Switch room, profile, connection, or socket generation during loading or saving. Confirm stale completions cannot close or populate a new editor or change its confirmed context.
+8. Check the settings dialog at narrow widths, large font, Arabic/RTL, with the keyboard, and with TalkBack. Confirm the toolbar action has a tooltip.
+
+Context retry identity is held in memory only. Reconnect never automatically resubmits settings. If Android kills the process after an uncertain save, inspect the gateway before saving again.

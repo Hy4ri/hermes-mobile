@@ -3,19 +3,22 @@ package com.m57.hermescontrol.ui.bots.group
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.HostedApproval
 import com.m57.hermescontrol.data.ws.HostedCapabilities
+import com.m57.hermescontrol.data.ws.HostedContextReceipt
 import com.m57.hermescontrol.data.ws.HostedDriverStatus
 import com.m57.hermescontrol.data.ws.HostedEvent
 import com.m57.hermescontrol.data.ws.HostedLogPage
 import com.m57.hermescontrol.data.ws.HostedMemberActivity
 import com.m57.hermescontrol.data.ws.HostedRoom
+import com.m57.hermescontrol.data.ws.HostedRoomContext
 import com.m57.hermescontrol.data.ws.HostedRoomList
+import com.m57.hermescontrol.data.ws.HostedRoomMember
 import com.m57.hermescontrol.data.ws.HostedRoomSnapshot
 import com.m57.hermescontrol.data.ws.HostedRoomsSource
 import com.m57.hermescontrol.data.ws.HostedTask
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -28,6 +31,16 @@ import org.junit.Test
 import java.security.MessageDigest
 
 class HostedRoomsControllerTest {
+    private data class ContextCall(
+        val profile: String,
+        val roomId: String,
+        val eventId: String,
+        val purpose: String,
+        val notes: String,
+        val routing: String?,
+        val leadMemberId: String?,
+    )
+
     private class FakeHostedRoomsSource : HostedRoomsSource {
         var capabilitiesResult: HostedCapabilities =
             HostedCapabilities(supported = true, driver = true, maxLogLimit = 100)
@@ -39,14 +52,18 @@ class HostedRoomsControllerTest {
         var snapshots: MutableMap<String, HostedRoomSnapshot> = mutableMapOf()
         var logPages: MutableMap<String, MutableList<HostedLogPage>> = mutableMapOf()
 
+        val contextCalls = mutableListOf<ContextCall>()
+        var contextError: Exception? = null
+        var contextDeferred: CompletableDeferred<HostedContextReceipt>? = null
+        var contextReceiptOverride: HostedContextReceipt? = null
+        var stateDeferred: CompletableDeferred<HostedRoomSnapshot>? = null
+        var retryDeferred: CompletableDeferred<Unit>? = null
+
         var sendCalls: MutableList<List<String>> = mutableListOf()
         var sendError: Exception? = null
         var stopCalls: MutableList<Pair<String, String>> = mutableListOf()
         var retryCalls: MutableList<Triple<String, String, HostedTask>> = mutableListOf()
         var approveCalls: MutableList<List<Any>> = mutableListOf()
-
-        var stateDeferred: CompletableDeferred<HostedRoomSnapshot>? = null
-        var retryDeferred: CompletableDeferred<Unit>? = null
 
         var onLogCall: ((roomId: String, sinceSeq: Long) -> Unit)? = null
         var logDeferred: CompletableDeferred<HostedLogPage>? = null
@@ -73,11 +90,50 @@ class HostedRoomsControllerTest {
         override suspend fun state(
             profile: String,
             roomId: String,
-        ): HostedRoomSnapshot =
-            stateDeferred?.await() ?: snapshots[roomId] ?: HostedRoomSnapshot(
+        ): HostedRoomSnapshot {
+            stateDeferred?.let { return it.await() }
+            return snapshots[roomId] ?: HostedRoomSnapshot(
                 room = HostedRoom(roomId = roomId, name = "Room $roomId"),
                 driverStatus = HostedDriverStatus(running = true),
             )
+        }
+
+        override suspend fun context(
+            profile: String,
+            roomId: String,
+            eventId: String,
+            purpose: String,
+            notes: String,
+            routing: String?,
+            leadMemberId: String?,
+        ): HostedContextReceipt {
+            contextCalls += ContextCall(profile, roomId, eventId, purpose, notes, routing, leadMemberId)
+            val delayedReceipt = contextDeferred?.await()
+            contextError?.let { throw it }
+            val old = snapshots[roomId]?.context
+            val confirmed =
+                HostedRoomContext(
+                    purpose = purpose,
+                    notes = notes,
+                    routing = routing ?: old?.routing ?: "everyone",
+                    leadMemberId = leadMemberId ?: old?.leadMemberId.orEmpty(),
+                )
+            val receipt =
+                contextReceiptOverride ?: delayedReceipt ?: HostedContextReceipt(
+                    context = confirmed,
+                    event =
+                        HostedEvent(
+                            roomId = roomId,
+                            seq = 1,
+                            eventId = eventId,
+                            kind = "room.context_set",
+                            payload = JsonObject(emptyMap()),
+                            actor = JsonObject(emptyMap()),
+                        ),
+                )
+            snapshots[roomId]?.let { snapshots[roomId] = it.copy(context = receipt.context) }
+            return receipt
+        }
 
         override suspend fun log(
             profile: String,
@@ -133,6 +189,54 @@ class HostedRoomsControllerTest {
             approveCalls.add(listOf(profile, roomId, task, requestId, choice))
         }
     }
+
+    private fun contextSource(
+        context: HostedRoomContext = HostedRoomContext("Existing purpose", "Existing notes", "lead", "member-1"),
+    ): FakeHostedRoomsSource =
+        FakeHostedRoomsSource().apply {
+            capabilitiesResult = HostedCapabilities(true, true, 100, contextSupported = true)
+            val rooms =
+                listOf("r1", "r2").map { roomId ->
+                    HostedRoom(
+                        roomId = roomId,
+                        name = "Room $roomId",
+                        members =
+                            listOf(
+                                HostedRoomMember(memberId = "member-1", profile = "analyst", handle = "analyst"),
+                                HostedRoomMember(memberId = "member-2", profile = "reviewer", handle = "reviewer"),
+                            ),
+                    )
+                }
+            listPages += HostedRoomList(rooms)
+            rooms.forEach { room ->
+                snapshots[room.roomId] = HostedRoomSnapshot(room, HostedDriverStatus(running = true), context)
+            }
+        }
+
+    private suspend fun selectContextRoom(controller: HostedRoomsController) {
+        controller.refresh()
+        controller.select("r1")
+        controller.refresh()
+    }
+
+    private fun contextReceipt(
+        eventId: String = "save-1",
+        roomId: String = "r1",
+        context: HostedRoomContext = HostedRoomContext("Server purpose", "Server notes", "lead", "member-1"),
+        kind: String = "room.context_set",
+    ): HostedContextReceipt =
+        HostedContextReceipt(
+            context = context,
+            event =
+                HostedEvent(
+                    roomId = roomId,
+                    seq = 1,
+                    eventId = eventId,
+                    kind = kind,
+                    payload = JsonObject(emptyMap()),
+                    actor = JsonObject(emptyMap()),
+                ),
+        )
 
     private fun testOwner(
         scopeKey: String = "scope-1",
@@ -883,6 +987,601 @@ class HostedRoomsControllerTest {
             refresh.join()
             assertTrue(controller.state.value.writable)
             assertNull(controller.state.value.error)
+        }
+
+    @Test
+    fun `context capability absence disables settings without disabling hosted messaging`() =
+        runTest {
+            val source =
+                contextSource().apply {
+                    capabilitiesResult = capabilitiesResult.copy(contextSupported = false)
+                }
+            val controller = HostedRoomsController(source, { testOwner() })
+            selectContextRoom(controller)
+
+            assertFalse(controller.state.value.contextWritable)
+            assertTrue(controller.state.value.writable)
+            assertFalse(controller.state.value.unsupported)
+            controller.saveContext("Must not write", "Notes", "everyone")
+            assertTrue(source.contextCalls.isEmpty())
+            controller.send("Existing messaging remains available")
+            assertEquals(1, source.sendCalls.size)
+            assertEquals(
+                "Existing purpose",
+                controller.state.value.snapshot
+                    ?.context
+                    ?.purpose,
+            )
+        }
+
+    @Test
+    fun `settings save does not require a live discussion driver`() =
+        runTest {
+            val source =
+                contextSource().apply {
+                    capabilitiesResult = capabilitiesResult.copy(driver = false)
+                    snapshots["r1"] = snapshots.getValue("r1").copy(driverStatus = null)
+                }
+            val controller = HostedRoomsController(source, { testOwner() }, { "save-1" })
+            selectContextRoom(controller)
+
+            assertFalse(controller.state.value.writable)
+            assertTrue(controller.state.value.contextWritable)
+            controller.saveContext("Updated purpose", "Updated notes")
+
+            assertEquals(1, source.contextCalls.size)
+            assertEquals(
+                "Updated purpose",
+                controller.state.value.snapshot
+                    ?.context
+                    ?.purpose,
+            )
+        }
+
+    @Test
+    fun `settings stay disabled without confirmed context or for a disbanded room`() =
+        runTest {
+            for (disbanded in listOf(false, true)) {
+                val source =
+                    contextSource().apply {
+                        val snapshot = snapshots.getValue("r1")
+                        snapshots["r1"] =
+                            if (disbanded) {
+                                snapshot.copy(room = snapshot.room.copy(disbandedAt = 100.0))
+                            } else {
+                                snapshot.copy(context = null)
+                            }
+                    }
+                val controller = HostedRoomsController(source, { testOwner() })
+                selectContextRoom(controller)
+
+                assertFalse(controller.state.value.contextWritable)
+                controller.saveContext("No write", "No write")
+                assertTrue(source.contextCalls.isEmpty())
+            }
+        }
+
+    @Test
+    fun `purpose and notes save omits routing and each intended save gets a fresh id`() =
+        runTest {
+            val source = contextSource()
+            var nextId = 0
+            val controller = HostedRoomsController(source, { testOwner() }, { "save-${++nextId}" })
+            selectContextRoom(controller)
+
+            controller.saveContext("First purpose", "First notes")
+            controller.saveContext("Second purpose", "Second notes")
+
+            assertEquals(listOf("save-1", "save-2"), source.contextCalls.map { it.eventId })
+            assertEquals(listOf("prof-a", "prof-a"), source.contextCalls.map { it.profile })
+            assertEquals(listOf("r1", "r1"), source.contextCalls.map { it.roomId })
+            source.contextCalls.forEach {
+                assertNull(it.routing)
+                assertNull(it.leadMemberId)
+            }
+            assertEquals(
+                "lead",
+                controller.state.value.snapshot
+                    ?.context
+                    ?.routing,
+            )
+            assertEquals(
+                "member-1",
+                controller.state.value.snapshot
+                    ?.context
+                    ?.leadMemberId,
+            )
+            assertEquals(
+                "Second purpose",
+                controller.state.value.snapshot
+                    ?.context
+                    ?.purpose,
+            )
+            assertEquals("save-2", controller.state.value.contextSavedEventId)
+        }
+
+    @Test
+    fun `explicit lead uses member identity and everyone clears the lead`() =
+        runTest {
+            val source = contextSource()
+            val controller = HostedRoomsController(source, { testOwner() }, { "save-${source.contextCalls.size}" })
+            selectContextRoom(controller)
+
+            controller.saveContext("Purpose", "Notes", "lead", "member-2")
+            assertEquals("lead", source.contextCalls.single().routing)
+            assertEquals("member-2", source.contextCalls.single().leadMemberId)
+            assertEquals(
+                "member-2",
+                controller.state.value.snapshot
+                    ?.context
+                    ?.leadMemberId,
+            )
+
+            controller.saveContext("Purpose", "Notes", "everyone")
+            assertEquals("everyone", source.contextCalls.last().routing)
+            assertEquals("", source.contextCalls.last().leadMemberId)
+            assertEquals(
+                "everyone",
+                controller.state.value.snapshot
+                    ?.context
+                    ?.routing,
+            )
+            assertEquals(
+                "",
+                controller.state.value.snapshot
+                    ?.context
+                    ?.leadMemberId,
+            )
+        }
+
+    @Test
+    fun `invalid routing blank lead profile name and removed lead cannot start a new save`() =
+        runTest {
+            val source = contextSource()
+            val controller = HostedRoomsController(source, { testOwner() })
+            selectContextRoom(controller)
+            val original =
+                controller.state.value.snapshot
+                    ?.context
+
+            val invalidChoices =
+                listOf(
+                    "unknown" to "member-1",
+                    "lead" to null,
+                    "lead" to " ",
+                    "lead" to "analyst",
+                    "lead" to "removed-member",
+                    null to "member-1",
+                )
+            for ((routing, lead) in invalidChoices) {
+                controller.saveContext("Unsaved purpose", "Unsaved notes", routing, lead)
+                assertTrue(source.contextCalls.isEmpty())
+                assertNotNull(controller.state.value.contextError)
+                assertEquals(
+                    original,
+                    controller.state.value.snapshot
+                        ?.context,
+                )
+                assertFalse(controller.state.value.contextSaving)
+            }
+
+            // The old selected lead can disappear while the editor is open.
+            source.snapshots["r1"] =
+                source.snapshots.getValue("r1").let {
+                    val members = it.room.members.filterNot { member -> member.memberId == "member-1" }
+                    it.copy(room = it.room.copy(members = members))
+                }
+            controller.refresh()
+            controller.saveContext("Unsaved purpose", "Unsaved notes", "lead", "member-1")
+            assertTrue(source.contextCalls.isEmpty())
+            assertNotNull(controller.state.value.contextError)
+
+            controller.saveContext("Recovered purpose", "Notes", "everyone")
+            assertEquals(1, source.contextCalls.size)
+            assertNull(controller.state.value.contextError)
+            assertEquals(
+                "everyone",
+                controller.state.value.snapshot
+                    ?.context
+                    ?.routing,
+            )
+        }
+
+    @Test
+    fun `save publishes only normalized backend ACK and blocks duplicate submission while waiting`() =
+        runTest {
+            val response = CompletableDeferred<HostedContextReceipt>()
+            val source = contextSource().apply { contextDeferred = response }
+            val controller = HostedRoomsController(source, { testOwner() }, { "save-1" })
+            selectContextRoom(controller)
+            val original =
+                controller.state.value.snapshot
+                    ?.context
+
+            val save =
+                launch(start = CoroutineStart.UNDISPATCHED) {
+                    controller.saveContext(" Unnormalized purpose ", " Raw notes ")
+                }
+            assertEquals(1, source.contextCalls.size)
+            assertTrue(controller.state.value.contextSaving)
+            assertFalse(controller.state.value.contextWritable)
+            assertFalse(controller.state.value.writable)
+            assertEquals(
+                original,
+                controller.state.value.snapshot
+                    ?.context,
+            )
+            assertNull(controller.state.value.contextSavedEventId)
+            controller.saveContext("Duplicate", "Duplicate")
+            controller.send("Must not race settings")
+            assertEquals(1, source.contextCalls.size)
+            assertTrue(source.sendCalls.isEmpty())
+
+            val receipt = contextReceipt()
+            response.complete(receipt)
+            save.join()
+
+            assertEquals(
+                receipt.context,
+                controller.state.value.snapshot
+                    ?.context,
+            )
+            assertFalse(controller.state.value.contextSaving)
+            assertNull(controller.state.value.pendingContextSave)
+            assertNull(controller.state.value.contextError)
+            assertEquals("save-1", controller.state.value.contextSavedEventId)
+            assertTrue(controller.state.value.contextWritable)
+        }
+
+    @Test
+    fun `failed save keeps confirmed settings and explicit retry reuses identity and exact omitted payload`() =
+        runTest {
+            val source =
+                contextSource().apply {
+                    contextError = HermesWsClient.HermesRpcException("Save response lost")
+                }
+            var nextId = 0
+            val controller = HostedRoomsController(source, { testOwner() }, { "save-${++nextId}" })
+            selectContextRoom(controller)
+            val original =
+                controller.state.value.snapshot
+                    ?.context
+
+            controller.saveContext("New purpose", "New notes")
+
+            assertEquals(
+                original,
+                controller.state.value.snapshot
+                    ?.context,
+            )
+            assertEquals("Save response lost", controller.state.value.contextError)
+            assertNotNull(controller.state.value.pendingContextSave)
+            assertFalse(controller.state.value.contextSaving)
+            assertNull(controller.state.value.contextSavedEventId)
+            assertNull(controller.state.value.error)
+            assertTrue(controller.state.value.writable)
+            controller.refresh()
+            assertEquals(1, source.contextCalls.size)
+
+            source.contextError = null
+            controller.retryContextSave()
+
+            assertEquals(2, source.contextCalls.size)
+            assertEquals(source.contextCalls.first(), source.contextCalls.last())
+            assertEquals(1, nextId)
+            assertNull(controller.state.value.contextError)
+            assertNull(controller.state.value.pendingContextSave)
+            assertEquals(
+                "New purpose",
+                controller.state.value.snapshot
+                    ?.context
+                    ?.purpose,
+            )
+            controller.retryContextSave()
+            assertEquals(2, source.contextCalls.size)
+
+            controller.saveContext("A different save", "Different notes")
+            assertEquals("save-2", source.contextCalls.last().eventId)
+        }
+
+    @Test
+    fun `retry preserves already submitted lead identity even after roster removes that lead`() =
+        runTest {
+            val source = contextSource().apply { contextError = HermesWsClient.HermesRpcException("ACK lost") }
+            val controller = HostedRoomsController(source, { testOwner() }, { "save-1" })
+            selectContextRoom(controller)
+            controller.saveContext("Purpose", "Notes", "lead", "member-2")
+
+            source.snapshots["r1"] =
+                source.snapshots.getValue("r1").let {
+                    val members = it.room.members.filterNot { member -> member.memberId == "member-2" }
+                    it.copy(room = it.room.copy(members = members))
+                }
+            controller.refresh()
+            source.contextError = null
+            controller.retryContextSave()
+
+            assertEquals(2, source.contextCalls.size)
+            assertEquals(source.contextCalls.first(), source.contextCalls.last())
+            assertNull(controller.state.value.contextError)
+        }
+
+    @Test
+    fun `receipt for wrong room event id or event kind cannot confirm settings`() =
+        runTest {
+            val invalidReceipts =
+                listOf(
+                    contextReceipt(roomId = "r2"),
+                    contextReceipt(eventId = "unrelated-save"),
+                    contextReceipt(kind = "message.user"),
+                )
+            for (receipt in invalidReceipts) {
+                val source = contextSource().apply { contextReceiptOverride = receipt }
+                val controller = HostedRoomsController(source, { testOwner() }, { "save-1" })
+                selectContextRoom(controller)
+                val original =
+                    controller.state.value.snapshot
+                        ?.context
+
+                controller.saveContext("Unsaved purpose", "Unsaved notes")
+
+                assertEquals(
+                    original,
+                    controller.state.value.snapshot
+                        ?.context,
+                )
+                assertNotNull(controller.state.value.contextError)
+                assertNotNull(controller.state.value.pendingContextSave)
+                assertNull(controller.state.value.contextSavedEventId)
+                assertFalse(controller.state.value.contextSaving)
+            }
+        }
+
+    @Test
+    fun `late context ACK and failures are fenced after room profile connection socket or disconnect changes`() =
+        runTest {
+            for (change in listOf("room", "profile", "connection", "socket", "disconnect")) {
+                for (failed in listOf(false, true)) {
+                    val response = CompletableDeferred<HostedContextReceipt>()
+                    val source = contextSource().apply { contextDeferred = response }
+                    var owner = testOwner()
+                    val controller = HostedRoomsController(source, { owner }, { "save-1" })
+                    selectContextRoom(controller)
+                    val save =
+                        launch(start = CoroutineStart.UNDISPATCHED) {
+                            controller.saveContext("Old scope purpose", "Old scope notes")
+                        }
+                    assertEquals(1, source.contextCalls.size)
+
+                    when (change) {
+                        "room" -> controller.select("r2")
+                        "profile" -> owner = testOwner(profile = "prof-b")
+                        "connection" -> owner = testOwner(scopeKey = "other-connection")
+                        "socket" -> owner = testOwner(generation = 2)
+                        "disconnect" -> owner = testOwner(connected = false)
+                    }
+                    controller.syncOwner()
+                    if (failed) source.contextError = HermesWsClient.HermesRpcException("Old failure")
+                    response.complete(contextReceipt())
+                    save.join()
+
+                    assertNull("$change must fence old context", controller.state.value.snapshot)
+                    assertNull("$change must fence old error", controller.state.value.contextError)
+                    assertNull("$change must fence old ACK", controller.state.value.contextSavedEventId)
+                    assertFalse(controller.state.value.contextSaving)
+                    assertEquals(1, source.contextCalls.size)
+                    if (change == "room") assertEquals("r2", controller.state.value.selectedRoomId)
+                    if (change in listOf("profile", "connection", "room")) {
+                        assertNull(controller.state.value.pendingContextSave)
+                    }
+                }
+            }
+        }
+
+    @Test
+    fun `reconnect never automatically retries context save and explicit retry retains event id`() =
+        runTest {
+            val source = contextSource().apply { contextError = HermesWsClient.HermesRpcException("ACK lost") }
+            var owner = testOwner()
+            val controller = HostedRoomsController(source, { owner }, { "save-1" })
+            selectContextRoom(controller)
+            controller.saveContext("Purpose", "Notes")
+
+            owner = testOwner(generation = 2)
+            controller.syncOwner()
+            assertFalse(controller.state.value.contextWritable)
+            assertEquals(
+                "save-1",
+                controller.state.value.pendingContextSave
+                    ?.eventId,
+            )
+            controller.refresh()
+            assertEquals(1, source.contextCalls.size)
+            assertTrue(controller.state.value.contextWritable)
+
+            source.contextError = null
+            controller.retryContextSave()
+            assertEquals(2, source.contextCalls.size)
+            assertEquals(source.contextCalls.first(), source.contextCalls.last())
+            assertEquals(
+                "Purpose",
+                controller.state.value.snapshot
+                    ?.context
+                    ?.purpose,
+            )
+        }
+
+    @Test
+    fun `late state context is fenced when selected room or owner changes`() =
+        runTest {
+            for (change in listOf("room", "profile", "connection", "socket")) {
+                val source = contextSource()
+                var owner = testOwner()
+                val controller = HostedRoomsController(source, { owner })
+                selectContextRoom(controller)
+                val response = CompletableDeferred<HostedRoomSnapshot>()
+                source.stateDeferred = response
+                val refresh = launch(start = CoroutineStart.UNDISPATCHED) { controller.refresh() }
+
+                when (change) {
+                    "room" -> controller.select("r2")
+                    "profile" -> owner = testOwner(profile = "prof-b")
+                    "connection" -> owner = testOwner(scopeKey = "other-connection")
+                    "socket" -> owner = testOwner(generation = 2)
+                }
+                controller.syncOwner()
+                response.complete(
+                    source.snapshots.getValue("r1").copy(context = HostedRoomContext("Stale purpose", "Stale notes")),
+                )
+                refresh.join()
+
+                assertNull("$change must not receive the old room context", controller.state.value.snapshot)
+                assertFalse(controller.state.value.contextWritable)
+            }
+        }
+
+    @Test
+    fun `cancelled context save releases saving state and keeps unconfirmed settings for explicit retry`() =
+        runTest {
+            val response = CompletableDeferred<HostedContextReceipt>()
+            val source = contextSource().apply { contextDeferred = response }
+            val controller = HostedRoomsController(source, { testOwner() }, { "save-1" })
+            selectContextRoom(controller)
+            val original =
+                controller.state.value.snapshot
+                    ?.context
+            val save = launch(start = CoroutineStart.UNDISPATCHED) { controller.saveContext("New", "New") }
+
+            save.cancel(CancellationException("Editor closed"))
+            save.join()
+
+            assertEquals(
+                original,
+                controller.state.value.snapshot
+                    ?.context,
+            )
+            assertFalse(controller.state.value.contextSaving)
+            assertNull(controller.state.value.contextSavedEventId)
+            assertNotNull(controller.state.value.pendingContextSave)
+            source.contextDeferred = null
+            controller.retryContextSave()
+            assertEquals(2, source.contextCalls.size)
+            assertEquals("save-1", source.contextCalls.last().eventId)
+        }
+
+    @Test
+    fun `refresh begun before save finishes before ACK so it cannot replace confirmed settings`() =
+        runTest {
+            val source = contextSource()
+            val controller = HostedRoomsController(source, { testOwner() }, { "save-1" })
+            selectContextRoom(controller)
+            val oldSnapshot = source.snapshots.getValue("r1")
+            val stateResponse = CompletableDeferred<HostedRoomSnapshot>()
+            source.stateDeferred = stateResponse
+            val refresh = launch(start = CoroutineStart.UNDISPATCHED) { controller.refresh() }
+            val save =
+                launch(start = CoroutineStart.UNDISPATCHED) { controller.saveContext("New purpose", "New notes") }
+
+            assertTrue(controller.state.value.contextSaving)
+            assertTrue(source.contextCalls.isEmpty())
+            source.stateDeferred = null
+            stateResponse.complete(oldSnapshot)
+            refresh.join()
+            save.join()
+
+            assertEquals(1, source.contextCalls.size)
+            assertEquals(
+                "New purpose",
+                controller.state.value.snapshot
+                    ?.context
+                    ?.purpose,
+            )
+            assertEquals(
+                "New notes",
+                controller.state.value.snapshot
+                    ?.context
+                    ?.notes,
+            )
+            assertEquals("save-1", controller.state.value.contextSavedEventId)
+            assertFalse(controller.state.value.contextSaving)
+        }
+
+    @Test
+    fun `notes-only save rejected after lead removal preserves routing until user explicitly changes it`() =
+        runTest {
+            val source =
+                contextSource().apply {
+                    val snapshot = snapshots.getValue("r1")
+                    val remaining = snapshot.room.members.filterNot { it.memberId == "member-1" }
+                    snapshots["r1"] = snapshot.copy(room = snapshot.room.copy(members = remaining))
+                    contextError =
+                        HermesWsClient.HermesRpcException("The lead must be a member of this Group Chat", 4125)
+                }
+            var nextId = 0
+            val controller = HostedRoomsController(source, { testOwner() }, { "save-${++nextId}" })
+            selectContextRoom(controller)
+            val confirmed =
+                controller.state.value.snapshot
+                    ?.context
+
+            controller.saveContext("Existing purpose", "Edited notes")
+
+            assertEquals(1, source.contextCalls.size)
+            assertNull(source.contextCalls.single().routing)
+            assertNull(source.contextCalls.single().leadMemberId)
+            assertEquals(
+                confirmed,
+                controller.state.value.snapshot
+                    ?.context,
+            )
+            assertEquals(
+                "lead",
+                controller.state.value.snapshot
+                    ?.context
+                    ?.routing,
+            )
+            assertEquals(
+                "member-1",
+                controller.state.value.snapshot
+                    ?.context
+                    ?.leadMemberId,
+            )
+            assertNotNull(controller.state.value.contextError)
+            assertNull(controller.state.value.contextSavedEventId)
+            assertEquals(
+                "save-1",
+                controller.state.value.pendingContextSave
+                    ?.eventId,
+            )
+            assertFalse(controller.state.value.contextSaving)
+
+            // Only an explicit routing edit may replace the server's removed lead.
+            source.contextError = null
+            controller.saveContext("Existing purpose", "Edited notes", "everyone")
+
+            assertEquals(2, source.contextCalls.size)
+            assertEquals("save-2", source.contextCalls.last().eventId)
+            assertEquals("everyone", source.contextCalls.last().routing)
+            assertEquals("", source.contextCalls.last().leadMemberId)
+            assertEquals(
+                "everyone",
+                controller.state.value.snapshot
+                    ?.context
+                    ?.routing,
+            )
+            assertEquals(
+                "",
+                controller.state.value.snapshot
+                    ?.context
+                    ?.leadMemberId,
+            )
+            assertEquals(
+                "Edited notes",
+                controller.state.value.snapshot
+                    ?.context
+                    ?.notes,
+            )
+            assertNull(controller.state.value.contextError)
         }
 
     @Test

@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
@@ -24,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -31,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.lifecycle.Lifecycle
@@ -42,11 +46,15 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.applock.AlertDialog
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.ws.HermesWsClient
+import com.m57.hermescontrol.data.ws.HostedRoomSnapshot
 import com.m57.hermescontrol.data.ws.HostedTask
 import com.m57.hermescontrol.theme.LocalSpacing
+import com.m57.hermescontrol.ui.bots.group.components.HostedRoomContextDialog
+import com.m57.hermescontrol.ui.bots.group.components.contextLabel
 import com.m57.hermescontrol.ui.chat.MarkdownText
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
+import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.NavIcon
@@ -115,6 +123,8 @@ fun HostedRoomsScreen(
         onStop = viewModel::stop,
         onRetry = viewModel::retry,
         onApprove = viewModel::approve,
+        onLoadContext = viewModel::loadContext,
+        onSaveContext = viewModel::saveContext,
     )
 }
 
@@ -129,8 +139,73 @@ internal fun HostedRoomsContent(
     onStop: () -> Unit,
     onRetry: (HostedTask) -> Unit,
     onApprove: (HostedTask, String) -> Unit,
+    onLoadContext: suspend (HostedOwner, String) -> Result<HostedRoomSnapshot>,
+    onSaveContext: suspend (HostedOwner, String, String, String, String?, String?, Boolean) -> Result<Unit>,
 ) {
     val spacing = LocalSpacing.current
+    val contextScope = androidx.compose.runtime.rememberCoroutineScope()
+    val contextOwner = state.owner
+    val contextRoom = state.selectedRoomId
+    var editorOpen by remember(contextOwner, contextRoom) { mutableStateOf(false) }
+    var editorOpening by remember(contextOwner, contextRoom) { mutableLongStateOf(0L) }
+    var editorSnapshot by remember(contextOwner, contextRoom) { mutableStateOf<HostedRoomSnapshot?>(null) }
+    var editorLoading by remember(contextOwner, contextRoom) { mutableStateOf(false) }
+    var editorSaving by remember(contextOwner, contextRoom) { mutableStateOf(false) }
+    var editorError by remember(contextOwner, contextRoom) { mutableStateOf<String?>(null) }
+    val contextEnabled =
+        contextOwner?.connected == true && state.capabilities?.contextSupported == true &&
+            state.snapshot?.room?.disbandedAt == null && !state.busy && !state.contextSaving
+    val loadEditor: () -> Unit = {
+        if (contextOwner != null && contextRoom != null) {
+            editorOpen = true
+            editorOpening++
+            val opening = editorOpening
+            editorSnapshot = null
+            editorLoading = true
+            editorError = null
+            contextScope.launch {
+                val result = onLoadContext(contextOwner, contextRoom)
+                if (editorOpen && editorOpening == opening) {
+                    editorSnapshot = result.getOrNull()
+                    editorError = result.exceptionOrNull()?.message
+                    editorLoading = false
+                }
+            }
+        }
+    }
+    if (editorOpen && contextOwner != null && contextRoom != null) {
+        androidx.compose.runtime.key(contextOwner, contextRoom, editorOpening) {
+            HostedRoomContextDialog(
+                context = editorSnapshot?.context,
+                members = state.snapshot?.room?.members ?: editorSnapshot?.room?.members.orEmpty(),
+                loading = editorLoading,
+                saving = editorSaving,
+                error = editorError,
+                writable = contextEnabled,
+                pendingContextSave = state.pendingContextSave,
+                onDismiss = { if (!editorSaving) editorOpen = false },
+                onReload = loadEditor,
+                onSave = { purpose, notes, routing, leadMemberId ->
+                    val opening = editorOpening
+                    val retry = editorError != null
+                    editorSaving = true
+                    editorError = null
+                    contextScope.launch {
+                        val result =
+                            onSaveContext(contextOwner, contextRoom, purpose, notes, routing, leadMemberId, retry)
+                        if (editorOpen && editorOpening == opening) {
+                            editorSaving = false
+                            if (result.isSuccess) {
+                                editorOpen = false
+                            } else {
+                                editorError = result.exceptionOrNull()?.message
+                            }
+                        }
+                    }
+                },
+            )
+        }
+    }
     var draft by remember(state.owner?.scopeKey, state.selectedRoomId) { mutableStateOf("") }
     var confirmation by remember(state.owner, state.selectedRoomId) { mutableStateOf<Pair<HostedTask, String?>?>(null) }
     confirmation?.let { (task, choice) ->
@@ -187,6 +262,16 @@ internal fun HostedRoomsContent(
         drawerGesturesEnabled = false,
         onRefresh = onRefresh,
         isRefreshing = state.loading,
+        actions = {
+            if (contextRoom != null && state.capabilities?.contextSupported == true) {
+                HermesIconButton(
+                    imageVector = Icons.Default.Settings,
+                    label = stringResource(R.string.hosted_context_settings),
+                    onClick = loadEditor,
+                    enabled = contextEnabled && !editorOpen,
+                )
+            }
+        },
     ) { padding ->
         Column(
             Modifier.fillMaxSize().consumeWindowInsets(padding).imePadding(),
@@ -247,6 +332,34 @@ internal fun HostedRoomsContent(
                 }
 
                 else -> {
+                    state.snapshot?.context?.takeIf { state.capabilities?.contextSupported == true }?.let { confirmed ->
+                        Column(
+                            modifier = Modifier.padding(horizontal = spacing.md),
+                            verticalArrangement = Arrangement.spacedBy(spacing.sm),
+                        ) {
+                            if (confirmed.purpose.isNotBlank()) {
+                                Text(
+                                    confirmed.purpose,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            if (confirmed.routing == "lead") {
+                                state.snapshot
+                                    ?.room
+                                    ?.members
+                                    .orEmpty()
+                                    .find { !it.memberId.isNullOrBlank() && it.memberId == confirmed.leadMemberId }
+                                    ?.let { lead ->
+                                        Text(
+                                            stringResource(R.string.hosted_context_confirmed_lead, lead.contextLabel()),
+                                            style = MaterialTheme.typography.labelMedium,
+                                        )
+                                    }
+                            }
+                        }
+                    }
                     if (state.error !=
                         null
                     ) {
@@ -401,6 +514,8 @@ private fun HostedRoomsUnsupportedPreview() {
             _,
             ->
         },
+        onLoadContext = { _, _ -> Result.failure(IllegalStateException("Preview")) },
+        onSaveContext = { _, _, _, _, _, _, _ -> Result.success(Unit) },
     )
 }
 
@@ -465,6 +580,8 @@ private fun HostedRoomComposerPreview() {
                 onStop = {},
                 onRetry = {},
                 onApprove = { _, _ -> },
+                onLoadContext = { _, _ -> Result.failure(IllegalStateException("Preview")) },
+                onSaveContext = { _, _, _, _, _, _, _ -> Result.success(Unit) },
             )
         }
     }

@@ -1,11 +1,13 @@
 package com.m57.hermescontrol.data.ws
 
 import com.m57.hermescontrol.data.remote.OkHttpProvider
+import com.m57.hermescontrol.data.ws.contract.HostedContextParams
 import com.m57.hermescontrol.data.ws.contract.RpcMethod
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
 import com.m57.hermescontrol.data.ws.contract.TypedRpcCaller
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.SerializationException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -603,5 +605,276 @@ class HostedRoomsSourceTest {
             } catch (e: HermesWsClient.HermesRpcException) {
                 assertTrue(e.message?.contains("Approval rejected") == true)
             }
+        }
+
+    @Test
+    fun `state decodes backend confirmed context and lead routing`() =
+        runTest {
+            val source =
+                HermesHostedRoomsSource(
+                    hostedCaller { _, _ ->
+                        mapOf(
+                            "room" to mapOf("room_id" to "r1", "name" to "Planning"),
+                            "context" to
+                                mapOf(
+                                    "purpose" to "Ship the next release",
+                                    "notes" to "Use the shared checklist",
+                                    "routing" to "lead",
+                                    "lead_member_id" to "member-reviewer",
+                                ),
+                        )
+                    },
+                )
+
+            val context = source.state("work", "r1").context
+
+            assertEquals("Ship the next release", context?.purpose)
+            assertEquals("Use the shared checklist", context?.notes)
+            assertEquals("lead", context?.routing)
+            assertEquals("member-reviewer", context?.leadMemberId)
+        }
+
+    @Test
+    fun `older context defaults routing without changing purpose and notes`() =
+        runTest {
+            val source =
+                HermesHostedRoomsSource(
+                    hostedCaller { _, _ ->
+                        mapOf(
+                            "room" to mapOf("room_id" to "r1", "name" to "Planning"),
+                            "context" to mapOf("purpose" to "Existing purpose", "notes" to "Existing notes"),
+                        )
+                    },
+                )
+
+            val context = source.state("work", "r1").context
+
+            assertEquals("Existing purpose", context?.purpose)
+            assertEquals("Existing notes", context?.notes)
+            assertEquals("everyone", context?.routing)
+            assertEquals("", context?.leadMemberId)
+        }
+
+    @Test
+    fun `legacy state without context remains readable`() =
+        runTest {
+            for (includeNull in listOf(false, true)) {
+                val result: Map<String, Any?> =
+                    mapOf("room" to mapOf("room_id" to "r1", "name" to "Legacy")) +
+                        if (includeNull) mapOf("context" to null) else emptyMap()
+                val source = HermesHostedRoomsSource(hostedCaller { _, _ -> result })
+
+                val snapshot = source.state("work", "r1")
+
+                assertEquals("Legacy", snapshot.room.name)
+                assertEquals(null, snapshot.context)
+            }
+        }
+
+    private fun contextReceiptWire(
+        roomId: String = "r1",
+        routing: String = "lead",
+        leadMemberId: String = "member-reviewer",
+    ): Map<String, Any> =
+        mapOf(
+            "context" to
+                mapOf(
+                    "purpose" to "Normalized purpose",
+                    "notes" to "Confirmed notes",
+                    "routing" to routing,
+                    "lead_member_id" to leadMemberId,
+                ),
+            "event" to
+                mapOf(
+                    "room_id" to roomId,
+                    "seq" to 7,
+                    "event_id" to "context-save-1",
+                    "kind" to "room.context_set",
+                    "payload" to emptyMap<String, Any>(),
+                    "actor" to mapOf("kind" to "system", "id" to "room-control"),
+                ),
+        )
+
+    @Test
+    fun `context capability uses method list independently without new feature requirements`() =
+        runTest {
+            val oldSource = HermesHostedRoomsSource(hostedCaller { _, _ -> fullCapabilitiesWireMap() })
+            val oldCapabilities = oldSource.capabilities("work")
+            assertTrue(oldCapabilities.supported)
+            assertFalse(oldCapabilities.contextSupported)
+
+            val contextSource =
+                HermesHostedRoomsSource(
+                    hostedCaller { _, _ ->
+                        fullCapabilitiesWireMap(methods = requiredMethodsLiteral + "groups.context", driver = false)
+                    },
+                )
+            val contextCapabilities = contextSource.capabilities("work")
+            assertTrue(contextCapabilities.supported)
+            assertTrue(contextCapabilities.contextSupported)
+            assertFalse(contextCapabilities.driver)
+
+            val featureOnlySource =
+                HermesHostedRoomsSource(
+                    hostedCaller { _, _ ->
+                        fullCapabilitiesWireMap(features = requiredFeaturesLiteral + "groups.context" + "room_context")
+                    },
+                )
+            assertFalse(featureOnlySource.capabilities("work").contextSupported)
+        }
+
+    @Test
+    fun `context save sends required identity and text but omits unchanged routing fields`() =
+        runTest {
+            var recordedParams: Map<String, Any>? = null
+            val source =
+                HermesHostedRoomsSource(
+                    hostedCaller { method, params ->
+                        assertEquals("groups.context", method)
+                        recordedParams = params
+                        contextReceiptWire()
+                    },
+                )
+
+            val receipt = source.context("work", "r1", "context-save-1", " Raw purpose ", " Raw notes ")
+
+            assertEquals(
+                mapOf(
+                    "profile" to "work",
+                    "room_id" to "r1",
+                    "event_id" to "context-save-1",
+                    "purpose" to " Raw purpose ",
+                    "notes" to " Raw notes ",
+                ),
+                recordedParams,
+            )
+            assertEquals("Normalized purpose", receipt.context.purpose)
+            assertEquals("Confirmed notes", receipt.context.notes)
+            assertEquals("lead", receipt.context.routing)
+            assertEquals("member-reviewer", receipt.context.leadMemberId)
+            assertEquals("room.context_set", receipt.event.kind)
+            assertEquals("r1", receipt.event.roomId)
+        }
+
+    @Test
+    fun `explicit routing changes and empty text are transmitted rather than omitted`() =
+        runTest {
+            val calls = mutableListOf<Map<String, Any>>()
+            val source =
+                HermesHostedRoomsSource(
+                    hostedCaller { _, params ->
+                        calls += params
+                        contextReceiptWire()
+                    },
+                )
+
+            source.context("work", "r1", "save-lead", "", "", "lead", "member-reviewer")
+            source.context("work", "r1", "save-everyone", "", "", "everyone", "")
+
+            assertEquals("lead", calls[0]["routing"])
+            assertEquals("member-reviewer", calls[0]["lead_member_id"])
+            assertEquals("everyone", calls[1]["routing"])
+            assertEquals("", calls[1]["lead_member_id"])
+            assertEquals("", calls[1]["purpose"])
+            assertEquals("", calls[1]["notes"])
+            assertEquals("save-everyone", calls[1]["event_id"])
+        }
+
+    @Test
+    fun `context request requires event_id and receipt requires confirmed context and event`() =
+        runTest {
+            try {
+                OkHttpProvider.json.decodeFromString(
+                    HostedContextParams.serializer(),
+                    """{"profile":"work","room_id":"r1","purpose":"","notes":""}""",
+                )
+                fail("Missing event_id must not deserialize")
+            } catch (_: SerializationException) {
+                // The backend requires event_id for an idempotent context write.
+            }
+            for (missingField in listOf("context", "event")) {
+                val source =
+                    HermesHostedRoomsSource(hostedCaller { _, _ -> contextReceiptWire() - missingField })
+                try {
+                    source.context("work", "r1", "save-1", "purpose", "notes")
+                    fail("Missing $missingField must not be accepted as a confirmed save")
+                } catch (_: SerializationException) {
+                    // No default may turn a malformed ACK into confirmed settings.
+                }
+            }
+        }
+
+    @Test
+    fun `context errors and cancellation propagate instead of becoming successful receipts`() =
+        runTest {
+            val failures =
+                listOf(
+                    IOException("Connection reset"),
+                    HermesWsClient.HermesRpcException("The lead must be a room member", 4125),
+                    CancellationException("Save cancelled"),
+                )
+            for (failure in failures) {
+                var calls = 0
+                val source =
+                    HermesHostedRoomsSource(
+                        hostedCaller { _, _ ->
+                            calls++
+                            throw failure
+                        },
+                    )
+                try {
+                    source.context("work", "r1", "save-1", "purpose", "notes")
+                    fail("Expected the original failure")
+                } catch (caught: Exception) {
+                    assertTrue(caught === failure)
+                }
+                assertEquals(1, calls)
+            }
+        }
+
+    @Test
+    fun `state preserves roster member ids independently of profile handle and peer target`() =
+        runTest {
+            val peerTarget =
+                mapOf(
+                    "kind" to "peer",
+                    "peer_id" to "connection-b",
+                    "installation_id" to "gateway-b",
+                    "profile" to "reviewer",
+                    "capability_digest" to "a".repeat(64),
+                )
+            val members =
+                listOf(
+                    mapOf(
+                        "member_id" to "local-seat",
+                        "profile" to "analyst",
+                        "handle" to "analysis",
+                        "display_name" to "Local analyst",
+                        "target" to mapOf("kind" to "local", "profile" to "analyst"),
+                    ),
+                    mapOf(
+                        "member_id" to "remote-seat",
+                        "profile" to "reviewer",
+                        "handle" to "review",
+                        "display_name" to "Peer reviewer",
+                        "target" to peerTarget,
+                    ),
+                    mapOf("profile" to "legacy-profile"),
+                )
+            val source =
+                HermesHostedRoomsSource(
+                    hostedCaller { _, _ ->
+                        mapOf("room" to mapOf("room_id" to "r1", "name" to "Review", "members" to members))
+                    },
+                )
+
+            val roster = source.state("work", "r1").room.members
+
+            assertEquals(listOf("local-seat", "remote-seat", null), roster.map { it.memberId })
+            assertEquals("reviewer", roster[1].profile)
+            assertEquals("review", roster[1].handle)
+            assertEquals("Peer reviewer", roster[1].displayName)
+            assertEquals(ConnectorParser.toJsonElement(peerTarget), roster[1].target)
+            assertEquals("legacy-profile", roster[2].profile)
         }
 }

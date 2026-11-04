@@ -28,6 +28,15 @@ data class HostedPendingSend(
     val text: String,
 )
 
+/** Unconfirmed save retained only for an explicit retry, never sent during refresh or reconnect. */
+data class HostedPendingContextSave(
+    val eventId: String,
+    val purpose: String,
+    val notes: String,
+    val routing: String? = null,
+    val leadMemberId: String? = null,
+)
+
 data class HostedRoomsState(
     val owner: HostedOwner? = null,
     val capabilities: HostedCapabilities? = null,
@@ -41,12 +50,23 @@ data class HostedRoomsState(
     val busy: Boolean = false,
     val pendingSend: HostedPendingSend? = null,
     val error: String? = null,
+    val contextSaving: Boolean = false,
+    val contextError: String? = null,
+    val pendingContextSave: HostedPendingContextSave? = null,
+    val contextSavedEventId: String? = null,
 ) {
     val writable: Boolean
         get() =
             owner?.connected == true && capabilities?.supported == true &&
                 capabilities.driver && snapshot?.driverStatus?.running == true &&
-                snapshot.room.disbandedAt == null && error == null && !loading && !busy
+                snapshot.room.disbandedAt == null && error == null && !loading && !busy && !contextSaving
+
+    /** Settings do not require a running discussion driver; the server owns write authorization. */
+    val contextWritable: Boolean
+        get() =
+            owner?.connected == true && capabilities?.supported == true && capabilities.contextSupported &&
+                snapshot?.context != null && snapshot.room.roomId == selectedRoomId &&
+                snapshot.room.disbandedAt == null && !loading && !busy && !contextSaving
 }
 
 /** No legacy sessions, profile metadata writes, or local discussion driver exist on this route. */
@@ -116,6 +136,9 @@ class HostedRoomsController(
                     loading = false,
                     busy = false,
                     error = null,
+                    contextSaving = false,
+                    contextError = null,
+                    contextSavedEventId = null,
                 )
             }
     }
@@ -137,6 +160,10 @@ class HostedRoomsController(
                 error = null,
                 loading = false,
                 busy = false,
+                contextSaving = false,
+                contextError = null,
+                pendingContextSave = null,
+                contextSavedEventId = null,
             )
         }
     }
@@ -248,6 +275,101 @@ class HostedRoomsController(
             if (owns(owner, stamp)) mutableState.update { it.copy(loading = false) }
             refreshLock.unlock()
         }
+    }
+
+    /** Each intended save gets a fresh id; omitted routing stays omitted, not copied from a stale snapshot. */
+    suspend fun saveContext(
+        purpose: String,
+        notes: String,
+        routing: String? = null,
+        leadMemberId: String? = null,
+    ) {
+        syncOwner()
+        val current = state.value
+        if (!current.contextWritable) return
+        try {
+            require(routing == null || routing in setOf("everyone", "lead")) { "Invalid hosted room routing" }
+            require(routing != null || leadMemberId == null) { "Select routing when changing the lead" }
+            if (routing == "lead") {
+                require(
+                    !leadMemberId.isNullOrBlank() &&
+                        current.snapshot?.room?.members.orEmpty().any {
+                            it.memberId == leadMemberId
+                        },
+                ) { "The lead must be a member of this hosted room" }
+            }
+        } catch (e: IllegalArgumentException) {
+            mutableState.update { it.copy(contextError = e.message) }
+            return
+        }
+        val pending =
+            HostedPendingContextSave(
+                eventId = newId(),
+                purpose = purpose,
+                notes = notes,
+                routing = routing,
+                leadMemberId = if (routing == "everyone") "" else leadMemberId,
+            )
+        submitContextSave(pending)
+    }
+
+    /** An uncertain save is retried only by the user, with the exact original identity and payload. */
+    suspend fun retryContextSave() {
+        syncOwner()
+        val current = state.value
+        if (!current.contextWritable) return
+        val pending = current.pendingContextSave ?: return
+        // Do not revalidate the roster: an already accepted id can be retried after its lead was removed.
+        submitContextSave(pending)
+    }
+
+    private suspend fun submitContextSave(pending: HostedPendingContextSave) {
+        val owner = state.value.owner ?: return
+        val roomId = state.value.selectedRoomId ?: return
+        val stamp = revision
+        var locked = false
+        var confirmed = false
+        mutableState.update { it.copy(contextSaving = true, contextError = null, pendingContextSave = pending) }
+        try {
+            // A refresh started before this save must finish before its ACK can update the snapshot.
+            refreshLock.lock()
+            locked = true
+            if (!owns(owner, stamp) || !state.value.copy(contextSaving = false).contextWritable) return
+            val receipt =
+                source.context(
+                    profile = owner.profile,
+                    roomId = roomId,
+                    eventId = pending.eventId,
+                    purpose = pending.purpose,
+                    notes = pending.notes,
+                    routing = pending.routing,
+                    leadMemberId = pending.leadMemberId,
+                )
+            if (!owns(owner, stamp)) return
+            require(
+                receipt.event.roomId == roomId && receipt.event.eventId == pending.eventId &&
+                    receipt.event.kind == "room.context_set",
+            ) { "Hosted room context receipt identity mismatch" }
+            mutableState.update {
+                it.copy(
+                    snapshot = it.snapshot?.copy(context = receipt.context),
+                    pendingContextSave = null,
+                    contextSavedEventId = pending.eventId,
+                    contextError = null,
+                )
+            }
+            confirmed = true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            if (owns(owner, stamp)) {
+                mutableState.update { it.copy(contextError = e.message ?: "Hosted room settings save failed") }
+            }
+        } finally {
+            if (owns(owner, stamp)) mutableState.update { it.copy(contextSaving = false) }
+            if (locked) refreshLock.unlock()
+        }
+        if (confirmed && owns(owner, stamp)) refresh()
     }
 
     suspend fun send(text: String) {

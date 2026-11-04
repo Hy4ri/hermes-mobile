@@ -23,6 +23,7 @@ data class HostedCapabilities(
     val supported: Boolean,
     val driver: Boolean,
     val maxLogLimit: Int,
+    val contextSupported: Boolean = false,
 )
 
 /** Domain list returned by `groups.list`. */
@@ -45,6 +46,33 @@ data class HostedRoom(
     @SerialName("created_at") val createdAt: Double? = null,
     @SerialName("updated_at") val updatedAt: Double? = null,
     @SerialName("idempotent") val idempotent: Boolean? = null,
+    @SerialName("members") val members: List<HostedRoomMember> = emptyList(),
+)
+
+/** An open roster row; older rooms can omit normalized member identity fields. */
+@Serializable
+data class HostedRoomMember(
+    @SerialName("member_id") val memberId: String? = null,
+    @SerialName("profile") val profile: String? = null,
+    @SerialName("handle") val handle: String? = null,
+    @SerialName("display_name") val displayName: String? = null,
+    @SerialName("target") val target: JsonObject? = null,
+)
+
+/** Backend-confirmed settings from groups.state or groups.context. */
+@Serializable
+data class HostedRoomContext(
+    @SerialName("purpose") val purpose: String,
+    @SerialName("notes") val notes: String,
+    @SerialName("routing") val routing: String = "everyone",
+    @SerialName("lead_member_id") val leadMemberId: String = "",
+)
+
+/** Receipt for one idempotent groups.context save. */
+@Serializable
+data class HostedContextReceipt(
+    @SerialName("context") val context: HostedRoomContext,
+    @SerialName("event") val event: HostedEvent,
 )
 
 /** Domain snapshot for a hosted room and its driver status. */
@@ -52,7 +80,7 @@ data class HostedRoom(
 data class HostedRoomSnapshot(
     @SerialName("room") val room: HostedRoom,
     @SerialName("driver_status") val driverStatus: HostedDriverStatus? = null,
-    @SerialName("context") val context: JsonObject? = null,
+    @SerialName("context") val context: HostedRoomContext? = null,
 ) {
     /** Helper returning pending tasks if driverStatus is present. */
     val tasks: List<HostedTask>

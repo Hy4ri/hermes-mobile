@@ -1215,6 +1215,9 @@
     <string name="mcp_servers_status_needs_auth">認証が必要</string>
     <string name="mcp_servers_status_error">エラー</string>
     <string name="mcp_servers_status_testing">テスト中…</string>
+    <string name="mcp_servers_status_connecting">接続中…</string>
+    <string name="mcp_servers_status_disconnected">切断済み</string>
+    <string name="mcp_servers_status_not_connected">未接続</string>
     <string name="mcp_servers_add_server">サーバーの追加</string>
     <string name="mcp_servers_add_http">HTTP接続先URL</string>
     <string name="mcp_servers_empty_title">MCP サーバーなし</string>

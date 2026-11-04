@@ -21,6 +21,11 @@ import com.m57.hermescontrol.data.remote.NetworkError
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.remote.safeApiRead
+import com.m57.hermescontrol.data.ws.HermesWsClient
+import com.m57.hermescontrol.data.ws.McpRuntimeStatus
+import com.m57.hermescontrol.data.ws.McpRuntimeStatusDecoder
+import com.m57.hermescontrol.data.ws.contract.McpServersStatusParams
+import com.m57.hermescontrol.data.ws.contract.RpcMethods
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
@@ -74,6 +79,8 @@ data class McpServersUiState(
     val showImportDialog: Boolean = false,
     val importJsonInput: String = "",
     val isImportingJson: Boolean = false,
+    // Authoritative runtime rows from mcp.servers.status (#419); null = no evidence yet.
+    val runtimeStatus: Map<String, McpRuntimeStatus>? = null,
     // Batch health & tool test results (issue #1029)
     val serverTestResults: Map<String, McpServerTestResponse> = emptyMap(),
     val testingServers: Set<String> = emptySet(),
@@ -114,6 +121,7 @@ class McpServersViewModel(
             it.copy(
                 isLoading = false,
                 servers = emptyList(),
+                runtimeStatus = null,
                 serverTestResults = emptyMap(),
                 testingServers = emptySet(),
                 isTestingAll = false,
@@ -126,6 +134,25 @@ class McpServersViewModel(
     // ── Data loading ──────────────────────────────────────────
 
     fun loadServers(forceRefresh: Boolean = false) {
+        // #419: refresh the authoritative runtime rows alongside the config list.
+        // The read is best-effort: a gateway without the method or a dropped
+        // socket must not fail the config list, and missing evidence never
+        // reads as healthy.
+        viewModelScope.launch {
+            val rows =
+                runCatching {
+                    val raw =
+                        HermesWsClient.call(
+                            RpcMethods.MCP_SERVERS_STATUS,
+                            McpServersStatusParams,
+                            suppressErrorEvent = true,
+                        )
+                    McpRuntimeStatusDecoder.decode(raw)
+                }.getOrNull()
+            if (rows != null) {
+                _uiState.update { it.copy(runtimeStatus = rows) }
+            }
+        }
         safeLaunchSwrLoad(
             cache = mcpCache,
             forceRefresh = forceRefresh,

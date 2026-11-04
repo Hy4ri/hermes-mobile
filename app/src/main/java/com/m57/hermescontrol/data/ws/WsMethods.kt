@@ -160,6 +160,11 @@ object WsMethods {
     const val CONNECTORS_POLICY_GET = "connectors.policy.get"
     const val CONNECTORS_POLICY_SET = "connectors.policy.set"
 
+    // ── MCP runtime status (issue #419) ───────────────────────────────────
+
+    /** Cached runtime state per configured server; never connects or probes. */
+    const val MCP_SERVERS_STATUS = "mcp.servers.status"
+
     // ── Plugins ───────────────────────────────────────────────────────────
     const val PLUGINS_MANAGE = "plugins.manage"
 
@@ -256,6 +261,7 @@ object WsMethods {
             PROJECTS_DISCOVER_REPOS,
             PLUGINS_MANAGE, // methods_tools.py: @_scoped_rpc
             SUBAGENT_ROSTER, // methods_subagents.py: _profile_db(scope) limits rows to the profile's state.db
+            MCP_SERVERS_STATUS, // methods_tools.py: @_scoped_rpc("status") — profile-scoped runtime rows (#419)
             "pet.info", // line 1253
             "pet.info.meta", // line 1279
             "pet.cells", // line 1302

@@ -998,6 +998,9 @@
     <string name="mcp_servers_status_needs_auth">يتطلب المصادقة</string>
     <string name="mcp_servers_status_error">خطأ</string>
     <string name="mcp_servers_status_testing">جارٍ الاختبار…</string>
+    <string name="mcp_servers_status_connecting">جارٍ الاتصال…</string>
+    <string name="mcp_servers_status_disconnected">غير متصل</string>
+    <string name="mcp_servers_status_not_connected">غير متصل بعد</string>
     <string name="mcp_servers_add_server">إضافة خادم</string>
     <string name="mcp_servers_add_http">رابط HTTP URL</string>
     <string name="mcp_servers_empty_title">لا توجد خوادم MCP</string>

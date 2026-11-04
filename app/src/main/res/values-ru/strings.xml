@@ -1320,6 +1320,9 @@
     <string name="mcp_servers_status_needs_auth">Нужна авторизация</string>
     <string name="mcp_servers_status_error">Ошибка</string>
     <string name="mcp_servers_status_testing">Проверка…</string>
+    <string name="mcp_servers_status_connecting">Подключение…</string>
+    <string name="mcp_servers_status_disconnected">Отключено</string>
+    <string name="mcp_servers_status_not_connected">Не подключено</string>
     <string name="mcp_servers_add_server">Добавить сервер</string>
     <string name="mcp_servers_add_http">HTTP URL</string>
     <string name="mcp_servers_empty_title">MCP-серверов нет</string>

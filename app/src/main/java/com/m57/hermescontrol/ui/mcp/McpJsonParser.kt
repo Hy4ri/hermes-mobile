@@ -3,6 +3,7 @@ package com.m57.hermescontrol.ui.mcp
 import com.m57.hermescontrol.data.model.AddMcpServerRequest
 import com.m57.hermescontrol.data.model.McpServerTestResponse
 import com.m57.hermescontrol.data.model.McpServerToolInfo
+import com.m57.hermescontrol.data.ws.McpRuntimeStatus
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -249,9 +250,43 @@ enum class McpHealthStatus {
     ERROR,
     TESTING,
     UNKNOWN,
+
+    // Non-connected runtime states from mcp.servers.status (#419): each is shown
+    // distinctly and none of them reads as healthy.
+    DISCONNECTED,
+    CONNECTING,
+    NOT_CONNECTED,
     ;
 
     companion object {
+        /**
+         * A fresh runtime row is the authoritative signal: `needsAuth` (the backend parked
+         * the server on a rejected OAuth credential) renders as sign-in even with no error
+         * text, and a connected row is healthy even when the server was never probed.
+         * Configured/lazy rows are never probed, so they surface as NOT_CONNECTED rather
+         * than an error. Without a row, the legacy test/status resolution applies.
+         */
+        fun resolveForServer(
+            isTesting: Boolean,
+            testResult: McpServerTestResponse?,
+            runtime: McpRuntimeStatus?,
+            serverStatus: String?,
+            serverError: String?,
+        ): McpHealthStatus {
+            if (isTesting) return TESTING
+            if (runtime != null) {
+                if (runtime.needsAuth) return AUTH_REQUIRED
+                if (runtime.connected || runtime.status.equals("connected", ignoreCase = true)) return HEALTHY
+                return when (runtime.status?.lowercase()) {
+                    "connecting" -> CONNECTING
+                    "disabled" -> DISCONNECTED
+                    "failed" -> ERROR
+                    else -> NOT_CONNECTED
+                }
+            }
+            return resolve(isTesting, testResult, serverStatus, serverError)
+        }
+
         fun resolve(
             isTesting: Boolean,
             testResult: McpServerTestResponse?,

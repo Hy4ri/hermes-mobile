@@ -404,6 +404,14 @@ object RpcMethods {
             JsonElement.serializer(),
         )
 
+    // Passthrough JsonElement result: McpRuntimeStatusDecoder tolerates partial rows (#419).
+    val MCP_SERVERS_STATUS: RpcMethod<McpServersStatusParams, JsonElement> =
+        RpcMethod(
+            WsMethods.MCP_SERVERS_STATUS,
+            McpServersStatusParams.serializer(),
+            JsonElement.serializer(),
+        )
+
     // Passthrough JsonElement results: callers keep their existing legacy decoders.
     val PROCESS_LIST: RpcMethod<SessionIdParams, JsonElement> =
         RpcMethod(
@@ -640,6 +648,7 @@ object RpcMethods {
             SUBAGENT_INTERRUPT,
             SUBAGENT_STEER,
             SUBAGENT_ROSTER,
+            MCP_SERVERS_STATUS,
             PROCESS_LIST,
             PROCESS_KILL,
             PROCESS_STOP,

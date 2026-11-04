@@ -69,7 +69,10 @@ fun ServerCard(
     var showEnv by remember { mutableStateOf(false) }
     val isTesting = server.name in state.testingServers
     val testResult = state.serverTestResults[server.name]
-    val healthStatus = McpHealthStatus.resolve(isTesting, testResult, server.status, server.error)
+    // #419: the authoritative WS runtime row wins over the legacy config/test inference.
+    val runtime = state.runtimeStatus?.get(server.name)
+    val healthStatus = McpHealthStatus.resolveForServer(isTesting, testResult, runtime, server.status, server.error)
+    val needsSignIn = healthStatus == McpHealthStatus.AUTH_REQUIRED
 
     ManageableItemCard(
         title = server.name.replaceFirstChar { it.uppercase() },
@@ -104,8 +107,29 @@ fun ServerCard(
                     )
                 }
 
+                McpHealthStatus.CONNECTING -> {
+                    StatusBadge(
+                        text = stringResource(R.string.mcp_servers_status_connecting),
+                        status = StatusBadgeType.INFO,
+                    )
+                }
+
+                McpHealthStatus.DISCONNECTED -> {
+                    StatusBadge(
+                        text = stringResource(R.string.mcp_servers_status_disconnected),
+                        status = StatusBadgeType.NEUTRAL,
+                    )
+                }
+
+                McpHealthStatus.NOT_CONNECTED -> {
+                    StatusBadge(
+                        text = stringResource(R.string.mcp_servers_status_not_connected),
+                        status = StatusBadgeType.NEUTRAL,
+                    )
+                }
+
                 McpHealthStatus.UNKNOWN -> {
-                    ServerStatusBadge(server.status)
+                    ServerStatusBadge(runtime?.status ?: server.status)
                 }
             }
         },
@@ -207,7 +231,10 @@ fun ServerCard(
             }
         },
         actions = {
-            if (server.auth == "oauth") {
+            // #419: an authoritative needs_auth row is a sign-in affordance even when the
+            // config declares no auth mode. Reuses the existing OAuth flow; plugin-owned
+            // servers stay read-only (the button is disabled, never hidden).
+            if (server.auth == "oauth" || needsSignIn) {
                 FilledTonalButton(
                     onClick = { viewModel.startMcpOAuthFlow(server, onOpenBrowser) },
                     enabled = !server.isPluginOwned,

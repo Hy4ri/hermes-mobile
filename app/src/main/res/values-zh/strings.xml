@@ -969,6 +969,9 @@
     <string name="mcp_servers_status_needs_auth">需要认证</string>
     <string name="mcp_servers_status_error">错误</string>
     <string name="mcp_servers_status_testing">测试中…</string>
+    <string name="mcp_servers_status_connecting">正在连接…</string>
+    <string name="mcp_servers_status_disconnected">已断开</string>
+    <string name="mcp_servers_status_not_connected">未连接</string>
     <string name="mcp_servers_add_server">添加服务器</string>
     <string name="mcp_servers_add_http">HTTP 地址</string>
     <string name="mcp_servers_empty_title">没有 MCP 服务器</string>

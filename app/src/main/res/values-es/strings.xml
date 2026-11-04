@@ -1177,6 +1177,9 @@
     <string name="mcp_servers_status_needs_auth">Necesita autenticación</string>
     <string name="mcp_servers_status_error">Error</string>
     <string name="mcp_servers_status_testing">Probando…</string>
+    <string name="mcp_servers_status_connecting">Conectando…</string>
+    <string name="mcp_servers_status_disconnected">Desconectado</string>
+    <string name="mcp_servers_status_not_connected">Sin conexión</string>
     <string name="mcp_servers_add_server">Agregar servidor</string>
     <string name="mcp_servers_add_http">URL HTTP</string>
     <string name="mcp_servers_empty_title">Sin servidores MCP</string>

@@ -115,7 +115,10 @@ class McpRuntimeStatusViewModelTest {
         assertNotNull(vm.uiState.value.runtimeStatus)
         vm.clearScopeOwnedState()
         assertNull(vm.uiState.value.runtimeStatus)
-        assertTrue(vm.uiState.value.servers.isEmpty())
+        assertTrue(
+            vm.uiState.value.servers
+                .isEmpty(),
+        )
     }
 
     private fun stubStatus(payload: String) {

@@ -56,5 +56,4 @@ object McpRuntimeStatusDecoder {
     }
 }
 
-private fun JsonPrimitive?.stringOrNull(): String? =
-    this?.takeIf { it.isString }?.content?.takeIf { it.isNotBlank() }
+private fun JsonPrimitive?.stringOrNull(): String? = this?.takeIf { it.isString }?.content?.takeIf { it.isNotBlank() }

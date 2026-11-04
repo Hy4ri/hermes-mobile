@@ -250,11 +250,13 @@ enum class McpHealthStatus {
     ERROR,
     TESTING,
     UNKNOWN,
+
     // Non-connected runtime states from mcp.servers.status (#419): each is shown
     // distinctly and none of them reads as healthy.
     DISCONNECTED,
     CONNECTING,
-    NOT_CONNECTED;
+    NOT_CONNECTED,
+    ;
 
     companion object {
         /**

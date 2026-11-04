@@ -6,6 +6,7 @@ import com.m57.hermescontrol.data.ws.HostedCapabilities
 import com.m57.hermescontrol.data.ws.HostedDriverStatus
 import com.m57.hermescontrol.data.ws.HostedEvent
 import com.m57.hermescontrol.data.ws.HostedLogPage
+import com.m57.hermescontrol.data.ws.HostedMemberActivity
 import com.m57.hermescontrol.data.ws.HostedRoom
 import com.m57.hermescontrol.data.ws.HostedRoomList
 import com.m57.hermescontrol.data.ws.HostedRoomSnapshot
@@ -44,6 +45,9 @@ class HostedRoomsControllerTest {
         var retryCalls: MutableList<Triple<String, String, HostedTask>> = mutableListOf()
         var approveCalls: MutableList<List<Any>> = mutableListOf()
 
+        var stateDeferred: CompletableDeferred<HostedRoomSnapshot>? = null
+        var retryDeferred: CompletableDeferred<Unit>? = null
+
         var onLogCall: ((roomId: String, sinceSeq: Long) -> Unit)? = null
         var logDeferred: CompletableDeferred<HostedLogPage>? = null
         var sendStartedDeferred: CompletableDeferred<Unit>? = null
@@ -70,7 +74,7 @@ class HostedRoomsControllerTest {
             profile: String,
             roomId: String,
         ): HostedRoomSnapshot =
-            snapshots[roomId] ?: HostedRoomSnapshot(
+            stateDeferred?.await() ?: snapshots[roomId] ?: HostedRoomSnapshot(
                 room = HostedRoom(roomId = roomId, name = "Room $roomId"),
                 driverStatus = HostedDriverStatus(running = true),
             )
@@ -116,6 +120,7 @@ class HostedRoomsControllerTest {
             task: HostedTask,
         ) {
             retryCalls.add(Triple(roomId, task.taskId, task))
+            retryDeferred?.await()
         }
 
         override suspend fun approve(
@@ -878,5 +883,218 @@ class HostedRoomsControllerTest {
             refresh.join()
             assertTrue(controller.state.value.writable)
             assertNull(controller.state.value.error)
+        }
+
+    @Test
+    fun `retry discards old progress and fences a pre-retry snapshot`() =
+        runTest {
+            val task = HostedTask(memberId = "bot", taskId = "task-1", executionGeneration = 1)
+            val old = HostedMemberActivity("bot", "running", "thread", 0, 1700000000.0, "old_tool", 1700000001.0)
+
+            fun snapshot(activity: List<HostedMemberActivity>?) =
+                HostedRoomSnapshot(
+                    HostedRoom("r1", "Room"),
+                    HostedDriverStatus(running = true, pendingActions = listOf(task), memberActivity = activity),
+                )
+            val source =
+                FakeHostedRoomsSource().apply {
+                    listPages.add(HostedRoomList(listOf(HostedRoom("r1", "Room"))))
+                    snapshots["r1"] = snapshot(listOf(old))
+                }
+            val controller = HostedRoomsController(source, { testOwner() })
+            controller.refresh()
+            controller.select("r1")
+            controller.refresh()
+            assertEquals(
+                listOf(old),
+                controller.state.value.snapshot
+                    ?.driverStatus
+                    ?.memberActivity,
+            )
+            val staleResponse = CompletableDeferred<HostedRoomSnapshot>()
+            source.stateDeferred = staleResponse
+            val refreshing = launch(start = CoroutineStart.UNDISPATCHED) { controller.refresh() }
+            val retryResponse = CompletableDeferred<Unit>()
+            source.retryDeferred = retryResponse
+            val retrying = launch(start = CoroutineStart.UNDISPATCHED) { controller.retry(task) }
+            assertTrue(
+                controller.state.value.snapshot
+                    ?.driverStatus
+                    ?.memberActivity
+                    .orEmpty()
+                    .isEmpty(),
+            )
+            staleResponse.complete(snapshot(listOf(old)))
+            refreshing.join()
+            assertTrue(
+                controller.state.value.snapshot
+                    ?.driverStatus
+                    ?.memberActivity
+                    .orEmpty()
+                    .isEmpty(),
+            )
+            source.stateDeferred = null
+            retryResponse.complete(Unit)
+            retrying.join()
+            // A post-retry snapshot can still contain the old attempt; do not revive its tool or timer.
+            assertTrue(
+                controller.state.value.snapshot
+                    ?.driverStatus
+                    ?.memberActivity
+                    .orEmpty()
+                    .isEmpty(),
+            )
+            val replacement = old.copy(startedAt = 1700000010.0, tool = "new_tool", progressAt = null)
+            source.snapshots["r1"] = snapshot(listOf(replacement))
+            controller.refresh()
+            assertEquals(
+                listOf(replacement),
+                controller.state.value.snapshot
+                    ?.driverStatus
+                    ?.memberActivity,
+            )
+            // Snapshots replace, not merge, nullable tool and timestamps.
+            source.snapshots["r1"] = snapshot(listOf(replacement.copy(tool = null, progressAt = null)))
+            controller.refresh()
+            assertNull(
+                controller.state.value.snapshot
+                    ?.driverStatus
+                    ?.memberActivity
+                    ?.single()
+                    ?.tool,
+            )
+        }
+
+    @Test
+    fun `live activity clears on reconnect room switch profile and connection switch`() =
+        runTest {
+            val row = HostedMemberActivity("bot", "stopping", startedAt = 1700000000.0)
+            val source =
+                FakeHostedRoomsSource().apply {
+                    listPages.add(HostedRoomList(listOf(HostedRoom("r1", "One"), HostedRoom("r2", "Two"))))
+                    snapshots["r1"] =
+                        HostedRoomSnapshot(
+                            HostedRoom("r1", "One"),
+                            HostedDriverStatus(running = true, memberActivity = listOf(row)),
+                        )
+                }
+            var owner = testOwner()
+            val controller = HostedRoomsController(source, { owner })
+            controller.refresh()
+            controller.select("r1")
+            controller.refresh()
+            owner = testOwner(generation = 2)
+            controller.syncOwner()
+            assertNull(controller.state.value.snapshot)
+            controller.refresh()
+            assertEquals(
+                listOf(row),
+                controller.state.value.snapshot
+                    ?.driverStatus
+                    ?.memberActivity,
+            )
+            controller.select("r2")
+            assertNull(controller.state.value.snapshot)
+            controller.refresh()
+            assertNull(
+                controller.state.value.snapshot
+                    ?.driverStatus
+                    ?.memberActivity,
+            )
+            owner = testOwner(profile = "other")
+            controller.syncOwner()
+            assertNull(controller.state.value.snapshot)
+            assertNull(controller.state.value.selectedRoomId)
+            owner = testOwner(scopeKey = "another-connection", profile = "other")
+            controller.syncOwner()
+            assertNull(controller.state.value.snapshot)
+        }
+
+    @Test
+    fun `retry suppression handles multiple old rows without hiding a new attempt`() =
+        runTest {
+            val task = HostedTask(memberId = "bot", taskId = "retry-task")
+            val old = HostedMemberActivity("bot", "running", "thread-a", 0, 1700000000.0, "old", 1700000001.0)
+            val queued = HostedMemberActivity("bot", "queued", "thread-b", 0)
+
+            fun snapshot(rows: List<HostedMemberActivity>) =
+                HostedRoomSnapshot(
+                    HostedRoom("r1", "Room"),
+                    HostedDriverStatus(running = true, pendingActions = listOf(task), memberActivity = rows),
+                )
+            val source =
+                FakeHostedRoomsSource().apply {
+                    listPages.add(HostedRoomList(listOf(HostedRoom("r1", "Room"))))
+                    snapshots["r1"] = snapshot(listOf(old, queued))
+                }
+            val controller = HostedRoomsController(source, { testOwner() })
+            controller.refresh()
+            controller.select("r1")
+            controller.refresh()
+            controller.retry(task)
+            assertTrue(
+                controller.state.value.snapshot
+                    ?.driverStatus
+                    ?.memberActivity
+                    .orEmpty()
+                    .isEmpty(),
+            )
+            val replacement = old.copy(startedAt = 1700000010.0, tool = null, progressAt = null)
+            source.snapshots["r1"] = snapshot(listOf(replacement, queued, old))
+            controller.refresh()
+            assertEquals(
+                listOf(replacement),
+                controller.state.value.snapshot
+                    ?.driverStatus
+                    ?.memberActivity,
+            )
+            source.snapshots["r1"] = snapshot(emptyList())
+            controller.refresh()
+            // An observed absence releases the old identity, rather than retaining unbounded tombstones.
+            source.snapshots["r1"] = snapshot(listOf(queued))
+            controller.refresh()
+            assertEquals(
+                listOf(queued),
+                controller.state.value.snapshot
+                    ?.driverStatus
+                    ?.memberActivity,
+            )
+        }
+
+    @Test
+    fun `failed refresh makes activity unavailable and old gateway omissions replace previous progress`() =
+        runTest {
+            val source =
+                FakeHostedRoomsSource().apply {
+                    listPages.add(HostedRoomList(listOf(HostedRoom("r1", "Room"))))
+                    snapshots["r1"] =
+                        HostedRoomSnapshot(
+                            HostedRoom("r1", "Room"),
+                            HostedDriverStatus(
+                                running = true,
+                                memberActivity = listOf(HostedMemberActivity("bot", "running")),
+                            ),
+                        )
+                }
+            val controller = HostedRoomsController(source, { testOwner() })
+            controller.refresh()
+            controller.select("r1")
+            controller.refresh()
+            source.logPages["r1"] = mutableListOf(HostedLogPage(listOf(makeEvent("r1", 2)), 2, 2, false))
+            controller.refresh()
+            assertNotNull(controller.state.value.error)
+            assertNull(
+                controller.state.value.snapshot
+                    ?.driverStatus
+                    ?.memberActivity,
+            )
+            source.snapshots["r1"] = HostedRoomSnapshot(HostedRoom("r1", "Room"), HostedDriverStatus(running = true))
+            controller.refresh()
+            assertNull(controller.state.value.error)
+            assertNull(
+                controller.state.value.snapshot
+                    ?.driverStatus
+                    ?.memberActivity,
+            )
         }
 }

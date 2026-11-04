@@ -266,6 +266,13 @@ internal fun HostedRoomsContent(
                         modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = spacing.md),
                         verticalArrangement = Arrangement.spacedBy(spacing.md),
                     ) {
+                        item {
+                            HostedMemberProgress(
+                                driver = state.snapshot?.driverStatus,
+                                owner = state.owner,
+                                roomId = state.selectedRoomId,
+                            )
+                        }
                         if (state.events.isEmpty()) {
                             item { Text(stringResource(R.string.hosted_log_empty)) }
                         }
@@ -428,7 +435,26 @@ private fun HostedRoomComposerPreview() {
                                         .HostedRoom("room-preview", "Hosted room"),
                                 driverStatus =
                                     com.m57.hermescontrol.data.ws
-                                        .HostedDriverStatus(running = true),
+                                        .HostedDriverStatus(
+                                            running = true,
+                                            maxRounds = 8,
+                                            memberActivity =
+                                                listOf(
+                                                    com.m57.hermescontrol.data.ws.HostedMemberActivity(
+                                                        memberId = "Researcher",
+                                                        status = "running",
+                                                        threadId = "thread-1",
+                                                        roundIndex = 1,
+                                                        startedAt = System.currentTimeMillis() / 1_000.0 - 12,
+                                                        tool = "web_search",
+                                                        progressAt = null,
+                                                    ),
+                                                    com.m57.hermescontrol.data.ws.HostedMemberActivity(
+                                                        memberId = "Reviewer",
+                                                        status = "queued",
+                                                    ),
+                                                ),
+                                        ),
                             ),
                     ),
                 onBack = {},

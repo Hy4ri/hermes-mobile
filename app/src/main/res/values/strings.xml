@@ -2186,4 +2186,16 @@
     <string name="hosted_leave_title">Leave hosted rooms?</string>
     <string name="hosted_leave_warning">Your last message is not confirmed. The gateway might have accepted it. Check the room log before sending it again.</string>
     <string name="hosted_leave">Leave</string>
+    <string name="hosted_activity_unavailable">Member activity unavailable</string>
+    <string name="hosted_activity_empty">No live member activity reported</string>
+    <string name="hosted_activity_queued">Queued</string>
+    <string name="hosted_activity_running">Running</string>
+    <string name="hosted_activity_stopping">Stopping</string>
+    <string name="hosted_round_limit">Round limit: %1$d</string>
+    <string name="hosted_round">Round %1$d</string>
+    <string name="hosted_round_of">Round %1$d of %2$d</string>
+    <string name="hosted_thread">Thread: %1$s</string>
+    <string name="hosted_tool">Tool: %1$s</string>
+    <string name="hosted_elapsed">Elapsed: %1$ds</string>
+    <string name="hosted_progress_age">Last progress: %1$ds ago</string>
 </resources>

@@ -59,6 +59,43 @@ class HostedRoomsController(
     val state = mutableState.asStateFlow()
     private val refreshLock = Mutex()
     private var revision = 0L
+    private val suppressedMemberActivities = mutableMapOf<String, Set<MemberActivityIdentity>>()
+
+    private data class MemberActivityIdentity(
+        val threadId: String?,
+        val roundIndex: Int?,
+        val startedAt: Double?,
+    )
+
+    private fun reconcileMemberActivity(snapshot: HostedRoomSnapshot): HostedRoomSnapshot {
+        val driverStatus = snapshot.driverStatus ?: return snapshot
+        val memberActivity = driverStatus.memberActivity ?: return snapshot
+        if (suppressedMemberActivities.isEmpty()) return snapshot
+
+        // Keep suppression only while those exact old rows remain in a fresh, serialized snapshot.
+        // A member can have more than one queued task, so a distinct row must not release older rows.
+        suppressedMemberActivities.keys.toList().forEach { memberId ->
+            val observed =
+                memberActivity
+                    .filter { it.memberId == memberId }
+                    .map {
+                        MemberActivityIdentity(it.threadId, it.roundIndex, it.startedAt)
+                    }.toSet()
+            val remaining = suppressedMemberActivities.getValue(memberId).intersect(observed)
+            if (remaining.isEmpty()) {
+                suppressedMemberActivities.remove(memberId)
+            } else {
+                suppressedMemberActivities[memberId] = remaining
+            }
+        }
+        val reconciledList =
+            memberActivity.filter { activity ->
+                MemberActivityIdentity(activity.threadId, activity.roundIndex, activity.startedAt) !in
+                    suppressedMemberActivities[activity.memberId].orEmpty()
+            }
+
+        return snapshot.copy(driverStatus = driverStatus.copy(memberActivity = reconciledList))
+    }
 
     /** Called immediately on authentication/profile/socket changes, even while an RPC is in flight. */
     fun syncOwner() {
@@ -66,6 +103,7 @@ class HostedRoomsController(
         val old = state.value.owner
         if (old == owner) return
         revision++
+        suppressedMemberActivities.clear()
         mutableState.value =
             if (owner == null || old == null || old.scopeKey != owner.scopeKey || old.profile != owner.profile) {
                 HostedRoomsState(owner = owner)
@@ -89,6 +127,7 @@ class HostedRoomsController(
         // Do not silently abandon an unacknowledged submission to select a different room.
         if (state.value.pendingSend != null) return
         revision++
+        suppressedMemberActivities.clear()
         mutableState.update {
             it.copy(
                 selectedRoomId = roomId,
@@ -153,9 +192,10 @@ class HostedRoomsController(
                 } while (true)
                 mutableState.update { it.copy(rooms = rooms.distinctBy(HostedRoom::roomId)) }
             } else {
-                val snapshot = source.state(owner.profile, roomId)
+                val rawSnapshot = source.state(owner.profile, roomId)
                 if (!owns(owner, stamp)) return
-                require(snapshot.room.roomId == roomId) { "Hosted room identity mismatch" }
+                require(rawSnapshot.room.roomId == roomId) { "Hosted room identity mismatch" }
+                val snapshot = reconcileMemberActivity(rawSnapshot)
                 mutableState.update { it.copy(snapshot = snapshot) }
                 do {
                     val before = state.value.cursor
@@ -188,10 +228,19 @@ class HostedRoomsController(
         } catch (e: Exception) {
             if (owns(owner, stamp)) {
                 mutableState.update {
+                    val clearedSnapshot =
+                        it.snapshot?.let { snapshot ->
+                            val driverStatus = snapshot.driverStatus
+                            if (driverStatus?.memberActivity != null) {
+                                snapshot.copy(driverStatus = driverStatus.copy(memberActivity = null))
+                            } else {
+                                snapshot
+                            }
+                        }
                     if (e is HermesWsClient.HermesRpcException && e.code == -32601 && it.capabilities == null) {
-                        it.copy(unsupported = true)
+                        it.copy(unsupported = true, snapshot = clearedSnapshot)
                     } else {
-                        it.copy(error = e.message ?: "Hosted room request failed")
+                        it.copy(error = e.message ?: "Hosted room request failed", snapshot = clearedSnapshot)
                     }
                 }
             }
@@ -222,17 +271,47 @@ class HostedRoomsController(
 
     suspend fun stop() = mutate { owner, roomId -> source.stop(owner.profile, roomId, newId()) }
 
-    suspend fun retry(task: HostedTask) =
-        mutate { owner, roomId ->
-            require(
-                task.kind == "retry" && task in
-                    state.value.snapshot
-                        ?.driverStatus
-                        ?.pendingActions
-                        .orEmpty(),
+    suspend fun retry(task: HostedTask) {
+        syncOwner()
+        val current = state.value
+        if (!current.writable) return
+        val currentPending =
+            current.snapshot
+                ?.driverStatus
+                ?.pendingActions
+                .orEmpty()
+        if (task.kind != "retry" || task !in currentPending) {
+            mutableState.update { it.copy(error = "Hosted retry action is no longer available") }
+            return
+        }
+        revision++
+        val oldActivity =
+            current.snapshot?.driverStatus?.memberActivity.orEmpty().filter {
+                it.memberId == task.memberId
+            }
+        if (oldActivity.isNotEmpty()) {
+            suppressedMemberActivities[task.memberId] =
+                oldActivity
+                    .map {
+                        MemberActivityIdentity(it.threadId, it.roundIndex, it.startedAt)
+                    }.toSet()
+        }
+        mutableState.update { state ->
+            val snapshot = state.snapshot ?: return@update state
+            val driverStatus = snapshot.driverStatus ?: return@update state
+            val activity = driverStatus.memberActivity ?: return@update state
+            val filteredActivity = activity.filterNot { it.memberId == task.memberId }
+            state.copy(
+                snapshot =
+                    snapshot.copy(
+                        driverStatus = driverStatus.copy(memberActivity = filteredActivity),
+                    ),
             )
+        }
+        mutate { owner, roomId ->
             source.retry(owner.profile, roomId, task)
         }
+    }
 
     suspend fun approve(
         task: HostedTask,

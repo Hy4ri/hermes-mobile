@@ -11,7 +11,7 @@ data class HostedCapabilitiesWire(
     @SerialName("driver") val driver: Boolean = false,
     @SerialName("methods") val methods: List<String> = emptyList(),
     @SerialName("features") val features: List<String> = emptyList(),
-    @SerialName("max_log_limit") val maxLogLimit: Int = 500,
+    @SerialName("max_log_limit") val maxLogLimit: Int = 0,
     @SerialName("persistent_process") val persistentProcess: Boolean? = null,
     @SerialName("authority_gateway_id") val authorityGatewayId: String? = null,
     @SerialName("room_link") val roomLink: JsonObject? = null,
@@ -37,7 +37,7 @@ data class HostedRoomList(
 data class HostedRoom(
     @SerialName("room_id") val roomId: String,
     @SerialName("name") val name: String,
-    @SerialName("latest_seq") val latestSeq: Long = -1L,
+    @SerialName("latest_seq") val latestSeq: Long? = null,
     @SerialName("disbanded_at") val disbandedAt: Double? = null,
     @SerialName("authority_gateway_id") val authorityGatewayId: String? = null,
     @SerialName("authority_epoch") val authorityEpoch: Int? = null,
@@ -120,7 +120,7 @@ data class HostedLogPage(
 /** Receipt returned by `groups.send`. */
 @Serializable
 data class HostedSendReceipt(
-    @SerialName("accepted") val accepted: Boolean = false,
+    @SerialName("accepted") val accepted: Boolean = true,
     @SerialName("client_event_id") val clientEventId: String? = null,
     @SerialName("event") val event: HostedEvent? = null,
     @SerialName("driver_started") val driverStarted: Boolean? = null,
@@ -135,13 +135,13 @@ data class HostedStopReceipt(
 /** Receipt returned by `groups.retry`. */
 @Serializable
 data class HostedRetryReceipt(
-    @SerialName("retried") val retried: Boolean = false,
+    @SerialName("retried") val retried: Boolean = true,
     @SerialName("task") val task: JsonObject? = null,
 )
 
 /** Receipt returned by `groups.approve`. */
 @Serializable
 data class HostedApproveReceipt(
-    @SerialName("approved") val approved: Boolean = false,
+    @SerialName("approved") val approved: Boolean = true,
     @SerialName("result") val result: JsonObject? = null,
 )

@@ -65,6 +65,79 @@ class HostedRoomsSourceTest {
         )
 
     @Test
+    fun `capabilities rejects an omitted log limit`() =
+        runTest {
+            val source = HermesHostedRoomsSource(hostedCaller { _, _ -> fullCapabilitiesWireMap() - "max_log_limit" })
+            assertFalse(source.capabilities("work").supported)
+        }
+
+    @Test
+    fun `list and state accept explicit null room sequence`() =
+        runTest {
+            val room = mapOf("room_id" to "empty-room", "name" to "Empty room", "latest_seq" to null)
+            val source =
+                HermesHostedRoomsSource(
+                    hostedCaller { method, _ ->
+                        when (method) {
+                            "groups.list" -> mapOf("rooms" to listOf(room))
+                            "groups.state" -> mapOf("room" to room)
+                            else -> error("Unexpected method: $method")
+                        }
+                    },
+                )
+            assertEquals(
+                null,
+                source
+                    .list("work", 0)
+                    .rooms
+                    .single()
+                    .latestSeq,
+            )
+            assertEquals(null, source.state("work", "empty-room").room.latestSeq)
+        }
+
+    @Test
+    fun `mutation receipts use protocol defaults when success flags are omitted`() =
+        runTest {
+            val source =
+                HermesHostedRoomsSource(
+                    hostedCaller { method, _ ->
+                        when (method) {
+                            "groups.send" -> {
+                                mapOf(
+                                    "event" to
+                                        mapOf(
+                                            "room_id" to "room-1",
+                                            "seq" to 1,
+                                            "event_id" to "event-1",
+                                            "kind" to "message",
+                                            "payload" to mapOf("text" to "hello"),
+                                            "actor" to mapOf("kind" to "user"),
+                                        ),
+                                )
+                            }
+
+                            "groups.retry" -> {
+                                mapOf("task" to mapOf("task_id" to "task-1"))
+                            }
+
+                            "groups.approve" -> {
+                                mapOf("result" to mapOf("choice" to "once"))
+                            }
+
+                            else -> {
+                                error("Unexpected method: $method")
+                            }
+                        }
+                    },
+                )
+            val task = HostedTask(memberId = "member-1", taskId = "task-1", executionGeneration = 1)
+            source.send("work", "room-1", "client-1", "hello")
+            source.retry("work", "room-1", task)
+            source.approve("work", "room-1", task, "request-1", "once")
+        }
+
+    @Test
     fun `capabilities returns supported true when all protocol requirements met`() =
         runTest {
             var recordedMethod: String? = null

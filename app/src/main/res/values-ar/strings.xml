@@ -2047,4 +2047,25 @@
         <item quantity="many">%1$d عملية خلفية قيد التشغيل</item>
         <item quantity="other">%1$d عملية خلفية قيد التشغيل</item>
     </plurals>
+    <string name="hosted_rooms_title">الغرف المستضافة</string>
+    <string name="hosted_offline">اتصل ببوابة لفتح الغرف المستضافة</string>
+    <string name="hosted_unavailable">هذه البوابة لا تدعم الغرف المستضافة</string>
+    <string name="hosted_legacy_unchanged">محادثاتك الجماعية الحالية لم تتغير. ارجع لفتحها.</string>
+    <string name="hosted_rooms_empty">لا توجد غرف مستضافة</string>
+    <string name="hosted_rooms_setup">أنشئ غرفة مستضافة على البوابة ثم حدّث القائمة. لن تُنقل المحادثات الجماعية الحالية تلقائيًا.</string>
+    <string name="hosted_read_only">للقراءة فقط: مشغّل الغرفة المستضافة غير متاح</string>
+    <string name="hosted_log_empty">لا توجد أحداث في الغرفة بعد</string>
+    <string name="hosted_retry_title">إعادة محاولة المهمة</string>
+    <string name="hosted_retry_warning">قد تكون المحاولة السابقة نُفّذت. أعد محاولة هذه المهمة فقط إذا كنت تقبل احتمال تكرار آثارها.</string>
+    <string name="hosted_approval_title">تأكيد الرد على طلب الموافقة</string>
+    <string name="hosted_allow_once">السماح مرة واحدة</string>
+    <string name="hosted_deny">رفض</string>
+    <string name="hosted_send_uncertain">لم يتأكد الإرسال. أعد الاتصال وحدّث قبل إعادة المحاولة.</string>
+    <string name="hosted_resend_same">إعادة إرسال نفس الرسالة</string>
+    <string name="hosted_message">رسالة</string>
+    <string name="hosted_send">إرسال</string>
+    <string name="hosted_stop">إيقاف الغرفة</string>
+    <string name="hosted_leave_title">مغادرة الغرف المستضافة؟</string>
+    <string name="hosted_leave_warning">لم يتم تأكيد رسالتك الأخيرة. ربما استقبلتها البوابة. تحقّق من سجل الغرفة قبل إرسالها مرة أخرى.</string>
+    <string name="hosted_leave">مغادرة</string>
 </resources>

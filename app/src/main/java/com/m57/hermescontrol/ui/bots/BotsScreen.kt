@@ -318,6 +318,15 @@ fun BotsScreen(
                 )
             }
 
+            if (pagerState.currentPage == BotsTab.GROUPS.ordinal) {
+                TextButton(
+                    onClick = { NavigationController.navigateTo(com.m57.hermescontrol.HostedRoomsKey) },
+                    modifier = Modifier.testTag("bots_hosted_rooms"),
+                ) {
+                    Text(stringResource(R.string.hosted_rooms_title))
+                }
+            }
+
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize(),

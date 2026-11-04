@@ -121,6 +121,55 @@ class WsTransportSettlementTest {
             ).also { transportRef = it }
     }
 
+    @Test
+    fun rejectedHostedSendIsNeverQueuedOrReplayedOnAnotherSocket() =
+        runTest {
+            val fixture = Fixture(this, testJson)
+            val socket = mockk<WebSocket>(relaxed = true)
+            every { socket.send(any<String>()) } returns false
+            every { socket.queueSize() } returns 0L
+            fixture.transport.connectedForTest.set(true)
+            fixture.transport.intentionalCloseForTest.set(false)
+            fixture.transport.webSocketForTest = socket
+
+            try {
+                fixture.rpcChannel.request(WsMethods.GROUPS_SEND, mapOf("room_id" to "r", "profile" to "owner"))
+                fail("Rejected hosted send must fail instead of entering the reconnect queue")
+            } catch (_: HermesWsClient.HermesRpcException) {
+                assertTrue(fixture.transport.messageQueueForTest.isEmpty())
+                assertFalse(fixture.rpcChannel.hasPendingCalls())
+            }
+        }
+
+    @Test
+    fun offlineHostedRequestNeverStartsReconnectOrQueues() =
+        runTest {
+            val fixture = Fixture(this, testJson)
+            try {
+                fixture.rpcChannel.request(WsMethods.GROUPS_SEND)
+                fail("Offline hosted calls must fail immediately")
+            } catch (_: HermesWsClient.HermesRpcException) {
+                assertTrue(fixture.transport.messageQueueForTest.isEmpty())
+                assertFalse(fixture.rpcChannel.hasPendingCalls())
+                assertEquals(ConnectionStatus.DISCONNECTED, fixture.transport.connectionStatus.value)
+            }
+        }
+
+    @Test
+    fun acceptedHostedSendIsRegisteredOnceAndNotQueued() =
+        runTest {
+            val fixture = Fixture(this, testJson)
+            val socket = mockk<WebSocket>(relaxed = true)
+            every { socket.send(any<String>()) } returns true
+            fixture.transport.connectedForTest.set(true)
+            fixture.transport.webSocketForTest = socket
+            val deferred = fixture.rpcChannel.request(WsMethods.GROUPS_SEND)
+            assertEquals(1, fixture.rpcChannel.pendingCallIdsForTest().size)
+            assertTrue(fixture.transport.messageQueueForTest.isEmpty())
+            deferred.cancel()
+            assertFalse(fixture.rpcChannel.hasPendingCalls())
+        }
+
     @Before
     fun setUp() {
         mockkStatic(Log::class)

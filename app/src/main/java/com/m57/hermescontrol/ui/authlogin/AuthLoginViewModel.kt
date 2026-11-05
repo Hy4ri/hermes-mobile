@@ -717,7 +717,7 @@ class AuthLoginViewModel(
             viewModelScope.launch {
                 val outcome =
                     withContext(Dispatchers.IO) {
-                        runNativeBrowserLogin(OkHttpProvider.probe, endpoint, provider, openBrowser)
+                        runNativeBrowserLogin(app, OkHttpProvider.probe, endpoint, provider, openBrowser)
                     }
                 val connected = outcome is BrowserLoginResult.Success
                 if (outcome is BrowserLoginResult.Success) {

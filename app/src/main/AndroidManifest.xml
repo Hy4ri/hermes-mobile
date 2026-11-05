@@ -10,6 +10,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
@@ -102,6 +103,17 @@
             android:name=".notification.ChatNotificationService"
             android:foregroundServiceType="remoteMessaging"
             android:exported="false" />
+
+        <!-- Keeps the app responsive while the user completes sign-in in the system
+             browser (RFC 8252 loopback callback); see data.remote.LoginKeepAliveService. -->
+        <service
+            android:name=".data.remote.LoginKeepAliveService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps the app responsive while the user completes sign-in in the system browser (RFC 8252 loopback callback)." />
+        </service>
 
         <receiver
             android:name=".notification.NotificationReplyReceiver"

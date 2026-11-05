@@ -16,12 +16,9 @@ import com.m57.hermescontrol.R
  * in flight.
  *
  * RFC 8252 sign-in opens the system browser (Custom Tab) and then waits for a loopback
- * [LoopbackCallbackServer] callback. The moment the browser takes focus Android drops the app to a
- * low-priority process state and pauses its threads — including the loopback listener — so the
- * consent redirect never reaches the server and the user is left on an endless "loading" spinner
- * until they return to the app. Running a foreground service pins the process at
- * STATE_FOREGROUND_SERVICE, so the loopback thread stays runnable and the callback completes even
- * while the browser is in front.
+ * [LoopbackCallbackServer] callback. While the browser has focus, Android can cache and freeze the
+ * app process, preventing the loopback listener from handling the redirect until the app resumes.
+ * A foreground service keeps the process out of the cached state during this bounded login flow.
  */
 class LoginKeepAliveService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
@@ -54,6 +51,13 @@ class LoginKeepAliveService : Service() {
             startForeground(NOTIFICATION_ID, notification)
         }
     }
+
+    // The in-memory login coroutine cannot survive process death. Never restart an orphan service (#1777).
+    override fun onStartCommand(
+        intent: Intent?,
+        flags: Int,
+        startId: Int,
+    ): Int = START_NOT_STICKY
 
     override fun onDestroy() {
         super.onDestroy()

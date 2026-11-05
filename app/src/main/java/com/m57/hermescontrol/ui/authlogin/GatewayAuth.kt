@@ -14,6 +14,7 @@ import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.await
 import com.m57.hermescontrol.data.remote.nativeAuthorizeUrl
 import com.m57.hermescontrol.data.remote.redeemNativeCode
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -225,19 +226,24 @@ suspend fun runNativeBrowserLogin(
                 redirectUri = server.redirectUri,
                 state = clientState,
             )
-        // Keep the process responsive while the browser is in front: Android pauses
-        // background app threads (including the loopback listener) once the Custom Tab
-        // takes focus, which would otherwise stall the RFC 8252 callback. A foreground
-        // service pins the process so the loopback thread stays runnable.
-        LoginKeepAliveService.start(context)
+        // Android can freeze a cached app while the browser is in front. Keep the loopback
+        // listener runnable, but report a rejected foreground service start to both callers (#1777).
         try {
-            openBrowser(authorizeUrl.toString())
-        } catch (e: Exception) {
-            Log.w(TAG, "Could not open browser: ${e.javaClass.simpleName}")
-            LoginKeepAliveService.stop(context)
-            return@use BrowserLoginResult.NoBrowser
-        }
-        try {
+            try {
+                LoginKeepAliveService.start(context)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: RuntimeException) {
+                return@use BrowserLoginResult.ConnectionFailed(e.message.orEmpty())
+            }
+            try {
+                openBrowser(authorizeUrl.toString())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not open browser: ${e.javaClass.simpleName}")
+                return@use BrowserLoginResult.NoBrowser
+            }
             when (val callback = server.awaitCallback(clientState, timeoutMs)) {
                 is NativeCallback.Code -> redeemBrowserCode(client, endpoint, callback.code, verifier)
                 is NativeCallback.Denied -> BrowserLoginResult.Denied(callback.error)
@@ -245,7 +251,12 @@ suspend fun runNativeBrowserLogin(
                 NativeCallback.Closed -> BrowserLoginResult.Cancelled
             }
         } finally {
-            LoginKeepAliveService.stop(context)
+            try {
+                LoginKeepAliveService.stop(context)
+            } catch (e: RuntimeException) {
+                // Cleanup must not replace the login result or coroutine cancellation.
+                Log.w(TAG, "Could not stop login service: ${e.javaClass.simpleName}")
+            }
         }
     }
 }

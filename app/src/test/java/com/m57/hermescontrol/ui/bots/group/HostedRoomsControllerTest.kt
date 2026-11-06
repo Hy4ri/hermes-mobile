@@ -1796,4 +1796,78 @@ class HostedRoomsControllerTest {
                     ?.memberActivity,
             )
         }
+
+    @Test
+    fun `discarding an unconfirmed send forgets only the local delivery attempt`() =
+        runTest {
+            val source =
+                FakeHostedRoomsSource().apply {
+                    listPages.add(HostedRoomList(listOf(HostedRoom("r1", "Room"))))
+                    sendError = HermesWsClient.HermesRpcException("Receipt lost")
+                }
+            var owner: HostedOwner? = testOwner()
+            val controller = HostedRoomsController(source, { owner }, { "original-id" })
+            controller.refresh()
+            controller.select("r1")
+            controller.refresh()
+            controller.send("Uncertain message")
+            assertEquals(1, source.sendCalls.size)
+            assertNotNull(controller.state.value.pendingSend)
+
+            controller.cancelPendingSend()
+
+            assertNull(controller.state.value.pendingSend)
+            assertEquals(1, source.sendCalls.size)
+            assertEquals("r1", controller.state.value.selectedRoomId)
+            assertTrue(source.stopCalls.isEmpty())
+            assertTrue(source.retryCalls.isEmpty())
+            // Nothing is left to reconcile, so leaving the room no longer needs a warning.
+            controller.select(null)
+            assertNull(controller.state.value.selectedRoomId)
+        }
+
+    @Test
+    fun `discarding an unconfirmed send works while the connection is down`() =
+        runTest {
+            val source =
+                FakeHostedRoomsSource().apply {
+                    listPages.add(HostedRoomList(listOf(HostedRoom("r1", "Room"))))
+                    sendError = HermesWsClient.HermesRpcException("Receipt lost")
+                }
+            var owner: HostedOwner? = testOwner()
+            val controller = HostedRoomsController(source, { owner }, { "original-id" })
+            controller.refresh()
+            controller.select("r1")
+            controller.refresh()
+            controller.send("Uncertain message")
+
+            owner = testOwner(connected = false)
+            controller.syncOwner()
+            assertNotNull(controller.state.value.pendingSend)
+            assertFalse(controller.state.value.writable)
+
+            controller.cancelPendingSend()
+
+            assertNull(controller.state.value.pendingSend)
+            assertEquals(1, source.sendCalls.size)
+        }
+
+    @Test
+    fun `discarding without an uncertain send changes nothing`() =
+        runTest {
+            val source =
+                FakeHostedRoomsSource().apply {
+                    listPages.add(HostedRoomList(listOf(HostedRoom("r1", "Room"))))
+                }
+            var owner: HostedOwner? = testOwner()
+            val controller = HostedRoomsController(source, { owner })
+            controller.refresh()
+            controller.select("r1")
+            controller.refresh()
+            val before = controller.state.value
+
+            controller.cancelPendingSend()
+
+            assertEquals(before, controller.state.value)
+        }
 }

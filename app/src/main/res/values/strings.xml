@@ -2222,9 +2222,30 @@
     <string name="hosted_tool">Tool: %1$s</string>
     <string name="hosted_elapsed">Elapsed: %1$ds</string>
     <string name="hosted_progress_age">Last progress: %1$ds ago</string>
-    <string name="hosted_attention_blocked">Blocked</string>
-    <string name="hosted_attention_approvals">%1$d waiting for approval</string>
-    <string name="hosted_attention_other">Needs attention: %1$d</string>
+    <string name="hosted_target_idle">Room idle</string>
+    <string name="hosted_target_working">Room working</string>
+    <string name="hosted_target_waiting_approval">Waiting for approval</string>
+    <string name="hosted_target_waiting_retry">Waiting for a retry</string>
+    <string name="hosted_target_blocked">Blocked by an unresolved task</string>
+    <plurals name="hosted_target_approvals">
+        <item quantity="one">%1$d approval waiting</item>
+        <item quantity="other">%1$d approvals waiting</item>
+    </plurals>
+    <plurals name="hosted_target_retries">
+        <item quantity="one">%1$d task needs attention</item>
+        <item quantity="other">%1$d tasks need attention</item>
+    </plurals>
+    <plurals name="hosted_target_cancellable">
+        <item quantity="one">%1$d task can be cancelled</item>
+        <item quantity="other">%1$d tasks can be cancelled</item>
+    </plurals>
+    <string name="hosted_stop_title">Stop queued and running work?</string>
+    <string name="hosted_stop_warning">This cancels queued and running member turns in this room. The room log is kept.</string>
+    <string name="hosted_stop_confirm">Stop work</string>
+    <string name="hosted_discard_send">Discard unsent message</string>
+    <string name="hosted_discard_title">Discard this unsent message?</string>
+    <string name="hosted_discard_warning">Only your local copy is forgotten. If the gateway accepted it, the message is already in the room log.</string>
+    <string name="hosted_discard_confirm">Discard</string>
 
     <string name="hosted_context_settings">Room settings</string>
     <string name="hosted_context_purpose">Purpose</string>

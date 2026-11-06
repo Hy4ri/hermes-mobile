@@ -7,8 +7,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -23,6 +21,8 @@ import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.applock.DropdownMenu
 import com.m57.hermescontrol.ui.settings.SectionCard
+import com.m57.hermescontrol.ui.common.ExpressiveOutlinedButton as OutlinedButton
+import com.m57.hermescontrol.ui.common.ExpressiveSwitch as Switch
 
 @Composable
 internal fun AppLockSettingsSection() {

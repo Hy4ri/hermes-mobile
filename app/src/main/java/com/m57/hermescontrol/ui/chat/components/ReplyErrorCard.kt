@@ -18,12 +18,9 @@ import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,6 +41,9 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.chat.ReplyFailure
 import com.m57.hermescontrol.ui.chat.sanitizeReplyErrorDetails
+import com.m57.hermescontrol.ui.common.ExpressiveIconButton as IconButton
+import com.m57.hermescontrol.ui.common.ExpressiveOutlinedButton as OutlinedButton
+import com.m57.hermescontrol.ui.common.ExpressiveTextButton as TextButton
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable

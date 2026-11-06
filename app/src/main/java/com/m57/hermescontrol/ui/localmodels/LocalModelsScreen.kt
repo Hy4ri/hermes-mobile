@@ -15,8 +15,6 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -50,6 +48,8 @@ import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
 import com.m57.hermescontrol.util.formatBytes
 import com.m57.hermescontrol.util.formatDuration
+import com.m57.hermescontrol.ui.common.ExpressiveIconButton as IconButton
+import com.m57.hermescontrol.ui.common.ExpressiveLinearProgressIndicator as LinearProgressIndicator
 
 @Composable
 fun LocalModelsScreen(

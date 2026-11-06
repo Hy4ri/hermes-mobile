@@ -21,7 +21,6 @@ import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -29,7 +28,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -51,6 +49,8 @@ import com.m57.hermescontrol.ui.bots.group.MAX_ALLOWED_CONTINUATION_PASSES
 import com.m57.hermescontrol.ui.bots.group.WARN_MAX_BOT_MESSAGES
 import com.m57.hermescontrol.ui.bots.group.WARN_MAX_CONTINUATION_PASSES
 import kotlin.math.roundToInt
+import com.m57.hermescontrol.ui.common.ExpressiveButton as Button
+import com.m57.hermescontrol.ui.common.ExpressiveTextButton as TextButton
 
 @Composable
 fun GroupChatSettingsDialog(

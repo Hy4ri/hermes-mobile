@@ -7,11 +7,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,6 +28,9 @@ import com.m57.hermescontrol.data.model.ConnectionOperationTarget
 import com.m57.hermescontrol.data.model.ConnectionTargetState
 import com.m57.hermescontrol.ui.chat.ChatConnectionOperationDelegate
 import com.m57.hermescontrol.ui.chat.ConnectionOperationUiState
+import com.m57.hermescontrol.ui.common.ExpressiveButton as Button
+import com.m57.hermescontrol.ui.common.ExpressiveCircularProgressIndicator as CircularProgressIndicator
+import com.m57.hermescontrol.ui.common.ExpressiveOutlinedButton as OutlinedButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

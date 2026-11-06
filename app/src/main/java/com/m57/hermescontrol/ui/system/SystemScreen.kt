@@ -11,7 +11,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -51,6 +50,7 @@ import com.m57.hermescontrol.util.uploadMetadata
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.m57.hermescontrol.ui.common.ExpressiveTextButton as TextButton
 
 /** Staged SAF-picked backup archive for the restore flow (issue #786). */
 private data class PendingImport(

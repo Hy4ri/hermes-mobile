@@ -28,7 +28,6 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -63,6 +62,7 @@ import com.m57.hermescontrol.ui.chat.components.rememberCopyFeedback
 import com.m57.hermescontrol.ui.chat.tool.ToolJson
 import com.m57.hermescontrol.util.BidiUtils
 import kotlinx.coroutines.launch
+import com.m57.hermescontrol.ui.common.ExpressiveIconButton as IconButton
 
 /**
  * The user-message bubble — the universal anchor in the full-bleed chat

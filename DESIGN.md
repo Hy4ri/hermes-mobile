@@ -35,10 +35,57 @@ Android layout dimensions use `dp`; text sizes, line heights, and tracking use `
 ## Overview
 Hermes Mobile (`com.m57.hermescontrol`) is a native Android client for the Hermes Agent platform. Prioritize useful information density, clear touch interactions, and timely, honest feedback over decorative visual noise. Density must not compromise accessibility.
 
-The visual language follows Material 3 guidelines strictly adapted for developer utilities:
+The visual language adopts applicable Material 3 Expressive components, adapted for developer utilities:
 - **Tone**: Technical, focused, utilitarian, crisp.
 - **Form Factors**: Verify changed layouts at narrow phone widths and larger window sizes; Navigation 3 alone does not establish adaptive-layout support.
 - **Core Principle**: Zero fluff. Fast render cycles, explicit states, flat surfaces, and zero visual ambiguity.
+
+### Material 3 Expressive
+
+`MaterialExpressiveTheme` receives the existing explicit palettes, typography,
+shape scale, and Expressive motion scheme. It does not replace those tokens with
+baseline Expressive colors or type sizes. Use native components and the shared
+adapters in `ui/common/`; do not draw parallel approximations of Material controls.
+Compose animations respect the platform's animator duration scale; do not add
+independent animation loops.
+
+- **Settings index**: interactive segmented Material list rows group destinations
+  with native press-shape feedback, tonal surfaces, and `titleMedium` labels.
+  Current-setting summaries, profile-lock visibility, and destinations are unchanged.
+- **Chat composer**: standard action buttons use Material's expressive press
+  shapes. The primary action changes its outline between voice, send, and stop
+  using the theme's fast spatial motion; glyph crossfades use fast effects motion.
+  Its gesture-owning container stays composed throughout voice recording.
+- **Density**: composer actions have 48dp targets. At narrow widths or enlarged
+  system text, the model/reasoning pill gets its own line rather than losing its
+  label to fixed action targets. Normal-width chat keeps the single-row toolbar.
+  Chat text, message surfaces, global type sizes, B4 scaffolding, dropdowns, and
+  the no-FAB rule stay unchanged.
+- **Buttons**: filled, tonal, outlined, text, and standard icon actions use shared
+  native press-shape adapters. Existing explicit shapes, padding, colors, enabled
+  states, callbacks, and tooltips remain owned by the caller. Disabled icon actions
+  inherit Material's disabled foreground rather than the enabled tint.
+- **Progress**: inline circular and linear progress use native wavy indicators.
+  Determinate values stay determinate; unknown-length work stays indeterminate.
+  Give linear waves their native height; do not squash or clip them into a thin
+  straight-bar slot. Shared full-screen `LoadingState` uses the native morphing
+  loading indicator. Existing skeleton loading remains a content placeholder.
+- **Choices**: existing single-choice segmented groups use connected native
+  `ButtonGroup` / `ToggleButton` shapes and press motion, retaining one real
+  selection. Narrow or enlarged-text groups scroll horizontally rather than hide
+  options. Unselected choice labels use the existing `onSurface` token because
+  native `onSurfaceVariant` misses normal-text contrast on Gruvbox's container.
+  Other native state colors are retained. Switches retain native motion and show a decorative check in the
+  checked thumb, in addition to their native accessibility state.
+- **Other native controls**: sliders retain Material's current thumb, track,
+  ticks, stop indicator, ranges, steps, and callbacks. Existing checkboxes, radios,
+  chips, tabs, menus, dialogs, sheets, tooltips, and navigation keep their native
+  implementations and themed motion. They have no separate Expressive variant
+  to substitute in the pinned dependency.
+- **Applicability**: do not add carousels without matching content, split buttons
+  without a primary-plus-menu action, or floating toolbars without an existing
+  job. FAB variants remain prohibited. Broad adoption is not permission to add
+  redundant controls, alter the B4 scaffold, or replace the composer gesture owner.
 
 ## Colors
 The app supports 7 built-in presets (`Default/Slate`, `Monochrome`, `Gruvbox`, `Catppuccin`, `AMOLED`, `Nord`, `Garnet`), plus optional Android 12+ wallpaper theming. `Theme.kt` selects the preset; `PaletteTemplate.kt` maps its colors to Material slots. AMOLED is dark-only; light mode falls back to Default.

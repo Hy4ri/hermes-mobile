@@ -15,12 +15,8 @@ import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.RadioButtonChecked
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -48,6 +44,10 @@ import com.m57.hermescontrol.ui.common.ManageableToggle
 import com.m57.hermescontrol.ui.common.StatusBadge
 import com.m57.hermescontrol.ui.common.StatusBadgeType
 import kotlinx.coroutines.launch
+import com.m57.hermescontrol.ui.common.ExpressiveButton as Button
+import com.m57.hermescontrol.ui.common.ExpressiveCircularProgressIndicator as CircularProgressIndicator
+import com.m57.hermescontrol.ui.common.ExpressiveIconButton as IconButton
+import com.m57.hermescontrol.ui.common.ExpressiveOutlinedButton as OutlinedButton
 
 private data class PlatformStateInfo(
     val label: String,

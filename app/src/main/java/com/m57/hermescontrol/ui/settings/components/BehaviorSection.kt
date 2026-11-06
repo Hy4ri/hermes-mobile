@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -26,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.ui.settings.SectionCard
+import com.m57.hermescontrol.ui.common.ExpressiveSwitch as Switch
 
 @Composable
 internal fun BehaviorSection(

@@ -25,7 +25,6 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SuggestionChip
@@ -53,6 +52,7 @@ import com.m57.hermescontrol.data.model.ProfileInfo
 import com.m57.hermescontrol.ui.chat.ChatInputPolicy
 import com.m57.hermescontrol.ui.common.BotAvatar
 import com.m57.hermescontrol.util.BidiUtils
+import com.m57.hermescontrol.ui.common.ExpressiveIconButton as IconButton
 
 @Composable
 fun GroupChatComposer(

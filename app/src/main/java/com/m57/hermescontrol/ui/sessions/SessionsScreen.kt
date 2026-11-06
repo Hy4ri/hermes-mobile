@@ -52,24 +52,18 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -134,6 +128,12 @@ import com.m57.hermescontrol.ui.sessions.components.automationGroups
 import com.m57.hermescontrol.ui.sessions.components.sourceLabel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import com.m57.hermescontrol.ui.common.ExpressiveButton as Button
+import com.m57.hermescontrol.ui.common.ExpressiveCircularProgressIndicator as CircularProgressIndicator
+import com.m57.hermescontrol.ui.common.ExpressiveFilledTonalButton as FilledTonalButton
+import com.m57.hermescontrol.ui.common.ExpressiveLinearProgressIndicator as LinearProgressIndicator
+import com.m57.hermescontrol.ui.common.ExpressiveOutlinedButton as OutlinedButton
+import com.m57.hermescontrol.ui.common.ExpressiveTextButton as TextButton
 
 /**
  * Auto-load the next history page when the user scrolls to within this many

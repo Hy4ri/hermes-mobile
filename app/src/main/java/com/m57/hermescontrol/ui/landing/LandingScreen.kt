@@ -13,10 +13,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -28,6 +26,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.profilelock.ProfileLockCard
+import com.m57.hermescontrol.ui.common.ExpressiveButton as Button
+import com.m57.hermescontrol.ui.common.ExpressiveOutlinedButton as OutlinedButton
 
 @Composable
 fun LandingScreen(

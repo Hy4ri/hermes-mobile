@@ -16,7 +16,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
@@ -37,6 +36,7 @@ import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.kanban.KanbanModelOverride
 import com.m57.hermescontrol.ui.kanban.supportedKanbanReasoningEfforts
 import com.m57.hermescontrol.ui.model.components.ModelPickerDialog
+import com.m57.hermescontrol.ui.common.ExpressiveIconButton as IconButton
 
 @Composable
 fun KanbanModelOverrideEditor(

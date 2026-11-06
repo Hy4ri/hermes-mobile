@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -30,6 +29,7 @@ import com.m57.hermescontrol.theme.Spacing
 import com.m57.hermescontrol.ui.mcp.AddServerMode
 import com.m57.hermescontrol.ui.mcp.McpServersUiState
 import com.m57.hermescontrol.ui.mcp.McpServersViewModel
+import com.m57.hermescontrol.ui.common.ExpressiveButton as Button
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable

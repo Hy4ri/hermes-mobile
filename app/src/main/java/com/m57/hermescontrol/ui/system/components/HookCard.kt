@@ -14,7 +14,6 @@ import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,6 +29,7 @@ import com.m57.hermescontrol.data.model.HookEntry
 import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.common.StatusBadge
 import com.m57.hermescontrol.ui.common.StatusBadgeType
+import com.m57.hermescontrol.ui.common.ExpressiveIconButton as IconButton
 
 @Composable
 internal fun HookCard(

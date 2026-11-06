@@ -13,14 +13,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.UploadFile
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -42,6 +37,7 @@ import com.m57.hermescontrol.data.model.McpServer
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
+import com.m57.hermescontrol.ui.common.ExpressiveChoiceRow
 import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.HermesTooltip
@@ -56,6 +52,8 @@ import com.m57.hermescontrol.ui.mcp.components.AddServerSection
 import com.m57.hermescontrol.ui.mcp.components.CatalogView
 import com.m57.hermescontrol.ui.mcp.components.McpDialogs
 import com.m57.hermescontrol.ui.mcp.components.ServerCard
+import com.m57.hermescontrol.ui.common.ExpressiveCircularProgressIndicator as CircularProgressIndicator
+import com.m57.hermescontrol.ui.common.ExpressiveIconButton as IconButton
 
 @Composable
 fun McpServersActions(viewModel: McpServersViewModel) {
@@ -141,27 +139,21 @@ fun McpServersBody(
     ToastEffect(toastMessage = state.toastMessage, onClearToast = viewModel::clearToast)
 
     Column(modifier = modifier.fillMaxSize()) {
-        SingleChoiceSegmentedButtonRow(
+        ExpressiveChoiceRow(
+            options =
+                listOf(
+                    stringResource(R.string.mcp_tab_installed),
+                    stringResource(R.string.mcp_tab_catalog),
+                ),
+            selectedIndex = if (state.selectedTab == McpTab.INSTALLED) 0 else 1,
+            onSelect = { index ->
+                viewModel.setTab(if (index == 0) McpTab.INSTALLED else McpTab.CATALOG)
+            },
             modifier =
                 Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
-        ) {
-            SegmentedButton(
-                selected = state.selectedTab == McpTab.INSTALLED,
-                onClick = { viewModel.setTab(McpTab.INSTALLED) },
-                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
-            ) {
-                Text(stringResource(R.string.mcp_tab_installed))
-            }
-            SegmentedButton(
-                selected = state.selectedTab == McpTab.CATALOG,
-                onClick = { viewModel.setTab(McpTab.CATALOG) },
-                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
-            ) {
-                Text(stringResource(R.string.mcp_tab_catalog))
-            }
-        }
+        )
 
         when (state.selectedTab) {
             McpTab.INSTALLED -> {

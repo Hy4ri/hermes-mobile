@@ -27,15 +27,10 @@ import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -61,6 +56,11 @@ import com.m57.hermescontrol.ui.chat.ConnectorActionState
 import com.m57.hermescontrol.ui.chat.ConnectorUiItem
 import com.m57.hermescontrol.ui.chat.ConnectorsLoadPhase
 import com.m57.hermescontrol.ui.common.HermesTooltip
+import com.m57.hermescontrol.ui.common.ExpressiveCircularProgressIndicator as CircularProgressIndicator
+import com.m57.hermescontrol.ui.common.ExpressiveFilledTonalButton as FilledTonalButton
+import com.m57.hermescontrol.ui.common.ExpressiveIconButton as IconButton
+import com.m57.hermescontrol.ui.common.ExpressiveLinearProgressIndicator as LinearProgressIndicator
+import com.m57.hermescontrol.ui.common.ExpressiveOutlinedButton as OutlinedButton
 
 /**
  * Visual elements for a connector status badge.

@@ -24,7 +24,6 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -42,6 +41,7 @@ import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.kanban.KanbanArcState
 import com.m57.hermescontrol.ui.kanban.KanbanRuntimeHelper
+import com.m57.hermescontrol.ui.common.ExpressiveIconButton as IconButton
 
 @Composable
 fun KanbanTaskCard(

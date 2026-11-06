@@ -19,10 +19,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -37,6 +35,8 @@ import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.applock.Dialog
 import com.m57.hermescontrol.ui.settings.components.KO_FI_URL
+import com.m57.hermescontrol.ui.common.ExpressiveButton as Button
+import com.m57.hermescontrol.ui.common.ExpressiveIconButton as IconButton
 
 /** Post-update "What's new" dialog: release notes plus a Ko-fi support button. */
 @Composable

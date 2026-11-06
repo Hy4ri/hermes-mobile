@@ -14,13 +14,11 @@ import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -41,6 +39,8 @@ import com.m57.hermescontrol.ui.common.StatusBadge
 import com.m57.hermescontrol.ui.common.StatusBadgeType
 import com.m57.hermescontrol.ui.system.SystemUiState
 import com.m57.hermescontrol.ui.system.SystemViewModel
+import com.m57.hermescontrol.ui.common.ExpressiveButton as Button
+import com.m57.hermescontrol.ui.common.ExpressiveOutlinedButton as OutlinedButton
 
 fun LazyListScope.gatewaySection(
     state: SystemUiState,

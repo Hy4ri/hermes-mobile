@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.chat.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -15,9 +16,11 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -28,6 +31,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
@@ -35,15 +39,14 @@ import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.Mic
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonColors
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -75,6 +78,8 @@ import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.applock.DropdownMenu
 import kotlinx.coroutines.withTimeoutOrNull
+import com.m57.hermescontrol.ui.common.ExpressiveCircularProgressIndicator as CircularProgressIndicator
+import com.m57.hermescontrol.ui.common.ExpressiveSwitch as Switch
 
 /**
  * Bottom controls row for the chat composer, rendered inside the composer card.
@@ -96,7 +101,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  * When [supportsReasoning] is false the model takes no reasoning parameter
  * and the level menu is disabled.
  */
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ComposerToolbar(
     isConnected: Boolean,
@@ -206,29 +211,7 @@ fun ComposerToolbar(
             )
         }
 
-    Row(
-        modifier =
-            modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp)
-                .padding(top = 6.dp)
-                .testTag("composer_toolbar"),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        // Attach button
-        FilledIconButton(
-            onClick = onAttachTap,
-            enabled = isConnected,
-            colors = flatIconButtonColors(palette),
-            modifier = Modifier.size(ControlSize).testTag("attachment_button"),
-        ) {
-            Icon(
-                imageVector = Icons.Default.Add,
-                contentDescription = stringResource(R.string.chat_attach_file),
-            )
-        }
-
+    val modelControl: @Composable () -> Unit = {
         // Model + reasoning pill — wraps its content inside the free space,
         // pushing the mic/action buttons to the far end
         val modelScrollState = rememberScrollState()
@@ -239,7 +222,7 @@ fun ComposerToolbar(
         LaunchedEffect(modelLabel) {
             modelScrollState.scrollTo(0)
         }
-        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+        Box(contentAlignment = Alignment.CenterStart) {
             Row(
                 modifier =
                     Modifier
@@ -500,164 +483,221 @@ fun ComposerToolbar(
                 }
             }
         }
+    }
 
-        // Flat slot — mic while idle. While a generation can be interrupted and a
-        // draft exists, Stop moves here so the rightmost action button stays
-        // Send (desktop parity: a payload keeps Send primary mid-turn; an empty
-        // draft makes Stop primary). During session preparation the mic stays
-        // here and the action button is a disabled send: Stop must not appear
-        // when there is nothing to interrupt (review, PR #1250).
-        AnimatedVisibility(
-            visible = showSend,
-            enter = fadeIn() + scaleIn(initialScale = 0.8f),
-            exit = fadeOut() + scaleOut(targetScale = 0.8f),
-        ) {
-            if (canInterrupt) {
+    BoxWithConstraints(modifier = modifier.fillMaxWidth().testTag("composer_toolbar")) {
+        // Use the worst-case action count so starting a draft/recording never
+        // moves the gesture owner between rows. Only width/font changes adapt.
+        val separateModelRow = maxWidth < 192.dp + 136.dp * LocalDensity.current.fontScale
+        Column {
+            if (separateModelRow) {
+                Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(top = 6.dp)) {
+                    modelControl()
+                }
+            }
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp)
+                        .padding(top = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                // Attach button
                 FilledIconButton(
-                    onClick = onStopGeneration,
+                    onClick = onAttachTap,
+                    shapes = IconButtonDefaults.shapes(),
+                    enabled = isConnected,
                     colors = flatIconButtonColors(palette),
-                    modifier =
-                        Modifier
-                            .size(ControlSize)
-                            .testTag("stop_button"),
+                    modifier = Modifier.size(ControlSize).testTag("attachment_button"),
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Stop,
-                        contentDescription = stringResource(R.string.chat_voice_stop_generating),
+                        imageVector = Icons.Default.Add,
+                        contentDescription = stringResource(R.string.chat_attach_file),
                     )
                 }
-            } else {
-                // Plain Box, not FilledIconButton: the hold gesture must sit
-                // innermost in the pointer-modifier chain so it consumes the
-                // release before the tap handler — impossible while the button
-                // supplies its own clickable (review, PR #1280). Same
-                // arrangement as the action button below.
-                val micColors = if (isListening) listeningIconButtonColors() else flatIconButtonColors(palette)
+
+                if (!separateModelRow) {
+                    Box(Modifier.weight(1f)) { modelControl() }
+                } else {
+                    Spacer(Modifier.weight(1f))
+                }
+
+                // Flat slot — mic while idle. While a generation can be interrupted and a
+                // draft exists, Stop moves here so the rightmost action button stays
+                // Send (desktop parity: a payload keeps Send primary mid-turn; an empty
+                // draft makes Stop primary). During session preparation the mic stays
+                // here and the action button is a disabled send: Stop must not appear
+                // when there is nothing to interrupt (review, PR #1250).
+                AnimatedVisibility(
+                    visible = showSend,
+                    enter = fadeIn() + scaleIn(initialScale = 0.8f),
+                    exit = fadeOut() + scaleOut(targetScale = 0.8f),
+                ) {
+                    if (canInterrupt) {
+                        FilledIconButton(
+                            onClick = onStopGeneration,
+                            shapes = IconButtonDefaults.shapes(),
+                            colors = flatIconButtonColors(palette),
+                            modifier =
+                                Modifier
+                                    .size(ControlSize)
+                                    .testTag("stop_button"),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Stop,
+                                contentDescription = stringResource(R.string.chat_voice_stop_generating),
+                            )
+                        }
+                    } else {
+                        // Plain Box, not FilledIconButton: the hold gesture must sit
+                        // innermost in the pointer-modifier chain so it consumes the
+                        // release before the tap handler — impossible while the button
+                        // supplies its own clickable (review, PR #1280). Same
+                        // arrangement as the action button below.
+                        val micColors = if (isListening) listeningIconButtonColors() else flatIconButtonColors(palette)
+                        Box(
+                            modifier =
+                                Modifier
+                                    .size(ControlSize)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (isConnected) micColors.containerColor else micColors.disabledContainerColor,
+                                    ).combinedClickable(
+                                        enabled = isConnected,
+                                        onClick = onMicTap,
+                                    ).testTag(if (isListening) "mic_stop_button" else "mic_button")
+                                    .then(flatMicGesture),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = if (isListening) Icons.Default.Stop else Icons.Outlined.Mic,
+                                contentDescription = if (isListening) "Stop listening" else "Mic",
+                                tint = if (isConnected) micColors.contentColor else micColors.disabledContentColor,
+                            )
+                        }
+                    }
+                }
+
+                // Action button — send when a send is possible, mic / stop otherwise
+                // While a recording is locked this button finishes the voice note, so
+                // it must stay enabled even when the draft alone would not send
+                // (review, PR #1280).
+                // Stop owns the action button only when there is no draft to send;
+                // with a draft it lives in the flat slot above.
+                val actionStops = canInterrupt && !showSend
+                val actionEnabled =
+                    if (isVoiceNoteLocked) {
+                        true
+                    } else if (showSend) {
+                        canSend
+                    } else {
+                        isConnected
+                    }
+                // Keep the gesture-owning Box composed as the action changes. Only its
+                // outline animates; replacing it with an IconButton would steal mic releases.
+                val actionCorner by animateDpAsState(
+                    targetValue =
+                        when {
+                            actionStops || isListening -> 12.dp
+                            showSend || isVoiceNoteLocked -> 16.dp
+                            else -> 24.dp
+                        },
+                    animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
+                    label = "composer_action_corner",
+                )
+                val actionContainer =
+                    if (!showSend && isListening) MaterialTheme.colorScheme.errorContainer else palette.action
+                val actionContent =
+                    if (!showSend && isListening) MaterialTheme.colorScheme.onErrorContainer else palette.onAction
+                val actionColors =
+                    IconButtonDefaults.filledIconButtonColors(
+                        containerColor = actionContainer,
+                        contentColor = actionContent,
+                    )
+                val actionTint = if (actionEnabled) actionColors.contentColor else actionColors.disabledContentColor
                 Box(
                     modifier =
                         Modifier
                             .size(ControlSize)
-                            .clip(CircleShape)
+                            .clip(RoundedCornerShape(actionCorner))
                             .background(
-                                if (isConnected) micColors.containerColor else micColors.disabledContainerColor,
+                                if (actionEnabled) actionColors.containerColor else actionColors.disabledContainerColor,
                             ).combinedClickable(
-                                enabled = isConnected,
-                                onClick = onMicTap,
-                            ).testTag(if (isListening) "mic_stop_button" else "mic_button")
-                            .then(flatMicGesture),
+                                enabled = actionEnabled,
+                                onClick = {
+                                    when {
+                                        // A locked recording always finishes with this
+                                        // button, draft or agent state regardless
+                                        // (review, PR #1280).
+                                        isVoiceNoteLocked -> onMicTap()
+
+                                        actionStops -> onStopGeneration()
+
+                                        showSend -> onSend()
+
+                                        else -> onMicTap()
+                                    }
+                                },
+                            ).testTag(
+                                when {
+                                    isVoiceNoteLocked -> "voice_note_send_button"
+                                    actionStops -> "stop_button"
+                                    showSend -> "send_button"
+                                    isListening -> "mic_stop_button"
+                                    else -> "mic_button"
+                                },
+                            ).then(if (showSend || canInterrupt) Modifier else actionMicGesture),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(
-                        imageVector = if (isListening) Icons.Default.Stop else Icons.Outlined.Mic,
-                        contentDescription = if (isListening) "Stop listening" else "Mic",
-                        tint = if (isConnected) micColors.contentColor else micColors.disabledContentColor,
-                    )
-                }
-            }
-        }
-
-        // Action button — send when a send is possible, mic / stop otherwise
-        // While a recording is locked this button finishes the voice note, so
-        // it must stay enabled even when the draft alone would not send
-        // (review, PR #1280).
-        // Stop owns the action button only when there is no draft to send;
-        // with a draft it lives in the flat slot above.
-        val actionStops = canInterrupt && !showSend
-        val actionEnabled =
-            if (isVoiceNoteLocked) {
-                true
-            } else if (showSend) {
-                canSend
-            } else {
-                isConnected
-            }
-        Box(
-            modifier =
-                Modifier
-                    .size(if (showSend) 48.dp else ControlSize)
-                    .clip(CircleShape)
-                    .background(
-                        if (!showSend && isListening) {
-                            MaterialTheme.colorScheme.errorContainer
-                        } else {
-                            palette.action
-                        },
-                    ).combinedClickable(
-                        enabled = actionEnabled,
-                        onClick = {
+                    Crossfade(
+                        targetState =
                             when {
-                                // A locked recording always finishes with this
-                                // button, draft or agent state regardless
-                                // (review, PR #1280).
-                                isVoiceNoteLocked -> onMicTap()
-
-                                actionStops -> onStopGeneration()
-
-                                showSend -> onSend()
-
-                                else -> onMicTap()
+                                isVoiceNoteLocked -> ActionGlyph.SEND
+                                actionStops -> ActionGlyph.STOP
+                                showSend -> ActionGlyph.SEND
+                                isListening -> ActionGlyph.STOP
+                                else -> ActionGlyph.VOICE
+                            },
+                        animationSpec = MaterialTheme.motionScheme.fastEffectsSpec(),
+                        label = "composer_action_glyph",
+                    ) { glyph ->
+                        when (glyph) {
+                            ActionGlyph.SEND -> {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Send,
+                                    contentDescription =
+                                        if (isVoiceNoteLocked) {
+                                            stringResource(R.string.chat_voice_send_desc)
+                                        } else {
+                                            stringResource(R.string.chat_send_desc)
+                                        },
+                                    tint = actionTint,
+                                )
                             }
-                        },
-                    ).testTag(
-                        when {
-                            isVoiceNoteLocked -> "voice_note_send_button"
-                            actionStops -> "stop_button"
-                            showSend -> "send_button"
-                            isListening -> "mic_stop_button"
-                            else -> "mic_button"
-                        },
-                    ).then(if (showSend || canInterrupt) Modifier else actionMicGesture),
-            contentAlignment = Alignment.Center,
-        ) {
-            Crossfade(
-                targetState =
-                    when {
-                        isVoiceNoteLocked -> ActionGlyph.SEND
-                        actionStops -> ActionGlyph.STOP
-                        showSend -> ActionGlyph.SEND
-                        isListening -> ActionGlyph.STOP
-                        else -> ActionGlyph.VOICE
-                    },
-                label = "composer_action_glyph",
-            ) { glyph ->
-                when (glyph) {
-                    ActionGlyph.SEND -> {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription =
-                                if (isVoiceNoteLocked) {
-                                    stringResource(R.string.chat_voice_send_desc)
-                                } else {
-                                    stringResource(R.string.chat_send_desc)
-                                },
-                            tint = palette.onAction,
-                        )
-                    }
 
-                    ActionGlyph.STOP -> {
-                        Icon(
-                            imageVector = Icons.Default.Stop,
-                            contentDescription =
-                                if (canInterrupt) {
-                                    stringResource(R.string.chat_voice_stop_generating)
-                                } else {
-                                    "Stop listening"
-                                },
-                            tint =
-                                if (isListening && !canInterrupt) {
-                                    MaterialTheme.colorScheme.onErrorContainer
-                                } else {
-                                    palette.onAction
-                                },
-                        )
-                    }
+                            ActionGlyph.STOP -> {
+                                Icon(
+                                    imageVector = Icons.Default.Stop,
+                                    contentDescription =
+                                        if (canInterrupt) {
+                                            stringResource(R.string.chat_voice_stop_generating)
+                                        } else {
+                                            "Stop listening"
+                                        },
+                                    tint = actionTint,
+                                )
+                            }
 
-                    ActionGlyph.VOICE -> {
-                        Icon(
-                            imageVector = Icons.Outlined.Mic,
-                            contentDescription = "Mic",
-                            tint = palette.onAction,
-                        )
+                            ActionGlyph.VOICE -> {
+                                Icon(
+                                    imageVector = Icons.Outlined.Mic,
+                                    contentDescription = "Mic",
+                                    tint = actionTint,
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -665,7 +705,7 @@ fun ComposerToolbar(
     }
 }
 
-private val ControlSize = 36.dp
+private val ControlSize = 48.dp
 
 private enum class ActionGlyph { SEND, STOP, VOICE }
 

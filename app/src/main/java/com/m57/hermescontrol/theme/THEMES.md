@@ -6,6 +6,32 @@ This is the implementation guide. [DESIGN.md](../../../../../../../../DESIGN.md)
 defines visual and interaction requirements; the Kotlin sources define the actual
 tokens. When changing tokens or behavior, update the relevant documentation too.
 
+## Expressive components, existing visual tokens
+
+`HermesControlTheme` uses `MaterialExpressiveTheme` with an explicit
+`MotionScheme.expressive()`, resolved color scheme, `Typography`, and
+`HermesShapes`. Semantic status colors remain provided separately. The theme
+entry point must not silently replace existing palettes, type sizes, or shapes
+with implicit Expressive defaults. Use `MaterialTheme.motionScheme` rather than
+hardcoded springs or durations.
+
+`ui/common/ExpressiveButtons.kt`, `ExpressiveIconButton.kt`, `ExpressiveProgress.kt`,
+`ExpressiveSwitch.kt`, and `ExpressiveChoiceRow.kt` centralize native component
+variants. Existing feature code imports button/progress/switch adapters under
+its original component names, preserving callback and state wiring. Button
+adapters keep native colors and disabled semantics; explicit custom shapes stay
+unchanged. Wavy progress keeps real determinate/indeterminate semantics. Native
+sliders already supply the current track, stop indicator, ticks, and thumb;
+retain their ranges/steps and state callbacks instead of adding a second slider
+implementation. See `DESIGN.md` for applicability and gesture-owner constraints.
+
+Material 3 is explicitly pinned to `1.5.0-alpha13` because the Compose BOM resolves
+stable `1.4.0`, where these APIs are not public. This is a pre-release dependency;
+opt in only at the owning component. The Compose BOM is unchanged, but normal
+Gradle conflict resolution may raise transitive versions. Production import
+coverage and instrumented component tests guard integration separately from the
+palette tests; rendered previews are not a physical-device acceptance claim.
+
 ## Where themes live
 
 All theme code is under:

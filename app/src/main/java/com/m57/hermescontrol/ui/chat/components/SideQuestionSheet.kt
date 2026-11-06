@@ -25,8 +25,6 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -45,6 +43,8 @@ import com.m57.hermescontrol.applock.ModalBottomSheet
 import com.m57.hermescontrol.ui.chat.BtwUiState
 import com.m57.hermescontrol.ui.chat.MarkdownText
 import com.m57.hermescontrol.ui.common.HermesTooltip
+import com.m57.hermescontrol.ui.common.ExpressiveIconButton as IconButton
+import com.m57.hermescontrol.ui.common.ExpressiveLinearProgressIndicator as LinearProgressIndicator
 
 /**
  * Bottom sheet displaying a context-aware side question and its answer (issue #1015, `/btw`).
@@ -147,8 +147,7 @@ fun SideQuestionSheet(
                     LinearProgressIndicator(
                         modifier =
                             Modifier
-                                .fillMaxWidth()
-                                .height(4.dp),
+                                .fillMaxWidth(),
                         color = MaterialTheme.colorScheme.primary,
                     )
                     Spacer(modifier = Modifier.height(12.dp))

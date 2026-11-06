@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteForever
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -25,6 +24,7 @@ import com.m57.hermescontrol.ui.common.InfoRow
 import com.m57.hermescontrol.ui.common.SectionHeader
 import com.m57.hermescontrol.ui.system.SystemUiState
 import com.m57.hermescontrol.util.formatBytes
+import com.m57.hermescontrol.ui.common.ExpressiveButton as Button
 
 fun LazyListScope.checkpointsSection(
     state: SystemUiState,

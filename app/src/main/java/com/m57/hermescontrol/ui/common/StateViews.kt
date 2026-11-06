@@ -26,13 +26,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -55,12 +53,16 @@ import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.LocalSpacing
 import kotlinx.coroutines.launch
+import com.m57.hermescontrol.ui.common.ExpressiveButton as Button
+import com.m57.hermescontrol.ui.common.ExpressiveOutlinedButton as OutlinedButton
+import com.m57.hermescontrol.ui.common.ExpressiveTextButton as TextButton
 
 // Unified loading / error / empty / skeleton placeholders so every screen
 // shares the same visual language.
 
 // ── Loading ───────────────────────────────────────────────────────────
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun LoadingState(
     modifier: Modifier = Modifier,
@@ -74,9 +76,8 @@ fun LoadingState(
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            CircularProgressIndicator(
+            LoadingIndicator(
                 color = MaterialTheme.colorScheme.primary,
-                strokeWidth = 3.dp,
                 modifier =
                     Modifier
                         .size(40.dp)

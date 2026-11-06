@@ -119,6 +119,8 @@ class TopBarIconActionRatchetTest {
          */
         val TOOLTIP_EXCLUSIONS: Map<String, String> =
             mapOf(
+                "ui/common/ExpressiveIconButton.kt" to
+                    "Native press-shape adapter; tooltip and localized label remain caller-owned",
                 "ui/chat/InlineAttachment.kt" to
                     "Chat composer, bubble, or viewer: separate card (#1651 phase 4)",
                 "ui/chat/fullbleed/FullBleedAgentMessage.kt" to

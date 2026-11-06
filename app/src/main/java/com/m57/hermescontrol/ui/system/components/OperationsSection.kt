@@ -21,18 +21,12 @@ import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material.icons.filled.VerifiedUser
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,6 +44,12 @@ import com.m57.hermescontrol.ui.common.StatusBadge
 import com.m57.hermescontrol.ui.common.StatusBadgeType
 import com.m57.hermescontrol.ui.system.SystemUiState
 import com.m57.hermescontrol.ui.system.SystemViewModel
+import com.m57.hermescontrol.ui.common.ExpressiveButton as Button
+import com.m57.hermescontrol.ui.common.ExpressiveCircularProgressIndicator as CircularProgressIndicator
+import com.m57.hermescontrol.ui.common.ExpressiveFilledTonalButton as FilledTonalButton
+import com.m57.hermescontrol.ui.common.ExpressiveIconButton as IconButton
+import com.m57.hermescontrol.ui.common.ExpressiveOutlinedButton as OutlinedButton
+import com.m57.hermescontrol.ui.common.ExpressiveSwitch as Switch
 
 fun LazyListScope.operationsSection(
     state: SystemUiState,

@@ -28,10 +28,8 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -65,6 +63,8 @@ import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.StatusBadge
 import com.m57.hermescontrol.ui.common.StatusBadgeType
 import com.m57.hermescontrol.ui.common.ToastEffect
+import com.m57.hermescontrol.ui.common.ExpressiveLinearProgressIndicator as LinearProgressIndicator
+import com.m57.hermescontrol.ui.common.ExpressiveTextButton as TextButton
 
 @Composable
 fun AchievementsScreen(
@@ -663,9 +663,7 @@ private fun AchievementCard(
                     progress = { pct.coerceIn(0f, 1f) },
                     modifier =
                         Modifier
-                            .fillMaxWidth()
-                            .height(6.dp)
-                            .clip(RoundedCornerShape(3.dp)),
+                            .fillMaxWidth(),
                     color = MaterialTheme.colorScheme.tertiary,
                     trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                 )

@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -21,6 +20,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.applock.DropdownMenu
 import com.m57.hermescontrol.ui.settings.SectionCard
 import com.m57.hermescontrol.util.LocaleContextWrapper
+import com.m57.hermescontrol.ui.common.ExpressiveOutlinedButton as OutlinedButton
 
 /**
  * Supported languages as (code, display label) pairs. Add a new language

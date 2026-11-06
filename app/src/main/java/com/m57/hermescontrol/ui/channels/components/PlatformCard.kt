@@ -112,6 +112,15 @@ internal fun PlatformCard(
     val scope = rememberCoroutineScope()
     val stateInfo = platformStateInfo(platform.state)
     val statusColors = LocalHermesStatusColors.current
+    val relayChip = relayChipFor(platform)
+    // A relay row's state is the relay's decision, so the chip names the relay (issue #461).
+    val relayManaged = relayChip == RelayChip.VIA_RELAY || relayChip == RelayChip.MANAGED_BY_RELAY
+    val relayLabel =
+        when (relayChip) {
+            RelayChip.VIA_RELAY -> stringResource(R.string.channels_relay_via)
+            RelayChip.MANAGED_BY_RELAY -> stringResource(R.string.channels_relay_managed)
+            else -> stateInfo.label
+        }
     val iconTint =
         when (stateInfo.statusBadgeType) {
             StatusBadgeType.SUCCESS -> statusColors.success
@@ -125,24 +134,47 @@ internal fun PlatformCard(
         title = platform.name,
         subtitle = platform.description?.takeIf { it.isNotBlank() },
         badges = {
-            Icon(
-                imageVector = stateInfo.icon,
-                contentDescription = null,
-                tint = iconTint,
-                modifier = Modifier.size(16.dp),
-            )
+            if (!relayManaged) {
+                Icon(
+                    imageVector = stateInfo.icon,
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
             StatusBadge(
-                text = stateInfo.label,
-                status = stateInfo.statusBadgeType,
+                text = relayLabel,
+                status = if (relayManaged) StatusBadgeType.NEUTRAL else stateInfo.statusBadgeType,
             )
+            if (relayChip == RelayChip.SHARED_BOT_ONLY) {
+                StatusBadge(
+                    text = stringResource(R.string.channels_relay_shared_bot),
+                    status = StatusBadgeType.NEUTRAL,
+                )
+            }
         },
         toggle =
-            ManageableToggle(
-                checked = platform.enabled,
-                onCheckedChange = onToggle,
-                busy = isToggling,
-            ),
+            if (relayChip == RelayChip.VIA_RELAY) {
+                // The relay never runs this direct adapter, so a switch here would lie.
+                null
+            } else {
+                ManageableToggle(
+                    checked = platform.enabled,
+                    onCheckedChange = onToggle,
+                    busy = isToggling,
+                    // The gateway switches this off at every start; it is not the user's setting.
+                    enabled = !platform.disabledByRelay,
+                )
+            },
         body = {
+            if (relayChip == RelayChip.MANAGED_BY_RELAY) {
+                Text(
+                    text = stringResource(R.string.channels_relay_managed_note, platform.name),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
             platform.ingressUrl?.takeIf { it.isNotBlank() }?.let { ingressUrl ->
                 Text(
                     text = stringResource(R.string.channels_ingress_url),
@@ -186,7 +218,7 @@ internal fun PlatformCard(
                 )
             }
 
-            if (platform.id == "telegram" && !platform.configured) {
+            if (platform.id == "telegram" && !platform.configured && !relayManaged) {
                 Button(
                     onClick = onStartOnboarding,
                 ) {
@@ -203,7 +235,7 @@ internal fun PlatformCard(
                 }
             }
 
-            if (showConfigureForm) {
+            if (showConfigureForm && relayChip != RelayChip.VIA_RELAY) {
                 ConfigureForm(
                     platform = platform,
                     onSave = onSave,
@@ -229,18 +261,20 @@ internal fun PlatformCard(
                 )
             }
 
-            Button(
-                onClick = { showConfigureForm = !showConfigureForm },
-            ) {
-                Text(
-                    text =
-                        if (showConfigureForm) {
-                            stringResource(R.string.action_cancel)
-                        } else {
-                            stringResource(R.string.channels_action_configure)
-                        },
-                    style = MaterialTheme.typography.labelSmall,
-                )
+            if (relayChip != RelayChip.VIA_RELAY) {
+                Button(
+                    onClick = { showConfigureForm = !showConfigureForm },
+                ) {
+                    Text(
+                        text =
+                            if (showConfigureForm) {
+                                stringResource(R.string.action_cancel)
+                            } else {
+                                stringResource(R.string.channels_action_configure)
+                            },
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
             }
 
             HermesTooltip(stringResource(R.string.platform_disconnect_desc)) {

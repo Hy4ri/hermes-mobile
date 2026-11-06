@@ -18,6 +18,10 @@ data class MessagingPlatform(
     @SerialName("updated_at") val updatedAt: String? = null,
     @SerialName("home_channel") val homeChannel: HomeChannelInfo? = null,
     @SerialName("ingress_url") val ingressUrl: String? = null,
+    // Team Gateway flags (hermes-agent v0.23.0, issue #461). Absent on older backends.
+    @SerialName("disabled_by_relay") val disabledByRelay: Boolean = false,
+    @SerialName("relay_fronted") val relayFronted: Boolean = false,
+    @SerialName("relay_exclusive") val relayExclusive: Boolean = false,
 )
 
 @Serializable

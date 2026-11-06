@@ -1518,6 +1518,10 @@
     <string name="channels_restart_banner">Changes saved. Restart the gateway for them to take effect.</string>
     <string name="channels_ingress_url">Ingress URL</string>
     <string name="channels_copy_ingress_url">Copy ingress URL</string>
+    <string name="channels_relay_via">Via Team Gateway</string>
+    <string name="channels_relay_managed">Managed by Team Gateway</string>
+    <string name="channels_relay_shared_bot">Team Gateway</string>
+    <string name="channels_relay_managed_note">Team Gateway carries messaging on this deployment, so the gateway turns the direct %1$s connection off at every start. To run it alongside the relay, set GATEWAY_RELAY_ALLOW_DIRECT_PLATFORMS=true in the gateway\'s environment (a direct connection keeps the instance from scaling to zero and can deliver messages twice).</string>
 
     <!-- Pairing Screen -->
     <string name="pairing_sec_pending">Pending Approvals</string>

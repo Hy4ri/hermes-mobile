@@ -18,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.InstallDesktop
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.ButtonDefaults
@@ -47,6 +48,7 @@ import com.m57.hermescontrol.applock.ModalBottomSheet
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.PluginCatalogEntry
 import com.m57.hermescontrol.data.model.PluginInfo
+import com.m57.hermescontrol.data.ws.PluginAutoUpdateState
 import com.m57.hermescontrol.ui.common.DetailDialog
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
@@ -95,6 +97,7 @@ fun PluginsScreen(
     LaunchedEffect(dataScope) {
         viewModel.clearScopeOwnedState()
         viewModel.loadPlugins()
+        viewModel.loadAutoUpdate()
     }
 
     val filteredPlugins =
@@ -260,6 +263,11 @@ fun PluginsScreen(
                                 contentPadding = listContentPadding,
                                 verticalArrangement = listItemSpacing,
                             ) {
+                                // Update all + the profile's auto-update switch
+                                item(key = "updates") {
+                                    PluginUpdatesSection(state, viewModel)
+                                }
+
                                 // Provider selection section
                                 if (state.memoryOptions.isNotEmpty() || state.contextOptions.isNotEmpty()) {
                                     item(key = "providers") {
@@ -338,6 +346,14 @@ fun PluginsScreen(
         }
     }
 
+    state.updateAllSummary?.let { summary ->
+        UpdateAllSummarySheet(
+            summary = summary,
+            onDismiss = viewModel::dismissUpdateAllSummary,
+            onReview = viewModel::reviewPluginFromSummary,
+        )
+    }
+
     state.activeDetailPlugin?.let { plugin ->
         PluginDetailDialog(
             plugin = plugin,
@@ -362,6 +378,205 @@ fun PluginsScreen(
         )
     }
 }
+
+@Composable
+private fun PluginUpdatesSection(
+    state: PluginsUiState,
+    viewModel: PluginsViewModel,
+) {
+    val auto = state.autoUpdate
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = stringResource(R.string.plugins_updates_heading),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = stringResource(R.string.plugins_update_all_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Button(
+                onClick = { viewModel.updateAllPlugins() },
+                enabled = !state.updateAllBusy,
+            ) {
+                if (state.updateAllBusy) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                } else {
+                    Icon(
+                        Icons.Default.Refresh,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                Text(
+                    stringResource(
+                        if (state.updateAllBusy) R.string.plugins_updating_all else R.string.plugins_update_all,
+                    ),
+                )
+            }
+
+            // Hidden until the backend reports the real state; never show a guessed switch.
+            if (auto != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.plugins_auto_update),
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = autoUpdateHint(auto),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Switch(
+                        checked = auto.autoApply,
+                        onCheckedChange = { viewModel.setAutoUpdate(it) },
+                        enabled = !state.autoUpdateBusy,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun autoUpdateHint(auto: PluginAutoUpdateState): String =
+    when {
+        auto.checkHours <= 0 -> stringResource(R.string.plugins_auto_update_hint_disabled)
+        auto.autoApply -> stringResource(R.string.plugins_auto_update_hint_on, auto.checkHours)
+        else -> stringResource(R.string.plugins_auto_update_hint_off)
+    }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun UpdateAllSummarySheet(
+    summary: PluginUpdateAllSummary,
+    onDismiss: () -> Unit,
+    onReview: (String) -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.plugins_update_all_summary_title),
+                style = MaterialTheme.typography.titleLarge,
+            )
+            Text(
+                text =
+                    stringResource(
+                        R.string.plugins_update_all_summary_counts,
+                        summary.updated,
+                        summary.needsReview,
+                        summary.failed,
+                    ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (summary.needsReview > 0) {
+                Text(
+                    text = stringResource(R.string.plugins_update_all_review_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            summary.result.results.forEach { row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    StatusBadge(
+                        text = updateStatusLabel(row.status),
+                        status = updateStatusBadge(row.status),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = row.name, style = MaterialTheme.typography.titleSmall)
+                        if (row.detail.isNotBlank()) {
+                            Text(
+                                text = row.detail,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    if (row.isNeedsReview) {
+                        TextButton(onClick = { onReview(row.name) }) {
+                            Text(stringResource(R.string.plugins_action_update))
+                        }
+                    }
+                }
+            }
+
+            if (summary.result.skipped.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = stringResource(R.string.plugins_update_all_skipped),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                summary.result.skipped.forEach { skip ->
+                    Column {
+                        Text(text = skip.name, style = MaterialTheme.typography.bodyMedium)
+                        if (skip.reason.isNotBlank()) {
+                            Text(
+                                text = skip.reason,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+            Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.common_close))
+            }
+        }
+    }
+}
+
+@Composable
+private fun updateStatusLabel(status: String): String =
+    when (status) {
+        "updated" -> stringResource(R.string.plugins_update_all_updated)
+        "current" -> stringResource(R.string.plugins_update_all_current)
+        "failed" -> stringResource(R.string.plugins_update_all_failed)
+        "needs_review" -> stringResource(R.string.plugins_update_all_needs_review)
+        else -> status
+    }
+
+private fun updateStatusBadge(status: String): StatusBadgeType =
+    when (status) {
+        "updated" -> StatusBadgeType.SUCCESS
+        "failed" -> StatusBadgeType.ERROR
+        "needs_review" -> StatusBadgeType.WARNING
+        else -> StatusBadgeType.NEUTRAL
+    }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

@@ -41,5 +41,38 @@ class PluginManageRepository(
         return OkHttpProvider.json.decodeFromJsonElement<PluginsManageSettingsResult>(result)
     }
 
+    /** Unattended update of every plugin the backend's own update plan would move. */
+    suspend fun updateAll(profile: String? = null): PluginUpdateAllResult {
+        val result =
+            caller.call(
+                RpcMethods.PLUGINS_MANAGE,
+                PluginsManageParams(action = "update_all", profile = profile.orNullIfBlank()),
+            )
+        return OkHttpProvider.json.decodeFromJsonElement<PluginUpdateAllResult>(result)
+    }
+
+    /** Read the profile's `plugins.auto_apply` switch and check cadence. */
+    suspend fun autoUpdateState(profile: String? = null): PluginAutoUpdateState {
+        val result =
+            caller.call(
+                RpcMethods.PLUGINS_MANAGE,
+                PluginsManageParams(action = "auto_update", profile = profile.orNullIfBlank()),
+            )
+        return OkHttpProvider.json.decodeFromJsonElement<PluginAutoUpdateState>(result)
+    }
+
+    /** Write `plugins.auto_apply` for the profile and return the state the backend reports. */
+    suspend fun setAutoUpdate(
+        enabled: Boolean,
+        profile: String? = null,
+    ): PluginAutoUpdateState {
+        val result =
+            caller.call(
+                RpcMethods.PLUGINS_MANAGE,
+                PluginsManageParams(action = "auto_update", enable = enabled, profile = profile.orNullIfBlank()),
+            )
+        return OkHttpProvider.json.decodeFromJsonElement<PluginAutoUpdateState>(result)
+    }
+
     private fun String?.orNullIfBlank(): String? = this?.takeIf { it.isNotBlank() }
 }

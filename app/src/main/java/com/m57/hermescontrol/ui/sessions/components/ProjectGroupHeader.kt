@@ -15,7 +15,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,6 +31,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.theme.parseProjectColor
 import com.m57.hermescontrol.ui.common.HermesTooltip
+import com.m57.hermescontrol.ui.common.ExpressiveIconButton as IconButton
 
 /** Collapsible History group header: the project's color dot, its name and how many chats it holds. */
 @Composable

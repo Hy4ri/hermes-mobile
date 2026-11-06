@@ -1,6 +1,6 @@
 package com.m57.hermescontrol.ui.settings
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,7 +18,7 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
@@ -27,7 +27,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -77,72 +76,7 @@ fun SettingsScreen(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
             ProfileLockCard(modifier = Modifier.padding(bottom = 16.dp))
-            SettingsCategoryCard(
-                items =
-                    listOfNotNull(
-                        SettingsRow(
-                            icon = Icons.AutoMirrored.Filled.ListAlt,
-                            label = stringResource(R.string.settings_sec_connection),
-                            summary =
-                                if (state.profiles.isNotEmpty()) {
-                                    stringResource(
-                                        R.string.settings_summary_profiles,
-                                        state.profiles.size,
-                                    )
-                                } else {
-                                    null
-                                },
-                            onClick = { NavigationController.navigateTo(SettingsConnection) },
-                        ).takeUnless { profileLocked },
-                        SettingsRow(
-                            icon = Icons.Filled.Palette,
-                            label = stringResource(R.string.settings_sec_appearance),
-                            summary = appearanceSummary(state),
-                            onClick = { NavigationController.navigateTo(SettingsAppearance) },
-                        ),
-                        SettingsRow(
-                            icon = Icons.Filled.Language,
-                            label = stringResource(R.string.settings_sec_language),
-                            summary = languageLabel(state.appLanguage),
-                            onClick = { NavigationController.navigateTo(SettingsLanguage) },
-                        ),
-                        SettingsRow(
-                            icon = Icons.Filled.ChatBubbleOutline,
-                            label = stringResource(R.string.settings_sec_chat),
-                            summary =
-                                if (state.typingEffectEnabled) {
-                                    stringResource(R.string.settings_summary_typing_on)
-                                } else {
-                                    stringResource(R.string.settings_summary_typing_off)
-                                },
-                            onClick = { NavigationController.navigateTo(SettingsChat) },
-                        ),
-                        SettingsRow(
-                            icon = Icons.Filled.Tune,
-                            label = stringResource(R.string.settings_sec_behavior),
-                            summary =
-                                if (state.autoReconnect || state.restoreLastSession ||
-                                    state.keepConnectedInBackground
-                                ) {
-                                    stringResource(R.string.settings_summary_on)
-                                } else {
-                                    stringResource(R.string.settings_summary_off)
-                                },
-                            onClick = { NavigationController.navigateTo(SettingsBehavior) },
-                        ),
-                        SettingsRow(
-                            icon = Icons.Filled.Lock,
-                            label = stringResource(R.string.settings_sec_vault),
-                            summary = stringResource(R.string.settings_summary_vault),
-                            onClick = { NavigationController.navigateTo(SettingsVault) },
-                        ).takeUnless { profileLocked },
-                        SettingsRow(
-                            icon = Icons.Filled.Info,
-                            label = stringResource(R.string.settings_sec_about),
-                            onClick = { NavigationController.navigateTo(SettingsAbout) },
-                        ),
-                    ),
-            )
+            SettingsCategoryCard(items = settingsRows(state, profileLocked))
             SupportSection()
         }
     }
@@ -156,66 +90,57 @@ private fun appearanceSummary(state: SettingsUiState): String =
         ThemePreference.DARK -> stringResource(R.string.settings_summary_theme_dark)
     }
 
-private data class SettingsRow(
+internal data class SettingsRow(
     val icon: ImageVector,
     val label: String,
     val summary: String? = null,
     val onClick: () -> Unit,
 )
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun SettingsCategoryCard(items: List<SettingsRow>) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(1.dp),
+internal fun SettingsCategoryCard(items: List<SettingsRow>) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
     ) {
-        Column {
-            items.forEachIndexed { index, row ->
-                ListItem(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .clickable(onClick = row.onClick),
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    leadingContent = {
-                        Icon(
-                            imageVector = row.icon,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                    },
-                    headlineContent = {
-                        Text(
-                            text = row.label,
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                    },
-                    supportingContent =
-                        row.summary?.let { summary ->
-                            {
-                                Text(
-                                    text = summary,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        },
-                    trailingContent = {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    },
-                )
-                if (index < items.lastIndex) {
-                    HorizontalDivider(
-                        modifier = Modifier.padding(start = 56.dp, end = 16.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant,
+        items.forEachIndexed { index, row ->
+            ListItem(
+                onClick = row.onClick,
+                modifier = Modifier.fillMaxWidth(),
+                shapes = ListItemDefaults.segmentedShapes(index = index, count = items.size),
+                colors = ListItemDefaults.segmentedColors(),
+                leadingContent = {
+                    Icon(
+                        imageVector = row.icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
                     )
-                }
-            }
+                },
+                content = {
+                    Text(
+                        text = row.label,
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                },
+                supportingContent =
+                    row.summary?.let { summary ->
+                        {
+                            Text(
+                                text = summary,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    },
+                trailingContent = {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+            )
         }
     }
 }
@@ -253,3 +178,72 @@ internal fun SectionCard(content: @Composable () -> Unit) {
         }
     }
 }
+
+@Composable
+internal fun settingsRows(
+    state: SettingsUiState,
+    profileLocked: Boolean,
+): List<SettingsRow> =
+    listOfNotNull(
+        SettingsRow(
+            icon = Icons.AutoMirrored.Filled.ListAlt,
+            label = stringResource(R.string.settings_sec_connection),
+            summary =
+                if (state.profiles.isNotEmpty()) {
+                    stringResource(
+                        R.string.settings_summary_profiles,
+                        state.profiles.size,
+                    )
+                } else {
+                    null
+                },
+            onClick = { NavigationController.navigateTo(SettingsConnection) },
+        ).takeUnless { profileLocked },
+        SettingsRow(
+            icon = Icons.Filled.Palette,
+            label = stringResource(R.string.settings_sec_appearance),
+            summary = appearanceSummary(state),
+            onClick = { NavigationController.navigateTo(SettingsAppearance) },
+        ),
+        SettingsRow(
+            icon = Icons.Filled.Language,
+            label = stringResource(R.string.settings_sec_language),
+            summary = languageLabel(state.appLanguage),
+            onClick = { NavigationController.navigateTo(SettingsLanguage) },
+        ),
+        SettingsRow(
+            icon = Icons.Filled.ChatBubbleOutline,
+            label = stringResource(R.string.settings_sec_chat),
+            summary =
+                if (state.typingEffectEnabled) {
+                    stringResource(R.string.settings_summary_typing_on)
+                } else {
+                    stringResource(R.string.settings_summary_typing_off)
+                },
+            onClick = { NavigationController.navigateTo(SettingsChat) },
+        ),
+        SettingsRow(
+            icon = Icons.Filled.Tune,
+            label = stringResource(R.string.settings_sec_behavior),
+            summary =
+                if (state.autoReconnect || state.restoreLastSession ||
+                    state.keepConnectedInBackground
+                ) {
+                    stringResource(R.string.settings_summary_on)
+                } else {
+                    stringResource(R.string.settings_summary_off)
+                },
+            onClick = { NavigationController.navigateTo(SettingsBehavior) },
+        ),
+        SettingsRow(
+            icon = Icons.Filled.Lock,
+            label = stringResource(R.string.settings_sec_vault),
+            summary = stringResource(R.string.settings_summary_vault),
+            onClick = { NavigationController.navigateTo(SettingsVault) },
+        ).takeUnless { profileLocked },
+        SettingsRow(
+            icon = Icons.Filled.Info,
+            label = stringResource(R.string.settings_sec_about),
+            onClick = { NavigationController.navigateTo(SettingsAbout) },
+        ),
+    )

@@ -11,7 +11,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -27,6 +26,7 @@ import com.m57.hermescontrol.ExternalActivityLifecycleGuard
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.launchExternalActivityWithLease
 import com.m57.hermescontrol.ui.chat.SpeechInputHelper
+import com.m57.hermescontrol.ui.common.ExpressiveIconButton as IconButton
 
 /**
  * Flat mic icon for a clarify text field: dictates with the same on-device

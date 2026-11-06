@@ -22,10 +22,8 @@ import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -51,6 +49,8 @@ import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.SearchBar
+import com.m57.hermescontrol.ui.common.ExpressiveIconButton as IconButton
+import com.m57.hermescontrol.ui.common.ExpressiveSwitch as Switch
 
 /**
  * Reusable model picker used by both the global model screen and the

@@ -3,7 +3,6 @@ package com.m57.hermescontrol.ui.profiles
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -15,6 +14,7 @@ import androidx.compose.ui.res.stringResource
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.applock.AlertDialog
 import com.m57.hermescontrol.data.local.AgentDisplayName
+import com.m57.hermescontrol.ui.common.ExpressiveTextButton as TextButton
 
 /**
  * Edits the device-local agent name for one connection + server profile (#1747).

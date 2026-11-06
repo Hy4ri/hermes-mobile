@@ -22,16 +22,11 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.SystemUpdate
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,6 +44,11 @@ import com.m57.hermescontrol.applock.Dialog
 import com.m57.hermescontrol.data.update.AppUpdateState
 import com.m57.hermescontrol.data.update.releaseTag
 import com.m57.hermescontrol.ui.settings.components.KO_FI_URL
+import com.m57.hermescontrol.ui.common.ExpressiveButton as Button
+import com.m57.hermescontrol.ui.common.ExpressiveIconButton as IconButton
+import com.m57.hermescontrol.ui.common.ExpressiveLinearProgressIndicator as LinearProgressIndicator
+import com.m57.hermescontrol.ui.common.ExpressiveOutlinedButton as OutlinedButton
+import com.m57.hermescontrol.ui.common.ExpressiveTextButton as TextButton
 
 @Composable
 fun AppUpdateDialog(
@@ -224,17 +224,13 @@ fun AppUpdateDialog(
                                     progress = { state.progress },
                                     modifier =
                                         Modifier
-                                            .fillMaxWidth()
-                                            .height(8.dp)
-                                            .clip(RoundedCornerShape(4.dp)),
+                                            .fillMaxWidth(),
                                 )
                             } else {
                                 LinearProgressIndicator(
                                     modifier =
                                         Modifier
-                                            .fillMaxWidth()
-                                            .height(8.dp)
-                                            .clip(RoundedCornerShape(4.dp)),
+                                            .fillMaxWidth(),
                                 )
                             }
                             Spacer(modifier = Modifier.height(12.dp))
@@ -274,9 +270,7 @@ fun AppUpdateDialog(
                             LinearProgressIndicator(
                                 modifier =
                                     Modifier
-                                        .fillMaxWidth()
-                                        .height(8.dp)
-                                        .clip(RoundedCornerShape(4.dp)),
+                                        .fillMaxWidth(),
                             )
                         }
                     }

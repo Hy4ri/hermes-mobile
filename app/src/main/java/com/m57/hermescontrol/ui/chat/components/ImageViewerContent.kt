@@ -13,9 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -36,6 +34,8 @@ import coil3.compose.AsyncImage
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.applock.Dialog
 import com.m57.hermescontrol.ui.chat.mediaNameFromPath
+import com.m57.hermescontrol.ui.common.ExpressiveCircularProgressIndicator as CircularProgressIndicator
+import com.m57.hermescontrol.ui.common.ExpressiveIconButton as IconButton
 
 /**
  * Image surface of [MediaViewerDialog]: pinch-zoom + pan, downswipe-to-dismiss,

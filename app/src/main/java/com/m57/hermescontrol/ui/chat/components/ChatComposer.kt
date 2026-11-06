@@ -45,8 +45,6 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -90,6 +88,8 @@ import com.m57.hermescontrol.ui.chat.ChatInputPolicy
 import com.m57.hermescontrol.ui.chat.canOptimizePhoto
 import com.m57.hermescontrol.ui.common.BotAvatar
 import com.m57.hermescontrol.util.BidiUtils
+import com.m57.hermescontrol.ui.common.ExpressiveIconButton as IconButton
+import com.m57.hermescontrol.ui.common.ExpressiveLinearProgressIndicator as LinearProgressIndicator
 
 /**
  * The chat input bar: a single rounded card with the input on top and a

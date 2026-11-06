@@ -18,12 +18,10 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,6 +47,8 @@ import com.m57.hermescontrol.ui.chat.SESSION_NOT_OWNED
 import com.m57.hermescontrol.ui.chat.SESSION_OWNER_UNCONFIRMED
 import com.m57.hermescontrol.ui.chat.needsRecovery
 import com.m57.hermescontrol.ui.chat.pendingSendActivityWarning
+import com.m57.hermescontrol.ui.common.ExpressiveFilledTonalButton as FilledTonalButton
+import com.m57.hermescontrol.ui.common.ExpressiveTextButton as TextButton
 
 /** #1427: a compact recovery entry keeps uncertain delivery visible without a floating queue panel. */
 @OptIn(ExperimentalMaterial3Api::class)

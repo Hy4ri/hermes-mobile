@@ -30,9 +30,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -77,6 +75,8 @@ import com.m57.hermescontrol.ui.chat.MediaKind
 import com.m57.hermescontrol.ui.chat.classifyMedia
 import com.m57.hermescontrol.ui.chat.mediaNameFromPath
 import kotlinx.coroutines.delay
+import com.m57.hermescontrol.ui.common.ExpressiveCircularProgressIndicator as CircularProgressIndicator
+import com.m57.hermescontrol.ui.common.ExpressiveIconButton as IconButton
 
 /**
  * The one full-screen media viewer (issue #1328): images get the zoom/pan

@@ -413,7 +413,15 @@ data class ClarifyUi(
     val questions: List<ClarifyQuestionUi> = emptyList(),
     val serverRequestId: String? = null,
     val lockedAnswers: Map<String, String> = emptyMap(),
+    /** Runtime session that asked; canonical `clarify.respond` must name it (#1779). */
+    val sessionId: String? = null,
+    /** Canonical owner prompt fence; non-null means `clarify.respond` uses the canonical params. */
+    val executionGeneration: Int? = null,
 ) {
+    /** Every id that names this request: the server request id and the clarify/prompt id. */
+    val requestIds: Set<String>
+        get() = setOfNotNull(serverRequestId, clarifyId)
+
     /**
      * Normalized list of questions to display. Guarantees at least one question
      * entry even for legacy single-question clarify events.
@@ -640,6 +648,13 @@ class ChatViewModel(
     private val sessionRequestById = ConcurrentHashMap<String, SessionRequest>()
     private val branchWholeRequests = ConcurrentHashMap<String, PendingBranchRequest>()
     private val outgoingRequestById = ConcurrentHashMap<String, String>()
+
+    /**
+     * #1779: ids of clarify requests this client answered or saw settle. Replays
+     * (`open_requests`, `pending_clarify`, event catch-up) can re-deliver a request
+     * after it closed; a card for one of these ids is never shown again.
+     */
+    private val settledClarifyIds = SettledClarifyIds()
     private val acceptedTurnEpochById = ConcurrentHashMap<String, Long>()
     private val hardInterruptRequestById = ConcurrentHashMap<String, HardInterruptRequest>()
     private val queuedStagingIds = ConcurrentHashMap.newKeySet<String>()
@@ -993,6 +1008,7 @@ class ChatViewModel(
             wsClient = wsClient,
             trackRequest = { id, method -> trackRequest(id, method) },
             respondToServerRequest = { id, result -> wsClient.respondToServerRequest(id, result) },
+            markClarifySettled = { ids -> settledClarifyIds.addAll(ids) },
         )
 
     private val subagentsDelegate =
@@ -1314,6 +1330,11 @@ class ChatViewModel(
     }
 
     private fun handleWsEvent(event: WsEvent) {
+        // #1779: a re-delivered clarify for a request that already closed must not
+        // re-create its card (or stop the typing indicator of the running turn).
+        if (event is WsEvent.ClarifyRequest && isClosedClarify(event)) return
+        // Clarify ids are unique per request, so record a close from any session.
+        if (event is WsEvent.ClarifyExpire) event.clarifyId?.let { settledClarifyIds.add(it) }
         // Filter explicitly scoped terminal/start events before buffer resets and reduction.
         // Legacy unscoped failures are ambiguous across sessions, so fail closed: gateways
         // must include session_id for failed replies to be surfaced by this client.
@@ -1653,6 +1674,13 @@ class ChatViewModel(
         }
     }
 
+    private fun isClosedClarify(event: WsEvent.ClarifyRequest): Boolean {
+        val ids = listOfNotNull(event.serverRequestId, event.clarifyId)
+        if (ids.any { it in settledClarifyIds }) return true
+        // A replay whose locked answers cover every question has nothing left to ask.
+        return event.questions.isNotEmpty() && event.lockedAnswers.keys.containsAll(event.questions.map { it.qid })
+    }
+
     /** Route the generic transport event into the existing prompt delegates. */
     private fun handleServerRequest(request: WsEvent.ServerRequest) {
         val params = request.params
@@ -1684,12 +1712,21 @@ class ChatViewModel(
                             multiSelect = map["multi_select"] as? Boolean ?: false,
                         )
                     }
+                // Replay `answers` keys include skipped (null) questions: every key is answered.
+                val answeredQids = (params["answers"] as? Map<*, *>)?.keys?.filterIsInstance<String>().orEmpty()
+                if (questions.isNotEmpty() && answeredQids.containsAll(questions.map { it.qid })) {
+                    settledClarifyIds.add(request.id)
+                    return
+                }
                 val first = questions.firstOrNull()
                 handleWsEvent(
                     WsEvent.ClarifyRequest(
                         text = first?.question ?: params["question"] as? String,
                         options = first?.choices ?: (params["choices"] as? List<*>)?.filterIsInstance<String>(),
-                        clarifyId = params["clarify_id"] as? String ?: params["request_id"] as? String,
+                        clarifyId =
+                            params["clarify_id"] as? String
+                                ?: params["request_id"] as? String
+                                ?: params["prompt_id"] as? String,
                         sessionId = sessionId,
                         questionId = first?.qid,
                         multiSelect = first?.multiSelect ?: (params["multi_select"] as? Boolean ?: false),
@@ -1799,7 +1836,12 @@ class ChatViewModel(
     private fun handleServerRequestCancelled(event: WsEvent.ServerRequestCancelled) {
         when (event.method) {
             "clarify" -> {
-                if (_uiState.value.clarifyRequest?.serverRequestId == event.id) {
+                // Any reason (resolved, timeout, interrupted) closes the request for good.
+                settledClarifyIds.add(event.id)
+                if (_uiState.value.clarifyRequest
+                        ?.requestIds
+                        ?.contains(event.id) == true
+                ) {
                     _uiState.update { it.copy(clarifyRequest = null) }
                     streamingController.resetStreaming()
                 }
@@ -2026,7 +2068,8 @@ class ChatViewModel(
         payload: Map<*, *>,
         sessionId: String?,
     ) {
-        val clarifyId = (payload["clarify_id"] ?: payload["request_id"]) as? String
+        val clarifyId = (payload["clarify_id"] ?: payload["request_id"] ?: payload["prompt_id"]) as? String
+        if (clarifyId != null && clarifyId in settledClarifyIds) return
         if (clarifyId != null && _uiState.value.clarifyRequest?.clarifyId == clarifyId) {
             // Already on screen — avoid clobbering in-progress answer state.
             return
@@ -2074,6 +2117,25 @@ class ChatViewModel(
             val params = replay["params"] as? Map<String, Any?> ?: continue
             if (params["session_id"] != runtimeId) continue
             handleServerRequest(WsEvent.ServerRequest(id, "clarify", params, replayed = true))
+            if (_uiState.value.clarifyRequest != null) return
+        }
+    }
+
+    /**
+     * Canonical owners list still-pending one-question prompts in the resume `prompts`
+     * snapshot (`{kind:"clarify", prompt_id, execution_generation, question, choices}`).
+     * Surface a clarify one when no card is on screen (#1779).
+     */
+    private fun restoreResumeClarifyPrompt(
+        result: Map<String, Any?>,
+        runtimeId: String,
+    ) {
+        if (_uiState.value.clarifyRequest != null) return
+        val prompts = result["prompts"] as? List<*> ?: return
+        for (item in prompts) {
+            val prompt = item as? Map<*, *> ?: continue
+            if (prompt["kind"] != "clarify") continue
+            surfacePendingClarify(prompt, runtimeId)
             if (_uiState.value.clarifyRequest != null) return
         }
     }
@@ -2494,6 +2556,7 @@ class ChatViewModel(
                     )
                 }
                 restoreResumeClarifyRequest(resultMap, runtimeId)
+                restoreResumeClarifyPrompt(resultMap, runtimeId)
                 val activeSessionId = runtimeSessionId ?: sessionId
                 // Reconnect replay: the backend-owned connector operation is
                 // authoritative and uses the same full snapshot as the live
@@ -7632,6 +7695,7 @@ class ChatViewModel(
         // Legacy singles keep questions empty and rely on questionId (nullable).
         val isBatch = !clarify?.questions.isNullOrEmpty()
         val displayQuestions = clarify?.resolvedQuestions.orEmpty()
+        clarify?.let { settledClarifyIds.addAll(it.requestIds) }
         _uiState.update { it.copy(clarifyRequest = null) }
 
         addSystemMessage("Clarify dismissed — no answer sent", persist = true)
@@ -7641,7 +7705,9 @@ class ChatViewModel(
                 wsClient.respondToServerRequest(serverRequestId, buildJsonObject {})
                 return@launch
             }
-            if (isBatch) {
+            // Canonical owner: an empty answer means skipped (#1779).
+            val canonicalParams = canonicalClarifyRespondParams(sessionId, clarify, answer = "")
+            if (isBatch && canonicalParams == null) {
                 // Send dismissal for every question in the batch
                 for (q in displayQuestions) {
                     val params =
@@ -7665,18 +7731,16 @@ class ChatViewModel(
                 // Legacy: only send question_id when the original payload had one.
                 val questionId = clarify?.questionId
                 val params =
-                    mutableMapOf<String, Any>(
-                        "session_id" to sessionId,
-                        "response" to CLARIFY_DISMISS_RESPONSE,
-                        "answer" to CLARIFY_DISMISS_RESPONSE,
-                    )
-                if (clarifyId != null) {
-                    params["clarify_id"] = clarifyId
-                    params["request_id"] = clarifyId
-                }
-                if (questionId != null) {
-                    params["question_id"] = questionId
-                }
+                    canonicalParams ?: buildMap {
+                        put("session_id", sessionId)
+                        put("response", CLARIFY_DISMISS_RESPONSE)
+                        put("answer", CLARIFY_DISMISS_RESPONSE)
+                        if (clarifyId != null) {
+                            put("clarify_id", clarifyId)
+                            put("request_id", clarifyId)
+                        }
+                        if (questionId != null) put("question_id", questionId)
+                    }
                 wsClient.send(
                     method = WsMethods.CLARIFY_RESPOND,
                     params = params,

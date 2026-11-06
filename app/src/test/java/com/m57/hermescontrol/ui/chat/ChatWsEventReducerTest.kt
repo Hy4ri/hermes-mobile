@@ -113,6 +113,87 @@ class ChatWsEventReducerTest {
     }
 
     @Test
+    fun clarify1779_blankFinalMessageCompleteClearsClarify() {
+        // The final text is fully covered by sealed bubbles: the turn still ended.
+        val state =
+            ChatUiState(
+                currentSessionId = "session-1",
+                isAgentTyping = true,
+                clarifyRequest = ClarifyUi("Old question", emptyList(), "clarify-1"),
+            )
+
+        val result =
+            ChatWsEventReducer.reduce(
+                state = state,
+                streamingState = StreamingState(),
+                event = WsEvent.MessageComplete("", "session-1"),
+                currentSessionId = "session-1",
+            )
+
+        assertNull(result.state.clarifyRequest)
+        assertFalse(result.state.isAgentTyping)
+    }
+
+    @Test
+    fun clarify1779_messageDoneClearsClarify() {
+        val state =
+            ChatUiState(
+                currentSessionId = "session-1",
+                clarifyRequest = ClarifyUi("Old question", emptyList(), "clarify-1"),
+            )
+
+        val result =
+            ChatWsEventReducer.reduce(
+                state = state,
+                streamingState = StreamingState(),
+                event = WsEvent.MessageDone("session-1"),
+                currentSessionId = "session-1",
+            )
+
+        assertNull(result.state.clarifyRequest)
+    }
+
+    @Test
+    fun clarify1779_clarifySettledMatchesServerRequestIdToo() {
+        val state =
+            ChatUiState(
+                currentSessionId = "session-1",
+                clarifyRequest = ClarifyUi("Q", emptyList(), serverRequestId = "srq-1"),
+            )
+
+        val result =
+            ChatWsEventReducer.reduce(
+                state = state,
+                streamingState = StreamingState(),
+                event = WsEvent.ClarifyExpire(clarifyId = "srq-1", sessionId = "session-1", settled = true),
+                currentSessionId = "session-1",
+            )
+
+        assertNull(result.state.clarifyRequest)
+    }
+
+    @Test
+    fun clarify1779_canonicalRequestKeepsGenerationAndSession() {
+        val result =
+            ChatWsEventReducer.reduce(
+                state = ChatUiState(currentSessionId = "session-1"),
+                streamingState = StreamingState(),
+                event =
+                    WsEvent.ClarifyRequest(
+                        text = "Q",
+                        options = listOf("A"),
+                        clarifyId = "prompt-1",
+                        sessionId = "session-1",
+                        executionGeneration = 4,
+                    ),
+                currentSessionId = "session-1",
+            )
+
+        assertEquals(4, result.state.clarifyRequest?.executionGeneration)
+        assertEquals("session-1", result.state.clarifyRequest?.sessionId)
+    }
+
+    @Test
     fun testClarifyExpire_clearsMatchingClarifyRequest() {
         val state =
             ChatUiState(

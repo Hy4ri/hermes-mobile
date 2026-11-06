@@ -586,7 +586,8 @@ object ChatWsEventReducer {
             effects.add(ReducerEffect.RefreshSessions)
             effects.add(ReducerEffect.RefreshContextUsage)
             return ReducerResult(
-                state = usageState.copy(messages = updatedMessages, isAgentTyping = false),
+                // #1779: a turn that ends here cannot still wait on a clarify answer.
+                state = usageState.copy(messages = updatedMessages, isAgentTyping = false, clarifyRequest = null),
                 streamingState = StreamingState(),
                 effects = effects,
             )
@@ -750,7 +751,7 @@ object ChatWsEventReducer {
         val streaming =
             streamingState.streamingMessage
                 ?: return ReducerResult(
-                    state = state.copy(isAgentTyping = false),
+                    state = state.copy(isAgentTyping = false, clarifyRequest = null),
                     streamingState = streamingState.takeIf { it.interruptedMessage != null } ?: StreamingState(),
                 )
         val reasoning =
@@ -779,6 +780,7 @@ object ChatWsEventReducer {
                 state.copy(
                     messages = state.messages.upsertById(msg),
                     isAgentTyping = false,
+                    clarifyRequest = null,
                 ),
             streamingState = StreamingState(),
             effects = effects,
@@ -997,6 +999,8 @@ object ChatWsEventReducer {
                             questions = questions,
                             serverRequestId = event.serverRequestId,
                             lockedAnswers = event.lockedAnswers,
+                            sessionId = event.sessionId,
+                            executionGeneration = event.executionGeneration,
                         ),
                     isAgentTyping = false,
                 ),
@@ -1008,7 +1012,7 @@ object ChatWsEventReducer {
         streamingState: StreamingState,
         event: WsEvent.ClarifyExpire,
     ): ReducerResult =
-        if (event.clarifyId == null || state.clarifyRequest?.clarifyId == event.clarifyId) {
+        if (event.clarifyId == null || state.clarifyRequest?.requestIds?.contains(event.clarifyId) == true) {
             ReducerResult(
                 state = state.copy(clarifyRequest = null),
                 streamingState = streamingState,

@@ -320,6 +320,39 @@ class EventParserTest {
     }
 
     @Test
+    fun clarify1779_parsesCanonicalOwnerPromptAndSettled() {
+        val request =
+            EventParser.parseParams(
+                mapOf(
+                    "type" to "clarify.request",
+                    "session_id" to "s1",
+                    "payload" to
+                        mapOf(
+                            "kind" to "clarify",
+                            "prompt_id" to "prompt-9",
+                            "execution_generation" to 5,
+                            "question" to "Fix now?",
+                            "choices" to listOf("Yes", "No"),
+                            "multi_select" to false,
+                        ),
+                ),
+            ) as WsEvent.ClarifyRequest
+        assertEquals("prompt-9", request.clarifyId)
+        assertEquals(5, request.executionGeneration)
+        assertEquals("Fix now?", request.text)
+
+        val settled =
+            EventParser.parseParams(
+                mapOf(
+                    "type" to "clarify.settled",
+                    "session_id" to "s1",
+                    "payload" to mapOf("prompt_id" to "prompt-9", "execution_generation" to 5),
+                ),
+            )
+        assertEquals(WsEvent.ClarifyExpire("prompt-9", "s1", settled = true), settled)
+    }
+
+    @Test
     fun testParseClarifyRequest_withQuestionFields_parsesSuccessfully() {
         val response =
             createJsonRpcResponse(

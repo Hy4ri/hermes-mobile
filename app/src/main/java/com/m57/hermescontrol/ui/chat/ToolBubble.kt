@@ -35,9 +35,7 @@ import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -76,6 +74,8 @@ import com.m57.hermescontrol.ui.chat.tool.ToolViewBuilder
 import com.m57.hermescontrol.ui.chat.tool.ToolViewCache
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.m57.hermescontrol.ui.common.ExpressiveCircularProgressIndicator as CircularProgressIndicator
+import com.m57.hermescontrol.ui.common.ExpressiveIconButton as IconButton
 
 /**
  * Composes the collapsed summary lines for a tool card.

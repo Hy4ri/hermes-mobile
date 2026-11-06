@@ -28,7 +28,6 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -95,6 +94,7 @@ import com.m57.hermescontrol.ui.settings.components.KO_FI_URL
 import com.m57.hermescontrol.ui.toolsets.ToolsetDetailScreen
 import kotlinx.coroutines.launch
 import com.m57.hermescontrol.ui.authlogin.AuthLoginScreen as AuthLoginScreenContent
+import com.m57.hermescontrol.ui.common.ExpressiveFilledTonalButton as FilledTonalButton
 import com.m57.hermescontrol.ui.landing.LandingScreen as LandingScreenContent
 
 private fun appEntryProvider(

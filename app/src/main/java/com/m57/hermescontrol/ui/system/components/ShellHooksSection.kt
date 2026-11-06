@@ -8,7 +8,6 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -20,6 +19,7 @@ import com.m57.hermescontrol.theme.Spacing
 import com.m57.hermescontrol.ui.common.SectionHeader
 import com.m57.hermescontrol.ui.system.SystemUiState
 import com.m57.hermescontrol.ui.system.SystemViewModel
+import com.m57.hermescontrol.ui.common.ExpressiveFilledTonalButton as FilledTonalButton
 
 fun LazyListScope.shellHooksSection(
     state: SystemUiState,

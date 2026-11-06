@@ -9,6 +9,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -20,9 +21,9 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -97,7 +98,12 @@ class ThemeComponentGalleryTest(
                     }
                 }
             contracts.forEach { sample ->
-                assertTrue("$preset dark=$dark $tag must render its foreground", sample.foreground.toArgb() in rendered)
+                if (sample.exactPixels) {
+                    assertTrue(
+                        "$preset dark=$dark $tag must render its foreground",
+                        sample.foreground.toArgb() in rendered,
+                    )
+                }
                 if (sample.checkBackground) {
                     assertTrue("$preset dark=$dark $tag must render its fill", sample.background.toArgb() in rendered)
                 }
@@ -105,10 +111,12 @@ class ThemeComponentGalleryTest(
         }
     }
 
+    @OptIn(ExperimentalMaterial3ExpressiveApi::class)
     @Composable
     private fun Gallery() {
         val c = MaterialTheme.colorScheme
         val switches = SwitchDefaults.colors()
+        val choices = expressiveChoiceColors()
         val radios = RadioButtonDefaults.colors()
         val checks = CheckboxDefaults.colors()
         val sliders = SliderDefaults.colors()
@@ -119,6 +127,11 @@ class ThemeComponentGalleryTest(
             samples =
                 listOf(
                     Sample("switch_on", switches.checkedThumbColor, switches.checkedTrackColor, checkBackground = true),
+                    // The 16dp check glyph is thin and anti-aliased, so its exact color is not guaranteed to
+                    // survive in the captured pixels; contrast is still enforced above.
+                    Sample("switch_on", switches.checkedIconColor, switches.checkedThumbColor, exactPixels = false),
+                    Sample("connected", choices.checkedContentColor, choices.checkedContainerColor, 4.5f, true),
+                    Sample("connected", choices.contentColor, choices.containerColor, 4.5f, true),
                     Sample("switch_on", switches.checkedTrackColor, c.surface),
                     Sample(
                         "switch_off",
@@ -168,8 +181,8 @@ class ThemeComponentGalleryTest(
             Column(Modifier.verticalScroll(rememberScrollState()).padding(8.dp)) {
                 Text("$preset ${if (dark) "dark" else "light"}")
                 Row {
-                    Switch(true, {}, Modifier.testTag("switch_on"))
-                    Switch(false, {}, Modifier.testTag("switch_off"))
+                    ExpressiveSwitch(true, {}, Modifier.testTag("switch_on"))
+                    ExpressiveSwitch(false, {}, Modifier.testTag("switch_off"))
                     RadioButton(true, {}, Modifier.testTag("radio_on"))
                     RadioButton(false, {}, Modifier.testTag("radio_off"))
                 }
@@ -214,6 +227,12 @@ class ThemeComponentGalleryTest(
                         Modifier.testTag("segment_off"),
                     ) { Text("Unselected") }
                 }
+                ExpressiveChoiceRow(
+                    options = listOf("Selected", "Other"),
+                    selectedIndex = 0,
+                    onSelect = {},
+                    modifier = Modifier.testTag("connected"),
+                )
                 Text("Primary foreground", Modifier.testTag("primary_text"), color = c.primary)
                 Text("Error foreground", Modifier.testTag("error_text"), color = c.error)
             }
@@ -227,6 +246,7 @@ class ThemeComponentGalleryTest(
         val background: Color,
         val minimum: Float = 3f,
         val checkBackground: Boolean = false,
+        val exactPixels: Boolean = true,
     )
 
     companion object {

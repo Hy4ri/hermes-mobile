@@ -2,7 +2,6 @@ package com.m57.hermescontrol.ui.common
 
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
@@ -14,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.m57.hermescontrol.ui.common.ExpressiveIconButton as IconButton
 
 /**
  * Long-press/hover tooltip anchored below [content]. Use it directly for icon
@@ -64,7 +64,7 @@ fun HermesIconButton(
             Icon(
                 imageVector = imageVector,
                 contentDescription = label,
-                tint = tint,
+                tint = if (enabled) tint else LocalContentColor.current,
             )
         }
     }

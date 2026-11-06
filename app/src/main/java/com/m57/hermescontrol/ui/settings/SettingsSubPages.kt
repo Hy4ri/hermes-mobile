@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
@@ -48,6 +47,7 @@ import com.m57.hermescontrol.ui.settings.components.TestResultCard
 import com.m57.hermescontrol.ui.settings.components.VaultItemsSection
 import com.m57.hermescontrol.ui.settings.components.VaultSourcesSection
 import com.m57.hermescontrol.ui.settings.components.VaultUnlockDialog
+import com.m57.hermescontrol.ui.common.ExpressiveButton as Button
 
 /**
  * Drill-down sub-pages for Settings. Each is its own NavKey destination

@@ -13,11 +13,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -26,6 +29,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -59,6 +63,38 @@ class ComposerInteractionTest {
     private var photosTaps = 0
     private var fileTaps = 0
 
+    @Test
+    fun composerActionsMeetTouchTargetMinimumAtNarrowWidth() {
+        setComposer(composerWidth = 320.dp)
+        composeTestRule
+            .onNodeWithTag("attachment_button")
+            .assertWidthIsAtLeast(48.dp)
+            .assertHeightIsAtLeast(48.dp)
+        composeTestRule
+            .onNodeWithTag("mic_button")
+            .assertWidthIsAtLeast(48.dp)
+            .assertHeightIsAtLeast(48.dp)
+        composeTestRule.onNodeWithTag("chat_input").performTextInput("next")
+        composeTestRule
+            .onNodeWithTag("send_button")
+            .assertWidthIsAtLeast(48.dp)
+            .assertHeightIsAtLeast(48.dp)
+        composeTestRule
+            .onNodeWithTag("mic_button")
+            .assertWidthIsAtLeast(48.dp)
+            .assertHeightIsAtLeast(48.dp)
+    }
+
+    @Test
+    fun narrowLargeTextKeepsModelReadableAndActionsReachableInRtl() {
+        setComposer(composerWidth = 320.dp, fontScale = 1.5f, layoutDirection = LayoutDirection.Rtl)
+        composeTestRule.onNodeWithTag("chat_input").performTextInput("next")
+        composeTestRule.onNodeWithTag("model_chip").assertWidthIsAtLeast(72.dp).assertHeightIsAtLeast(48.dp)
+        composeTestRule.onNodeWithTag("reasoning_chip").assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp)
+        composeTestRule.onNodeWithTag("send_button").assertWidthIsAtLeast(48.dp).performClick()
+        assertEquals(1, sends)
+    }
+
     /** Renders the real input bar with live text and a mic that toggles like ChatMediaLaunchers. */
     @OptIn(ExperimentalFoundationApi::class)
     private fun setComposer(
@@ -68,13 +104,18 @@ class ComposerInteractionTest {
         modelAfterTap: String? = null,
         layoutDirection: LayoutDirection = LayoutDirection.Ltr,
         showModelProvider: Boolean = false,
+        fontScale: Float = 1f,
     ) {
         composeTestRule.setContent {
             val input = rememberTextFieldState()
             var listening by remember { mutableStateOf(false) }
             var currentModel by remember { mutableStateOf(model) }
 
-            CompositionLocalProvider(LocalLayoutDirection provides layoutDirection) {
+            val density = LocalDensity.current
+            CompositionLocalProvider(
+                LocalLayoutDirection provides layoutDirection,
+                LocalDensity provides Density(density.density, fontScale),
+            ) {
                 val composer: @Composable () -> Unit = {
                     ChatInputBar(
                         inputState = input,

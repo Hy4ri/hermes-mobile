@@ -5,9 +5,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -20,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.ui.common.ExpressiveChoiceRow
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.mcp.McpServersActions
@@ -60,20 +58,18 @@ fun ConnectorsScreen(
         actions = { if (tab == ConnectorsTab.MCP) McpServersActions(mcpViewModel) },
     ) {
         Column(Modifier.fillMaxSize()) {
-            SingleChoiceSegmentedButtonRow(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            ) {
-                SegmentedButton(
-                    selected = tab == ConnectorsTab.HOSTED,
-                    onClick = { tab = ConnectorsTab.HOSTED },
-                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
-                ) { Text(stringResource(R.string.connectors_tab_hosted)) }
-                SegmentedButton(
-                    selected = tab == ConnectorsTab.MCP,
-                    onClick = { tab = ConnectorsTab.MCP },
-                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
-                ) { Text(stringResource(R.string.connectors_tab_mcp)) }
-            }
+            ExpressiveChoiceRow(
+                options =
+                    listOf(
+                        stringResource(R.string.connectors_tab_hosted),
+                        stringResource(R.string.connectors_tab_mcp),
+                    ),
+                selectedIndex = if (tab == ConnectorsTab.HOSTED) 0 else 1,
+                onSelect = { index ->
+                    tab = if (index == 0) ConnectorsTab.HOSTED else ConnectorsTab.MCP
+                },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            )
             when (tab) {
                 ConnectorsTab.HOSTED -> {
                     AccountConnectorsBody(accountsViewModel, Modifier.fillMaxSize())

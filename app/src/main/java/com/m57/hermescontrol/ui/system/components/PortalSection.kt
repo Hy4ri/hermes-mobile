@@ -16,7 +16,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.UriHandler
@@ -29,6 +28,7 @@ import com.m57.hermescontrol.ui.common.SectionHeader
 import com.m57.hermescontrol.ui.common.StatusBadge
 import com.m57.hermescontrol.ui.common.StatusBadgeType
 import com.m57.hermescontrol.ui.system.SystemUiState
+import com.m57.hermescontrol.ui.common.ExpressiveTextButton as TextButton
 
 fun LazyListScope.portalSection(
     state: SystemUiState,

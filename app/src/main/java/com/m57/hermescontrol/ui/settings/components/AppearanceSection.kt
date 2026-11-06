@@ -14,13 +14,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -43,9 +38,12 @@ import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
 import com.m57.hermescontrol.theme.ThemeRegistry
 import com.m57.hermescontrol.ui.chat.label
+import com.m57.hermescontrol.ui.common.ExpressiveChoiceRow
 import com.m57.hermescontrol.ui.settings.SectionCard
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import com.m57.hermescontrol.ui.common.ExpressiveOutlinedButton as OutlinedButton
+import com.m57.hermescontrol.ui.common.ExpressiveSwitch as Switch
 
 @Composable
 internal fun AppearanceSection(
@@ -63,27 +61,17 @@ internal fun AppearanceSection(
             style = MaterialTheme.typography.bodyLarge,
         )
         Spacer(modifier = Modifier.height(8.dp))
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            ThemePreference.entries.forEachIndexed { index, pref ->
-                SegmentedButton(
-                    selected = themePreference == pref,
-                    onClick = { onThemeChange(pref) },
-                    shape =
-                        SegmentedButtonDefaults.itemShape(
-                            index = index,
-                            count = ThemePreference.entries.size,
-                        ),
-                ) {
-                    Text(
-                        when (pref) {
-                            ThemePreference.SYSTEM -> stringResource(R.string.theme_system)
-                            ThemePreference.LIGHT -> stringResource(R.string.theme_light)
-                            ThemePreference.DARK -> stringResource(R.string.theme_dark)
-                        },
-                    )
-                }
-            }
-        }
+        ExpressiveChoiceRow(
+            options =
+                listOf(
+                    stringResource(R.string.theme_system),
+                    stringResource(R.string.theme_light),
+                    stringResource(R.string.theme_dark),
+                ),
+            selectedIndex = ThemePreference.entries.indexOf(themePreference),
+            onSelect = { onThemeChange(ThemePreference.entries[it]) },
+            modifier = Modifier.fillMaxWidth(),
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 

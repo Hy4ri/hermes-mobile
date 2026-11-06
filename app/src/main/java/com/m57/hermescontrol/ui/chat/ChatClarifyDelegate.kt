@@ -488,27 +488,19 @@ class ChatClarifyDelegate(
                 // Legacy single: only include question_id when explicitly present.
                 val qid = clarify?.questionId
                 val ans = answers.values.firstOrNull() ?: singleFallbackAnswer.orEmpty()
-                canonicalClarifyRespondParams(sessionId, clarify, ans.trim())?.let { params ->
-                    wsClient.send(
-                        method = WsMethods.CLARIFY_RESPOND,
-                        params = params,
-                        onSent = { id -> trackRequest(id, WsMethods.CLARIFY_RESPOND) },
-                    )
-                    return@launch
-                }
+                // Canonical owner prompts take exactly their own params (#1779).
                 val params =
-                    mutableMapOf<String, Any>(
-                        "session_id" to sessionId,
-                        "response" to ans,
-                        "answer" to ans,
-                    )
-                if (clarifyId != null) {
-                    params["clarify_id"] = clarifyId
-                    params["request_id"] = clarifyId
-                }
-                if (qid != null) {
-                    params["question_id"] = qid
-                }
+                    canonicalClarifyRespondParams(sessionId, clarify, ans.trim())
+                        ?: buildMap {
+                            put("session_id", sessionId)
+                            put("response", ans)
+                            put("answer", ans)
+                            if (clarifyId != null) {
+                                put("clarify_id", clarifyId)
+                                put("request_id", clarifyId)
+                            }
+                            if (qid != null) put("question_id", qid)
+                        }
                 wsClient.send(
                     method = WsMethods.CLARIFY_RESPOND,
                     params = params,

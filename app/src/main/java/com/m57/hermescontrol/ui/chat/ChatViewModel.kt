@@ -7705,16 +7705,9 @@ class ChatViewModel(
                 wsClient.respondToServerRequest(serverRequestId, buildJsonObject {})
                 return@launch
             }
-            canonicalClarifyRespondParams(sessionId, clarify, answer = "")?.let { params ->
-                // Canonical owner: an empty answer means skipped.
-                wsClient.send(
-                    method = WsMethods.CLARIFY_RESPOND,
-                    params = params,
-                    onSent = { id -> trackRequest(id, WsMethods.CLARIFY_RESPOND) },
-                )
-                return@launch
-            }
-            if (isBatch) {
+            // Canonical owner: an empty answer means skipped (#1779).
+            val canonicalParams = canonicalClarifyRespondParams(sessionId, clarify, answer = "")
+            if (isBatch && canonicalParams == null) {
                 // Send dismissal for every question in the batch
                 for (q in displayQuestions) {
                     val params =
@@ -7738,18 +7731,16 @@ class ChatViewModel(
                 // Legacy: only send question_id when the original payload had one.
                 val questionId = clarify?.questionId
                 val params =
-                    mutableMapOf<String, Any>(
-                        "session_id" to sessionId,
-                        "response" to CLARIFY_DISMISS_RESPONSE,
-                        "answer" to CLARIFY_DISMISS_RESPONSE,
-                    )
-                if (clarifyId != null) {
-                    params["clarify_id"] = clarifyId
-                    params["request_id"] = clarifyId
-                }
-                if (questionId != null) {
-                    params["question_id"] = questionId
-                }
+                    canonicalParams ?: buildMap {
+                        put("session_id", sessionId)
+                        put("response", CLARIFY_DISMISS_RESPONSE)
+                        put("answer", CLARIFY_DISMISS_RESPONSE)
+                        if (clarifyId != null) {
+                            put("clarify_id", clarifyId)
+                            put("request_id", clarifyId)
+                        }
+                        if (questionId != null) put("question_id", questionId)
+                    }
                 wsClient.send(
                     method = WsMethods.CLARIFY_RESPOND,
                     params = params,

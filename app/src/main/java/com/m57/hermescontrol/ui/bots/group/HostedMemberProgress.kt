@@ -71,7 +71,6 @@ internal fun HostedMemberProgress(
         driver?.maxRounds?.takeIf { it > 0 }?.let {
             Text(stringResource(R.string.hosted_round_limit, it), style = MaterialTheme.typography.labelMedium)
         }
-        HostedRoomAttentionLine(driver)
         if (activity.isNullOrEmpty()) {
             Text(
                 stringResource(

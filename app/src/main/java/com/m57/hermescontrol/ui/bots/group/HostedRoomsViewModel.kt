@@ -106,6 +106,10 @@ class HostedRoomsViewModel : ViewModel() {
         viewModelScope.launch { controller.retryPendingSend() }
     }
 
+    fun cancelPendingSend() {
+        controller.cancelPendingSend()
+    }
+
     fun stop() {
         viewModelScope.launch { controller.stop() }
     }

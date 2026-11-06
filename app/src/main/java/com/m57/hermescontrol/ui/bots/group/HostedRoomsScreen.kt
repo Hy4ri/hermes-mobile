@@ -31,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -120,6 +121,7 @@ fun HostedRoomsScreen(
         onSelect = viewModel::select,
         onSend = viewModel::send,
         onRetrySend = viewModel::retrySend,
+        onDiscardSend = viewModel::cancelPendingSend,
         onStop = viewModel::stop,
         onRetry = viewModel::retry,
         onApprove = viewModel::approve,
@@ -136,6 +138,7 @@ internal fun HostedRoomsContent(
     onSelect: (String) -> Unit,
     onSend: (String) -> Unit,
     onRetrySend: () -> Unit,
+    onDiscardSend: () -> Unit,
     onStop: () -> Unit,
     onRetry: (HostedTask) -> Unit,
     onApprove: (HostedTask, String) -> Unit,
@@ -208,6 +211,8 @@ internal fun HostedRoomsContent(
     }
     var draft by remember(state.owner?.scopeKey, state.selectedRoomId) { mutableStateOf("") }
     var confirmation by remember(state.owner, state.selectedRoomId) { mutableStateOf<Pair<HostedTask, String?>?>(null) }
+    var confirmStop by remember(state.owner, state.selectedRoomId) { mutableStateOf(false) }
+    var confirmDiscard by remember(state.owner, state.selectedRoomId) { mutableStateOf(false) }
     confirmation?.let { (task, choice) ->
         AlertDialog(
             onDismissRequest = { confirmation = null },
@@ -253,6 +258,47 @@ internal fun HostedRoomsContent(
             },
             dismissButton = {
                 TextButton(onClick = { confirmation = null }) { Text(stringResource(R.string.action_cancel)) }
+            },
+        )
+    }
+    if (confirmStop) {
+        AlertDialog(
+            onDismissRequest = { confirmStop = false },
+            title = { Text(stringResource(R.string.hosted_stop_title)) },
+            text = { Text(stringResource(R.string.hosted_stop_warning)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmStop = false
+                        onStop()
+                    },
+                    enabled = state.writable,
+                ) {
+                    Text(stringResource(R.string.hosted_stop_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmStop = false }) { Text(stringResource(R.string.action_cancel)) }
+            },
+        )
+    }
+    if (confirmDiscard && state.pendingSend != null) {
+        AlertDialog(
+            onDismissRequest = { confirmDiscard = false },
+            title = { Text(stringResource(R.string.hosted_discard_title)) },
+            text = { Text(stringResource(R.string.hosted_discard_warning)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmDiscard = false
+                        onDiscardSend()
+                    },
+                ) {
+                    Text(stringResource(R.string.hosted_discard_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDiscard = false }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
     }
@@ -332,6 +378,7 @@ internal fun HostedRoomsContent(
                 }
 
                 else -> {
+                    val target = state.snapshot?.driverStatus?.let(::hostedRoomTarget)
                     state.snapshot?.context?.takeIf { state.capabilities?.contextSupported == true }?.let { confirmed ->
                         Column(
                             modifier = Modifier.padding(horizontal = spacing.md),
@@ -372,6 +419,12 @@ internal fun HostedRoomsContent(
                     if (state.capabilities?.driver != true || state.snapshot?.driverStatus?.running != true) {
                         Text(
                             stringResource(R.string.hosted_read_only),
+                            modifier = Modifier.padding(horizontal = spacing.md),
+                        )
+                    }
+                    if (target != null && target.state != HostedRoomTargetState.UNAVAILABLE) {
+                        HostedRoomTargetLine(
+                            target = target,
                             modifier = Modifier.padding(horizontal = spacing.md),
                         )
                     }
@@ -460,8 +513,13 @@ internal fun HostedRoomsContent(
                         Column(Modifier.padding(horizontal = spacing.md)) {
                             Text(stringResource(R.string.hosted_send_uncertain))
                             Text(pending.text)
-                            TextButton(onClick = onRetrySend, enabled = state.writable) {
-                                Text(stringResource(R.string.hosted_resend_same))
+                            Row(horizontalArrangement = Arrangement.spacedBy(spacing.sm)) {
+                                TextButton(onClick = onRetrySend, enabled = state.writable) {
+                                    Text(stringResource(R.string.hosted_resend_same))
+                                }
+                                TextButton(onClick = { confirmDiscard = true }) {
+                                    Text(stringResource(R.string.hosted_discard_send))
+                                }
                             }
                         }
                     }
@@ -488,11 +546,68 @@ internal fun HostedRoomsContent(
                         }
                     }
                     TextButton(
-                        onClick = onStop,
-                        enabled = state.writable,
+                        onClick = { confirmStop = true },
+                        enabled = state.writable && target?.canCancel == true,
                     ) { Text(stringResource(R.string.hosted_stop)) }
                 }
             }
+        }
+    }
+}
+
+/** One line for what the room is doing or waiting on, beside the live roster. */
+@Composable
+private fun HostedRoomTargetLine(
+    target: HostedRoomTarget,
+    modifier: Modifier = Modifier,
+) {
+    val label =
+        stringResource(
+            when (target.state) {
+                HostedRoomTargetState.UNAVAILABLE -> R.string.hosted_read_only
+                HostedRoomTargetState.IDLE -> R.string.hosted_target_idle
+                HostedRoomTargetState.WORKING -> R.string.hosted_target_working
+                HostedRoomTargetState.WAITING_APPROVAL -> R.string.hosted_target_waiting_approval
+                HostedRoomTargetState.WAITING_RETRY -> R.string.hosted_target_waiting_retry
+                HostedRoomTargetState.BLOCKED -> R.string.hosted_target_blocked
+            },
+        )
+    val approvals =
+        if (target.approvals > 0) {
+            pluralStringResource(R.plurals.hosted_target_approvals, target.approvals, target.approvals)
+        } else {
+            null
+        }
+    val retries =
+        if (target.retries > 0) {
+            pluralStringResource(R.plurals.hosted_target_retries, target.retries, target.retries)
+        } else {
+            null
+        }
+    val cancellable =
+        if (target.cancellable > 0) {
+            pluralStringResource(R.plurals.hosted_target_cancellable, target.cancellable, target.cancellable)
+        } else {
+            null
+        }
+    val details = listOfNotNull(approvals, retries, cancellable).joinToString(" · ")
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(LocalSpacing.current.xs)) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelLarge,
+            color =
+                if (target.hasAttention) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+        )
+        if (details.isNotEmpty()) {
+            Text(
+                details,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -507,6 +622,7 @@ private fun HostedRoomsUnsupportedPreview() {
         onSelect = {},
         onSend = {},
         onRetrySend = {},
+        onDiscardSend = {},
         onStop = {},
         onRetry = {},
         onApprove = {
@@ -577,6 +693,7 @@ private fun HostedRoomComposerPreview() {
                 onSelect = {},
                 onSend = {},
                 onRetrySend = {},
+                onDiscardSend = {},
                 onStop = {},
                 onRetry = {},
                 onApprove = { _, _ -> },

@@ -155,6 +155,48 @@ class ToolBubbleParsingTest {
         assertNull(parseToolOutput("[1,2,3]", "terminal", false))
     }
 
+    // ── #459: top-level image_path from tool.complete ────────────────────
+
+    @Test
+    fun `top-level image path survives the result sub-object`() {
+        val view =
+            parseToolOutput(
+                """{"args":{"image_path":"/tmp/photo.png"},"result":{"description":"A cat"},"image_path":"/tmp/photo.png"}""",
+                "vision_analyze",
+                false,
+            )
+
+        assertNotNull(view)
+        assertEquals("A cat", view!!.detail)
+        assertEquals("/tmp/photo.png", view.imageUrl)
+    }
+
+    @Test
+    fun `missing image path leaves the inline image empty`() {
+        val view =
+            parseToolOutput(
+                """{"result":{"description":"A cat"}}""",
+                "vision_analyze",
+                false,
+            )
+
+        assertNotNull(view)
+        assertNull(view!!.imageUrl)
+    }
+
+    @Test
+    fun `non-image image path is ignored`() {
+        val view =
+            parseToolOutput(
+                """{"result":{"description":"report"},"image_path":"/tmp/notes.txt"}""",
+                "vision_analyze",
+                false,
+            )
+
+        assertNotNull(view)
+        assertNull(view!!.imageUrl)
+    }
+
     @Test
     fun `memory summary keeps its target`() {
         val view =

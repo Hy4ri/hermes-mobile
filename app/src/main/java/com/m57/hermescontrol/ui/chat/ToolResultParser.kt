@@ -54,14 +54,25 @@ fun parseToolOutput(
             }
         val rawResultObj = element["result"] as? JsonObject
         val displayMetadata = element["display_metadata"]
+        // #459: `image_path` is envelope metadata on tool.complete — it sits
+        // next to `result`, not inside it. Merge it so the display engine
+        // sees the file the tool produced or looked at.
+        val topLevelImagePath =
+            (element["image_path"] as? JsonPrimitive)
+                ?.takeIf { it.isString }
+                ?.content
+                ?.takeIf(String::isNotBlank)
         val result =
             when {
-                rawResultObj != null && displayMetadata != null && !rawResultObj.containsKey("display_metadata") -> {
-                    JsonObject(rawResultObj + ("display_metadata" to displayMetadata))
-                }
-
                 rawResultObj != null -> {
-                    rawResultObj
+                    var merged = rawResultObj
+                    if (displayMetadata != null && !merged.containsKey("display_metadata")) {
+                        merged = JsonObject(merged + ("display_metadata" to displayMetadata))
+                    }
+                    if (topLevelImagePath != null && !merged.containsKey("image_path")) {
+                        merged = JsonObject(merged + ("image_path" to JsonPrimitive(topLevelImagePath)))
+                    }
+                    merged
                 }
 
                 else -> {

@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.ui.chat.tool
 
+import com.m57.hermescontrol.ui.chat.MediaKind
+import com.m57.hermescontrol.ui.chat.mediaKindForPath
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -179,15 +181,28 @@ object ToolViewBuilder {
                 .firstString(result, listOf("image_url", "image", "url", "path", "image_path"))
                 .ifEmpty { ToolJson.firstString(args, listOf("image_url", "url", "path")) }
 
-        if (candidate.isEmpty()) {
-            return null
+        if (candidate.isNotEmpty() && isInlineImage(candidate)) {
+            return candidate
         }
 
-        val isDataImage = candidate.lowercase().startsWith("data:image/")
-        val isRemoteImage =
-            Regex("^https?://", RegexOption.IGNORE_CASE).containsMatchIn(candidate) &&
-                Regex("\\.(png|jpe?g|gif|webp|bmp|svg)(\\?|#|$)", RegexOption.IGNORE_CASE).containsMatchIn(candidate)
+        // #459: `image_path` is the host file a tool produced or looked at.
+        // Only this field carries host paths — generic `path`/`url` results
+        // (read_file, directory listings) must never render as images.
+        val hostPath = ToolJson.firstString(result, listOf("image_path"))
+        return hostPath.takeIf { isHostImagePath(it) }
+    }
 
-        return if (isDataImage || isRemoteImage) candidate else null
+    private fun isInlineImage(value: String): Boolean {
+        val isDataImage = value.lowercase().startsWith("data:image/")
+        val isRemoteImage =
+            Regex("^https?://", RegexOption.IGNORE_CASE).containsMatchIn(value) &&
+                Regex("\\.(png|jpe?g|gif|webp|bmp|svg)(\\?|#|$)", RegexOption.IGNORE_CASE).containsMatchIn(value)
+        return isDataImage || isRemoteImage
+    }
+
+    private fun isHostImagePath(value: String): Boolean {
+        val isAbsolute =
+            value.startsWith("/") || Regex("^[A-Za-z]:[/\\\\]").containsMatchIn(value)
+        return isAbsolute && mediaKindForPath(value) == MediaKind.IMAGE
     }
 }

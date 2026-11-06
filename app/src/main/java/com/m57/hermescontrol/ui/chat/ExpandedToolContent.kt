@@ -11,6 +11,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -26,6 +27,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.HermesStatusColors
 import com.m57.hermescontrol.ui.chat.components.DiffViewCard
 import com.m57.hermescontrol.ui.chat.components.FileViewCard
+import com.m57.hermescontrol.ui.chat.markdown.MarkdownMediaResolver
 import com.m57.hermescontrol.ui.chat.tool.ToolView
 
 /**
@@ -120,7 +122,10 @@ internal fun ExpandedToolContent(
             }
         } else {
             // ── Generated/resolved image preview ──
-            view.imageUrl?.let { url ->
+            view.imageUrl?.let { rawUrl ->
+                // #459: host paths from tool.complete resolve to the same
+                // authenticated gateway media URL that `MEDIA:` uses.
+                val url = remember(rawUrl) { MarkdownMediaResolver.resolveImageUrl(rawUrl) }
                 AsyncImage(
                     model = url,
                     contentDescription = view.title,

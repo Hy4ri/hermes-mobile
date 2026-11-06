@@ -19,10 +19,12 @@ import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.remote.safeApiRead
 import com.m57.hermescontrol.data.ws.AgentPluginRow
+import com.m57.hermescontrol.data.ws.PluginAutoUpdateState
 import com.m57.hermescontrol.data.ws.PluginManageRepository
 import com.m57.hermescontrol.data.ws.PluginRemovalRepository
 import com.m57.hermescontrol.data.ws.PluginSettingField
 import com.m57.hermescontrol.data.ws.PluginSettingFieldType
+import com.m57.hermescontrol.data.ws.PluginUpdateAllResult
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchAction
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
@@ -53,6 +55,20 @@ data class PluginUpdateConsent(
     val scope: DataScope?,
 )
 
+/** One unattended `update_all` sweep. */
+data class PluginUpdateAllSummary(
+    val result: PluginUpdateAllResult,
+) {
+    val updated: Int
+        get() = result.results.count { it.status == "updated" }
+
+    val needsReview: Int
+        get() = result.results.count { it.isNeedsReview }
+
+    val failed: Int
+        get() = result.results.count { it.status == "failed" }
+}
+
 data class PluginsUiState(
     val selectedTab: PluginsTab = PluginsTab.INSTALLED,
     val isLoading: Boolean = false,
@@ -76,6 +92,11 @@ data class PluginsUiState(
     // Confirm remove dialog
     val removeConfirmPlugin: String? = null,
     val updateConsent: PluginUpdateConsent? = null,
+    // Update all sweep + the profile's auto-update switch
+    val updateAllBusy: Boolean = false,
+    val updateAllSummary: PluginUpdateAllSummary? = null,
+    val autoUpdate: PluginAutoUpdateState? = null,
+    val autoUpdateBusy: Boolean = false,
     // Active plugin detail with settings & diagnostics
     val activeDetailPlugin: PluginInfo? = null,
     val isPluginDetailLoading: Boolean = false,
@@ -128,6 +149,10 @@ class PluginsViewModel(
                 rowBusy = null,
                 removeConfirmPlugin = null,
                 updateConsent = null,
+                updateAllBusy = false,
+                updateAllSummary = null,
+                autoUpdate = null,
+                autoUpdateBusy = false,
                 activeDetailPlugin = null,
                 pluginDetailRow = null,
                 pluginDetailEdits = emptyMap(),
@@ -484,6 +509,118 @@ class PluginsViewModel(
     fun updatePlugin(name: String) {
         if (_uiState.value.updateConsent != null) return
         performPluginUpdate(name, acceptCapabilities = false)
+    }
+
+    /** Read the profile's real auto-update switch; an older backend leaves it unknown (hidden). */
+    fun loadAutoUpdate() {
+        val generation = scopeGeneration
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+        val profile = AuthManager.activeProfileId.value
+        viewModelScope.launch {
+            try {
+                val state = pluginManage.autoUpdateState(profile)
+                if (generation != scopeGeneration ||
+                    requestScope != runCatching { AuthManager.currentDataScope() }.getOrNull()
+                ) {
+                    return@launch
+                }
+                _uiState.update { it.copy(autoUpdate = state) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // No invented state: the switch stays hidden when the backend cannot answer.
+                if (generation == scopeGeneration) {
+                    _uiState.update { it.copy(autoUpdate = null) }
+                }
+            }
+        }
+    }
+
+    /** Write `plugins.auto_apply` for the profile; the switch only shows what the backend returns. */
+    fun setAutoUpdate(enabled: Boolean) {
+        if (_uiState.value.autoUpdateBusy) return
+        val generation = scopeGeneration
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+        val profile = AuthManager.activeProfileId.value
+        _uiState.update { it.copy(autoUpdateBusy = true, toastMessage = null) }
+        viewModelScope.launch {
+            try {
+                val state = pluginManage.setAutoUpdate(enabled, profile)
+                if (generation != scopeGeneration ||
+                    requestScope != runCatching { AuthManager.currentDataScope() }.getOrNull()
+                ) {
+                    return@launch
+                }
+                _uiState.update { it.copy(autoUpdate = state) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (generation == scopeGeneration) {
+                    _uiState.update {
+                        it.copy(
+                            toastMessage = "Failed to save auto-update: ${e.message ?: "Gateway unavailable"}",
+                        )
+                    }
+                }
+            } finally {
+                if (generation == scopeGeneration) {
+                    _uiState.update { it.copy(autoUpdateBusy = false) }
+                }
+            }
+        }
+    }
+
+    /** One unattended sweep over every plugin the backend's update plan would move. */
+    fun updateAllPlugins() {
+        if (_uiState.value.updateAllBusy) return
+        val generation = scopeGeneration
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+        val profile = AuthManager.activeProfileId.value
+        _uiState.update { it.copy(updateAllBusy = true, updateAllSummary = null, toastMessage = null) }
+        viewModelScope.launch {
+            try {
+                val result = pluginManage.updateAll(profile)
+                if (generation != scopeGeneration ||
+                    requestScope != runCatching { AuthManager.currentDataScope() }.getOrNull()
+                ) {
+                    return@launch
+                }
+                if (result.results.isEmpty() && result.skipped.isEmpty()) {
+                    _uiState.update { it.copy(toastMessage = "All plugins are up to date") }
+                    return@launch
+                }
+                _uiState.update {
+                    it.copy(updateAllSummary = PluginUpdateAllSummary(result))
+                }
+                if (result.results.any { it.status == "updated" }) {
+                    loadPlugins(forceRefresh = true)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (generation == scopeGeneration) {
+                    _uiState.update {
+                        it.copy(
+                            toastMessage = "Failed to update plugins: ${e.message ?: "Gateway unavailable"}",
+                        )
+                    }
+                }
+            } finally {
+                if (generation == scopeGeneration) {
+                    _uiState.update { it.copy(updateAllBusy = false) }
+                }
+            }
+        }
+    }
+
+    fun dismissUpdateAllSummary() {
+        _uiState.update { it.copy(updateAllSummary = null) }
+    }
+
+    /** A `needs_review` row has nothing applied: walk the plugin's own consent/scan flow. */
+    fun reviewPluginFromSummary(name: String) {
+        _uiState.update { it.copy(updateAllSummary = null) }
+        updatePlugin(name)
     }
 
     fun cancelPluginUpdate() {

@@ -100,3 +100,39 @@ data class PluginsManageSettingsResult(
     val plugin: AgentPluginRow? = null,
     val error: String? = null,
 )
+
+/** One plugin touched by the unattended `update_all` sweep (`plugins.manage`). */
+@Serializable
+data class PluginUpdateAllRow(
+    val name: String,
+    val status: String,
+    val detail: String = "",
+) {
+    val isNeedsReview: Boolean
+        get() = status == "needs_review"
+}
+
+/** One installed plugin the sweep left alone, with the backend's reason. */
+@Serializable
+data class PluginUpdateAllSkip(
+    val name: String,
+    val reason: String = "",
+)
+
+/**
+ * Result of `plugins.manage update_all`: nothing is accepted on the user's behalf, so a widened
+ * pin or caution scan comes back as `needs_review` and the plugin's own update walks that review.
+ */
+@Serializable
+data class PluginUpdateAllResult(
+    val results: List<PluginUpdateAllRow> = emptyList(),
+    val skipped: List<PluginUpdateAllSkip> = emptyList(),
+    val current: Int = 0,
+)
+
+/** The active profile's auto-update switch (`plugins.auto_apply`) and check cadence. */
+@Serializable
+data class PluginAutoUpdateState(
+    @SerialName("auto_apply") val autoApply: Boolean = false,
+    @SerialName("check_hours") val checkHours: Int = 24,
+)

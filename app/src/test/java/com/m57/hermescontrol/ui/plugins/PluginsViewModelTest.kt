@@ -11,8 +11,13 @@ import com.m57.hermescontrol.data.model.PluginUpdateResult
 import com.m57.hermescontrol.data.model.PluginsHubResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.HermesApiService
+import com.m57.hermescontrol.data.ws.PluginAutoUpdateState
+import com.m57.hermescontrol.data.ws.PluginManageRepository
 import com.m57.hermescontrol.data.ws.PluginRemovalRepository
 import com.m57.hermescontrol.data.ws.PluginRemovalResult
+import com.m57.hermescontrol.data.ws.PluginUpdateAllResult
+import com.m57.hermescontrol.data.ws.PluginUpdateAllRow
+import com.m57.hermescontrol.data.ws.PluginUpdateAllSkip
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -520,6 +525,248 @@ class PluginsViewModelTest {
                     .forEach { it.cancelAndJoin() }
             }
         }
+    }
+
+    @Test
+    fun `update all publishes a per plugin summary and refreshes after a real update`() {
+        val manage = mockk<PluginManageRepository>()
+        coEvery { manage.updateAll(any()) } returns
+            PluginUpdateAllResult(
+                results =
+                    listOf(
+                        PluginUpdateAllRow(name = "snyk", status = "updated"),
+                        PluginUpdateAllRow(name = "camofox", status = "needs_review", detail = "adds a tool"),
+                        PluginUpdateAllRow(name = "broken", status = "failed", detail = "clone timed out"),
+                    ),
+                skipped = listOf(PluginUpdateAllSkip(name = "pinned", reason = "pinned to a commit")),
+                current = 3,
+            )
+        coEvery { mockApi.getPlugins() } returns Response.success(PluginsHubResponse(emptyList()))
+        val viewModel = PluginsViewModel(pluginManage = manage)
+
+        viewModel.updateAllPlugins()
+        assertTrue(viewModel.uiState.value.updateAllBusy)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val summary = viewModel.uiState.value.updateAllSummary!!
+        assertEquals(1, summary.updated)
+        assertEquals(1, summary.needsReview)
+        assertEquals(1, summary.failed)
+        assertEquals(
+            "pinned to a commit",
+            summary.result.skipped
+                .single()
+                .reason,
+        )
+        assertFalse(viewModel.uiState.value.updateAllBusy)
+        coVerify(exactly = 1) { manage.updateAll(any()) }
+        coVerify(exactly = 1) { mockApi.getPlugins() }
+    }
+
+    @Test
+    fun `update all with only review rows does not refresh the plugin list`() {
+        val manage = mockk<PluginManageRepository>()
+        coEvery { manage.updateAll(any()) } returns
+            PluginUpdateAllResult(
+                results = listOf(PluginUpdateAllRow(name = "camofox", status = "needs_review", detail = "adds a tool")),
+            )
+        val viewModel = PluginsViewModel(pluginManage = manage)
+
+        viewModel.updateAllPlugins()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val summary = viewModel.uiState.value.updateAllSummary!!
+        assertEquals(0, summary.updated)
+        assertEquals(1, summary.needsReview)
+        coVerify(exactly = 0) { mockApi.getPlugins() }
+    }
+
+    @Test
+    fun `update all with nothing to do reports it instead of opening an empty summary`() {
+        val manage = mockk<PluginManageRepository>()
+        coEvery { manage.updateAll(any()) } returns PluginUpdateAllResult(current = 4)
+        val viewModel = PluginsViewModel(pluginManage = manage)
+
+        viewModel.updateAllPlugins()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.updateAllSummary)
+        assertEquals("All plugins are up to date", viewModel.uiState.value.toastMessage)
+        assertFalse(viewModel.uiState.value.updateAllBusy)
+        coVerify(exactly = 0) { mockApi.getPlugins() }
+    }
+
+    @Test
+    fun `update all failure releases busy state and reports the gateway error`() {
+        val manage = mockk<PluginManageRepository>()
+        coEvery { manage.updateAll(any()) } throws IllegalStateException("socket disconnected")
+        val viewModel = PluginsViewModel(pluginManage = manage)
+
+        viewModel.updateAllPlugins()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.updateAllSummary)
+        assertFalse(viewModel.uiState.value.updateAllBusy)
+        assertTrue(
+            viewModel.uiState.value.toastMessage!!
+                .contains("socket disconnected"),
+        )
+        coVerify(exactly = 0) { mockApi.getPlugins() }
+    }
+
+    @Test
+    fun `update all ignores a second request while the sweep is running`() {
+        val manage = mockk<PluginManageRepository>()
+        val reply = CompletableDeferred<PluginUpdateAllResult>()
+        coEvery { manage.updateAll(any()) } coAnswers { reply.await() }
+        val viewModel = PluginsViewModel(pluginManage = manage)
+
+        viewModel.updateAllPlugins()
+        viewModel.updateAllPlugins()
+        testDispatcher.scheduler.runCurrent()
+        reply.complete(PluginUpdateAllResult(results = listOf(PluginUpdateAllRow(name = "snyk", status = "current"))))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify(exactly = 1) { manage.updateAll(any()) }
+        assertFalse(viewModel.uiState.value.updateAllBusy)
+    }
+
+    @Test
+    fun `scope switch discards a late update all result`() {
+        val manage = mockk<PluginManageRepository>()
+        val reply = CompletableDeferred<PluginUpdateAllResult>()
+        coEvery { manage.updateAll(any()) } coAnswers { reply.await() }
+        val viewModel = PluginsViewModel(pluginManage = manage)
+
+        viewModel.updateAllPlugins()
+        testDispatcher.scheduler.runCurrent()
+        viewModel.clearScopeOwnedState()
+        reply.complete(PluginUpdateAllResult(results = listOf(PluginUpdateAllRow(name = "snyk", status = "updated"))))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.updateAllSummary)
+        assertFalse(viewModel.uiState.value.updateAllBusy)
+        assertNull(viewModel.uiState.value.toastMessage)
+        coVerify(exactly = 0) { mockApi.getPlugins() }
+    }
+
+    @Test
+    fun `reviewing a needs review row opens the plugin's own update`() {
+        val manage = mockk<PluginManageRepository>()
+        coEvery { manage.updateAll(any()) } returns
+            PluginUpdateAllResult(
+                results = listOf(PluginUpdateAllRow(name = "camofox", status = "needs_review", detail = "adds a tool")),
+            )
+        coEvery { mockApi.updatePlugin("camofox", PluginUpdateRequest(false)) } returns
+            Response.success(PluginUpdateResult(consentRequired = true, deltaLines = listOf("tools: browser")))
+        val viewModel = PluginsViewModel(pluginManage = manage)
+
+        viewModel.updateAllPlugins()
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.reviewPluginFromSummary("camofox")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.updateAllSummary)
+        assertEquals(
+            listOf("tools: browser"),
+            viewModel.uiState.value.updateConsent
+                ?.result
+                ?.capabilityDelta,
+        )
+        coVerify(exactly = 1) { mockApi.updatePlugin("camofox", PluginUpdateRequest(false)) }
+    }
+
+    @Test
+    fun `auto update loads the real state for the active profile`() {
+        val manage = mockk<PluginManageRepository>()
+        coEvery { manage.autoUpdateState(any()) } returns PluginAutoUpdateState(autoApply = true, checkHours = 6)
+        val viewModel = PluginsViewModel(pluginManage = manage)
+
+        viewModel.loadAutoUpdate()
+        assertNull(viewModel.uiState.value.autoUpdate)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(PluginAutoUpdateState(autoApply = true, checkHours = 6), viewModel.uiState.value.autoUpdate)
+        coVerify(exactly = 1) { manage.autoUpdateState(any()) }
+    }
+
+    @Test
+    fun `auto update read failure hides the switch instead of inventing a state`() {
+        val manage = mockk<PluginManageRepository>()
+        coEvery { manage.autoUpdateState(any()) } throws IllegalStateException("unknown method")
+        val viewModel = PluginsViewModel(pluginManage = manage)
+
+        viewModel.loadAutoUpdate()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.autoUpdate)
+        assertNull(viewModel.uiState.value.toastMessage)
+    }
+
+    @Test
+    fun `auto update write applies the returned state`() {
+        val manage = mockk<PluginManageRepository>()
+        coEvery { manage.autoUpdateState(any()) } returns PluginAutoUpdateState(autoApply = false, checkHours = 24)
+        coEvery { manage.setAutoUpdate(true, any()) } returns PluginAutoUpdateState(autoApply = true, checkHours = 24)
+        val viewModel = PluginsViewModel(pluginManage = manage)
+        viewModel.loadAutoUpdate()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.setAutoUpdate(true)
+        assertTrue(viewModel.uiState.value.autoUpdateBusy)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(
+            viewModel.uiState.value.autoUpdate!!
+                .autoApply,
+        )
+        assertFalse(viewModel.uiState.value.autoUpdateBusy)
+        assertNull(viewModel.uiState.value.toastMessage)
+        coVerify(exactly = 1) { manage.setAutoUpdate(true, any()) }
+    }
+
+    @Test
+    fun `auto update write failure keeps the previous real state`() {
+        val manage = mockk<PluginManageRepository>()
+        coEvery { manage.autoUpdateState(any()) } returns PluginAutoUpdateState(autoApply = false, checkHours = 24)
+        coEvery { manage.setAutoUpdate(any(), any()) } throws IllegalStateException("managed by a package manager")
+        val viewModel = PluginsViewModel(pluginManage = manage)
+        viewModel.loadAutoUpdate()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.setAutoUpdate(true)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse(
+            viewModel.uiState.value.autoUpdate!!
+                .autoApply,
+        )
+        assertFalse(viewModel.uiState.value.autoUpdateBusy)
+        assertTrue(
+            viewModel.uiState.value.toastMessage!!
+                .contains("managed by a package manager"),
+        )
+    }
+
+    @Test
+    fun `scope switch discards a late auto update write`() {
+        val manage = mockk<PluginManageRepository>()
+        coEvery { manage.autoUpdateState(any()) } returns PluginAutoUpdateState(autoApply = false, checkHours = 24)
+        val reply = CompletableDeferred<PluginAutoUpdateState>()
+        coEvery { manage.setAutoUpdate(any(), any()) } coAnswers { reply.await() }
+        val viewModel = PluginsViewModel(pluginManage = manage)
+        viewModel.loadAutoUpdate()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.setAutoUpdate(true)
+        testDispatcher.scheduler.runCurrent()
+        viewModel.clearScopeOwnedState()
+        reply.complete(PluginAutoUpdateState(autoApply = true, checkHours = 24))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.autoUpdate)
+        assertFalse(viewModel.uiState.value.autoUpdateBusy)
+        assertNull(viewModel.uiState.value.toastMessage)
     }
 
     private fun settleRealIo(condition: () -> Boolean) {

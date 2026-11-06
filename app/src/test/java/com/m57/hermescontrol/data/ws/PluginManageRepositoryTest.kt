@@ -236,4 +236,97 @@ class PluginManageRepositoryTest {
                 // Expected
             }
         }
+
+    // CONTRACT: `updateAll(profile)` calls WsMethods.PLUGINS_MANAGE with {"action": "update_all"} and
+    // decodes results/skipped/current; an explicit profile travels with the request.
+    @Test
+    fun `updateAll sends update_all and decodes the per plugin rows`() =
+        runTest {
+            var capturedMethod = ""
+            var capturedParams: Map<String, Any?> = emptyMap()
+            val repository =
+                pluginRepo { method, params ->
+                    capturedMethod = method
+                    capturedParams = params
+                    OkHttpProvider.json.parseToJsonElement(
+                        """
+                        {
+                            "results": [
+                                {"name": "snyk", "status": "updated", "detail": ""},
+                                {"name": "camofox", "status": "needs_review", "detail": "adds a tool"}
+                            ],
+                            "skipped": [{"name": "pinned", "reason": "pinned to a commit"}],
+                            "current": 2
+                        }
+                        """.trimIndent(),
+                    )
+                }
+
+            val result = repository.updateAll(profile = "work")
+
+            assertEquals(WsMethods.PLUGINS_MANAGE, capturedMethod)
+            assertEquals(mapOf("action" to "update_all", "profile" to "work"), capturedParams)
+            assertEquals(2, result.results.size)
+            assertEquals("updated", result.results[0].status)
+            assertEquals("needs_review", result.results[1].status)
+            assertEquals("pinned", result.skipped.single().name)
+            assertEquals(2, result.current)
+        }
+
+    @Test
+    fun `updateAll without a profile omits the profile key`() =
+        runTest {
+            var capturedParams: Map<String, Any?> = emptyMap()
+            val repository =
+                pluginRepo { _, params ->
+                    capturedParams = params
+                    OkHttpProvider.json.parseToJsonElement("{}")
+                }
+
+            repository.updateAll()
+
+            assertEquals(mapOf("action" to "update_all"), capturedParams)
+        }
+
+    // CONTRACT: `autoUpdateState(profile)` calls WsMethods.PLUGINS_MANAGE with {"action": "auto_update"}
+    // and decodes {auto_apply, check_hours}; the write adds `enable`.
+    @Test
+    fun `autoUpdateState reads the switch without writing it`() =
+        runTest {
+            var capturedMethod = ""
+            var capturedParams: Map<String, Any?> = emptyMap()
+            val repository =
+                pluginRepo { method, params ->
+                    capturedMethod = method
+                    capturedParams = params
+                    OkHttpProvider.json.parseToJsonElement("{\"auto_apply\": true, \"check_hours\": 6}")
+                }
+
+            val state = repository.autoUpdateState(profile = "staging")
+
+            assertEquals(WsMethods.PLUGINS_MANAGE, capturedMethod)
+            assertEquals(mapOf("action" to "auto_update", "profile" to "staging"), capturedParams)
+            assertTrue(state.autoApply)
+            assertEquals(6, state.checkHours)
+        }
+
+    @Test
+    fun `setAutoUpdate writes enable and decodes the resulting state`() =
+        runTest {
+            var capturedParams: Map<String, Any?> = emptyMap()
+            val repository =
+                pluginRepo { _, params ->
+                    capturedParams = params
+                    OkHttpProvider.json.parseToJsonElement("{\"auto_apply\": false, \"check_hours\": 24}")
+                }
+
+            val state = repository.setAutoUpdate(enabled = false, profile = "work")
+
+            assertEquals(
+                mapOf("action" to "auto_update", "enable" to false, "profile" to "work"),
+                capturedParams,
+            )
+            assertFalse(state.autoApply)
+            assertEquals(24, state.checkHours)
+        }
 }

@@ -638,6 +638,39 @@ class ToolViewCharacterizationTest {
         assertNull(build("weird_tool", "{}", """{"url":"https://a.b/page"}""").imageUrl)
     }
 
+    // ── #459: host image_path from tool.complete ─────────────────────────
+
+    @Test
+    fun `result image path reaches inline image view as a host path`() {
+        val view = build("vision_analyze", "{}", """{"image_path":"/tmp/photo.png"}""")
+
+        assertEquals("/tmp/photo.png", view.imageUrl)
+    }
+
+    @Test
+    fun `image path accepts remote and data sources`() {
+        assertEquals(
+            "https://img.example/cat.png",
+            build("vision_analyze", "{}", """{"image_path":"https://img.example/cat.png"}""").imageUrl,
+        )
+        assertEquals(
+            "data:image/png;base64,AAA",
+            build("vision_analyze", "{}", """{"image_path":"data:image/png;base64,AAA"}""").imageUrl,
+        )
+    }
+
+    @Test
+    fun `generic path field never becomes an inline image`() {
+        assertNull(build("read_file", """{"path":"/tmp/photo.png"}""", """{"path":"/tmp/photo.png"}""").imageUrl)
+        assertNull(build("read_file", "{}", """{"path":"/tmp/photo.png"}""").imageUrl)
+    }
+
+    @Test
+    fun `non-image image path is ignored`() {
+        assertNull(build("vision_analyze", "{}", """{"image_path":"/tmp/report.pdf"}""").imageUrl)
+        assertNull(build("vision_analyze", "{}", """{"image_path":"relative/photo.png"}""").imageUrl)
+    }
+
     @Test
     fun `x_search renders answer with citations and degraded marker`() {
         val view =

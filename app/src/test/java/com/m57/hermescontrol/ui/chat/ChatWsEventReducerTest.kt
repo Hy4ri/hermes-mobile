@@ -2332,4 +2332,42 @@ class ChatWsEventReducerTest {
         assertEquals(initialCaps, result.state.currentModelCapabilities)
         assertTrue(result.state.replyFailureProjection != null)
     }
+
+    // ── #459: tool.complete keeps the top-level image_path ────────────
+
+    @Test
+    fun toolComplete_keepsTopLevelImagePathInStoredContent() {
+        val started =
+            ChatWsEventReducer.reduce(
+                ChatUiState(currentSessionId = "session-1"),
+                StreamingState(),
+                WsEvent.ToolStart("vision_analyze", mapOf("tool_id" to "call-1"), "session-1"),
+                "session-1",
+            )
+
+        val completed =
+            ChatWsEventReducer.reduce(
+                started.state,
+                started.streamingState,
+                WsEvent.ToolComplete(
+                    name = "vision_analyze",
+                    data =
+                        mapOf(
+                            "tool_id" to "call-1",
+                            "result" to mapOf("description" to "A cat"),
+                            "image_path" to "/tmp/photo.png",
+                        ),
+                    sessionId = "session-1",
+                ),
+                "session-1",
+            )
+
+        val stored = completed.state.messages.single()
+        assertEquals(ToolStatus.COMPLETED, stored.toolStatus)
+        assertTrue(stored.content.contains("\"image_path\":\"/tmp/photo.png\""))
+        assertEquals(
+            "/tmp/photo.png",
+            parseToolOutput(stored.content, "vision_analyze", false)?.imageUrl,
+        )
+    }
 }

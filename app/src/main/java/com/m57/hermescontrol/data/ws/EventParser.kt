@@ -208,7 +208,12 @@ object EventParser {
                 // older client or test that still uses the legacy field names. (Issue #206)
                 // Batch clarify (issue #18450): gateway sends "questions" array of {qid, question, choices, multi_select}.
                 val rawQuestions = payload?.get("questions") as? List<*>
-                val clarifyId = payload?.get("clarify_id") as? String ?: payload?.get("request_id") as? String
+                // Canonical owner prompts carry `prompt_id` + `execution_generation` (#1779).
+                val clarifyId =
+                    payload?.get("clarify_id") as? String
+                        ?: payload?.get("request_id") as? String
+                        ?: payload?.get("prompt_id") as? String
+                val executionGeneration = (payload?.get("execution_generation") as? Number)?.toInt()
 
                 val parsedQuestions =
                     if (rawQuestions != null && rawQuestions.isNotEmpty()) {
@@ -284,12 +289,24 @@ object EventParser {
                     questionId = legacyQid,
                     multiSelect = legacyMulti,
                     questions = parsedQuestions,
+                    executionGeneration = executionGeneration,
                 )
             }
 
             "clarify.expire" -> {
-                val clarifyId = payload?.get("request_id") as? String ?: payload?.get("clarify_id") as? String
+                val clarifyId =
+                    payload?.get("request_id") as? String
+                        ?: payload?.get("clarify_id") as? String
+                        ?: payload?.get("prompt_id") as? String
                 WsEvent.ClarifyExpire(clarifyId, sessionId)
+            }
+
+            "clarify.settled" -> {
+                val clarifyId =
+                    payload?.get("prompt_id") as? String
+                        ?: payload?.get("clarify_id") as? String
+                        ?: payload?.get("request_id") as? String
+                WsEvent.ClarifyExpire(clarifyId, sessionId, settled = true)
             }
 
             "request.cancel" -> {

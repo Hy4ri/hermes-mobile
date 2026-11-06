@@ -3334,6 +3334,241 @@ class ChatViewModelTest {
             assertNull(viewModel.uiState.value.clarifyRequest)
         }
 
+    // ── #1779: an answered or closed clarify never comes back ────────────────
+
+    private fun singleClarifyServerRequest(
+        id: String,
+        sessionId: String,
+        answers: Map<String, Any?>? = null,
+        replayed: Boolean = false,
+    ) = WsEvent.ServerRequest(
+        id = id,
+        method = "clarify",
+        params =
+            buildMap {
+                put("session_id", sessionId)
+                put(
+                    "questions",
+                    listOf(mapOf("qid" to "q0", "question" to "Fix now?", "choices" to listOf("Yes", "No"))),
+                )
+                if (answers != null) put("answers", answers)
+            },
+        replayed = replayed,
+    )
+
+    @Test
+    fun clarify1779_answeredServerRequestReplayDoesNotRecreateCard() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            mockEventsFlow.emit(singleClarifyServerRequest("srq-1779-a", sessionId))
+            advanceUntilIdle()
+            assertEquals(
+                "srq-1779-a",
+                viewModel.uiState.value.clarifyRequest
+                    ?.serverRequestId,
+            )
+
+            viewModel.respondToClarify("Yes")
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.clarifyRequest)
+            assertTrue(viewModel.uiState.value.isAgentTyping)
+
+            // Reconnect / resume / events.since replays the request before the server closed it.
+            mockEventsFlow.emit(singleClarifyServerRequest("srq-1779-a", sessionId, replayed = true))
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.clarifyRequest)
+            assertTrue(viewModel.uiState.value.isAgentTyping)
+        }
+
+    @Test
+    fun clarify1779_resolvedCancelClearsCardAndBlocksReplay() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            mockEventsFlow.emit(singleClarifyServerRequest("srq-1779-b", sessionId))
+            advanceUntilIdle()
+            mockEventsFlow.emit(
+                WsEvent.ServerRequestCancelled(
+                    id = "srq-1779-b",
+                    method = "clarify",
+                    reason = "resolved",
+                    sessionId = sessionId,
+                ),
+            )
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.clarifyRequest)
+
+            mockEventsFlow.emit(singleClarifyServerRequest("srq-1779-b", sessionId, replayed = true))
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.clarifyRequest)
+        }
+
+    @Test
+    fun clarify1779_replayWithEveryQuestionAnsweredShowsNoCard() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            // A null answer is a skipped question: still answered.
+            mockEventsFlow.emit(
+                WsEvent.ServerRequest(
+                    id = "srq-1779-c",
+                    method = "clarify",
+                    params =
+                        mapOf(
+                            "session_id" to sessionId,
+                            "questions" to
+                                listOf(
+                                    mapOf("qid" to "q0", "question" to "First?"),
+                                    mapOf("qid" to "q1", "question" to "Second?"),
+                                ),
+                            "answers" to mapOf("q0" to "yes", "q1" to null),
+                        ),
+                    replayed = true,
+                ),
+            )
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.clarifyRequest)
+        }
+
+    @Test
+    fun clarify1779_clarifySettledClearsCardAndBlocksReplay() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val request =
+                WsEvent.ClarifyRequest(
+                    text = "Fix now?",
+                    options = listOf("Yes", "No"),
+                    clarifyId = "prompt-1779",
+                    sessionId = sessionId,
+                    executionGeneration = 3,
+                )
+            mockEventsFlow.emit(request)
+            advanceUntilIdle()
+            assertEquals(
+                "prompt-1779",
+                viewModel.uiState.value.clarifyRequest
+                    ?.clarifyId,
+            )
+
+            mockEventsFlow.emit(WsEvent.ClarifyExpire("prompt-1779", sessionId, settled = true))
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.clarifyRequest)
+
+            // Event catch-up replays the original request.
+            mockEventsFlow.emit(request)
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.clarifyRequest)
+        }
+
+    @Test
+    fun clarify1779_canonicalPromptRespondsWithExactCanonicalParams() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            mockEventsFlow.emit(
+                WsEvent.ClarifyRequest(
+                    text = "Fix now?",
+                    options = listOf("Yes", "No"),
+                    clarifyId = "prompt-7",
+                    sessionId = sessionId,
+                    executionGeneration = 7,
+                ),
+            )
+            advanceUntilIdle()
+
+            viewModel.respondToClarify("Yes")
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.clarifyRequest)
+            verify {
+                HermesWsClient.send(
+                    method = WsMethods.CLARIFY_RESPOND,
+                    params =
+                        mapOf(
+                            "session_id" to sessionId,
+                            "execution_generation" to 7,
+                            "prompt_id" to "prompt-7",
+                            "answer" to "Yes",
+                        ),
+                    onSent = any(),
+                )
+            }
+
+            mockEventsFlow.emit(
+                WsEvent.SessionInfo(
+                    mapOf(
+                        "pending_clarify" to
+                            mapOf(
+                                "prompt_id" to "prompt-7",
+                                "execution_generation" to 7,
+                                "question" to "Fix now?",
+                            ),
+                    ),
+                    sessionId,
+                ),
+            )
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.clarifyRequest)
+        }
+
+    @Test
+    fun clarify1779_canonicalPromptDismissSendsEmptyAnswer() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            mockEventsFlow.emit(
+                WsEvent.ClarifyRequest(
+                    text = "Fix now?",
+                    options = listOf("Yes", "No"),
+                    clarifyId = "prompt-8",
+                    sessionId = sessionId,
+                    executionGeneration = 2,
+                ),
+            )
+            advanceUntilIdle()
+
+            viewModel.dismissClarify()
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.clarifyRequest)
+            verify {
+                HermesWsClient.send(
+                    method = WsMethods.CLARIFY_RESPOND,
+                    params =
+                        mapOf(
+                            "session_id" to sessionId,
+                            "execution_generation" to 2,
+                            "prompt_id" to "prompt-8",
+                            "answer" to "",
+                        ),
+                    onSent = any(),
+                )
+            }
+        }
+
+    @Test
+    fun clarify1779_answeredLegacyPendingClarifyIsNotReSurfaced() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            mockEventsFlow.emit(WsEvent.ClarifyRequest("Pick:", listOf("A", "B"), "clarify-1779"))
+            advanceUntilIdle()
+            viewModel.respondToClarify("A")
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.clarifyRequest)
+
+            mockEventsFlow.emit(
+                WsEvent.SessionInfo(
+                    mapOf(
+                        "pending_clarify" to
+                            mapOf(
+                                "request_id" to "clarify-1779",
+                                "question" to "Pick:",
+                                "choices" to listOf("A", "B"),
+                            ),
+                    ),
+                    sessionId,
+                ),
+            )
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.clarifyRequest)
+        }
+
     @Test
     fun testClarifyRequestCustomResponse() =
         runTest {

@@ -32,6 +32,50 @@ internal fun buildLegacyClarifyBatchResponses(
         .map { it.qid to answers[it.qid]?.trim().orEmpty() }
         .toList()
 
+/**
+ * Bounded, thread-safe record of clarify request ids that are answered or closed
+ * (#1779). Oldest ids drop first; ids are unique per request, so a small window
+ * covers every replay a live session can still deliver.
+ */
+internal class SettledClarifyIds(
+    private val capacity: Int = 256,
+) {
+    private val ids = LinkedHashSet<String>()
+
+    @Synchronized
+    fun add(id: String) {
+        ids.remove(id)
+        ids.add(id)
+        while (ids.size > capacity) ids.remove(ids.first())
+    }
+
+    @Synchronized
+    fun addAll(values: Collection<String>) = values.forEach(::add)
+
+    @Synchronized
+    operator fun contains(id: String): Boolean = id in ids
+}
+
+/**
+ * Canonical owner prompts (`clarify.request` with `prompt_id` + `execution_generation`)
+ * accept exactly `{session_id, execution_generation, prompt_id, answer}`; any other key
+ * is refused as `invalid_params`. Returns null for legacy gateways (#1779).
+ */
+internal fun canonicalClarifyRespondParams(
+    fallbackSessionId: String,
+    clarify: ClarifyUi?,
+    answer: String,
+): Map<String, Any>? {
+    val generation = clarify?.executionGeneration ?: return null
+    val promptId = clarify.clarifyId ?: return null
+    return mapOf(
+        "session_id" to (clarify.sessionId ?: fallbackSessionId),
+        "execution_generation" to generation,
+        "prompt_id" to promptId,
+        "answer" to answer,
+    )
+}
+
 class ChatClarifyDelegate(
     private val uiState: MutableStateFlow<ChatUiState>,
     private val scope: CoroutineScope,
@@ -41,6 +85,8 @@ class ChatClarifyDelegate(
     private val trackRequest: (String, String) -> Unit = { _, _ -> },
     private val respondToServerRequest: ((String, JsonElement) -> Unit)? = null,
     private val currentDataScope: () -> DataScope? = { runCatching { AuthManager.currentDataScope() }.getOrNull() },
+    /** Records request ids that are answered or closed, so replays never re-show them (#1779). */
+    private val markClarifySettled: (Collection<String>) -> Unit = {},
 ) {
     /**
      * Single-flight tracking for canonical clarify batch submissions keyed by
@@ -155,14 +201,10 @@ class ChatClarifyDelegate(
                                     ),
                                 )
 
-                            // Scope/session/request identity guard AFTER suspension before state updates:
-                            val currentSessionAfter = uiState.value.currentSessionId
-                            val activeScopeAfter = currentDataScope()
-                            val currentRequestIdAfter = uiState.value.clarifyRequest?.serverRequestId
-                            if (currentSessionAfter != sessionId ||
-                                activeScopeAfter != initialScope ||
-                                currentRequestIdAfter != serverRequestId
-                            ) {
+                            // Scope/session identity guard AFTER suspension before state updates.
+                            // The card itself may already be gone: the lock that settles the
+                            // batch races the server's `request.cancel {reason: resolved}` (#1779).
+                            if (uiState.value.currentSessionId != sessionId || currentDataScope() != initialScope) {
                                 return@launch
                             }
 
@@ -186,6 +228,7 @@ class ChatClarifyDelegate(
                                 }
 
                                 "expired" -> {
+                                    markClarifySettled(listOfNotNull(serverRequestId, clarifyId))
                                     uiState.update { current ->
                                         if (current.currentSessionId == sessionId &&
                                             currentDataScope() == initialScope &&
@@ -244,16 +287,14 @@ class ChatClarifyDelegate(
                                         ),
                                     )
 
-                                if (currentDataScope() != initialScope ||
-                                    uiState.value.currentSessionId != sessionId ||
-                                    uiState.value.clarifyRequest?.serverRequestId != serverRequestId
-                                ) {
+                                if (currentDataScope() != initialScope || uiState.value.currentSessionId != sessionId) {
                                     return@launch
                                 }
 
                                 when (probeResult.status) {
                                     "expired" -> {
                                         // The batch already ended on backend
+                                        markClarifySettled(listOfNotNull(serverRequestId, clarifyId))
                                         uiState.update { current ->
                                             if (current.currentSessionId == sessionId &&
                                                 currentDataScope() == initialScope &&
@@ -301,22 +342,23 @@ class ChatClarifyDelegate(
                             }
                         }
 
-                        // All locks settled and confirmed by server!
+                        // All locks settled and confirmed by server: the request is closed even
+                        // when a racing `request.cancel` already removed the card (#1779).
+                        markClarifySettled(listOfNotNull(serverRequestId, clarifyId))
                         // Atomic compare-and-set loop without side-effects inside lambda:
                         var committed = false
                         while (true) {
                             val current = uiState.value
-                            if (current.currentSessionId != sessionId ||
-                                currentDataScope() != initialScope ||
-                                current.clarifyRequest?.serverRequestId != serverRequestId
-                            ) {
+                            if (current.currentSessionId != sessionId || currentDataScope() != initialScope) {
                                 break
                             }
+                            val ownsCard = current.clarifyRequest?.serverRequestId == serverRequestId
                             val next =
                                 current.copy(
-                                    clarifyRequest = null,
+                                    clarifyRequest = if (ownsCard) null else current.clarifyRequest,
                                     messages = current.messages + userMessage,
-                                    isAgentTyping = true,
+                                    // Never re-arm typing for a turn that may already have ended.
+                                    isAgentTyping = if (ownsCard) true else current.isAgentTyping,
                                 )
                             if (uiState.compareAndSet(current, next)) {
                                 committed = true
@@ -354,6 +396,7 @@ class ChatClarifyDelegate(
         }
 
         // ── Fallback for non-canonical / older gateways ──────────────────────────
+        clarify?.let { markClarifySettled(it.requestIds) }
         uiState.update { it.copy(clarifyRequest = null) }
 
         val displayContent =
@@ -445,6 +488,14 @@ class ChatClarifyDelegate(
                 // Legacy single: only include question_id when explicitly present.
                 val qid = clarify?.questionId
                 val ans = answers.values.firstOrNull() ?: singleFallbackAnswer.orEmpty()
+                canonicalClarifyRespondParams(sessionId, clarify, ans.trim())?.let { params ->
+                    wsClient.send(
+                        method = WsMethods.CLARIFY_RESPOND,
+                        params = params,
+                        onSent = { id -> trackRequest(id, WsMethods.CLARIFY_RESPOND) },
+                    )
+                    return@launch
+                }
                 val params =
                     mutableMapOf<String, Any>(
                         "session_id" to sessionId,

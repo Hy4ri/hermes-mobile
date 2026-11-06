@@ -176,11 +176,20 @@ sealed class WsEvent {
         val questions: List<ClarifyQuestion> = emptyList(),
         val serverRequestId: String? = null,
         val lockedAnswers: Map<String, String> = emptyMap(),
+        /** Canonical owner `clarify.request` fence: `clarify.respond` must echo it. */
+        val executionGeneration: Int? = null,
     ) : WsEvent()
 
+    /**
+     * The prompt is gone server-side: `clarify.expire` (legacy) or `clarify.settled`
+     * (canonical owner, published once the prompt resolves or ends). Both close the
+     * request for good: the client never re-shows a card for that id (#1779). [settled]
+     * marks the canonical event.
+     */
     data class ClarifyExpire(
         val clarifyId: String? = null,
         val sessionId: String? = null,
+        val settled: Boolean = false,
     ) : WsEvent()
 
     /**

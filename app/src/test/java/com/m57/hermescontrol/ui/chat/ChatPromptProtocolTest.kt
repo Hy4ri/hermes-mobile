@@ -131,6 +131,102 @@ class ChatPromptProtocolTest {
     }
 
     @Test
+    fun canonicalClarifyBatch_lastLockSettlesEvenWhenResolvedCancelClearedCardFirst() {
+        // #1779: the lock that empties `remaining` settles the request; the server's
+        // `request.cancel {reason: resolved}` can clear the card before the lock reply lands.
+        val mockWsClient = mockk<HermesWsClient>(relaxed = true)
+        every { mockWsClient.canonicalClarifyBatch } returns true
+        val scope = TestScope(dispatcher)
+        val uiState =
+            MutableStateFlow(
+                ChatUiState(
+                    currentSessionId = "session-1",
+                    isAgentTyping = false,
+                    clarifyRequest =
+                        ClarifyUi(
+                            text = "",
+                            questions = listOf(ClarifyQuestionUi(qid = "q0", question = "First?")),
+                            serverRequestId = "srq-race",
+                        ),
+                ),
+            )
+        coEvery { mockWsClient.call(RpcMethods.CLARIFY_LOCK, any()) } answers {
+            uiState.value = uiState.value.copy(clarifyRequest = null, isAgentTyping = true)
+            ClarifyLockResult(status = "ok", remaining = emptyList())
+        }
+        val settled = mutableListOf<String>()
+        val persisted = mutableListOf<ChatMessage>()
+        val delegate =
+            ChatClarifyDelegate(
+                uiState = uiState,
+                scope = scope,
+                ioDispatcher = dispatcher,
+                persistMessage = { msg, _ -> persisted.add(msg) },
+                wsClient = mockWsClient,
+                markClarifySettled = { settled.addAll(it) },
+            )
+
+        delegate.respondToClarifyBatch(mapOf("q0" to "yes"))
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(uiState.value.clarifyRequest)
+        assertEquals(listOf("srq-race"), settled)
+        assertEquals(
+            DisplayKind.CLARIFY_RESPONSE,
+            uiState.value.messages
+                .last()
+                .displayKind,
+        )
+        assertEquals(1, persisted.size)
+    }
+
+    @Test
+    fun canonicalClarifyBatch_lastLockClearsCardAndMarksSettled() {
+        val mockWsClient = mockk<HermesWsClient>(relaxed = true)
+        every { mockWsClient.canonicalClarifyBatch } returns true
+        coEvery {
+            mockWsClient.call(RpcMethods.CLARIFY_LOCK, any())
+        } returnsMany
+            listOf(
+                ClarifyLockResult(status = "ok", remaining = listOf("q1")),
+                ClarifyLockResult(status = "ok", remaining = emptyList()),
+            )
+        val scope = TestScope(dispatcher)
+        val uiState =
+            MutableStateFlow(
+                ChatUiState(
+                    currentSessionId = "session-1",
+                    clarifyRequest =
+                        ClarifyUi(
+                            text = "",
+                            questions =
+                                listOf(
+                                    ClarifyQuestionUi(qid = "q0", question = "First?"),
+                                    ClarifyQuestionUi(qid = "q1", question = "Second?"),
+                                ),
+                            serverRequestId = "srq-two",
+                        ),
+                ),
+            )
+        val settled = mutableListOf<String>()
+        val delegate =
+            ChatClarifyDelegate(
+                uiState = uiState,
+                scope = scope,
+                ioDispatcher = dispatcher,
+                persistMessage = { _, _ -> },
+                wsClient = mockWsClient,
+                markClarifySettled = { settled.addAll(it) },
+            )
+
+        delegate.respondToClarifyBatch(mapOf("q0" to "a", "q1" to "b"))
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(uiState.value.clarifyRequest)
+        assertEquals(listOf("srq-two"), settled)
+    }
+
+    @Test
     fun canonicalClarifyBatch_stopsWhenStatusExpired() {
         val mockWsClient = mockk<HermesWsClient>(relaxed = true)
         every { mockWsClient.canonicalClarifyBatch } returns true

@@ -28,9 +28,9 @@ Use test rooms and harmless messages. Do not approve an unsafe command for testi
 1. Open a legacy group on an older gateway. Confirm its existing behavior is unchanged. Open Hosted rooms and confirm the unsupported message appears without breaking legacy rooms.
 2. On a compatible gateway, select a listed room. Confirm its stable room ID, name, and replayed messages. Rooms with equal names must remain distinct.
 3. Send one harmless message. Confirm one user event and the member reply appear in the room log.
-4. Interrupt the connection while a send receipt is outstanding. After reconnect, confirm the app does not resend automatically. Replay must clear a pending send if the gateway already accepted it. Otherwise, **Retry send** must reuse its original ID and text.
+4. Interrupt the connection while a send receipt is outstanding. After reconnect, confirm the app does not resend automatically. Replay must clear a pending send if the gateway already accepted it. Otherwise, **Retry send** must reuse its original ID and text, and **Discard** must forget only the local attempt: no RPC, an unchanged log, and it must work while disconnected.
 5. Switch profiles or saved connections while a room read or send is outstanding. Confirm no old room data appears in the new scope. Repeat with two connections that use the same profile name.
-6. Stop queued or running test work. Confirm the gateway stops that room's work, not a legacy session or another room.
+6. Stop queued or running test work. Confirm **Stop** is disabled when the gateway reports nothing to cancel, asks for confirmation, and stops that room's work rather than a legacy session or another room.
 7. For an indeterminate test task, confirm **Retry task** shows the duplicate-execution warning. Cancel first. Then confirm a safe retry and check the gateway's task generation.
 8. For a harmless pending approval, confirm the displayed command and reason. Verify cancel, **once**, and **deny**. The app must not offer a persistent approval choice.
 9. Confirm read-only behavior when the driver is unavailable and recovery when it becomes available. Confirm a disbanded room cannot send new messages.
@@ -61,6 +61,21 @@ Additional device checks:
 5. Use an older gateway that omits activity. Check the unavailable label, without a false
    completion or fabricated legacy tool indicator. Check null timestamps and tools.
 6. Check narrow portrait, large text, RTL, and TalkBack with several live members.
+
+## Room target state and cancelling (#462)
+
+One line above the log mirrors the Desktop attention line from `groups.state`. Approvals outrank
+retries, a block needs an unresolved task (a settling stop is work, not a block), then live work,
+then idle. It is derived from the snapshot only; it is not a new RPC, and it renders nothing when
+the driver is unavailable.
+
+1. Approve or deny a pending approval. Confirm the line reads waiting approval, then returns to
+   working or idle without a refresh that drops the room.
+2. Leave an indeterminate task in place. Confirm the line reads blocked and uses the error color.
+3. Start harmless work, then stop it. Confirm the settling stop shows as working, not blocked, and
+   **Stop** greys out once nothing cancellable remains.
+4. Check the line and its counts at large font, Arabic/RTL, and with TalkBack; counts must be plural
+   and the line must not duplicate the roster.
 
 ## Shared context and routing (#417)
 

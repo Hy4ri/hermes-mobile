@@ -391,6 +391,17 @@ class HostedRoomsController(
         }
     }
 
+    /**
+     * The user's explicit withdrawal of an unconfirmed send. This forgets only the local delivery attempt:
+     * it sends nothing and cancels no room work, and a message the gateway already accepted stays in the log.
+     * It works while disconnected because forgetting a local copy needs no server round trip.
+     */
+    fun cancelPendingSend() {
+        syncOwner()
+        if (state.value.pendingSend == null) return
+        mutableState.update { it.copy(pendingSend = null) }
+    }
+
     suspend fun stop() = mutate { owner, roomId -> source.stop(owner.profile, roomId, newId()) }
 
     suspend fun retry(task: HostedTask) {

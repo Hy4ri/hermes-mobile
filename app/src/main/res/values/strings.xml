@@ -2222,6 +2222,9 @@
     <string name="hosted_tool">Tool: %1$s</string>
     <string name="hosted_elapsed">Elapsed: %1$ds</string>
     <string name="hosted_progress_age">Last progress: %1$ds ago</string>
+    <string name="hosted_attention_blocked">Blocked</string>
+    <string name="hosted_attention_approvals">%1$d waiting for approval</string>
+    <string name="hosted_attention_other">Needs attention: %1$d</string>
 
     <string name="hosted_context_settings">Room settings</string>
     <string name="hosted_context_purpose">Purpose</string>

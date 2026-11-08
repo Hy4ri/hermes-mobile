@@ -275,7 +275,6 @@ fun PluginsScreen(
                                     }
                                 }
 
-                                // Search bar
                                 item(key = "search") {
                                     ManageableFilterRow(
                                         query = query,

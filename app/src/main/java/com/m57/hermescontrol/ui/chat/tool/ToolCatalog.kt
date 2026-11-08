@@ -141,4 +141,6 @@ internal object ToolCatalog {
         )
 
     fun definitionFor(toolName: String?): ToolDefinition = toolName?.let { entries[it] } ?: FALLBACK
+
+    fun rendererFor(toolName: String): ToolRenderer = definitionFor(toolName).renderer
 }

@@ -89,7 +89,6 @@ fun LazyListScope.hostSection(
                         InfoRow(stringResource(R.string.system_label_hermes_version), "$ver$updateBadge")
                     }
 
-                    // Update buttons
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(top = spacing.sm),
                         horizontalArrangement = Arrangement.spacedBy(spacing.sm),

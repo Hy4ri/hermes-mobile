@@ -394,8 +394,8 @@ internal fun HostedRoomsContent(
                             }
                             if (confirmed.routing == "lead") {
                                 state.snapshot
-                                    ?.room
-                                    ?.members
+                                    .room
+                                    .members
                                     .orEmpty()
                                     .find { !it.memberId.isNullOrBlank() && it.memberId == confirmed.leadMemberId }
                                     ?.let { lead ->

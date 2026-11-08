@@ -243,7 +243,6 @@ fun GatewayScreen(
                                 }
                             }
 
-                            // Platforms Card
                             status?.gateway_platforms?.let { platforms ->
                                 if (platforms.isNotEmpty()) {
                                     Card(

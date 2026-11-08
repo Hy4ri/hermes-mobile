@@ -407,7 +407,6 @@ private fun ModelSettingsSection(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // MOA row
             SettingsRow(
                 icon = {
                     Icon(

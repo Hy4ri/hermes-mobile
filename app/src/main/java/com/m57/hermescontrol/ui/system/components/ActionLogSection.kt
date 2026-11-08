@@ -57,7 +57,6 @@ fun LazyListScope.actionLogSection(
                 ),
         ) {
             Column(modifier = Modifier.padding(spacing.md)) {
-                // Action title
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,

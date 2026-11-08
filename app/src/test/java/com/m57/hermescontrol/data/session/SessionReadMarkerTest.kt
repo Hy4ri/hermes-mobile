@@ -13,6 +13,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -37,7 +38,7 @@ class SessionReadMarkerTest {
     private fun fenceReturns(revision: Int?) {
         coEvery { api.getSessionMutationSnapshot(any()) } returns
             if (revision == null) {
-                Response.error(404, okhttp3.ResponseBody.create(null, ""))
+                Response.error(404, "".toResponseBody(null))
             } else {
                 Response.success(
                     SessionMutationSnapshot(
@@ -100,7 +101,7 @@ class SessionReadMarkerTest {
         runTest(UnconfinedTestDispatcher()) {
             fenceReturns(1)
             coEvery { api.setSessionRead(any(), any()) } returns
-                Response.error(409, okhttp3.ResponseBody.create(null, ""))
+                Response.error(409, "".toResponseBody(null))
             val marker = markerIn(backgroundScope)
             marker.markRead("s")
             assertEquals(1, failures.size)

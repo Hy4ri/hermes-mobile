@@ -19,7 +19,7 @@ import kotlinx.serialization.json.contentOrNull
  * 2. resolve status via [ToolStatusResolver] (running / success / error /
  *    warning, with the desktop's rule that a non-zero exit code alone is
  *    NOT an error)
- * 3. dispatch to the tool's [ToolRenderer] (via [ToolRendererRegistry]) for
+ * 3. dispatch to the tool's [ToolRenderer] (via [ToolCatalog]) for
  *    title/subtitle/detail and structured extras (streams, diffs, hits)
  * 4. apply the cross-cutting polish: error/detail merging, redundancy
  *    suppression, count labels ([ToolCounts]), duration, image URLs

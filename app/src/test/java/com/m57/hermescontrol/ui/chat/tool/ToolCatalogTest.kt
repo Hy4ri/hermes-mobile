@@ -20,7 +20,6 @@ class ToolCatalogTest {
         for ((name, def) in ToolCatalog.entries) {
             assertSame(name, def.icon, ToolSchemaRegistry.getDisplayConfig(name).icon)
             assertSame(name, def.renderer, ToolCatalog.rendererFor(name))
-            assertSame(name, def.renderer, ToolRendererRegistry.rendererFor(name))
             assertEquals(name, ToolSchemaRegistry.getDisplayConfig(name).name)
         }
     }

@@ -73,7 +73,6 @@ fun SideQuestionSheet(
                     .padding(bottom = 24.dp)
                     .verticalScroll(rememberScrollState()),
         ) {
-            // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -135,7 +134,6 @@ fun SideQuestionSheet(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            // Loading state
             if (state.isLoading) {
                 Column(
                     modifier =
@@ -159,7 +157,6 @@ fun SideQuestionSheet(
                 }
             }
 
-            // Error state
             if (!state.error.isNullOrBlank()) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),

@@ -381,7 +381,7 @@ class ChatViewModelTest {
             val (vm, _) = createViewModelWithSession(sendStore = store)
             val refused = refuseOwnedSend(vm, store)
             val source = java.io.File(attachmentFilesDir, "chat-send/${refused.id}/0")
-            source.parentFile.mkdirs()
+            source.parentFile?.mkdirs()
             source.writeBytes(byteArrayOf(1, 2, 3))
             val sourceUri = mockk<Uri>()
             val snapshotUri = mockk<Uri>()

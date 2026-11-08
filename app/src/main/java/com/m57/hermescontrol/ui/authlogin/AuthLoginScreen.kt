@@ -155,7 +155,6 @@ fun AuthLoginScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // Hero icon
             Box(
                 modifier = Modifier.size(64.dp),
                 contentAlignment = Alignment.Center,

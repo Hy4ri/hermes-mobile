@@ -43,7 +43,7 @@ object ToolViewBuilder {
         running: Boolean = false,
     ): ToolView {
         val call = ToolCall.of(toolName, args, result)
-        val renderer = ToolRendererRegistry.rendererFor(toolName)
+        val renderer = ToolCatalog.rendererFor(toolName)
 
         val status = ToolStatusResolver.status(call, isError, running)
         val error =

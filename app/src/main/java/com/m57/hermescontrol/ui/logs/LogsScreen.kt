@@ -205,7 +205,6 @@ fun LogsScreen(
                                 vertical = spacing.sm,
                             ),
                     ) {
-                        // Search bar
                         item {
                             SearchBar(
                                 query = query,

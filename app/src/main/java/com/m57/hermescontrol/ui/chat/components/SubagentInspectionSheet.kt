@@ -139,7 +139,6 @@ fun SubagentInspectionSheet(
                     .padding(horizontal = 16.dp)
                     .padding(bottom = 24.dp),
         ) {
-            // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,

@@ -92,7 +92,6 @@ fun AppUpdateDialog(
                         .fillMaxWidth()
                         .padding(20.dp),
             ) {
-                // Header
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth(),

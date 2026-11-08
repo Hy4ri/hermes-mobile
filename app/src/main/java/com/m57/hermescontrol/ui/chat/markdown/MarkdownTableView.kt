@@ -93,7 +93,6 @@ fun MarkdownTable(
                         .then(scrollModifier)
                         .padding(vertical = 4.dp),
             ) {
-                // Header row
                 Row(modifier = Modifier.background(headerBg), verticalAlignment = Alignment.Top) {
                     block.header.forEachIndexed { idx, cell ->
                         MarkdownInlineText(

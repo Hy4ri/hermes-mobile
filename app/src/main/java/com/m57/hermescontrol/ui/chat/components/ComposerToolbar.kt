@@ -504,7 +504,6 @@ fun ComposerToolbar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                // Attach button
                 FilledIconButton(
                     onClick = onAttachTap,
                     shapes = IconButtonDefaults.shapes(),

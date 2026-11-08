@@ -547,7 +547,7 @@ class ChatModelSwitchDelegate(
         scope.launch(ioDispatcher) {
             val value =
                 try {
-                    parseDaybreakConfigValue(getRequest(ConfigGetParams(key = DAYBREAK_CONFIG_KEY))?.toAny())
+                    parseDaybreakConfigValue(getRequest(ConfigGetParams(key = DAYBREAK_CONFIG_KEY)).toAny())
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -590,7 +590,7 @@ class ChatModelSwitchDelegate(
                                 value = on.toString(),
                             ),
                         )
-                    val responseMap = result?.toAny() as? Map<*, *>
+                    val responseMap = result.toAny() as? Map<*, *>
                     val saved = parseDaybreakConfigValue(responseMap)
                     if (saved == null || responseMap?.get("key") != DAYBREAK_CONFIG_KEY) {
                         throw IllegalStateException("Invalid daybreak config.set response")

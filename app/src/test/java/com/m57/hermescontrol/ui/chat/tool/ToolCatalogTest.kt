@@ -19,6 +19,7 @@ class ToolCatalogTest {
     fun `icon and renderer lookups read the same catalog entry`() {
         for ((name, def) in ToolCatalog.entries) {
             assertSame(name, def.icon, ToolSchemaRegistry.getDisplayConfig(name).icon)
+            assertSame(name, def.renderer, ToolCatalog.rendererFor(name))
             assertSame(name, def.renderer, ToolRendererRegistry.rendererFor(name))
             assertEquals(name, ToolSchemaRegistry.getDisplayConfig(name).name)
         }
@@ -35,12 +36,12 @@ class ToolCatalogTest {
 
     @Test
     fun `known tools keep their renderers and icons`() {
-        assertSame(TerminalRenderer, ToolRendererRegistry.rendererFor("terminal"))
+        assertSame(TerminalRenderer, ToolCatalog.rendererFor("terminal"))
         assertSame(Icons.Filled.Terminal, ToolSchemaRegistry.getDisplayConfig("terminal").icon)
-        assertSame(FileEditRenderer, ToolRendererRegistry.rendererFor("edit_file"))
-        assertSame(BrowserTypeRenderer, ToolRendererRegistry.rendererFor("browser_fill"))
+        assertSame(FileEditRenderer, ToolCatalog.rendererFor("edit_file"))
+        assertSame(BrowserTypeRenderer, ToolCatalog.rendererFor("browser_fill"))
         // Icon-only tools still render generically.
-        assertSame(GenericToolRenderer, ToolRendererRegistry.rendererFor("clarify"))
+        assertSame(GenericToolRenderer, ToolCatalog.rendererFor("clarify"))
     }
 
     @Test
@@ -48,6 +49,6 @@ class ToolCatalogTest {
         assertSame(Icons.Filled.Build, ToolSchemaRegistry.getDisplayConfig("mystery").icon)
         assertEquals("mystery", ToolSchemaRegistry.getDisplayConfig("mystery").name)
         assertEquals("tool", ToolSchemaRegistry.getDisplayConfig(null).name)
-        assertSame(GenericToolRenderer, ToolRendererRegistry.rendererFor("mystery"))
+        assertSame(GenericToolRenderer, ToolCatalog.rendererFor("mystery"))
     }
 }

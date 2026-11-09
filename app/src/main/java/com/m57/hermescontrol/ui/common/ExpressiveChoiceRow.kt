@@ -27,8 +27,7 @@ import androidx.compose.ui.unit.dp
 // Use the existing strong foreground token; keep every other native state color.
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-internal fun expressiveChoiceColors() =
-    ToggleButtonDefaults.toggleButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
+internal fun expressiveChoiceColors() = ToggleButtonDefaults.colors(contentColor = MaterialTheme.colorScheme.onSurface)
 
 /**
  * Shared native Expressive connected single-choice row adapter built with
@@ -55,46 +54,52 @@ fun ExpressiveChoiceRow(
         }
 
     ButtonGroup(
+        overflowIndicator = {},
         modifier = modifier.horizontalScroll(scrollState).selectableGroup(),
         horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
     ) {
         options.forEachIndexed { index, option ->
             val isSelected = index == selectedIndex
-            val shapes: ToggleButtonShapes =
-                when {
-                    options.size == 1 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                    index == 0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                    index == options.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
-                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
-                }
             val interactionSource = interactionSources[index]
 
-            ToggleButton(
-                checked = isSelected,
-                onCheckedChange = { checked ->
-                    if (checked && !isSelected) {
-                        onSelect(index)
+            customItem(
+                buttonGroupContent = {
+                    val shapes: ToggleButtonShapes =
+                        when {
+                            options.size == 1 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                            index == 0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                            index == options.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                            else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                        }
+                    ToggleButton(
+                        checked = isSelected,
+                        onCheckedChange = { checked ->
+                            if (checked && !isSelected) {
+                                onSelect(index)
+                            }
+                        },
+                        modifier =
+                            Modifier
+                                .animateWidth(interactionSource)
+                                .heightIn(min = 48.dp)
+                                .semantics {
+                                    role = Role.RadioButton
+                                    selected = isSelected
+                                },
+                        enabled = enabled,
+                        colors = expressiveChoiceColors(),
+                        shapes = shapes,
+                        interactionSource = interactionSource,
+                    ) {
+                        Text(
+                            text = option,
+                            maxLines = 1,
+                            softWrap = false,
+                        )
                     }
                 },
-                modifier =
-                    Modifier
-                        .animateWidth(interactionSource)
-                        .heightIn(min = 48.dp)
-                        .semantics {
-                            role = Role.RadioButton
-                            selected = isSelected
-                        },
-                enabled = enabled,
-                colors = expressiveChoiceColors(),
-                shapes = shapes,
-                interactionSource = interactionSource,
-            ) {
-                Text(
-                    text = option,
-                    maxLines = 1,
-                    softWrap = false,
-                )
-            }
+                menuContent = {},
+            )
         }
     }
 }

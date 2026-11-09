@@ -262,6 +262,9 @@
     <!-- Chat Screen & Bubble -->
     <string name="chat_action_search">Search</string>
     <string name="chat_action_export">Export chat</string>
+    <string name="chat_action_archive">Archive chat</string>
+    <string name="chat_archived">Chat archived</string>
+    <string name="chat_archive_failed">Could not archive chat: %1$s</string>
     <string name="chat_export_title">Export chat transcript</string>
     <string name="chat_export_failed">Could not export chat: %1$s</string>
     <string name="chat_export_share_chooser">Share chat transcript</string>

@@ -50,6 +50,7 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.SnackbarVisuals
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -604,8 +605,7 @@ fun ChatScreen(
         snackbarHost = {
             SnackbarHost(snackbarHostState, modifier = Modifier.imePadding()) { data ->
                 val statusColors = LocalHermesStatusColors.current
-                val undoLabel = stringResource(R.string.sessions_undo_action)
-                val isSuccess = data.visuals.message.startsWith("Saved ") || data.visuals.actionLabel == undoLabel
+                val isSuccess = data.visuals is SuccessSnackbarVisuals || data.visuals.message.startsWith("Saved ")
                 Snackbar(
                     snackbarData = data,
                     containerColor =
@@ -767,7 +767,12 @@ fun ChatScreen(
                                 contentDescription = null,
                             )
                         },
-                        enabled = state.currentSessionId != null && state.hasConversation,
+                        // Not while a reply is being generated: archiving does not stop the run.
+                        enabled =
+                            state.currentSessionId != null &&
+                                state.hasConversation &&
+                                !state.isAgentTyping &&
+                                !state.isMainTurnBusy,
                         onClick = {
                             showSessionMenu = false
                             val sessionId = state.currentSessionId
@@ -791,10 +796,11 @@ fun ChatScreen(
                                     ShortcutRefreshEvents.refresh()
                                     val outcome =
                                         snackbarHostState.showSnackbar(
-                                            message = archivedMessage,
-                                            actionLabel = archiveUndoLabel,
-                                            withDismissAction = true,
-                                            duration = SnackbarDuration.Short,
+                                            SuccessSnackbarVisuals(
+                                                message = archivedMessage,
+                                                actionLabel = archiveUndoLabel,
+                                                withDismissAction = true,
+                                            ),
                                         )
                                     if (outcome == SnackbarResult.ActionPerformed) {
                                         try {
@@ -1399,3 +1405,11 @@ internal fun ChatBackgroundConnectionMenuItem(
         modifier = Modifier.testTag("chat_menu_keep_connected"),
     )
 }
+
+/** Marks a snackbar as a confirmation, so the host picks the success colours without guessing from its action. */
+private class SuccessSnackbarVisuals(
+    override val message: String,
+    override val actionLabel: String? = null,
+    override val withDismissAction: Boolean = false,
+    override val duration: SnackbarDuration = SnackbarDuration.Short,
+) : SnackbarVisuals

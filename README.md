@@ -51,7 +51,7 @@ It connects to the Hermes dashboard (REST API and WebSocket gateway), so you nee
   <img src="docs/screenshots/sidebar-2.png" width="180" alt="Hermes Mobile secondary navigation" />
 </p>
 
-<p align="center"><em>Chat, automation, productivity, and agent configuration — from your phone.</em></p>
+<p align="center"><em>Chat, automation, productivity, and agent configuration from your phone.</em></p>
 
 ---
 
@@ -356,7 +356,7 @@ If the dashboard is bound to loopback on its own host, or the phone cannot route
 gateway. Configure it from **SSH tunnel** on the sign-in screen (next to **Custom headers**) or from **Settings → Connection → SSH tunnel**.
 
 - **SSH server / port / username** is the host the phone can already reach.
-- **Remote host / port** is the dashboard address as seen from that SSH server — usually `127.0.0.1` and `9119`.
+- **Remote host / port** is the dashboard address as seen from that SSH server, usually `127.0.0.1` and `9119`.
 - Authentication is either the SSH **password** or an OpenSSH/PEM **private key** with an optional passphrase. Credentials are stored in the app's
   encrypted preferences, never in `server_store.json`.
 - The dashboard **URL is unchanged**: the app opens a local forward on `127.0.0.1` and routes that origin's sockets through it, so cookies, TLS/mTLS

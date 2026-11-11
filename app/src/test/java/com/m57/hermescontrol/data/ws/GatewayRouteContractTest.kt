@@ -2,6 +2,9 @@ package com.m57.hermescontrol.data.ws
 
 import com.m57.hermescontrol.data.ws.contract.RpcMethod
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
+import com.m57.hermescontrol.data.ws.contract.SessionEventsSinceResult
+import com.m57.hermescontrol.data.ws.contract.SessionIdParams
+import com.m57.hermescontrol.data.ws.contract.SessionTitleParams
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.descriptors.PrimitiveKind
@@ -14,6 +17,8 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -96,6 +101,62 @@ class GatewayRouteContractTest {
     }
 
     @Test
+    fun titleUsesRenameMutationOnAuthorityAndRetainsRequestUntilSettled() =
+        runTest {
+            val channel = RpcChannel(this, json, { _, _, _ -> "" }, { true }, {}, {})
+            val tracker =
+                ReplayTracker(this, {
+                    com.m57.hermescontrol.data.ws.contract
+                        .SessionEventsSinceResult()
+                }, {})
+            val method = RpcMethods.SESSION_TITLE
+
+            fun send() =
+                channel.createRequest(
+                    method.name,
+                    channel.encodeParams(method, SessionTitleParams(SESSION, "New", "p")),
+                )
+
+            fun frame(text: String) = channel.handleIncomingFrame(text, tracker) {}
+
+            fun JsonRpcRequest.param(name: String) = params[name]
+
+            val legacy = send()
+            assertEquals(WsMethods.SESSION_TITLE, legacy.method)
+            assertEquals(JsonPrimitive("New"), legacy.param("title"))
+            frame("""{"method":"event","params":{"type":"gateway.ready","payload":{"session_authority":true}}}""")
+            assertEquals(WsMethods.SESSION_TITLE, send().method) // No revision yet.
+            frame(
+                """{"method":"event","params":{"type":"session.info","session_id":"$SESSION","seq":1,""" +
+                    """"payload":{"revision":7}}}""",
+            )
+            val first = send()
+            assertEquals(WsMethods.SESSION_MUTATE, first.method)
+            assertEquals(emptyList<String>(), GatewayContract.routeParamProblems(first.method, first.params.keys, true))
+            assertEquals(JsonPrimitive("rename"), first.param("operation"))
+            assertEquals(JsonObject(mapOf("title" to JsonPrimitive("New"))), first.param("payload"))
+            assertEquals(JsonPrimitive(7), first.param("expected_revision"))
+            assertEquals(
+                setOf("session_id", "request_id", "expected_revision", "operation", "payload"),
+                first.params.keys,
+            )
+            assertEquals(first.param("request_id"), send().param("request_id"))
+            val receipt = """{"session_id":"$SESSION","operation":"rename","revision":8,"title":"New"}"""
+            assertEquals("New", json.decodeFromString(method.result, receipt).title)
+            frame("""{"id":"${first.id}","result":$receipt}""")
+            val next = send()
+            assertNotEquals(first.param("request_id"), next.param("request_id"))
+            assertEquals(JsonPrimitive(8), next.param("expected_revision"))
+            frame(
+                """{"id":"${next.id}","error":{"code":4009,"message":"conflict",""" +
+                    """"data":{"reason":"revision_conflict","revision":11}}}""",
+            )
+            val afterConflict = send()
+            assertNotEquals(next.param("request_id"), afterConflict.param("request_id"))
+            assertEquals(JsonPrimitive(11), afterConflict.param("expected_revision"))
+        }
+
+    @Test
     fun everyTypedRpcMatchesTheContractOnBothRoutes() =
         runTest {
             val problems = mutableListOf<String>()
@@ -144,6 +205,107 @@ class GatewayRouteContractTest {
                     assertEquals(method.name, requireNotNull(wire(method, false, full, this)).first)
                 }
             }
+        }
+
+    @Test
+    fun authorityCompressionUsesCanonicalMutationContract() =
+        runTest {
+            val (method, keys) = requireNotNull(wire(RpcMethods.SESSION_COMPRESS, true, true, this))
+            assertTrue("expected session.mutate, got $method", method == WsMethods.SESSION_MUTATE)
+            val problems = GatewayContract.routeParamProblems(method, keys, authority = true)
+            assertTrue(problems.joinToString("\n"), problems.isEmpty())
+            assertTrue("generation fence missing", "expected_generation" in keys)
+        }
+
+    @Test
+    fun deleteUsesFencedMutationOnAuthorityAndLegacyMethodElsewhere() =
+        runTest {
+            val channel =
+                RpcChannel(
+                    scope = this,
+                    json = json,
+                    sendRequest = { _, _, _ -> "" },
+                    sendFrame = { true },
+                    removeQueuedMessage = {},
+                    onIdleCheck = {},
+                )
+            val tracker =
+                ReplayTracker(this, {
+                    com.m57.hermescontrol.data.ws.contract
+                        .SessionEventsSinceResult()
+                }, {})
+
+            val delete = RpcMethod(WsMethods.SESSION_DELETE, SessionIdParams.serializer(), JsonObject.serializer())
+
+            fun frame(text: String) = channel.handleIncomingFrame(text, tracker) {}
+
+            fun request() = channel.createRequest(delete.name, channel.encodeParams(delete, SessionIdParams(SESSION)))
+
+            val legacy = request()
+            assertEquals(WsMethods.SESSION_DELETE, legacy.method)
+            assertEquals(mapOf("session_id" to JsonPrimitive(SESSION)), legacy.params)
+            assertTrue(GatewayContract.routeParamProblems(legacy.method, legacy.params.keys, false).isEmpty())
+
+            frame("""{"method":"event","params":{"type":"gateway.ready","payload":{"session_authority":true}}}""")
+            frame(
+                """{"method":"event","params":{"type":"session.info","session_id":"$SESSION","seq":1,""" +
+                    """"payload":{"revision":7,"execution_generation":2}}}""",
+            )
+            val first = request()
+            assertEquals(WsMethods.SESSION_MUTATE, first.method)
+            assertEquals(
+                setOf("session_id", "request_id", "expected_revision", "expected_generation", "operation", "payload"),
+                first.params.keys,
+            )
+            assertTrue(GatewayContract.routeParamProblems(first.method, first.params.keys, true).isEmpty())
+            assertEquals(JsonPrimitive(SESSION), first.params["session_id"])
+            assertEquals(JsonPrimitive(7), first.params["expected_revision"])
+            assertEquals(JsonPrimitive(2), first.params["expected_generation"])
+            assertEquals(JsonPrimitive("delete"), first.params["operation"])
+            assertEquals(JsonObject(emptyMap()), first.params["payload"])
+            assertEquals(first.params, request().params)
+
+            frame(
+                """{"id":"${first.id}","error":{"code":4009,"message":"session_busy",""" +
+                    """"data":{"reason":"session_busy","revision":8}}}""",
+            )
+            val afterBusy = request()
+            assertNotEquals(first.params["request_id"], afterBusy.params["request_id"])
+            assertEquals(JsonPrimitive(8), afterBusy.params["expected_revision"])
+            frame(
+                """{"id":"${afterBusy.id}","error":{"code":4009,"message":"runtime_coordination_required",""" +
+                    """"data":{"reason":"runtime_coordination_required"}}}""",
+            )
+            val afterCoordination = request()
+            assertNotEquals(afterBusy.params["request_id"], afterCoordination.params["request_id"])
+        }
+
+    @Test
+    fun sessionStatusIsLegacyOnly() =
+        runTest {
+            val channel =
+                RpcChannel(
+                    scope = this,
+                    json = json,
+                    sendRequest = { _, _, _ -> "" },
+                    sendFrame = { true },
+                    removeQueuedMessage = {},
+                    onIdleCheck = {},
+                )
+            val params = mapOf("session_id" to SESSION)
+            assertEquals(WsMethods.SESSION_STATUS, channel.createRequest(WsMethods.SESSION_STATUS, params).method)
+            val tracker = ReplayTracker(this, { SessionEventsSinceResult() }, {})
+            channel.handleIncomingFrame(
+                """{"method":"event","params":{"type":"gateway.ready","payload":{"session_authority":true}}}""",
+                tracker,
+            ) {}
+            val error =
+                assertThrows(IllegalArgumentException::class.java) {
+                    channel.createRequest(WsMethods.SESSION_STATUS, params)
+                }
+            assertTrue(error.message.orEmpty().contains("session.status"))
+            assertTrue(GatewayContract.routeParamProblems(WsMethods.SESSION_STATUS, params.keys, false).isEmpty())
+            assertTrue(GatewayContract.routeParamProblems(WsMethods.SESSION_STATUS, params.keys, true).isNotEmpty())
         }
 
     private companion object {

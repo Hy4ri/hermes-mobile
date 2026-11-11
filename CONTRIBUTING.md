@@ -142,8 +142,16 @@ We enforce Kotlin coding conventions and Jetpack Compose best practices.
 `GatewayContractTest` checks `WsMethods`, handled server requests and literal param keys against a vendored copy of
 hermes-agent's `gateway-contract.openrpc.json` (`app/src/test/resources/gateway-contract/`, provenance in `SOURCE`).
 It is test-only. Refresh it with `scripts/sync-gateway-contract.sh [ref]`, then run
-`./gradlew testDebugUnitTest --tests '*GatewayContract*'` and review the diff. Allowlist exceptions need a reason in
-`GatewayContractAllowlist`.
+`./gradlew testDebugUnitTest --tests '*GatewayContractTest' --tests '*GatewayRouteContractTest'` and review the diff.
+Allowlist exceptions need a reason in
+`GatewayContractAllowlist`. `GatewayRouteContractTest` also checks the typed methods on both gateway routes.
+
+The **Update gateway contract** workflow checks upstream `main` daily and can also be run manually. It opens or
+updates one PR only when `openrpc.json` changes; the PR's normal unit-test job detects contract drift. The repository
+must have a `GATEWAY_CONTRACT_SYNC_TOKEN` Actions secret containing a dedicated fine-grained PAT with contents and
+pull requests read/write access. It must be able to push the automation branch and create PRs against this repository. A plain `GITHUB_TOKEN` cannot be used here: PRs it creates do not trigger PR CI.
+Review the PR and its CI results before merging. If the token is missing or expires, the workflow fails and needs
+maintainer intervention.
 
 ---
 

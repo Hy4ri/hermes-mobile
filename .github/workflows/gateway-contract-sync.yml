@@ -1,0 +1,75 @@
+name: Update gateway contract
+
+on:
+  schedule:
+    - cron: '23 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gateway-contract-sync
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Refresh gateway contract
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          scripts/sync-gateway-contract.sh main
+          if git diff --quiet -- app/src/test/resources/gateway-contract/openrpc.json; then
+            git restore -- app/src/test/resources/gateway-contract/SOURCE
+          fi
+      # A separate token is required: PRs created with GITHUB_TOKEN do not run PR CI.
+      - name: Require a token that can trigger PR CI
+        env:
+          SYNC_TOKEN: ${{ secrets.GATEWAY_CONTRACT_SYNC_TOKEN }}
+        run: |
+          if [[ -z "$SYNC_TOKEN" ]]; then
+            echo '::error::Set the GATEWAY_CONTRACT_SYNC_TOKEN secret; see CONTRIBUTING.md.'
+            exit 1
+          fi
+      - name: Create or update pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GATEWAY_CONTRACT_SYNC_TOKEN }}
+          branch: automation/gateway-contract-sync
+          delete-branch: true
+          add-paths: |
+            app/src/test/resources/gateway-contract/openrpc.json
+            app/src/test/resources/gateway-contract/SOURCE
+          commit-message: 'chore: update gateway contract snapshot'
+          title: 'chore: update gateway contract snapshot'
+          body: |
+            ## Summary
+
+            Refresh the vendored gateway contract from hermes-agent main.
+
+            ## Description
+
+            This automated update includes the contract and its upstream provenance. Review the diff and resolve any compatibility failures before merging.
+
+            ## Type of Change
+
+            - [x] 🔧 CI / chore
+
+            ## How to test
+
+            CI runs the unit tests, including GatewayRouteContractTest, against the updated contract. Check the PR's CI results; they are not known when this PR is created.
+
+            ## Screenshots
+
+            N/A: no UI changes.
+
+            ## Checklist
+
+            - [x] N/A: automated snapshot update; reviewers check for duplicates and compatibility.

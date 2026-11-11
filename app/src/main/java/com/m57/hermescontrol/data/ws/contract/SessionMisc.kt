@@ -55,6 +55,21 @@ data class SessionWorkspaceMoveResult(
     @SerialName("git_repo_root") val gitRepoRoot: String? = null,
 )
 
+/** Explicit rename; legacy automatic title generation without a title has no authority-route equivalent. */
+@Serializable
+data class SessionTitleParams(
+    @SerialName("session_id") val sessionId: String,
+    @SerialName("title") val title: String,
+    @SerialName("profile") val profile: String? = null,
+)
+
+@Serializable
+data class SessionTitleResult(
+    @SerialName("title") val title: String,
+    @SerialName("session_key") val sessionKey: String? = null,
+    @SerialName("pending") val pending: Boolean? = null,
+)
+
 /** `session.archive`: [sessionId] is a live runtime id first, else a stored id; `archived = false` restores. */
 @Serializable
 data class SessionArchiveParams(

@@ -129,6 +129,9 @@ internal class RpcChannel(
         method: String,
         params: Map<String, Any>,
     ): JsonRpcRequest {
+        require(!sessionAuthority || method != WsMethods.SESSION_STATUS) {
+            "session.status is not available on the session-authority route"
+        }
         val id = nextId()
         val decorated = decorateParams(method, params)
         val wire = wireMethod(method, decorated)
@@ -292,8 +295,13 @@ internal class RpcChannel(
                 }
             }
 
-            WsMethods.SESSION_ARCHIVE, WsMethods.SESSION_WORKSPACE_MOVE,
-            WsMethods.SESSION_BRANCH, WsMethods.SESSION_BRANCH_WHOLE,
+            WsMethods.SESSION_TITLE,
+            WsMethods.SESSION_ARCHIVE,
+            WsMethods.SESSION_DELETE,
+            WsMethods.SESSION_WORKSPACE_MOVE,
+            WsMethods.SESSION_COMPRESS,
+            WsMethods.SESSION_BRANCH,
+            WsMethods.SESSION_BRANCH_WHOLE,
             -> {
                 val sessionId = (params["session_id"] ?: params["session_key"]).eventStringOrNull()
                 mutations.prepare(method, params, sessionId?.let { generations[it] }) ?: params
@@ -473,6 +481,16 @@ internal class RpcChannel(
                 // This preserves integer/float type fidelity needed by callers
                 // that re-deserialize the result into typed data classes.
                 val rpcId = rpc.id
+                if (sessionAuthority && rpcId != null && rpc.result is JsonObject) {
+                    val result = rpc.result
+                    val sessionId = result["session_id"].eventStringOrNull()
+                    if (!sessionId.isNullOrBlank()) {
+                        mutations.adoptEvent("session.updated", sessionId, result)
+                        (result["execution_generation"] as? JsonPrimitive)?.intOrNull?.let { generation ->
+                            generations.merge(sessionId, generation) { old, new -> maxOf(old, new) }
+                        }
+                    }
+                }
                 if (rpcId != null && rpc.error == null && rpc.result != null) {
                     onResult(rpcId)
                     removeQueuedMessage(rpcId)
@@ -559,5 +577,13 @@ internal class RpcChannel(
 
 /** Legacy methods the session authority serves as `session.mutate`. */
 private fun isMutationMethod(method: String) =
-    method == WsMethods.SESSION_ARCHIVE || method == WsMethods.SESSION_WORKSPACE_MOVE ||
-        method == WsMethods.SESSION_BRANCH || method == WsMethods.SESSION_BRANCH_WHOLE
+    method in
+        setOf(
+            WsMethods.SESSION_TITLE,
+            WsMethods.SESSION_ARCHIVE,
+            WsMethods.SESSION_DELETE,
+            WsMethods.SESSION_WORKSPACE_MOVE,
+            WsMethods.SESSION_COMPRESS,
+            WsMethods.SESSION_BRANCH,
+            WsMethods.SESSION_BRANCH_WHOLE,
+        )

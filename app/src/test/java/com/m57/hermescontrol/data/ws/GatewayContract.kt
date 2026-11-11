@@ -44,7 +44,7 @@ object GatewayContract {
     /** Methods only the session authority serves (`x-canonical-methods`). */
     val canonicalMethods: Set<String> by lazy { names("x-canonical-methods") }
 
-    /** Methods both routes serve (`methods`). */
+    /** Methods listed in the legacy `methods` contract; not all are served by the authority. */
     val sharedMethods: Set<String> by lazy { names("methods") }
 
     private fun paramsSchemas(method: String): List<JsonObject> {
@@ -77,6 +77,10 @@ object GatewayContract {
         keys: Set<String>,
         authority: Boolean,
     ): List<String> {
+        // The shared OpenRPC list includes legacy methods the authority does not register.
+        if (authority && method == WsMethods.SESSION_STATUS) {
+            return listOf("$method is not served on the authority route")
+        }
         val entries = routeEntries(method, authority)
         if (entries.isEmpty()) {
             return listOf("$method is not served on the ${if (authority) "authority" else "legacy"} route")

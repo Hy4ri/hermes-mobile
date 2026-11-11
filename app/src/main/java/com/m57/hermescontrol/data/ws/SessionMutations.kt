@@ -10,9 +10,9 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Session-authority edits. Archive, workspace move and branch use `session.mutate` instead of their
- * legacy methods: a revision-fenced, retry-idempotent edit (`{session_id, request_id,
- * expected_revision, operation, payload}`, plus `expected_generation` for workspace/branch). This class
+ * Session-authority edits. The authority serves title, archive, delete, workspace moves and branch as
+ * `session.mutate`, a revision-fenced, retry-idempotent edit (`{session_id, request_id,
+ * expected_revision, operation, payload}`, plus `expected_generation` for fenced edits). This class
  * keeps what that needs: the newest revision of each session, and the request a lost reply left
  * unanswered, so a retry re-sends the same `request_id` (the owner then replays its receipt instead of
  * applying the edit twice). Mirrors Desktop's `canonical-protocol.ts` retained mutations.
@@ -49,9 +49,32 @@ internal class SessionMutations {
     ): JsonObject? {
         val (sessionKey, operation, payload) =
             when (method) {
+                WsMethods.SESSION_TITLE -> {
+                    Triple(
+                        params["session_id"],
+                        "rename",
+                        JsonObject(mapOf("title" to (params["title"] ?: return null))),
+                    )
+                }
+
                 WsMethods.SESSION_ARCHIVE -> {
                     val archived = params["archived"] ?: JsonPrimitive(true)
                     Triple(params["session_id"], "archive", JsonObject(mapOf("archived" to archived)))
+                }
+
+                WsMethods.SESSION_COMPRESS -> {
+                    val payload =
+                        buildMap {
+                            params["focus_topic"]?.let { put("focus", it) }
+                            listOf("preview", "partial", "keep_last").forEach { key ->
+                                params[key]?.let { put(key, it) }
+                            }
+                        }
+                    Triple(params["session_id"], "compress", JsonObject(payload))
+                }
+
+                WsMethods.SESSION_DELETE -> {
+                    Triple(params["session_id"], "delete", JsonObject(emptyMap()))
                 }
 
                 WsMethods.SESSION_WORKSPACE_MOVE -> {
@@ -87,7 +110,7 @@ internal class SessionMutations {
         val key = "$sessionId|$operation|$payload"
         retained[key]?.let { return it }
         val revision = revisions[sessionId] ?: return null
-        val fenced = operation == "workspace" || operation == "branch"
+        val fenced = operation in setOf("workspace", "compress", "delete", "branch")
         if (fenced && generation == null) return null
         val body =
             buildMap<String, JsonElement> {
@@ -150,7 +173,8 @@ internal class SessionMutations {
         val operation = (params["operation"] as? JsonPrimitive)?.contentOrNull
         val wroteNothing =
             reason == "revision_conflict" || reason == "stale_generation" ||
-                (reason == "session_busy" && (operation == "workspace" || operation == "branch"))
+                (reason == "session_busy" && operation in setOf("workspace", "delete", "branch")) ||
+                (reason == "runtime_coordination_required" && operation == "delete")
         if (!wroteNothing) return
         // The refusal names the current revision, so the retry presents it as a fresh request.
         forget(params)

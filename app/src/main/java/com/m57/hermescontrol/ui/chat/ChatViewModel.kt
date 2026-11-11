@@ -5345,21 +5345,51 @@ class ChatViewModel(
             }
         if (!isCurrentSessionRequest(sessionId, generation)) return
         if (response == null ||
-            (response.status != null && response.status !in setOf("ok", "compressed")) ||
+            (response.status != null && response.status !in setOf("ok", "compressed", "preview", "noop")) ||
             (
                 response.status == null && response.messages == null && response.summary == null &&
-                    response.message == null && response.compressed == null
+                    response.message == null && response.compressed == null && response.target_session_id == null
             )
         ) {
             throw IllegalStateException("Unrecognized session.compress response; history was not reconciled")
         }
-        val incompleteFallback = response.messages != null && latestPaging && response.messages.any { it.id == null }
-        if (response.messages != null && !incompleteFallback) {
+        if (response.status == "preview" || response.status == "noop") {
+            val feedback =
+                response.lines?.joinToString("\n")?.takeIf { it.isNotBlank() }
+                    ?: listOfNotNull(
+                        response.summary?.headline?.takeIf { it.isNotBlank() },
+                        response.summary?.token_line?.takeIf { it.isNotBlank() },
+                        response.summary?.note?.takeIf { it.isNotBlank() },
+                    ).takeIf { it.isNotEmpty() }?.joinToString("\n")
+                    ?: response.message ?: "No changes from compression."
+            addAssistantMessage(feedback)
+            return
+        }
+        // The target is a physical transcript tip; resume resolves its logical owner.
+        val resumed =
+            response.target_session_id?.let { target ->
+                wsClient.call(
+                    RpcMethods.SESSION_RESUME,
+                    SessionResumeParams(sessionId = target, source = DESKTOP_SESSION_SOURCE),
+                )
+            }
+        if (!isCurrentSessionRequest(sessionId, generation)) return
+        if (resumed != null) {
+            val runtimeId =
+                resumed.sessionId?.takeIf { it.isNotBlank() }
+                    ?: throw IllegalStateException("Compression committed, but session resume returned no session id")
+            runtimeSessionId = runtimeId
+            connectionOperationDelegate.bindSession(runtimeId)
+            ActiveSessionHolder.set(runtimeId, sessionId)
+        }
+        val messages = resumed?.messages ?: response.messages
+        val incompleteFallback = messages != null && latestPaging && messages.any { it.id == null }
+        if (messages != null && !incompleteFallback) {
             val replacement =
                 withContext(historyDispatcher) {
                     mapServerMessages(
                         sessionId = sessionId,
-                        messages = response.messages,
+                        messages = messages,
                         offset = 0,
                         latestPaging = latestPaging,
                         liveMessages = emptyList(),
@@ -5368,7 +5398,7 @@ class ChatViewModel(
                     )
                 }
             if (!applyCompressedHistory(sessionId, generation, replacement)) return
-        } else if (incompleteFallback) {
+        } else if (incompleteFallback || resumed != null) {
             // An id-less latest-page response needs the REST protocol's paging negotiation.
             // loadSessionMessages starts a child job; joining it is essential before feedback.
             hydratedGeneration = -1L
@@ -5390,7 +5420,7 @@ class ChatViewModel(
         fetchContextUsage()
         loadSessions()
         if (!isCurrentSessionRequest(sessionId, generation)) return
-        response.info?.let { infoElement ->
+        (resumed?.info ?: response.info)?.let { infoElement ->
             val infoMap =
                 (infoElement.toAny() as? Map<*, *>)
                     ?.entries

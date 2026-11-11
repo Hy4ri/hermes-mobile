@@ -129,6 +129,9 @@ internal class RpcChannel(
         method: String,
         params: Map<String, Any>,
     ): JsonRpcRequest {
+        require(!sessionAuthority || method != WsMethods.SESSION_STATUS) {
+            "session.status is not available on the session-authority route"
+        }
         val id = nextId()
         val decorated = decorateParams(method, params)
         val wire = wireMethod(method, decorated)

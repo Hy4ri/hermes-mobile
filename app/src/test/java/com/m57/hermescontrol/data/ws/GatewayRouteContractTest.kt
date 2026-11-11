@@ -2,6 +2,7 @@ package com.m57.hermescontrol.data.ws
 
 import com.m57.hermescontrol.data.ws.contract.RpcMethod
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
+import com.m57.hermescontrol.data.ws.contract.SessionIdParams
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.descriptors.PrimitiveKind
@@ -13,6 +14,8 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -129,6 +132,69 @@ class GatewayRouteContractTest {
             val problems = GatewayContract.routeParamProblems(method, keys, authority = true)
             assertTrue(problems.joinToString("\n"), problems.isEmpty())
             assertTrue("generation fence missing", "expected_generation" in keys)
+        }
+
+    @Test
+    fun deleteUsesFencedMutationOnAuthorityAndLegacyMethodElsewhere() =
+        runTest {
+            val channel =
+                RpcChannel(
+                    scope = this,
+                    json = json,
+                    sendRequest = { _, _, _ -> "" },
+                    sendFrame = { true },
+                    removeQueuedMessage = {},
+                    onIdleCheck = {},
+                )
+            val tracker =
+                ReplayTracker(this, {
+                    com.m57.hermescontrol.data.ws.contract
+                        .SessionEventsSinceResult()
+                }, {})
+
+            val delete = RpcMethod(WsMethods.SESSION_DELETE, SessionIdParams.serializer(), JsonObject.serializer())
+
+            fun frame(text: String) = channel.handleIncomingFrame(text, tracker) {}
+
+            fun request() = channel.createRequest(delete.name, channel.encodeParams(delete, SessionIdParams(SESSION)))
+
+            val legacy = request()
+            assertEquals(WsMethods.SESSION_DELETE, legacy.method)
+            assertEquals(mapOf("session_id" to JsonPrimitive(SESSION)), legacy.params)
+            assertTrue(GatewayContract.routeParamProblems(legacy.method, legacy.params.keys, false).isEmpty())
+
+            frame("""{"method":"event","params":{"type":"gateway.ready","payload":{"session_authority":true}}}""")
+            frame(
+                """{"method":"event","params":{"type":"session.info","session_id":"$SESSION","seq":1,""" +
+                    """"payload":{"revision":7,"execution_generation":2}}}""",
+            )
+            val first = request()
+            assertEquals(WsMethods.SESSION_MUTATE, first.method)
+            assertEquals(
+                setOf("session_id", "request_id", "expected_revision", "expected_generation", "operation", "payload"),
+                first.params.keys,
+            )
+            assertTrue(GatewayContract.routeParamProblems(first.method, first.params.keys, true).isEmpty())
+            assertEquals(JsonPrimitive(SESSION), first.params["session_id"])
+            assertEquals(JsonPrimitive(7), first.params["expected_revision"])
+            assertEquals(JsonPrimitive(2), first.params["expected_generation"])
+            assertEquals(JsonPrimitive("delete"), first.params["operation"])
+            assertEquals(JsonObject(emptyMap()), first.params["payload"])
+            assertEquals(first.params, request().params)
+
+            frame(
+                """{"id":"${first.id}","error":{"code":4009,"message":"session_busy",""" +
+                    """"data":{"reason":"session_busy","revision":8}}}""",
+            )
+            val afterBusy = request()
+            assertNotEquals(first.params["request_id"], afterBusy.params["request_id"])
+            assertEquals(JsonPrimitive(8), afterBusy.params["expected_revision"])
+            frame(
+                """{"id":"${afterBusy.id}","error":{"code":4009,"message":"runtime_coordination_required",""" +
+                    """"data":{"reason":"runtime_coordination_required"}}}""",
+            )
+            val afterCoordination = request()
+            assertNotEquals(afterBusy.params["request_id"], afterCoordination.params["request_id"])
         }
 
     private companion object {

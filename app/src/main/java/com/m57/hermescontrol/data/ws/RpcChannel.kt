@@ -292,7 +292,11 @@ internal class RpcChannel(
                 }
             }
 
-            WsMethods.SESSION_ARCHIVE, WsMethods.SESSION_WORKSPACE_MOVE, WsMethods.SESSION_COMPRESS -> {
+            WsMethods.SESSION_ARCHIVE,
+            WsMethods.SESSION_DELETE,
+            WsMethods.SESSION_WORKSPACE_MOVE,
+            WsMethods.SESSION_COMPRESS,
+            -> {
                 val sessionId = (params["session_id"] ?: params["session_key"]).eventStringOrNull()
                 mutations.prepare(method, params, sessionId?.let { generations[it] }) ?: params
             }
@@ -551,5 +555,10 @@ internal class RpcChannel(
 
 /** Legacy methods the session authority serves as `session.mutate`. */
 private fun isMutationMethod(method: String) =
-    method == WsMethods.SESSION_ARCHIVE || method == WsMethods.SESSION_WORKSPACE_MOVE ||
-        method == WsMethods.SESSION_COMPRESS
+    method in
+        setOf(
+            WsMethods.SESSION_ARCHIVE,
+            WsMethods.SESSION_DELETE,
+            WsMethods.SESSION_WORKSPACE_MOVE,
+            WsMethods.SESSION_COMPRESS,
+        )

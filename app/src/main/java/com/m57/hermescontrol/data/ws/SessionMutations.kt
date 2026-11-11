@@ -9,9 +9,9 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Session-authority edits. The authority has no `session.archive` or `session.workspace.move`: both
- * are `session.mutate`, a revision-fenced, retry-idempotent edit (`{session_id, request_id,
- * expected_revision, operation, payload}`, plus `expected_generation` for a policy edit). This class
+ * Session-authority edits. The authority serves archive, delete and workspace moves as
+ * `session.mutate`, a revision-fenced, retry-idempotent edit (`{session_id, request_id,
+ * expected_revision, operation, payload}`, plus `expected_generation` for fenced edits). This class
  * keeps what that needs: the newest revision of each session, and the request a lost reply left
  * unanswered, so a retry re-sends the same `request_id` (the owner then replays its receipt instead of
  * applying the edit twice). Mirrors Desktop's `canonical-protocol.ts` retained mutations.
@@ -64,6 +64,10 @@ internal class SessionMutations {
                     Triple(params["session_id"], "compress", JsonObject(payload))
                 }
 
+                WsMethods.SESSION_DELETE -> {
+                    Triple(params["session_id"], "delete", JsonObject(emptyMap()))
+                }
+
                 WsMethods.SESSION_WORKSPACE_MOVE -> {
                     Triple(
                         params["session_key"],
@@ -80,7 +84,7 @@ internal class SessionMutations {
         val key = "$sessionId|$operation|$payload"
         retained[key]?.let { return it }
         val revision = revisions[sessionId] ?: return null
-        val fenced = operation == "workspace" || operation == "compress"
+        val fenced = operation in setOf("workspace", "compress", "delete")
         if (fenced && generation == null) return null
         val body =
             buildMap<String, JsonElement> {
@@ -120,7 +124,8 @@ internal class SessionMutations {
         val operation = (params["operation"] as? JsonPrimitive)?.contentOrNull
         val wroteNothing =
             reason == "revision_conflict" || reason == "stale_generation" ||
-                (reason == "session_busy" && operation == "workspace")
+                (reason == "session_busy" && operation in setOf("workspace", "delete")) ||
+                (reason == "runtime_coordination_required" && operation == "delete")
         if (!wroteNothing) return
         // The refusal names the current revision, so the retry presents it as a fresh request.
         forget(params)

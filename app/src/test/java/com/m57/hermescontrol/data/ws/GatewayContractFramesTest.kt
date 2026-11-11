@@ -29,6 +29,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -207,6 +208,31 @@ class GatewayContractFramesTest {
                 assertEquals(capability == "true", HermesWsClient.canonicalClarifyBatch)
                 assertMatchesContract(frame)
             }
+        }
+    }
+
+    @Test
+    fun sessionAuthorityPromptCarriesSubmissionId() {
+        val frame =
+            captureFrame(WsMethods.PROMPT_SUBMIT, readyPayload = """{"session_authority":true}""") {
+                HermesWsClient.sendMessage("s1", "hello")
+            }
+        val params = frame["params"] as JsonObject
+        val id = (params["submission_id"] as? JsonPrimitive)?.content
+        assertTrue("session-authority prompt.submit needs a submission_id", !id.isNullOrEmpty())
+        assertEquals(id, UUID.fromString(id).toString())
+        assertMatchesContract(frame)
+    }
+
+    @Test
+    fun legacyPromptOmitsSubmissionId() {
+        for (ready in listOf("{}", """{"session_authority":false}""")) {
+            HermesWsClient.disconnect(clearPendingMessages = true)
+            val frame =
+                captureFrame(WsMethods.PROMPT_SUBMIT, readyPayload = ready) {
+                    HermesWsClient.sendMessage("s1", "hello")
+                }
+            assertFalse(ready, (frame["params"] as JsonObject).containsKey("submission_id"))
         }
     }
 

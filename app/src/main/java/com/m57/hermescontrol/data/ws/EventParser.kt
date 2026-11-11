@@ -415,7 +415,8 @@ object EventParser {
 
                 @Suppress("UNCHECKED_CAST")
                 val patternKeys = (payload?.get("pattern_keys") as? List<*>)?.filterIsInstance<String>()
-                val requestId = payload?.get("request_id") as? String
+                // The canonical owner names the prompt `prompt_id`; it is the id `approval.respond` echoes.
+                val requestId = (payload?.get("request_id") ?: payload?.get("prompt_id")) as? String
 
                 @Suppress("UNCHECKED_CAST")
                 val rawChoices = (payload?.get("choices") as? List<*>)?.filterIsInstance<String>()

@@ -1,9 +1,12 @@
 package com.m57.hermescontrol.data.ws
 
+import com.m57.hermescontrol.data.ws.contract.ApprovalRespondParams
 import com.m57.hermescontrol.data.ws.contract.PromptSubmitParams
 import com.m57.hermescontrol.data.ws.contract.RpcMethod
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
+import com.m57.hermescontrol.data.ws.contract.SessionCorrectionParams
 import com.m57.hermescontrol.data.ws.contract.SessionEventsSinceResult
+import com.m57.hermescontrol.data.ws.contract.SessionInterruptParams
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -740,6 +743,55 @@ class RpcChannelTest {
             // Other methods never gain the key.
             val other = gateway.channel.encodeParams(sampleMethod, SampleRequestParams("m"))
             assertFalse(other.containsKey("submission_id"))
+        }
+
+    @Test
+    fun authorityControlsCarryTheTurnsExecutionGeneration() =
+        runTest {
+            val gateway = FakeGateway(this, testJson)
+            val tracker = ReplayTracker(this, { SessionEventsSinceResult() }, {})
+
+            fun frame(text: String) = gateway.channel.handleIncomingFrame(text, tracker) {}
+
+            fun interrupt() = gateway.channel.encodeParams(RpcMethods.SESSION_INTERRUPT, SessionInterruptParams("s1"))
+
+            fun approve() =
+                gateway.channel.encodeParams(
+                    RpcMethods.APPROVAL_RESPOND,
+                    ApprovalRespondParams(sessionId = "s1", choice = "once", all = false, requestId = "p-1"),
+                )
+
+            // Legacy route: untouched.
+            assertEquals(setOf("session_id"), interrupt().keys)
+            assertEquals(setOf("session_id", "choice", "all", "request_id"), approve().keys)
+
+            frame("""{"method":"event","params":{"type":"gateway.ready","payload":{"session_authority":true}}}""")
+            // No generation seen yet: nothing to add.
+            assertEquals(setOf("session_id"), interrupt().keys)
+
+            frame(
+                """{"method":"event","params":{"type":"session.info","session_id":"s1","seq":1,""" +
+                    """"payload":{"execution_generation":4}}}""",
+            )
+            frame(
+                """{"method":"event","params":{"type":"session.info","session_id":"s1","seq":2,""" +
+                    """"payload":{"execution_generation":2}}}""",
+            )
+            assertEquals(4, interrupt()["execution_generation"]?.jsonPrimitive?.int)
+            val steer =
+                gateway.channel.encodeParams(RpcMethods.SESSION_STEER, SessionCorrectionParams("s1", "go"))
+            assertEquals(setOf("session_id", "text", "execution_generation"), steer.keys)
+            val approval = approve()
+            assertEquals(setOf("session_id", "execution_generation", "prompt_id", "choice"), approval.keys)
+            assertEquals("p-1", approval["prompt_id"]?.jsonPrimitive?.content)
+            assertEquals(4, approval["execution_generation"]?.jsonPrimitive?.int)
+
+            // Another session's generation is not borrowed.
+            val other = gateway.channel.encodeParams(RpcMethods.SESSION_INTERRUPT, SessionInterruptParams("s2"))
+            assertEquals(setOf("session_id"), other.keys)
+            // A reconnect forgets every generation.
+            frame("""{"method":"event","params":{"type":"gateway.ready","payload":{"session_authority":true}}}""")
+            assertEquals(setOf("session_id"), interrupt().keys)
         }
 
     @Test

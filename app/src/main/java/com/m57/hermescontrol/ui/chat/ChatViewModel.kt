@@ -2414,7 +2414,13 @@ class ChatViewModel(
                 sessionHasServerPresence = false
                 sessionGoneRecoveryInFlight = false
                 addSystemMessage("Session branched", persist = true)
-                loadSessionMessages(storageId, generation)
+                if (resultMap["branched_session_id"] is String) {
+                    // #541: the authority creates a stored child, not a subscription for this socket.
+                    // Resume it to bind its events and publish readiness only after hydration + ack.
+                    resumeSession(storageId, generation)
+                } else {
+                    loadSessionMessages(storageId, generation)
+                }
                 loadSessions()
                 fetchContextUsage()
             }

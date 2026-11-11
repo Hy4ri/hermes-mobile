@@ -1355,6 +1355,51 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun authorityBranchReceiptResumesChildBeforeItBecomesReady() =
+        runTest {
+            coEvery { ApiClient.hermesApi.getSessionMessages("child", any(), any(), any(), any()) } returns
+                Response.success(
+                    SessionMessagesResponse(messages = emptyList(), pagination = PaginationInfo(order = "latest")),
+                )
+            val (viewModel, _) = createViewModelWithSession()
+            val captured = mutableListOf<Pair<String, Map<String, Any>>>()
+            every { HermesWsClient.send(any(), any(), any()) } answers {
+                val id = "req-${captured.size + 1}"
+                captured.add(arg<String>(0) to arg<Map<String, Any>>(1))
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+            viewModel.sendMessage("/fork Child")
+            advanceUntilIdle()
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    "req-1",
+                    mapOf(
+                        "session_id" to "child",
+                        "stored_session_id" to "child",
+                        "branched_session_id" to "child",
+                        "title" to "Child",
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals("child", viewModel.uiState.value.currentSessionId)
+            assertEquals("child", ActiveSessionHolder.activeSessionId.value)
+            assertFalse(viewModel.uiState.value.isSessionReady)
+            val resumeIndex = captured.indexOfFirst { it.first == WsMethods.SESSION_RESUME }
+            assertTrue("Authority child needs a session.resume subscription", resumeIndex >= 0)
+            assertEquals(JsonPrimitive("child"), captured[resumeIndex].second["session_id"])
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    "req-${resumeIndex + 1}",
+                    mapOf("session_id" to "child", "resumed" to "child", "running" to false),
+                ),
+            )
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isSessionReady)
+        }
+
+    @Test
     fun testSlashCommand_fork_withoutName_omitsNameParam() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()

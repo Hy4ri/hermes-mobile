@@ -184,6 +184,30 @@ class GatewayRouteContractTest {
         }
 
     @Test
+    fun authorityBranchMethodsUseCanonicalMutationNotLegacyRegistration() =
+        runTest {
+            for (full in listOf(false, true)) {
+                for (method in listOf(RpcMethods.SESSION_BRANCH, RpcMethods.SESSION_BRANCH_WHOLE)) {
+                    val (name, keys) = requireNotNull(wire(method, true, full, this))
+                    assertEquals(WsMethods.SESSION_MUTATE, name)
+                    assertEquals(
+                        setOf(
+                            "session_id",
+                            "request_id",
+                            "expected_revision",
+                            "expected_generation",
+                            "operation",
+                            "payload",
+                        ),
+                        keys,
+                    )
+                    assertTrue(GatewayContract.routeParamProblems(name, keys, true).isEmpty())
+                    assertEquals(method.name, requireNotNull(wire(method, false, full, this)).first)
+                }
+            }
+        }
+
+    @Test
     fun authorityCompressionUsesCanonicalMutationContract() =
         runTest {
             val (method, keys) = requireNotNull(wire(RpcMethods.SESSION_COMPRESS, true, true, this))

@@ -300,6 +300,8 @@ internal class RpcChannel(
             WsMethods.SESSION_DELETE,
             WsMethods.SESSION_WORKSPACE_MOVE,
             WsMethods.SESSION_COMPRESS,
+            WsMethods.SESSION_BRANCH,
+            WsMethods.SESSION_BRANCH_WHOLE,
             -> {
                 val sessionId = (params["session_id"] ?: params["session_key"]).eventStringOrNull()
                 mutations.prepare(method, params, sessionId?.let { generations[it] }) ?: params
@@ -346,6 +348,15 @@ internal class RpcChannel(
                     as? JsonPrimitive
             )?.intOrNull ?: return
         generations.merge(sessionId, generation) { old, new -> maxOf(old, new) }
+    }
+
+    /** A canonical create/resume snapshot carries both fences even when no session.info event follows. */
+    private fun recordSnapshotFences(result: JsonElement?) {
+        if (!sessionAuthority || result !is JsonObject) return
+        if (result["revision"] == null || result["execution_generation"] == null) return
+        val sessionId = result.eventSessionId().takeUnless { it.isNullOrBlank() } ?: return
+        mutations.adoptEvent("session.info", sessionId, result)
+        recordGeneration(result)
     }
 
     private fun recordRevision(params: JsonObject) {
@@ -453,7 +464,14 @@ internal class RpcChannel(
     ) {
         val event =
             try {
-                val rpc = json.decodeFromString<JsonRpcResponse>(text)
+                val decoded = json.decodeFromString<JsonRpcResponse>(text)
+                val rpc =
+                    if (decoded.id != null && decoded.error == null) {
+                        recordSnapshotFences(decoded.result)
+                        decoded.copy(result = mutations.mapResult(decoded.id, decoded.result))
+                    } else {
+                        decoded
+                    }
                 if (rpc.id == null) {
                     rpc.params?.let(::recordRevision)
                     rpc.params?.let(::recordGeneration)
@@ -566,4 +584,6 @@ private fun isMutationMethod(method: String) =
             WsMethods.SESSION_DELETE,
             WsMethods.SESSION_WORKSPACE_MOVE,
             WsMethods.SESSION_COMPRESS,
+            WsMethods.SESSION_BRANCH,
+            WsMethods.SESSION_BRANCH_WHOLE,
         )

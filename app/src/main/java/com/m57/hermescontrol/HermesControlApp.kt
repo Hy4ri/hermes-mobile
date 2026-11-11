@@ -15,8 +15,8 @@ import com.m57.hermescontrol.data.local.ComposerDraftStore
 import com.m57.hermescontrol.data.local.SessionListCacheStore
 import com.m57.hermescontrol.data.remote.CertificateImageInterceptor
 import com.m57.hermescontrol.data.remote.ClientCertificates
+import com.m57.hermescontrol.data.remote.MediaDataSourceProvider
 import com.m57.hermescontrol.data.remote.NetworkMonitor
-import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.ServerCaRestrictions
 import com.m57.hermescontrol.data.remote.ServerTrust
 import com.m57.hermescontrol.data.session.SessionAttentionStore
@@ -80,7 +80,7 @@ class HermesControlApp :
                 add(CertificateImageInterceptor())
                 add(
                     OkHttpNetworkFetcherFactory(
-                        callFactory = { OkHttpProvider.base },
+                        callFactory = { MediaDataSourceProvider.mediaOkHttpClient },
                     ),
                 )
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {

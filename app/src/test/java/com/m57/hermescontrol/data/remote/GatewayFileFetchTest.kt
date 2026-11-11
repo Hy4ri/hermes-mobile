@@ -114,6 +114,27 @@ class GatewayFileFetchTest {
     }
 
     @Test
+    fun fetchSendsBearerHeaderInTokenMode() =
+        runOnMain {
+            mockServer.enqueue(MockResponse().setResponseCode(200).setBody("x"))
+
+            GatewayFileClient.fetch("/tmp/a.png", cacheDir)
+
+            assertEquals("Bearer test-token", mockServer.takeRequest().getHeader("Authorization"))
+        }
+
+    @Test
+    fun fetchOmitsBearerHeaderInGatedMode() =
+        runOnMain {
+            every { AuthManager.isGatedMode() } returns true
+            mockServer.enqueue(MockResponse().setResponseCode(200).setBody("x"))
+
+            GatewayFileClient.fetch("/tmp/b.png", cacheDir)
+
+            assertEquals(null, mockServer.takeRequest().getHeader("Authorization"))
+        }
+
+    @Test
     fun fetchRunsSafelyFromMainDispatcherWithoutBlockingMainThread() =
         runOnMain {
             val content = "hello board export"

@@ -170,6 +170,13 @@ object RpcMethods {
             SessionExportResult.serializer(),
         )
 
+    val SESSION_TITLE: RpcMethod<SessionTitleParams, SessionTitleResult> =
+        RpcMethod(
+            WsMethods.SESSION_TITLE,
+            SessionTitleParams.serializer(),
+            SessionTitleResult.serializer(),
+        )
+
     val SESSION_ARCHIVE: RpcMethod<SessionArchiveParams, SessionArchiveResult> =
         RpcMethod(
             WsMethods.SESSION_ARCHIVE,
@@ -696,6 +703,7 @@ object RpcMethods {
             SESSION_WORKSPACE_MOVE,
             SESSION_EXPORT,
             SESSION_ARCHIVE,
+            SESSION_TITLE,
             PROMPT_BTW,
             APPROVAL_PENDING,
             APPROVAL_RECEIVED,

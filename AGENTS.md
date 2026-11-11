@@ -45,6 +45,23 @@ chmod +x ktlint
 
 **No SDK? CI handles everything** — push small and watch the checks below.
 
+### Nix dev shell & Compose preview rendering
+
+`flake.nix` provides JDK 21, Android SDK 37, `ktlint`, and `android-cli` (on `x86_64-linux` and `aarch64-darwin`) via `nix develop -c ...`. On Linux/NixOS, the flake wraps `android` with the X11 libraries required by the preview renderer.
+
+To verify stateless `@Preview` composables headless before testing on a device:
+
+```bash
+nix develop -c android --no-metrics preview list app
+nix develop -c android --no-metrics preview render app \
+  --fqn=com.m57.hermescontrol.ui.<pkg>.<File>Kt.<PreviewFn> \
+  --component-tree -o /tmp/hm-preview-out
+```
+
+- `app` is mandatory and `render` requires at least one `--fqn` from `preview list`.
+- `--component-tree` writes a JSON tree (bounds, source locations, semantics, modifiers) alongside the PNG.
+- Preview renders inspect layout/theme/fontScale only — they do not replace device or emulator verification.
+
 ### CI pipeline (`.github/workflows/android.yml`)
 
 | Job                  | Purpose                                                                                                                            |
@@ -207,11 +224,23 @@ This applies to every branch inside the content lambda. A state view outside
 See [`HermesScaffold.kt`](app/src/main/java/com/m57/hermescontrol/ui/common/HermesScaffold.kt)
 for the current inset implementation.
 
+### Profiles, REST & WebSocket Ownership
+
+- **Local vs. server profiles:** `AuthManager.selectedProfileId` (`ServerStoreState`) selects the local connection profile (server URL + credentials). `AuthManager.activeProfileId` selects the server-side Hermes profile, which is local to the device (`#1764`) and need not exist in local connection profiles.
+- **Switching profiles:** Route server-profile switches through `ProfileSwitchCoordinator.switchProfile(name)` and connection-profile switches through `switchConnectionProfile(...)`. Ordering matters: `AuthManager` updates and `switched` / `connectionSwitched` emissions clear `ChatViewModel` before `HermesWsClient` reconnects and delivers `gateway.ready`.
+- **Shared Retrofit client:** Keep REST calls on `ApiClient.hermesApi` (`ApiClient.kanbanApi` is a typed alias on the same instance) and `OkHttpProvider.json` (`ignoreUnknownKeys = true`). Reserve `ApiClient.createTempService(...)` for pre-login / connection probing so shared auth, cookies, and `mockkObject(ApiClient)` stubs stay intact.
+
+### Data, Chat & Session State
+
+- **`hidden` vs. `archived`:** `hidden` is a UI filter/pinning state (the session stays active and resumable; pinning unhides it). `archived` is lifecycle closure (`archived=only` query).
+- **Media stripping & hydration:** `HostMediaExtractor.strip` removes `MEDIA:<path>` directives for deduplication while preserving `Attachment.contentOffset` for `splitByMedia`. User messages re-hydrated from history with whole-line `@image:<path>` directives are converted into `Attachment`s via `userImageAttachments` during `mapServerMessages`, and `hideImageRefLines` hides those directive lines from rendered bubble text.
+
 ### Room Persistence
 
 - `ChatMessageEntity` / `ChatMessageDao` / `HermesDatabase` — chat messages survive
   app kills. `getMessagesForSession()` returns `suspend fun ...: List<ChatMessageEntity>`
   (not `Flow` — the caller controls the coroutine scope).
+- Use `HermesDatabase.setForTest(...)` to inject a test database instance in Room tests.
 - Room schema configuration is defined in `app/build.gradle.kts`; preserve schema export and migrations when updating Room.
 - `ChatViewModel` extends `AndroidViewModel` (needs Application for DB access).
 
@@ -273,6 +302,8 @@ gh pr create --base main --title "fix(#N): description" --body "Closes #N"
 ## Things to Avoid
 
 - Don't run `./gradlew` tasks without an Android SDK — CI handles compilation, lint, and tests.
+- In unit tests that call `mockkObject(...)` on singletons (`AuthManager`, `ApiClient`, `HermesWsClient`, `NetworkMonitor`, `ChatNotificationService`, `ProfileSwitchCoordinator`, etc.), explicitly `unmockkObject(...)` / `unmockkAll()` in `@After` alongside `Dispatchers.resetMain()` so mocks do not leak across test classes.
+- `.gitignore` ignores `*.py` repo-wide; new Python automation under `.github/scripts/` needs an explicit negation (`.github/scripts/*.py` is already negated).
 - Don't remove `@OptIn(ExperimentalMaterial3Api::class)` from screens that use
   `SegmentedButton`, `PullToRefreshBox`, or other experimental M3 APIs.
 - Don't access `MaterialTheme.colorScheme.*` inside non-`@Composable` lambdas

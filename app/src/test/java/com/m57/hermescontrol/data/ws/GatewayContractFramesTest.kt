@@ -237,6 +237,21 @@ class GatewayContractFramesTest {
     }
 
     @Test
+    fun usageIsRequestedAsSessionStatsOnlyOnTheAuthorityRoute() {
+        val stats =
+            captureFrame(WsMethods.SESSION_STATS, readyPayload = """{"session_authority":true}""") {
+                HermesWsClient.request(WsMethods.SESSION_USAGE, mapOf("session_id" to "s1"))
+            }
+        assertEquals(WsMethods.SESSION_STATS, (stats["method"] as JsonPrimitive).content)
+        HermesWsClient.disconnect(clearPendingMessages = true)
+        val legacy =
+            captureFrame(WsMethods.SESSION_USAGE, readyPayload = "{}") {
+                HermesWsClient.request(WsMethods.SESSION_USAGE, mapOf("session_id" to "s1"))
+            }
+        assertEquals(WsMethods.SESSION_USAGE, (legacy["method"] as JsonPrimitive).content)
+    }
+
+    @Test
     fun eventsSinceReplayFrameMatchesContract() {
         assertMatchesContract(
             captureFrame(WsMethods.SESSION_EVENTS_SINCE, beforeConnect = { HermesWsClient.setSeqWatermark("s1", 5) }),

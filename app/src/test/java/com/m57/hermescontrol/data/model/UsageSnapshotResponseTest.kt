@@ -228,4 +228,30 @@ class UsageSnapshotResponseTest {
         assertEquals(0L, equal.deltaFrom(baseline).inputTokens)
         assertEquals(0L, equal.deltaFrom(baseline).totalTokens)
     }
+
+    @Test
+    fun `parses the session stats field names`() {
+        val stats =
+            parseUsageSnapshot(
+                buildJsonObject {
+                    put("model", "m")
+                    put("input_tokens", 10)
+                    put("output_tokens", 20)
+                    put("total_tokens", 30)
+                    put("api_calls", 2)
+                    put("compression_count", 3)
+                    put("context_tokens", 400)
+                    put("context_length", 1000)
+                    put("tokens_per_s", 12.5)
+                },
+            )
+        assertEquals(10L, stats?.inputTokens)
+        assertEquals(20L, stats?.outputTokens)
+        assertEquals(30L, stats?.totalTokens)
+        assertEquals(2L, stats?.apiCalls)
+        assertEquals(3, stats?.compressions)
+        assertEquals(400L, stats?.contextUsed)
+        assertEquals(1000L, stats?.contextMax)
+        assertEquals(12.5, stats?.avgTps)
+    }
 }

@@ -141,8 +141,11 @@ fun parseUsageSnapshot(result: Any?): UsageSnapshotResponse? {
     val rawMap = asMap(result) ?: return null
     val usageMap = asMap(rawMap["usage"]) ?: rawMap
 
+    // `session.usage` and the authority's `session.stats` name the same counters differently.
+    fun usageValue(key: String): Any? = usageMap[key] ?: STATS_ALIASES[key]?.let { usageMap[it] }
+
     fun num(key: String): Long? =
-        when (val value = usageMap[key]) {
+        when (val value = usageValue(key)) {
             is Byte, is Short, is Int, is Long -> {
                 (value as Number).toLong()
             }
@@ -184,7 +187,7 @@ fun parseUsageSnapshot(result: Any?): UsageSnapshotResponse? {
     fun intNum(key: String): Int? = num(key)?.takeIf { it in Int.MIN_VALUE..Int.MAX_VALUE }?.toInt()
 
     fun doubleNum(key: String): Double? =
-        when (val value = usageMap[key]) {
+        when (val value = usageValue(key)) {
             is Number -> value.toDouble()
             is JsonPrimitive -> value.doubleOrNull ?: value.longOrNull?.toDouble()
             is String -> value.toDoubleOrNull()
@@ -192,14 +195,14 @@ fun parseUsageSnapshot(result: Any?): UsageSnapshotResponse? {
         }?.takeIf { it.isFinite() }
 
     fun string(key: String): String? =
-        when (val value = usageMap[key]) {
+        when (val value = usageValue(key)) {
             is String -> value
             is JsonPrimitive -> value.content
             else -> null
         }
 
     fun bool(key: String): Boolean? =
-        when (val value = usageMap[key]) {
+        when (val value = usageValue(key)) {
             is Boolean -> value
             is JsonPrimitive -> value.booleanOrNull
             is String -> value.toBooleanStrictOrNull()
@@ -207,7 +210,7 @@ fun parseUsageSnapshot(result: Any?): UsageSnapshotResponse? {
         }
 
     fun strings(key: String): List<String>? =
-        when (val value = usageMap[key]) {
+        when (val value = usageValue(key)) {
             is JsonArray -> value.mapNotNull { (it as? JsonPrimitive)?.content }
             is List<*> -> value.filterIsInstance<String>()
             is JsonElement -> (value.toAny() as? List<*>)?.filterIsInstance<String>()
@@ -241,3 +244,21 @@ fun parseUsageSnapshot(result: Any?): UsageSnapshotResponse? {
         creditsLines = strings("credits_lines"),
     )
 }
+
+/** `session.usage` key → the `session.stats` key carrying the same value. */
+private val STATS_ALIASES =
+    mapOf(
+        "input" to "input_tokens",
+        "output" to "output_tokens",
+        "reasoning" to "reasoning_tokens",
+        "prompt" to "prompt_tokens",
+        "completion" to "completion_tokens",
+        "total" to "total_tokens",
+        "calls" to "api_calls",
+        "cache_read" to "cache_read_tokens",
+        "cache_write" to "cache_write_tokens",
+        "compressions" to "compression_count",
+        "context_used" to "context_tokens",
+        "context_max" to "context_length",
+        "avg_tps" to "tokens_per_s",
+    )

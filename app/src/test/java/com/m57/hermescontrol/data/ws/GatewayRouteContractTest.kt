@@ -2,6 +2,7 @@ package com.m57.hermescontrol.data.ws
 
 import com.m57.hermescontrol.data.ws.contract.RpcMethod
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
+import com.m57.hermescontrol.data.ws.contract.SessionEventsSinceResult
 import com.m57.hermescontrol.data.ws.contract.SessionIdParams
 import com.m57.hermescontrol.data.ws.contract.SessionTitleParams
 import kotlinx.coroutines.test.runTest
@@ -17,6 +18,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -252,6 +254,34 @@ class GatewayRouteContractTest {
             )
             val afterCoordination = request()
             assertNotEquals(afterBusy.params["request_id"], afterCoordination.params["request_id"])
+        }
+
+    @Test
+    fun sessionStatusIsLegacyOnly() =
+        runTest {
+            val channel =
+                RpcChannel(
+                    scope = this,
+                    json = json,
+                    sendRequest = { _, _, _ -> "" },
+                    sendFrame = { true },
+                    removeQueuedMessage = {},
+                    onIdleCheck = {},
+                )
+            val params = mapOf("session_id" to SESSION)
+            assertEquals(WsMethods.SESSION_STATUS, channel.createRequest(WsMethods.SESSION_STATUS, params).method)
+            val tracker = ReplayTracker(this, { SessionEventsSinceResult() }, {})
+            channel.handleIncomingFrame(
+                """{"method":"event","params":{"type":"gateway.ready","payload":{"session_authority":true}}}""",
+                tracker,
+            ) {}
+            val error =
+                assertThrows(IllegalArgumentException::class.java) {
+                    channel.createRequest(WsMethods.SESSION_STATUS, params)
+                }
+            assertTrue(error.message.orEmpty().contains("session.status"))
+            assertTrue(GatewayContract.routeParamProblems(WsMethods.SESSION_STATUS, params.keys, false).isEmpty())
+            assertTrue(GatewayContract.routeParamProblems(WsMethods.SESSION_STATUS, params.keys, true).isNotEmpty())
         }
 
     private companion object {

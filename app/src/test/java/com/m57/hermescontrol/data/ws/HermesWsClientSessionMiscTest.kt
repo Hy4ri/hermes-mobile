@@ -21,6 +21,8 @@ import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -405,6 +407,67 @@ class HermesWsClientSessionMiscTest {
             }
         assertEquals(expectedResult, result)
     }
+
+    @Test
+    fun authorityBranchWholeTypedCallReturnsMappedChildReceipt() =
+        runBlocking {
+            val info =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    withTimeout(5000) {
+                        HermesWsClient.events.first { it is WsEvent.SessionInfo && it.sessionId == "parent" }
+                    }
+                }
+            val frameRef = AtomicReference<JsonObject?>(null)
+            enqueueWebSocketUpgrade(
+                object : WebSocketListener() {
+                    override fun onOpen(
+                        webSocket: WebSocket,
+                        response: Response,
+                    ) {
+                        webSocket.send(
+                            """{"method":"event","params":{"type":"gateway.ready","payload":{"session_authority":true}}}""",
+                        )
+                        webSocket.send(
+                            """{"method":"event","params":{"type":"session.info","session_id":"parent","seq":1,""" +
+                                """"payload":{"revision":7,"execution_generation":2}}}""",
+                        )
+                    }
+
+                    override fun onMessage(
+                        webSocket: WebSocket,
+                        text: String,
+                    ) {
+                        val frame = OkHttpProvider.json.parseToJsonElement(text) as? JsonObject ?: return
+                        when ((frame["method"] as? JsonPrimitive)?.content) {
+                            "session.mutate" -> {
+                                frameRef.set(frame)
+                                val id = (frame["id"] as JsonPrimitive).content
+                                webSocket.send(
+                                    """{"id":"$id","result":{"session_id":"parent","revision":8,""" +
+                                        """"operation":"branch","branched_session_id":"child","copied_messages":3}}""",
+                                )
+                            }
+                        }
+                    }
+                },
+            )
+            connectClient()
+            info.await()
+            val result =
+                HermesWsClient.call(
+                    RpcMethods.SESSION_BRANCH_WHOLE,
+                    SessionBranchWholeParams("parent", "Child"),
+                ) as JsonObject
+            val params = requireNotNull(frameRef.get())["params"] as JsonObject
+            assertEquals(JsonPrimitive("branch"), params["operation"])
+            assertEquals(JsonPrimitive(7), params["expected_revision"])
+            assertEquals(JsonPrimitive(2), params["expected_generation"])
+            assertEquals(buildJsonObject { put("title", "Child") }, params["payload"])
+            assertEquals(JsonPrimitive("child"), result["session_id"])
+            assertEquals(JsonPrimitive("child"), result["stored_session_id"])
+            assertEquals(JsonPrimitive("Child"), result["title"])
+            assertEquals(JsonPrimitive(3), result["message_count"])
+        }
 
     @Test
     fun typedCallSessionBranchPutsExactWirePayloadAndDecodesPassthroughResult() {

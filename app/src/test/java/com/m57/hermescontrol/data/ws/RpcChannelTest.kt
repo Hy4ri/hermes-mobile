@@ -5,6 +5,7 @@ import com.m57.hermescontrol.data.ws.contract.PromptSubmitParams
 import com.m57.hermescontrol.data.ws.contract.RpcMethod
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
 import com.m57.hermescontrol.data.ws.contract.SessionArchiveParams
+import com.m57.hermescontrol.data.ws.contract.SessionBranchParams
 import com.m57.hermescontrol.data.ws.contract.SessionCorrectionParams
 import com.m57.hermescontrol.data.ws.contract.SessionEventsSinceResult
 import com.m57.hermescontrol.data.ws.contract.SessionInterruptParams
@@ -795,6 +796,73 @@ class RpcChannelTest {
             // A reconnect forgets every generation.
             frame("""{"method":"event","params":{"type":"gateway.ready","payload":{"session_authority":true}}}""")
             assertEquals(setOf("session_id"), interrupt().keys)
+        }
+
+    @Test
+    fun authorityBranchUsesResumeSnapshotFencesWithoutSessionInfoEvent() =
+        runTest {
+            val gateway = FakeGateway(this, testJson)
+            val tracker = ReplayTracker(this, { SessionEventsSinceResult() }, {})
+            gateway.channel.handleIncomingFrame(
+                """{"method":"event","params":{"type":"gateway.ready","payload":{"session_authority":true}}}""",
+                tracker,
+            ) {}
+            gateway.channel.handleIncomingFrame(
+                """{"id":"resume","result":{"session_id":"parent","revision":7,"execution_generation":3}}""",
+                tracker,
+            ) {}
+            val request =
+                gateway.channel.createRequest(
+                    WsMethods.SESSION_BRANCH,
+                    gateway.channel.encodeParams(RpcMethods.SESSION_BRANCH, SessionBranchParams("parent", "Child")),
+                )
+            assertEquals(WsMethods.SESSION_MUTATE, request.method)
+            assertEquals(JsonPrimitive(7), request.params["expected_revision"])
+            assertEquals(JsonPrimitive(3), request.params["expected_generation"])
+        }
+
+    @Test
+    fun authorityBranchRetainsFencesAndMapsReceiptForEventConsumers() =
+        runTest {
+            val gateway = FakeGateway(this, testJson)
+            val tracker = ReplayTracker(this, { SessionEventsSinceResult() }, {})
+            val events = mutableListOf<WsEvent>()
+
+            fun frame(text: String) = gateway.channel.handleIncomingFrame(text, tracker, events::add)
+
+            fun branch(method: RpcMethod<SessionBranchParams, JsonElement>) =
+                gateway.channel.createRequest(
+                    method.name,
+                    gateway.channel.encodeParams(
+                        method,
+                        SessionBranchParams("s1", "Child"),
+                    ),
+                )
+            frame("""{"method":"event","params":{"type":"gateway.ready","payload":{"session_authority":true}}}""")
+            frame(
+                """{"method":"event","params":{"type":"session.info","session_id":"s1","seq":1,""" +
+                    """"payload":{"revision":7,"execution_generation":2}}}""",
+            )
+            val first = branch(RpcMethods.SESSION_BRANCH)
+            assertEquals(WsMethods.SESSION_MUTATE, first.method)
+            assertEquals(JsonPrimitive("branch"), first.params["operation"])
+            assertEquals(JsonPrimitive(7), first.params["expected_revision"])
+            assertEquals(JsonPrimitive(2), first.params["expected_generation"])
+            assertEquals(buildJsonObject { put("title", "Child") }, first.params["payload"])
+            assertEquals(first.params, branch(RpcMethods.SESSION_BRANCH).params)
+            frame(
+                """{"id":"${first.id}","result":{"session_id":"s1","operation":"branch","revision":8,""" +
+                    """"branched_session_id":"child-id","copied_messages":3}}""",
+            )
+            val result = (events.last() as WsEvent.RpcResult).result as Map<*, *>
+            assertEquals("child-id", result["session_id"])
+            assertEquals("child-id", result["stored_session_id"])
+            assertEquals("s1", result["parent_session_id"])
+            assertEquals("Child", result["title"])
+            assertEquals(3, (result["message_count"] as Number).toInt())
+            val next = branch(RpcMethods.SESSION_BRANCH)
+            assertNotEquals(first.params["request_id"], next.params["request_id"])
+            assertEquals(JsonPrimitive(8), next.params["expected_revision"])
         }
 
     @Test

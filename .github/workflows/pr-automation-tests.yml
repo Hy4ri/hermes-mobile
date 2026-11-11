@@ -6,11 +6,15 @@ on:
     paths:
       - '.github/scripts/**'
       - '.github/workflows/pr-*.yml'
+      - '.github/workflows/gateway-contract-sync.yml'
+      - 'scripts/sync-gateway-contract.sh'
   push:
     branches: [main]
     paths:
       - '.github/scripts/**'
       - '.github/workflows/pr-*.yml'
+      - '.github/workflows/gateway-contract-sync.yml'
+      - 'scripts/sync-gateway-contract.sh'
 
 permissions:
   contents: read

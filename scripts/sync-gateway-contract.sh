@@ -16,4 +16,4 @@ gh api -H "Accept: application/vnd.github.raw" "repos/$REPO/contents/$CONTRACT_P
 jq -e '.methods | length > 0' "$DEST/openrpc.json" > /dev/null
 
 printf 'repo: %s\nref: %s\nsha: %s\ndate: %s\npath: %s\n' "$REPO" "$REF" "$SHA" "${DATE%%T*}" "$CONTRACT_PATH" > "$DEST/SOURCE"
-echo "Vendored $REPO@$SHA. Run ./gradlew testDebugUnitTest --tests '*GatewayContract*' and review the diff."
+echo "Vendored $REPO@$SHA. Run ./gradlew testDebugUnitTest --tests '*GatewayContractTest' --tests '*GatewayRouteContractTest' and review the diff."

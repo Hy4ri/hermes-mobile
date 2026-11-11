@@ -59,6 +59,7 @@ internal class RpcChannel(
 
     /** Newest `execution_generation` seen per runtime session id (session-authority route only). */
     private val generations = ConcurrentHashMap<String, Int>()
+    private val mutations = SessionMutations()
 
     /** #1711: hosts that refused `source: "desktop"` on `session.create` and take `"gui"`. */
     private val guiCreateHosts = ConcurrentHashMap.newKeySet<String>()
@@ -130,12 +131,14 @@ internal class RpcChannel(
     ): JsonRpcRequest {
         val id = nextId()
         val decorated = decorateParams(method, params)
+        val wire = wireMethod(method, decorated)
         val request =
             JsonRpcRequest(
                 id = id,
-                method = wireMethod(method),
+                method = wire,
                 params = decorated.mapValues { it.value.toJsonElement() },
             )
+        if (wire == WsMethods.SESSION_MUTATE && method != wire) mutations.track(id, JsonObject(request.params))
         if (method != WsMethods.SESSION_CREATE || request.source() != DESKTOP_SESSION_SOURCE) return request
         val host = createSourceHost()
         if (host in guiCreateHosts) return request.withGuiSource()
@@ -144,8 +147,20 @@ internal class RpcChannel(
     }
 
     /** The authority route serves the usage counters as `session.stats`; `session.usage` is not registered there. */
-    private fun wireMethod(method: String): String =
-        if (sessionAuthority && method == WsMethods.SESSION_USAGE) WsMethods.SESSION_STATS else method
+    private fun wireMethod(
+        method: String,
+        params: Map<String, Any>,
+    ): String =
+        when {
+            !sessionAuthority -> method
+
+            method == WsMethods.SESSION_USAGE -> WsMethods.SESSION_STATS
+
+            // `toAuthorityWire` rewrote the params of an edit whose fences are known; otherwise it stays as sent.
+            params["operation"] != null && isMutationMethod(method) -> WsMethods.SESSION_MUTATE
+
+            else -> method
+        }
 
     private fun JsonRpcRequest.source(): String? = (params["source"] as? JsonPrimitive)?.contentOrNull
 
@@ -277,6 +292,11 @@ internal class RpcChannel(
                 }
             }
 
+            WsMethods.SESSION_ARCHIVE, WsMethods.SESSION_WORKSPACE_MOVE -> {
+                val sessionId = (params["session_id"] ?: params["session_key"]).eventStringOrNull()
+                mutations.prepare(method, params, sessionId?.let { generations[it] }) ?: params
+            }
+
             WsMethods.SESSION_INTERRUPT, WsMethods.SESSION_STEER, WsMethods.SESSION_REDIRECT -> {
                 withGeneration(params)
             }
@@ -320,12 +340,22 @@ internal class RpcChannel(
         generations.merge(sessionId, generation) { old, new -> maxOf(old, new) }
     }
 
+    private fun recordRevision(params: JsonObject) {
+        val sessionId = params.eventSessionId().takeUnless { it.isNullOrBlank() } ?: return
+        mutations.adoptEvent(
+            (params["type"] as? JsonPrimitive)?.contentOrNull,
+            sessionId,
+            params["payload"] as? JsonObject,
+        )
+    }
+
     /** Complete (or fail) a single pending call and cancel its timer. */
     fun resolvePending(
         id: String,
         result: Any?,
         error: JsonRpcError?,
     ) {
+        mutations.settle(id, result as? JsonElement, error?.data)
         val call = pendingCalls.remove(id) ?: return
         removeQueuedMessage(id)
         call.timeoutJob?.cancel()
@@ -416,7 +446,10 @@ internal class RpcChannel(
         val event =
             try {
                 val rpc = json.decodeFromString<JsonRpcResponse>(text)
-                if (rpc.id == null) rpc.params?.let(::recordGeneration)
+                if (rpc.id == null) {
+                    rpc.params?.let(::recordRevision)
+                    rpc.params?.let(::recordGeneration)
+                }
                 // Resolve pending request() calls with the RAW JsonElement from
                 // rpc.result, BEFORE EventParser.parse() converts it via toAny().
                 // This preserves integer/float type fidelity needed by callers
@@ -473,6 +506,7 @@ internal class RpcChannel(
             is WsEvent.GatewayReady -> {
                 sessionAuthority = event.data?.get("session_authority") == true
                 generations.clear()
+                mutations.clear()
             }
 
             is WsEvent.RpcResult -> {
@@ -504,3 +538,7 @@ internal class RpcChannel(
         emitEvent(event)
     }
 }
+
+/** Legacy methods the session authority serves as `session.mutate`. */
+private fun isMutationMethod(method: String) =
+    method == WsMethods.SESSION_ARCHIVE || method == WsMethods.SESSION_WORKSPACE_MOVE

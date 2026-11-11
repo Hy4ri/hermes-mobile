@@ -4,9 +4,11 @@ import com.m57.hermescontrol.data.ws.contract.ApprovalRespondParams
 import com.m57.hermescontrol.data.ws.contract.PromptSubmitParams
 import com.m57.hermescontrol.data.ws.contract.RpcMethod
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
+import com.m57.hermescontrol.data.ws.contract.SessionArchiveParams
 import com.m57.hermescontrol.data.ws.contract.SessionCorrectionParams
 import com.m57.hermescontrol.data.ws.contract.SessionEventsSinceResult
 import com.m57.hermescontrol.data.ws.contract.SessionInterruptParams
+import com.m57.hermescontrol.data.ws.contract.SessionWorkspaceMoveParams
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -27,6 +29,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
@@ -792,6 +795,75 @@ class RpcChannelTest {
             // A reconnect forgets every generation.
             frame("""{"method":"event","params":{"type":"gateway.ready","payload":{"session_authority":true}}}""")
             assertEquals(setOf("session_id"), interrupt().keys)
+        }
+
+    @Test
+    fun authorityArchiveAndMoveAreRevisionFencedMutations() =
+        runTest {
+            val gateway = FakeGateway(this, testJson)
+            val tracker = ReplayTracker(this, { SessionEventsSinceResult() }, {})
+
+            fun frame(text: String) = gateway.channel.handleIncomingFrame(text, tracker) {}
+
+            fun <P, R> send(
+                method: String,
+                wire: RpcMethod<P, R>,
+                params: P,
+            ) = gateway.channel.createRequest(method, gateway.channel.encodeParams(wire, params))
+
+            fun archive() = send(WsMethods.SESSION_ARCHIVE, RpcMethods.SESSION_ARCHIVE, SessionArchiveParams("s1"))
+
+            fun move() =
+                send(
+                    WsMethods.SESSION_WORKSPACE_MOVE,
+                    RpcMethods.SESSION_WORKSPACE_MOVE,
+                    SessionWorkspaceMoveParams(sessionKey = "s1", cwd = "/work"),
+                )
+
+            fun JsonRpcRequest.param(key: String) = (params[key] as? JsonPrimitive)?.content
+
+            assertEquals(WsMethods.SESSION_ARCHIVE, archive().method)
+
+            frame("""{"method":"event","params":{"type":"gateway.ready","payload":{"session_authority":true}}}""")
+            // Fences not known yet: the call stays as sent.
+            assertEquals(WsMethods.SESSION_ARCHIVE, archive().method)
+
+            frame(
+                """{"method":"event","params":{"type":"session.info","session_id":"s1","seq":1,""" +
+                    """"payload":{"revision":7,"execution_generation":2}}}""",
+            )
+            val first = archive()
+            assertEquals(WsMethods.SESSION_MUTATE, first.method)
+            assertEquals(
+                setOf("session_id", "request_id", "expected_revision", "operation", "payload"),
+                first.params.keys,
+            )
+            assertEquals("archive", first.param("operation"))
+            assertEquals("7", first.param("expected_revision"))
+
+            // A lost reply: the retry re-sends the same request id.
+            assertEquals(first.param("request_id"), archive().param("request_id"))
+
+            val moved = move()
+            assertEquals(WsMethods.SESSION_MUTATE, moved.method)
+            assertEquals("workspace", moved.param("operation"))
+            assertEquals("2", moved.param("expected_generation"))
+            assertNotEquals(first.param("request_id"), moved.param("request_id"))
+
+            // Applied: its revision becomes the next fence and the request is spent.
+            frame("""{"id":"${first.id}","result":{"session_id":"s1","operation":"archive","revision":8}}""")
+            val next = archive()
+            assertNotEquals(first.param("request_id"), next.param("request_id"))
+            assertEquals("8", next.param("expected_revision"))
+
+            // A revision conflict wrote nothing: the refusal's revision is adopted by a fresh request.
+            frame(
+                """{"id":"${next.id}","error":{"code":4009,"message":"conflict",""" +
+                    """"data":{"reason":"revision_conflict","revision":11}}}""",
+            )
+            val after = archive()
+            assertNotEquals(next.param("request_id"), after.param("request_id"))
+            assertEquals("11", after.param("expected_revision"))
         }
 
     @Test

@@ -41,9 +41,59 @@ object GatewayContract {
     /** Server→client request methods (`x-server-requests`). */
     val serverRequests: Set<String> by lazy { names("x-server-requests") }
 
+    /** Methods only the session authority serves (`x-canonical-methods`). */
+    val canonicalMethods: Set<String> by lazy { names("x-canonical-methods") }
+
+    /** Methods both routes serve (`methods`). */
+    val sharedMethods: Set<String> by lazy { names("methods") }
+
     private fun paramsSchemas(method: String): List<JsonObject> {
         val entries = methodEntries.filter { it["name"]!!.jsonPrimitive.content == method }
-        return entries.map { entry ->
+        return schemasOf(entries)
+    }
+
+    private fun routeEntries(
+        method: String,
+        authority: Boolean,
+    ): List<JsonObject> {
+        val canonical = (root["x-canonical-methods"] as? JsonArray).orEmpty().map { it.jsonObject }
+        val shared = (root["methods"] as? JsonArray).orEmpty().map { it.jsonObject }
+        // The authority serves its canonical form of a method when it has one; a legacy route has no canonical methods.
+        val pool =
+            if (authority) {
+                canonical
+                    .filter {
+                        it["name"]!!.jsonPrimitive.content == method
+                    }.ifEmpty { shared }
+            } else {
+                shared
+            }
+        return pool.filter { it["name"]!!.jsonPrimitive.content == method }
+    }
+
+    /** [paramKeyProblems] for the one schema [method] has on a given route. */
+    fun routeParamProblems(
+        method: String,
+        keys: Set<String>,
+        authority: Boolean,
+    ): List<String> {
+        val entries = routeEntries(method, authority)
+        if (entries.isEmpty()) {
+            return listOf("$method is not served on the ${if (authority) "authority" else "legacy"} route")
+        }
+        val schema = schemasOf(entries).first()
+        val properties = schema["properties"]?.jsonObject?.keys.orEmpty()
+        val required = schema["required"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty()
+        val strict = schema["additionalProperties"]?.jsonPrimitive?.boolean == false
+        val route = if (authority) "authority" else "legacy"
+        val problems = mutableListOf<String>()
+        if (strict) (keys - properties).sorted().forEach { problems += "$method ($route): unknown param '$it'" }
+        required.filter { it !in keys }.forEach { problems += "$method ($route): missing required param '$it'" }
+        return problems
+    }
+
+    private fun schemasOf(entries: List<JsonObject>): List<JsonObject> =
+        entries.map { entry ->
             val ref =
                 entry["params"]!!
                     .jsonArray
@@ -53,7 +103,6 @@ object GatewayContract {
                     .jsonPrimitive.content
             schemas[ref.substringAfterLast('/')]!!.jsonObject
         }
-    }
 
     /**
      * Keys the backend would reject for [method]: unknown keys when the params

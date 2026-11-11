@@ -133,7 +133,7 @@ internal class RpcChannel(
         val request =
             JsonRpcRequest(
                 id = id,
-                method = method,
+                method = wireMethod(method),
                 params = decorated.mapValues { it.value.toJsonElement() },
             )
         if (method != WsMethods.SESSION_CREATE || request.source() != DESKTOP_SESSION_SOURCE) return request
@@ -142,6 +142,10 @@ internal class RpcChannel(
         desktopCreates[id] = host to request
         return request
     }
+
+    /** The authority route serves the usage counters as `session.stats`; `session.usage` is not registered there. */
+    private fun wireMethod(method: String): String =
+        if (sessionAuthority && method == WsMethods.SESSION_USAGE) WsMethods.SESSION_STATS else method
 
     private fun JsonRpcRequest.source(): String? = (params["source"] as? JsonPrimitive)?.contentOrNull
 

@@ -30,6 +30,9 @@ object WsMethods {
     /** Lifetime usage snapshot (calls, token totals, compression count). */
     const val SESSION_USAGE = "session.usage"
 
+    /** Canonical (session-authority) name of the same counters, with `*_tokens` field names. */
+    const val SESSION_STATS = "session.stats"
+
     /** Re-home a stored session into another workspace folder (replaces cwd + git identity). */
     const val SESSION_WORKSPACE_MOVE = "session.workspace.move"
     const val SESSION_EXPORT = "session.export"

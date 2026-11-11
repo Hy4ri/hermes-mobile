@@ -1,6 +1,8 @@
 package com.m57.hermescontrol.data.ws
 
+import com.m57.hermescontrol.data.ws.contract.PromptSubmitParams
 import com.m57.hermescontrol.data.ws.contract.RpcMethod
+import com.m57.hermescontrol.data.ws.contract.RpcMethods
 import com.m57.hermescontrol.data.ws.contract.SessionEventsSinceResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -714,6 +716,30 @@ class RpcChannelTest {
             ) {}
             assertFalse(gateway.channel.sessionAuthority)
             assertFalse(gateway.channel.canonicalClarifyBatch)
+        }
+
+    @Test
+    fun promptSubmitIdentityIsMintedOnlyOnTheSessionAuthorityRoute() =
+        runTest {
+            val gateway = FakeGateway(this, testJson)
+            val tracker = ReplayTracker(this, { SessionEventsSinceResult() }, {})
+            val bare = PromptSubmitParams(sessionId = "s1", text = "hi")
+
+            fun encode(params: PromptSubmitParams) = gateway.channel.encodeParams(RpcMethods.PROMPT_SUBMIT, params)
+
+            assertFalse(encode(bare).containsKey("submission_id"))
+
+            gateway.channel.handleIncomingFrame(
+                """{"method":"event","params":{"type":"gateway.ready","payload":{"session_authority":true}}}""",
+                tracker,
+            ) {}
+            val first = encode(bare)["submission_id"]?.jsonPrimitive?.content
+            val second = encode(bare)["submission_id"]?.jsonPrimitive?.content
+            assertTrue(!first.isNullOrEmpty() && !second.isNullOrEmpty())
+            assertTrue("each send gets its own id", first != second)
+            // Other methods never gain the key.
+            val other = gateway.channel.encodeParams(sampleMethod, SampleRequestParams("m"))
+            assertFalse(other.containsKey("submission_id"))
         }
 
     @Test

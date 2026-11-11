@@ -19,6 +19,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -241,7 +242,22 @@ internal class RpcChannel(
         require(encoded is JsonObject) {
             "RPC params for ${method.name} must serialize to a JsonObject, got ${encoded::class.simpleName}"
         }
-        return encoded
+        return withSubmissionIdentity(method.name, encoded)
+    }
+
+    /**
+     * #1802: the session authority admits only identified input and refuses a bare `prompt.submit`
+     * with 4001 `invalid_params`. The id is minted once here, so the frame the offline queue
+     * replays after a dropped ack carries the same id and the gateway de-duplicates it. A legacy
+     * route stays untouched: it may refuse the unknown key.
+     */
+    private fun withSubmissionIdentity(
+        method: String,
+        params: JsonObject,
+    ): JsonObject {
+        if (method != WsMethods.PROMPT_SUBMIT || !sessionAuthority) return params
+        if ("submission_id" in params || "input_id" in params) return params
+        return JsonObject(params + ("submission_id" to JsonPrimitive(UUID.randomUUID().toString())))
     }
 
     /** Complete (or fail) a single pending call and cancel its timer. */

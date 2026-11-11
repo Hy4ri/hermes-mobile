@@ -490,6 +490,24 @@ class EventParserTest {
     // ── Approval requests (full support) ───────────────────────────────
 
     @Test
+    fun testParseApprovalRequest_canonicalPromptIdIsTheRequestId() {
+        val response =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "approval.request",
+                        "payload" to mapOf("prompt_id" to "p-1", "execution_generation" to 3, "command" to "ls"),
+                    ),
+            )
+        assertEquals("p-1", (EventParser.parse(response) as WsEvent.ApprovalRequest).requestId)
+    }
+
+    @Test
     fun testParseApprovalRequest_withChoicesAndRequestId() {
         val response =
             createJsonRpcResponse(

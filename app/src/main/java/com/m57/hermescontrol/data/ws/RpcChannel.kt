@@ -18,6 +18,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.put
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -55,6 +56,9 @@ internal class RpcChannel(
     private val requestId = AtomicInteger(0)
     private val pendingCalls = ConcurrentHashMap<String, PendingCall>()
     private val capabilityRequestIds = ConcurrentHashMap.newKeySet<String>()
+
+    /** Newest `execution_generation` seen per runtime session id (session-authority route only). */
+    private val generations = ConcurrentHashMap<String, Int>()
 
     /** #1711: hosts that refused `source: "desktop"` on `session.create` and take `"gui"`. */
     private val guiCreateHosts = ConcurrentHashMap.newKeySet<String>()
@@ -242,22 +246,74 @@ internal class RpcChannel(
         require(encoded is JsonObject) {
             "RPC params for ${method.name} must serialize to a JsonObject, got ${encoded::class.simpleName}"
         }
-        return withSubmissionIdentity(method.name, encoded)
+        return toAuthorityWire(method.name, encoded)
     }
 
     /**
-     * #1802: the session authority admits only identified input and refuses a bare `prompt.submit`
-     * with 4001 `invalid_params`. The id is minted once here, so the frame the offline queue
-     * replays after a dropped ack carries the same id and the gateway de-duplicates it. A legacy
-     * route stays untouched: it may refuse the unknown key.
+     * The session authority speaks the canonical wire: its params are exact, so each method below
+     * is rewritten here once, for every caller. A legacy route stays untouched; it may refuse the
+     * new keys.
+     *
+     * - `prompt.submit` (#1802): admits only identified input. The id is minted once, so a frame
+     *   the offline queue replays after a dropped ack carries the same id and is de-duplicated.
+     * - `session.interrupt` / `steer` / `redirect`: fenced by the turn's `execution_generation`.
+     * - `approval.respond`: exactly `{session_id, execution_generation, prompt_id, choice}`.
      */
-    private fun withSubmissionIdentity(
+    private fun toAuthorityWire(
         method: String,
         params: JsonObject,
     ): JsonObject {
-        if (method != WsMethods.PROMPT_SUBMIT || !sessionAuthority) return params
-        if ("submission_id" in params || "input_id" in params) return params
-        return JsonObject(params + ("submission_id" to JsonPrimitive(UUID.randomUUID().toString())))
+        if (!sessionAuthority) return params
+        return when (method) {
+            WsMethods.PROMPT_SUBMIT -> {
+                if ("submission_id" in params || "input_id" in params) {
+                    params
+                } else {
+                    JsonObject(params + ("submission_id" to JsonPrimitive(UUID.randomUUID().toString())))
+                }
+            }
+
+            WsMethods.SESSION_INTERRUPT, WsMethods.SESSION_STEER, WsMethods.SESSION_REDIRECT -> {
+                withGeneration(params)
+            }
+
+            WsMethods.APPROVAL_RESPOND -> {
+                val promptId = params["prompt_id"] ?: params["request_id"] ?: return params
+                val choice = params["choice"] ?: return params
+                val fenced = withGeneration(params)
+                val generation = fenced["execution_generation"] ?: return params
+                JsonObject(
+                    mapOf(
+                        "session_id" to (params["session_id"] ?: return params),
+                        "execution_generation" to generation,
+                        "prompt_id" to promptId,
+                        "choice" to choice,
+                    ),
+                )
+            }
+
+            else -> {
+                params
+            }
+        }
+    }
+
+    private fun withGeneration(params: JsonObject): JsonObject {
+        if ("execution_generation" in params) return params
+        val sessionId = params["session_id"].eventStringOrNull() ?: return params
+        val generation = generations[sessionId] ?: return params
+        return JsonObject(params + ("execution_generation" to JsonPrimitive(generation)))
+    }
+
+    /** Remember the newest `execution_generation` each session event carries; it never moves back. */
+    private fun recordGeneration(params: JsonObject) {
+        val sessionId = params.eventSessionId().takeUnless { it.isNullOrBlank() } ?: return
+        val generation =
+            (
+                (params["execution_generation"] ?: (params["payload"] as? JsonObject)?.get("execution_generation"))
+                    as? JsonPrimitive
+            )?.intOrNull ?: return
+        generations.merge(sessionId, generation) { old, new -> maxOf(old, new) }
     }
 
     /** Complete (or fail) a single pending call and cancel its timer. */
@@ -356,6 +412,7 @@ internal class RpcChannel(
         val event =
             try {
                 val rpc = json.decodeFromString<JsonRpcResponse>(text)
+                if (rpc.id == null) rpc.params?.let(::recordGeneration)
                 // Resolve pending request() calls with the RAW JsonElement from
                 // rpc.result, BEFORE EventParser.parse() converts it via toAny().
                 // This preserves integer/float type fidelity needed by callers
@@ -411,6 +468,7 @@ internal class RpcChannel(
         when (event) {
             is WsEvent.GatewayReady -> {
                 sessionAuthority = event.data?.get("session_authority") == true
+                generations.clear()
             }
 
             is WsEvent.RpcResult -> {

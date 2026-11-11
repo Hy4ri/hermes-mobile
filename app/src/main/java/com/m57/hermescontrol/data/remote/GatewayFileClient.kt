@@ -218,7 +218,7 @@ object GatewayFileClient {
 
             val call =
                 try {
-                    OkHttpProvider.base.newCall(Request.Builder().url(url).build())
+                    OkHttpProvider.base.newCall(downloadRequest(url, token))
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Throwable) {
@@ -243,6 +243,21 @@ object GatewayFileClient {
                 GatewayFileResult.Success(GatewayFile(name, mime, cacheFile))
             }
         }
+
+    /** Download request. Token-mode dashboards behind an auth gate (`public_url`)
+     * reject the `?token=` query on `/api/files/download` (`no_cookie`), so the
+     * token also goes out as a Bearer header. Gated (cookie) mode stays
+     * header-free: a Bearer there causes 401s (#470). */
+    internal fun downloadRequest(
+        url: String,
+        token: String,
+    ): Request =
+        Request
+            .Builder()
+            .url(url)
+            .apply {
+                if (token.isNotBlank() && !AuthManager.isGatedMode()) header("Authorization", "Bearer $token")
+            }.build()
 
     private suspend fun executeCancellable(
         call: Call,

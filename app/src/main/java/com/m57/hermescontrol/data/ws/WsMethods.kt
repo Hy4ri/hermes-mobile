@@ -33,6 +33,9 @@ object WsMethods {
     /** Canonical (session-authority) name of the same counters, with `*_tokens` field names. */
     const val SESSION_STATS = "session.stats"
 
+    /** Canonical (session-authority) revision-fenced session edit: archive, workspace move, ... */
+    const val SESSION_MUTATE = "session.mutate"
+
     /** Re-home a stored session into another workspace folder (replaces cwd + git identity). */
     const val SESSION_WORKSPACE_MOVE = "session.workspace.move"
     const val SESSION_EXPORT = "session.export"

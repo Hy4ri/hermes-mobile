@@ -49,7 +49,8 @@ data class SessionWorkspaceMoveParams(
 
 @Serializable
 data class SessionWorkspaceMoveResult(
-    @SerialName("cwd") val cwd: String,
+    // The authority's `session.mutate` receipt does not echo the folder.
+    @SerialName("cwd") val cwd: String = "",
     @SerialName("branch") val branch: String? = null,
     @SerialName("git_repo_root") val gitRepoRoot: String? = null,
 )

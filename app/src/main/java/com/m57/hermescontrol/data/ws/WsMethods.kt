@@ -33,6 +33,9 @@ object WsMethods {
     /** Re-home a stored session into another workspace folder (replaces cwd + git identity). */
     const val SESSION_WORKSPACE_MOVE = "session.workspace.move"
     const val SESSION_EXPORT = "session.export"
+
+    /** Set/clear `archived` on a session and its lineage; messages are kept. */
+    const val SESSION_ARCHIVE = "session.archive"
     const val PROFILES_CONFIGURE = "profiles.configure"
     const val PROFILES_LIST = "profiles.list"
     const val MODEL_OPTIONS = "model.options"
@@ -241,6 +244,7 @@ object WsMethods {
             SESSION_STATUS, // session.status
             SESSION_WORKSPACE_MOVE, // methods_session.py: _profile_home(params) + _profile_db(params, writer=True)
             SESSION_EXPORT,
+            SESSION_ARCHIVE, // methods_session.py: _profile_db(params, writer=True)
             // session.most_recent uses _profile_db(params) too, but
             // mobile doesn't call it; documented for completeness.
             // Category (a): @_profile_scoped decorator

@@ -53,3 +53,17 @@ data class SessionWorkspaceMoveResult(
     @SerialName("branch") val branch: String? = null,
     @SerialName("git_repo_root") val gitRepoRoot: String? = null,
 )
+
+/** `session.archive`: [sessionId] is a live runtime id first, else a stored id; `archived = false` restores. */
+@Serializable
+data class SessionArchiveParams(
+    @SerialName("session_id") val sessionId: String,
+    @SerialName("archived") val archived: Boolean = true,
+    @SerialName("profile") val profile: String? = null,
+)
+
+@Serializable
+data class SessionArchiveResult(
+    @SerialName("archived") val archived: Boolean = false,
+    @SerialName("session_key") val sessionKey: String? = null,
+)

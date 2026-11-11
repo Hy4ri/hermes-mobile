@@ -33,6 +33,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.History
@@ -45,8 +46,11 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.SnackbarVisuals
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -96,10 +100,12 @@ import com.m57.hermescontrol.data.session.sessionAttentionScopeKey
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
+import com.m57.hermescontrol.data.ws.contract.SessionArchiveParams
 import com.m57.hermescontrol.data.ws.contract.SessionExportParams
 import com.m57.hermescontrol.launchExternalActivityWithLease
 import com.m57.hermescontrol.profilelock.ProfileLock
 import com.m57.hermescontrol.share.ShareInbox
+import com.m57.hermescontrol.shortcuts.ShortcutRefreshEvents
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.chat.components.ChatAppUpdateSection
 import com.m57.hermescontrol.ui.chat.components.ChatConnectionBanner
@@ -151,6 +157,7 @@ import com.m57.hermescontrol.ui.common.ReadableContentMaxWidth
 import com.m57.hermescontrol.ui.model.components.ModelPickerDialog
 import com.m57.hermescontrol.ui.settings.SettingsViewModel
 import com.m57.hermescontrol.util.ConnectorUrlValidator
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.m57.hermescontrol.ui.common.ExpressiveButton as Button
@@ -598,17 +605,17 @@ fun ChatScreen(
         snackbarHost = {
             SnackbarHost(snackbarHostState, modifier = Modifier.imePadding()) { data ->
                 val statusColors = LocalHermesStatusColors.current
-                val isDownloadComplete = data.visuals.message.startsWith("Saved ")
+                val isSuccess = data.visuals is SuccessSnackbarVisuals || data.visuals.message.startsWith("Saved ")
                 Snackbar(
                     snackbarData = data,
                     containerColor =
-                        if (isDownloadComplete) statusColors.success else MaterialTheme.colorScheme.errorContainer,
+                        if (isSuccess) statusColors.success else MaterialTheme.colorScheme.errorContainer,
                     contentColor =
-                        if (isDownloadComplete) statusColors.onSuccess else MaterialTheme.colorScheme.onErrorContainer,
+                        if (isSuccess) statusColors.onSuccess else MaterialTheme.colorScheme.onErrorContainer,
                     actionColor =
-                        if (isDownloadComplete) statusColors.onSuccess else MaterialTheme.colorScheme.onErrorContainer,
+                        if (isSuccess) statusColors.onSuccess else MaterialTheme.colorScheme.onErrorContainer,
                     dismissActionContentColor =
-                        if (isDownloadComplete) statusColors.onSuccess else MaterialTheme.colorScheme.onErrorContainer,
+                        if (isSuccess) statusColors.onSuccess else MaterialTheme.colorScheme.onErrorContainer,
                 )
             }
         },
@@ -746,6 +753,75 @@ fun ChatScreen(
                             }
                         },
                         modifier = Modifier.testTag("chat_menu_export_chat"),
+                    )
+                    val archivedMessage = stringResource(R.string.chat_archived)
+                    val archiveFailedMessage = stringResource(R.string.chat_archive_failed)
+                    val archiveUndoLabel = stringResource(R.string.sessions_undo_action)
+                    val archiveUndoFailedMessage = stringResource(R.string.sessions_undo_failed)
+                    // Archive the chat you are in; land on a fresh chat with a one-tap undo.
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.chat_action_archive)) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Filled.Archive,
+                                contentDescription = null,
+                            )
+                        },
+                        // Not while a reply is being generated: archiving does not stop the run.
+                        enabled =
+                            state.currentSessionId != null &&
+                                state.hasConversation &&
+                                !state.isAgentTyping &&
+                                !state.isMainTurnBusy,
+                        onClick = {
+                            showSessionMenu = false
+                            val sessionId = state.currentSessionId
+                            if (sessionId != null) {
+                                scrollScope.launch {
+                                    val result =
+                                        try {
+                                            HermesWsClient.call(
+                                                RpcMethods.SESSION_ARCHIVE,
+                                                SessionArchiveParams(sessionId = sessionId),
+                                            )
+                                        } catch (e: CancellationException) {
+                                            throw e
+                                        } catch (e: Exception) {
+                                            snackbarHostState.showSnackbar(
+                                                String.format(archiveFailedMessage, e.message ?: "Unknown error"),
+                                            )
+                                            return@launch
+                                        }
+                                    viewModel.createNewSession()
+                                    ShortcutRefreshEvents.refresh()
+                                    val outcome =
+                                        snackbarHostState.showSnackbar(
+                                            SuccessSnackbarVisuals(
+                                                message = archivedMessage,
+                                                actionLabel = archiveUndoLabel,
+                                                withDismissAction = true,
+                                            ),
+                                        )
+                                    if (outcome == SnackbarResult.ActionPerformed) {
+                                        try {
+                                            HermesWsClient.call(
+                                                RpcMethods.SESSION_ARCHIVE,
+                                                SessionArchiveParams(
+                                                    sessionId = result.sessionKey ?: sessionId,
+                                                    archived = false,
+                                                ),
+                                            )
+                                            ShortcutRefreshEvents.refresh()
+                                        } catch (e: CancellationException) {
+                                            throw e
+                                        } catch (e: Exception) {
+                                            snackbarHostState.showSnackbar(archiveUndoFailedMessage)
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.testTag("chat_menu_archive"),
                     )
                     ChatKeepScreenAwakeMenuItem(
                         checked = settingsState.keepScreenAwake,
@@ -1329,3 +1405,11 @@ internal fun ChatBackgroundConnectionMenuItem(
         modifier = Modifier.testTag("chat_menu_keep_connected"),
     )
 }
+
+/** Marks a snackbar as a confirmation, so the host picks the success colours without guessing from its action. */
+private class SuccessSnackbarVisuals(
+    override val message: String,
+    override val actionLabel: String? = null,
+    override val withDismissAction: Boolean = false,
+    override val duration: SnackbarDuration = SnackbarDuration.Short,
+) : SnackbarVisuals

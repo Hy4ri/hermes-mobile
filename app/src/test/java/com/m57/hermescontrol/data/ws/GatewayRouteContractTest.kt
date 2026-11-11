@@ -3,6 +3,7 @@ package com.m57.hermescontrol.data.ws
 import com.m57.hermescontrol.data.ws.contract.RpcMethod
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
 import com.m57.hermescontrol.data.ws.contract.SessionIdParams
+import com.m57.hermescontrol.data.ws.contract.SessionTitleParams
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.descriptors.PrimitiveKind
@@ -96,6 +97,62 @@ class GatewayRouteContractTest {
         val request = channel.createRequest(method.name, channel.encodeParams(method, params))
         return request.method to request.params.keys
     }
+
+    @Test
+    fun titleUsesRenameMutationOnAuthorityAndRetainsRequestUntilSettled() =
+        runTest {
+            val channel = RpcChannel(this, json, { _, _, _ -> "" }, { true }, {}, {})
+            val tracker =
+                ReplayTracker(this, {
+                    com.m57.hermescontrol.data.ws.contract
+                        .SessionEventsSinceResult()
+                }, {})
+            val method = RpcMethods.SESSION_TITLE
+
+            fun send() =
+                channel.createRequest(
+                    method.name,
+                    channel.encodeParams(method, SessionTitleParams(SESSION, "New", "p")),
+                )
+
+            fun frame(text: String) = channel.handleIncomingFrame(text, tracker) {}
+
+            fun JsonRpcRequest.param(name: String) = params[name]
+
+            val legacy = send()
+            assertEquals(WsMethods.SESSION_TITLE, legacy.method)
+            assertEquals(JsonPrimitive("New"), legacy.param("title"))
+            frame("""{"method":"event","params":{"type":"gateway.ready","payload":{"session_authority":true}}}""")
+            assertEquals(WsMethods.SESSION_TITLE, send().method) // No revision yet.
+            frame(
+                """{"method":"event","params":{"type":"session.info","session_id":"$SESSION","seq":1,""" +
+                    """"payload":{"revision":7}}}""",
+            )
+            val first = send()
+            assertEquals(WsMethods.SESSION_MUTATE, first.method)
+            assertEquals(emptyList<String>(), GatewayContract.routeParamProblems(first.method, first.params.keys, true))
+            assertEquals(JsonPrimitive("rename"), first.param("operation"))
+            assertEquals(JsonObject(mapOf("title" to JsonPrimitive("New"))), first.param("payload"))
+            assertEquals(JsonPrimitive(7), first.param("expected_revision"))
+            assertEquals(
+                setOf("session_id", "request_id", "expected_revision", "operation", "payload"),
+                first.params.keys,
+            )
+            assertEquals(first.param("request_id"), send().param("request_id"))
+            val receipt = """{"session_id":"$SESSION","operation":"rename","revision":8,"title":"New"}"""
+            assertEquals("New", json.decodeFromString(method.result, receipt).title)
+            frame("""{"id":"${first.id}","result":$receipt}""")
+            val next = send()
+            assertNotEquals(first.param("request_id"), next.param("request_id"))
+            assertEquals(JsonPrimitive(8), next.param("expected_revision"))
+            frame(
+                """{"id":"${next.id}","error":{"code":4009,"message":"conflict",""" +
+                    """"data":{"reason":"revision_conflict","revision":11}}}""",
+            )
+            val afterConflict = send()
+            assertNotEquals(next.param("request_id"), afterConflict.param("request_id"))
+            assertEquals(JsonPrimitive(11), afterConflict.param("expected_revision"))
+        }
 
     @Test
     fun everyTypedRpcMatchesTheContractOnBothRoutes() =

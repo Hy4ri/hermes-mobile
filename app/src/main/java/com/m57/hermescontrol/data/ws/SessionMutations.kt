@@ -9,7 +9,7 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Session-authority edits. The authority serves archive, delete and workspace moves as
+ * Session-authority edits. The authority serves title, archive, delete and workspace moves as
  * `session.mutate`, a revision-fenced, retry-idempotent edit (`{session_id, request_id,
  * expected_revision, operation, payload}`, plus `expected_generation` for fenced edits). This class
  * keeps what that needs: the newest revision of each session, and the request a lost reply left
@@ -48,6 +48,14 @@ internal class SessionMutations {
     ): JsonObject? {
         val (sessionKey, operation, payload) =
             when (method) {
+                WsMethods.SESSION_TITLE -> {
+                    Triple(
+                        params["session_id"],
+                        "rename",
+                        JsonObject(mapOf("title" to (params["title"] ?: return null))),
+                    )
+                }
+
                 WsMethods.SESSION_ARCHIVE -> {
                     val archived = params["archived"] ?: JsonPrimitive(true)
                     Triple(params["session_id"], "archive", JsonObject(mapOf("archived" to archived)))

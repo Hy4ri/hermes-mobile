@@ -292,6 +292,7 @@ internal class RpcChannel(
                 }
             }
 
+            WsMethods.SESSION_TITLE,
             WsMethods.SESSION_ARCHIVE,
             WsMethods.SESSION_DELETE,
             WsMethods.SESSION_WORKSPACE_MOVE,
@@ -557,6 +558,7 @@ internal class RpcChannel(
 private fun isMutationMethod(method: String) =
     method in
         setOf(
+            WsMethods.SESSION_TITLE,
             WsMethods.SESSION_ARCHIVE,
             WsMethods.SESSION_DELETE,
             WsMethods.SESSION_WORKSPACE_MOVE,

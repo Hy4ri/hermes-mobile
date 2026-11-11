@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.data.ws.contract
 
+import com.m57.hermescontrol.data.model.SessionMessage
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -57,6 +58,8 @@ data class SessionCreateResult(
 @Serializable
 data class SessionResumeResult(
     @SerialName("session_id") val sessionId: String? = null,
+    val messages: List<SessionMessage>? = null,
+    val info: kotlinx.serialization.json.JsonElement? = null,
 )
 
 @Serializable

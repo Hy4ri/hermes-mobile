@@ -6,6 +6,9 @@ import kotlinx.serialization.json.JsonElement
 @Serializable
 data class SessionCompressResponse(
     val status: String? = null,
+    val target_session_id: String? = null,
+    val message_count: Int? = null,
+    val lines: List<String>? = null,
     val removed: Int? = null,
     val before_messages: Int? = null,
     val after_messages: Int? = null,

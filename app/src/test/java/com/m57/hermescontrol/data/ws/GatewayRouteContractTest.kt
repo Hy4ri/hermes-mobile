@@ -121,6 +121,16 @@ class GatewayRouteContractTest {
             assertTrue("KNOWN_GAPS entries that no longer mismatch; remove them: $stale", stale.isEmpty())
         }
 
+    @Test
+    fun authorityCompressionUsesCanonicalMutationContract() =
+        runTest {
+            val (method, keys) = requireNotNull(wire(RpcMethods.SESSION_COMPRESS, true, true, this))
+            assertTrue("expected session.mutate, got $method", method == WsMethods.SESSION_MUTATE)
+            val problems = GatewayContract.routeParamProblems(method, keys, authority = true)
+            assertTrue(problems.joinToString("\n"), problems.isEmpty())
+            assertTrue("generation fence missing", "expected_generation" in keys)
+        }
+
     private companion object {
         const val SESSION = "s1"
 

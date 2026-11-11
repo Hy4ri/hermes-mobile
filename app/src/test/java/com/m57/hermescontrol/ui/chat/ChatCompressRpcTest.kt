@@ -218,6 +218,61 @@ class ChatCompressRpcTest {
         }
 
     @Test
+    fun `authority preview displays report without resuming`() =
+        runTest {
+            val (vm, _) = createViewModelWithSession()
+            val methods = mutableListOf<String>()
+            every { HermesWsClient.request(capture(methods), any(), any()) } answers {
+                CompletableDeferred<Any?>(
+                    buildJsonObject {
+                        put("status", "preview")
+                        put("lines", buildJsonArray { add(JsonPrimitive("Preview report")) })
+                    },
+                )
+            }
+            vm.sendMessage("/compress --preview")
+            advanceUntilIdle()
+            assertTrue(
+                vm.uiState.value.messages
+                    .any { it.content == "Preview report" },
+            )
+            assertFalse(WsMethods.SESSION_RESUME in methods)
+        }
+
+    @Test
+    fun `authority compression resumes target and binds returned logical owner`() =
+        runTest {
+            val (vm, storageId) = createViewModelWithSession(runtimeId = "old-owner", storageId = "stored")
+            val resumes = mutableListOf<Map<String, Any>>()
+            every { HermesWsClient.request(WsMethods.SESSION_COMPRESS, any(), any()) } answers {
+                CompletableDeferred<Any?>(
+                    buildJsonObject {
+                        put("target_session_id", "new-tip")
+                        put("message_count", 1)
+                        put("summary", buildJsonObject { put("headline", "Compressed") })
+                    },
+                )
+            }
+            every { HermesWsClient.request(WsMethods.SESSION_RESUME, capture(resumes), any()) } answers {
+                CompletableDeferred<Any?>(
+                    buildJsonObject {
+                        put("session_id", "logical-owner")
+                        put("messages", buildJsonArray {})
+                    },
+                )
+            }
+            vm.sendMessage("/compress")
+            advanceUntilIdle()
+            assertEquals(JsonPrimitive("new-tip"), resumes.single()["session_id"])
+            assertEquals(storageId, vm.uiState.value.currentSessionId)
+            assertTrue(
+                vm.uiState.value.messages
+                    .any { it.content == "Compressed" },
+            )
+            assertEquals("logical-owner", com.m57.hermescontrol.data.session.ActiveSessionHolder.activeSessionId.value)
+        }
+
+    @Test
     fun `compress calls SESSION_COMPRESS not command dispatch or slash exec`() =
         runTest {
             val (vm, _) = createViewModelWithSession()

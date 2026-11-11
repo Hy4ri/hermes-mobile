@@ -53,6 +53,17 @@ internal class SessionMutations {
                     Triple(params["session_id"], "archive", JsonObject(mapOf("archived" to archived)))
                 }
 
+                WsMethods.SESSION_COMPRESS -> {
+                    val payload =
+                        buildMap {
+                            params["focus_topic"]?.let { put("focus", it) }
+                            listOf("preview", "partial", "keep_last").forEach { key ->
+                                params[key]?.let { put(key, it) }
+                            }
+                        }
+                    Triple(params["session_id"], "compress", JsonObject(payload))
+                }
+
                 WsMethods.SESSION_WORKSPACE_MOVE -> {
                     Triple(
                         params["session_key"],
@@ -69,7 +80,7 @@ internal class SessionMutations {
         val key = "$sessionId|$operation|$payload"
         retained[key]?.let { return it }
         val revision = revisions[sessionId] ?: return null
-        val fenced = operation == "workspace"
+        val fenced = operation == "workspace" || operation == "compress"
         if (fenced && generation == null) return null
         val body =
             buildMap<String, JsonElement> {

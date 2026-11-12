@@ -227,6 +227,90 @@ class ChatPromptProtocolTest {
     }
 
     @Test
+    fun clarify1815_replayOfSameRequestInFlightIsClearedOnSettle() {
+        // #1815: a replay that re-created the card mid-flight carries other id fields (or none).
+        // The settle clears any card that names the same request, not only the original object.
+        val mockWsClient = mockk<HermesWsClient>(relaxed = true)
+        every { mockWsClient.canonicalClarifyBatch } returns true
+        val scope = TestScope(dispatcher)
+        val original =
+            ClarifyUi(
+                text = "",
+                clarifyId = "prompt-1815",
+                questions = listOf(ClarifyQuestionUi(qid = "q0", question = "First?")),
+                serverRequestId = "srq-1815",
+            )
+        val uiState = MutableStateFlow(ChatUiState(currentSessionId = "session-1", clarifyRequest = original))
+        coEvery { mockWsClient.call(RpcMethods.CLARIFY_LOCK, any()) } answers {
+            // Replay keyed only by the prompt id, with no server request id.
+            uiState.value = uiState.value.copy(clarifyRequest = original.copy(serverRequestId = null))
+            ClarifyLockResult(status = "ok", remaining = emptyList())
+        }
+        val settled = mutableListOf<String>()
+        val delegate =
+            ChatClarifyDelegate(
+                uiState = uiState,
+                scope = scope,
+                ioDispatcher = dispatcher,
+                persistMessage = { _, _ -> },
+                wsClient = mockWsClient,
+                markClarifySettled = { settled.addAll(it) },
+            )
+
+        delegate.respondToClarifyBatch(mapOf("q0" to "yes"))
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(uiState.value.clarifyRequest)
+        assertEquals(setOf("srq-1815", "prompt-1815"), settled.toSet())
+        assertEquals(1, uiState.value.messages.size)
+    }
+
+    @Test
+    fun clarify1815_cardClearsOnSubmitAndComesBackOnlyOnFailure() {
+        val mockWsClient = mockk<HermesWsClient>(relaxed = true)
+        every { mockWsClient.canonicalClarifyBatch } returns true
+        val scope = TestScope(dispatcher)
+        val uiState =
+            MutableStateFlow(
+                ChatUiState(
+                    currentSessionId = "session-1",
+                    clarifyRequest =
+                        ClarifyUi(
+                            text = "",
+                            questions = listOf(ClarifyQuestionUi(qid = "q0", question = "First?")),
+                            serverRequestId = "srq-1815-fail",
+                        ),
+                ),
+            )
+        var cardDuringLock: ClarifyUi? = null
+        var submittingDuringLock = false
+        lateinit var delegate: ChatClarifyDelegate
+        coEvery { mockWsClient.call(RpcMethods.CLARIFY_LOCK, any()) } answers {
+            cardDuringLock = uiState.value.clarifyRequest
+            submittingDuringLock = delegate.isSubmitting("srq-1815-fail")
+            throw java.io.IOException("socket closed")
+        }
+        delegate =
+            ChatClarifyDelegate(
+                uiState = uiState,
+                scope = scope,
+                ioDispatcher = dispatcher,
+                persistMessage = { _, _ -> },
+                wsClient = mockWsClient,
+            )
+
+        delegate.respondToClarifyBatch(mapOf("q0" to "yes"))
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(cardDuringLock)
+        org.junit.Assert.assertTrue(submittingDuringLock)
+        org.junit.Assert.assertFalse(delegate.isSubmitting("srq-1815-fail"))
+        assertEquals("srq-1815-fail", uiState.value.clarifyRequest?.serverRequestId)
+        assertEquals("socket closed", uiState.value.errorMessage)
+        org.junit.Assert.assertFalse(uiState.value.isAgentTyping)
+    }
+
+    @Test
     fun canonicalClarifyBatch_stopsWhenStatusExpired() {
         val mockWsClient = mockk<HermesWsClient>(relaxed = true)
         every { mockWsClient.canonicalClarifyBatch } returns true
@@ -843,8 +927,9 @@ class ChatPromptProtocolTest {
         delegate.respondToClarifyBatch(mapOf("q0" to "ans0"))
         dispatcher.scheduler.advanceUntilIdle()
 
-        // Since scope changed, expired state update must NOT touch the new scope/state
-        assertEquals("srq-scope-err", uiState.value.clarifyRequest?.serverRequestId)
+        // The card cleared on submit (#1815). Since scope changed, the expired result must
+        // NOT touch the new scope/state: no error, and no card restored into it.
+        assertNull(uiState.value.clarifyRequest)
         assertNull(uiState.value.errorMessage)
     }
 

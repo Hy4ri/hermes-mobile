@@ -36,6 +36,8 @@ import com.m57.hermescontrol.data.ws.ModelCatalogStore
 import com.m57.hermescontrol.data.ws.SegmentStamp
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
+import com.m57.hermescontrol.data.ws.contract.ClarifyLockParams
+import com.m57.hermescontrol.data.ws.contract.ClarifyLockResult
 import com.m57.hermescontrol.data.ws.contract.ConfigSetParams
 import com.m57.hermescontrol.data.ws.contract.ProcessStopParams
 import com.m57.hermescontrol.data.ws.contract.ProcessStopResult
@@ -3400,6 +3402,76 @@ class ChatViewModelTest {
             },
         replayed = replayed,
     )
+
+    // #1815: the batch card goes away on submit, and a replay while the locks are in flight
+    // (reconnect, resume, events.since) does not bring it back.
+    @Test
+    fun clarify1815_batchCardClearsOnSubmitAndReplayInFlightStaysHidden() =
+        runTest {
+            every { HermesWsClient.canonicalClarifyBatch } returns true
+            val lockReply = CompletableDeferred<ClarifyLockResult>()
+            val locks = mutableListOf<String>()
+            coEvery { HermesWsClient.call(RpcMethods.CLARIFY_LOCK, any(), any(), any()) } coAnswers {
+                val params = secondArg<ClarifyLockParams>()
+                locks.add(params.questionId)
+                if (params.questionId == "q1") {
+                    lockReply.await()
+                } else {
+                    ClarifyLockResult(status = "ok", remaining = listOf("q1"))
+                }
+            }
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val batch =
+                { replayed: Boolean ->
+                    WsEvent.ServerRequest(
+                        id = "srq-1815",
+                        method = "clarify",
+                        params =
+                            mapOf(
+                                "session_id" to sessionId,
+                                "questions" to
+                                    listOf(
+                                        mapOf("qid" to "q0", "question" to "First?", "choices" to listOf("A", "B")),
+                                        mapOf("qid" to "q1", "question" to "Second?", "choices" to listOf("C", "D")),
+                                    ),
+                            ),
+                        replayed = replayed,
+                    )
+                }
+            mockEventsFlow.emit(batch(false))
+            advanceUntilIdle()
+            assertEquals(
+                "srq-1815",
+                viewModel.uiState.value.clarifyRequest
+                    ?.serverRequestId,
+            )
+
+            viewModel.respondToClarifyBatch(mapOf("q0" to "A", "q1" to "C"))
+            advanceUntilIdle()
+            // The last lock is still in flight: the card is already gone.
+            assertEquals(listOf("q0", "q1"), locks)
+            assertNull(viewModel.uiState.value.clarifyRequest)
+            assertTrue(viewModel.uiState.value.isAgentTyping)
+
+            mockEventsFlow.emit(batch(true))
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.clarifyRequest)
+
+            lockReply.complete(ClarifyLockResult(status = "ok", remaining = emptyList()))
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.clarifyRequest)
+            assertEquals(
+                DisplayKind.CLARIFY_RESPONSE,
+                viewModel.uiState.value.messages
+                    .last()
+                    .displayKind,
+            )
+
+            // After settle, a late replay is blocked by the settled set.
+            mockEventsFlow.emit(batch(true))
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.clarifyRequest)
+        }
 
     @Test
     fun clarify1779_answeredServerRequestReplayDoesNotRecreateCard() =

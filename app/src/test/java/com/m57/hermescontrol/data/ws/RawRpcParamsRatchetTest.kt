@@ -106,6 +106,13 @@ class RawRpcParamsRatchetTest {
             trackRequest(id, WsMethods.SESSION_LIST)
             trackSessionRequest(id, WsMethods.SESSION_CREATE, generation)
 
+            // Collection literals should be ignored:
+            val mutations = setOf(
+                WsMethods.SESSION_LIST,
+                WsMethods.SESSION_CREATE,
+            )
+            val ordered = listOf(WsMethods.PROMPT_SUBMIT)
+
             // Positional single-line call:
             HermesWsClient.request(WsMethods.SESSION_LIST, emptyMap())
 
@@ -216,6 +223,20 @@ class RawRpcParamsRatchetTest {
             return result.toString()
         }
 
+        private val COLLECTION_BUILDERS =
+            setOf(
+                "setOf",
+                "mutableSetOf",
+                "hashSetOf",
+                "linkedSetOf",
+                "listOf",
+                "mutableListOf",
+                "arrayListOf",
+                "arrayOf",
+                "mapOf",
+                "mutableMapOf",
+            )
+
         internal fun scanRawRpcCalls(
             cleanCode: String,
             contractConstants: Set<String>,
@@ -298,6 +319,8 @@ class RawRpcParamsRatchetTest {
                         val lowerFn = fnName.lowercase()
                         if (fnName in setOf("if", "while", "for", "when")) return false
                         if (lowerFn.contains("track")) return false
+                        // A method constant inside a collection literal (e.g. `setOf(WsMethods.X, ...)`) is not a call.
+                        if (fnName in COLLECTION_BUILDERS) return false
                         return true
                     }
                 } else if (c == '{' || c == '}' || c == ';') {

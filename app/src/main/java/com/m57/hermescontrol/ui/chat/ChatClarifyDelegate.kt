@@ -87,6 +87,8 @@ class ChatClarifyDelegate(
     private val currentDataScope: () -> DataScope? = { runCatching { AuthManager.currentDataScope() }.getOrNull() },
     /** Records request ids that are answered or closed, so replays never re-show them (#1779). */
     private val markClarifySettled: (Collection<String>) -> Unit = {},
+    /** True when a request id is already answered or closed (#1815). */
+    private val isClarifySettled: (String) -> Boolean = { false },
 ) {
     /**
      * Single-flight tracking for canonical clarify batch submissions keyed by
@@ -99,6 +101,12 @@ class ChatClarifyDelegate(
     )
 
     private val inFlightCanonicalBatch = ConcurrentHashMap.newKeySet<InFlightKey>()
+
+    /** Ids of canonical batch requests whose answers are being locked right now (#1815). */
+    private val submittingIds = ConcurrentHashMap.newKeySet<String>()
+
+    /** True while this request's answers are in flight: a replay of it must not show the card again. */
+    fun isSubmitting(id: String): Boolean = id in submittingIds
 
     fun respondToClarify(option: String) {
         val clarify = uiState.value.clarifyRequest
@@ -131,7 +139,7 @@ class ChatClarifyDelegate(
         val questions = clarify?.resolvedQuestions.orEmpty()
         val initialScope = currentDataScope()
 
-        if (serverRequestId != null && wsClient.canonicalClarifyBatch && isBatch) {
+        if (clarify != null && serverRequestId != null && wsClient.canonicalClarifyBatch && isBatch) {
             val inFlightKey = InFlightKey(initialScope, sessionId, serverRequestId)
             if (!inFlightCanonicalBatch.add(inFlightKey)) {
                 // Single-flight guard: a submission for this exact request in this scope is already in flight.
@@ -165,25 +173,69 @@ class ChatClarifyDelegate(
                     displayKind = DisplayKind.CLARIFY_RESPONSE,
                 )
 
+            // Clear the card on submit, as Desktop does (#1815). While the locks are in flight,
+            // replays of this request stay hidden ([isSubmitting]). A failure restores the card.
+            val requestIds = clarify.requestIds
+            submittingIds.addAll(requestIds)
+            var card: ClarifyUi = clarify
+            uiState.update { current ->
+                if (current.currentSessionId == sessionId && current.clarifyRequest?.requestIds == requestIds) {
+                    current.copy(clarifyRequest = null, isAgentTyping = true, errorMessage = null)
+                } else {
+                    current
+                }
+            }
+
+            // True while this session and scope are active and no other request is on screen.
+            fun stillCurrent(): Boolean {
+                val current = uiState.value
+                if (current.currentSessionId != sessionId || currentDataScope() != initialScope) return false
+                val onScreen = current.clarifyRequest ?: return true
+                return onScreen.requestIds.any { it in requestIds }
+            }
+
+            // Put the card back after a failure, unless the request closed meanwhile or another
+            // card took its place.
+            fun restoreCard(errorMessage: String?) {
+                if (requestIds.any(isClarifySettled)) return
+                uiState.update { current ->
+                    if (current.currentSessionId == sessionId &&
+                        currentDataScope() == initialScope &&
+                        (current.clarifyRequest == null || current.clarifyRequest.requestIds.any { it in requestIds })
+                    ) {
+                        current.copy(
+                            clarifyRequest = card,
+                            isAgentTyping = false,
+                            errorMessage = errorMessage ?: current.errorMessage,
+                        )
+                    } else {
+                        current
+                    }
+                }
+            }
+
+            // The request has ended on the server: no replay may show it again (#1779).
+            fun settle() {
+                markClarifySettled(requestIds)
+                uiState.update { current ->
+                    if (current.clarifyRequest?.requestIds?.any { it in requestIds } == true) {
+                        current.copy(clarifyRequest = null)
+                    } else {
+                        current
+                    }
+                }
+            }
+
             val job =
                 scope.launch(ioDispatcher) {
                     var lastRemaining: List<String>? = null
                     var callsMade = 0
                     try {
                         for (q in questions) {
-                            // Scope/session/request identity guard BEFORE each call:
-                            val currentSessionBefore = uiState.value.currentSessionId
-                            val activeScopeBefore = currentDataScope()
-                            val currentRequestIdBefore = uiState.value.clarifyRequest?.serverRequestId
-                            if (currentSessionBefore != sessionId ||
-                                activeScopeBefore != initialScope ||
-                                currentRequestIdBefore != serverRequestId
-                            ) {
-                                return@launch
-                            }
+                            if (!stillCurrent()) return@launch
 
                             // Skip already-locked rows unless a truly changed nonblank answer is provided
-                            val existingLocked = lockedAnswers[q.qid]
+                            val existingLocked = card.lockedAnswers[q.qid]
                             val rawAnswer = finalAnswers[q.qid]
                             val hasNewNonBlank = answers[q.qid]?.trim()?.isNotEmpty() == true
                             if (existingLocked != null && (!hasNewNonBlank || rawAnswer == existingLocked)) {
@@ -201,47 +253,23 @@ class ChatClarifyDelegate(
                                     ),
                                 )
 
-                            // Scope/session identity guard AFTER suspension before state updates.
-                            // The card itself may already be gone: the lock that settles the
-                            // batch races the server's `request.cancel {reason: resolved}` (#1779).
+                            // Session/scope guard AFTER suspension. The card is already gone, and the
+                            // lock that settles the batch races `request.cancel {resolved}` (#1779).
                             if (uiState.value.currentSessionId != sessionId || currentDataScope() != initialScope) {
                                 return@launch
                             }
 
                             when (lockResult.status) {
                                 "ok" -> {
-                                    val acceptedAnswer = rawAnswer.orEmpty()
                                     lastRemaining = lockResult.remaining
-                                    // Update accepted locks immediately after each successful response under identity guard:
-                                    uiState.update { current ->
-                                        if (current.currentSessionId == sessionId &&
-                                            currentDataScope() == initialScope &&
-                                            current.clarifyRequest?.serverRequestId == serverRequestId
-                                        ) {
-                                            val req = current.clarifyRequest
-                                            val updatedLocked = req.lockedAnswers + (q.qid to acceptedAnswer)
-                                            current.copy(clarifyRequest = req.copy(lockedAnswers = updatedLocked))
-                                        } else {
-                                            current
-                                        }
-                                    }
+                                    card =
+                                        card.copy(lockedAnswers = card.lockedAnswers + (q.qid to rawAnswer.orEmpty()))
                                 }
 
                                 "expired" -> {
-                                    markClarifySettled(listOfNotNull(serverRequestId, clarifyId))
+                                    settle()
                                     uiState.update { current ->
-                                        if (current.currentSessionId == sessionId &&
-                                            currentDataScope() == initialScope &&
-                                            current.clarifyRequest?.serverRequestId == serverRequestId
-                                        ) {
-                                            current.copy(
-                                                clarifyRequest = null,
-                                                isAgentTyping = false,
-                                                errorMessage = "Clarify request expired",
-                                            )
-                                        } else {
-                                            current
-                                        }
+                                        current.copy(isAgentTyping = false, errorMessage = "Clarify request expired")
                                     }
                                     return@launch
                                 }
@@ -255,19 +283,7 @@ class ChatClarifyDelegate(
                         // Settlement verification:
                         // 1. If backend reported remaining questions, request is not settled yet.
                         if (lastRemaining != null && lastRemaining.isNotEmpty()) {
-                            uiState.update { current ->
-                                if (current.currentSessionId == sessionId &&
-                                    currentDataScope() == initialScope &&
-                                    current.clarifyRequest?.serverRequestId == serverRequestId
-                                ) {
-                                    current.copy(
-                                        isAgentTyping = false,
-                                        errorMessage = "Questions still remaining: ${lastRemaining.joinToString(", ")}",
-                                    )
-                                } else {
-                                    current
-                                }
-                            }
+                            restoreCard("Questions still remaining: ${lastRemaining.joinToString(", ")}")
                             return@launch
                         }
 
@@ -276,14 +292,13 @@ class ChatClarifyDelegate(
                         if (callsMade == 0) {
                             val probeQ = questions.firstOrNull()
                             if (probeQ != null) {
-                                val probeAns = finalAnswers[probeQ.qid]
                                 val probeResult =
                                     wsClient.call(
                                         RpcMethods.CLARIFY_LOCK,
                                         ClarifyLockParams(
                                             requestId = serverRequestId,
                                             questionId = probeQ.qid,
-                                            answer = probeAns,
+                                            answer = finalAnswers[probeQ.qid],
                                         ),
                                     )
 
@@ -294,40 +309,23 @@ class ChatClarifyDelegate(
                                 when (probeResult.status) {
                                     "expired" -> {
                                         // The batch already ended on backend
-                                        markClarifySettled(listOfNotNull(serverRequestId, clarifyId))
+                                        settle()
                                         uiState.update { current ->
-                                            if (current.currentSessionId == sessionId &&
-                                                currentDataScope() == initialScope &&
-                                                current.clarifyRequest?.serverRequestId == serverRequestId
-                                            ) {
-                                                current.copy(
-                                                    clarifyRequest = null,
-                                                    isAgentTyping = false,
-                                                    errorMessage = "Clarify request expired",
-                                                )
-                                            } else {
-                                                current
-                                            }
+                                            current.copy(
+                                                isAgentTyping = false,
+                                                errorMessage = "Clarify request expired",
+                                            )
                                         }
                                         return@launch
                                     }
 
                                     "ok" -> {
                                         if (probeResult.remaining?.isNotEmpty() == true) {
-                                            uiState.update { current ->
-                                                if (current.currentSessionId == sessionId &&
-                                                    currentDataScope() == initialScope &&
-                                                    current.clarifyRequest?.serverRequestId == serverRequestId
-                                                ) {
-                                                    val rem = probeResult.remaining.joinToString(", ")
-                                                    current.copy(
-                                                        isAgentTyping = false,
-                                                        errorMessage = "Questions still remaining: $rem",
-                                                    )
-                                                } else {
-                                                    current
-                                                }
-                                            }
+                                            restoreCard(
+                                                "Questions still remaining: ${probeResult.remaining.joinToString(
+                                                    ", ",
+                                                )}",
+                                            )
                                             return@launch
                                         }
                                         // Empty remaining confirmed by server!
@@ -344,23 +342,20 @@ class ChatClarifyDelegate(
 
                         // All locks settled and confirmed by server: the request is closed even
                         // when a racing `request.cancel` already removed the card (#1779).
-                        markClarifySettled(listOfNotNull(serverRequestId, clarifyId))
-                        // Atomic compare-and-set loop without side-effects inside lambda:
+                        settle()
+                        // Atomic compare-and-set loop without side-effects inside lambda.
+                        // Typing was armed on submit; never re-arm it for a turn that already ended.
                         var committed = false
                         while (true) {
                             val current = uiState.value
                             if (current.currentSessionId != sessionId || currentDataScope() != initialScope) {
                                 break
                             }
-                            val ownsCard = current.clarifyRequest?.serverRequestId == serverRequestId
-                            val next =
-                                current.copy(
-                                    clarifyRequest = if (ownsCard) null else current.clarifyRequest,
-                                    messages = current.messages + userMessage,
-                                    // Never re-arm typing for a turn that may already have ended.
-                                    isAgentTyping = if (ownsCard) true else current.isAgentTyping,
+                            if (uiState.compareAndSet(
+                                    current,
+                                    current.copy(messages = current.messages + userMessage),
                                 )
-                            if (uiState.compareAndSet(current, next)) {
+                            ) {
                                 committed = true
                                 break
                             }
@@ -372,25 +367,15 @@ class ChatClarifyDelegate(
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        uiState.update { current ->
-                            if (current.currentSessionId == sessionId &&
-                                currentDataScope() == initialScope &&
-                                current.clarifyRequest?.serverRequestId == serverRequestId
-                            ) {
-                                current.copy(
-                                    isAgentTyping = false,
-                                    errorMessage = e.message ?: "Failed to lock clarify answer",
-                                )
-                            } else {
-                                current
-                            }
-                        }
+                        restoreCard(e.message ?: "Failed to lock clarify answer")
                     }
                 }
-
             // Guaranteed single-flight cleanup even if scope is canceled before body begins:
-            job.invokeOnCompletion {
+            job.invokeOnCompletion { cause ->
                 inFlightCanonicalBatch.remove(inFlightKey)
+                submittingIds.removeAll(requestIds)
+                // Cancelled (also before it started): give the card back so it can be answered.
+                if (cause is CancellationException) restoreCard(errorMessage = null)
             }
             return
         }

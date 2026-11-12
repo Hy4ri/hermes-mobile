@@ -1009,6 +1009,7 @@ class ChatViewModel(
             trackRequest = { id, method -> trackRequest(id, method) },
             respondToServerRequest = { id, result -> wsClient.respondToServerRequest(id, result) },
             markClarifySettled = { ids -> settledClarifyIds.addAll(ids) },
+            isClarifySettled = { id -> id in settledClarifyIds },
         )
 
     private val subagentsDelegate =
@@ -1676,10 +1677,13 @@ class ChatViewModel(
 
     private fun isClosedClarify(event: WsEvent.ClarifyRequest): Boolean {
         val ids = listOfNotNull(event.serverRequestId, event.clarifyId)
-        if (ids.any { it in settledClarifyIds }) return true
+        if (ids.any(::isClosedClarifyId)) return true
         // A replay whose locked answers cover every question has nothing left to ask.
         return event.questions.isNotEmpty() && event.lockedAnswers.keys.containsAll(event.questions.map { it.qid })
     }
+
+    /** True when the request is answered, closed, or its answers are in flight (#1815). */
+    private fun isClosedClarifyId(id: String): Boolean = id in settledClarifyIds || clarifyDelegate.isSubmitting(id)
 
     /** Route the generic transport event into the existing prompt delegates. */
     private fun handleServerRequest(request: WsEvent.ServerRequest) {
@@ -2069,7 +2073,7 @@ class ChatViewModel(
         sessionId: String?,
     ) {
         val clarifyId = (payload["clarify_id"] ?: payload["request_id"] ?: payload["prompt_id"]) as? String
-        if (clarifyId != null && clarifyId in settledClarifyIds) return
+        if (clarifyId != null && isClosedClarifyId(clarifyId)) return
         if (clarifyId != null && _uiState.value.clarifyRequest?.clarifyId == clarifyId) {
             // Already on screen — avoid clobbering in-progress answer state.
             return

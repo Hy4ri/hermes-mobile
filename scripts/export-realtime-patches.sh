@@ -5,8 +5,9 @@ if [ "$#" -ne 3 ]; then
     echo "Usage: $0 <upstream-base-commit> <feature-head-commit> <empty-output-directory>" >&2
     exit 2
 fi
-base=$1
-head=$2
+# PR #1819: record immutable revisions even when the caller passes HEAD.
+base=$(git rev-parse --verify "${1}^{commit}")
+head=$(git rev-parse --verify "${2}^{commit}")
 out=$3
 mkdir -p "$out"
 git diff --binary "$base" "$head" > "$out/hermes-mobile-realtime21.patch"

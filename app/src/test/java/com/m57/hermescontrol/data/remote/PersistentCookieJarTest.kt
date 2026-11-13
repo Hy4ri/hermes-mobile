@@ -36,10 +36,11 @@ import java.io.IOException
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class PersistentCookieJarTest {
-    private fun makeJar(): PersistentCookieJar =
+    private fun makeJar(trustedHosts: () -> Set<String> = { emptySet() }): PersistentCookieJar =
         PersistentCookieJar(
             store = FakeEncryptedCookieStore(),
             storeScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined),
+            trustedHosts = trustedHosts,
         )
 
     private fun sessionCookie(
@@ -437,5 +438,94 @@ class PersistentCookieJarTest {
             val loaded = jar.loadForRequest("http://dash.local/api/status".toHttpUrl())
             assertEquals(1, loaded.size)
             assertEquals("cold-cookie-xyz", loaded[0].value)
+        }
+
+    @Test
+    fun secureSessionCookie_notSentOverHttpEvenOnTrustedHost() =
+        runTest {
+            val jar = makeJar(trustedHosts = { setOf("dash.local") })
+            jar.useStore("secure-http-scope")
+            val secureCookie =
+                Cookie
+                    .Builder()
+                    .name("__Secure-hermes_session_at")
+                    .value("secret-token")
+                    .expiresAt(System.currentTimeMillis() + 10L * 365 * 24 * 60 * 60 * 1000)
+                    .hostOnlyDomain("dash.local")
+                    .path("/")
+                    .secure()
+                    .httpOnly()
+                    .build()
+            jar.saveFromResponse("https://dash.local/".toHttpUrl(), listOf(secureCookie))
+
+            val loaded = jar.loadForRequest("http://dash.local/api/image.png".toHttpUrl())
+            assertTrue(loaded.isEmpty())
+        }
+
+    @Test
+    fun secureSessionCookie_sentOverHttpsOnTrustedHost() =
+        runTest {
+            val jar = makeJar(trustedHosts = { setOf("dash.local") })
+            jar.useStore("secure-https-scope")
+            val secureCookie =
+                Cookie
+                    .Builder()
+                    .name("__Secure-hermes_session_at")
+                    .value("secret-token")
+                    .expiresAt(System.currentTimeMillis() + 10L * 365 * 24 * 60 * 60 * 1000)
+                    .hostOnlyDomain("dash.local")
+                    .path("/")
+                    .secure()
+                    .httpOnly()
+                    .build()
+            jar.saveFromResponse("https://dash.local/".toHttpUrl(), listOf(secureCookie))
+
+            val loaded = jar.loadForRequest("https://dash.local/api/image.png".toHttpUrl())
+            assertEquals(1, loaded.size)
+            assertEquals("secret-token", loaded[0].value)
+        }
+
+    @Test
+    fun sessionCookie_notSentToUnrelatedHost() =
+        runTest {
+            val jar = makeJar(trustedHosts = { setOf("dash.local") })
+            jar.useStore("unrelated-host-scope")
+            val secureCookie =
+                Cookie
+                    .Builder()
+                    .name("__Secure-hermes_session_at")
+                    .value("secret-token")
+                    .expiresAt(System.currentTimeMillis() + 10L * 365 * 24 * 60 * 60 * 1000)
+                    .hostOnlyDomain("dash.local")
+                    .path("/")
+                    .secure()
+                    .httpOnly()
+                    .build()
+            jar.saveFromResponse("https://dash.local/".toHttpUrl(), listOf(secureCookie))
+
+            val loaded = jar.loadForRequest("https://evil.example/image.png".toHttpUrl())
+            assertTrue(loaded.isEmpty())
+        }
+
+    @Test
+    fun restrictedPathSessionCookie_notSentToNonMatchingPath() =
+        runTest {
+            val jar = makeJar(trustedHosts = { setOf("dash.local") })
+            jar.useStore("path-scope")
+            val pathCookie =
+                Cookie
+                    .Builder()
+                    .name(SESSION_COOKIE_NAME)
+                    .value("path-token")
+                    .expiresAt(System.currentTimeMillis() + 10L * 365 * 24 * 60 * 60 * 1000)
+                    .hostOnlyDomain("dash.local")
+                    .path("/admin")
+                    .httpOnly()
+                    .build()
+            jar.saveFromResponse("https://dash.local/admin".toHttpUrl(), listOf(pathCookie))
+
+            assertTrue(jar.loadForRequest("https://dash.local/public/img.png".toHttpUrl()).isEmpty())
+            assertTrue(jar.loadForRequest("https://dash.local/administrator".toHttpUrl()).isEmpty())
+            assertEquals(1, jar.loadForRequest("https://dash.local/admin/panel".toHttpUrl()).size)
         }
 }

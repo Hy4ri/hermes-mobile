@@ -1,82 +1,92 @@
-# Realtime 2.1 acceptance record
+# Shared Realtime 2.1 acceptance record
 
-This record is not a claim that physical acceptance has passed.
+**Global-mode source builds and 21 focused unit tests pass. Real-device voice
+acceptance is not complete. A built APK is not proof of a working call.**
 
-## Observed environment
+## Explicit scope change
 
-- Mobile source base: `f4a105b6b74b305c98a9d0053467d25252e14f70`.
-- Talk source base: `3b8f88bc9b39e7916523964debdce504af4d4990`.
-- No physical Android device was attached (`adb devices -l` returned no devices).
-- No target Hermes deployment or test subscription was supplied or accessed.
-- API 37 platform was installed by Gradle without changing project SDK requirements.
-- Disposable API 36 emulator failed with exit 139 after QEMU thread hangs.
-- API 30/software-renderer fallback also failed with exit 139. Android Studio
-  preview renderer was unavailable (`No running Studio instances found`).
+After the initial bound-mode test, the user explicitly requested shared global
+Talk without current-Bot/session binding and without a backend program patch.
+The custom Talk API source was restored to its original deployed bytes. Only the
+existing official `TALK_PREFER_CODEX_OAUTH=true` configuration remains. Dashboard
+alone was restarted and returned HTTP 200; no container, database, task runtime
+or OAuth program was replaced. Private deployment details remain local.
+
+The earlier missing `dashboard_task_context` error belongs to the withdrawn
+exact-Bot design. It is not a prerequisite for the existing unbound `/session {}`
+lane, and it is not a current global-mode WebRTC test result. The Android client
+now uses only `/status`, `/session`, `/tool`, `/runs`; the upgrade artifact contains
+only Mobile customization.
+
+## Observed Android results
+
+- vivo X Fold3 Pro / V2337A, Android API 36.
+- Original `com.m57.hermescontrol` 3.2.2 / 30202 was not overwritten or cleared.
+- The separately signed `com.m57.hermescontrol.dev` was previously installed and
+  authenticated by the user through normal app settings. Credentials were not
+  exported from the original app.
+- The earlier native dialog displayed the missing host capability after the
+  safe setup-error classification fix. No audio session was established then.
+- The new global-mode debug APK and instrumentation APK build successfully.
+- The global-mode APK was installed. The installer lost its USB reply, so success
+  was verified independently: installed `base.apk` and the delivery APK both have
+  SHA-256 `67cafc22d0bfab050fab300f39c799d9f6a45da05b0081fe342492d8f630cfa7`.
+  The app was opened and its shared `Hermes Talk` composer action was observed.
+  The user subsequently confirmed installation and tested the app.
 
 ## Automated evidence
 
-Talk compatibility patch:
-
-```sh
-python -m pytest tests/test_dashboard_api.py tests/test_target_switching.py
-# 69 passed in 0.91s
-```
-
-Run in a disposable virtual environment with an empty HOME and cleared environment;
-no real OAuth store or production gateway was used. Tests include existing target
-ownership/continuity cases plus mobile auth guards and configuration-change races.
-The patch's `git apply --check` passed against pristine files from its pinned base.
-`sh -n scripts/export-realtime-patches.sh` passed.
-
-Android: `:app:testDebugUnitTest --tests 'com.m57.hermescontrol.ui.voice.*'`,
-`:app:assembleDebug` and `:app:assembleDebugAndroidTest` passed. Focused unit
-results: 12 adapter tests and 6 identity/billing tests, zero failures or skips.
-Instrumentation APK compilation is not a passing device run: the emulator did
-not boot, so the two added UI tests remain unexecuted. Fixture tests prove
-protocol behavior only, not microphone/provider entitlement.
-
-## Required deployment matrix
-
-| Scenario | Evidence / remaining gate |
+| Check | Observed result |
 | --- | --- |
-| 1. Default Chat starts Realtime | Exact-target contract fixture; real launch not verified |
-| 2. Bot A starts Realtime | Exact-target contract fixture; real launch not verified |
-| 3. Bot B starts Realtime | Exact-target contract fixture; real launch not verified |
-| 4. Bot A voice delegation receipt belongs to A | Adapter + server ownership fixtures; real receipt not verified |
-| 5. Accepted A work continues after voice ends | Existing Talk ownership/close contract; real background job not verified |
-| 6. Barge-in interrupts old output | Native provider cancel/clear and adapter fixtures; audible interruption not verified |
-| 7. Mute does not cancel Agent work | Separate microphone control and canonical action paths; device behavior not verified |
-| 8. Cloudflare Access | Captured existing server headers/cookies, isolated provider HTTP; deployed Access not verified |
-| 9. Codex Subscription without key fallback | Server guard tests passed; real entitlement not verified |
-| 10. Disconnect/reconnect does not duplicate work | No POST retry/replayed provider calls; canonical idempotency fixtures; real network change not verified |
-| 11. Switching Bot does not contaminate Session | Exact scope/session validation and dismissal; physical two-Bot test not verified |
-| 12. Microphone/speaker/resources released | Native close/focus restoration implemented; physical audio/resource observation not verified |
+| `TalkProtocolTest` | 6 tests, 0 failures, 0 errors |
+| `TalkRealtimeAdapterTest` | 15 tests, 0 failures, 0 errors |
+| Debug APK + instrumentation APK build | Gradle BUILD SUCCESSFUL, 35 seconds |
+| Changed Kotlin formatting | ktlint 1.8.0 formatter completed successfully |
+| Physical global Compose tests | Not run yet |
 
-## Physical test procedure
+Adapter tests exercise tool batching/output ordering, deduplication, uncertain
+POST outcomes, barge-in, server-owned run completion, reconnect history and local
+close. They do not prove provider entitlement, audible speech or native task
+execution. The UI tests are isolated UI scenarios: no saved credentials, network
+calls, microphone capture or permission grants are needed.
 
-Use a dedicated test connection with the patched Talk host and an existing
-server-side Codex login. Keep Cloudflare credentials in the existing encrypted
-connection-header settings, not logs or this record. Do not deploy the patch to
-production without an explicit target/action approval.
+Earlier bound-protocol/backend tests and an interrupted physical instrumentation
+run are historical evidence only. The previous UI run timed out without results;
+it was not a pass. The temporary authenticated status probe was removed afterward.
 
-Record installed Mobile/Talk/Hermes versions. In Default Chat, then Bot A and Bot B,
-start voice from each actual shared composer and inspect the displayed owner.
-Speak a unique harmless request in A; record the canonical action/run/child-session
-receipt from Talk and verify B has no such receipt. End voice before A completes,
-then rejoin A and read its original result. Do not infer completion from speech.
+## Current tool-capability gap
 
-While listening/speaking, test mute, barge-in, foreground exit, back, microphone
-permission denial, Wi-Fi interruption and explicit reconnect. Check that old tools
-are not replayed and that reconnect remains on the exact original owner. Inspect
-current approvals and explicitly deny a disposable request. Stop Work only in an
-explicit disposable job; ending voice must not send that action.
+The global Talk schema advertises `delegate_task`, `check_work`, `list_agents`,
+`talk_status`, `talk_capabilities` and related native tools. It has no dedicated
+Kanban query tool. Its `delegate_task` parameters contain no Bot/target selector;
+starting a background agent is not proof of assigning a named existing Bot.
+Indirect Kanban access depends on the actual agent's enabled tools.
 
-Reject missing/ambiguous targets, unavailable task context, API-key auth source,
-wrong model, expired OAuth/session, 401 and 403. Check AudioManager mode/focus and
-microphone privacy indicator after hangup. Capture screenshots and opaque canonical
-IDs without recording secrets, raw audio or private task text.
+A temporary read-only device probe was prepared to call `/status`, `talk_status`
+and `talk_capabilities`, without minting a voice credential or dispatching work.
+Android rejected both diagnostic APK installation attempts with
+`INSTALL_FAILED_ABORTED: User rejected permissions`, including the retry after
+the user approved the diagnostic. Phone-side installation approval remains
+required; the probe did not run. Its temporary source was removed.
+This platform approval must not be bypassed. Runtime tool availability and
+provider-to-tool execution therefore remain unverified.
 
-Known first-version limits: foreground calls only; no background/lock-screen capture
-or advanced Bluetooth controls. Native speech presentation delivery remains unknown
-rather than falsely marked played/verified. Future upgrade patches can conflict and
-must pass the same contract and physical matrix before deployment.
+## Live acceptance still required
+
+| Scenario | Current evidence / remaining gate |
+| --- | --- |
+| Shared entry from Default/Bot composers | Latest build installed; shared action observed on current Chat; not every Bot tested |
+| Native WebRTC SDP, ICE, DataChannel and bidirectional audio | Not verified on the real provider |
+| Continuous conversation and transcripts | Adapter fixtures only; live voice not verified |
+| Audible barge-in | Provider-event fixtures only |
+| Mute, end and native audio release | Local-only code paths and fixtures; live-device behavior pending |
+| Native delegation and server receipts | No live global work dispatched |
+| Work continues after voice ends | No real accepted background job verified |
+| Cloudflare Access | Previous authenticated Android REST probe passed; new global routes not yet exercised |
+| Codex Subscription | Previous live status reported configured codex-oauth; mint/entitlement/audio pending |
+| Network loss/reconnect without duplicate work | Deterministic adapter coverage only; live recovery pending |
+| Bot A/B ownership isolation | Explicitly withdrawn; global Talk is not current-Bot-bound |
+
+Do not mark first-version delivery complete until actual voice, work continuity,
+Access/OAuth and resource-release checks pass. No API-key fallback or invented
+host capability is an acceptable substitute.

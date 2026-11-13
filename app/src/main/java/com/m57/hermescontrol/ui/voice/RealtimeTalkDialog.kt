@@ -38,11 +38,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import com.m57.hermescontrol.ui.common.ExpressiveButton as Button
 import com.m57.hermescontrol.ui.common.ExpressiveLinearProgressIndicator as LinearProgressIndicator
@@ -104,7 +100,6 @@ fun RealtimeTalkDialog(
     }
     Dialog(onDismissRequest = close, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         RealtimeTalkContent(
-            botName = launch.botName,
             state = state,
             permissionDenied = permissionDenied,
             backgroundEnded = backgroundEnded,
@@ -113,7 +108,6 @@ fun RealtimeTalkDialog(
             onReconnect = { connect(true) },
             onMute = controller::mute,
             onInterrupt = controller::interrupt,
-            onApprove = controller::approve,
             onStop = { pendingStop = it },
             onResult = controller::showResult,
         )
@@ -157,48 +151,23 @@ private fun Transcript(
 @Composable
 private fun TalkJob(
     job: JsonObject,
-    onApprove: (String, String) -> Unit,
     onStop: () -> Unit,
     onResult: () -> Unit,
 ) {
     val status = job.text("status")
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(job.text("goal").ifBlank { job.text("run_id") }, style = MaterialTheme.typography.titleMedium)
+        Text(
+            stringResource(R.string.realtime_run, job.text("runId"), job.text("kind")),
+            style = MaterialTheme.typography.titleMedium,
+        )
         Text(stringResource(R.string.realtime_job_status, status))
-        val approval = job["approval"] as? JsonObject
-        val actionable = (approval?.get("actionable") as? JsonPrimitive)?.booleanOrNull == true
-        val requests = approval?.get("approvals") as? JsonArray
-        if (requests != null && requests.isNotEmpty() && !actionable) {
-            Text(stringResource(R.string.realtime_approval_unavailable))
-        }
-        requests?.forEach { element ->
-            val request = element as? JsonObject ?: return@forEach
-            val id = request.text("request_id")
-            (request["choices"] as? JsonArray)?.forEach choices@{ value ->
-                val choice = (value as? JsonPrimitive)?.contentOrNull ?: return@choices
-                val label =
-                    when (choice) {
-                        "once" -> R.string.realtime_once
-                        "session" -> R.string.realtime_session
-                        "deny" -> R.string.realtime_deny
-                        else -> return@choices
-                    }
-                TextButton(
-                    onClick = { onApprove(id, choice) },
-                    enabled = actionable && id.isNotBlank(),
-                    modifier = Modifier.heightIn(min = 48.dp),
-                ) {
-                    Text(stringResource(label))
-                }
-            }
-        }
-        if (status in setOf("queued", "accepted", "running", "waiting_for_approval")) {
+        if (status == "running") {
             TextButton(
                 onClick = onStop,
                 modifier = Modifier.heightIn(min = 48.dp),
             ) { Text(stringResource(R.string.realtime_stop_work)) }
         }
-        if ((job["result_available"] as? JsonPrimitive)?.booleanOrNull == true) {
+        if (job.text("output").isNotBlank()) {
             TextButton(
                 onClick = onResult,
                 modifier = Modifier.heightIn(min = 48.dp),
@@ -209,7 +178,6 @@ private fun TalkJob(
 
 @Composable
 internal fun RealtimeTalkContent(
-    botName: String,
     state: TalkCallState,
     permissionDenied: Boolean,
     backgroundEnded: Boolean,
@@ -218,13 +186,12 @@ internal fun RealtimeTalkContent(
     onReconnect: () -> Unit,
     onMute: () -> Unit,
     onInterrupt: () -> Unit,
-    onApprove: (JsonObject, String, String) -> Unit,
     onStop: (JsonObject) -> Unit,
     onResult: (JsonObject) -> Unit,
 ) {
     HermesScaffold(
         modifier = Modifier.fillMaxSize(),
-        title = { Text(botName) },
+        title = { Text(stringResource(R.string.realtime_title)) },
         navigationIcon = NavIcon.Back(onClose),
         drawerGesturesEnabled = false,
         showConnectionBanner = false,
@@ -233,7 +200,7 @@ internal fun RealtimeTalkContent(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(stringResource(R.string.realtime_title), style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.realtime_global_note), style = MaterialTheme.typography.bodyMedium)
             Text(stringResource(R.string.realtime_status, state.phase))
             Text(stringResource(R.string.realtime_level), style = MaterialTheme.typography.labelMedium)
             LinearProgressIndicator(
@@ -280,7 +247,6 @@ internal fun RealtimeTalkContent(
             state.jobs.forEach { job ->
                 TalkJob(
                     job,
-                    onApprove = { id, choice -> onApprove(job, id, choice) },
                     onStop = { onStop(job) },
                     onResult = { onResult(job) },
                 )
@@ -299,19 +265,16 @@ internal fun RealtimeTalkPreview() {
     val job =
         Json
             .parseToJsonElement(
-                """{"run_id":"preview-run","status":"waiting_for_approval","goal":"Review changes",
-            "result_available":false,"approval":{"state":"current","actionable":true,
-            "approvals":[{"request_id":"preview-request","choices":["once","session","deny"]}]}}""",
+                """{"runId":42,"kind":"hermes","status":"running","output":""}""",
             ).jsonObject
     MaterialTheme {
         RealtimeTalkContent(
-            botName = "Hermes",
             state =
                 TalkCallState(
                     phase = "listening",
                     level = 0.35f,
                     userText = "Review my changes.",
-                    assistantText = "The work is waiting for approval.",
+                    assistantText = "The work is running.",
                     jobs = listOf(job),
                 ),
             permissionDenied = false,
@@ -321,7 +284,6 @@ internal fun RealtimeTalkPreview() {
             onReconnect = {},
             onMute = {},
             onInterrupt = {},
-            onApprove = { _, _, _ -> },
             onStop = {},
             onResult = {},
         )

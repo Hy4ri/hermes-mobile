@@ -19,21 +19,14 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
-import java.util.UUID
 
-/** Contains identity only. Never put session credentials into navigation or saved state. */
+/** Authentication identity only; Talk is independent of the current Bot and chat session. */
 data class TalkLaunch(
     val scope: DataScope,
-    val sessionId: String,
-    val botName: String,
 )
 
 data class TalkCallState(
@@ -47,7 +40,7 @@ data class TalkCallState(
     val receipt: String = "",
 )
 
-/** Foreground voice lifetime only. Talk owns all durable work and operation idempotency. */
+/** Foreground audio only. The existing global Talk executor owns all durable work. */
 class TalkCallController(
     context: Context,
     val launch: TalkLaunch,
@@ -59,73 +52,36 @@ class TalkCallController(
     private var call: Job? = null
     private var peer: NativeRealtimePeer? = null
     private var commands: Channel<suspend () -> Unit>? = null
-    private var binding: JsonObject? = null
     private var api: TalkGatewayApi? = null
-    private var adapter: TalkBoundAdapter? = null
+    private var adapter: TalkRealtimeAdapter? = null
     private var epoch = 0L
     private var disposed = false
-    private var operations = emptySet<String>()
-    private val actionRequests = mutableMapOf<String, JsonObject>()
-    private val completedActions = mutableSetOf<String>()
 
     fun start() {
         if (disposed || call?.isActive == true) return
-        check(launch.sessionId.isNotBlank())
         val current = ++epoch
-        mutableState.update { it.copy(phase = "connecting", error = null, muted = false) }
+        mutableState.update { it.copy(phase = "connecting", error = null, muted = false, level = 0f) }
         call =
             lifetime.launch {
-                var owner: JsonObject? = null
-                var gateway: TalkGatewayApi? = null
                 val queue = Channel<suspend () -> Unit>(64)
                 commands = queue
-                try {
-                    gateway = TalkGatewayApi(launch.scope)
-                    api = gateway
-                    val status = gateway.get("/mobile/status")
-                    TalkProtocol.validateStatus(status)
-                    operations =
-                        (status.obj("textInput")["operations"] as? JsonArray)
-                            ?.mapNotNull { (it as? JsonPrimitive)?.content }
-                            .orEmpty()
-                            .toSet()
-                    val catalog =
-                        gateway.post(
-                            "/targets",
-                            buildJsonObject {
-                                put("peer_id", "local")
-                                put("profile", launch.scope.activeProfileId)
-                                put("session_id", launch.sessionId)
-                            },
-                        )
-                    val target = TalkProtocol.exactTarget(catalog, launch.scope.activeProfileId, launch.sessionId)
-                    // Fresh tab/generation, same exact canonical owner. Never replay provider calls.
-                    val tab = "mobile_" + UUID.randomUUID().toString().replace("-", "")
-                    val session =
-                        gateway.post(
-                            "/mobile/session",
-                            buildJsonObject {
-                                put(
-                                    "task",
-                                    buildJsonObject {
-                                        put("target_id", target)
-                                        put("tab_id", tab)
-                                    },
-                                )
-                            },
-                        )
-                    owner = session.obj("task").takeIf { it.text("connection_id").isNotBlank() }
-                    TalkProtocol.validateSession(session, target, tab, launch.scope.activeProfileId, launch.sessionId)
-                    val expires = (session["expiresAt"] as? JsonPrimitive)?.longOrNull
-                    check(expires != null && expires > System.currentTimeMillis()) { "Ephemeral voice session expired" }
-                    binding =
-                        buildJsonObject {
-                            put("connection_id", owner!!.text("connection_id"))
-                            put("generation", owner!!["generation"]!!)
+                var voice: NativeRealtimePeer? = null
+                var realtime: TalkRealtimeAdapter? = null
+                val fence =
+                    launch {
+                        AuthManager.dataScopeFlow.collect {
+                            if (current == epoch && AuthManager.currentDataScope() != launch.scope) {
+                                fail("Connection or profile changed; reopen Hermes Talk")
+                            }
                         }
-                    actionRequests.clear()
-                    completedActions.clear()
-                    val voice =
+                    }
+                try {
+                    val gateway = TalkGatewayApi(launch.scope)
+                    api = gateway
+                    TalkProtocol.validateStatus(gateway.get("/status"))
+                    val session = gateway.post("/session", JsonObject(emptyMap()))
+                    TalkProtocol.validateSession(session)
+                    val media =
                         NativeRealtimePeer(
                             appContext,
                             onEvent = { raw ->
@@ -135,26 +91,19 @@ class TalkCallController(
                                             adapter?.handle(Json.parseToJsonElement(raw) as JsonObject)
                                         }.isSuccess
                                 ) {
-                                    lifetime.launch { fail("Voice event queue overflow; reconnect to reconcile work") }
+                                    lifetime.launch {
+                                        if (current == epoch) fail("Voice event queue overflow; reconnect Hermes Talk")
+                                    }
                                 }
                             },
                             onState = { value ->
                                 lifetime.launch {
                                     if (current == epoch && call?.isActive == true) {
                                         if (value.startsWith("error:")) {
-                                            fail("Voice media disconnected; reconnect to the original chat")
+                                            fail("Voice media disconnected; reconnect Hermes Talk")
                                         } else {
                                             mutableState.update {
-                                                it.copy(
-                                                    phase =
-                                                        if (value ==
-                                                            "connected"
-                                                        ) {
-                                                            "listening"
-                                                        } else {
-                                                            value
-                                                        },
-                                                )
+                                                it.copy(phase = if (value == "connected") "listening" else value)
                                             }
                                         }
                                     }
@@ -162,15 +111,16 @@ class TalkCallController(
                             },
                             onLevel = { level ->
                                 if (current == epoch && call?.isActive == true) {
-                                    mutableState.update { it.copy(level = level) }
+                                    mutableState.update { it.copy(level = if (it.muted) 0f else level) }
                                 }
                             },
                         )
-                    peer = voice
-                    adapter =
-                        TalkBoundAdapter(
-                            post = { path, body -> boundPost(path, body) },
-                            send = { event -> current == epoch && voice.send(event.toString()) },
+                    voice = media
+                    peer = media
+                    realtime =
+                        TalkRealtimeAdapter(
+                            post = gateway::post,
+                            send = { event -> current == epoch && media.send(event.toString()) },
                             onTranscript = { role, text, final ->
                                 mutableState.update {
                                     if (role == "user") {
@@ -181,85 +131,45 @@ class TalkCallController(
                                 }
                             },
                             onState = { phase -> mutableState.update { it.copy(phase = phase) } },
-                            onError = {
-                                mutableState.update { state ->
-                                    state.copy(
-                                        error = "Voice turn incomplete; no work replay. Speak again or reconnect.",
-                                    )
-                                }
-                            },
+                            onError = { message -> mutableState.update { it.copy(error = message) } },
                         )
+                    adapter = realtime
                     withTimeout(35_000) {
-                        voice.connect { sdp ->
+                        media.connect { sdp ->
                             negotiateRealtime(session.text("offerUrl"), session.text("clientSecret"), sdp)
                         }
                     }
                     val refresh =
                         launch {
                             while (true) {
-                                queue.send { refreshState() }
-                                delay(2_000)
-                            }
-                        }
-                    val fence =
-                        launch {
-                            AuthManager.dataScopeFlow.collect {
-                                if (AuthManager.currentDataScope() != launch.scope) {
-                                    fail("Connection or profile changed; reopen voice from the intended chat")
-                                }
+                                queue.send { refreshRuns() }
+                                delay(5_000)
                             }
                         }
                     try {
+                        // All adapter entries, including suspended tool requests, share this actor.
                         for (command in queue) {
                             gateway.checkScope()
                             command()
                         }
                     } finally {
                         refresh.cancel()
-                        fence.cancel()
                     }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
                     if (current == epoch) {
-                        mutableState.update {
-                            it.copy(phase = "error", error = safeMessage(e), level = 0f)
-                        }
+                        mutableState.update { it.copy(phase = "error", error = safeMessage(e), level = 0f) }
                     }
                 } finally {
-                    peer?.takeIf { current == epoch }?.close()
+                    fence.cancel()
                     queue.close()
-                    // No cancellation/stop-work request here: accepted jobs remain owned by Talk.
-                    withContext(NonCancellable) {
-                        withTimeoutOrNull(5_000) {
-                            var revoked = false
-                            try {
-                                if (current == epoch && adapter != null) {
-                                    adapter?.close()
-                                    revoked = true
-                                }
-                            } catch (_: Exception) {
-                                // Retire any synthetic speech without replaying it.
-                            }
-                            try {
-                                owner?.takeUnless { revoked }?.let {
-                                    gateway?.post(
-                                        "/close",
-                                        buildJsonObject {
-                                            put("connection_id", it.text("connection_id"))
-                                            put("generation", it["generation"]!!)
-                                        },
-                                    )
-                                }
-                            } catch (_: Exception) {
-                                // Binding expires server-side if disconnected; never retry a work operation.
-                            }
-                        }
-                    }
-                    if (current == epoch) {
+                    voice?.close()
+                    // Global calls have no server binding to close. Never cancel durable work here.
+                    withContext(NonCancellable) { realtime?.close() }
+                    if (commands === queue) {
                         peer = null
                         adapter = null
-                        binding = null
                         api = null
                         commands = null
                     }
@@ -290,6 +200,7 @@ class TalkCallController(
     }
 
     fun end() {
+        ++epoch
         peer?.close()
         call?.cancel()
         mutableState.update { it.copy(phase = "ended", level = 0f) }
@@ -301,122 +212,65 @@ class TalkCallController(
         lifetime.cancel()
     }
 
-    fun approve(
-        job: JsonObject,
-        requestId: String,
-        choice: String,
-    ) = enqueue {
-        refreshState()
-        val current = currentJob(job)
-        val approval = current.obj("approval")
-        check(
-            approval.flag("actionable") && choice in setOf("once", "session", "deny") &&
-                approval.rows("approvals").any {
-                    it.text("request_id") == requestId &&
-                        (it["choices"] as? JsonArray)?.contains(JsonPrimitive(choice)) == true
-                },
-        ) { "Approval is no longer actionable" }
-        submitAction(
-            "approval:$requestId",
-            "approval",
-            current,
-            buildJsonObject {
-                put("request_id", requestId)
-                put("choice", choice)
-            },
-            choice,
-        )
-    }
-
+    /** Called only after the dialog confirms this explicit work action. */
     fun stopWork(job: JsonObject) =
         enqueue {
-            refreshState()
-            val current = currentJob(job)
-            check(current.text("status") in setOf("queued", "accepted", "running", "waiting_for_approval"))
-            submitAction(
-                "cancel:${current.text("run_id")}",
-                "cancel",
-                current,
-                JsonObject(emptyMap()),
-                "Cancel this job.",
-            )
+            refreshRuns()
+            val current = currentRun(job)
+            if (current.text("status") != "running") {
+                throw TalkSetupException("This work is no longer running")
+            }
+            val receipt =
+                checkNotNull(api).post(
+                    "/tool",
+                    buildJsonObject {
+                        put("name", "stop_work")
+                        put(
+                            "arguments",
+                            buildJsonObject {
+                                put("target", current.text("runId"))
+                                put("reason", "User confirmed Stop Work in Hermes Talk.")
+                            },
+                        )
+                    },
+                )
+            mutableState.update { it.copy(receipt = receipt.text("output")) }
+            refreshRuns()
         }
 
     fun showResult(job: JsonObject) =
         enqueue {
-            val current = currentJob(job)
-            check(current.flag("result_available"))
-            val context = checkNotNull(binding)
-            val result =
-                checkNotNull(api).get(
-                    "/result",
-                    mapOf(
-                        "connection_id" to context.text("connection_id"),
-                        "generation" to context.text("generation"),
-                        "run_id" to current.text("run_id"),
-                    ),
-                )
-            mutableState.update { it.copy(receipt = result.toString()) }
+            refreshRuns()
+            val current = currentRun(job)
+            mutableState.update { it.copy(receipt = current.text("output")) }
         }
 
-    private suspend fun submitAction(
-        key: String,
-        operation: String,
-        job: JsonObject,
-        fields: JsonObject,
-        text: String,
-    ) {
-        check(operation in operations) { "Hermes host does not support this action" }
-        if (key in completedActions) return
-        val body =
-            actionRequests.getOrPut(key) {
-                buildJsonObject {
-                    put("run_id", job.text("run_id"))
-                    put("action_id", job.text("action_id"))
-                    fields.forEach { (name, value) -> put(name, value) }
-                    put(
-                        "input_id",
-                        "action_" +
-                            UUID
-                                .randomUUID()
-                                .toString()
-                                .replace("-", "")
-                                .take(24),
-                    )
-                    put("operation", operation)
-                    put("text", text)
-                    put("attachments", JsonArray(emptyList()))
-                }
-            }
-        val receipt = boundPost("/text/input", body)
-        check(
-            receipt.text("input_id") == body.text("input_id") && receipt.text("operation") == operation &&
-                receipt.text("state") in setOf("queued", "posted", "accepted", "completed", "saved"),
-        )
-        completedActions.add(key)
-        mutableState.update { it.copy(receipt = receipt.toString()) }
-        refreshState()
+    private fun currentRun(job: JsonObject): JsonObject {
+        val id = job.text("runId")
+        return state.value.jobs.singleOrNull { id.isNotBlank() && it.text("runId") == id }
+            ?: throw TalkSetupException("This work is no longer available on the server")
     }
 
-    private fun currentJob(job: JsonObject): JsonObject =
-        state.value.jobs.single {
-            it.text("run_id") == job.text("run_id") && it.text("action_id") == job.text("action_id")
-        }
-
-    private suspend fun refreshState() {
-        val canonical = boundPost("/state", JsonObject(emptyMap()))
-        mutableState.update { it.copy(jobs = canonical.rows("jobs")) }
-        adapter?.refresh(canonical)
+    private suspend fun refreshRuns() {
+        val runs = checkNotNull(api).get("/runs").rows("runs")
+        mutableState.update { it.copy(jobs = runs) }
+        adapter?.updateRuns(runs)
     }
-
-    private suspend fun boundPost(
-        path: String,
-        body: JsonObject,
-    ): JsonObject = checkNotNull(api).post(path, JsonObject(body + checkNotNull(binding)))
 
     private fun enqueue(command: suspend () -> Unit) {
-        if (commands?.trySend(command)?.isSuccess != true) {
-            mutableState.update { it.copy(error = "Voice is not connected; reconnect to the original chat") }
+        val accepted =
+            commands
+                ?.trySend {
+                    try {
+                        command()
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        mutableState.update { it.copy(error = safeMessage(e)) }
+                    }
+                }?.isSuccess == true
+        if (!accepted) {
+            mutableState.update { it.copy(error = "Voice is not connected; reconnect Hermes Talk") }
         }
     }
 
@@ -427,6 +281,7 @@ class TalkCallController(
 
     private fun safeMessage(error: Exception): String =
         when (error) {
+            is TalkSetupException -> error.message ?: "Voice setup failed"
             is java.io.IOException -> error.message ?: "Voice connection failed"
             else -> "Voice authorization or protocol validation failed; check Talk configuration and reconnect"
         }

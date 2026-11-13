@@ -1,57 +1,53 @@
-# Realtime 2.1 custom patch series
+# Realtime 2.1 Android customization patch
 
-The Mobile integration is isolated under `ui/voice/`, one realtime resource file,
-three additive shared-composer hooks, one WebRTC dependency and one audio permission.
-It does not fork Hermes Agent or install another execution runtime.
+The customization is isolated under `ui/voice/`, one resource file, three shared
+composer hooks, one WebRTC dependency and one audio permission. Hermes Talk and
+Hermes Agent program sources are not patched. The existing global Talk protocol
+and official Codex OAuth preference are used instead of current-Bot binding.
 
-## Hermes Talk
+## Export before upgrading Mobile
 
-Base: `TheSmokeDev/hermes-talk@3b8f88bc9b39e7916523964debdce504af4d4990`.
-Apply the included compatibility patch to your Talk checkout, not Hermes Agent:
-
-```sh
-cd /path/to/hermes-talk
-git apply --check /path/to/hermes-mobile/patches/hermes-talk/0001-mobile-subscription-guard.patch
-git apply /path/to/hermes-mobile/patches/hermes-talk/0001-mobile-subscription-guard.patch
-python -m pytest tests/test_dashboard_api.py tests/test_target_switching.py
-```
-
-The patch adds authenticated protocol-1 `/mobile/status` and `/mobile/session`.
-It requires native `gpt-realtime-2.1`, `TALK_PREFER_CODEX_OAUTH=true` and resolved
-`codex-oauth` **before** minting. It reuses existing target preparation, canonical
-session attachment, tools and activation. A configuration change cannot select a
-key-billed lane or different model after preflight.
-
-Install/restart Talk through your existing deployment process; this repository
-never deploys it automatically. Do not paste tokens into commands or issue text.
-
-## Hermes Mobile
-
-Export the feature's commits before upgrading (base for this delivery below):
+Run from the repository root after committing the feature:
 
 ```sh
 ./scripts/export-realtime-patches.sh \
   f4a105b6b74b305c98a9d0053467d25252e14f70 HEAD /tmp/realtime21-patches
 ```
 
-On a clean branch based on the newer Mobile upstream:
+This produces a **net Android patch**, not the obsolete intermediate backend
+experiments. `BASES.txt` records the exact Mobile commits and Talk protocol source.
+No Hermes Talk patch is generated or required.
+
+Create a clean feature branch based on the newer Mobile upstream, then apply:
 
 ```sh
-git am --3way /tmp/realtime21-patches/hermes-mobile-realtime21.patch
+git apply --3way /tmp/realtime21-patches/hermes-mobile-realtime21.patch
 ```
 
-For Talk upgrades, use `git apply --3way` on its patch in a clean Talk branch.
-A conflict is a compatibility gate, not permission to overwrite the new upstream.
-Reconcile the shared-composer hooks and protocol against the new source; rerun the
-focused tests, build, and physical two-Bot voice acceptance matrix in
-`docs/realtime-voice.md`. Never use `--reject`, ignore failed hunks, silently change
-the model/auth source, or copy an older task runtime over the upgraded host.
+`--3way` uses the original blob identities and stages cleanly applied changes.
+Resolve actual conflicts against the new shared composer and lifecycle APIs.
+Never ignore failed hunks, use `--reject`, or overwrite upgraded files with older
+copies. A patch is not a guarantee of compatibility with arbitrary future code.
 
-A patch is not a promise of automatic compatibility with arbitrary future releases.
-Pinned bases, isolated adapter files, explicit protocol version and test coverage
-make the customization reproducible and failures visible. If future upstream
-implements protocol 1 natively, drop the superseded Talk guard patch after testing.
+After an upgrade, run the focused `ui.voice` unit tests, build the debug APK and
+repeat actual-device WebRTC/audio, barge-in, mute, end, reconnect and native Talk
+work-continuity checks. Confirm Codex OAuth, the exact model and existing
+Cloudflare Access settings. See [the integration contract](../docs/realtime-voice.md).
+Do not restore withdrawn exact-Bot binding or custom mobile server routes.
 
-Rollback the Mobile feature by reverting its feature commits. Reverting the Talk
-patch removes only the mobile mint contract, not task history or accepted jobs;
-Mobile refuses to start calls against a server without that contract.
+## Existing Talk configuration
+
+Talk protocol source:
+`TheSmokeDev/hermes-talk@3b8f88bc9b39e7916523964debdce504af4d4990`.
+Use the host's existing Codex login and native OpenAI `gpt-realtime-2.1` settings,
+with official `TALK_PREFER_CODEX_OAUTH=true`. Long-lived credentials stay on the
+server. Android refuses incompatible descriptors; it does not switch to API keys.
+An upgrade of Talk requires checking its actual `/status`, `/session`, `/tool`,
+`/runs` and DataChannel contracts, not applying a second backend implementation.
+
+## Rollback
+
+Revert the scoped Mobile feature commits or the applied Android patch on your
+feature branch. Do not remove Talk task history, cancel accepted work, clear app
+data or rotate credentials as part of rollback. No backend program rollback is
+needed for this global-mode delivery.

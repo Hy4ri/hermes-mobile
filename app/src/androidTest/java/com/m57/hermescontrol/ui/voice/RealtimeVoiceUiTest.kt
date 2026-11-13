@@ -1,6 +1,5 @@
 package com.m57.hermescontrol.ui.voice
 
-import android.Manifest
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Box
@@ -27,15 +26,13 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
-import com.m57.hermescontrol.data.local.DataScope
 import com.m57.hermescontrol.data.ws.CommandCatalog
 import com.m57.hermescontrol.ui.chat.components.ChatInputBar
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertEquals
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -45,18 +42,11 @@ class RealtimeVoiceUiTest {
     @get:Rule
     val compose = createAndroidComposeRule<ComponentActivity>()
 
-    @Before
-    fun grantMicrophone() {
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        instrumentation.uiAutomation.grantRuntimePermission(
-            instrumentation.targetContext.packageName,
-            Manifest.permission.RECORD_AUDIO,
-        )
-    }
-
     @OptIn(ExperimentalFoundationApi::class)
     @Test
-    fun realtimeEntryPreservesDraftAndLeavesDictationSeparateAtNarrowWidth() {
+    fun globalEntryWithoutChatSessionPreservesDraftAndLeavesDictationSeparateAtNarrowWidth() {
+        // UI-only: no saved credentials, network calls, permission grants, or microphone capture.
+        var dictationTaps = 0
         compose.setContent {
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, 1.5f)) {
@@ -66,25 +56,32 @@ class RealtimeVoiceUiTest {
                     ChatInputBar(
                         inputState = input,
                         onSend = {},
-                        onMicTap = {},
+                        onMicTap = { dictationTaps++ },
                         isListening = false,
                         isAgentTyping = false,
                         isConnected = true,
                         commandCatalog = CommandCatalog(),
-                        isSessionReady = true,
+                        isSessionReady = false,
                         realtimeEnabled = true,
                         onRealtimeTap = { voice = true },
                     )
                     if (voice) {
-                        RealtimeTalkDialog(
-                            launch =
-                                TalkLaunch(
-                                    DataScope("disposable-test", "http://127.0.0.1:1", "alpha"),
-                                    "session-a",
-                                    "Bot A",
-                                ),
-                            onDismiss = { voice = false },
-                        )
+                        Dialog(onDismissRequest = { voice = false }) {
+                            Box(Modifier.width(320.dp)) {
+                                RealtimeTalkContent(
+                                    state = TalkCallState(),
+                                    permissionDenied = true,
+                                    backgroundEnded = false,
+                                    onClose = { voice = false },
+                                    onPermission = {},
+                                    onReconnect = {},
+                                    onMute = {},
+                                    onInterrupt = {},
+                                    onStop = {},
+                                    onResult = {},
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -97,47 +94,67 @@ class RealtimeVoiceUiTest {
             .assertWidthIsAtLeast(48.dp)
             .assertHeightIsAtLeast(48.dp)
             .performClick()
-        compose.onNodeWithText("End voice").performClick()
+        compose.onNodeWithText("Hermes Talk").assertIsDisplayed()
+        compose
+            .onNodeWithText(
+                "Shared Hermes Talk is not bound to the current Bot or chat session. " +
+                    "Voice transcripts stay in this call, not in chat.",
+            ).assertIsDisplayed()
+        compose.onNodeWithText("End voice").performScrollTo().performClick()
         compose.onNodeWithTag("chat_input").assertTextEquals("keep this draft")
-        compose.onNodeWithTag("send_button").assertIsEnabled()
+        compose.onNodeWithTag("send_button").assertIsNotEnabled()
+        compose.runOnIdle { assertEquals(0, dictationTaps) }
     }
 
     @Test
-    fun canonicalApprovalAndMuteAreDifferentFromStoppingWork() {
+    fun microphoneAndVoiceCancellationDoNotStopGlobalWork() {
         val job =
             Json
                 .parseToJsonElement(
-                    """{
-            "run_id":"run-a","action_id":"action-a","goal":"Bot A work","status":"waiting_for_approval",
-            "approval":{"actionable":true,"approvals":[{"request_id":"approval-a","choices":["once","deny"]}]}
-        }""",
+                    """{"runId":42,"kind":"hermes","status":"running","output":""}""",
                 ).jsonObject
-        var approved = ""
+        val completed =
+            Json
+                .parseToJsonElement(
+                    """{"runId":41,"kind":"hermes","status":"completed","output":"Review complete."}""",
+                ).jsonObject
+        var interrupted = 0
+        var ended = 0
+        var resultRun = ""
         var stopped = false
         compose.setContent {
             var muted by remember { mutableStateOf(false) }
             RealtimeTalkContent(
-                botName = "Bot A",
-                state = TalkCallState(phase = "listening", muted = muted, jobs = listOf(job)),
+                state = TalkCallState(phase = "listening", muted = muted, jobs = listOf(job, completed)),
                 permissionDenied = false,
                 backgroundEnded = false,
-                onClose = {},
+                onClose = { ended++ },
                 onPermission = {},
                 onReconnect = {},
                 onMute = { muted = !muted },
-                onInterrupt = {},
-                onApprove = { _, id, choice -> approved = "$id:$choice" },
-                onStop = { stopped = true },
-                onResult = {},
+                onInterrupt = { interrupted++ },
+                onStop = {
+                    assertEquals(job, it)
+                    stopped = true
+                },
+                onResult = { resultRun = it["runId"].toString() },
             )
         }
-        compose.onNodeWithText("Bot A").assertIsDisplayed()
+        compose.onNodeWithText("Hermes Talk").assertIsDisplayed()
         compose.onNodeWithText("Reconnect voice").assertIsNotEnabled()
         compose.onNodeWithText("Mute").performClick()
         compose.onNodeWithText("Unmute").assertIsDisplayed()
-        compose.onNodeWithText("Allow once").performScrollTo().performClick()
+        compose.onNodeWithText("Cancel voice response").performScrollTo().performClick()
+        compose.onNodeWithText("End voice").performScrollTo().performClick()
         compose.runOnIdle {
-            assertEquals("approval-a:once", approved)
+            assertEquals(1, interrupted)
+            assertEquals(1, ended)
+            assertEquals(false, stopped)
+        }
+        compose.onNodeWithText("Run #42 · hermes").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("View result").performScrollTo().performClick()
+        compose.runOnIdle {
+            assertEquals("41", resultRun)
             assertEquals(false, stopped)
         }
         compose.onNodeWithText("Stop Work").performScrollTo().performClick()

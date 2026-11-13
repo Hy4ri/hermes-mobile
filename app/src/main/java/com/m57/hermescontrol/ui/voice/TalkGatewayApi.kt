@@ -112,11 +112,7 @@ internal class TalkGatewayApi(
         )
     }
 
-    private fun endpoint(path: String): HttpUrl =
-        checkNotNull(base.resolve("api/plugins/hermes-talk$path"))
-            .newBuilder()
-            .addQueryParameter("profile", scope.activeProfileId)
-            .build()
+    private fun endpoint(path: String): HttpUrl = checkNotNull(base.resolve("api/plugins/hermes-talk$path"))
 
     private suspend fun execute(request: Request): JsonObject {
         checkScope()
@@ -126,19 +122,8 @@ internal class TalkGatewayApi(
     }
 
     companion object {
-        private val GET_PATHS = setOf("/mobile/status", "/result")
-        private val POST_PATHS =
-            setOf(
-                "/targets",
-                "/mobile/session",
-                "/event",
-                "/tool",
-                "/state",
-                "/close",
-                "/speech",
-                "/speech/receipt",
-                "/text/input",
-            )
+        private val GET_PATHS = setOf("/status", "/runs")
+        private val POST_PATHS = setOf("/session", "/tool")
     }
 }
 
@@ -206,8 +191,8 @@ private suspend fun Call.boundedText(): String =
                                         when (it.code) {
                                             401 -> "Voice authentication expired (401); sign in again"
                                             403 -> "Voice access denied (403); check Access and subscription"
-                                            404 -> "Install the compatible Hermes Talk mobile patch (404)"
-                                            409 -> "Voice session is stale (409); reconnect to the original chat"
+                                            404 -> "Hermes Talk route unavailable (404); check plugin installation"
+                                            409 -> "Voice session is stale (409); start a new Talk call"
                                             else -> "Voice request refused (HTTP ${it.code})"
                                         },
                                     )

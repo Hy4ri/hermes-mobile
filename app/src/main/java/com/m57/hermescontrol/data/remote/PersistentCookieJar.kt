@@ -179,9 +179,12 @@ class PersistentCookieJar(
                     bucket.filter { cookie ->
                         val alive = cookie.expiresAt > now || isSessionCookie(cookie)
                         val schemeOk = !cookie.secure || url.isHttps
-                        val pathOk = url.encodedPath == cookie.path ||
-                            (url.encodedPath.startsWith(cookie.path) &&
-                                (cookie.path.endsWith("/") || url.encodedPath[cookie.path.length] == '/'))
+                        val pathOk =
+                            url.encodedPath == cookie.path ||
+                                (
+                                    url.encodedPath.startsWith(cookie.path) &&
+                                        (cookie.path.endsWith("/") || url.encodedPath[cookie.path.length] == '/')
+                                )
                         val usable = (trusted && isSessionCookie(cookie) && schemeOk && pathOk) || cookie.matches(url)
                         val key = cookie.name to cookie.path
                         alive && usable && seen.add(key)

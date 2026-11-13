@@ -39,7 +39,7 @@ jobs:
             exit 1
           fi
       - name: Create or update pull request
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GATEWAY_CONTRACT_SYNC_TOKEN }}
           branch: automation/gateway-contract-sync

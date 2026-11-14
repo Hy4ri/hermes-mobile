@@ -1,0 +1,25 @@
+<resources>
+    <string name="realtime_title">Hermes Talk</string>
+    <string name="realtime_global_note">Shared Hermes Talk is not bound to the current Bot or chat session. Voice transcripts stay in this call, not in chat.</string>
+    <string name="realtime_permission">Microphone permission is required for realtime voice. Allow it to try again.</string>
+    <string name="realtime_retry_permission">Allow microphone</string>
+    <string name="realtime_background">Voice ended when the app left the foreground. Reconnect to start again.</string>
+    <string name="realtime_reconnect">Reconnect voice</string>
+    <string name="realtime_mute">Mute</string>
+    <string name="realtime_unmute">Unmute</string>
+    <string name="realtime_interrupt">Cancel voice response</string>
+    <string name="realtime_end">End voice</string>
+    <string name="realtime_you">You</string>
+    <string name="realtime_assistant">Assistant</string>
+    <string name="realtime_level">Microphone level</string>
+    <string name="realtime_status">Voice status: %1$s</string>
+    <string name="realtime_jobs">Work</string>
+    <string name="realtime_job_status">Work status: %1$s</string>
+    <string name="realtime_run">Run #%1$s · %2$s</string>
+    <string name="realtime_stop_work">Stop Work</string>
+    <string name="realtime_stop_confirm">Stop this work? Ending voice alone does not stop work.</string>
+    <string name="realtime_keep_work">Keep working</string>
+    <string name="realtime_result">View result</string>
+    <string name="realtime_receipt">Server receipt / result</string>
+    <string name="realtime_work_note">Accepted is not completed. Completed is not verified.</string>
+</resources>

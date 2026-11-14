@@ -188,6 +188,7 @@ dependencies {
     implementation(libs.retrofit.converter.kotlinx.serialization)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.jsch)
+    implementation("io.github.webrtc-sdk:android:144.7559.05")
 
     // Native Compose LaTeX rendering
     implementation(libs.latex.base)

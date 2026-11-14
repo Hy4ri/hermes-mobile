@@ -30,9 +30,9 @@
 
 ## Overview
 
-**Hermes Mobile** is a native Android app for controlling your [Hermes Agent](https://hermes-agent.nousresearch.com) from your phone. Chat with your agent, manage cron jobs, skills, models and more.
+Hermes Mobile is a native Android app for your [Hermes Agent](https://hermes-agent.nousresearch.com). Chat with your agent and manage cron jobs, skills, models, and more from your phone.
 
-It connects to the Hermes dashboard (REST API and WebSocket gateway), so you need a running dashboard that your phone can reach.
+The app connects to the Hermes dashboard over its REST API and WebSocket gateway, so the dashboard must run on a host your phone can reach.
 
 ---
 
@@ -51,405 +51,77 @@ It connects to the Hermes dashboard (REST API and WebSocket gateway), so you nee
   <img src="docs/screenshots/sidebar-2.png" width="180" alt="Hermes Mobile secondary navigation" />
 </p>
 
-<p align="center"><em>Chat, automation, productivity, and agent configuration from your phone.</em></p>
-
 ---
 
 ## Features
 
-- **Chat:** Talk to your agent. History is stored locally in Room, and notifications support inline replies.
-- **Configuration:** Manage profiles, skills, plugins, toolsets, and model/provider selections.
-- **Operations:** Stream and filter live logs, manage cron jobs, edit environment keys, test webhooks, and monitor processes.
-- **Gateway status:** Check the WebSocket connection, MCP servers, messaging channels, and OAuth providers.
-- **Productivity:** Manage tasks on Kanban boards, track agent milestones, and browse session history.
-- **Launcher shortcuts:** Long-press the app icon for New Chat, History, and recent conversations (launcher support required).
-- **Analytics and billing:** See usage analytics and manage billing or subscriptions.
-- **Theming:** Seven built-in presets (Default, Monochrome, Gruvbox, Catppuccin, AMOLED, Nord, Garnet), plus Material You dynamic colors on supported devices.
-- **Material 3 design:** Pull-to-refresh, a scroll-aware top bar, and customizable bottom navigation.
+- Chat with your agent. History is stored locally in Room, and notifications support inline replies.
+- Manage profiles, skills, plugins, toolsets, and model/provider selections.
+- Stream and filter live logs, manage cron jobs, edit environment keys, test webhooks, and monitor processes.
+- Check the WebSocket connection, MCP servers, messaging channels, and OAuth providers.
+- Manage tasks on Kanban boards, track agent milestones, and browse session history.
+- Long-press the app icon for New Chat, History, and recent conversations (launcher support required).
+- See usage analytics and manage billing or subscriptions.
+- Pick one of seven theme presets (Default, Monochrome, Gruvbox, Catppuccin, AMOLED, Nord, Garnet) or Material You dynamic colors on supported devices.
 
 ---
 
-### Unsent text drafts
+## Quick start
 
-Unsent text is saved separately for each conversation, connection, and agent profile.
-A new conversation has its own draft slot until its first prompt. Drafts use encrypted
-local storage and are excluded from backups. Attachments are not saved as drafts.
+1. Install Hermes Mobile from [F-Droid](https://f-droid.org/packages/com.m57.hermescontrol/) or [Obtainium](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fadd%2Fhttps%3A%2F%2Fgithub.com%2FHy4ri%2Fhermes-mobile), or download the APK from the [latest GitHub release](https://github.com/Hy4ri/hermes-mobile/releases/latest).
+2. On the Hermes host, start the dashboard so your phone can reach it:
 
-Normal typing is saved after a short pause. Leaving the chat or backgrounding the app
-also requests a save. A force-stop before a write finishes can lose recent edits.
-The existing send acceptance clears the saved draft; failed-send recovery remains available.
-Blank text removes its draft. Logout, connection removal, and individual or bulk conversation
-deletion remove the relevant drafts. At most 100 drafts per connection are retained for
-30 days; older drafts are removed first. Individual prompts are never truncated.
+   ```bash
+   hermes dashboard --host 0.0.0.0
+   ```
 
-### Launcher conversation privacy
+   The dashboard asks for a login when it listens beyond localhost. Set it up with the [Hermes Web Dashboard guide](https://hermes-agent.nousresearch.com/docs/user-guide/features/web-dashboard#usernamepassword-provider-no-oauth-idp).
+3. Open the app, tap **Sign in**, enter the dashboard host and port, and log in.
 
-Conversation shortcuts expose their titles to your Android launcher. They are selected
-from the first recent-history page (up to 50 rows, including server-backfilled pins),
-with pinned conversations first and the remaining slots filled by recency. The launcher
-quota includes the two static actions. Hidden, archived, cron, bot-room, subagent, and
-child sessions are excluded. Only the current connection and agent profile are published;
-scope changes and logout retire their shortcuts. Home-screen copies pinned by a launcher
-cannot be deleted by the app; they are disabled and their labels/targets are scrubbed.
-
-Opening a conversation shortcut requires a live metadata check in its original scope.
-Unavailable, no-longer-recent, or deleted targets fall back to History rather than opening
-a same-id conversation on another server/profile. New Chat and History remain available
-without recent-conversation publishing. Share-sheet targets and voice shortcuts are not included.
-
-## Quick Start
-
-1. Install Hermes Mobile from [F-Droid](https://f-droid.org/packages/com.m57.hermescontrol/), or download the APK from the [latest GitHub release](https://github.com/Hy4ri/hermes-mobile/releases/latest).
-2. Start your Hermes dashboard on a host your phone can reach.
-3. Open the app, tap **Sign in**, and follow [Authentication](#authentication).
+Use HTTPS when the dashboard is reachable outside your local network. Plain HTTP does not encrypt the connection.
+See [Connecting to Hermes](https://github.com/Hy4ri/hermes-mobile/wiki/Connecting-to-Hermes) for token login, SSH tunnels, and other setups.
 
 ---
 
-## Verify a GitHub release APK
+## Documentation
 
-Releases produced by the updated release workflow include `SHA256SUMS` and GitHub build provenance.
-Older releases may not include them. Select an explicit release tag, then run:
+The [wiki](https://github.com/Hy4ri/hermes-mobile/wiki) has the details:
 
-```bash
-TAG=vX.Y.Z # Replace with the release tag to verify.
-gh release download "$TAG" --repo Hy4ri/hermes-mobile \
-  --pattern "hermes-mobile-${TAG}.apk" --pattern SHA256SUMS --pattern version.txt
-sha256sum --check SHA256SUMS
-gh attestation verify "hermes-mobile-${TAG}.apk" --repo Hy4ri/hermes-mobile \
-  --signer-workflow Hy4ri/hermes-mobile/.github/workflows/release.yml
-apksigner verify --print-certs "hermes-mobile-${TAG}.apk"
-```
-
-`gh` requires authentication and a version that supports `attestation verify`.
-`apksigner` is part of Android SDK Build Tools.
-
-These checks answer different questions:
-
-- **Checksum:** the downloaded bytes match the checksum file. This does not authenticate a compromised download source.
-- **Provenance:** GitHub recorded those exact bytes as output of this repository's release workflow.
-  Review the reported source commit and tag against the release you selected.
-- **Signing identity:** compare the signer SHA-256 digest with an independently trusted previous APK or maintainer-provided fingerprint.
-  A valid APK signature alone does not establish that the signer is trusted.
-
-Maintainers must configure the repository variable `RELEASE_CERTIFICATE_SHA256` with the existing release certificate's SHA-256 digest.
-Obtain it from an independently trusted release certificate, not from the APK currently being built.
-The workflow fails before publication if this variable is missing or the signer, package, or version differs.
-This change does not rotate the signing key or change F-Droid's signing identity.
-
-Release retries do not replace assets on an existing GitHub release. Inspect a failed run before retrying;
-an existing release, including an incomplete draft, requires a separate maintainer decision.
-Uploads stay in a draft until downloaded assets pass checksum verification.
-For manual dispatch, select the same tag as the input tag; branch-based dispatch fails to prevent misleading provenance.
-The selected tag must include the updated workflow and verification helper.
-End-to-end verification requires an explicitly authorized test release.
-
-## Authentication
-
-The app detects which auth mode your dashboard uses and shows only the fields you need.
-
-> **Security:** Use HTTPS for remote connections. Plain HTTP/WS is for trusted local networks only, because authentication does not encrypt the transport.
-
-### Optional app lock
-
-**Settings → Behavior → App lock** adds a local UI privacy gate, off by default.
-Enabling or disabling it requires successful system authentication. Android 10+
-offers strong biometrics or the device credential; Android 8–9 uses the system
-PIN/pattern/password confirmation activity.
-
-Enabled cold starts always require authentication. Background returns lock after
-the selected timeout: immediately, 30 seconds (default), 1 minute, or 5 minutes.
-Screen off always locks, independently of that timeout. Tap **Unlock** to authenticate;
-cancelled/failed prompts stay locked and do not automatically reopen. Authorization
-survives activity rotation, but is never saved across process death. The current
-navigation, unsent drafts, dialog forms, and live ViewModel work are retained behind
-the gate. Screenshots and recent-app previews are blocked while the setting is enabled.
-
-If device security is removed or unavailable, the app stays locked. Use **Open Android
-Security settings** to restore a device PIN, pattern, or password, then return and
-authenticate. The app does not silently switch the setting off.
-
-Notification previews and launcher conversation labels are separate privacy boundaries.
-Inline notification replies are disabled whenever app lock is enabled, including stale
-reply actions: open and unlock the app to reply. This is not encryption of decrypted
-memory, protection against a rooted device, or a server-side permission change;
-already-running agent work and opted-in background connections can continue.
-
-### Optional profile lock
-
-**Profiles → ⋮ on the active profile → Lock to this profile** keeps a shared device
-(for example, a family device) on one Hermes profile. Set a 4–8 digit PIN; only a salted
-hash is stored.
-
-While locked, the sidebar shows only Chat, History, Projects, and Settings. Settings keeps
-Appearance, Language, Chat, Behavior, and About. Profiles, server connections, sign-in,
-credentials, the Vault, integrations, and agent configuration are unavailable from every
-entry point. In Chat, session-only changes (`/model`, `/reasoning`, `/fast`) still work;
-global changes and commands that change the agent or server (for example `/config`,
-`/tools`, `/skills`, `/cron`, `/profile`, `/update`) are refused.
-
-**Settings → Turn off lock** asks for the PIN. Five wrong PINs start a 30-second wait.
-If the PIN is lost, or the lock settings cannot be read, the app stays locked; clear the
-app data to remove it. This is a local restriction in Hermes Mobile, not a server-side
-permission: restrict the profile's agent tools separately, and other clients are not affected.
-
-### 1. Start the dashboard
-
-On the host machine:
-
-```bash
-hermes dashboard                          # loopback (127.0.0.1:9119) — no auth needed
-hermes dashboard --host 0.0.0.0           # LAN — requires auth
-```
-
-For LAN access, set credentials in `~/.hermes/config.yaml`:
-
-```yaml
-dashboard:
-  basic_auth:
-    username: admin # pick your own
-    password: hermes # pick your own
-```
-
-### 2. Connect the app
-
-Tap **Sign in** on the landing screen and enter the dashboard host and port. The app probes the dashboard and shows the fields it needs.
-
-**Token only** (dashboard on the same machine, bound to loopback)
-
-- Enter the **Token**. You can find it in `~/.hermes/dashboard-token.txt` or in `~/.hermes/.env` as `HERMES_DASHBOARD_SESSION_TOKEN`.
-- The app can also extract the token from the dashboard page for you.
-
-**Basic auth** (dashboard on the LAN behind a password)
-
-- Enter your **Username** and **Password** (default `admin` / `hermes`).
-- The app logs in, stores a session cookie, and requests a WebSocket ticket automatically.
-
-### Manual HTTPS client certificates (mTLS)
-
-Open **Settings → Connection → TLS and mTLS configuration**, or tap
-**Connections** on the first-launch landing page before signing in. Install client certificates
-in Android settings first; the app stores aliases only, never private keys.
-
-Each binding belongs to an HTTPS hostname and port across all paths and connection
-profiles. Choose **mTLS** when adding a client identity. Use **Add Configuration** or
-**Edit Configuration**, then **Select Certificate**
-or **Change Certificate** to open Android KeyChain. A valid address, port and selected
-certificate are required to **Save**. **Delete Configuration** clears the saved binding
-without removing the system certificate. Cancelling the picker keeps the draft alias;
-leaving an edited draft asks whether to discard unsaved changes. Host/port edits
-preserve the draft certificate and invalidate pending choices.
-An editor dismissed or destroyed while the picker is open ignores its late callback.
-
-On the login screen, a failed initial `/api/status` probe offers certificate setup only
-when its HTTPS error cause chain contains an SSL exception with the exact
-received alert `TLSV1_ALERT_CERTIFICATE_REQUIRED`, `SSLV3_ALERT_BAD_CERTIFICATE`,
-`SSLV3_ALERT_UNSUPPORTED_CERTIFICATE`, `SSLV3_ALERT_CERTIFICATE_REVOKED`,
-`SSLV3_ALERT_CERTIFICATE_EXPIRED`, `SSLV3_ALERT_CERTIFICATE_UNKNOWN`, or
-`TLSV1_ALERT_UNKNOWN_CA`. Local server-trust/hostname failures and generic handshake or
-network failures do not trigger it. Missing and rejected client certificates use the same
-dialog and wording. The dialog fixes the host and port; you must
-explicitly select an installed certificate. **Save** verifies that candidate with a fresh
-TLS connection and one credential-free `GET /api/status` to that origin. Any HTTP response
-headers suffice, including 401/403; redirects are not followed. Failed verification leaves
-existing bindings unchanged and allows another selection. Cancel preserves the mTLS
-connection error. A successful save replaces any binding for that host and port and clears
-the previous connection error. Use the connection button to retry; later errors still
-appear normally. The inline notice points to **Connections** for changes.
-
-Peers and providers reporting generic failures or other error formats may not trigger this prompt; use the
-manual configuration above. Later login steps, background requests and other screens do
-not trigger it. Network requests never open the system picker or wait for selection. Missing,
-expired, revoked or incompatible keys result in no client identity, so servers requiring
-mTLS fail normally until a usable binding is saved. REST, WebSocket, images, attachments
-and audio/video share the TLS configuration. Server certificate and hostname
-verification remain enabled; client identity selection does not change server trust.
-
-Saving (including selecting the same alias again) or deleting a configuration retires live
-TLS sockets and session contexts for the affected addresses. Retry failed requests or
-restart media playback; content already displayed or buffered may remain visible.
-Remote image memory/disk cache keys and gateway file cache keys include persistent
-identity generations and a shared cache epoch covering redirect destinations, so a late old response cannot populate the new identity's cache.
-While any binding exists, remote cache keys also include a per-launch epoch, because a
-KeyChain change made while the app was stopped cannot be observed; cached remote content is
-reused only within one app launch. Old cache entries age out under the existing cache policies. To isolate client identities,
-HTTP/2 connection coalescing across origins is disabled for the shared clients, including
-unbound origins; HTTP/2 within one origin remains enabled. A binding change also changes
-cache keys for unrelated remote resources because their redirect destinations are unknown
-before fetching. Redirects select the destination origin's saved identity only.
-
-### Per-origin server CA restrictions (TLS)
-
-Open **TLS and mTLS configuration**, add a **TLS** configuration, and select one
-currently installed Android **System** or **User** CA for the HTTPS hostname and port.
-The picker shows full certificate subjects; tap one to review its source, issuer,
-validity and SHA-256 fingerprint before selecting it. TLS and mTLS rows are independent
-and can coexist for the same address. Paths and connection profiles share that origin.
-
-The selected CA narrows the active global trust policy to that installed certificate.
-A **User** selection requires the global user-CA switch to be active for this process;
-saving a selection does not enable the switch. A User selection remains a User selection
-even if the same certificate is also installed as a System CA. Missing, replaced,
-malformed or invalid selections fail closed. Unconfigured origins use global trust.
-The platform still validates the certificate chain, and hostname verification remains enabled.
-
-Adding, editing or deleting a TLS configuration takes effect immediately, using the
-same origin socket/session retirement and remote cache versioning as mTLS edits.
-Deletion restores global trust for that origin. Retained REST clients, WSS, attachments
-and client-certificate candidate verification use the destination origin's restriction;
-redirects are checked against their destination. Retry interrupted requests or reconnect
-as needed; content already displayed or buffered can remain visible. This app does not
-monitor Android CA store changes or close established connections when the OS store changes.
-Restart after changing Android's CA store, as described below.
-
-### User-installed private certificate authorities
-
-For a server signed by a private CA, install that CA in Android's user certificate
-store, then enable **Trust user-installed CAs** in **Connections**, below the TLS and mTLS
-configuration entry. This global switch defaults to off, including when upgrading
-without a saved preference. Off uses the platform-default trust policy; on trusts
-active system and user CA roots for all connections using the shared TLS clients.
-Only enable it if you trust the installed user CAs. It does not restrict a CA to a
-specific server, accept arbitrary certificates, or bypass certificate validity,
-chain or hostname checks. mTLS client certificate bindings remain independent.
-
-The switch saves your choice for the next app process start. Restart the app process
-(not just the settings page or activity) to apply it. A restart hint appears while
-the saved choice differs from this process's active policy; switching back clears
-the hint. Existing clients and connections keep the startup policy.
-
-Android loads the CA store and validates certificate chains. The app does not
-monitor CA additions or removals or promise that they take effect while running;
-restart the app after changing the Android CA store. To stop trusting user CAs,
-turn the switch off and restart the app. Remove CAs in Android settings.
-
-### Cloudflare Access and custom headers
-
-1. Enter your dashboard's HTTPS URL on the login screen.
-2. Tap **Custom headers**, then **Add Cloudflare headers**.
-3. Enter your service token's `CF-Access-Client-Id` and `CF-Access-Client-Secret` values.
-4. Tap **Save**. The app probes the dashboard again, then shows the Hermes login fields.
-
-Your [Cloudflare Access policy](https://developers.cloudflare.com/cloudflare-one/access-controls/service-credentials/service-tokens/)
-must accept the service token. These headers authenticate with Cloudflare; you still
-need to complete Hermes authentication.
-
-**Other headers.** You can add any custom header name and value in the same editor.
-To edit or remove saved headers, open **Custom headers** from login, or from the saved
-connection's edit dialog in Settings. Values are masked and stored in encrypted
-preferences. Saving an empty list removes the headers for that URL.
-
-**Where headers are sent.**
-
-- Profiles with the same server URL share headers.
-- They apply to probes, login, API and media requests, and WebSocket handshakes.
-- Each URL's scheme, host, port, and path prefix limit where its headers go.
-- Redirects outside that scope do not receive them, and WebSocket redirects are not followed.
-- The app manages `Authorization`, `Cookie`, and transport headers itself.
-
-### Connection profiles
-
-Have multiple gateways? Switch between them in **Settings → Connection profiles**. Each profile stores its own host, port, and token.
-
-### SSH tunnel
-
-If the dashboard is bound to loopback on its own host, or the phone cannot route to it, the app can carry the session over SSH instead of exposing the
-gateway. Configure it from **SSH tunnel** on the sign-in screen (next to **Custom headers**) or from **Settings → Connection → SSH tunnel**.
-
-- **SSH server / port / username** is the host the phone can already reach.
-- **Remote host / port** is the dashboard address as seen from that SSH server, usually `127.0.0.1` and `9119`.
-- Authentication is either the SSH **password** or an OpenSSH/PEM **private key** with an optional passphrase. Credentials are stored in the app's
-  encrypted preferences, never in `server_store.json`.
-- The dashboard **URL is unchanged**: the app opens a local forward on `127.0.0.1` and routes that origin's sockets through it, so cookies, TLS/mTLS
-  bindings, custom headers and WebSocket URLs keep the identity you configured. `ssh -L 9119:127.0.0.1:9119 user@host` describes the same setup.
-
-Host keys are trusted on first use only. The first connection stops and shows the `SHA256:` fingerprint; nothing is stored until you confirm it.
-A **changed** host key fails the connection (use **Forget stored host key** only after you reinstalled the server). The tunnel reconnects with
-backoff while it is enabled, and stops on logout or when the connection profile changes.
-Requests never fall back to a direct connection while an SSH tunnel is enabled, including during startup and reconnect.
-Host-key trust is separate for each SSH host and port.
-
-**Local access:** the forward listens on a loopback port on this phone. Other apps on the phone can connect to that port while the tunnel is up.
-Enable dashboard authentication even when the dashboard is bound to remote loopback; SSH does not isolate the local forward from other apps.
-
-The tunnel is an alternative transport, not extra authentication: complete the Hermes sign-in as usual, and keep the SSH server itself patched and
-restricted to key authentication where possible.
+- [Connecting to Hermes](https://github.com/Hy4ri/hermes-mobile/wiki/Connecting-to-Hermes)
+- [TLS and mTLS](https://github.com/Hy4ri/hermes-mobile/wiki/TLS-and-mTLS)
+- [Cloudflare Access and custom headers](https://github.com/Hy4ri/hermes-mobile/wiki/Cloudflare-Access-and-Custom-Headers)
+- [SSH tunnel](https://github.com/Hy4ri/hermes-mobile/wiki/SSH-Tunnel)
+- [App lock and profile lock](https://github.com/Hy4ri/hermes-mobile/wiki/App-Lock-and-Profile-Lock)
+- [Chat drafts and launcher shortcuts](https://github.com/Hy4ri/hermes-mobile/wiki/Chat-Drafts-and-Launcher-Shortcuts)
+- [Verify a release APK](https://github.com/Hy4ri/hermes-mobile/wiki/Installation#verify-a-github-release-apk)
+- [Building from source](https://github.com/Hy4ri/hermes-mobile/wiki/Building-from-Source)
 
 ---
 
 ## Contributing
 
-Contributions are welcome! Read [CONTRIBUTING.md](CONTRIBUTING.md) for the branch workflow, code style, and PR checklist.
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the branch workflow, code style, and PR checklist.
 
-- **Translations:** Help translate the app on [Hosted Weblate](https://hosted.weblate.org/projects/hermes-mobile/hermes-mobile/).
-- **Conventions and architecture:** [AGENTS.md](AGENTS.md).
-- **Visual and interaction requirements:** [DESIGN.md](DESIGN.md).
-- **Theme implementation:** [THEMES.md](app/src/main/java/com/m57/hermescontrol/theme/THEMES.md).
+- Translate the app on [Hosted Weblate](https://hosted.weblate.org/projects/hermes-mobile/hermes-mobile/).
+- Conventions and architecture are in [AGENTS.md](AGENTS.md).
+- Visual and interaction rules are in [DESIGN.md](DESIGN.md).
+- Theme implementation is in [THEMES.md](app/src/main/java/com/m57/hermescontrol/theme/THEMES.md).
 
----
-
-## Build from source
-
-### Prerequisites
-
-- **JDK 21+** (used for Kotlin compilation and the Gradle toolchain).
-- An **Android SDK** matching the compile SDK in [`app/build.gradle.kts`](app/build.gradle.kts), from Android Studio or the **Nix** development environment. Set `ANDROID_HOME` or `sdk.dir` in `local.properties`.
-
-### Build and install
+To build a debug APK you need JDK 21+ and an Android SDK:
 
 ```bash
 git clone https://github.com/Hy4ri/hermes-mobile.git
 cd hermes-mobile
 ./gradlew assembleDebug
-adb install app/build/outputs/apk/debug/app-debug.apk
 ```
 
-For release builds, set the keystore environment variables (`KEYSTORE_PATH`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`). Or let the GitHub Actions release workflow build on a `v*` tag push.
-
-### Nix emulator
-
-The Nix development shell turns on physical keyboard input in an existing `hermes_dev` AVD. It respects `ANDROID_AVD_HOME` and `ANDROID_USER_HOME`, defaulting to `~/.android/avd`. The shell does not create the AVD, so create `hermes_dev` first.
-
-Close any running emulator, then cold boot once to apply the setting:
-
-```bash
-nix develop --command emulator -avd hermes_dev -no-snapshot-load
-```
-
-Later launches can omit `-no-snapshot-load`.
-
----
-
-## Project structure
-
-```
-app/src/main/java/com/m57/hermescontrol/
-├── data/          # Local (Room, AuthManager), Remote (Retrofit, OkHttp), WS (WebSocket), Models
-├── notification/  # Foreground service + inline reply for chat notifications
-├── theme/         # Preset-based design system (7 themes), status colors, spacing, typography
-├── ui/            # Compose feature screens + common components (HermesScaffold, StateViews)
-├── util/          # CronExpressionFormatter, LocaleContextWrapper
-└── Navigation*.kt # Navigation3 wiring, keys, screen registry, controller
-```
-
-## Tech stack
-
-- **Language:** Kotlin with KSP
-- **UI:** Jetpack Compose, Material 3 / Material You
-- **Navigation:** Navigation3
-- **Networking:** Retrofit, OkHttp, Kotlinx Serialization
-- **Database:** Room with SQLCipher encryption
-- **Security:** `EncryptedSharedPreferences` (AES256-GCM), DataStore
-- **Images:** Coil
-- **Testing:** JUnit, MockK, Turbine, Espresso, Compose UI testing
-- **Formatting:** `ktlint` 1.8.0 (checked in CI)
-
-Dependency versions live in [`gradle/libs.versions.toml`](gradle/libs.versions.toml). Build configuration and dependency scopes live in [`app/build.gradle.kts`](app/build.gradle.kts).
+[Building from source](https://github.com/Hy4ri/hermes-mobile/wiki/Building-from-Source) covers release signing, the Nix emulator, and the project layout.
 
 ---
 
 ## Support the project
 
-If Hermes Mobile is useful to you, consider supporting its development on [Ko-fi](https://ko-fi.com/m_5_7).
+If Hermes Mobile is useful to you, you can support its development on [Ko-fi](https://ko-fi.com/m_5_7).
 
 ---
 

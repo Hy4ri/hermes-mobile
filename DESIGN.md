@@ -7,7 +7,7 @@ It is not an architecture manual or a claim that every existing screen already
 meets every requirement. Flag existing deviations when touching the relevant UI;
 do not silently redesign unrelated screens.
 
-- [README.md](README.md): installation, connection, and product overview.
+- [README.md](README.md): installation and product overview; connection details live in the [wiki](https://github.com/Hy4ri/hermes-mobile/wiki).
 - [CONTRIBUTING.md](CONTRIBUTING.md): contribution workflow and verification.
 - [AGENTS.md](AGENTS.md): operational rules and architecture conventions.
 - [THEMES.md](app/src/main/java/com/m57/hermescontrol/theme/THEMES.md): theme implementation and extension guide.

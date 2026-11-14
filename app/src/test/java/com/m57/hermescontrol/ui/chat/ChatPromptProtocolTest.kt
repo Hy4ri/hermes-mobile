@@ -311,6 +311,128 @@ class ChatPromptProtocolTest {
     }
 
     @Test
+    fun clarify1824_answerEchoShowsOnSubmitBeforeTheLockSettles() {
+        val mockWsClient = mockk<HermesWsClient>(relaxed = true)
+        every { mockWsClient.canonicalClarifyBatch } returns true
+        val scope = TestScope(dispatcher)
+        val uiState =
+            MutableStateFlow(
+                ChatUiState(
+                    currentSessionId = "session-1",
+                    clarifyRequest =
+                        ClarifyUi(
+                            text = "",
+                            questions = listOf(ClarifyQuestionUi(qid = "q0", question = "First?")),
+                            serverRequestId = "srq-1824",
+                        ),
+                ),
+            )
+        var echoDuringLock: List<ChatMessage> = emptyList()
+        coEvery { mockWsClient.call(RpcMethods.CLARIFY_LOCK, any()) } answers {
+            echoDuringLock = uiState.value.messages
+            ClarifyLockResult(status = "ok", remaining = emptyList())
+        }
+        val persisted = mutableListOf<ChatMessage>()
+        val delegate =
+            ChatClarifyDelegate(
+                uiState = uiState,
+                scope = scope,
+                ioDispatcher = dispatcher,
+                persistMessage = { msg, _ -> persisted.add(msg) },
+                wsClient = mockWsClient,
+            )
+
+        delegate.respondToClarifyBatch(mapOf("q0" to "yes"))
+
+        // Visible at once, before any lock round-trip runs.
+        val echo = uiState.value.messages.single()
+        assertEquals(DisplayKind.CLARIFY_RESPONSE, echo.displayKind)
+        assertEquals("yes", echo.content)
+        assertNull(uiState.value.clarifyRequest)
+
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf(echo.id), echoDuringLock.map { it.id })
+        // One echo only: the settle path must not append it a second time.
+        assertEquals(listOf(echo.id), uiState.value.messages.map { it.id })
+        assertEquals(listOf(echo.id), persisted.map { it.id })
+    }
+
+    @Test
+    fun clarify1824_answerEchoIsDroppedWhenTheLockFails() {
+        val mockWsClient = mockk<HermesWsClient>(relaxed = true)
+        every { mockWsClient.canonicalClarifyBatch } returns true
+        coEvery { mockWsClient.call(RpcMethods.CLARIFY_LOCK, any()) } throws java.io.IOException("socket closed")
+        val scope = TestScope(dispatcher)
+        val uiState =
+            MutableStateFlow(
+                ChatUiState(
+                    currentSessionId = "session-1",
+                    clarifyRequest =
+                        ClarifyUi(
+                            text = "",
+                            questions = listOf(ClarifyQuestionUi(qid = "q0", question = "First?")),
+                            serverRequestId = "srq-1824-fail",
+                        ),
+                ),
+            )
+        val persisted = mutableListOf<ChatMessage>()
+        val delegate =
+            ChatClarifyDelegate(
+                uiState = uiState,
+                scope = scope,
+                ioDispatcher = dispatcher,
+                persistMessage = { msg, _ -> persisted.add(msg) },
+                wsClient = mockWsClient,
+            )
+
+        delegate.respondToClarifyBatch(mapOf("q0" to "yes"))
+        assertEquals(1, uiState.value.messages.size)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        org.junit.Assert.assertTrue(uiState.value.messages.isEmpty())
+        org.junit.Assert.assertTrue(persisted.isEmpty())
+        assertEquals("srq-1824-fail", uiState.value.clarifyRequest?.serverRequestId)
+    }
+
+    @Test
+    fun clarify1824_answerEchoIsDroppedWhenTheRequestExpired() {
+        val mockWsClient = mockk<HermesWsClient>(relaxed = true)
+        every { mockWsClient.canonicalClarifyBatch } returns true
+        coEvery { mockWsClient.call(RpcMethods.CLARIFY_LOCK, any()) } returns
+            ClarifyLockResult(status = "expired", remaining = null)
+        val scope = TestScope(dispatcher)
+        val uiState =
+            MutableStateFlow(
+                ChatUiState(
+                    currentSessionId = "session-1",
+                    clarifyRequest =
+                        ClarifyUi(
+                            text = "",
+                            questions = listOf(ClarifyQuestionUi(qid = "q0", question = "First?")),
+                            serverRequestId = "srq-1824-expired",
+                        ),
+                ),
+            )
+        val persisted = mutableListOf<ChatMessage>()
+        val delegate =
+            ChatClarifyDelegate(
+                uiState = uiState,
+                scope = scope,
+                ioDispatcher = dispatcher,
+                persistMessage = { msg, _ -> persisted.add(msg) },
+                wsClient = mockWsClient,
+            )
+
+        delegate.respondToClarifyBatch(mapOf("q0" to "yes"))
+        dispatcher.scheduler.advanceUntilIdle()
+
+        org.junit.Assert.assertTrue(uiState.value.messages.isEmpty())
+        org.junit.Assert.assertTrue(persisted.isEmpty())
+        assertEquals("Clarify request expired", uiState.value.errorMessage)
+    }
+
+    @Test
     fun canonicalClarifyBatch_stopsWhenStatusExpired() {
         val mockWsClient = mockk<HermesWsClient>(relaxed = true)
         every { mockWsClient.canonicalClarifyBatch } returns true

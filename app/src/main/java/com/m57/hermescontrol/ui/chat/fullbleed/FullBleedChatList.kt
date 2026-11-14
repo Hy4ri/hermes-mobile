@@ -395,7 +395,9 @@ fun FullBleedChatList(
                                         key = "reasoning-${reasoning.id}",
                                         contentType = FullBleedContentType.REASONING,
                                     ) {
-                                        Column(modifier = Modifier.padding(bottom = 6.dp)) {
+                                        // 16dp list margin: ReasoningCard adds the same 8dp
+                                        // inset as ToolBubble, so both start at 24dp.
+                                        Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 6.dp)) {
                                             ReasoningCard(
                                                 reasoningText = reasoning.reasoningText,
                                                 isStreaming = reasoning.isStreaming,
@@ -436,6 +438,7 @@ fun FullBleedChatList(
                                                     ReasoningCard(
                                                         reasoningText = proseMessage.reasoningText,
                                                         isStreaming = proseMessage.isStreaming,
+                                                        modifier = Modifier.padding(horizontal = 16.dp),
                                                         searchQuery =
                                                             if (proseMessage.id in searchState.matchedIds) {
                                                                 searchState.query

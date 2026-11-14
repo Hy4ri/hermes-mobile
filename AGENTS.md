@@ -19,7 +19,7 @@ dashboard's REST API and WebSocket TUI Gateway (JSON-RPC 2.0) over a trusted LAN
 - **Min SDK 26 / Target SDK 37 / Compile SDK 37**
 - **Kotlin and KSP:** versions are pinned in [`gradle/libs.versions.toml`](gradle/libs.versions.toml). KSP uses standalone versioning, NOT `kotlinVersion-kspVersion`.
 - **Jetpack Compose**, Room, Navigation3, OkHttp WebSocket, Retrofit, Kotlinx Serialization. See the version catalog and [`app/build.gradle.kts`](app/build.gradle.kts) for versions and dependency scopes.
-- **Auth:** `EncryptedSharedPreferences` (AES256-GCM); connection/authentication flows are documented in [README.md](README.md#authentication). Trace the active REST and WebSocket auth paths before changing them.
+- **Auth:** `EncryptedSharedPreferences` (AES256-GCM); connection/authentication flows are documented in the [wiki](https://github.com/Hy4ri/hermes-mobile/wiki/Connecting-to-Hermes). Trace the active REST and WebSocket auth paths before changing them.
 
 ## Build & Test Commands
 

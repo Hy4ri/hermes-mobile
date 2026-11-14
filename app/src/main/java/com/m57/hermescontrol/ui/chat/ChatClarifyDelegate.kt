@@ -173,16 +173,37 @@ class ChatClarifyDelegate(
                     displayKind = DisplayKind.CLARIFY_RESPONSE,
                 )
 
-            // Clear the card on submit, as Desktop does (#1815). While the locks are in flight,
-            // replays of this request stay hidden ([isSubmitting]). A failure restores the card.
+            // Clear the card and show the answer on submit, as Desktop does (#1815, #1824). The
+            // echo goes in with the same update: an append after the lock round-trip races the
+            // resumed turn's stream and can be lost. While the locks are in flight, replays of
+            // this request stay hidden ([isSubmitting]). A failure restores the card and drops
+            // the echo.
             val requestIds = clarify.requestIds
             submittingIds.addAll(requestIds)
             var card: ClarifyUi = clarify
             uiState.update { current ->
                 if (current.currentSessionId == sessionId && current.clarifyRequest?.requestIds == requestIds) {
-                    current.copy(clarifyRequest = null, isAgentTyping = true, errorMessage = null)
+                    current.copy(
+                        messages = current.messages + userMessage,
+                        clarifyRequest = null,
+                        isAgentTyping = true,
+                        errorMessage = null,
+                    )
                 } else {
                     current
+                }
+            }
+            // Set once the server confirms every answer; until then the echo is provisional.
+            var accepted = false
+
+            // Remove the provisional echo: the server did not take this answer.
+            fun dropEcho() {
+                uiState.update { current ->
+                    if (current.messages.any { it.id == userMessage.id }) {
+                        current.copy(messages = current.messages.filterNot { it.id == userMessage.id })
+                    } else {
+                        current
+                    }
                 }
             }
 
@@ -343,25 +364,9 @@ class ChatClarifyDelegate(
                         // All locks settled and confirmed by server: the request is closed even
                         // when a racing `request.cancel` already removed the card (#1779).
                         settle()
-                        // Atomic compare-and-set loop without side-effects inside lambda.
-                        // Typing was armed on submit; never re-arm it for a turn that already ended.
-                        var committed = false
-                        while (true) {
-                            val current = uiState.value
-                            if (current.currentSessionId != sessionId || currentDataScope() != initialScope) {
-                                break
-                            }
-                            if (uiState.compareAndSet(
-                                    current,
-                                    current.copy(messages = current.messages + userMessage),
-                                )
-                            ) {
-                                committed = true
-                                break
-                            }
-                        }
-
-                        if (committed) {
+                        accepted = true
+                        // The echo is already on screen since submit; store it now that it is final.
+                        if (uiState.value.currentSessionId == sessionId && currentDataScope() == initialScope) {
                             persistMessage(userMessage, sessionId)
                         }
                     } catch (e: CancellationException) {
@@ -374,6 +379,7 @@ class ChatClarifyDelegate(
             job.invokeOnCompletion { cause ->
                 inFlightCanonicalBatch.remove(inFlightKey)
                 submittingIds.removeAll(requestIds)
+                if (!accepted) dropEcho()
                 // Cancelled (also before it started): give the card back so it can be answered.
                 if (cause is CancellationException) restoreCard(errorMessage = null)
             }

@@ -30,6 +30,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -52,7 +53,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.chat.MarkdownText
@@ -63,7 +63,10 @@ import com.m57.hermescontrol.ui.common.ExpressiveTextButton as TextButton
  * Collapsible card showing the assistant's reasoning trace
  * (reasoning-model thinking steps) before the final answer.
  *
- * Collapsed: "🧠 Reasoning · {N} steps" with chevron.
+ * Styled like a [com.m57.hermescontrol.ui.chat.ToolBubble] chip (same inset,
+ * shape, container, and 14dp icon) so thinking aligns with the tool rows.
+ *
+ * Collapsed: content-width chip "Reasoning · {N} steps" with chevron.
  * Expanded: completed reasoning is Markdown; streaming text stays raw,
  *           capped at ~40% of the
  *           screen height with internal scroll; "Show full" lifts the cap.
@@ -98,99 +101,112 @@ fun ReasoningCard(
     val stepCount = remember(reasoningText) { reasoningText.count { it == '\n' } + 1 }
     val capHeight = with(LocalConfiguration.current) { (screenHeightDp * 0.4f).dp }
 
-    Card(
+    val shape = RoundedCornerShape(8.dp)
+    Box(
         modifier =
             modifier
                 .fillMaxWidth()
-                .then(if (!isStreaming) Modifier.animateContentSize() else Modifier)
-                .combinedClickable(
-                    onClick = { expanded = !expanded },
-                    onLongClick = {
-                        val clipboard =
-                            context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-                                ?: return@combinedClickable
-                        clipboard.setPrimaryClip(ClipData.newPlainText(null, reasoningText))
-                        copied = true
-                    },
-                ).testTag("reasoning_card"),
-        colors =
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-            ),
-        shape = RoundedCornerShape(12.dp),
+                .padding(horizontal = 8.dp, vertical = 1.dp),
+        contentAlignment = Alignment.CenterStart,
     ) {
-        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "🧠",
-                    fontSize = 14.sp,
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = stringResource(R.string.message_reasoning_steps, stepCount),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f),
-                )
-                if (copied) {
-                    Spacer(Modifier.width(4.dp))
+        Card(
+            modifier =
+                Modifier
+                    .then(if (expanded) Modifier.fillMaxWidth() else Modifier)
+                    .then(if (!isStreaming) Modifier.animateContentSize() else Modifier)
+                    .clip(shape)
+                    .combinedClickable(
+                        onClick = { expanded = !expanded },
+                        onLongClick = {
+                            val clipboard =
+                                context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                                    ?: return@combinedClickable
+                            clipboard.setPrimaryClip(ClipData.newPlainText(null, reasoningText))
+                            copied = true
+                        },
+                    ).testTag("reasoning_card"),
+            colors =
+                CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                ),
+            shape = shape,
+        ) {
+            Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.Psychology,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
                     Text(
-                        text = stringResource(R.string.reasoning_copied),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
+                        text = stringResource(R.string.message_reasoning_steps, stepCount),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = if (expanded) Modifier.weight(1f) else Modifier,
+                    )
+                    if (copied) {
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            text = stringResource(R.string.reasoning_copied),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    Icon(
+                        imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                        contentDescription = if (expanded) "Collapse reasoning" else "Expand reasoning",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp),
                     )
                 }
-                Icon(
-                    imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                    contentDescription = if (expanded) "Collapse reasoning" else "Expand reasoning",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            AnimatedVisibility(visible = expanded) {
-                Column {
-                    val contentModifier =
-                        Modifier
-                            .padding(top = 4.dp)
-                            .then(
-                                if (!fullHeight) {
-                                    // Capped at ~40% of the screen with internal scroll.
-                                    Modifier.heightIn(max = capHeight).verticalScroll(scrollState)
-                                } else {
-                                    // "Show full": render the whole trace at natural height.
-                                    // A scrollable must NEVER be measured with an infinite
-                                    // max height — inside a LazyColumn item (unbounded main
-                                    // axis) that combination throws IllegalStateException.
-                                    Modifier
-                                },
+                AnimatedVisibility(visible = expanded) {
+                    Column {
+                        val contentModifier =
+                            Modifier
+                                .padding(top = 4.dp)
+                                .then(
+                                    if (!fullHeight) {
+                                        // Capped at ~40% of the screen with internal scroll.
+                                        Modifier.heightIn(max = capHeight).verticalScroll(scrollState)
+                                    } else {
+                                        // "Show full": render the whole trace at natural height.
+                                        // A scrollable must NEVER be measured with an infinite
+                                        // max height — inside a LazyColumn item (unbounded main
+                                        // axis) that combination throws IllegalStateException.
+                                        Modifier
+                                    },
+                                )
+                        if (isStreaming) {
+                            val statusColors = LocalHermesStatusColors.current
+                            Text(
+                                text = buildHighlightedString(reasoningText, searchQuery, isCurrentMatch, statusColors),
+                                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = contentModifier,
                             )
-                    if (isStreaming) {
-                        val statusColors = LocalHermesStatusColors.current
-                        Text(
-                            text = buildHighlightedString(reasoningText, searchQuery, isCurrentMatch, statusColors),
-                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = contentModifier,
-                        )
-                    } else {
-                        MarkdownText(
-                            text = reasoningText,
-                            textColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            searchQuery = searchQuery,
-                            isCurrentMatch = isCurrentMatch,
-                            modifier = contentModifier,
-                        )
-                    }
-                    if (isStreaming) {
-                        ReasoningPulsingDot(modifier = Modifier.padding(top = 6.dp))
-                    }
-                    if (fullHeight) {
-                        TextButton(onClick = { fullHeight = false }) {
-                            Text(stringResource(R.string.reasoning_show_less))
+                        } else {
+                            MarkdownText(
+                                text = reasoningText,
+                                textColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                searchQuery = searchQuery,
+                                isCurrentMatch = isCurrentMatch,
+                                modifier = contentModifier,
+                            )
                         }
-                    } else if (scrollState.maxValue > 0) {
-                        TextButton(onClick = { fullHeight = true }) {
-                            Text(stringResource(R.string.reasoning_show_full))
+                        if (isStreaming) {
+                            ReasoningPulsingDot(modifier = Modifier.padding(top = 6.dp))
+                        }
+                        if (fullHeight) {
+                            TextButton(onClick = { fullHeight = false }) {
+                                Text(stringResource(R.string.reasoning_show_less))
+                            }
+                        } else if (scrollState.maxValue > 0) {
+                            TextButton(onClick = { fullHeight = true }) {
+                                Text(stringResource(R.string.reasoning_show_full))
+                            }
                         }
                     }
                 }

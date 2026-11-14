@@ -1,15 +1,18 @@
-A native Android companion app for Hermes Agent, the open source AI assistant by Nous Research.
+Hermes Mobile is a native Android app for Hermes Agent, the open source AI agent by Nous Research. It connects to the Hermes dashboard on your computer or server, so you can talk to your agent and check on it from your phone.
 
-Control your Hermes agent directly from your phone over your local network, without needing a laptop or another messaging platform.
+What you can do:
+• Chat with your agent, send photos, files, and voice notes, and answer approval prompts
+• Reply straight from notifications
+• Switch models and providers, and manage profiles, skills, plugins, and toolsets
+• Create and edit cron jobs
+• Stream and filter live logs, check usage analytics, and edit environment keys
+• See the status of the gateway, MCP servers, and messaging channels
+• Track tasks on Kanban boards and browse past sessions
+• Lock the app with your fingerprint or screen lock, or keep a shared phone on one profile
+• Pick one of seven themes, or use Material You colors on Android 12+
 
-Features:
-• Chat over WebSocket with markdown rendering
-• Switch AI models and providers
-• Stream and filter system logs
-• Manage agent profiles and settings
-• Pull to refresh for live updates
-• System notifications for incoming messages
-• Material You dynamic theming on Android 12+
-• Works over your local Wi-Fi, with no internet routing required
+It works on your home network, and over the internet when the dashboard is behind HTTPS. The app also supports client certificates (mTLS), private certificate authorities, Cloudflare Access, and a built-in SSH tunnel. Chat history and saved credentials are encrypted on the phone.
 
-All network communication uses cleartext HTTP and WebSocket by default, designed for trusted local networks.
+You need Hermes Agent with its dashboard running (hermes dashboard). Setup guide: https://github.com/Hy4ri/hermes-mobile/wiki/Connecting-to-Hermes
+
+If the app is useful to you, you can support it on Ko-fi: https://ko-fi.com/m_5_7

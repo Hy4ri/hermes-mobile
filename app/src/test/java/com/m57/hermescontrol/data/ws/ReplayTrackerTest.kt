@@ -65,6 +65,30 @@ class ReplayTrackerTest {
     }
 
     @Test
+    fun `forget drops only the deleted sessions from replay`() =
+        runTest {
+            // A deleted session must not reach session.events.since after a reconnect.
+            val requested = mutableListOf<String>()
+            val tracker =
+                ReplayTracker(
+                    scope = this,
+                    fetchEventsSince = {
+                        requested += it.sessionId
+                        SessionEventsSinceResult()
+                    },
+                    emitEvent = {},
+                )
+            tracker.setSeqWatermark("deleted", 10)
+            tracker.setSeqWatermark("kept", 25)
+
+            tracker.forget(setOf("deleted"))
+
+            assertEquals(mapOf("kept" to 25), tracker.getSeqWatermarks())
+            tracker.fetchReplayForTest()
+            assertEquals(listOf("kept"), requested)
+        }
+
+    @Test
     fun `triggerReplay is no-op when watermarks are empty`() {
         val testDispatcher = StandardTestDispatcher()
         val testScope = TestScope(testDispatcher)

@@ -35,6 +35,7 @@ import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.remote.safeApiRead
 import com.m57.hermescontrol.data.repository.VoiceNoteRepository
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
+import com.m57.hermescontrol.data.session.DeletedSessionEvents
 import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.data.ws.ChangeEvents
 import com.m57.hermescontrol.data.ws.CommandBlocklist
@@ -1176,6 +1177,15 @@ class ChatViewModel(
                         if (!cacheLoaded) loadCachedMessages(sessionId, sessionGeneration)
                     }
                 }
+            }
+        }
+        // The open session was deleted in History: it can no longer be shown (every poll gets
+        // 4001 not_found / 404). Move to a new chat instead.
+        viewModelScope.launch {
+            DeletedSessionEvents.events.collect { ids ->
+                // The transport must not ask for deleted sessions' missed events after a reconnect.
+                wsClient.forgetDeletedSessions(ids)
+                if (_uiState.value.currentSessionId in ids) createNewSession(setLoading = false)
             }
         }
         // Desktop parity (requestFreshSession): when the profile switch

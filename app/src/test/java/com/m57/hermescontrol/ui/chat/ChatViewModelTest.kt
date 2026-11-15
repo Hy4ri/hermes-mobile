@@ -11889,6 +11889,28 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun `deleting the open session in history leaves it in the chat`() =
+        runTest {
+            val (vm, sessionId) = createViewModelWithSession()
+
+            // Deleting another session leaves the chat alone.
+            com.m57.hermescontrol.data.session.DeletedSessionEvents
+                .emit(setOf("other-session"))
+            advanceUntilIdle()
+            assertEquals(sessionId, vm.uiState.value.currentSessionId)
+
+            // The open one was deleted: the chat drops it instead of polling a gone session.
+            com.m57.hermescontrol.data.session.DeletedSessionEvents
+                .emit(setOf(sessionId))
+            advanceUntilIdle()
+            assertTrue(vm.uiState.value.currentSessionId != sessionId)
+            assertTrue(
+                vm.uiState.value.messages
+                    .none { it.content.isNotBlank() && it.role == MessageRole.USER },
+            )
+        }
+
+    @Test
     fun `reconnect with unpersisted session re-creates session on new socket and dispatches queued prompt`() =
         runTest {
             val (vm, _) = createViewModelWithSession()

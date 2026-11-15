@@ -26,6 +26,7 @@ import com.m57.hermescontrol.data.remote.NetworkError
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.remote.safeApiRead
+import com.m57.hermescontrol.data.session.DeletedSessionEvents
 import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.data.session.SessionAttentionStore
 import com.m57.hermescontrol.data.session.SessionMutationFence
@@ -1405,6 +1406,8 @@ class SessionsViewModel(
                         )
                     }
                     ShortcutRefreshEvents.refresh()
+                    // The chat may have this session open: let it move to a new chat.
+                    DeletedSessionEvents.emit(setOf(sessionId))
                 }
 
                 is NetworkResult.Failure -> {
@@ -1454,6 +1457,8 @@ class SessionsViewModel(
                     ShortcutRefreshEvents.refresh()
                     val skipped = result.data.skippedActive.toSet()
                     val removedIds = ids.filterNot { it in skipped }.toSet()
+                    // The chat may have one of them open: let it move to a new chat.
+                    DeletedSessionEvents.emit(removedIds)
                     draftScope?.let { owner ->
                         val draftStore = ComposerDraftStore.initialized()
                         removedIds.forEach { draftStore?.remove(ComposerDraftKey(owner, it)) }

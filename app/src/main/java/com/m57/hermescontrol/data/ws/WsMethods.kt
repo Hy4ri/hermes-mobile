@@ -283,5 +283,48 @@ object WsMethods {
             "pet.thumb", // line 1612
             "pet.disable", // line 1647
             "pet.scale", // line 1661
+            // Methods bound to a session, process or request. The multi-profile gateway
+            // (gateway/session_controls.py) routes a call by `params.profile`; without it the
+            // session is looked up in the profile of the WS ticket and may not be found.
+            // For its own home the gateway drops `profile` only for the methods in its
+            // `_PROFILE_IMPLICIT` set (for example prompt.submit, session.stats, session.mutate,
+            // clarify.respond); every other method here declares `profile` in its params.
+            // Decoration keys on the method the caller sent: session.usage is renamed to
+            // session.stats after it, and an edit's session.mutate body is built before it.
+            SESSION_INTERRUPT,
+            SESSION_REDIRECT,
+            SESSION_STEER,
+            SESSION_TITLE,
+            SESSION_BRANCH,
+            SESSION_BRANCH_WHOLE,
+            SESSION_COMPRESS,
+            SESSION_EVENTS_SINCE,
+            SESSION_CONTEXT_BREAKDOWN,
+            SESSION_USAGE,
+            SESSION_STATS,
+            SESSION_MUTATE,
+            SESSION_ACTIVE_LIST,
+            PROMPT_SUBMIT,
+            PROMPT_CANCEL,
+            PROMPT_RECEIPT,
+            PROMPT_BTW,
+            CLARIFY_RESPOND,
+            CLARIFY_LOCK,
+            APPROVAL_RESPOND,
+            APPROVAL_RECEIVED,
+            APPROVAL_PENDING,
+            COMMAND_DISPATCH,
+            SLASH_EXEC,
+            IMAGE_ATTACH_BYTES,
+            FILE_ATTACH,
+            PROCESS_LIST,
+            PROCESS_KILL,
+            PROCESS_STOP,
+            SUBAGENT_LIST,
+            SUBAGENT_TAIL,
+            SUBAGENT_INTERRUPT,
+            SUBAGENT_STEER,
+            CONNECTORS_LIST,
+            CONNECTORS_CONNECT,
         )
 }

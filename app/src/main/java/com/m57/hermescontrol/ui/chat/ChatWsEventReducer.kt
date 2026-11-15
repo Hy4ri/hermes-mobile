@@ -100,6 +100,29 @@ private fun stripSealedOrphanPrefix(
 }
 
 /**
+ * #1832: strip reasoning already sealed onto this turn's segment rows from a
+ * later trace. Gateways that re-send the whole turn's reasoning would
+ * otherwise render the sealed trace again on the next segment. Returns the
+ * input unchanged when no sealed trace leads it.
+ */
+internal fun stripSealedReasoning(
+    reasoning: String,
+    sealedReasoning: List<String>,
+): String {
+    if (sealedReasoning.isEmpty() || reasoning.isBlank()) return reasoning
+    var rest = reasoning.trim()
+    var stripped = false
+    for (sealed in sealedReasoning) {
+        val trace = sealed.trim()
+        if (trace.isNotEmpty() && rest.startsWith(trace)) {
+            rest = rest.removePrefix(trace).trimStart()
+            stripped = true
+        }
+    }
+    return if (stripped) rest else reasoning
+}
+
+/**
  * Pure state reducer for WebSocket events.
  *
  * Transforms [ChatUiState] in response to each [WsEvent] and returns a
@@ -478,7 +501,8 @@ object ChatWsEventReducer {
         // per-token reasoning.delta events were dropped or wiped by a
         // mid-turn tool.start. Attach it to the live streaming message so
         // message.complete carries it into the finalized bubble.
-        val text = event.text
+        // #1832: drop the part of a whole-turn trace already sealed at tool.start.
+        val text = event.text?.let { stripSealedReasoning(it, streamingState.sealedReasoning) }
         return if (!text.isNullOrBlank() && streamingState.streamingMessage != null) {
             // Issue #842: the gateway ALSO re-sends the agent's interim
             // NARRATION as reasoning.available ~40ms before each tool.start
@@ -540,9 +564,12 @@ object ChatWsEventReducer {
         // Fixes: a mid-turn tool.start wiping the streaming reasoning used
         // to leave the finalized bubble with no reasoning card at all.
         val reasoning =
-            event.reasoning
-                ?.takeIf { it.isNotBlank() }
-                ?: streamingState.reasoningText.ifBlank { streaming?.reasoningText ?: "" }
+            stripSealedReasoning(
+                event.reasoning
+                    ?.takeIf { it.isNotBlank() }
+                    ?: streamingState.reasoningText.ifBlank { streaming?.reasoningText ?: "" },
+                streamingState.sealedReasoning,
+            )
         // Issue #842: the complete payload carries the FULL final text, which
         // often repeats commentary already sealed into its own bubble(s) at
         // each tool.start. Strip the sealed prefix so the final bubble shows
@@ -816,15 +843,20 @@ object ChatWsEventReducer {
         // parity). The sealed id is tracked in StreamingState so
         // onMessageComplete can strip the repeated prefix — the complete
         // payload often re-carries the same commentary text.
+        //
+        // #1832: a reasoning-only segment (the model thought, then called the
+        // tool without narrating) is sealed too. Left live, it stayed hoisted
+        // above the tool card and the post-tool reasoning streamed into it,
+        // replacing the pre-tool trace until the REST reload split them.
         var orphanToPersist: ChatMessage? = null
+        val streamingReasoning =
+            streamingState.reasoningText.ifBlank { streamingState.streamingMessage?.reasoningText.orEmpty() }
+        val sealsSegment =
+            streamingState.streamingMessage != null &&
+                (streamingState.streamingMessage.content.isNotEmpty() || streamingReasoning.isNotBlank())
         val newState =
-            if (streamingState.streamingMessage?.content?.isNotEmpty() == true) {
-                val reasoning =
-                    if (streamingState.reasoningText.isNotBlank()) {
-                        streamingState.reasoningText
-                    } else {
-                        streamingState.streamingMessage.reasoningText
-                    }
+            if (sealsSegment && streamingState.streamingMessage != null) {
+                val reasoning = streamingReasoning
                 val finalized =
                     streamingState.streamingMessage
                         .copy(
@@ -851,17 +883,29 @@ object ChatWsEventReducer {
         }
 
         // Issue #771: KEEP the streaming state across a tool call when the
-        // stream has nothing to seal yet (a reasoning-model turn streams its
-        // thinking BEFORE the tool starts) — wiping it made the reasoning
-        // bubble vanish mid-turn. When an orphan WAS sealed (interim text
-        // before the tool), the streaming message is done — null it, keep the
-        // reasoning text in shared state, and remember the sealed orphan so
-        // message.complete can strip the repeated prefix.
+        // stream has nothing to seal yet — wiping it made the reasoning bubble
+        // vanish mid-turn. When a segment WAS sealed, the streaming message is
+        // done: null it and remember a text orphan so message.complete can
+        // strip the repeated prefix. The sealed row now owns the reasoning, so
+        // clear the shared copy (#1832, #1831): otherwise the next segment
+        // re-attaches the same trace and it renders (and persists) twice.
         val finalStreamingState =
             if (orphanToPersist != null) {
                 streamingState.copy(
                     streamingMessage = null,
-                    sealedOrphanIds = streamingState.sealedOrphanIds + orphanToPersist.id,
+                    isReasoning = false,
+                    reasoningText = "",
+                    sealedReasoning =
+                        orphanToPersist.reasoningText
+                            .takeIf { it.isNotBlank() }
+                            ?.let { streamingState.sealedReasoning + it }
+                            ?: streamingState.sealedReasoning,
+                    sealedOrphanIds =
+                        if (orphanToPersist.content.isNotEmpty()) {
+                            streamingState.sealedOrphanIds + orphanToPersist.id
+                        } else {
+                            streamingState.sealedOrphanIds
+                        },
                 )
             } else {
                 streamingState

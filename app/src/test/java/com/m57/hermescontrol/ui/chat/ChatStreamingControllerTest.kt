@@ -187,6 +187,42 @@ class ChatStreamingControllerTest {
             assertEquals("Fresh", streamingState.value.thinkingText)
         }
 
+    @Test
+    fun reasoningDelta_afterSealedSegment_startsNextSegmentRowWhileTurnIsLive() =
+        runTest {
+            // #1832: tool.start sealed the pre-tool segment (no streaming message);
+            // post-tool reasoning must stream into a new row, not stay invisible.
+            val uiState = MutableStateFlow(ChatUiState(isAgentTyping = true))
+            val streamingState = MutableStateFlow(StreamingState(sealedReasoning = listOf("R1")))
+            val controller = controller(this, uiState, streamingState, isTestEnvironment = { true })
+
+            controller.handleReasoningDelta(WsEvent.ReasoningDelta("R2", "session"))
+
+            val row = streamingState.value.streamingMessage
+            assertEquals(MessageRole.ASSISTANT, row?.role)
+            assertEquals("", row?.content)
+            assertEquals("R2", row?.reasoningText)
+            assertEquals(true, row?.isStreaming)
+            // A later answer token fills the same row.
+            controller.handleMessageToken(WsEvent.MessageToken("Answer", "session"))
+            assertEquals(row?.id, streamingState.value.streamingMessage?.id)
+            assertEquals("Answer", streamingState.value.streamingMessage?.content)
+            assertEquals("R2", streamingState.value.streamingMessage?.reasoningText)
+        }
+
+    @Test
+    fun reasoningDelta_withoutLiveTurn_doesNotCreateGhostRow() =
+        runTest {
+            val uiState = MutableStateFlow(ChatUiState(isAgentTyping = false))
+            val streamingState = MutableStateFlow(StreamingState())
+            val controller = controller(this, uiState, streamingState, isTestEnvironment = { true })
+
+            controller.handleReasoningDelta(WsEvent.ReasoningDelta("late trace", "session"))
+
+            assertEquals(null, streamingState.value.streamingMessage)
+            assertEquals("late trace", streamingState.value.reasoningText)
+        }
+
     private fun controller(
         scope: CoroutineScope,
         uiState: MutableStateFlow<ChatUiState>,

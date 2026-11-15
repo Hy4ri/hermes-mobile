@@ -289,8 +289,8 @@ object WsMethods {
             // For its own home the gateway drops `profile` only for the methods in its
             // `_PROFILE_IMPLICIT` set (for example prompt.submit, session.stats, session.mutate,
             // clarify.respond); every other method here declares `profile` in its params.
-            // session.usage goes out as session.stats and edits as session.mutate; both
-            // rewrites happen before this decoration, which keys on the original method.
+            // Decoration keys on the method the caller sent: session.usage is renamed to
+            // session.stats after it, and an edit's session.mutate body is built before it.
             SESSION_INTERRUPT,
             SESSION_REDIRECT,
             SESSION_STEER,

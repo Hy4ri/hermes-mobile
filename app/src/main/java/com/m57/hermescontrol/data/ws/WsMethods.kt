@@ -283,5 +283,51 @@ object WsMethods {
             "pet.thumb", // line 1612
             "pet.disable", // line 1647
             "pet.scale", // line 1661
+            // Methods bound to a specific session / process / request.
+            // The multi-profile gateway (gateway/session_controls.py, hermes-agent 0.23.x)
+            // resolves a session without `params.profile` in the WS ticket's profile (usually
+            // the launch profile), so on a non-launch profile these calls get
+            // 4001 not_found / permission_denied. With `profile` the request is routed
+            // to the owning profile. For its own home the server strips the key itself for
+            // the `_PROFILE_IMPLICIT` methods (prompt.*, session.interrupt/events.since/stats/
+            // mutate, approval.respond, clarify.respond); the rest accept `profile`
+            // per the contract (checked against openrpc v0.23.1 and the contract snapshot).
+            // Logical names: session.usage -> session.stats and edits ->
+            // session.mutate are rewritten in RpcChannel after decorate.
+            SESSION_INTERRUPT,
+            SESSION_REDIRECT,
+            SESSION_STEER,
+            SESSION_TITLE,
+            SESSION_BRANCH,
+            SESSION_BRANCH_WHOLE,
+            SESSION_COMPRESS,
+            SESSION_EVENTS_SINCE,
+            SESSION_CONTEXT_BREAKDOWN,
+            SESSION_USAGE,
+            SESSION_STATS,
+            SESSION_MUTATE,
+            SESSION_ACTIVE_LIST,
+            PROMPT_SUBMIT,
+            PROMPT_CANCEL,
+            PROMPT_RECEIPT,
+            PROMPT_BTW,
+            CLARIFY_RESPOND,
+            CLARIFY_LOCK,
+            APPROVAL_RESPOND,
+            APPROVAL_RECEIVED,
+            APPROVAL_PENDING,
+            COMMAND_DISPATCH,
+            SLASH_EXEC,
+            IMAGE_ATTACH_BYTES,
+            FILE_ATTACH,
+            PROCESS_LIST,
+            PROCESS_KILL,
+            PROCESS_STOP,
+            SUBAGENT_LIST,
+            SUBAGENT_TAIL,
+            SUBAGENT_INTERRUPT,
+            SUBAGENT_STEER,
+            CONNECTORS_LIST,
+            CONNECTORS_CONNECT,
         )
 }

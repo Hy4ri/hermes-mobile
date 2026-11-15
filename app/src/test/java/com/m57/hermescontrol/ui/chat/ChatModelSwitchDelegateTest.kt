@@ -38,7 +38,6 @@ class ChatModelSwitchDelegateTest {
         MutableStateFlow(ChatUiState(currentSessionId = "sess-1", currentSessionModel = "anthropic/claude-3"))
     private var runtimeId: String? = "runtime-1"
     private val sentParams = mutableListOf<ConfigSetParams>()
-    private val slashCommands = mutableListOf<String>()
     private val assistantMessages = mutableListOf<String>()
     private var contextRefetched = 0
     private var modelSwitchInitiated = 0
@@ -82,7 +81,6 @@ class ChatModelSwitchDelegateTest {
             },
             trackRequest = { _, _ -> },
             addAssistantMessage = { assistantMessages.add(it) },
-            handleSlashCommand = { slashCommands.add(it) },
             fetchContextUsage = { contextRefetched++ },
             onModelSwitchInitiated = { modelSwitchInitiated++ },
             dataScopeFlow = dataScope,
@@ -277,13 +275,16 @@ class ChatModelSwitchDelegateTest {
         }
 
     @Test
-    fun sendSlashModel_optimisticallyUpdatesModelAndDispatchesSlash() {
-        delegate.sendSlashModel("openai", "gpt-4o")
-        assertEquals("openai/gpt-4o", uiState.value.currentSessionModel)
-        assertFalse(uiState.value.showModelPicker)
-        assertEquals(listOf("/model gpt-4o --provider openai --session"), slashCommands)
-        assertEquals(1, modelSwitchInitiated)
-    }
+    fun sendSlashModel_optimisticallyUpdatesModelAndSwitchesWithoutTranscriptCommand() =
+        testScope.runTest {
+            delegate.sendSlashModel("openai", "gpt-4o")
+            advanceUntilIdle()
+            assertEquals("openai/gpt-4o", uiState.value.currentSessionModel)
+            assertFalse(uiState.value.showModelPicker)
+            assertEquals("gpt-4o --provider openai --session", sentParams.single().value)
+            assertEquals("model", sentParams.single().key)
+            assertEquals(1, modelSwitchInitiated)
+        }
 
     @Test
     fun sendSlashModel_withSameModel_doesNotInitiateSwitchOrBlankTokens() {
@@ -298,7 +299,6 @@ class ChatModelSwitchDelegateTest {
         assertEquals("openai/gpt-4o", uiState.value.currentSessionModel)
         assertEquals(128_000L, uiState.value.fullContextTokens)
         assertEquals(initialInitiated, modelSwitchInitiated)
-        assertEquals(emptyList<String>(), slashCommands)
         assertFalse(uiState.value.showModelPicker)
     }
 
@@ -332,10 +332,8 @@ class ChatModelSwitchDelegateTest {
     @Test
     fun dismissModelSwitchConfirm_revertsToPreviousModel() =
         testScope.runTest {
+            // sendSlashModel calls handleModelSwitch itself (req-1).
             delegate.sendSlashModel("opencode-free", "muse-spark-1.3-contributor-free")
-            advanceUntilIdle()
-            // In real ChatViewModel, handleSlashCommand routes to handleModelSwitch:
-            delegate.handleModelSwitch("/model muse-spark-1.3-contributor-free --provider opencode-free --session")
             advanceUntilIdle()
             delegate.handleConfigSetResult(
                 id = "req-1",
@@ -350,9 +348,8 @@ class ChatModelSwitchDelegateTest {
     @Test
     fun handleConfigSetError_rollsBackToPreviousModel_onlyWhenMatchingCurrentSequence() =
         testScope.runTest {
+            // sendSlashModel calls handleModelSwitch itself (req-1).
             delegate.sendSlashModel("openai", "gpt-4o")
-            advanceUntilIdle()
-            delegate.handleModelSwitch("/model gpt-4o --provider openai --session")
             advanceUntilIdle()
             assertEquals("openai/gpt-4o", uiState.value.currentSessionModel)
 
@@ -371,6 +368,8 @@ class ChatModelSwitchDelegateTest {
             // Switch to model with fast capability
             delegate.sendSlashModel("openai", "gpt-4o")
             advanceUntilIdle()
+            // The model pick sends its own config.set (req-1): settle it so its id does not collide with fast.
+            delegate.handleConfigSetResult("req-1", mapOf("key" to "model", "value" to "gpt-4o"))
             sentParams.clear()
 
             assertTrue(uiState.value.currentModelCapabilities?.fast == true)
@@ -409,6 +408,8 @@ class ChatModelSwitchDelegateTest {
             advanceUntilIdle()
             delegate.sendSlashModel("openai", "gpt-4o")
             advanceUntilIdle()
+            // The model pick sends its own config.set (req-1): settle it so its id does not collide with fast.
+            delegate.handleConfigSetResult("req-1", mapOf("key" to "model", "value" to "gpt-4o"))
             sentParams.clear()
             assertTrue(uiState.value.currentModelCapabilities?.fast == true)
 
@@ -485,7 +486,6 @@ class ChatModelSwitchDelegateTest {
                     wsSend = { _, _ -> },
                     trackRequest = { _, _ -> },
                     addAssistantMessage = {},
-                    handleSlashCommand = {},
                     fetchContextUsage = {},
                     dataScopeFlow = dataScope,
                     wsRequest = { params ->
@@ -545,7 +545,6 @@ class ChatModelSwitchDelegateTest {
                     wsSend = { _, _ -> },
                     trackRequest = { _, _ -> },
                     addAssistantMessage = {},
-                    handleSlashCommand = {},
                     fetchContextUsage = {},
                     dataScopeFlow = dataScope,
                     wsRequest = { throw RuntimeException("4002 unknown reasoning value") },
@@ -574,7 +573,6 @@ class ChatModelSwitchDelegateTest {
                     wsSend = { _, _ -> },
                     trackRequest = { _, _ -> },
                     addAssistantMessage = {},
-                    handleSlashCommand = {},
                     fetchContextUsage = {},
                     dataScopeFlow = dataScope,
                     wsRequest = { params ->
@@ -604,7 +602,6 @@ class ChatModelSwitchDelegateTest {
                     wsSend = { _, _ -> },
                     trackRequest = { _, _ -> },
                     addAssistantMessage = {},
-                    handleSlashCommand = {},
                     fetchContextUsage = {},
                     dataScopeFlow = dataScope,
                     wsRequest = { gate.await() },
@@ -634,16 +631,12 @@ class ChatModelSwitchDelegateTest {
     @Test
     fun rapidPicks_preservesOriginalConfirmedModelForRollback() =
         testScope.runTest {
-            // Pick model A
+            // Pick model A (sendSlashModel calls handleModelSwitch itself: req-1)
             delegate.sendSlashModel("openai", "gpt-4o")
             advanceUntilIdle()
-            delegate.handleModelSwitch("/model gpt-4o --provider openai --session")
-            advanceUntilIdle()
 
-            // Pick model B before A confirms
+            // Pick model B before A confirms (req-2)
             delegate.sendSlashModel("anthropic", "claude-3-5-sonnet")
-            advanceUntilIdle()
-            delegate.handleModelSwitch("/model claude-3-5-sonnet --provider anthropic --session")
             advanceUntilIdle()
 
             // Dismiss confirmation on B — should revert to original model before both switches
@@ -762,7 +755,6 @@ class ChatModelSwitchDelegateTest {
                     wsSend = { _, _ -> },
                     trackRequest = { _, _ -> },
                     addAssistantMessage = {},
-                    handleSlashCommand = {},
                     fetchContextUsage = {},
                     dataScopeFlow = dataScope,
                     wsRequest = { params ->
@@ -820,7 +812,6 @@ class ChatModelSwitchDelegateTest {
                     wsSend = { _, _ -> },
                     trackRequest = { _, _ -> },
                     addAssistantMessage = {},
-                    handleSlashCommand = {},
                     fetchContextUsage = {},
                     dataScopeFlow = dataScope,
                     wsRequest = { params ->
@@ -880,7 +871,6 @@ class ChatModelSwitchDelegateTest {
                     wsSend = { _, _ -> },
                     trackRequest = { _, _ -> },
                     addAssistantMessage = {},
-                    handleSlashCommand = {},
                     fetchContextUsage = {},
                     dataScopeFlow = dataScope,
                     wsRequest = {
@@ -935,7 +925,6 @@ class ChatModelSwitchDelegateTest {
                     wsSend = { _, _ -> },
                     trackRequest = { _, _ -> },
                     addAssistantMessage = {},
-                    handleSlashCommand = {},
                     fetchContextUsage = {},
                     dataScopeFlow = dataScope,
                     wsRequest = { gate.await() },
@@ -979,7 +968,6 @@ class ChatModelSwitchDelegateTest {
                     wsSend = { _, _ -> },
                     trackRequest = { _, _ -> },
                     addAssistantMessage = {},
-                    handleSlashCommand = {},
                     fetchContextUsage = {},
                     dataScopeFlow = dataScope,
                     wsRequest = { JsonNull },
@@ -1310,7 +1298,6 @@ class ChatModelSwitchDelegateTest {
         wsSend = { _, _ -> },
         trackRequest = { _, _ -> },
         addAssistantMessage = {},
-        handleSlashCommand = {},
         fetchContextUsage = {},
         dataScopeFlow = dataScope,
         getModelOptionsCall = { NetworkResult.Success(daybreakCatalogResponse()) },

@@ -1522,23 +1522,27 @@ class ChatViewModel(
         val isStaleTurnUsage = activeTurnModelGeneration != modelGeneration
         val allowModelUpdate = !isSwitchPending && !isStaleTurnUsage
 
-        val oldModel = _uiState.value.currentSessionModel
-
-        // First, let the reducer compute the new state and any effects
-        val result =
-            ChatWsEventReducer.reduce(
-                _uiState.value,
-                _streamingState.value,
-                effectiveEvent,
-                runtimeSessionId ?: _uiState.value.currentSessionId,
-                // #1696: resolve MEDIA: directives inside the reduction so every
-                // seal path derives attachments synchronously.
-                mediaUrl = ::gatewayMediaUrl,
-                allowModelUpdate = allowModelUpdate,
-            )
-
-        // Apply the new state
-        _uiState.update { result.state }
+        // Reduce inside update {} so the result is applied to the state it was
+        // computed from. A concurrent off-main write (e.g. context detail on ioDispatcher)
+        // makes the CAS fail and re-runs the pure reducer on the fresh state instead of
+        // being overwritten by a stale snapshot. Only the winning attempt is kept.
+        var oldModel: String? = null
+        lateinit var result: ReducerResult
+        _uiState.update { current ->
+            oldModel = current.currentSessionModel
+            result =
+                ChatWsEventReducer.reduce(
+                    current,
+                    _streamingState.value,
+                    effectiveEvent,
+                    runtimeSessionId ?: current.currentSessionId,
+                    // #1696: resolve MEDIA: directives inside the reduction so every
+                    // seal path derives attachments synchronously.
+                    mediaUrl = ::gatewayMediaUrl,
+                    allowModelUpdate = allowModelUpdate,
+                )
+            result.state
+        }
         _streamingState.update { result.streamingState }
 
         confirmModelIfChanged(oldModel, result.state.currentSessionModel)

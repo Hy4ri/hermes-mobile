@@ -27,6 +27,7 @@ import com.m57.hermescontrol.data.remote.GatewayFile
 import com.m57.hermescontrol.data.remote.GatewayFileClient
 import com.m57.hermescontrol.data.remote.GatewayFileResult
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
+import com.m57.hermescontrol.data.session.DeletedSessionEvents
 import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.data.ws.ConnectionOperationParser
 import com.m57.hermescontrol.data.ws.ConnectionStatus
@@ -12424,25 +12425,66 @@ class ChatViewModelTest {
         }
 
     @Test
-    fun `deleting the open session in history leaves it in the chat`() =
+    fun `deleting another session in history leaves the open chat alone`() =
         runTest {
             val (vm, sessionId) = createViewModelWithSession()
+            val creates = sentRequestMethods.count { it.first == WsMethods.SESSION_CREATE }
 
-            // Deleting another session leaves the chat alone.
-            com.m57.hermescontrol.data.session.DeletedSessionEvents
-                .emit(setOf("other-session"))
+            DeletedSessionEvents.emit(setOf("other-session"))
             advanceUntilIdle()
+
             assertEquals(sessionId, vm.uiState.value.currentSessionId)
+            assertFalse(vm.uiState.value.isDraftSession)
+            assertEquals(creates, sentRequestMethods.count { it.first == WsMethods.SESSION_CREATE })
+            verify { HermesWsClient.forgetDeletedSessions(setOf("other-session")) }
+        }
 
-            // The open one was deleted: the chat drops it instead of polling a gone session.
-            com.m57.hermescontrol.data.session.DeletedSessionEvents
-                .emit(setOf(sessionId))
+    @Test
+    fun `deleting the open session in history moves the chat to a new draft`() =
+        runTest {
+            val (vm, sessionId) = createViewModelWithSession()
+            mockEventsFlow.emit(WsEvent.MessageComplete("earlier reply", sessionId))
             advanceUntilIdle()
-            assertTrue(vm.uiState.value.currentSessionId != sessionId)
+            val creates = sentRequestMethods.count { it.first == WsMethods.SESSION_CREATE }
+
+            DeletedSessionEvents.emit(setOf(sessionId))
+            advanceUntilIdle()
+
+            assertTrue(vm.uiState.value.isDraftSession)
+            assertNull(vm.uiState.value.currentSessionId)
             assertTrue(
                 vm.uiState.value.messages
-                    .none { it.content.isNotBlank() && it.role == MessageRole.USER },
+                    .none { it.role == MessageRole.USER || it.role == MessageRole.ASSISTANT },
             )
+            assertEquals(creates, sentRequestMethods.count { it.first == WsMethods.SESSION_CREATE })
+            verify { HermesWsClient.forgetDeletedSessions(setOf(sessionId)) }
+        }
+
+    @Test
+    fun `deleting the open session also forgets its runtime id when it differs from the stored id`() =
+        runTest {
+            val vm = createViewModel()
+            advanceUntilIdle()
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+            vm.mintDraftSession()
+            advanceUntilIdle()
+            val createId = sentRequestMethods.last { it.first == WsMethods.SESSION_CREATE }.second
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    createId,
+                    mapOf("session_id" to "runtime-1", "stored_session_id" to "stored-1"),
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals("stored-1", vm.uiState.value.currentSessionId)
+
+            DeletedSessionEvents.emit(setOf("stored-1"))
+            advanceUntilIdle()
+
+            assertTrue(vm.uiState.value.isDraftSession)
+            verify { HermesWsClient.forgetDeletedSessions(setOf("stored-1", "runtime-1")) }
         }
 
     @Test

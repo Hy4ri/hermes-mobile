@@ -1239,13 +1239,15 @@ class ChatViewModel(
                 }
             }
         }
-        // The open session was deleted in History: it can no longer be shown (every poll gets
-        // 4001 not_found / 404). Move to a new chat instead.
+        // A session was deleted in History. Stop replaying it after a reconnect.
+        // If it is the open chat, leave it: every poll for it would fail with 4001 not_found or 404.
         viewModelScope.launch {
             DeletedSessionEvents.events.collect { ids ->
-                // The transport must not ask for deleted sessions' missed events after a reconnect.
-                wsClient.forgetDeletedSessions(ids)
-                if (_uiState.value.currentSessionId in ids) createNewSession(setLoading = false)
+                val openDeleted = _uiState.value.currentSessionId in ids
+                // Older gateways name events by runtime id, which can differ from the stored id.
+                val runtimeId = runtimeSessionId.takeIf { openDeleted }
+                wsClient.forgetDeletedSessions(if (runtimeId != null) ids + runtimeId else ids)
+                if (openDeleted) createNewSession(setLoading = false)
             }
         }
         // Desktop parity (requestFreshSession): when the profile switch

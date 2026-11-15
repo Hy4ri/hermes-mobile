@@ -7462,7 +7462,7 @@ class ChatViewModelTest {
         }
 
     @Test
-    fun testSendReadiness_abandonedCreateCannotAcceptDraft() =
+    fun testSendReadiness_abandonedCreateReopensDraft() =
         runTest {
             val viewModel = createViewModel()
             advanceUntilIdle()
@@ -7476,8 +7476,11 @@ class ChatViewModelTest {
             runCurrent()
             mockConnectionStatus.value = ConnectionStatus.CONNECTED
             runCurrent()
-            assertFalse(viewModel.sendMessage("retain me"))
-            assertFalse(viewModel.uiState.value.isAgentTyping)
+            // The lost create reopens the draft, so a new message is accepted and creates a session.
+            assertTrue(viewModel.uiState.value.isDraftSession)
+            assertTrue(viewModel.sendMessage("retain me"))
+            advanceUntilIdle()
+            assertEquals(2, sentRequestMethods.count { it.first == WsMethods.SESSION_CREATE })
         }
 
     @Test
@@ -12034,6 +12037,116 @@ class ChatViewModelTest {
             vm.sendMessage("hi")
             advanceUntilIdle()
             assertEquals(JsonPrimitive("high"), createParams.single()["reasoning_effort"])
+        }
+
+    @Test
+    fun `model reset in a draft forgets the staged pick and sends nothing`() =
+        runTest {
+            val vm = createViewModel()
+            advanceUntilIdle()
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            val createParams = mutableListOf<Map<String, Any>>()
+            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
+                reqCount++
+                val id = "req-id-$reqCount"
+                sentRequestMethods += WsMethods.SESSION_CREATE to id
+                createParams += arg<Map<String, Any>>(1)
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            vm.sendSlashModel("deepseek", "deepseek-flash")
+            advanceUntilIdle()
+            assertEquals("deepseek/deepseek-flash", vm.uiState.value.currentSessionModel)
+
+            vm.resetSessionModel()
+            advanceUntilIdle()
+
+            // No session is created and the label from before the pick is back.
+            assertTrue(createParams.isEmpty())
+            assertTrue(vm.uiState.value.isDraftSession)
+            assertNull(vm.uiState.value.currentSessionModel)
+
+            // The first message then creates the session without the forgotten pick.
+            vm.sendMessage("hi")
+            advanceUntilIdle()
+            assertNull(createParams.single()["model"])
+        }
+
+    @Test
+    fun `failed session create from a draft reopens the draft with its settings`() =
+        runTest {
+            val vm = createViewModel()
+            advanceUntilIdle()
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            val createParams = mutableListOf<Map<String, Any>>()
+            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
+                reqCount++
+                val id = "req-id-$reqCount"
+                sentRequestMethods += WsMethods.SESSION_CREATE to id
+                createParams += arg<Map<String, Any>>(1)
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            vm.sendSlashModel("deepseek", "deepseek-flash")
+            vm.setReasoningLevel("high")
+            vm.sendMessage("first prompt")
+            advanceUntilIdle()
+            assertFalse(vm.uiState.value.isDraftSession)
+
+            val createId = sentRequestMethods.last { it.first == WsMethods.SESSION_CREATE }.second
+            mockEventsFlow.emit(WsEvent.RpcError(createId, JsonRpcError(4000, "Cannot create session")))
+            advanceUntilIdle()
+
+            // The draft is open again, the prompt is back in the composer, nothing is blocking it.
+            val state = vm.uiState.value
+            assertTrue(state.isDraftSession)
+            assertNull(state.resumeError)
+            assertEquals("first prompt", state.composerTextToRestore)
+            assertTrue(state.messages.none { it.content == "first prompt" })
+            assertEquals("deepseek/deepseek-flash", state.currentSessionModel)
+
+            // Sending again creates the session with the same staged settings.
+            // The text differs, because the same text within 500 ms is dropped as a double tap.
+            assertTrue(vm.sendMessage("second try"))
+            advanceUntilIdle()
+            assertEquals(2, createParams.size)
+            assertEquals(JsonPrimitive("deepseek-flash"), createParams.last()["model"])
+            assertEquals(JsonPrimitive("high"), createParams.last()["reasoning_effort"])
+        }
+
+    @Test
+    fun `socket drop before the session create reply reopens the draft`() =
+        runTest {
+            val vm = createViewModel()
+            advanceUntilIdle()
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            vm.setReasoningLevel("high")
+            vm.sendMessage("first prompt")
+            advanceUntilIdle()
+            assertFalse(vm.uiState.value.isDraftSession)
+
+            mockConnectionStatus.value = ConnectionStatus.RECONNECTING
+            runCurrent()
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            val state = vm.uiState.value
+            assertTrue(state.isDraftSession)
+            assertEquals("first prompt", state.composerTextToRestore)
+            assertEquals("high", state.reasoningLevel)
+            assertEquals(1, sentRequestMethods.count { it.first == WsMethods.SESSION_CREATE })
         }
 
     @Test

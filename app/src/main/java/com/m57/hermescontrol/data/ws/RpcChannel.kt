@@ -312,8 +312,9 @@ internal class RpcChannel(
                 withGeneration(params)
             }
 
-            // Draft settings: the canonical session.create names them `reasoning` and
-            // `service_tier` (a closed key set: the legacy names would be refused as invalid_params).
+            // Draft settings. The session authority's session.create accepts only a fixed set of
+            // keys and names these two `reasoning` and `service_tier`. It rejects the legacy
+            // names as invalid_params.
             WsMethods.SESSION_CREATE -> {
                 if ("reasoning_effort" !in params && "fast" !in params) {
                     params

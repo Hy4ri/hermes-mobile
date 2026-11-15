@@ -326,6 +326,43 @@ class ChatCompressRpcTest {
         }
 
     @Test
+    fun `stale running info in compress result does not relatch typing after the idle edge`() =
+        runTest {
+            // #1844: the gateway snapshots `info` inside its manual-compress turn (running=true),
+            // emits the running=false edge, and only then replies to the RPC.
+            val (vm, _) = createViewModelWithSession()
+            val deferred = CompletableDeferred<Any?>()
+            every {
+                HermesWsClient.request(WsMethods.SESSION_COMPRESS, any(), any())
+            } returns deferred
+
+            vm.sendMessage("/compress")
+            testDispatcher.scheduler.runCurrent()
+            mockEventsFlow.emit(WsEvent.SessionInfo(mapOf("running" to true), "session-xyz"))
+            advanceUntilIdle()
+            assertTrue("the compress turn shows as busy", vm.uiState.value.isAgentTyping)
+            mockEventsFlow.emit(WsEvent.SessionInfo(mapOf("running" to false), "session-xyz"))
+            advanceUntilIdle()
+
+            deferred.complete(
+                buildJsonObject {
+                    put("status", "compressed")
+                    put(
+                        "summary",
+                        buildJsonObject {
+                            put("headline", "Compression refused (summary would grow the conversation)")
+                        },
+                    )
+                    put("info", buildJsonObject { put("running", true) })
+                },
+            )
+            advanceUntilIdle()
+
+            assertFalse("typing must stay cleared after the compress reply", vm.uiState.value.isAgentTyping)
+            assertFalse(vm.uiState.value.canInterrupt)
+        }
+
+    @Test
     fun `compress request parameters contain session_id and omit focus_topic when blank`() =
         runTest {
             val (vm, sessionId) = createViewModelWithSession()

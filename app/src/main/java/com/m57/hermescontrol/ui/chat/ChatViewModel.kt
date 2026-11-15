@@ -5562,6 +5562,10 @@ class ChatViewModel(
                     ?.entries
                     ?.mapNotNull { (k, v) -> (k as? String)?.let { it to v } }
                     ?.toMap()
+                    // #1844: the compress reply's info is snapshotted inside the gateway's
+                    // manual-compress turn (running=true), and the running=false edge arrives
+                    // before the reply. Its run state is stale; only a fresh resume is current.
+                    ?.let { if (resumed == null) it - "running" else it }
             handleSessionInfo(infoMap)
         }
         if (isCurrentSessionRequest(sessionId, generation)) sessionHasServerPresence = true

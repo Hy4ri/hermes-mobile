@@ -88,7 +88,6 @@ class ChatModelSwitchDelegate(
     private val wsSend: (params: ConfigSetParams, onSent: ((String) -> Unit)?) -> Unit,
     private val trackRequest: (id: String, method: String) -> Unit,
     private val addAssistantMessage: (text: String) -> Unit,
-    private val handleSlashCommand: (command: String) -> Unit,
     private val fetchContextUsage: () -> Unit,
     private val onModelSwitchInitiated: () -> Unit = {},
     private val dataScopeFlow: StateFlow<DataScope?> = AuthManager.dataScopeFlow,
@@ -338,7 +337,9 @@ class ChatModelSwitchDelegate(
         }
         onModelSwitchInitiated()
         syncCurrentModelCapabilities()
-        handleSlashCommand("/model $model --provider $provider --session")
+        // A picker selection is not a typed command: switch directly, without a
+        // "/model ..." bubble in the chat or a local transcript row (as on Desktop).
+        handleModelSwitch("/model $model --provider $provider --session")
     }
 
     /**

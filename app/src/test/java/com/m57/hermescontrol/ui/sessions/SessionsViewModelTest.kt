@@ -6,6 +6,8 @@ import com.m57.hermescontrol.data.model.LiveSessionSnapshot
 import com.m57.hermescontrol.data.model.LiveWorkCounts
 import com.m57.hermescontrol.data.model.LiveWorkRoster
 import com.m57.hermescontrol.data.model.ProjectInfo
+import com.m57.hermescontrol.data.model.PruneCandidate
+import com.m57.hermescontrol.data.model.PruneResponse
 import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.model.SessionListResponse
 import com.m57.hermescontrol.data.model.SessionLiveStatus
@@ -14,6 +16,7 @@ import com.m57.hermescontrol.data.model.SessionSearchResponse
 import com.m57.hermescontrol.data.model.SessionSearchResult
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.HermesApiService
+import com.m57.hermescontrol.data.session.DeletedSessionEvents
 import com.m57.hermescontrol.data.session.SessionAttentionStore
 import com.m57.hermescontrol.data.session.sessionAttentionScopeKey
 import com.m57.hermescontrol.data.ws.ChangeEventHub
@@ -36,6 +39,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -248,6 +252,37 @@ class SessionsViewModelTest {
         )
         assertFalse(vm.uiState.value.isDeletingBulk)
     }
+
+    @Test
+    fun `live prune announces only the sessions it deleted`() =
+        runTest(testDispatcher) {
+            mockkObject(com.m57.hermescontrol.data.local.AuthManager)
+            every {
+                com.m57.hermescontrol.data.local.AuthManager
+                    .getLastOpenedSessionId()
+            } returns null
+            // The bulk prune is refused while a gateway is live, so the app deletes row by row.
+            coEvery { mockApi.pruneSessions(match { !it.dryRun }) } returns
+                Response.error(409, "".toResponseBody())
+            coEvery { mockApi.pruneSessions(match { it.dryRun }) } returns
+                Response.success(
+                    PruneResponse(ok = true, sessions = listOf("a", "b", "c").map { PruneCandidate(it) }),
+                )
+            coEvery { mockApi.getSessionMutationSnapshot(any()) } returns Response.error(404, "".toResponseBody())
+            coEvery { mockApi.deleteSession("a", any(), any(), any()) } returns Response.success(Unit)
+            coEvery { mockApi.deleteSession("b", any(), any(), any()) } returns Response.error(500, "".toResponseBody())
+            coEvery { mockApi.deleteSession("c", any(), any(), any()) } returns Response.success(Unit)
+            coEvery { mockApi.getSessions(any(), any(), any(), any(), any(), any()) } returns
+                Response.success(SessionListResponse(sessions = emptyList(), total = 0))
+            val announced = mutableListOf<Set<String>>()
+            backgroundScope.launch(testDispatcher) { DeletedSessionEvents.events.collect { announced += it } }
+            val vm = createViewModel()
+
+            vm.pruneSessions(30)
+            advanceUntilIdle()
+
+            assertEquals(listOf(setOf("a", "c")), announced)
+        }
 
     @Test
     fun `bulk delete keeps skipped active sessions and their resume identity`() {

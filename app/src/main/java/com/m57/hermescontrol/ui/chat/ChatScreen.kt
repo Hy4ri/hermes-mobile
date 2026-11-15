@@ -411,8 +411,10 @@ fun ChatScreen(
     // #1601: stage shared-in content once the session is usable, so a cold-start restore or
     // a reconnect cannot reset the new chat out from under it. Nothing is ever auto-sent.
     val parkedShare = ShareInbox.pending
-    LaunchedEffect(parkedShare, state.isSessionReady, state.connectionStatus) {
-        if (parkedShare != null && state.isSessionReady && state.connectionStatus == ConnectionStatus.CONNECTED) {
+    // A new-chat draft also accepts shared content. The first message creates the session.
+    val shareTargetReady = state.isSessionReady || state.isDraftSession
+    LaunchedEffect(parkedShare, shareTargetReady, state.connectionStatus) {
+        if (parkedShare != null && shareTargetReady && state.connectionStatus == ConnectionStatus.CONNECTED) {
             ShareInbox.take()?.let(viewModel::stageSharedContent)
         }
     }
@@ -1159,7 +1161,8 @@ fun ChatScreen(
                 isAgentTyping = state.isAgentTyping,
                 canInterrupt = state.canInterrupt,
                 isConnected = state.isConnected,
-                isSessionReady = state.isSessionReady && !timelineState.isHistorical,
+                // In a draft the composer is enabled although no server session exists.
+                isSessionReady = (state.isSessionReady || state.isDraftSession) && !timelineState.isHistorical,
                 sessionPreparationFailed = state.resumeError != null,
                 commandCatalog = state.commandCatalog,
                 slashUsageCounts = state.slashUsageCounts,

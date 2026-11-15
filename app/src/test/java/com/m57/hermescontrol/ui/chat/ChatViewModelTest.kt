@@ -693,6 +693,53 @@ class ChatViewModelTest {
             assertTrue(sentRequestMethods.none { it.first == WsMethods.PROMPT_SUBMIT })
         }
 
+    /**
+     * A uiState write that lands while the WS reducer runs (e.g. context detail
+     * finishing on ioDispatcher) must survive; the reducer re-runs on the fresh state instead of overwriting it.
+     * The reducer resolves MEDIA: directives through GatewayFileClient.buildMediaUrl(), so
+     * that call is a deterministic interleaving point inside the reduction.
+     */
+    @Test
+    fun wsReducerResult_doesNotOverwriteConcurrentUiStateWrite() =
+        runTest(testDispatcher) {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            @Suppress("UNCHECKED_CAST")
+            val uiStateFlow =
+                ChatViewModel::class.java
+                    .getDeclaredField("_uiState")
+                    .apply { isAccessible = true }
+                    .get(viewModel) as MutableStateFlow<ChatUiState>
+            var reducerMediaCalls = 0
+            mockkObject(com.m57.hermescontrol.data.remote.GatewayFileClient)
+            every {
+                com.m57.hermescontrol.data.remote.GatewayFileClient
+                    .buildMediaUrl(any(), any(), any())
+            } answers {
+                if (reducerMediaCalls++ == 0) {
+                    uiStateFlow.value = uiStateFlow.value.copy(contextDetailError = "concurrent write")
+                }
+                "gw://${arg<String>(2)}"
+            }
+
+            mockEventsFlow.emit(
+                WsEvent.MessageComplete(
+                    text = "Mock ready\nMEDIA:/opt/data/mock.png",
+                    sessionId = sessionId,
+                ),
+            )
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertEquals("concurrent write", state.contextDetailError)
+            // The first reduction lost its CAS to the concurrent write; the applied
+            // result came from a second reduction over the fresh state.
+            assertEquals(2, reducerMediaCalls)
+            val sealed = state.messages.singleOrNull { it.role == MessageRole.ASSISTANT }
+            assertEquals("Mock ready", sealed?.content)
+            assertEquals(listOf("gw:///opt/data/mock.png"), sealed?.attachments?.map { it.uri })
+        }
+
     @Test
     fun sharedContent_inChatWithConversation_opensNewChatAndKeepsQueuedAttachments() =
         runTest(testDispatcher) {

@@ -129,8 +129,9 @@ class WsProfileParamsTest {
     fun `non-scoped method returns same params reference`() {
         AuthManager.setActiveProfileId("meow")
 
-        val original = mapOf("session_id" to "s1", "text" to "hello")
-        val result = WsProfileParams.decorate(WsMethods.PROMPT_SUBMIT, original)
+        // prompt.submit is profile-scoped now; use a global method to check the rule.
+        val original = mapOf("plan" to "pro")
+        val result = WsProfileParams.decorate(WsMethods.USAGE_BARS, original)
 
         assertSame(original, result)
         assertNull(result["profile"])
@@ -147,23 +148,27 @@ class WsProfileParamsTest {
     }
 
     @Test
-    fun `clarify_respond is not profile scoped`() {
+    fun `clarify_respond is profile scoped`() {
+        // clarify.respond is in _PROFILE_IMPLICIT: for its own profile the server strips the key,
+        // for another one it routes the answer to the session's owning profile.
         AuthManager.setActiveProfileId("work")
 
         val original = mapOf("answer" to "yes")
         val result = WsProfileParams.decorate(WsMethods.CLARIFY_RESPOND, original)
 
-        assertSame(original, result)
+        assertEquals(mapOf("answer" to "yes", "profile" to "work"), result)
     }
 
     @Test
-    fun `image_attach_bytes is not profile scoped`() {
+    fun `image_attach_bytes is profile scoped`() {
+        // The attachment is bound to session_id: without profile a non-launch profile's session is not found.
         AuthManager.setActiveProfileId("meow")
 
-        val original = mapOf("data" to "base64data")
+        val original = mapOf("session_id" to "s1", "data" to "base64data")
         val result = WsProfileParams.decorate(WsMethods.IMAGE_ATTACH_BYTES, original)
 
-        assertSame(original, result)
+        assertEquals("meow", result["profile"])
+        assertEquals("base64data", result["data"])
     }
 
     @Test
@@ -177,23 +182,25 @@ class WsProfileParamsTest {
     }
 
     @Test
-    fun `connectors_list is not profile scoped`() {
+    fun `connectors_list is profile scoped`() {
+        // The params carry session_id, so the session's owning profile is needed.
         AuthManager.setActiveProfileId("meow")
 
         val original = mapOf("session_id" to "sess-123")
         val result = WsProfileParams.decorate(WsMethods.CONNECTORS_LIST, original)
 
-        assertSame(original, result)
+        assertEquals(mapOf("session_id" to "sess-123", "profile" to "meow"), result)
     }
 
     @Test
-    fun `connectors_connect is not profile scoped`() {
+    fun `connectors_connect is profile scoped`() {
         AuthManager.setActiveProfileId("meow")
 
         val original = mapOf("session_id" to "sess-123", "connectors" to listOf("linear"), "reconnect" to false)
         val result = WsProfileParams.decorate(WsMethods.CONNECTORS_CONNECT, original)
 
-        assertSame(original, result)
+        assertEquals("meow", result["profile"])
+        assertEquals("sess-123", result["session_id"])
     }
 
     @Test
@@ -296,6 +303,11 @@ class WsProfileParamsTest {
      * connection's session, which carries profile_home from create/resume —
      * they are profile-correct by construction and must NOT be listed here
      * (server evidence: methods_session.py — session.get() based).
+     *
+     * Note: on the multi-profile gateway (session_controls.py, 0.23.x) this no longer
+     * holds: session-bound methods must carry `profile` too, so they are in
+     * PROFILE_SCOPED_METHODS (see `every session-bound method carries the active profile`).
+     * Legacy sudo/secret/vault *.respond and subscription.* / usage.bars stay unscoped.
      */
     @Test
     fun `every scope-selecting method the app sends is in the scoped set`() {
@@ -322,19 +334,81 @@ class WsProfileParamsTest {
     }
 
     // ── Interaction: sendMessage() flows through send() ─────────────────
-    // sendMessage() calls send(PROMPT_SUBMIT, ...) — PROMPT_SUBMIT is NOT
-    // in the scoped set, so profile is correctly NOT injected.  The server
-    // resolves prompt.submit against the already-resumed session, which
-    // carries its own profile_home.
+    // sendMessage() calls send(PROMPT_SUBMIT, ...). The multi-profile gateway
+    // (session_controls.py) looks a session up in the WS ticket's profile without `profile`,
+    // so prompt.submit on a non-launch profile got 4001 permission_denied.
+    // The profile is injected now; for its own profile the server strips the key itself
+    // (_PROFILE_IMPLICIT).
 
     @Test
-    fun `prompt_submit is not in scoped set confirming sendMessage path is correct`() {
-        AuthManager.setActiveProfileId("meow")
+    fun `prompt_submit carries the active profile`() {
+        AuthManager.setActiveProfileId("hermisa")
 
         val params = mapOf("session_id" to "s1", "text" to "hello world")
         val result = WsProfileParams.decorate(WsMethods.PROMPT_SUBMIT, params)
 
-        // prompt.submit is session-bound, not profile-scoped.
-        assertSame(params, result)
+        assertEquals(mapOf("session_id" to "s1", "text" to "hello world", "profile" to "hermisa"), result)
+    }
+
+    /**
+     * Regression: on a non-launch profile session-bound RPCs went out without `profile`, and the
+     * server resolved them against the default profile (not_found / permission_denied). Every method
+     * bound to a specific session, process or request must carry the profile.
+     */
+    @Test
+    fun `every session-bound method carries the active profile`() {
+        AuthManager.setActiveProfileId("hermisa")
+        val sessionBound =
+            listOf(
+                WsMethods.SESSION_INTERRUPT,
+                WsMethods.SESSION_REDIRECT,
+                WsMethods.SESSION_STEER,
+                WsMethods.SESSION_TITLE,
+                WsMethods.SESSION_BRANCH,
+                WsMethods.SESSION_BRANCH_WHOLE,
+                WsMethods.SESSION_COMPRESS,
+                WsMethods.SESSION_EVENTS_SINCE,
+                WsMethods.SESSION_CONTEXT_BREAKDOWN,
+                WsMethods.SESSION_USAGE,
+                WsMethods.SESSION_STATS,
+                WsMethods.SESSION_MUTATE,
+                WsMethods.SESSION_ACTIVE_LIST,
+                WsMethods.PROMPT_SUBMIT,
+                WsMethods.PROMPT_CANCEL,
+                WsMethods.PROMPT_RECEIPT,
+                WsMethods.PROMPT_BTW,
+                WsMethods.CLARIFY_RESPOND,
+                WsMethods.CLARIFY_LOCK,
+                WsMethods.APPROVAL_RESPOND,
+                WsMethods.APPROVAL_RECEIVED,
+                WsMethods.APPROVAL_PENDING,
+                WsMethods.COMMAND_DISPATCH,
+                WsMethods.SLASH_EXEC,
+                WsMethods.IMAGE_ATTACH_BYTES,
+                WsMethods.FILE_ATTACH,
+                WsMethods.PROCESS_LIST,
+                WsMethods.PROCESS_KILL,
+                WsMethods.PROCESS_STOP,
+                WsMethods.SUBAGENT_LIST,
+                WsMethods.SUBAGENT_TAIL,
+                WsMethods.SUBAGENT_INTERRUPT,
+                WsMethods.SUBAGENT_STEER,
+            )
+        for (method in sessionBound) {
+            val result = WsProfileParams.decorate(method, mapOf("session_id" to "s1"))
+            assertEquals("$method must carry the active profile", "hermisa", result["profile"])
+            assertEquals("s1", result["session_id"])
+        }
+    }
+
+    @Test
+    fun `session-bound method without active profile is unchanged`() {
+        // No profile selected (single-profile mode): behavior is unchanged.
+        AuthManager.setActiveProfileId(null)
+
+        val params = mapOf("session_id" to "s1")
+        for (method in listOf(WsMethods.PROMPT_SUBMIT, WsMethods.PROCESS_LIST, WsMethods.SESSION_USAGE)) {
+            assertSame(params, WsProfileParams.decorate(method, params))
+        }
     }
 }

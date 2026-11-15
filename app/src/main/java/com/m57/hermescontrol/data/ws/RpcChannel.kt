@@ -16,6 +16,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
@@ -302,6 +303,8 @@ internal class RpcChannel(
             WsMethods.SESSION_COMPRESS,
             WsMethods.SESSION_BRANCH,
             WsMethods.SESSION_BRANCH_WHOLE,
+            // Only config.set key=model (a model pick); prepare passes every other key through unchanged.
+            WsMethods.CONFIG_SET,
             -> {
                 val sessionId = (params["session_id"] ?: params["session_key"]).eventStringOrNull()
                 mutations.prepare(method, params, sessionId?.let { generations[it] }) ?: params
@@ -309,6 +312,25 @@ internal class RpcChannel(
 
             WsMethods.SESSION_INTERRUPT, WsMethods.SESSION_STEER, WsMethods.SESSION_REDIRECT -> {
                 withGeneration(params)
+            }
+
+            // Draft settings. The session authority's session.create accepts only a fixed set of
+            // keys and names these two `reasoning` and `service_tier`. It rejects the legacy
+            // names as invalid_params.
+            WsMethods.SESSION_CREATE -> {
+                if ("reasoning_effort" !in params && "fast" !in params) {
+                    params
+                } else {
+                    JsonObject(
+                        buildMap {
+                            putAll(params - "reasoning_effort" - "fast")
+                            params["reasoning_effort"]?.let { put("reasoning", it) }
+                            if ((params["fast"] as? JsonPrimitive)?.booleanOrNull == true) {
+                                put("service_tier", JsonPrimitive("fast"))
+                            }
+                        },
+                    )
+                }
             }
 
             WsMethods.APPROVAL_RESPOND -> {
@@ -586,4 +608,6 @@ private fun isMutationMethod(method: String) =
             WsMethods.SESSION_COMPRESS,
             WsMethods.SESSION_BRANCH,
             WsMethods.SESSION_BRANCH_WHOLE,
+            // config.set key=model -> session.mutate operation=model (see SessionMutations.prepare).
+            WsMethods.CONFIG_SET,
         )

@@ -211,6 +211,17 @@ internal class ReplayTracker(
         replayInFlight = false
     }
 
+    /**
+     * Drops the replay state of deleted sessions. Without this, a reconnect asks the
+     * gateway for their missed events (`session.events.since`) and gets 4001 not_found.
+     */
+    fun forget(sessionIds: Set<String>) {
+        sessionIds.forEach { sid ->
+            lastSeenSeq.remove(sid)
+            replayHold.remove(sid)
+        }
+    }
+
     @VisibleForTesting
     internal fun getSeqWatermarks(): Map<String, Int> = HashMap(lastSeenSeq)
 

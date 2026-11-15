@@ -165,6 +165,9 @@ class ChatCompressRpcTest {
         mockConnectionStatus.value = ConnectionStatus.CONNECTED
         mockEventsFlow.emit(WsEvent.GatewayReady(null))
         advanceUntilIdle()
+        // GatewayReady opens a draft; simulate the first action that creates the session.
+        vm.mintDraftSession()
+        advanceUntilIdle()
         val createRequestId = requireNotNull(sessionCreateRequestId) { "session.create was not sent" }
         mockEventsFlow.emit(
             WsEvent.RpcResult(createRequestId, mapOf("session_id" to runtimeId, "stored_session_id" to storageId)),

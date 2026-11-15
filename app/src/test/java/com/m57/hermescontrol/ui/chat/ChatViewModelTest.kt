@@ -3085,6 +3085,95 @@ class ChatViewModelTest {
             )
         }
 
+    @Test
+    fun sessionInfoRunningFalseClearsAPendingTypingTailWithoutMessageComplete() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            mockEventsFlow.emit(WsEvent.MessageToken("Completed answer", sessionId))
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isAgentTyping)
+            val streamingMessage = viewModel.streamingState.value.streamingMessage
+            assertEquals("Completed answer", streamingMessage?.content)
+
+            mockEventsFlow.emit(WsEvent.SessionInfo(mapOf("running" to false), sessionId))
+            advanceUntilIdle()
+
+            assertFalse(viewModel.uiState.value.isAgentTyping)
+            assertNull(viewModel.streamingState.value.streamingMessage)
+            val messages = viewModel.uiState.value.messages
+            val lastMessage = messages.last()
+            assertEquals("Completed answer", lastMessage.content)
+        }
+
+    @Test
+    fun sessionInfoRunningTrueRestoresTypingAfterAMidTurnResume() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            mockEventsFlow.emit(WsEvent.SessionInfo(mapOf("running" to true), sessionId))
+            advanceUntilIdle()
+
+            assertTrue(viewModel.uiState.value.isAgentTyping)
+        }
+
+    @Test
+    fun lateMessageCompleteAfterIdleSessionInfoReusesTheSealedRow() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            mockEventsFlow.emit(WsEvent.MessageToken("Completed answer", sessionId))
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(WsEvent.SessionInfo(mapOf("running" to false), sessionId))
+            mockEventsFlow.emit(WsEvent.MessageComplete("Completed answer", sessionId))
+            advanceUntilIdle()
+
+            val assistantMessages =
+                viewModel.uiState.value.messages.filter { message ->
+                    message.role == MessageRole.ASSISTANT
+                }
+            assertEquals(1, assistantMessages.size)
+            assertEquals("Completed answer", assistantMessages.single().content)
+            assertNull(viewModel.streamingState.value.streamingMessage)
+        }
+
+    @Test
+    fun reconnectResumeRunningFalseClearsTheStaleTypingTail() =
+        runTest {
+            stubEmptySessionRests("session-123")
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            mockEventsFlow.emit(WsEvent.MessageToken("Completed answer", sessionId))
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isAgentTyping)
+
+            mockConnectionStatus.value = ConnectionStatus.RECONNECTING
+            advanceUntilIdle()
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            val resumeId = sentRequestMethods.last { it.first == WsMethods.SESSION_RESUME }.second
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    resumeId,
+                    mapOf(
+                        "session_id" to "runtime-123",
+                        "resumed" to sessionId,
+                        "running" to false,
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertFalse(viewModel.uiState.value.isAgentTyping)
+            assertNull(viewModel.streamingState.value.streamingMessage)
+        }
+
     // ── Clarify tests ────────────────────────────────────────────────────────
 
     @Test

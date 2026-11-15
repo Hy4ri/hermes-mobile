@@ -1950,7 +1950,10 @@ class ChatViewModel(
         // Session info pushed by backend when config changes
         // (model switch, reasoning level, etc.)
         if (info != null) {
-            (info["running"] as? Boolean)?.let { mainTurnBusy = it }
+            (info["running"] as? Boolean)?.let { running ->
+                mainTurnBusy = running
+                if (!isAwaitingUserInput(info)) reconcileServerRunState(running)
+            }
             if (info.containsKey("cwd")) {
                 val projectId = (info["project"] as? Map<*, *>)?.get("id") as? String
                 _uiState.update { it.copy(sessionProjectId = projectId) }
@@ -2467,7 +2470,9 @@ class ChatViewModel(
                 Log.i(TAG, "session.resume bound runtime after ${resumeElapsedMs()}ms")
                 connectionOperationDelegate.bindSession(runtimeId)
                 fetchCommandCatalog()
-                mainTurnBusy = resultMap["running"] as? Boolean ?: false
+                val running = resultMap["running"] as? Boolean
+                mainTurnBusy = running ?: false
+                if (running != null && !isAwaitingUserInput(resultMap)) reconcileServerRunState(running)
                 // Resume succeeded — the gateway confirmed the DB row.
                 sessionHasServerPresence = true
 
@@ -6701,9 +6706,9 @@ class ChatViewModel(
      * message now survives tool calls, so interrupts are the only path that
      * would otherwise drop the partial text.)
      */
-    private fun sealStreamingMessageIfAny() {
-        val streaming = _streamingState.value.streamingMessage ?: return
-        if (streaming.content.isBlank() && streaming.reasoningText.isBlank()) return
+    private fun sealStreamingMessageIfAny(): ChatMessage? {
+        val streaming = _streamingState.value.streamingMessage ?: return null
+        if (streaming.content.isBlank() && streaming.reasoningText.isBlank()) return null
         val finalized =
             streaming
                 .copy(
@@ -6716,6 +6721,80 @@ class ChatViewModel(
             viewModelScope.launch(ioDispatcher) {
                 repo.persistMessage(finalized, sid)
             }
+        }
+        return finalized
+    }
+
+    /**
+     * A clarify or approval wait keeps the gateway `running` while the agent
+     * waits for the user. The run-state reconciliation must not re-arm typing
+     * under the prompt card. `_session_info` does not carry `pending_approval`,
+     * so the open approval card in the current turn is the live-path signal.
+     */
+    private fun isAwaitingUserInput(payload: Map<*, *>): Boolean {
+        if (payload["pending_clarify"] != null || payload["pending_approval"] != null) return true
+        val state = _uiState.value
+        if (state.clarifyRequest != null) return true
+        val turnStart = state.messages.indexOfLast { it.isUserTurnBoundary() } + 1
+        return state.messages.drop(turnStart).any { it.approvalInfo != null }
+    }
+
+    /**
+     * The gateway's live `session.info.running` is authoritative. A reconnect can
+     * miss `message.complete`; without this reconciliation the transcript keeps
+     * the old typing tail forever even though the server has already finished.
+     *
+     * `running=true` re-arms the live tail after a mid-turn resume. `running=false`
+     * drains any buffered tail into the transcript and retires the streaming state.
+     */
+    private fun reconcileServerRunState(running: Boolean) {
+        if (running) {
+            if (_streamingState.value.streamingMessage == null) {
+                _uiState.update { state ->
+                    if (state.isAgentTyping || state.clarifyRequest != null) {
+                        state
+                    } else {
+                        state.copy(isAgentTyping = true)
+                    }
+                }
+            }
+            return
+        }
+
+        val state = _uiState.value
+        val streaming = _streamingState.value
+        val hasLiveTail =
+            state.isAgentTyping ||
+                streaming.streamingMessage != null ||
+                streaming.isThinking ||
+                streaming.isReasoning
+        if (!hasLiveTail) return
+
+        streamingController.flushPendingTransition()
+        val live = _streamingState.value.streamingMessage
+        var fallback: ChatMessage? = null
+        if (live != null && live.content.isNotBlank()) {
+            val latest = _uiState.value
+            val turnStart = latest.messages.indexOfLast { it.isUserTurnBoundary() } + 1
+            val matching =
+                latest.messages.drop(turnStart).lastOrNull { existing ->
+                    val liveText = live.content.trim()
+                    existing.role == MessageRole.ASSISTANT &&
+                        (existing.id == live.id || existing.content.trim().startsWith(liveText))
+                }
+            fallback = matching ?: sealStreamingMessageIfAny()
+        }
+
+        // Keep the sealed row as the base for a late authoritative completion.
+        // Otherwise `message.complete` would mint a second row for the same answer.
+        _streamingState.update { StreamingState(interruptedMessage = fallback) }
+        streamingController.resetStreaming()
+        _uiState.update {
+            it.copy(
+                isAgentTyping = false,
+                isThinking = false,
+                thinkingText = "",
+            )
         }
     }
 

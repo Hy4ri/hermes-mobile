@@ -12,6 +12,13 @@ data class SessionCreateParams(
     @SerialName("hidden") val hidden: Boolean? = null,
     @SerialName("cwd") val cwd: String? = null,
     @SerialName("cwd_explicit") val cwdExplicit: Boolean? = null,
+    // A model picked in a new-chat draft is set when the session is created (as on Desktop).
+    @SerialName("model") val model: String? = null,
+    @SerialName("provider") val provider: String? = null,
+    // Reasoning and fast mode picked in a draft. Legacy names; for the session authority
+    // RpcChannel rewrites them to `reasoning` / `service_tier`.
+    @SerialName("reasoning_effort") val reasoningEffort: String? = null,
+    @SerialName("fast") val fast: Boolean? = null,
 )
 
 /**

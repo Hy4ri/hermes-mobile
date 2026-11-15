@@ -16,6 +16,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
@@ -309,6 +310,24 @@ internal class RpcChannel(
 
             WsMethods.SESSION_INTERRUPT, WsMethods.SESSION_STEER, WsMethods.SESSION_REDIRECT -> {
                 withGeneration(params)
+            }
+
+            // Draft settings: the canonical session.create names them `reasoning` and
+            // `service_tier` (a closed key set: the legacy names would be refused as invalid_params).
+            WsMethods.SESSION_CREATE -> {
+                if ("reasoning_effort" !in params && "fast" !in params) {
+                    params
+                } else {
+                    JsonObject(
+                        buildMap {
+                            putAll(params - "reasoning_effort" - "fast")
+                            params["reasoning_effort"]?.let { put("reasoning", it) }
+                            if ((params["fast"] as? JsonPrimitive)?.booleanOrNull == true) {
+                                put("service_tier", JsonPrimitive("fast"))
+                            }
+                        },
+                    )
+                }
             }
 
             WsMethods.APPROVAL_RESPOND -> {

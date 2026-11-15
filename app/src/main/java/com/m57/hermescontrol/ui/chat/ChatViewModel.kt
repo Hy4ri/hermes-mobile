@@ -337,6 +337,11 @@ data class ChatUiState(
     val killingProcessId: String? = null,
     // Session resume recovery (desktop parity: bounded auto-retry + error UI)
     val isSessionReady: Boolean = false,
+    /**
+     * A new chat without a server session yet (a draft, as on Desktop): the composer is enabled
+     * and `session.create` is sent only with the first action that needs a session.
+     */
+    val isDraftSession: Boolean = false,
     /** Project the not-yet-prompted chat will run in (#1527); null = default workspace. */
     val stagedProject: ProjectInfo? = null,
     /** Projects a new chat can start in, from `projects.list`; empty hides the picker. */
@@ -708,6 +713,29 @@ class ChatViewModel(
     private var pendingInitialPrompt: PendingPrompt? = null
     private var pendingNewConversationSend: PendingSend? = null
 
+    /**
+     * New-chat draft: no session created yet. The session-authority gateway persists the row
+     * on `session.create`, so minting one up front (on connect, profile switch or
+     * "+") fills History with empty sessions. As on Desktop
+     * (`createBackendSessionForSend`), the session is created by the first action that needs it.
+     */
+    private var draftSession = false
+
+    /** Actions deferred until the draft's session exists; run after the `session.create` result. */
+    private val afterDraftMintActions = mutableListOf<() -> Unit>()
+
+    /** A model picked in the draft: sent in `session.create` (model/provider), as on Desktop. */
+    private data class DraftModelPick(
+        val provider: String,
+        val model: String,
+    )
+
+    private var draftModelPick: DraftModelPick? = null
+
+    /** Reasoning and fast mode picked in the draft: also sent in `session.create`. */
+    private var draftReasoning: String? = null
+    private var draftFast: Boolean? = null
+
     /** Shared content waiting for the new session it was routed to (#1601); survives session resets. */
     private var stagedShare: IncomingShare? = null
 
@@ -723,6 +751,15 @@ class ChatViewModel(
      * 4007 "failed to load session" popup after tab switches).
      */
     private var sessionHasServerPresence = false
+
+    /**
+     * The session was just minted by the session authority's canonical `session.create`
+     * (the result carries `authority_epoch`): that gateway persists the row immediately,
+     * not on the first prompt. A reconnect must then resume it instead of
+     * minting another one; otherwise every trip to the background leaves an empty
+     * session in History. Only [handleGatewayReady] reads it; [sessionHasServerPresence] is untouched.
+     */
+    private var createdSessionPersisted = false
 
     /** Dedupe guard for [recoverGoneSession] (WS reject + REST 404 land together). */
     private var sessionGoneRecoveryInFlight = false
@@ -1194,6 +1231,7 @@ class ChatViewModel(
                     refreshProjectsJob = null
                     pendingGoneSessionNotice = false
                     sessionHasServerPresence = false
+                    createdSessionPersisted = false
                     resetSessionState(sessionId = null, title = "", isLoading = true)
                 }
         }
@@ -1212,6 +1250,7 @@ class ChatViewModel(
                     refreshProjectsJob = null
                     pendingGoneSessionNotice = false
                     sessionHasServerPresence = false
+                    createdSessionPersisted = false
                     resetSessionState(sessionId = null, title = "", isLoading = true)
                 }
         }
@@ -1303,7 +1342,8 @@ class ChatViewModel(
         modelSwitchDelegate.preloadModelOptions()
         val currentId = _uiState.value.currentSessionId
         if (currentId != null) {
-            if (sessionHasServerPresence) {
+            // A session the gateway persisted at creation is resumed, not minted again.
+            if (sessionHasServerPresence || createdSessionPersisted) {
                 resumeSession(currentId, sessionGeneration)
             } else {
                 // Issue #969: No server-side row yet — the gateway dropped the
@@ -1317,6 +1357,9 @@ class ChatViewModel(
             if (!initial.isNullOrBlank()) {
                 initialSessionId = null
                 switchSession(initial)
+            } else if (draftSession) {
+                // A draft is already open (reconnect): there is no session yet; create nothing
+                // and reset nothing, so typed text and attachments are kept.
             } else if (AuthManager.isRestoreLastSession()) {
                 val restoredId = AuthManager.getLastOpenedSessionId()
                 if (!restoredId.isNullOrBlank()) {
@@ -2319,6 +2362,8 @@ class ChatViewModel(
                 // The gateway persists the row lazily on the first prompt —
                 // do not resume this key until presence is confirmed.
                 sessionHasServerPresence = false
+                // Except a canonical session.create (`authority_epoch` present), which already persisted the row.
+                createdSessionPersisted = resultMap.containsKey("authority_epoch")
                 sessionGoneRecoveryInFlight = false
                 _uiState.update {
                     it.copy(
@@ -2391,6 +2436,11 @@ class ChatViewModel(
                         ),
                     )
                 }
+
+                // Draft actions (a slash command, ...) that waited for the session to exist.
+                val deferred = afterDraftMintActions.toList()
+                afterDraftMintActions.clear()
+                deferred.forEach { it() }
             }
 
             WsMethods.SESSION_BRANCH,
@@ -2416,6 +2466,7 @@ class ChatViewModel(
                 resumedGeneration = generation
                 ActiveSessionHolder.set(runtimeId, storageId)
                 sessionHasServerPresence = false
+                createdSessionPersisted = false
                 sessionGoneRecoveryInFlight = false
                 addSystemMessage("Session branched", persist = true)
                 if (resultMap["branched_session_id"] is String) {
@@ -3569,7 +3620,8 @@ class ChatViewModel(
             }
             return
         }
-        createNewSession(project = _uiState.value.stagedProject)
+        // The carried-over send is dispatched from the session.create result: create right away.
+        createNewSession(project = _uiState.value.stagedProject, mintNow = true)
         pendingNewConversationSend = row
     }
 
@@ -3765,7 +3817,12 @@ class ChatViewModel(
                 openModelPicker()
                 return true
             }
-            handleSlashCommand(trimmed)
+            // Session-bound commands create the draft's session first; local ones do not.
+            if (slashNeedsSession(trimmed)) {
+                runWithSession { handleSlashCommand(trimmed) }
+            } else {
+                handleSlashCommand(trimmed)
+            }
             return true
         }
 
@@ -3908,6 +3965,8 @@ class ChatViewModel(
             pendingInitialPrompt =
                 PendingPrompt(text, attachments, wasStreaming, userMessage, createdAt, clickedMainTurnEpoch)
             publishPendingSends()
+            // The first message from a draft: create the session now.
+            mintDraftSession()
             return true
         }
 
@@ -4090,6 +4149,8 @@ class ChatViewModel(
             wsClient.connectionStatus.value == ConnectionStatus.CONNECTED &&
             (
                 (_uiState.value.isSessionReady && runtimeSessionId != null) ||
+                    // Draft: the first message creates the session itself (see sendMessage).
+                    (draftSession && pendingInitialPrompt == null) ||
                     (
                         _uiState.value.currentSessionId == null &&
                             pendingInitialPrompt == null &&
@@ -4548,10 +4609,12 @@ class ChatViewModel(
     /** Clipboard reads are asynchronous: bind them to this exact session generation and server. */
     internal fun captureAttachmentTarget(): ChatAttachmentTarget? {
         val state = _uiState.value
-        val sessionId = state.currentSessionId ?: return null
+        // A draft has no sessionId yet; the generation (the draft has its own) still guards against retargeting.
+        val sessionId = state.currentSessionId
+        if (sessionId == null && !draftSession) return null
         // Connection status is combined into public uiState, not written to _uiState.
         if (wsClient.connectionStatus.value != ConnectionStatus.CONNECTED ||
-            !state.isSessionReady || _timelineState.value.isHistorical
+            !(state.isSessionReady || draftSession) || _timelineState.value.isHistorical
         ) {
             return null
         }
@@ -5481,13 +5544,23 @@ class ChatViewModel(
      */
     internal fun stageSharedContent(share: IncomingShare) {
         val state = _uiState.value
-        if (!state.hasConversation && state.isSessionReady && !_timelineState.value.isHistorical) {
+        if (!state.hasConversation &&
+            (state.isSessionReady || draftSession) &&
+            !_timelineState.value.isHistorical
+        ) {
             applySharedContent(share)
             return
         }
         val carried = share.copy(attachments = state.pendingAttachments + share.attachments)
         stagedShare = stagedShare?.plus(carried) ?: carried
         createNewSession(setLoading = false)
+        // The new chat opened as a draft (no session.create): apply the share right away.
+        if (draftSession) {
+            stagedShare?.let { staged ->
+                stagedShare = null
+                applySharedContent(staged)
+            }
+        }
     }
 
     private fun applySharedContent(share: IncomingShare) {
@@ -5762,18 +5835,103 @@ class ChatViewModel(
         val state = _uiState.value
         if (state.hasConversation || sessionHasServerPresence) return
         if (state.stagedProject?.id == project?.id) return
+        if (draftSession) {
+            // A draft has no session yet: just remember the project; its cwd goes into session.create.
+            _uiState.update { it.copy(stagedProject = project?.takeIf { p -> p.launchCwd != null }) }
+            return
+        }
         createNewSession(setLoading = false, project = project)
     }
 
+    /**
+     * Opens a new chat. By default as a draft without `session.create`
+     * ([mintDraftSession] creates the session with the first action that needs it).
+     * [mintNow] = true creates it right away (paths that wait on the create result).
+     */
     fun createNewSession(
         setLoading: Boolean = true,
         project: ProjectInfo? = null,
+        mintNow: Boolean = false,
     ) {
         // A fresh create has no persisted row until the first prompt.
         sessionHasServerPresence = false
-        val generation = resetSessionState(sessionId = null, title = "", isLoading = setLoading)
+        // Do not carry the previous session's flag over: this create's result sets it.
+        createdSessionPersisted = false
+        val generation = resetSessionState(sessionId = null, title = "", isLoading = setLoading && mintNow)
         val cwd = project?.launchCwd
         _uiState.update { it.copy(stagedProject = project.takeIf { cwd != null }) }
+        if (!mintNow) {
+            draftSession = true
+            _uiState.update { it.copy(isDraftSession = true) }
+            return
+        }
+        sendSessionCreate(generation, cwd, setLoading)
+    }
+
+    /**
+     * Creates the server session for the draft (once); a no-op outside a draft.
+     * `internal` only so tests can simulate the user's first action.
+     */
+    @androidx.annotation.VisibleForTesting
+    internal fun mintDraftSession() {
+        if (!draftSession) return
+        draftSession = false
+        val modelPick = draftModelPick
+        val reasoning = draftReasoning
+        val fast = draftFast
+        draftModelPick = null
+        draftReasoning = null
+        draftFast = null
+        _uiState.update { it.copy(isDraftSession = false) }
+        sendSessionCreate(
+            sessionGeneration,
+            _uiState.value.stagedProject?.launchCwd,
+            setLoading = false,
+            modelPick = modelPick,
+            reasoning = reasoning,
+            // Only an enabled fast mode: "normal" is simply the absent field.
+            fast = fast?.takeIf { it },
+        )
+    }
+
+    /**
+     * Whether a command needs a server session. Local ones (new chat, /update, history, queue
+     * management, interrupting without a turn) and locally refused ones (blocklist, profile lock)
+     * do not create the draft's session.
+     */
+    private fun slashNeedsSession(command: String): Boolean {
+        if (!ProfileLock.allowsSlashCommand(command) || CommandBlocklist.contains(command)) return false
+        return when (slashDispatcher.dispatch(command)) {
+            SlashResult.NewSession,
+            SlashResult.Update,
+            SlashResult.OpenHistory,
+            SlashResult.Interrupt,
+            SlashResult.Stop,
+            is SlashResult.QueueManage,
+            -> false
+
+            else -> true
+        }
+    }
+
+    /** Runs [action] now or, in a draft, after the session is created. */
+    private fun runWithSession(action: () -> Unit) {
+        if (!draftSession) {
+            action()
+            return
+        }
+        afterDraftMintActions += action
+        mintDraftSession()
+    }
+
+    private fun sendSessionCreate(
+        generation: Long,
+        cwd: String?,
+        setLoading: Boolean,
+        modelPick: DraftModelPick? = null,
+        reasoning: String? = null,
+        fast: Boolean? = null,
+    ) {
         viewModelScope.launch(ioDispatcher) {
             wsClient.send(
                 RpcMethods.SESSION_CREATE,
@@ -5781,6 +5939,10 @@ class ChatViewModel(
                     source = DESKTOP_SESSION_SOURCE,
                     cwd = cwd,
                     cwdExplicit = if (cwd != null) true else null,
+                    model = modelPick?.model,
+                    provider = modelPick?.provider,
+                    reasoningEffort = reasoning,
+                    fast = fast,
                 ),
                 onSent = { id -> trackSessionRequest(id, WsMethods.SESSION_CREATE, generation) },
             )
@@ -5914,6 +6076,7 @@ class ChatViewModel(
 
     // ── In-session model picker (issue #589) ─────────────────────────────
 
+    // In a draft the picker does not create a session: the pick is only staged (see sendSlashModel).
     fun openModelPicker() = modelSwitchDelegate.openModelPicker()
 
     fun refreshModelOptions() = modelSwitchDelegate.refreshModelOptions()
@@ -5928,17 +6091,57 @@ class ChatViewModel(
     fun sendSlashModel(
         provider: String,
         model: String,
-    ) = modelSwitchDelegate.sendSlashModel(provider, model)
+    ) {
+        if (!draftSession) {
+            modelSwitchDelegate.sendSlashModel(provider, model)
+            return
+        }
+        // Draft: there is no session yet, so session.create itself sets the model (model/provider)
+        // instead of a separate switch, and a pick alone never creates an empty session.
+        draftModelPick = DraftModelPick(provider = provider, model = model)
+        _uiState.update {
+            it.copy(
+                showModelPicker = false,
+                modelPickerLoading = false,
+                currentSessionModel = "$provider/$model",
+            )
+        }
+    }
 
-    fun resetSessionModel() = modelSwitchDelegate.resetSessionModel()
+    fun resetSessionModel() = runWithSession { modelSwitchDelegate.resetSessionModel() }
 
     fun dismissModelSwitchConfirm() = modelSwitchDelegate.dismissModelSwitchConfirm()
 
     fun confirmModelSwitchExpensive() = modelSwitchDelegate.confirmModelSwitchExpensive()
 
-    fun setReasoningLevel(level: String?) = modelSwitchDelegate.setReasoningLevel(level)
+    // In a draft both settings are only staged and sent in session.create
+    // (like the model): picking them never creates an empty session.
+    fun setReasoningLevel(level: String?) {
+        if (!draftSession) {
+            modelSwitchDelegate.setReasoningLevel(level)
+            return
+        }
+        if (level == null) return
+        val caps = _uiState.value.currentModelCapabilities
+        // The same model capability checks as for an existing session.
+        if (caps?.reasoningSupport == false) return
+        if (level == "none" && caps?.can_disable_reasoning == false) return
+        draftReasoning = level
+        _uiState.update { it.copy(reasoningLevel = level, reasoningWireLevel = null) }
+    }
 
-    fun toggleFastMode() = modelSwitchDelegate.toggleFastMode()
+    fun toggleFastMode() {
+        if (!draftSession) {
+            modelSwitchDelegate.toggleFastMode()
+            return
+        }
+        val state = _uiState.value
+        // As for an existing session: only for models that support fast mode.
+        if (state.currentModelCapabilities?.fast != true) return
+        val target = !state.fastMode
+        draftFast = target
+        _uiState.update { it.copy(fastMode = target) }
+    }
 
     fun setDaybreak(on: Boolean) = modelSwitchDelegate.setDaybreak(on)
 
@@ -6749,6 +6952,12 @@ class ChatViewModel(
         catalogCwd = null
         pendingInitialPrompt = null
         pendingNewConversationSend = null
+        // Any reset leaves the draft; createNewSession re-enters it when needed.
+        draftSession = false
+        afterDraftMintActions.clear()
+        draftModelPick = null
+        draftReasoning = null
+        draftFast = null
         ActiveSessionHolder.clear()
         cacheJob?.cancel()
         hydrationJob?.cancel()
@@ -6770,6 +6979,7 @@ class ChatViewModel(
             it.copy(
                 messages = emptyList(),
                 isSessionReady = false,
+                isDraftSession = false,
                 currentSessionId = sessionId,
                 composerScope = composerScope,
                 composerSessionId = sessionId,
@@ -6960,7 +7170,8 @@ class ChatViewModel(
         // createNewSession() clears messages immediately — queue the notice
         // until its result lands so the user actually sees it.
         pendingGoneSessionNotice = true
-        createNewSession(setLoading = false)
+        // The gone-session notice is shown from the session.create result: create right away.
+        createNewSession(setLoading = false, mintNow = true)
     }
 
     /**

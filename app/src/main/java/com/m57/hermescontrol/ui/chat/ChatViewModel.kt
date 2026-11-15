@@ -1953,11 +1953,7 @@ class ChatViewModel(
         if (info != null) {
             (info["running"] as? Boolean)?.let { running ->
                 mainTurnBusy = running
-                val waitingForInput =
-                    info["pending_clarify"] != null ||
-                        info["pending_approval"] != null ||
-                        _uiState.value.clarifyRequest != null
-                if (!waitingForInput) reconcileServerRunState(running)
+                if (!isAwaitingUserInput(info)) reconcileServerRunState(running)
             }
             if (info.containsKey("cwd")) {
                 val projectId = (info["project"] as? Map<*, *>)?.get("id") as? String
@@ -2477,7 +2473,7 @@ class ChatViewModel(
                 fetchCommandCatalog()
                 val running = resultMap["running"] as? Boolean
                 mainTurnBusy = running ?: false
-                if (running != null) reconcileServerRunState(running)
+                if (running != null && !isAwaitingUserInput(resultMap)) reconcileServerRunState(running)
                 // Resume succeeded — the gateway confirmed the DB row.
                 sessionHasServerPresence = true
 
@@ -6728,6 +6724,20 @@ class ChatViewModel(
             }
         }
         return finalized
+    }
+
+    /**
+     * A clarify or approval wait keeps the gateway `running` while the agent
+     * waits for the user. The run-state reconciliation must not re-arm typing
+     * under the prompt card. `_session_info` does not carry `pending_approval`,
+     * so the open approval card in the current turn is the live-path signal.
+     */
+    private fun isAwaitingUserInput(payload: Map<*, *>): Boolean {
+        if (payload["pending_clarify"] != null || payload["pending_approval"] != null) return true
+        val state = _uiState.value
+        if (state.clarifyRequest != null) return true
+        val turnStart = state.messages.indexOfLast { it.isUserTurnBoundary() } + 1
+        return state.messages.drop(turnStart).any { it.approvalInfo != null }
     }
 
     /**

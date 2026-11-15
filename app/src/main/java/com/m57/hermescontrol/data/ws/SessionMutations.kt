@@ -22,10 +22,17 @@ internal class SessionMutations {
     private val retained = ConcurrentHashMap<String, JsonObject>()
     private val inFlight = ConcurrentHashMap<String, JsonObject>()
 
+    /**
+     * The selection-guard token (`confirm` from a `confirmation_required` answer), keyed by
+     * `session|model|provider`: the confirmed retry of the same pick must present exactly this token.
+     */
+    private val modelConfirmTokens = ConcurrentHashMap<String, String>()
+
     fun clear() {
         revisions.clear()
         retained.clear()
         inFlight.clear()
+        modelConfirmTokens.clear()
     }
 
     /** A `session.info` event states the revision the next edit must present; `session.updated` only moves it forward. */
@@ -102,6 +109,26 @@ internal class SessionMutations {
                     Triple(params["session_id"], "branch", JsonObject(payload))
                 }
 
+                WsMethods.CONFIG_SET -> {
+                    // The session authority refuses config.set model (`use_session_mutation_model`):
+                    // a model pick is session.mutate operation=model with payload {model, provider, confirm}.
+                    if ((params["key"] as? JsonPrimitive)?.contentOrNull != "model") return null
+                    val spec = (params["value"] as? JsonPrimitive)?.contentOrNull ?: return null
+                    val (model, provider) = parseModelSpec(spec) ?: return null
+                    val sessionId = (params["session_id"] as? JsonPrimitive)?.contentOrNull ?: return null
+                    val payload =
+                        buildMap<String, JsonElement> {
+                            put("model", JsonPrimitive(model))
+                            provider?.let { put("provider", JsonPrimitive(it)) }
+                            if ((params["confirm_expensive_model"] as? JsonPrimitive)?.contentOrNull == "true") {
+                                modelConfirmTokens[modelConfirmKey(sessionId, model, provider)]?.let {
+                                    put("confirm", JsonPrimitive(it))
+                                }
+                            }
+                        }
+                    Triple(params["session_id"], "model", JsonObject(payload))
+                }
+
                 else -> {
                     return null
                 }
@@ -110,7 +137,7 @@ internal class SessionMutations {
         val key = "$sessionId|$operation|$payload"
         retained[key]?.let { return it }
         val revision = revisions[sessionId] ?: return null
-        val fenced = operation in setOf("workspace", "compress", "delete", "branch")
+        val fenced = operation in setOf("workspace", "compress", "delete", "branch", "model")
         if (fenced && generation == null) return null
         val body =
             buildMap<String, JsonElement> {
@@ -138,6 +165,7 @@ internal class SessionMutations {
         result: JsonElement?,
     ): JsonElement? {
         val params = inFlight[rpcId] ?: return result
+        if (params["operation"] == JsonPrimitive("model") && result is JsonObject) return mapModelResult(params, result)
         if (params["operation"] != JsonPrimitive("branch") || result !is JsonObject) return result
         require(result["session_id"] == params["session_id"]) { "Branch receipt destination mismatch" }
         val child = (result["branched_session_id"] as? JsonPrimitive)?.contentOrNull
@@ -179,6 +207,67 @@ internal class SessionMutations {
         // The refusal names the current revision, so the retry presents it as a fresh request.
         forget(params)
         (refusal["revision"] as? JsonPrimitive)?.intOrNull?.let { adopt(sessionId, it) }
+    }
+
+    /**
+     * An operation=model answer in the config.set shape the model picker reads (`key`,
+     * `confirm_required`, `confirm_message`). The `confirm` token is kept for the confirmed
+     * retry. The gateway publishes the new model itself with a `session.info` event.
+     */
+    private fun mapModelResult(
+        params: JsonObject,
+        result: JsonObject,
+    ): JsonObject {
+        val sessionId = (params["session_id"] as? JsonPrimitive)?.contentOrNull
+        val payload = params["payload"] as? JsonObject
+        val model = (payload?.get("model") as? JsonPrimitive)?.contentOrNull
+        val provider = (payload?.get("provider") as? JsonPrimitive)?.contentOrNull
+        val token = (result["confirm"] as? JsonPrimitive)?.contentOrNull
+        if (sessionId != null && model != null && token != null) {
+            modelConfirmTokens[modelConfirmKey(sessionId, model, provider)] = token
+        }
+        return JsonObject(result + ("key" to JsonPrimitive("model")))
+    }
+
+    private fun modelConfirmKey(
+        sessionId: String,
+        model: String,
+        provider: String?,
+    ) = "$sessionId|$model|${provider.orEmpty()}"
+
+    /**
+     * `model [--provider X] [--session]` -> (model, provider). Any other flag (`--global`, `--once`, ...)
+     * changes what the pick means, so it yields null and the request stays config.set, as before.
+     */
+    private fun parseModelSpec(spec: String): Pair<String, String?>? {
+        val tokens = spec.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+        var provider: String? = null
+        val modelParts = mutableListOf<String>()
+        var i = 0
+        while (i < tokens.size) {
+            val token = tokens[i]
+            when {
+                token == "--provider" -> {
+                    provider = tokens.getOrNull(i + 1)?.takeUnless { it.startsWith("--") } ?: return null
+                    i++
+                }
+
+                token == "--session" -> {
+                    Unit
+                }
+
+                token.startsWith("--") -> {
+                    return null
+                }
+
+                else -> {
+                    modelParts += token
+                }
+            }
+            i++
+        }
+        val model = modelParts.joinToString(" ").takeIf { it.isNotBlank() } ?: return null
+        return model to provider
     }
 
     private fun adopt(

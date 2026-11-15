@@ -1962,6 +1962,25 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun testModelPickerSelection_appendsNoModelCommandBubble() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            every { HermesWsClient.send(RpcMethods.CONFIG_SET, any<ConfigSetParams>(), any()) } returns "req-cfg-1"
+
+            viewModel.sendSlashModel("openai", "gpt-4o")
+            advanceUntilIdle()
+
+            verify { HermesWsClient.send(RpcMethods.CONFIG_SET, any<ConfigSetParams>(), any()) }
+            val commandBubbles =
+                viewModel.uiState.value.messages
+                    .filter { it.role == MessageRole.USER && it.content.startsWith("/model") }
+            assertTrue(
+                "a picker selection must not post a /model user message: $commandBubbles",
+                commandBubbles.isEmpty(),
+            )
+        }
+
+    @Test
     fun testTypedModelCommandWithArg_dispatchesDirectly() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()
@@ -3086,6 +3105,168 @@ class ChatViewModelTest {
                 viewModel.uiState.value.messages[1]
                     .toolStatus,
             )
+        }
+
+    @Test
+    fun sessionInfoRunningFalseClearsAPendingTypingTailWithoutMessageComplete() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            mockEventsFlow.emit(WsEvent.MessageToken("Completed answer", sessionId))
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isAgentTyping)
+            val streamingMessage = viewModel.streamingState.value.streamingMessage
+            assertEquals("Completed answer", streamingMessage?.content)
+
+            mockEventsFlow.emit(WsEvent.SessionInfo(mapOf("running" to false), sessionId))
+            advanceUntilIdle()
+
+            assertFalse(viewModel.uiState.value.isAgentTyping)
+            assertNull(viewModel.streamingState.value.streamingMessage)
+            val messages = viewModel.uiState.value.messages
+            val lastMessage = messages.last()
+            assertEquals("Completed answer", lastMessage.content)
+        }
+
+    @Test
+    fun sessionInfoRunningTrueRestoresTypingAfterAMidTurnResume() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            mockEventsFlow.emit(WsEvent.SessionInfo(mapOf("running" to true), sessionId))
+            advanceUntilIdle()
+
+            assertTrue(viewModel.uiState.value.isAgentTyping)
+        }
+
+    @Test
+    fun lateMessageCompleteAfterIdleSessionInfoReusesTheSealedRow() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            mockEventsFlow.emit(WsEvent.MessageToken("Completed answer", sessionId))
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(WsEvent.SessionInfo(mapOf("running" to false), sessionId))
+            mockEventsFlow.emit(WsEvent.MessageComplete("Completed answer", sessionId))
+            advanceUntilIdle()
+
+            val assistantMessages =
+                viewModel.uiState.value.messages.filter { message ->
+                    message.role == MessageRole.ASSISTANT
+                }
+            assertEquals(1, assistantMessages.size)
+            assertEquals("Completed answer", assistantMessages.single().content)
+            assertNull(viewModel.streamingState.value.streamingMessage)
+        }
+
+    @Test
+    fun reconnectResumeRunningFalseClearsTheStaleTypingTail() =
+        runTest {
+            stubEmptySessionRests("session-123")
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            mockEventsFlow.emit(WsEvent.MessageToken("Completed answer", sessionId))
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isAgentTyping)
+
+            mockConnectionStatus.value = ConnectionStatus.RECONNECTING
+            advanceUntilIdle()
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            val resumeId = sentRequestMethods.last { it.first == WsMethods.SESSION_RESUME }.second
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    resumeId,
+                    mapOf(
+                        "session_id" to "runtime-123",
+                        "resumed" to sessionId,
+                        "running" to false,
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertFalse(viewModel.uiState.value.isAgentTyping)
+            assertNull(viewModel.streamingState.value.streamingMessage)
+        }
+
+    @Test
+    fun sessionInfoRunningTrueDoesNotRearmTypingUnderAnOpenApprovalCard() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            mockEventsFlow.emit(
+                WsEvent.ApprovalRequest(
+                    command = "rm -rf build",
+                    description = "The agent wants to execute: rm -rf build",
+                    patternKeys = listOf("shell:rm"),
+                    sessionId = sessionId,
+                    requestId = "approval-1",
+                ),
+            )
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.isAgentTyping)
+
+            mockEventsFlow.emit(WsEvent.SessionInfo(mapOf("running" to true), sessionId))
+            advanceUntilIdle()
+
+            assertFalse(viewModel.uiState.value.isAgentTyping)
+        }
+
+    @Test
+    fun reconnectResumeRunningTrueWithPendingApprovalDoesNotRearmTyping() =
+        runTest {
+            stubEmptySessionRests("session-123")
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            // A settled turn gives the session server presence, so reconnect resumes it.
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            mockEventsFlow.emit(WsEvent.MessageComplete("Done", sessionId))
+            // The approval card is already on screen, so resume does not re-surface it.
+            mockEventsFlow.emit(
+                WsEvent.ApprovalRequest(
+                    command = "rm -rf build",
+                    description = "The agent wants to execute: rm -rf build",
+                    patternKeys = listOf("shell:rm"),
+                    sessionId = sessionId,
+                    requestId = "approval-1",
+                ),
+            )
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.isAgentTyping)
+
+            mockConnectionStatus.value = ConnectionStatus.RECONNECTING
+            advanceUntilIdle()
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            val resumeId = sentRequestMethods.last { it.first == WsMethods.SESSION_RESUME }.second
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    resumeId,
+                    mapOf(
+                        "session_id" to "runtime-123",
+                        "resumed" to sessionId,
+                        "running" to true,
+                        "pending_approval" to
+                            mapOf(
+                                "request_id" to "approval-1",
+                                "command" to "rm -rf build",
+                                "description" to "The agent wants to execute: rm -rf build",
+                            ),
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertFalse(viewModel.uiState.value.isAgentTyping)
         }
 
     // ── Clarify tests ────────────────────────────────────────────────────────

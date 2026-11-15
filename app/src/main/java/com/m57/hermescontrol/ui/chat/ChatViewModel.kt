@@ -35,6 +35,7 @@ import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.remote.safeApiRead
 import com.m57.hermescontrol.data.repository.VoiceNoteRepository
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
+import com.m57.hermescontrol.data.session.DeletedSessionEvents
 import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.data.ws.ChangeEvents
 import com.m57.hermescontrol.data.ws.CommandBlocklist
@@ -1236,6 +1237,17 @@ class ChatViewModel(
                         if (!cacheLoaded) loadCachedMessages(sessionId, sessionGeneration)
                     }
                 }
+            }
+        }
+        // A session was deleted in History. Stop replaying it after a reconnect.
+        // If it is the open chat, leave it: every poll for it would fail with 4001 not_found or 404.
+        viewModelScope.launch {
+            DeletedSessionEvents.events.collect { ids ->
+                val openDeleted = _uiState.value.currentSessionId in ids
+                // Older gateways name events by runtime id, which can differ from the stored id.
+                val runtimeId = runtimeSessionId.takeIf { openDeleted }
+                wsClient.forgetDeletedSessions(if (runtimeId != null) ids + runtimeId else ids)
+                if (openDeleted) createNewSession(setLoading = false)
             }
         }
         // Desktop parity (requestFreshSession): when the profile switch

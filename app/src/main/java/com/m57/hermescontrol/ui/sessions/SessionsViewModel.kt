@@ -1406,7 +1406,7 @@ class SessionsViewModel(
                         )
                     }
                     ShortcutRefreshEvents.refresh()
-                    // The chat may have this session open: let it move to a new chat.
+                    // The chat may have this session open. Tell it to leave the session.
                     DeletedSessionEvents.emit(setOf(sessionId))
                 }
 
@@ -1457,7 +1457,7 @@ class SessionsViewModel(
                     ShortcutRefreshEvents.refresh()
                     val skipped = result.data.skippedActive.toSet()
                     val removedIds = ids.filterNot { it in skipped }.toSet()
-                    // The chat may have one of them open: let it move to a new chat.
+                    // The chat may have one of them open. Tell it to leave the session.
                     DeletedSessionEvents.emit(removedIds)
                     draftScope?.let { owner ->
                         val draftStore = ComposerDraftStore.initialized()
@@ -1641,13 +1641,16 @@ class SessionsViewModel(
             finishPrune(deleted = 0, skipped = skippedOpen)
             return
         }
-        var deleted = 0
+        val deletedIds = mutableSetOf<String>()
         var failed = 0
         _uiState.update { it.copy(pruneProgress = 0 to candidates.size) }
         for ((index, id) in candidates.withIndex()) {
-            if (deleteSessionFenced(id) is NetworkResult.Success) deleted++ else failed++
+            if (deleteSessionFenced(id) is NetworkResult.Success) deletedIds += id else failed++
             _uiState.update { it.copy(pruneProgress = (index + 1) to candidates.size) }
         }
+        // Tell the chat once, after the loop, so a long prune cannot overflow the event buffer.
+        DeletedSessionEvents.emit(deletedIds)
+        val deleted = deletedIds.size
         finishPrune(deleted = deleted, skipped = skippedOpen, failed = failed)
     }
 

@@ -302,6 +302,8 @@ internal class RpcChannel(
             WsMethods.SESSION_COMPRESS,
             WsMethods.SESSION_BRANCH,
             WsMethods.SESSION_BRANCH_WHOLE,
+            // Only config.set key=model (a model pick); prepare passes every other key through unchanged.
+            WsMethods.CONFIG_SET,
             -> {
                 val sessionId = (params["session_id"] ?: params["session_key"]).eventStringOrNull()
                 mutations.prepare(method, params, sessionId?.let { generations[it] }) ?: params
@@ -586,4 +588,6 @@ private fun isMutationMethod(method: String) =
             WsMethods.SESSION_COMPRESS,
             WsMethods.SESSION_BRANCH,
             WsMethods.SESSION_BRANCH_WHOLE,
+            // config.set key=model -> session.mutate operation=model (see SessionMutations.prepare).
+            WsMethods.CONFIG_SET,
         )

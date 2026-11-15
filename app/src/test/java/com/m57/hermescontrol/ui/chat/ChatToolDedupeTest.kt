@@ -420,10 +420,14 @@ class ChatToolDedupeTest {
             )
         s = r.state
 
-        // Final list: user + tool + assistant — tool bubble STILL there
-        assertEquals(3, s.messages.size)
-        assertEquals(listOf(MessageRole.USER, MessageRole.TOOL, MessageRole.ASSISTANT), s.messages.map { it.role })
-        assertEquals("terminal", s.messages[1].toolName)
+        // Final list: user + sealed reasoning (#1832) + tool + assistant — tool bubble STILL there
+        assertEquals(4, s.messages.size)
+        assertEquals(
+            listOf(MessageRole.USER, MessageRole.ASSISTANT, MessageRole.TOOL, MessageRole.ASSISTANT),
+            s.messages.map { it.role },
+        )
+        assertEquals("thinking about meow", s.messages[1].reasoningText)
+        assertEquals("terminal", s.messages[2].toolName)
     }
 
     // ── syncCurrentSession merge: the exact logcat scenario ──────────────

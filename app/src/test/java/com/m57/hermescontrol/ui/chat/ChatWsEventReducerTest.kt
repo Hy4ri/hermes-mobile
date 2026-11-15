@@ -874,7 +874,7 @@ class ChatWsEventReducerTest {
         assertEquals(0, result.state.messages.size)
     }
 
-    // ── Issue #771: reasoning survives a tool call (regression) ────────────
+    // ── Issue #771 / #1832: reasoning survives a tool call (regression) ───
     //
     // Real gateway capture for `run echo hi` (reasoning model):
     //   message.start
@@ -884,12 +884,14 @@ class ChatWsEventReducerTest {
     //   reasoning.available (full text)
     //   message.complete (text + reasoning payload field)
     //
-    // Previously the reducer returned a FRESH StreamingState() at tool.start,
-    // wiping the streamed reasoning — the reasoning bubble vanished mid-turn
-    // and the finalized answer had no reasoning card.
+    // #771: returning a FRESH StreamingState() at tool.start wiped the
+    // reasoning mid-turn. #1832: keeping it on the live message left it
+    // hoisted above the tool and let post-tool reasoning replace it. The
+    // reasoning-only segment is now sealed as its own row at tool.start, and
+    // a whole-turn trace re-sent later is not attached a second time.
 
     @Test
-    fun testToolCallTurn_reasoningSurvivesToolStart_andFinalizesWithCard() {
+    fun testToolCallTurn_reasoningOnlySegmentSealedAtToolStart_rendersOnce() {
         val state = ChatUiState(currentSessionId = "session-1")
 
         // 1. message.start
@@ -897,6 +899,7 @@ class ChatWsEventReducerTest {
 
         // 2. reasoning.delta — thinking streams before the tool
         val reasoningTokens = listOf("The user just said", " \"run echo hi\".", " Let me run it.")
+        val fullReasoning = reasoningTokens.joinToString("")
         var reasoningState = start.streamingState
         for (token in reasoningTokens) {
             reasoningState =
@@ -909,12 +912,10 @@ class ChatWsEventReducerTest {
                     ).streamingState
         }
         assertEquals(true, reasoningState.isReasoning)
-        assertEquals("The user just said \"run echo hi\". Let me run it.", reasoningState.reasoningText)
-        // Streaming message alive (reasoning copy lands on it via the
-        // controller's flush — the reducer owns the shared text).
+        assertEquals(fullReasoning, reasoningState.reasoningText)
         assertEquals(true, reasoningState.streamingMessage?.isStreaming)
 
-        // 3. tool.start — must NOT wipe the streaming message or its reasoning
+        // 3. tool.start — the reasoning-only segment is sealed ABOVE the tool row
         var result =
             ChatWsEventReducer.reduce(
                 state,
@@ -922,24 +923,19 @@ class ChatWsEventReducerTest {
                 WsEvent.ToolStart("terminal", mapOf("args_text" to "echo hi"), "session-1"),
                 "session-1",
             )
-        assertEquals(1, result.state.messages.size)
-        assertEquals(
-            MessageRole.TOOL,
-            result.state.messages
-                .first()
-                .role,
-        )
-        assertEquals(
-            "terminal",
-            result.state.messages
-                .first()
-                .toolName,
-        )
-        // Issue #771: streaming message + reasoning survive the tool call
-        assertEquals(true, result.streamingState.streamingMessage?.isStreaming)
-        assertEquals("The user just said \"run echo hi\". Let me run it.", result.streamingState.reasoningText)
+        assertEquals(listOf(MessageRole.ASSISTANT, MessageRole.TOOL), result.state.messages.map { it.role })
+        val sealed = result.state.messages.first()
+        assertEquals("", sealed.content)
+        assertEquals(fullReasoning, sealed.reasoningText)
+        assertFalse(sealed.isStreaming)
+        assertTrue(result.effects.any { it is ReducerEffect.PersistMessage && it.message.id == sealed.id })
+        assertNull(result.streamingState.streamingMessage)
+        assertEquals("", result.streamingState.reasoningText)
+        assertEquals(listOf(fullReasoning), result.streamingState.sealedReasoning)
+        // Reasoning-only rows have no text prefix to strip from the final reply.
+        assertTrue(result.streamingState.sealedOrphanIds.isEmpty())
 
-        // 4. tool.complete — tool bubble completes; stream untouched
+        // 4. tool.complete
         result =
             ChatWsEventReducer.reduce(
                 result.state,
@@ -947,26 +943,8 @@ class ChatWsEventReducerTest {
                 WsEvent.ToolComplete("terminal", mapOf("output" to "hi"), "session-1"),
                 "session-1",
             )
-        assertEquals(
-            ToolStatus.COMPLETED,
-            result.state.messages
-                .first()
-                .toolStatus,
-        )
 
-        // 5. reasoning.available — authoritative full-trace fill
-        val fullReasoning = "The user just said \"run echo hi\". That's a simple terminal command. Let me just run it."
-        result =
-            ChatWsEventReducer.reduce(
-                result.state,
-                result.streamingState,
-                WsEvent.ReasoningAvailable("session-1", fullReasoning),
-                "session-1",
-            )
-        assertEquals(fullReasoning, result.streamingState.reasoningText)
-        assertEquals(fullReasoning, result.streamingState.streamingMessage?.reasoningText)
-
-        // 6. message.complete — finalized bubble keeps the reasoning card
+        // 5. message.complete re-sends the whole turn's trace — not attached twice
         result =
             ChatWsEventReducer.reduce(
                 result.state,
@@ -978,15 +956,133 @@ class ChatWsEventReducerTest {
                 ),
                 "session-1",
             )
-        val assistant = result.state.messages.last()
-        assertEquals(MessageRole.ASSISTANT, assistant.role)
-        assertEquals("done!! `echo hi` ran clean", assistant.content)
-        assertEquals(fullReasoning, assistant.reasoningText)
-        assertFalse(assistant.isStreaming)
-        // Stream tail cleared after finalize — no ghost duplicate bubble
+        val assistants = result.state.messages.filter { it.role == MessageRole.ASSISTANT }
+        assertEquals(2, assistants.size)
+        assertEquals("done!! `echo hi` ran clean", assistants.last().content)
+        assertFalse(assistants.last().isStreaming)
+        assertEquals(listOf(fullReasoning, ""), assistants.map { it.reasoningText })
+        assertEquals(
+            listOf(MessageRole.ASSISTANT, MessageRole.TOOL, MessageRole.ASSISTANT),
+            result.state.messages.map { it.role },
+        )
         assertEquals(null, result.streamingState.streamingMessage)
-        // Exactly one assistant message — no orphan duplication
-        assertEquals(1, result.state.messages.count { it.role == MessageRole.ASSISTANT })
+    }
+
+    @Test
+    fun testToolCallTurn_postToolReasoning_streamsIntoItsOwnSegment() {
+        // #1832 device repro (Hermes 0.23.1, nemotron): one message.start per
+        // turn, R1 before the tool, R2 after it, message.complete carries R2.
+        val state = ChatUiState(currentSessionId = "session-1")
+        val r1 = "The user wants me to run ls."
+        val r2 = "The ls output shows the root directory."
+        var result = ChatWsEventReducer.reduce(state, StreamingState(), WsEvent.MessageStart("session-1"), "session-1")
+        result =
+            ChatWsEventReducer.reduce(
+                result.state,
+                result.streamingState,
+                WsEvent.ReasoningDelta(r1, "session-1"),
+                "session-1",
+            )
+        result =
+            ChatWsEventReducer.reduce(
+                result.state,
+                result.streamingState,
+                WsEvent.ToolStart("terminal", mapOf("tool_id" to "c1"), "session-1"),
+                "session-1",
+            )
+        result =
+            ChatWsEventReducer.reduce(
+                result.state,
+                result.streamingState,
+                WsEvent.ToolComplete("terminal", mapOf("tool_id" to "c1"), "session-1"),
+                "session-1",
+            )
+        // R2 must not touch the sealed pre-tool row.
+        result =
+            ChatWsEventReducer.reduce(
+                result.state,
+                result.streamingState,
+                WsEvent.ReasoningDelta(r2, "session-1"),
+                "session-1",
+            )
+        assertEquals(
+            r1,
+            result.state.messages
+                .first()
+                .reasoningText,
+        )
+        assertEquals(r2, result.streamingState.reasoningText)
+        result =
+            ChatWsEventReducer.reduce(
+                result.state,
+                result.streamingState,
+                WsEvent.MessageComplete(text = "Summary.", sessionId = "session-1", reasoning = r2),
+                "session-1",
+            )
+        assertEquals(
+            listOf(MessageRole.ASSISTANT to r1, MessageRole.TOOL to "", MessageRole.ASSISTANT to r2),
+            result.state.messages.map { it.role to it.reasoningText },
+        )
+    }
+
+    @Test
+    fun testToolCallTurn_textSegmentThenNoPostToolReasoning_reasoningRendersOnce() {
+        // #1831 case A: interim text before the tool, no reasoning after it,
+        // message.complete without a reasoning field. The sealed segment and
+        // the final bubble both used to carry (and persist) the same trace.
+        val state = ChatUiState(currentSessionId = "session-1")
+        val r1 = "I should inspect the files first."
+        var result = ChatWsEventReducer.reduce(state, StreamingState(), WsEvent.MessageStart("session-1"), "session-1")
+        result =
+            ChatWsEventReducer.reduce(
+                result.state,
+                result.streamingState,
+                WsEvent.ReasoningDelta(r1, "session-1"),
+                "session-1",
+            )
+        val withText =
+            result.streamingState.copy(
+                streamingMessage = result.streamingState.streamingMessage!!.copy(content = "Let me check."),
+            )
+        result =
+            ChatWsEventReducer.reduce(
+                result.state,
+                withText,
+                WsEvent.ToolStart("terminal", mapOf("tool_id" to "c1"), "session-1"),
+                "session-1",
+            )
+        result =
+            ChatWsEventReducer.reduce(
+                result.state,
+                result.streamingState,
+                WsEvent.ToolComplete("terminal", mapOf("tool_id" to "c1"), "session-1"),
+                "session-1",
+            )
+        result =
+            ChatWsEventReducer.reduce(
+                result.state,
+                result.streamingState,
+                WsEvent.MessageComplete(text = "All good.", sessionId = "session-1"),
+                "session-1",
+            )
+        val assistants = result.state.messages.filter { it.role == MessageRole.ASSISTANT }
+        assertEquals(listOf("Let me check.", "All good."), assistants.map { it.content })
+        assertEquals(listOf(r1, ""), assistants.map { it.reasoningText })
+        val persisted =
+            result.effects
+                .filterIsInstance<ReducerEffect.PersistMessage>()
+                .map { it.message }
+        assertTrue(persisted.none { it.reasoningText == r1 })
+    }
+
+    @Test
+    fun stripSealedReasoning_removesOnlyLeadingSealedTraces() {
+        assertEquals("", stripSealedReasoning("R1 text", listOf("R1 text")))
+        assertEquals("R2 text", stripSealedReasoning("R1 text\n\nR2 text", listOf("R1 text")))
+        assertEquals("R3", stripSealedReasoning("R1 R2 R3", listOf("R1", "R2")))
+        assertEquals("other trace", stripSealedReasoning("other trace", listOf("R1 text")))
+        assertEquals("R2 then R1", stripSealedReasoning("R2 then R1", listOf("R1")))
+        assertEquals("anything", stripSealedReasoning("anything", emptyList()))
     }
 
     @Test
@@ -1087,8 +1183,9 @@ class ChatWsEventReducerTest {
         // Stream tail cleared, orphan id tracked for the complete-strip.
         assertEquals(null, result.streamingState.streamingMessage)
         assertEquals(listOf(result.state.messages[0].id), result.streamingState.sealedOrphanIds)
-        // Reasoning preserved for the post-tool message.
-        assertEquals("thinking...", result.streamingState.reasoningText)
+        // #1831: the sealed bubble owns the reasoning; the next segment starts clean.
+        assertEquals("", result.streamingState.reasoningText)
+        assertEquals(listOf("thinking..."), result.streamingState.sealedReasoning)
     }
 
     @Test

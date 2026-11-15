@@ -18,6 +18,13 @@ data class StreamingState(
      * every fresh StreamingState (message.start / interrupt / session switch).
      */
     val sealedOrphanIds: List<String> = emptyList(),
+    /**
+     * Reasoning traces already sealed onto segment rows at tool.start during
+     * the CURRENT turn (#1832). Some gateways re-send the whole turn's trace in
+     * reasoning.available / message.complete; that sealed part is stripped so
+     * each trace renders once. Reset with every fresh StreamingState.
+     */
+    val sealedReasoning: List<String> = emptyList(),
     /** Cumulative usage before the current turn; retained across tool-loop message segments. */
     val turnUsageBaseline: UsageSnapshotResponse? = null,
     /** Distinguishes a captured-but-unavailable baseline from a not-yet-captured one. */

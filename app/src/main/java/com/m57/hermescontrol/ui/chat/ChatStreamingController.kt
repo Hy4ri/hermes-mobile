@@ -51,6 +51,7 @@ class ChatStreamingController(
                 reasoningText = "",
                 // Issue #842: sealed-orphan tracking belongs to one turn only.
                 sealedOrphanIds = emptyList(),
+                sealedReasoning = emptyList(),
             )
         }
     }
@@ -154,11 +155,27 @@ class ChatStreamingController(
     }
 
     private fun flushReasoning(currentContent: String) {
+        // #1832: after tool.start seals a segment there is no streaming message,
+        // so post-tool reasoning had nowhere to render until answer tokens
+        // arrived. Start the next segment's row while the turn is live.
+        val turnLive = uiState.value.isAgentTyping
         streamingState.update { state ->
+            val current = state.streamingMessage
             state.copy(
                 isReasoning = true,
                 reasoningText = currentContent,
-                streamingMessage = state.streamingMessage?.copy(reasoningText = currentContent),
+                streamingMessage =
+                    current?.copy(reasoningText = currentContent)
+                        ?: if (turnLive && currentContent.isNotBlank()) {
+                            ChatMessage(
+                                role = MessageRole.ASSISTANT,
+                                content = "",
+                                reasoningText = currentContent,
+                                isStreaming = true,
+                            )
+                        } else {
+                            null
+                        },
             )
         }
     }

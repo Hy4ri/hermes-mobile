@@ -212,8 +212,8 @@ internal class ReplayTracker(
     }
 
     /**
-     * Forget deleted sessions: otherwise a reconnect asks for their missed events
-     * (`session.events.since`) and gets 4001 not_found, which surfaces as an error.
+     * Drops the replay state of deleted sessions. Without this, a reconnect asks the
+     * gateway for their missed events (`session.events.since`) and gets 4001 not_found.
      */
     fun forget(sessionIds: Set<String>) {
         sessionIds.forEach { sid ->

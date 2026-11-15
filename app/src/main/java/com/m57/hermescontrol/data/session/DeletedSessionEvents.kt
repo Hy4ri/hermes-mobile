@@ -6,9 +6,9 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 
 /**
- * Signals that stored sessions were deleted (History -> Chat). The chat ViewModel is
- * Activity-scoped and survives a trip to History: without this signal an open session deleted there
- * stayed on the chat screen, and every poll for it got 4001 not_found / 404.
+ * Announces stored sessions that were deleted (for example from History).
+ * The chat ViewModel lives as long as the Activity, so it can still show a session that
+ * History deleted. This signal lets it leave that session.
  */
 object DeletedSessionEvents {
     private val deleted =

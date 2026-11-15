@@ -1964,6 +1964,25 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun testModelPickerSelection_appendsNoModelCommandBubble() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            every { HermesWsClient.send(RpcMethods.CONFIG_SET, any<ConfigSetParams>(), any()) } returns "req-cfg-1"
+
+            viewModel.sendSlashModel("openai", "gpt-4o")
+            advanceUntilIdle()
+
+            verify { HermesWsClient.send(RpcMethods.CONFIG_SET, any<ConfigSetParams>(), any()) }
+            val commandBubbles =
+                viewModel.uiState.value.messages
+                    .filter { it.role == MessageRole.USER && it.content.startsWith("/model") }
+            assertTrue(
+                "a picker selection must not post a /model user message: $commandBubbles",
+                commandBubbles.isEmpty(),
+            )
+        }
+
+    @Test
     fun testTypedModelCommandWithArg_dispatchesDirectly() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()

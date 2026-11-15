@@ -210,9 +210,11 @@ internal class SessionMutations {
     }
 
     /**
-     * An operation=model answer in the config.set shape the model picker reads (`key`,
-     * `confirm_required`, `confirm_message`). The `confirm` token is kept for the confirmed
-     * retry. The gateway publishes the new model itself with a `session.info` event.
+     * Maps an operation=model answer to the config.set reply shape that the model picker reads
+     * (`key`, `value`, `confirm_required`, `confirm_message`). A `confirmation_required` answer
+     * keeps its `confirm` token for the confirmed retry. An applied answer drops the token, so a
+     * later confirm of the same pick never presents a stale one. The gateway publishes the new
+     * model itself in a `session.info` event.
      */
     private fun mapModelResult(
         params: JsonObject,
@@ -223,10 +225,24 @@ internal class SessionMutations {
         val model = (payload?.get("model") as? JsonPrimitive)?.contentOrNull
         val provider = (payload?.get("provider") as? JsonPrimitive)?.contentOrNull
         val token = (result["confirm"] as? JsonPrimitive)?.contentOrNull
-        if (sessionId != null && model != null && token != null) {
-            modelConfirmTokens[modelConfirmKey(sessionId, model, provider)] = token
+        val confirmationRequired = (result["status"] as? JsonPrimitive)?.contentOrNull == "confirmation_required"
+        if (sessionId != null && model != null) {
+            val tokenKey = modelConfirmKey(sessionId, model, provider)
+            if (confirmationRequired && token != null) {
+                modelConfirmTokens[tokenKey] = token
+            } else if (!confirmationRequired) {
+                modelConfirmTokens.remove(tokenKey)
+            }
         }
-        return JsonObject(result + ("key" to JsonPrimitive("model")))
+        val applied = (result["model"] as? JsonPrimitive)?.contentOrNull
+        return JsonObject(
+            result +
+                buildMap<String, JsonElement> {
+                    put("key", JsonPrimitive("model"))
+                    // The picker's reset branch repaints the chip from `value`, as in the config.set reply.
+                    if (!confirmationRequired && applied != null) put("value", JsonPrimitive(applied))
+                },
+        )
     }
 
     private fun modelConfirmKey(
@@ -240,7 +256,7 @@ internal class SessionMutations {
      * changes what the pick means, so it yields null and the request stays config.set, as before.
      */
     private fun parseModelSpec(spec: String): Pair<String, String?>? {
-        val tokens = spec.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+        val tokens = spec.trim().split(WHITESPACE_RUN).filter { it.isNotEmpty() }
         var provider: String? = null
         val modelParts = mutableListOf<String>()
         var i = 0
@@ -282,3 +298,5 @@ internal class SessionMutations {
         retained.entries.removeIf { it.value["request_id"] == id }
     }
 }
+
+private val WHITESPACE_RUN = Regex("\\s+")

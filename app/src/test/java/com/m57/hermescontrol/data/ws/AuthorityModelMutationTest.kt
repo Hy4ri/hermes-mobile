@@ -132,6 +132,63 @@ class AuthorityModelMutationTest {
             assertTrue(confirmed.params["request_id"] != first.params["request_id"])
         }
 
+    private fun resultOf(
+        events: List<WsEvent>,
+        id: String,
+    ) = events.filterIsInstance<WsEvent.RpcResult>().single { it.id == id }.result as Map<*, *>
+
+    @Test
+    fun `reset reply carries the configured model as value`() =
+        runTest {
+            val events = mutableListOf<WsEvent>()
+            val (channel, frame) = authorityChannel(events)
+            val request = channel.modelRequest("reset")
+            frame(
+                """{"id":"${request.id}","result":{"session_id":"s1","operation":"model",""" +
+                    """"model":"default-model","revision":6}}""",
+            )
+            val result = resultOf(events, request.id)
+            assertEquals("model", result["key"])
+            assertEquals("default-model", result["value"])
+        }
+
+    @Test
+    fun `noop reply carries the model as value`() =
+        runTest {
+            val events = mutableListOf<WsEvent>()
+            val (channel, frame) = authorityChannel(events)
+            val request = channel.modelRequest("reset")
+            frame(
+                """{"id":"${request.id}","result":{"session_id":"s1","operation":"model",""" +
+                    """"status":"noop","model":"default-model","note":"Already on default-model"}}""",
+            )
+            val result = resultOf(events, request.id)
+            assertEquals("model", result["key"])
+            assertEquals("default-model", result["value"])
+        }
+
+    @Test
+    fun `applied pick drops the confirm token so a later confirm presents none`() =
+        runTest {
+            val events = mutableListOf<WsEvent>()
+            val (channel, frame) = authorityChannel(events)
+            val pick = "opus --provider anthropic --session"
+
+            val first = channel.modelRequest(pick)
+            frame(
+                """{"id":"${first.id}","result":{"session_id":"s1","operation":"model",""" +
+                    """"status":"confirmation_required","confirm_required":true,"confirm":"tok-1"}}""",
+            )
+            val confirmed = channel.modelRequest(pick, confirm = true)
+            assertEquals("tok-1", (confirmed.params["payload"] as JsonObject).getValue("confirm").jsonPrimitive.content)
+            frame(
+                """{"id":"${confirmed.id}","result":{"session_id":"s1","operation":"model","model":"opus","revision":6}}""",
+            )
+
+            val later = channel.modelRequest(pick, confirm = true)
+            assertNull((later.params["payload"] as JsonObject)["confirm"])
+        }
+
     @Test
     fun `prepare without a known revision falls back to config set`() {
         val mutations = SessionMutations()

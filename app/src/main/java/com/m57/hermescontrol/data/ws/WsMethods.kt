@@ -283,17 +283,14 @@ object WsMethods {
             "pet.thumb", // line 1612
             "pet.disable", // line 1647
             "pet.scale", // line 1661
-            // Methods bound to a specific session / process / request.
-            // The multi-profile gateway (gateway/session_controls.py, hermes-agent 0.23.x)
-            // resolves a session without `params.profile` in the WS ticket's profile (usually
-            // the launch profile), so on a non-launch profile these calls get
-            // 4001 not_found / permission_denied. With `profile` the request is routed
-            // to the owning profile. For its own home the server strips the key itself for
-            // the `_PROFILE_IMPLICIT` methods (prompt.*, session.interrupt/events.since/stats/
-            // mutate, approval.respond, clarify.respond); the rest accept `profile`
-            // per the contract (checked against openrpc v0.23.1 and the contract snapshot).
-            // Logical names: session.usage -> session.stats and edits ->
-            // session.mutate are rewritten in RpcChannel after decorate.
+            // Methods bound to a session, process or request. The multi-profile gateway
+            // (gateway/session_controls.py) routes a call by `params.profile`; without it the
+            // session is looked up in the profile of the WS ticket and may not be found.
+            // For its own home the gateway drops `profile` only for the methods in its
+            // `_PROFILE_IMPLICIT` set (for example prompt.submit, session.stats, session.mutate,
+            // clarify.respond); every other method here declares `profile` in its params.
+            // session.usage goes out as session.stats and edits as session.mutate; both
+            // rewrites happen before this decoration, which keys on the original method.
             SESSION_INTERRUPT,
             SESSION_REDIRECT,
             SESSION_STEER,

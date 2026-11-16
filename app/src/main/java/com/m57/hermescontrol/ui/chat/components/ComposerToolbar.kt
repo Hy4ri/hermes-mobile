@@ -37,6 +37,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material3.DropdownMenuItem
@@ -134,6 +135,8 @@ fun ComposerToolbar(
     isVoiceNoteLocked: Boolean = false,
     onSlideProgress: (Float) -> Unit = {},
     onStopGeneration: () -> Unit = {},
+    onRealtimeTap: () -> Unit = {},
+    realtimeEnabled: Boolean = false,
 ) {
     var showReasoningMenu by remember { mutableStateOf(false) }
     val palette = composerPalette()
@@ -488,7 +491,7 @@ fun ComposerToolbar(
     BoxWithConstraints(modifier = modifier.fillMaxWidth().testTag("composer_toolbar")) {
         // Use the worst-case action count so starting a draft/recording never
         // moves the gesture owner between rows. Only width/font changes adapt.
-        val separateModelRow = maxWidth < 192.dp + 136.dp * LocalDensity.current.fontScale
+        val separateModelRow = maxWidth < 240.dp + 136.dp * LocalDensity.current.fontScale
         Column {
             if (separateModelRow) {
                 Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(top = 6.dp)) {
@@ -521,6 +524,16 @@ fun ComposerToolbar(
                     Box(Modifier.weight(1f)) { modelControl() }
                 } else {
                     Spacer(Modifier.weight(1f))
+                }
+
+                FilledIconButton(
+                    onClick = onRealtimeTap,
+                    enabled = realtimeEnabled && !isListening && !isVoiceNoteLocked,
+                    shapes = IconButtonDefaults.shapes(),
+                    colors = flatIconButtonColors(palette),
+                    modifier = Modifier.size(ControlSize).testTag("realtime_button"),
+                ) {
+                    Icon(Icons.Default.GraphicEq, stringResource(R.string.realtime_title))
                 }
 
                 // Flat slot — mic while idle. While a generation can be interrupted and a

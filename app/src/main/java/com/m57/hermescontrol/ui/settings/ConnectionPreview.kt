@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -19,6 +18,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.HermesControlTheme
 import com.m57.hermescontrol.ui.settings.components.SavedProfileRow
 import com.m57.hermescontrol.ui.settings.components.ServerTrustContent
+import com.m57.hermescontrol.ui.common.ExpressiveButton as Button
 
 /** Saved profile rows, the Trust-CA row and Logout, with the page's bottom padding. */
 @Preview(name = "Light", widthDp = 360, heightDp = 520)

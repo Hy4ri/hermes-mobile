@@ -53,6 +53,9 @@ data class CronJobEditorState(
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
     val toastMessage: String? = null,
+    // Inline field errors. scheduleError: null = none, blank = required, else server line.
+    val promptError: Boolean = false,
+    val scheduleError: String? = null,
     // Form fields
     val name: String = "",
     val schedule: String = "",
@@ -516,6 +519,9 @@ class CronJobsViewModel(
                 editorState =
                     state.editorState.applyFieldChange(name, value).copy(
                         toastMessage = null,
+                        promptError =
+                            state.editorState.promptError && name != "prompt" && name != "script" && name != "skills",
+                        scheduleError = state.editorState.scheduleError.takeIf { name != "schedule" },
                     ),
             )
         }
@@ -524,7 +530,11 @@ class CronJobsViewModel(
     fun saveEditor() {
         val editor = _uiState.value.editorState
         if (editor.selectedBlueprintKey == null && editor.schedule.isBlank()) {
-            _uiState.update { it.copy(editorState = editor.copy(toastMessage = "Schedule is required")) }
+            _uiState.update { it.copy(editorState = editor.copy(scheduleError = "")) }
+            return
+        }
+        if (editor.isNew && editor.selectedBlueprintKey == null && isCronWorkMissing(editor)) {
+            _uiState.update { it.copy(editorState = editor.copy(promptError = true)) }
             return
         }
         val validatedGrace =
@@ -606,12 +616,16 @@ class CronJobsViewModel(
                 }
 
                 is NetworkResult.Failure -> {
+                    val mapped = mapCronSaveError(result.error.message)
                     _uiState.update {
                         it.copy(
                             editorState =
                                 it.editorState.copy(
                                     isSaving = false,
-                                    toastMessage = "Failed to save: ${result.error.message}",
+                                    promptError = mapped is CronSaveError.Prompt,
+                                    scheduleError = (mapped as? CronSaveError.Schedule)?.line,
+                                    toastMessage =
+                                        if (mapped == null) "Failed to save: ${result.error.message}" else null,
                                 ),
                         )
                     }
@@ -812,4 +826,42 @@ class CronJobsViewModel(
                 put("monitor_url", editor.monitor_url.trim())
             }
         }
+}
+
+/** A save failure that belongs to one form field instead of a toast. */
+sealed interface CronSaveError {
+    data object Prompt : CronSaveError
+
+    data class Schedule(
+        val line: String,
+    ) : CronSaveError
+}
+
+internal fun isCronWorkMissing(editor: CronJobEditorState): Boolean =
+    editor.prompt.isBlank() && editor.skills.isBlank() && editor.script.isBlank()
+
+/** Maps a backend save error to the field it describes; null means show a toast. */
+internal fun mapCronSaveError(message: String?): CronSaveError? {
+    val text = message.orEmpty().trim()
+    return when {
+        text.contains("require a prompt, skill, or script", ignoreCase = true) -> {
+            CronSaveError.Prompt
+        }
+
+        text.contains("Invalid schedule", ignoreCase = true) -> {
+            CronSaveError.Schedule(
+                text
+                    .lineSequence()
+                    .first()
+                    .trim()
+                    .removeSuffix("Use:")
+                    .trim()
+                    .trimEnd('.'),
+            )
+        }
+
+        else -> {
+            null
+        }
+    }
 }

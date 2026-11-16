@@ -623,6 +623,17 @@ fun CronJobEditorDialog(
                                 onValueChange = { onFieldChange("schedule", it) },
                                 label = { Text(stringResource(R.string.cron_edit_field_schedule)) },
                                 placeholder = { Text(stringResource(R.string.cron_edit_hint_schedule)) },
+                                isError = state.scheduleError != null,
+                                supportingText = {
+                                    Text(
+                                        state.scheduleError?.ifBlank { null }
+                                            ?: if (state.scheduleError != null) {
+                                                stringResource(R.string.cron_edit_error_schedule_required)
+                                            } else {
+                                                stringResource(R.string.cron_edit_support_schedule)
+                                            },
+                                    )
+                                },
                                 modifier = Modifier.fillMaxWidth(),
                                 singleLine = true,
                             )
@@ -631,6 +642,13 @@ fun CronJobEditorDialog(
                             OutlinedTextField(
                                 state = promptTextFieldState,
                                 label = { Text(stringResource(R.string.cron_edit_field_prompt)) },
+                                isError = state.promptError,
+                                supportingText =
+                                    if (state.promptError) {
+                                        { Text(stringResource(R.string.cron_edit_error_prompt_required)) }
+                                    } else {
+                                        null
+                                    },
                                 modifier =
                                     Modifier
                                         .fillMaxWidth()

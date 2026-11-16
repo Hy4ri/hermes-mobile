@@ -1276,7 +1276,10 @@
     <string name="cron_status_blocked_config">Bloqueado (config)</string>
     <string name="cron_status_no_change">Sin cambios</string>
     <string name="cron_edit_hint_schedule">p.e. 0 9 * * * o cada 2h</string>
-    <string name="cron_edit_hint_deliver">p.e. origen, local, todo o telegrama:chat_id</string>
+    <string name="cron_edit_hint_deliver">origin, local o una plataforma conectada</string>
+    <string name="cron_edit_support_schedule">Cron (0 9 * * *) o intervalo (every 30m)</string>
+    <string name="cron_edit_error_schedule_required">El horario es obligatorio</string>
+    <string name="cron_edit_error_prompt_required">Añade un prompt, skill o script</string>
     <string name="cron_edit_hint_time">HH:MM</string>
     <string name="cron_edit_hint_skills">Uno por línea</string>
     <string name="cron_edit_action_save">Guardar</string>

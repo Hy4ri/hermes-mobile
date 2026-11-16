@@ -1429,7 +1429,10 @@
     <string name="cron_status_blocked_config">Blocked (config)</string>
     <string name="cron_status_no_change">No change</string>
     <string name="cron_edit_hint_schedule">e.g. 0 9 * * * or every 2h</string>
-    <string name="cron_edit_hint_deliver">e.g. origin, local, all, or telegram:chat_id</string>
+    <string name="cron_edit_hint_deliver">origin, local, or a connected platform</string>
+    <string name="cron_edit_support_schedule">Cron (0 9 * * *) or interval (every 30m)</string>
+    <string name="cron_edit_error_schedule_required">Schedule is required</string>
+    <string name="cron_edit_error_prompt_required">Add a prompt, skill, or script</string>
     <string name="cron_edit_hint_time">HH:MM</string>
     <string name="cron_edit_hint_skills">One per line</string>
     <string name="cron_edit_action_save">Save</string>

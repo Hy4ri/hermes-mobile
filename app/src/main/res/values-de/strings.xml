@@ -1333,7 +1333,10 @@
     <string name="cron_status_blocked_config">Blockiert (Konfiguration)</string>
     <string name="cron_status_no_change">Keine Änderung</string>
     <string name="cron_edit_hint_schedule">z. B. 0 9 * * * oder every 2h</string>
-    <string name="cron_edit_hint_deliver">z. B. origin, local, all oder telegram:chat_id</string>
+    <string name="cron_edit_hint_deliver">origin, local oder eine verbundene Plattform</string>
+    <string name="cron_edit_support_schedule">Cron (0 9 * * *) oder Intervall (every 30m)</string>
+    <string name="cron_edit_error_schedule_required">Zeitplan ist erforderlich</string>
+    <string name="cron_edit_error_prompt_required">Prompt, Skill oder Skript angeben</string>
     <string name="cron_edit_hint_time">HH:MM</string>
     <string name="cron_edit_hint_skills">Einer pro Zeile</string>
     <string name="cron_edit_action_save">Speichern</string>

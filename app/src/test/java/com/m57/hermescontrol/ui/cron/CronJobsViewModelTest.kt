@@ -225,6 +225,7 @@ class CronJobsViewModelTest {
         settle()
         vm.updateEditorField("name", "Test job")
         vm.updateEditorField("schedule", "0 9 * * *")
+        vm.updateEditorField("prompt", "Run it")
         vm.updateEditorField("prompt", "Say hi")
         coEvery { mockApi.createCronJob(any()) } returns
             Response.success(CronJob(id = "j2", name = "Test job"))
@@ -343,6 +344,7 @@ class CronJobsViewModelTest {
         settle()
         vm.updateEditorField("name", "Watch job")
         vm.updateEditorField("schedule", "every 10m")
+        vm.updateEditorField("prompt", "Run it")
         vm.updateEditorField("prompt", "Summarize changes")
         vm.setMonitorMode("script")
         vm.updateEditorField("monitor_script", "check.sh")
@@ -368,6 +370,7 @@ class CronJobsViewModelTest {
         settle()
         vm.updateEditorField("name", "Plain job")
         vm.updateEditorField("schedule", "every 10m")
+        vm.updateEditorField("prompt", "Run it")
         val created = CronJob(id = "j4", name = "Plain job")
         coEvery { mockApi.createCronJob(any()) } returns Response.success(created)
         coEvery { mockApi.getCronJobs() } returns Response.success(emptyList())
@@ -387,6 +390,7 @@ class CronJobsViewModelTest {
         settle()
         vm.updateEditorField("name", "Watch job")
         vm.updateEditorField("schedule", "every 10m")
+        vm.updateEditorField("prompt", "Run it")
         vm.setMonitorMode("url")
         vm.updateEditorField("monitor_url", "https://example.com/status")
         val created = CronJob(id = "j5", name = "Watch job")
@@ -494,6 +498,7 @@ class CronJobsViewModelTest {
         settle()
         vm.updateEditorField("name", "Daily digest")
         vm.updateEditorField("schedule", "every 1d")
+        vm.updateEditorField("prompt", "Run it")
         vm.toggleRunContinuity()
         val created = CronJob(id = "j9", name = "Daily digest")
         coEvery { mockApi.createCronJob(any()) } returns Response.success(created)
@@ -992,6 +997,7 @@ class CronJobsViewModelTest {
 
         vm.updateEditorField("name", "New Policy Job")
         vm.updateEditorField("schedule", "0 0 * * *")
+        vm.updateEditorField("prompt", "Run it")
         vm.updateEditorField("timezone", "UTC")
         vm.updateEditorField("grace_minutes", "15")
         vm.updateEditorField("catch_up", "run")
@@ -1040,6 +1046,7 @@ class CronJobsViewModelTest {
 
         vm.updateEditorField("name", "Test")
         vm.updateEditorField("schedule", "0 0 * * *")
+        vm.updateEditorField("prompt", "Run it")
         vm.updateEditorField("grace_minutes", "abc")
 
         vm.saveEditor()
@@ -1062,6 +1069,7 @@ class CronJobsViewModelTest {
 
         vm.updateEditorField("name", "Test")
         vm.updateEditorField("schedule", "0 0 * * *")
+        vm.updateEditorField("prompt", "Run it")
         vm.updateEditorField("grace_minutes", "1.5")
 
         vm.saveEditor()
@@ -1084,6 +1092,7 @@ class CronJobsViewModelTest {
 
         vm.updateEditorField("name", "Test")
         vm.updateEditorField("schedule", "0 0 * * *")
+        vm.updateEditorField("prompt", "Run it")
 
         // Negative
         vm.updateEditorField("grace_minutes", "-5")
@@ -1119,6 +1128,7 @@ class CronJobsViewModelTest {
 
         vm.updateEditorField("name", "Test Zero")
         vm.updateEditorField("schedule", "0 0 * * *")
+        vm.updateEditorField("prompt", "Run it")
         vm.updateEditorField("grace_minutes", "0")
 
         val created = CronJob(id = "j-zero", name = "Test Zero")
@@ -1199,6 +1209,7 @@ class CronJobsViewModelTest {
         settle()
         vm.updateEditorField("name", "Test")
         vm.updateEditorField("schedule", "0 0 * * *")
+        vm.updateEditorField("prompt", "Run it")
         vm.updateEditorField("grace_minutes", "invalid")
 
         vm.saveEditor()

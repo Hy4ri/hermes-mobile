@@ -1419,7 +1419,10 @@
     <string name="cron_status_blocked_config">Заблокирована (конфигурация)</string>
     <string name="cron_status_no_change">Без изменений</string>
     <string name="cron_edit_hint_schedule">например, 0 9 * * * или every 2h</string>
-    <string name="cron_edit_hint_deliver">например, origin, local, all или telegram:chat_id</string>
+    <string name="cron_edit_hint_deliver">origin, local или подключённая платформа</string>
+    <string name="cron_edit_support_schedule">Cron (0 9 * * *) или интервал (every 30m)</string>
+    <string name="cron_edit_error_schedule_required">Укажите расписание</string>
+    <string name="cron_edit_error_prompt_required">Добавьте промпт, навык или скрипт</string>
     <string name="cron_edit_hint_time">ЧЧ:ММ</string>
     <string name="cron_edit_hint_skills">По одному в строке</string>
     <string name="cron_edit_action_save">Сохранить</string>

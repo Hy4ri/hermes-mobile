@@ -931,7 +931,10 @@
     <string name="cron_detail_dispatch_error">발송 오류</string>
     <string name="cron_badge_dispatch_error">실행 실패</string>
     <string name="cron_edit_hint_schedule">예: 0 9 * * * 또는 every 2h</string>
-    <string name="cron_edit_hint_deliver">예: origin, local, all, 또는 telegram:chat_id</string>
+    <string name="cron_edit_hint_deliver">origin, local 또는 연결된 플랫폼</string>
+    <string name="cron_edit_support_schedule">Cron(0 9 * * *) 또는 간격(every 30m)</string>
+    <string name="cron_edit_error_schedule_required">일정은 필수입니다</string>
+    <string name="cron_edit_error_prompt_required">프롬프트, 스킬 또는 스크립트를 추가하세요</string>
     <string name="cron_edit_hint_skills">한 줄에 하나씩</string>
     <string name="cron_edit_action_save">저장</string>
     <string name="cron_discard_title">변경사항을 취소할까요?</string>

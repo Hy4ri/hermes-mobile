@@ -1182,16 +1182,17 @@ object ChatWsEventReducer {
         streamingState: StreamingState,
         event: WsEvent.SessionTitle,
     ): ReducerResult {
+        val title = shortSessionTitle(event.title)
         val isCurrent = state.currentSessionId == event.storedSessionId
         val rowKnown = state.sessions.any { it.id == event.storedSessionId }
         if (!isCurrent && !rowKnown) return ReducerResult(state = state, streamingState = streamingState)
         return ReducerResult(
             state =
                 state.copy(
-                    chatTitle = if (isCurrent) event.title else state.chatTitle,
+                    chatTitle = if (isCurrent) title else state.chatTitle,
                     sessions =
                         state.sessions.map {
-                            if (it.id == event.storedSessionId) it.copy(title = event.title) else it
+                            if (it.id == event.storedSessionId) it.copy(title = title) else it
                         },
                 ),
             streamingState = streamingState,
@@ -1232,7 +1233,12 @@ object ChatWsEventReducer {
 
             // Durable notices the desktop/TUI also paint into the transcript.
             "goal", "loop", "warn", "fallback" -> {
-                appendGatewayNotice(state, streamingState, text)
+                // Background title-generation failures (e.g. HTTP 429) are not conversation content.
+                if (isTitleGenerationFailure(text)) {
+                    ReducerResult(state = state, streamingState = streamingState)
+                } else {
+                    appendGatewayNotice(state, streamingState, text)
+                }
             }
 
             else -> {
@@ -1600,4 +1606,20 @@ fun hydrateTodosFromMessages(messages: List<ChatMessage>): List<TodoItem> {
         }
     }
     return emptyList()
+}
+
+private const val SESSION_TITLE_MAX = 40
+
+/** Caps a title at ~40 chars on a word boundary with an ellipsis (a gateway fallback can be the whole prompt). */
+internal fun shortSessionTitle(title: String): String {
+    val t = title.trim()
+    if (t.length <= SESSION_TITLE_MAX) return t
+    val cut = t.take(SESSION_TITLE_MAX)
+    val word = cut.substringBeforeLast(' ', "").takeIf { it.length >= SESSION_TITLE_MAX / 2 } ?: cut
+    return word.trimEnd(' ', ',', '.', ';', ':') + "…"
+}
+
+internal fun isTitleGenerationFailure(text: String?): Boolean {
+    val t = text?.lowercase() ?: return false
+    return "title" in t && ("generat" in t || "auxiliary" in t)
 }

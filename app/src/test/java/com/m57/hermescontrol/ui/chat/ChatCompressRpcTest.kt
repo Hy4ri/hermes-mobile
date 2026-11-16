@@ -484,7 +484,7 @@ class ChatCompressRpcTest {
 
             val lastAssistantMessage =
                 vm.uiState.value.messages
-                    .lastOrNull { it.role == MessageRole.ASSISTANT }
+                    .lastOrNull { it.role == MessageRole.SYSTEM }
             val expectedContent = "Context compressed\nTokens: 120k -> 35k (70% saved)\nTrimmed 14 earlier turns"
             assertEquals(expectedContent, lastAssistantMessage?.content)
         }
@@ -556,7 +556,7 @@ class ChatCompressRpcTest {
                     it.role == MessageRole.ASSISTANT && it.content == "Compressed response"
                 }
             assertTrue("expected replacement assistant message", serverAssistantMsg != null)
-            val summaryMsg = messages.lastOrNull { it.role == MessageRole.ASSISTANT }
+            val summaryMsg = messages.lastOrNull { it.role == MessageRole.SYSTEM }
             assertEquals("Summary headline", summaryMsg?.content)
         }
 

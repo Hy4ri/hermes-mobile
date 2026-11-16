@@ -345,7 +345,7 @@ fun GroupMessageCard(
                                     style = MaterialTheme.typography.labelSmall,
                                 )
                             }
-                            if (message.tps != null && message.tps > 0.0) {
+                            if (TokenEstimator.isDisplayableTps(message.tps)) {
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = "•",
@@ -357,7 +357,7 @@ fun GroupMessageCard(
                                     text =
                                         stringResource(
                                             R.string.chat_msg_tps,
-                                            TokenEstimator.formatTps(message.tps),
+                                            TokenEstimator.formatTps(message.tps ?: 0.0),
                                         ),
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                     style = MaterialTheme.typography.labelSmall,

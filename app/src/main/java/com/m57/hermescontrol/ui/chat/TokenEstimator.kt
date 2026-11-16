@@ -52,4 +52,7 @@ object TokenEstimator {
         }
 
     fun formatTps(tps: Double): String = Math.round(tps).toString()
+
+    /** True when the rate is worth showing: finite and at least 1 t/s once rounded (no "0 t/s"). */
+    fun isDisplayableTps(tps: Double?): Boolean = tps != null && tps.isFinite() && Math.round(tps) > 0L
 }

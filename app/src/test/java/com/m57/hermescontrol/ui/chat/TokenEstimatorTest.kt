@@ -40,4 +40,13 @@ class TokenEstimatorTest {
         assertEquals("42", TokenEstimator.formatTps(41.6))
         assertEquals("50", TokenEstimator.formatTps(50.2))
     }
+
+    @Test
+    fun isDisplayableTps_hidesZeroUnknownAndRoundedZero() {
+        assertEquals(false, TokenEstimator.isDisplayableTps(null))
+        assertEquals(false, TokenEstimator.isDisplayableTps(0.0))
+        assertEquals(false, TokenEstimator.isDisplayableTps(0.4))
+        assertEquals(false, TokenEstimator.isDisplayableTps(Double.NaN))
+        assertEquals(true, TokenEstimator.isDisplayableTps(12.3))
+    }
 }

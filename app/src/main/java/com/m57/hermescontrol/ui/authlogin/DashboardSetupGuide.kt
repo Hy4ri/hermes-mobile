@@ -48,9 +48,6 @@ import com.m57.hermescontrol.ui.common.ExpressiveTextButton as TextButton
 private const val SETUP_GUIDE_URL = "https://github.com/Hy4ri/hermes-mobile/wiki/Connecting-to-Hermes"
 
 // Shell input stays untranslated: the user types it on the Hermes host as-is.
-private const val ENV_SNIPPET =
-    "HERMES_DASHBOARD_BASIC_AUTH_USERNAME=admin\n" +
-        "HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=your-password"
 private const val START_COMMAND = "hermes dashboard --host 0.0.0.0 --no-open"
 private const val URL_EXAMPLE = "http://192.168.1.10:9119"
 
@@ -105,16 +102,11 @@ private fun DashboardSetupSteps(modifier: Modifier = Modifier) {
     ) {
         SetupStep(
             number = 1,
-            text = stringResource(R.string.auth_login_setup_step_login),
-            code = ENV_SNIPPET,
-        )
-        SetupStep(
-            number = 2,
             text = stringResource(R.string.auth_login_setup_step_start),
             code = START_COMMAND,
         )
         SetupStep(
-            number = 3,
+            number = 2,
             text = stringResource(R.string.auth_login_setup_step_connect, URL_EXAMPLE),
         )
     }

@@ -183,7 +183,7 @@ fun AuthLoginScreen(
                     ),
             )
 
-            DashboardSetupGuide()
+            DashboardSetupGuideButton()
 
             if (state.loggedInProfiles.isNotEmpty()) {
                 Text(

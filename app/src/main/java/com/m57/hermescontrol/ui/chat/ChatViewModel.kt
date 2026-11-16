@@ -8360,6 +8360,8 @@ class ChatViewModel(
     // the search logic now lives in the delegate. Safe to remove once all
     // callers migrate directly to the delegate.
 
+    fun onLocaleObserved(localeTag: String) = searchDelegate.onLocaleObserved(localeTag)
+
     fun toggleSearch() = searchDelegate.toggleSearch()
 
     fun setSearchQuery(query: String) = searchDelegate.setSearchQuery(query)

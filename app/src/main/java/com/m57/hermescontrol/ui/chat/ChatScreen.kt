@@ -68,6 +68,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -234,6 +235,8 @@ fun ChatScreen(
     // Snapshot-backed search state — read directly so only the scopes that
     // read its fields recompose on search changes (bar, matched bubbles).
     val searchState = viewModel.searchState
+    val localeTag = LocalConfiguration.current.locales.toLanguageTags()
+    LaunchedEffect(localeTag) { viewModel.onLocaleObserved(localeTag) }
     val displayedMessages = transcriptState.messages
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current

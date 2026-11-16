@@ -2269,4 +2269,11 @@
     <string name="hosted_context_purpose_count">%1$d / %2$d characters</string>
     <string name="hosted_context_notes_count">%1$d / %2$d bytes</string>
     <string name="hosted_context_save_failed">Save not confirmed. Your draft is unchanged. Retry to submit it again.</string>
+    <string name="chat_model_label">Model</string>
+    <string name="chat_mic">Microphone</string>
+    <string name="chat_stop_listening">Stop listening</string>
+    <string name="chat_reasoning_none_label">No reasoning</string>
+    <string name="chat_reasoning_section">REASONING</string>
+    <string name="chat_reasoning_always_on">reasoning always on</string>
+    <string name="chat_reasoning_unsupported">no reasoning parameter for this model</string>
 </resources>

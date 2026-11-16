@@ -441,4 +441,43 @@ class ChatSearchDelegateTest {
             assertEquals(emptySet<String>(), delegate.searchState.matchedIds)
             assertNull(delegate.searchState.currentMatchId)
         }
+
+    private fun searchDelegate(
+        scope: kotlinx.coroutines.CoroutineScope,
+        scheduler: kotlinx.coroutines.test.TestCoroutineScheduler,
+    ) = ChatSearchDelegate(scope, stateWith("five"), dispatcher = StandardTestDispatcher(scheduler))
+
+    @Test
+    fun `locale change closes search and clears query`() =
+        runTest {
+            val delegate =
+                searchDelegate(backgroundScope, testScheduler)
+            delegate.onLocaleObserved("en-US")
+            delegate.toggleSearch()
+            delegate.setSearchQuery("five")
+            delegate.onLocaleObserved("en-US")
+            assertTrue(delegate.searchState.isActive)
+
+            delegate.onLocaleObserved("ar")
+
+            assertFalse(delegate.searchState.isActive)
+            assertEquals("", delegate.searchState.query)
+        }
+
+    @Test
+    fun `session switch closes search and clears query`() =
+        runTest {
+            val delegate =
+                searchDelegate(backgroundScope, testScheduler)
+            delegate.onSessionObserved("a")
+            delegate.toggleSearch()
+            delegate.setSearchQuery("five")
+            delegate.onSessionObserved("a")
+            assertTrue(delegate.searchState.isActive)
+
+            delegate.onSessionObserved("b")
+
+            assertFalse(delegate.searchState.isActive)
+            assertEquals("", delegate.searchState.query)
+        }
 }

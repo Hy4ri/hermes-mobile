@@ -493,7 +493,7 @@ fun KanbanScreen(
                                     horizontalArrangement = Arrangement.End,
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
-                                    LiveStatusPill(isLive = state.isLive)
+                                    LiveStatusPill(streamState = state.streamState)
                                     Spacer(modifier = Modifier.width(8.dp))
                                     HermesTooltip(stringResource(R.string.kanban_filters)) {
                                         IconButton(onClick = { showFilterSheet = true }) {
@@ -1446,12 +1446,19 @@ fun KanbanScreen(
 }
 
 @Composable
-private fun LiveStatusPill(isLive: Boolean) {
+private fun LiveStatusPill(streamState: KanbanStreamState) {
     val color =
-        if (isLive) {
+        if (streamState == KanbanStreamState.LIVE) {
             MaterialTheme.colorScheme.primary
         } else {
             MaterialTheme.colorScheme.onSurfaceVariant
+        }
+    val label =
+        when (streamState) {
+            KanbanStreamState.LIVE -> R.string.kanban_live
+            KanbanStreamState.CONNECTING -> R.string.kanban_connecting
+            KanbanStreamState.RECONNECTING -> R.string.kanban_reconnecting
+            KanbanStreamState.UNAVAILABLE -> R.string.kanban_updates_manual
         }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
@@ -1462,7 +1469,7 @@ private fun LiveStatusPill(isLive: Boolean) {
         )
         Spacer(modifier = Modifier.width(4.dp))
         Text(
-            text = if (isLive) stringResource(R.string.kanban_live) else stringResource(R.string.kanban_offline),
+            text = stringResource(label),
             style = MaterialTheme.typography.labelSmall,
             color = color,
         )

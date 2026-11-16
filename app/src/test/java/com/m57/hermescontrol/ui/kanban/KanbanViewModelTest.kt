@@ -117,6 +117,26 @@ class KanbanViewModelTest {
     }
 
     @Test
+    fun `stream state tells failure from connecting and refresh retries it`() {
+        val vm = createViewModel()
+        vm.loadBoards()
+        settle()
+        assertEquals(KanbanStreamState.CONNECTING, vm.uiState.value.streamState)
+        val statusSlot = slot<(KanbanLiveStatus) -> Unit>()
+        verify { mockEventsClient.connect(any(), any(), any(), any(), capture(statusSlot)) }
+
+        statusSlot.captured(KanbanLiveStatus.DISCONNECTED)
+        assertEquals(KanbanStreamState.RECONNECTING, vm.uiState.value.streamState)
+        statusSlot.captured(KanbanLiveStatus.AUTH_FAILED)
+        assertEquals(KanbanStreamState.UNAVAILABLE, vm.uiState.value.streamState)
+
+        vm.loadBoards(isRefresh = true)
+        settle()
+        assertEquals(KanbanStreamState.CONNECTING, vm.uiState.value.streamState)
+        verify(atLeast = 2) { mockEventsClient.connect(any(), eq("work"), any(), any(), any()) }
+    }
+
+    @Test
     fun `board unavailable close moves selection to an available board`() {
         val vm = createViewModel()
         vm.loadBoards()

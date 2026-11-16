@@ -332,7 +332,9 @@
 <string name="kanban_complete_summary_label">ملخص الإكمال</string>
 <string name="kanban_complete_summary_hint">يُحفظ كنتيجة للمهمة</string>
 <string name="kanban_live">مباشر</string>
-<string name="kanban_offline">غير متصل</string>
+<string name="kanban_connecting">جارٍ الاتصال</string>
+<string name="kanban_reconnecting">إعادة الاتصال</string>
+<string name="kanban_updates_manual">تحديث يدوي</string>
 <string name="kanban_no_tasks">لا توجد مهام</string>
     <string name="kanban_priority">الأولوية</string>
     <string name="kanban_priority_normal">0 (عادي)</string>

@@ -436,7 +436,9 @@
     <string name="kanban_complete_summary_label">Resumen de finalización</string>
     <string name="kanban_complete_summary_hint">Almacenado como resultado de la tarea</string>
     <string name="kanban_live">En vivo</string>
-    <string name="kanban_offline">Sin conexión</string>
+    <string name="kanban_connecting">Conectando</string>
+    <string name="kanban_reconnecting">Reconectando</string>
+    <string name="kanban_updates_manual">Actualización manual</string>
     <string name="kanban_no_tasks">Sin tareas</string>
     <string name="kanban_priority">Prioridad</string>
     <string name="kanban_priority_normal">0 (Normal)</string>

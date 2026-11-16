@@ -332,7 +332,9 @@
     <string name="kanban_complete_summary_label">완료 요약</string>
     <string name="kanban_complete_summary_hint">작업 결과로 저장됩니다</string>
     <string name="kanban_live">실시간</string>
-    <string name="kanban_offline">오프라인</string>
+    <string name="kanban_connecting">연결 중</string>
+    <string name="kanban_reconnecting">재연결 중</string>
+    <string name="kanban_updates_manual">수동 새로고침</string>
     <string name="kanban_no_tasks">작업 없음</string>
     <string name="kanban_priority">우선순위</string>
     <string name="kanban_priority_normal">0 (일반)</string>

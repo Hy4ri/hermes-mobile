@@ -473,7 +473,9 @@
     <string name="kanban_complete_summary_label">完了内容の要約</string>
     <string name="kanban_complete_summary_hint">タスクの結果として保存されます</string>
     <string name="kanban_live">ライブ</string>
-    <string name="kanban_offline">オフライン</string>
+    <string name="kanban_connecting">接続中</string>
+    <string name="kanban_reconnecting">再接続中</string>
+    <string name="kanban_updates_manual">手動更新</string>
     <string name="kanban_no_tasks">タスクはありません</string>
     <string name="kanban_priority">優先度</string>
     <string name="kanban_priority_normal">0（通常）</string>

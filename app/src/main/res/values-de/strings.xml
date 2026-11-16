@@ -474,7 +474,9 @@
     <string name="kanban_complete_summary_label">Abschlusszusammenfassung</string>
     <string name="kanban_complete_summary_hint">Wird als Aufgabenergebnis gespeichert</string>
     <string name="kanban_live">Live</string>
-    <string name="kanban_offline">Offline</string>
+    <string name="kanban_connecting">Verbinden</string>
+    <string name="kanban_reconnecting">Neuverbindung</string>
+    <string name="kanban_updates_manual">Manuell aktualisieren</string>
     <string name="kanban_no_tasks">Keine Aufgaben</string>
     <string name="kanban_priority">Priorität</string>
     <string name="kanban_priority_normal">0 (Normal)</string>

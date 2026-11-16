@@ -402,7 +402,9 @@
     <string name="kanban_complete_summary_label">Riepilogo completamento</string>
     <string name="kanban_complete_summary_hint">Salvato come risultato dell\'attività</string>
     <string name="kanban_live">In diretta</string>
-    <string name="kanban_offline">Non in linea</string>
+    <string name="kanban_connecting">Connessione</string>
+    <string name="kanban_reconnecting">Riconnessione</string>
+    <string name="kanban_updates_manual">Aggiornamento manuale</string>
     <string name="kanban_no_tasks">Nessuna attività</string>
     <string name="kanban_priority">Priorità</string>
     <string name="kanban_priority_normal">0 (Normale)</string>

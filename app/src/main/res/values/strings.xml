@@ -538,7 +538,9 @@
     <string name="kanban_complete_summary_label">Completion summary</string>
     <string name="kanban_complete_summary_hint">Stored as the task result</string>
     <string name="kanban_live">Live</string>
-    <string name="kanban_offline">Offline</string>
+    <string name="kanban_connecting">Connecting</string>
+    <string name="kanban_reconnecting">Reconnecting</string>
+    <string name="kanban_updates_manual">Manual refresh</string>
     <string name="kanban_no_tasks">No tasks</string>
     <string name="kanban_priority">Priority</string>
     <string name="kanban_priority_normal">0 (Normal)</string>

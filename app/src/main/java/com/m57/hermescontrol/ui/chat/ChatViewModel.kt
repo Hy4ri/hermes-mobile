@@ -6734,7 +6734,7 @@ class ChatViewModel(
                                     if (prepend) {
                                         emptySet()
                                     } else {
-                                        supersededUserRowIds(page, snapshot.messages, pageIsNewest, pageIsComplete)
+                                        reissuedRowIds(page, snapshot.messages, pageIsNewest, pageIsComplete)
                                     },
                             ).filterNot { it.id in receiptCandidateIds && it.canonicalRestId == null }
                         }

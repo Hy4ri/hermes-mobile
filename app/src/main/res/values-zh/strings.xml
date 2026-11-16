@@ -331,7 +331,9 @@
     <string name="kanban_complete_summary_label">完成摘要</string>
     <string name="kanban_complete_summary_hint">将作为任务结果保存</string>
     <string name="kanban_live">实时</string>
-    <string name="kanban_offline">离线</string>
+    <string name="kanban_connecting">连接中</string>
+    <string name="kanban_reconnecting">重新连接中</string>
+    <string name="kanban_updates_manual">手动刷新</string>
     <string name="kanban_no_tasks">暂无任务</string>
     <string name="kanban_priority">优先级</string>
     <string name="kanban_priority_normal">0 (普通)</string>

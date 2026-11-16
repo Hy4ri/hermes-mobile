@@ -540,7 +540,9 @@
     <string name="kanban_complete_summary_label">Итог выполнения</string>
     <string name="kanban_complete_summary_hint">Сохраняется как результат задачи</string>
     <string name="kanban_live">Онлайн</string>
-    <string name="kanban_offline">Офлайн</string>
+    <string name="kanban_connecting">Подключение</string>
+    <string name="kanban_reconnecting">Переподключение</string>
+    <string name="kanban_updates_manual">Обновление вручную</string>
     <string name="kanban_no_tasks">Задач нет</string>
     <string name="kanban_priority">Приоритет</string>
     <string name="kanban_priority_normal">0 (обычный)</string>

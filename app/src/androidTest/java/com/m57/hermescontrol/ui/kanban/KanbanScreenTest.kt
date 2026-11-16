@@ -74,7 +74,7 @@ class KanbanScreenTest {
         }
 
         // Expand advanced options
-        composeTestRule.onNodeWithTag("kanban_advanced_options").performClick()
+        composeTestRule.onNodeWithTag("kanban_advanced_options").performScrollTo().performClick()
 
         // By default scratch is selected, workspace path is not visible
         composeTestRule.onNodeWithTag("kanban_workspace_path").assertDoesNotExist()

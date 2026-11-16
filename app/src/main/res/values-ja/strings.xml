@@ -93,7 +93,6 @@
     <string name="screen_account_connectors">コネクタ</string>
     <string name="screen_profiles">プロフィール</string>
     <string name="screen_bots">Bot</string>
-    <string name="bots_active_now">現在使用中</string>
     <string name="bots_empty_title">Botがありません</string>
     <string name="bots_empty_description">エージェントのプロフィールを作成してBotモードを利用しましょう。</string>
     <string name="bots_search_placeholder">Botを検索…</string>

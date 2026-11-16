@@ -107,7 +107,7 @@ private fun BillingContent(
         val sub = subscription
         if (sub != null && sub.logged_in == true && sub.current != null) {
             item { PlanCard(sub.current) }
-            if (sub.can_change_plan == true) {
+            if (sub.can_change_plan == true && sub.current.isPaidPlan()) {
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -173,7 +173,7 @@ private fun BillingContent(
 }
 
 @Composable
-private fun PlanCard(subscription: SubscriptionCurrent) {
+internal fun PlanCard(subscription: SubscriptionCurrent) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -197,9 +197,10 @@ private fun PlanCard(subscription: SubscriptionCurrent) {
                     modifier = Modifier.padding(top = 4.dp),
                 )
             }
-            if (subscription.cycle_ends_at != null) {
+            val renewDate = subscription.renewDateLabel()
+            if (renewDate != null) {
                 Text(
-                    text = stringResource(R.string.billing_renews, subscription.cycle_ends_at),
+                    text = stringResource(R.string.billing_renews, renewDate),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp),

@@ -3,7 +3,6 @@ package com.m57.hermescontrol.ui.bots
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,7 +19,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -393,28 +391,7 @@ fun BotsScreen(
                                             ),
                                         verticalArrangement = Arrangement.spacedBy(10.dp),
                                     ) {
-                                        if (state.activeNowBots.isNotEmpty() && !isSearchActive) {
-                                            item(key = "active_now_strip") {
-                                                ActiveNowStrip(
-                                                    activeBots = state.activeNowBots,
-                                                    onSelectBot = { bot ->
-                                                        scope.launch {
-                                                            viewModel.selectBot(bot)
-                                                            val canonicalId =
-                                                                bot.canonical_session?.resolved_id
-                                                                    ?: bot.canonical_session?.id
-                                                            if (!canonicalId.isNullOrBlank()) {
-                                                                NavigationController.openChatSession(canonicalId)
-                                                            } else {
-                                                                NavigationController.navigateTo(
-                                                                    com.m57.hermescontrol.ChatScreen,
-                                                                )
-                                                            }
-                                                        }
-                                                    },
-                                                )
-                                            }
-                                        }
+                                        val activeNowNames = state.activeNowBots.mapTo(HashSet()) { it.name }
 
                                         items(
                                             items = state.displayProfiles,
@@ -423,6 +400,7 @@ fun BotsScreen(
                                             BotCard(
                                                 profile = profile,
                                                 isActiveProfile = profile.name == state.activeProfileName,
+                                                isActiveNow = profile.name in activeNowNames,
                                                 onClick = {
                                                     scope.launch {
                                                         viewModel.selectBot(profile)
@@ -500,72 +478,16 @@ fun BotsScreen(
 }
 
 @Composable
-private fun ActiveNowStrip(
-    activeBots: List<ProfileInfo>,
-    onSelectBot: (ProfileInfo) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(modifier = modifier.fillMaxWidth()) {
-        Text(
-            text = stringResource(R.string.bots_active_now),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(bottom = 6.dp),
-        )
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            activeBots.forEach { bot ->
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    modifier =
-                        Modifier
-                            .clip(RoundedCornerShape(20.dp))
-                            .clickable { onSelectBot(bot) }
-                            .testTag("bot_active_chip_${bot.name}"),
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        BotAvatar(
-                            name = bot.name,
-                            avatar = bot.botMeta()?.avatar,
-                            size = 24.dp,
-                            isActive = true,
-                            showPresence = true,
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = bot.effectiveTitle,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Medium,
-                        )
-                    }
-                }
-            }
-        }
-        Spacer(modifier = Modifier.height(4.dp))
-    }
-}
-
-@Composable
-private fun BotCard(
+internal fun BotCard(
     profile: ProfileInfo,
     isActiveProfile: Boolean,
+    isActiveNow: Boolean,
     onClick: () -> Unit,
     onEditClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val botMeta = profile.botMeta()
     val isHidden = profile.isHidden
-    val hasWorker = profile.worker_session != null
 
     Card(
         shape = RoundedCornerShape(12.dp),
@@ -575,7 +497,7 @@ private fun BotCard(
                     if (isActiveProfile) {
                         MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
                     } else {
-                        MaterialTheme.colorScheme.surface
+                        MaterialTheme.colorScheme.surfaceVariant
                     },
             ),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
@@ -594,7 +516,7 @@ private fun BotCard(
                 name = profile.name,
                 avatar = botMeta?.avatar,
                 size = 44.dp,
-                isActive = isActiveProfile || hasWorker,
+                isActive = isActiveProfile || isActiveNow,
                 showPresence = true,
             )
             Spacer(modifier = Modifier.width(12.dp))
@@ -631,6 +553,9 @@ private fun BotCard(
                         text = "@${profile.name}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
 
@@ -683,7 +608,7 @@ private fun GroupCard(
         shape = RoundedCornerShape(12.dp),
         colors =
             CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface,
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
             ),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier =

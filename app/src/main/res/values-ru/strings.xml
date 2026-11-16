@@ -94,7 +94,6 @@
     <string name="screen_account_connectors">Коннекторы</string>
     <string name="screen_profiles">Профили</string>
     <string name="screen_bots">Боты</string>
-    <string name="bots_active_now">Сейчас активны</string>
     <string name="bots_empty_title">Ботов не найдено</string>
     <string name="bots_empty_description">Создайте профиль агента, чтобы начать работать в режиме бота.</string>
     <string name="bots_search_placeholder">Поиск ботов…</string>

@@ -109,9 +109,53 @@ class GatewayFileClientTest {
     }
 
     @Test
-    fun `normalizePath expands tilde`() {
-        val home = System.getenv("HOME") ?: "/home/test"
-        assertEquals("$home/foo.png", GatewayFileClient.normalizePath("~/foo.png"))
+    fun `normalizePath keeps tilde for the gateway to expand`() {
+        assertEquals("~/notes.md", GatewayFileClient.normalizePath("~/notes.md"))
+        assertEquals("~", GatewayFileClient.normalizePath("~"))
+        assertNull(GatewayFileClient.normalizePath("~other/notes.md"))
+    }
+
+    @Test
+    fun `buildWorkspaceDownloadUrl targets the workspace route with the profile and no token`() {
+        assertEquals(
+            "http://gw:9119/api/fs/download?path=%7E%2Fdocs%2Fa%20b.md&profile=work%20box",
+            GatewayFileClient.buildWorkspaceDownloadUrl("http://gw:9119/", "~/docs/a b.md", "work box"),
+        )
+        assertEquals(
+            "http://gw:9119/api/fs/download?path=%2Ftmp%2Fa.md",
+            GatewayFileClient.buildWorkspaceDownloadUrl("http://gw:9119", "/tmp/a.md", " "),
+        )
+        assertNull(GatewayFileClient.buildWorkspaceDownloadUrl("http://gw:9119", "a.md", "work"))
+    }
+
+    @Test
+    fun `buildMediaUrl scopes only stream URLs to the profile`() {
+        val audioUrl = GatewayFileClient.buildMediaUrl(base, tok, "/tmp/voice.ogg", "ssh box")!!
+        val docUrl = GatewayFileClient.buildMediaUrl(base, tok, "/tmp/report.pdf", "ssh box")!!
+
+        assertTrue(audioUrl.startsWith("$base/api/files/stream?"))
+        assertTrue(audioUrl.endsWith("&profile=ssh%20box"))
+        assertFalse(docUrl.contains("profile="))
+        assertFalse(GatewayFileClient.buildMediaUrl(base, tok, "/tmp/voice.ogg", null)!!.contains("profile="))
+    }
+
+    @Test
+    fun `isMissingRouteDetail separates an unknown route from a missing file`() {
+        assertTrue(GatewayFileClient.isMissingRouteDetail("No such API endpoint: /api/fs/download"))
+        assertTrue(GatewayFileClient.isMissingRouteDetail("Not Found"))
+        assertFalse(GatewayFileClient.isMissingRouteDetail("File not found"))
+        assertFalse(GatewayFileClient.isMissingRouteDetail(null))
+    }
+
+    @Test
+    fun `errorDetail reads a FastAPI detail string only`() {
+        assertEquals(
+            "SSH workspace is unavailable",
+            GatewayFileClient.errorDetail("""{"detail":"SSH workspace is unavailable"}"""),
+        )
+        assertNull(GatewayFileClient.errorDetail("""{"detail":[{"msg":"field required"}]}"""))
+        assertNull(GatewayFileClient.errorDetail("<html>Bad Gateway</html>"))
+        assertEquals(200, GatewayFileClient.errorDetail("""{"detail":"${"x".repeat(500)}"}""")!!.length)
     }
 
     @Test

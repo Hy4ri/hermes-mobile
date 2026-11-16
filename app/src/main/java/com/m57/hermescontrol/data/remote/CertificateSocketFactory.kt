@@ -49,7 +49,9 @@ internal class CertificateSocketFactory(
     fun invalidate(origin: CertificateOrigin) {
         val retired =
             synchronized(this) {
-                entries.remove(origin)?.let { it.context to it.sockets.keys.toList() }
+                // ArrayList copies through toArray, which tolerates sockets the GC drops mid-copy;
+                // toList() trusts size() and threw NoSuchElementException.
+                entries.remove(origin)?.let { it.context to ArrayList(it.sockets.keys) }
             }
                 ?: return
         runCatching {

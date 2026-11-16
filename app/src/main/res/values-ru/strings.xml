@@ -549,6 +549,14 @@
     <string name="kanban_priority_med">1 (средний)</string>
     <string name="kanban_priority_high">2 (высокий)</string>
     <string name="kanban_priority_urgent">3 (срочный)</string>
+    <string name="kanban_column_triage">Сортировка</string>
+    <string name="kanban_column_todo">К выполнению</string>
+    <string name="kanban_column_scheduled">Запланировано</string>
+    <string name="kanban_column_ready">Готово к работе</string>
+    <string name="kanban_column_running">Выполняется</string>
+    <string name="kanban_column_blocked">Заблокировано</string>
+    <string name="kanban_column_review">Проверка</string>
+    <string name="kanban_column_done">Готово</string>
     <string name="kanban_assignee">Исполнитель</string>
     <string name="kanban_assignee_default_suffix">%1$s (по умолчанию)</string>
     <string name="kanban_assignee_unassigned">По умолчанию (не назначен)</string>
@@ -1679,7 +1687,7 @@
     <string name="context_window">Окно контекста</string>
     <string name="context_window_usage_unavailable">Использование окна контекста недоступно</string>
     <string name="gif_play">Воспроизвести GIF</string>
-    <string name="kanban_filter_placeholder">Фильтр задач по названию, статусу или исполнителю...</string>
+    <string name="kanban_filter_placeholder">Фильтр задач…</string>
     <string name="logs_clipboard_label">Логи Hermes</string>
     <string name="logs_search_placeholder">Поиск в логах...</string>
     <string name="mcp_no_match">Нет серверов по запросу &quot;%1$s&quot;</string>

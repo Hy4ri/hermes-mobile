@@ -44,8 +44,6 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.PrimaryScrollableTabRow
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -59,6 +57,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -85,6 +84,9 @@ import com.m57.hermescontrol.ui.common.SearchBar
 import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.kanban.components.KanbanBoardSettingsDialog
+import com.m57.hermescontrol.ui.kanban.components.KanbanBoardTabs
+import com.m57.hermescontrol.ui.kanban.components.KanbanCollapsedColumnLabel
+import com.m57.hermescontrol.ui.kanban.components.KanbanColumnTitle
 import com.m57.hermescontrol.ui.kanban.components.KanbanCreateTaskDialog
 import com.m57.hermescontrol.ui.kanban.components.KanbanFilterSheet
 import com.m57.hermescontrol.ui.kanban.components.KanbanOrchestrationDialog
@@ -319,7 +321,13 @@ fun KanbanScreen(
     ToastEffect(toastMessage = state.toastMessage, onClearToast = viewModel::clearToast)
 
     HermesScaffold(
-        title = { Text(stringResource(R.string.kanban_board_title)) },
+        title = {
+            Text(
+                stringResource(R.string.kanban_board_title),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         actions = {
             HermesIconButton(
@@ -462,18 +470,12 @@ fun KanbanScreen(
                             )
                             // Board selector tab row
                             if (state.boards.isNotEmpty()) {
-                                PrimaryScrollableTabRow(
-                                    selectedTabIndex = state.boards.indexOf(state.selectedBoard).coerceAtLeast(0),
+                                KanbanBoardTabs(
+                                    boardNames = state.boards.map { it.displayName },
+                                    selectedIndex = state.boards.indexOf(state.selectedBoard).coerceAtLeast(0),
+                                    onSelect = { viewModel.selectBoard(state.boards[it]) },
                                     modifier = Modifier.fillMaxWidth(),
-                                ) {
-                                    state.boards.forEach { board ->
-                                        Tab(
-                                            selected = board == state.selectedBoard,
-                                            onClick = { viewModel.selectBoard(board) },
-                                            text = { Text(board.displayName) },
-                                        )
-                                    }
-                                }
+                                )
                             }
 
                             if (state.selectedBoard == null) {
@@ -589,13 +591,11 @@ fun KanbanScreen(
                                                         fontWeight = FontWeight.Bold,
                                                     )
                                                     Spacer(modifier = Modifier.height(16.dp))
-                                                    Text(
-                                                        text = colName.take(3).uppercase(),
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    Spacer(modifier = Modifier.height(8.dp))
+                                                    KanbanCollapsedColumnLabel(
+                                                        name = colName,
+                                                        modifier = Modifier.weight(1f).fillMaxWidth(),
                                                     )
-                                                    Spacer(modifier = Modifier.weight(1f))
                                                     if (KanbanStatusConstraints.isUserWritableTarget(colName)) {
                                                         HermesTooltip(
                                                             label =
@@ -669,12 +669,10 @@ fun KanbanScreen(
                                                             .fillMaxWidth()
                                                             .padding(bottom = 8.dp),
                                                 ) {
-                                                    Text(
-                                                        text = "${colName.replaceFirstChar {
-                                                            it.uppercase()
-                                                        }} (${colTasks.size})",
-                                                        style = MaterialTheme.typography.titleMedium,
-                                                        fontWeight = FontWeight.Bold,
+                                                    KanbanColumnTitle(
+                                                        name = colName,
+                                                        count = colTasks.size,
+                                                        modifier = Modifier.weight(1f),
                                                     )
                                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                                         if (KanbanStatusConstraints.isUserWritableTarget(colName)) {

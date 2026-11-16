@@ -30,6 +30,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.SubscriptionCurrent
 import com.m57.hermescontrol.data.model.SubscriptionStateResponse
+import com.m57.hermescontrol.data.model.SubscriptionTier
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
@@ -106,8 +107,8 @@ private fun BillingContent(
     ) {
         val sub = subscription
         if (sub != null && sub.logged_in == true && sub.current != null) {
-            item { PlanCard(sub.current) }
-            if (sub.can_change_plan == true && sub.current.isPaidPlan()) {
+            item { PlanCard(sub.current, sub.tiers) }
+            if (sub.can_change_plan == true && sub.current.isPaidPlan(sub.tiers)) {
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -173,7 +174,10 @@ private fun BillingContent(
 }
 
 @Composable
-internal fun PlanCard(subscription: SubscriptionCurrent) {
+internal fun PlanCard(
+    subscription: SubscriptionCurrent,
+    tiers: List<SubscriptionTier>,
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -197,7 +201,7 @@ internal fun PlanCard(subscription: SubscriptionCurrent) {
                     modifier = Modifier.padding(top = 4.dp),
                 )
             }
-            val renewDate = subscription.renewDateLabel()
+            val renewDate = subscription.renewDateLabel(tiers)
             if (renewDate != null) {
                 Text(
                     text = stringResource(R.string.billing_renews, renewDate),

@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.bots
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -495,11 +496,13 @@ internal fun BotCard(
             CardDefaults.cardColors(
                 containerColor =
                     if (isActiveProfile) {
-                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                        MaterialTheme.colorScheme.primaryContainer
                     } else {
                         MaterialTheme.colorScheme.surfaceVariant
                     },
             ),
+        // An opaque container keeps the elevation shadow from showing through as a second frame.
+        border = if (isActiveProfile) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null,
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier =
             modifier

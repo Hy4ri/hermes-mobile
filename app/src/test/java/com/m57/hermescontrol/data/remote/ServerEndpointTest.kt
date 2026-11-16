@@ -1,11 +1,22 @@
 package com.m57.hermescontrol.data.remote
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.fail
 import org.junit.Test
 
 class ServerEndpointTest {
+    @Test
+    fun `endpoints parsed separately from the same url are equal`() {
+        // The kanban events stream compares a captured endpoint with a freshly built one (#628).
+        val a = ServerEndpoint.parse("http://192.168.1.57:9119", CleartextPolicy.ALLOW_WITH_WARNING)
+        val b = ServerEndpoint.parse("http://192.168.1.57:9119/", CleartextPolicy.ALLOW_WITH_WARNING)
+        assertEquals(a, b)
+        assertEquals(a.hashCode(), b.hashCode())
+        assertNotEquals(a, ServerEndpoint.parse("http://192.168.1.58:9119", CleartextPolicy.ALLOW_WITH_WARNING))
+    }
+
     @Test
     fun `parse accepts https with trailing slash normalization`() {
         val ep = ServerEndpoint.parse("https://example.com/hermes", CleartextPolicy.ALLOW_WITH_WARNING)

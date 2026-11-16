@@ -137,6 +137,16 @@ class KanbanViewModelTest {
     }
 
     @Test
+    fun `failed board load reports unavailable instead of connecting forever`() {
+        coEvery { mockApi.getBoard(board = "work", any(), any()) } returns
+            Response.error(500, "boom".toResponseBody())
+        val vm = createViewModel()
+        vm.loadBoards()
+        settle()
+        assertEquals(KanbanStreamState.UNAVAILABLE, vm.uiState.value.streamState)
+    }
+
+    @Test
     fun `board unavailable close moves selection to an available board`() {
         val vm = createViewModel()
         vm.loadBoards()

@@ -14314,6 +14314,17 @@ class ChatViewModelTest {
                     .filter { it.content == "hello" }
             assertEquals(1, hello.size)
             assertEquals(20L, hello.single().serverRowId)
+            // #1831: the assistant reply was re-issued too (11 -> 21) and must not render twice.
+            val reply =
+                vm.uiState.value.messages
+                    .filter { it.content == "reply" }
+            assertEquals(1, reply.size)
+            assertEquals(21L, reply.single().serverRowId)
+            assertEquals(
+                listOf("first", "ok", "hello", "reply"),
+                vm.uiState.value.messages
+                    .map { it.content },
+            )
         }
 
     @Test

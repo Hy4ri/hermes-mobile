@@ -32,6 +32,7 @@ fun ExposedDropdownField(
     selectedValue: String,
     onOptionSelected: (String) -> Unit,
     enabled: Boolean = true,
+    fallbackToFirst: Boolean = true,
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -40,7 +41,7 @@ fun ExposedDropdownField(
         onExpandedChange = { if (enabled) expanded = it },
     ) {
         OutlinedTextField(
-            value = selectedValue.ifEmpty { options.firstOrNull() ?: "" },
+            value = if (fallbackToFirst) selectedValue.ifEmpty { options.firstOrNull() ?: "" } else selectedValue,
             onValueChange = {},
             readOnly = true,
             enabled = enabled,

@@ -78,6 +78,15 @@
     <string name="nav_drawer_subtitle">Control de agentes de IA</string>
     <string name="nav_drawer_support">Apoya el proyecto</string>
     <string name="whats_new_title">Novedades de %1$s</string>
+    <string name="whats_new_section_features">Novedades</string>
+    <string name="whats_new_section_improvements">Mejoras</string>
+    <string name="whats_new_section_fixes">Correcciones</string>
+    <string name="whats_new_thanks">Gracias a %1$s</string>
+    <string name="whats_new_full_release_notes">Notas de la versión completas</string>
+    <plurals name="whats_new_internal_changes">
+        <item quantity="one">%d cambio interno</item>
+        <item quantity="other">%d cambios internos</item>
+    </plurals>
     <string name="nav_drawer_section_converse">Conversar</string>
     <string name="nav_drawer_section_automate">Automatizar</string>
     <string name="nav_drawer_section_configure">Configurar</string>

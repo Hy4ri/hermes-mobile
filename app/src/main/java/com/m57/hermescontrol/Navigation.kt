@@ -353,6 +353,7 @@ fun MainNavigation(sessionId: String? = null) {
             WhatsNewDialog(
                 tag = release.tagName,
                 releaseNotes = release.body,
+                releaseUrl = release.htmlUrl,
                 onDismiss = { WhatsNewNotice.dismiss() },
             )
         }

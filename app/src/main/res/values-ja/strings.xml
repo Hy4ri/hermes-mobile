@@ -1939,4 +1939,12 @@
     <plurals name="sessions_live_work_background_desc">
         <item quantity="other">%1$d 個のバックグラウンドプロセスが実行中</item>
     </plurals>
+    <string name="whats_new_section_features">新機能</string>
+    <string name="whats_new_section_improvements">改善</string>
+    <string name="whats_new_section_fixes">修正</string>
+    <string name="whats_new_thanks">%1$s に感謝</string>
+    <string name="whats_new_full_release_notes">リリースノート全文</string>
+    <plurals name="whats_new_internal_changes">
+        <item quantity="other">内部変更 %d 件</item>
+    </plurals>
 </resources>

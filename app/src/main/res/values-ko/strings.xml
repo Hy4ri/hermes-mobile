@@ -55,6 +55,14 @@
     <string name="nav_drawer_subtitle">AI 에이전트 제어</string>
     <string name="nav_drawer_support">프로젝트 후원하기</string>
     <string name="whats_new_title">%1$s의 새로운 기능</string>
+    <string name="whats_new_section_features">새 기능</string>
+    <string name="whats_new_section_improvements">개선 사항</string>
+    <string name="whats_new_section_fixes">수정 사항</string>
+    <string name="whats_new_thanks">%1$s 님께 감사드립니다</string>
+    <string name="whats_new_full_release_notes">전체 릴리스 노트</string>
+    <plurals name="whats_new_internal_changes">
+        <item quantity="other">내부 변경 %d건</item>
+    </plurals>
     <string name="nav_drawer_section_converse">대화</string>
     <string name="nav_drawer_section_automate">자동화</string>
     <string name="nav_drawer_section_configure">설정</string>

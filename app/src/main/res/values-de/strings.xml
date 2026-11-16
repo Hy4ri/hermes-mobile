@@ -79,6 +79,15 @@
     <string name="nav_drawer_subtitle">For Hermes Agent</string>
     <string name="nav_drawer_support">Projekt unterstützen</string>
     <string name="whats_new_title">Neu in %1$s</string>
+    <string name="whats_new_section_features">Neu</string>
+    <string name="whats_new_section_improvements">Verbesserungen</string>
+    <string name="whats_new_section_fixes">Fehlerbehebungen</string>
+    <string name="whats_new_thanks">Danke an %1$s</string>
+    <string name="whats_new_full_release_notes">Vollständige Versionshinweise</string>
+    <plurals name="whats_new_internal_changes">
+        <item quantity="one">%d interne Änderung</item>
+        <item quantity="other">%d interne Änderungen</item>
+    </plurals>
     <string name="nav_drawer_section_converse">Unterhalten</string>
     <string name="nav_drawer_section_automate">Automatisieren</string>
     <string name="nav_drawer_section_configure">Konfigurieren</string>

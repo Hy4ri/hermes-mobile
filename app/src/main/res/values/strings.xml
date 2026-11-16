@@ -1582,6 +1582,10 @@
     <string name="auth_login_error_browser_bad_response">The dashboard returned an unexpected sign-in response.</string>
     <string name="auth_login_existing_profiles_title">Use existing logged-in profile:</string>
     <string name="auth_login_use_profile">Enter as %1$s</string>
+    <string name="auth_login_setup_guide_title">How to set up the Hermes dashboard</string>
+    <string name="auth_login_setup_step_start">On the computer that runs Hermes, run this command. The first time, choose Username &amp; password, then pick yours.</string>
+    <string name="auth_login_setup_step_connect">Back in this app, type the computer\'s IP address and port 9119 in the Server URL field, for example %1$s. Then enter the username and password from step&#160;1 here to sign in.</string>
+    <string name="auth_login_setup_full_guide">Full setup guide</string>
 
     <!-- Landing Screen -->
     <string name="landing_title">Hermes Mobile</string>

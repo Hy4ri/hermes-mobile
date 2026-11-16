@@ -5321,10 +5321,14 @@ class ChatViewModel(
         )
     }
 
-    /** Host status (compression result, refresh notices) is a compact SYSTEM row, not assistant prose. */
+    /**
+     * Host status (compression result, refresh notices) is a compact SYSTEM row, not assistant prose.
+     * It must carry no displayKind: FullBleedChatList routes any SYSTEM row with a kind to TimelineMarkerChip,
+     * which draws nothing for kinds it does not know, so the notice would be invisible.
+     */
     private fun addLocalSystemNotice(text: String) {
         appendLocalTranscriptEvent(
-            ChatMessage(role = MessageRole.SYSTEM, content = text, displayKind = DisplayKind.LOCAL_FEEDBACK),
+            ChatMessage(role = MessageRole.SYSTEM, content = text),
         )
     }
 

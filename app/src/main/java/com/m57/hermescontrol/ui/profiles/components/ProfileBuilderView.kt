@@ -234,7 +234,6 @@ fun ProfileBuilderView(
                     enabled =
                         when (step) {
                             1 -> name.isNotBlank() && nameError == null
-                            2 -> state.modelProviders.isEmpty() || selectedProvider.isNotBlank()
                             else -> true
                         },
                 ) {

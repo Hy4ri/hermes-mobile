@@ -45,6 +45,7 @@ import com.m57.hermescontrol.applock.AlertDialog
 import com.m57.hermescontrol.data.model.CreateProfileRequest
 import com.m57.hermescontrol.data.model.McpServerConfigInput
 import com.m57.hermescontrol.data.model.ModelProvider
+import com.m57.hermescontrol.ui.common.ExposedDropdownField
 import com.m57.hermescontrol.ui.common.HermesTooltip
 import com.m57.hermescontrol.ui.profiles.ProfilesUiState
 import com.m57.hermescontrol.ui.profiles.ProfilesViewModel
@@ -326,32 +327,15 @@ private fun ModelStep(
                 .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text(
-            text = stringResource(R.string.profiles_builder_title_provider),
-            style = MaterialTheme.typography.titleSmall,
+        ExposedDropdownField(
+            label = stringResource(R.string.profiles_builder_title_provider),
+            options = providers.map { it.name },
+            selectedValue = providers.find { it.slug == selectedProvider }?.name.orEmpty(),
+            onOptionSelected = { picked ->
+                providers.find { it.name == picked }?.let { onProviderChange(it.slug) }
+            },
+            fallbackToFirst = false,
         )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            providers.forEach { provider ->
-                val isSelected = selectedProvider == provider.slug
-                OutlinedButton(
-                    onClick = { onProviderChange(provider.slug) },
-                    modifier = Modifier.weight(1f),
-                    colors =
-                        if (isSelected) {
-                            ButtonDefaults.outlinedButtonColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            )
-                        } else {
-                            ButtonDefaults.outlinedButtonColors()
-                        },
-                ) {
-                    Text(provider.name.uppercase())
-                }
-            }
-        }
 
         if (selectedProvider.isNotBlank()) {
             val providerObj = providers.find { it.slug == selectedProvider }

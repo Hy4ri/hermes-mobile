@@ -98,6 +98,7 @@ import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.StatusBadge
 import com.m57.hermescontrol.ui.common.StatusBadgeType
 import com.m57.hermescontrol.ui.common.ToastEffect
+import com.m57.hermescontrol.ui.common.maskedSecret
 import kotlinx.coroutines.launch
 import com.m57.hermescontrol.ui.common.ExpressiveButton as Button
 import com.m57.hermescontrol.ui.common.ExpressiveCircularProgressIndicator as CircularProgressIndicator
@@ -874,7 +875,4 @@ private fun RestartBanner(
     }
 }
 
-/** Fixed mask for a configured secret. The gateway's redacted_value can carry a prefix/suffix, so never show it. */
-internal const val KEY_MASK = "••••••••••••"
-
-internal fun maskedKeyValue(config: EnvVarConfig): String? = if (config.isSet) KEY_MASK else null
+internal fun maskedKeyValue(config: EnvVarConfig): String? = maskedSecret(config.isSet)

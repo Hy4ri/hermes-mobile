@@ -54,6 +54,7 @@ import com.m57.hermescontrol.ui.common.StatusFilter
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
+import com.m57.hermescontrol.ui.common.maskedSecret
 import com.m57.hermescontrol.ui.common.ExpressiveButton as Button
 import com.m57.hermescontrol.ui.common.ExpressiveCircularProgressIndicator as CircularProgressIndicator
 import com.m57.hermescontrol.ui.common.ExpressiveOutlinedButton as OutlinedButton
@@ -333,9 +334,7 @@ internal fun ConfigureForm(
             },
             label = { Text(field.prompt ?: field.key) },
             placeholder = {
-                if (field.isSet) {
-                    Text(field.redactedValue ?: "******** (Already Configured)")
-                }
+                maskedChannelField(field)?.let { Text(it) }
             },
             supportingText = {
                 fieldErrors[field.key]?.let { error ->
@@ -468,3 +467,5 @@ private fun formatTimestamp(isoDate: String): String {
         ""
     }
 }
+
+internal fun maskedChannelField(field: EnvVarField): String? = maskedSecret(field.isSet)

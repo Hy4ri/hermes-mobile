@@ -62,7 +62,7 @@ class ChatMediaDelegate(
         val cacheDir = java.io.File(ctx.cacheDir, "gateway_files")
         scope.launch(ioDispatcher) {
             try {
-                when (val result = GatewayFileClient.fetch(path, cacheDir)) {
+                when (val result = GatewayFileClient.fetchWorkspaceFile(path, cacheDir)) {
                     is GatewayFileResult.Success -> {
                         openBytes(ctx, result.file)
                     }
@@ -107,7 +107,7 @@ class ChatMediaDelegate(
         uiState.update { it.copy(savingAttachmentPath = path) }
         scope.launch(ioDispatcher) {
             try {
-                when (val result = GatewayFileClient.fetch(path, cacheDir)) {
+                when (val result = GatewayFileClient.fetchWorkspaceFile(path, cacheDir)) {
                     is GatewayFileResult.Success -> {
                         val resolver = getApplication().contentResolver
                         runCatching {

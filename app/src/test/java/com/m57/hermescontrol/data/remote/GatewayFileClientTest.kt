@@ -109,9 +109,34 @@ class GatewayFileClientTest {
     }
 
     @Test
-    fun `normalizePath expands tilde`() {
-        val home = System.getenv("HOME") ?: "/home/test"
-        assertEquals("$home/foo.png", GatewayFileClient.normalizePath("~/foo.png"))
+    fun `normalizePath keeps tilde for the gateway to expand`() {
+        assertEquals("~/notes.md", GatewayFileClient.normalizePath("~/notes.md"))
+        assertEquals("~", GatewayFileClient.normalizePath("~"))
+        assertNull(GatewayFileClient.normalizePath("~other/notes.md"))
+    }
+
+    @Test
+    fun `buildWorkspaceDownloadUrl targets the workspace route with the profile and no token`() {
+        assertEquals(
+            "http://gw:9119/api/fs/download?path=%7E%2Fdocs%2Fa%20b.md&profile=work%20box",
+            GatewayFileClient.buildWorkspaceDownloadUrl("http://gw:9119/", "~/docs/a b.md", "work box"),
+        )
+        assertEquals(
+            "http://gw:9119/api/fs/download?path=%2Ftmp%2Fa.md",
+            GatewayFileClient.buildWorkspaceDownloadUrl("http://gw:9119", "/tmp/a.md", " "),
+        )
+        assertNull(GatewayFileClient.buildWorkspaceDownloadUrl("http://gw:9119", "a.md", "work"))
+    }
+
+    @Test
+    fun `errorDetail reads a FastAPI detail string only`() {
+        assertEquals(
+            "SSH workspace is unavailable",
+            GatewayFileClient.errorDetail("""{"detail":"SSH workspace is unavailable"}"""),
+        )
+        assertNull(GatewayFileClient.errorDetail("""{"detail":[{"msg":"field required"}]}"""))
+        assertNull(GatewayFileClient.errorDetail("<html>Bad Gateway</html>"))
+        assertEquals(200, GatewayFileClient.errorDetail("""{"detail":"${"x".repeat(500)}"}""")!!.length)
     }
 
     @Test

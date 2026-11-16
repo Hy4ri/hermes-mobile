@@ -44,7 +44,7 @@ class ChatMediaDelegateTest {
             every { app.packageName } returns "com.m57.hermescontrol"
             every { app.startActivity(any()) } returns Unit
             mockkObject(GatewayFileClient)
-            coEvery { GatewayFileClient.fetch("/reports/report.html", any()) } returns
+            coEvery { GatewayFileClient.fetchWorkspaceFile("/reports/report.html", any()) } returns
                 GatewayFileResult.Success(GatewayFile("report.html", "text/html; charset=utf-8", file))
             mockkStatic(FileProvider::class)
             every { FileProvider.getUriForFile(app, "com.m57.hermescontrol.fileprovider", file) } returns uri

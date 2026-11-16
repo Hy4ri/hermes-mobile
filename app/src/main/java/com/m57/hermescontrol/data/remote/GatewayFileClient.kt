@@ -8,6 +8,9 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.Call
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
@@ -39,11 +42,19 @@ import kotlin.coroutines.resume
  * guards apply: path resolution (`_resolve_managed_path`), a sensitive-path
  * denylist (403), and a size cap (`_MANAGED_FILE_MAX_BYTES`, 413).
  *
+ * Chat attachments use [fetchWorkspaceFile] instead: it reads through the
+ * workspace route (`/api/fs/download`), which serves a file from the active
+ * profile's SSH workspace when the profile has one (#1861).
+ *
  * Mobile-only, backend untouched.
  */
 object GatewayFileClient {
     private const val DOWNLOAD_PATH = "/api/files/download"
     private const val STREAM_PATH = "/api/files/stream"
+    private const val WORKSPACE_DOWNLOAD_PATH = "/api/fs/download"
+
+    /** Longest backend error detail shown in a failure message. */
+    private const val MAX_ERROR_DETAIL_CHARS = 200
 
     /** Downloads are reused for this long before a fresh fetch is made. */
     private const val CACHE_REUSE_TTL_MS = 10 * 60 * 1000L
@@ -64,6 +75,22 @@ object GatewayFileClient {
         token: String,
         path: String,
     ): String? = buildUrl(baseUrl, token, path, DOWNLOAD_PATH)
+
+    /**
+     * Pure builder for the workspace download URL (`/api/fs/download`), which reads
+     * the file from [profile]'s SSH workspace when it has one, else from the gateway
+     * host (#1861). The route does not accept `?token=`: [downloadRequest] sends the
+     * token as a header, and gated mode uses the session cookie.
+     */
+    fun buildWorkspaceDownloadUrl(
+        baseUrl: String,
+        path: String,
+        profile: String?,
+    ): String? {
+        val url = buildUrl(baseUrl, token = "", path = path, endpointPath = WORKSPACE_DOWNLOAD_PATH) ?: return null
+        val scope = profile?.takeIf { it.isNotBlank() } ?: return url
+        return "$url&profile=${encodeQuery(scope)}"
+    }
 
     /**
      * Pure builder for the authenticated media streaming URL (`/api/files/stream`).
@@ -108,7 +135,7 @@ object GatewayFileClient {
         val trimmedBase = baseUrl.trimEnd('/')
         if (trimmedBase.isBlank()) return null
         val norm = normalizePath(path) ?: return null
-        val encPath = URLEncoder.encode(norm, StandardCharsets.UTF_8.name()).replace("+", "%20")
+        val encPath = encodeQuery(norm)
         // Gated (basic-auth) dashboards authenticate the download via the
         // session cookie in the shared CookieJar — a `?token=` query param is
         // not consulted (the WS ticket the app stores is meaningless here), so
@@ -117,18 +144,24 @@ object GatewayFileClient {
         // injected _SESSION_TOKEN).
         val authQuery =
             if (token.isNotBlank() && !AuthManager.isGatedMode()) {
-                val encToken = URLEncoder.encode(token, StandardCharsets.UTF_8.name()).replace("+", "%20")
-                "&token=$encToken"
+                "&token=${encodeQuery(token)}"
             } else {
                 ""
             }
         return "$trimmedBase$endpointPath?path=$encPath$authQuery"
     }
 
+    private fun encodeQuery(value: String): String =
+        URLEncoder.encode(value, StandardCharsets.UTF_8.name()).replace("+", "%20")
+
     /**
-     * Strip surrounding quotes/backticks, expand a leading `~`, and require an
-     * absolute path (`/...` or `X:\...`/`X:/...`). Returns `null` for paths
-     * that are not resolvable on the gateway host.
+     * Strip surrounding quotes/backticks and require an absolute path (`/...`,
+     * `X:\...`/`X:/...`) or a home-relative one (`~`, `~/...`). Returns `null`
+     * for other paths.
+     *
+     * A leading `~` is kept: the gateway expands it against the home of the
+     * machine that owns the file (the gateway host or the SSH workspace). The
+     * phone's own `HOME` names neither (#1861).
      */
     internal fun normalizePath(raw: String): String? {
         val trimmed =
@@ -137,19 +170,13 @@ object GatewayFileClient {
                 .removeSurrounding("`")
                 .removeSurrounding("\"")
                 .removeSurrounding("'")
-        val expanded =
-            if (trimmed.startsWith("~")) {
-                val home = System.getenv("HOME") ?: return null
-                home + trimmed.removePrefix("~")
-            } else {
-                trimmed
-            }
-        if (!expanded.startsWith("/") &&
-            !Pattern.compile("^[A-Za-z]:[/\\\\]").matcher(expanded).find()
+        if (trimmed == "~" || trimmed.startsWith("~/")) return trimmed
+        if (!trimmed.startsWith("/") &&
+            !Pattern.compile("^[A-Za-z]:[/\\\\]").matcher(trimmed).find()
         ) {
             return null
         }
-        return expanded
+        return trimmed
     }
 
     /** Map an HTTP status to a non-success result; `null` means "let the
@@ -179,10 +206,54 @@ object GatewayFileClient {
         token: String,
         cacheDir: File,
     ): GatewayFileResult =
+        download(path, token, cacheDir, cacheNamespace = "") { buildDownloadUrl(baseUrl, token, path) }
+
+    /**
+     * Fetch a file the agent named in a chat with the current [AuthManager]
+     * credentials and active server profile. See the explicit overload.
+     */
+    suspend fun fetchWorkspaceFile(
+        path: String,
+        cacheDir: File,
+    ): GatewayFileResult =
+        fetchWorkspaceFile(
+            path = path,
+            baseUrl = AuthManager.getBaseUrl(),
+            token = AuthManager.getToken().orEmpty(),
+            profile = AuthManager.activeProfileId.value,
+            cacheDir = cacheDir,
+        )
+
+    /**
+     * Fetch a file the agent named in a chat. The workspace route reads it where
+     * the profile's tools run: its SSH machine when it has one, else the gateway
+     * host (#1861). A 404 there retries the managed route, which reads the
+     * gateway host only: files the gateway itself wrote for an SSH profile
+     * (for example TTS audio) and gateways without the workspace route.
+     */
+    suspend fun fetchWorkspaceFile(
+        path: String,
+        baseUrl: String,
+        token: String,
+        profile: String?,
+        cacheDir: File,
+    ): GatewayFileResult {
+        val namespace = "fs:${profile.orEmpty()}"
+        val result = download(path, token, cacheDir, namespace) { buildWorkspaceDownloadUrl(baseUrl, path, profile) }
+        return if (result is GatewayFileResult.NotFound) fetch(path, baseUrl, token, cacheDir) else result
+    }
+
+    private suspend fun download(
+        path: String,
+        token: String,
+        cacheDir: File,
+        cacheNamespace: String,
+        buildUrl: () -> String?,
+    ): GatewayFileResult =
         withContext(Dispatchers.IO) {
             val url =
                 try {
-                    buildDownloadUrl(baseUrl, token, path)
+                    buildUrl()
                         ?: return@withContext GatewayFileResult.Failure(
                             IllegalArgumentException("not an absolute gateway path: $path"),
                         )
@@ -198,7 +269,8 @@ object GatewayFileClient {
             val cacheName =
                 try {
                     val key = ClientCertificates.cacheKey(url.toHttpUrl())
-                    val name = cacheFileNameFor(path, key)
+                    val namespace = if (cacheNamespace.isEmpty()) key else "$key|$cacheNamespace"
+                    val name = cacheFileNameFor(path, namespace)
                     val fresh = File(cacheDir, name).takeIf { isFreshCacheFile(it) }
                     if (fresh != null) {
                         return@withContext GatewayFileResult.Success(
@@ -228,7 +300,7 @@ object GatewayFileClient {
             executeCancellable(call) { resp ->
                 classifyStatus(resp.code)?.let { return@executeCancellable it }
                 if (!resp.isSuccessful) {
-                    return@executeCancellable GatewayFileResult.Failure(IOException("HTTP ${resp.code}"))
+                    return@executeCancellable GatewayFileResult.Failure(IOException(httpFailureMessage(resp)))
                 }
                 val name =
                     resp.header("Content-Disposition")?.let { parseFilename(it) }
@@ -243,6 +315,25 @@ object GatewayFileClient {
                 GatewayFileResult.Success(GatewayFile(name, mime, cacheFile))
             }
         }
+
+    /** `HTTP <code>`, plus the gateway's `detail` text when the body has one
+     * (for example `HTTP 503: SSH workspace is unavailable`). */
+    private fun httpFailureMessage(resp: Response): String {
+        val body = runCatching { resp.peekBody(4096).string() }.getOrNull()
+        val detail = body?.let(::errorDetail)
+        return if (detail == null) "HTTP ${resp.code}" else "HTTP ${resp.code}: $detail"
+    }
+
+    /** The string `detail` of a FastAPI error body, shortened, or `null`. */
+    internal fun errorDetail(body: String): String? {
+        val element = runCatching { Json.parseToJsonElement(body) }.getOrNull() as? JsonObject ?: return null
+        val detail = (element["detail"] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
+        return detail
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .take(MAX_ERROR_DETAIL_CHARS)
+            .takeIf { it.isNotEmpty() }
+    }
 
     /** Download request. Token-mode dashboards behind an auth gate (`public_url`)
      * reject the `?token=` query on `/api/files/download` (`no_cookie`), so the

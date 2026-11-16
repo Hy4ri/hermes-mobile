@@ -270,6 +270,94 @@ class GatewayFileFetchTest {
         }
 
     @Test
+    fun fetchFailureCarriesTheGatewayErrorDetail() =
+        runOnMain {
+            mockServer.enqueue(
+                MockResponse().setResponseCode(503).setBody("""{"detail":"SSH workspace is unavailable"}"""),
+            )
+
+            val result = GatewayFileClient.fetch("/tmp/notes.md", cacheDir)
+
+            assertTrue("Expected Failure, got $result", result is GatewayFileResult.Failure)
+            assertEquals(
+                "HTTP 503: SSH workspace is unavailable",
+                (result as GatewayFileResult.Failure).throwable.message,
+            )
+        }
+
+    @Test
+    fun fetchWorkspaceFileReadsTheProfileWorkspaceWithHeaderAuth() =
+        runOnMain {
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setHeader("Content-Type", "text/markdown")
+                    .setHeader("Content-Disposition", "attachment; filename*=UTF-8''notes.md")
+                    .setBody("# remote"),
+            )
+
+            val result =
+                GatewayFileClient.fetchWorkspaceFile(
+                    path = "~/proj/notes.md",
+                    baseUrl = mockServer.url("/").toString(),
+                    token = "test-token",
+                    profile = "ssh-box",
+                    cacheDir = cacheDir,
+                )
+
+            assertTrue("Expected Success, got $result", result is GatewayFileResult.Success)
+            assertEquals("# remote", (result as GatewayFileResult.Success).file.cacheFile.readText())
+            val request = mockServer.takeRequest(2, TimeUnit.SECONDS)!!
+            assertEquals("/api/fs/download", request.requestUrl!!.encodedPath)
+            assertEquals("~/proj/notes.md", request.requestUrl!!.queryParameter("path"))
+            assertEquals("ssh-box", request.requestUrl!!.queryParameter("profile"))
+            assertEquals(null, request.requestUrl!!.queryParameter("token"))
+            assertEquals("Bearer test-token", request.getHeader("Authorization"))
+            assertEquals(1, mockServer.requestCount)
+        }
+
+    @Test
+    fun fetchWorkspaceFileFallsBackToTheManagedRouteOn404() =
+        runOnMain {
+            mockServer.enqueue(MockResponse().setResponseCode(404).setBody("""{"detail":"Not Found"}"""))
+            mockServer.enqueue(MockResponse().setResponseCode(200).setBody("host copy"))
+
+            val result =
+                GatewayFileClient.fetchWorkspaceFile(
+                    path = "/home/u/.hermes/cache/audio/reply.mp3",
+                    baseUrl = mockServer.url("/").toString(),
+                    token = "test-token",
+                    profile = null,
+                    cacheDir = cacheDir,
+                )
+
+            assertTrue("Expected Success, got $result", result is GatewayFileResult.Success)
+            assertEquals("host copy", (result as GatewayFileResult.Success).file.cacheFile.readText())
+            val first = mockServer.takeRequest(2, TimeUnit.SECONDS)!!.requestUrl!!
+            assertEquals("/api/fs/download", first.encodedPath)
+            assertEquals(null, first.queryParameter("profile"))
+            assertEquals("/api/files/download", mockServer.takeRequest(2, TimeUnit.SECONDS)!!.requestUrl!!.encodedPath)
+        }
+
+    @Test
+    fun fetchWorkspaceFileDoesNotFallBackOnOtherErrors() =
+        runOnMain {
+            mockServer.enqueue(MockResponse().setResponseCode(403).setBody("""{"detail":"Access denied"}"""))
+
+            val result =
+                GatewayFileClient.fetchWorkspaceFile(
+                    path = "/srv/secret.md",
+                    baseUrl = mockServer.url("/").toString(),
+                    token = "test-token",
+                    profile = "ssh-box",
+                    cacheDir = cacheDir,
+                )
+
+            assertEquals(GatewayFileResult.Forbidden, result)
+            assertEquals(1, mockServer.requestCount)
+        }
+
+    @Test
     fun fetchMapsNetworkExceptionToFailure() =
         runOnMain {
             mockServer.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START))

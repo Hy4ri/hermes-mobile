@@ -11784,7 +11784,7 @@ class ChatViewModelTest {
             mockkObject(GatewayFileClient)
             val file = java.io.File(cacheDir, "note.txt").apply { writeBytes("hello".toByteArray()) }
             coEvery {
-                GatewayFileClient.fetch(any(), any())
+                GatewayFileClient.fetchWorkspaceFile(any(), any())
             } returns GatewayFileResult.Success(GatewayFile("note.txt", "text/plain", file))
 
             val intentSlot = slot<Intent>()
@@ -11816,7 +11816,7 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             // fetch was invoked (proves we entered the IO launch)
-            coVerify { GatewayFileClient.fetch(any(), any()) }
+            coVerify { GatewayFileClient.fetchWorkspaceFile(any(), any()) }
             // ACTION_VIEW intent delivered, with the right type + grant flag.
             verify { app.startActivity(any()) }
             verify { intentSlot.captured.setDataAndType(any(), eq("text/plain")) }
@@ -11842,7 +11842,7 @@ class ChatViewModelTest {
                 java.io
                     .File(System.getProperty("java.io.tmpdir"), "note_${System.nanoTime()}.txt")
                     .apply { writeText("downloaded") }
-            coEvery { GatewayFileClient.fetch("/tmp/note.txt", any()) } returns
+            coEvery { GatewayFileClient.fetchWorkspaceFile("/tmp/note.txt", any()) } returns
                 GatewayFileResult.Success(GatewayFile("note.txt", "text/plain", file))
             // copyChunked is mocked with the object — restore real copy so the
             // saved document actually receives the bytes.
@@ -11890,7 +11890,7 @@ class ChatViewModelTest {
             val destination = mockk<android.net.Uri>()
             every { app.contentResolver } returns resolver
             coEvery {
-                GatewayFileClient.fetch("/tmp/missing.pdf", any())
+                GatewayFileClient.fetchWorkspaceFile("/tmp/missing.pdf", any())
             } returns GatewayFileResult.NotFound
 
             val (viewModel, _) = createViewModelWithSession()
@@ -11929,7 +11929,7 @@ class ChatViewModelTest {
             val destination = mockk<android.net.Uri>()
             every { app.contentResolver } returns resolver
             every { resolver.openOutputStream(destination, "wt") } throws IllegalStateException("write failed")
-            coEvery { GatewayFileClient.fetch("/tmp/report.pdf", any()) } returns
+            coEvery { GatewayFileClient.fetchWorkspaceFile("/tmp/report.pdf", any()) } returns
                 GatewayFileResult.Success(
                     GatewayFile(
                         "report.pdf",
@@ -11976,7 +11976,8 @@ class ChatViewModelTest {
             every { app.getApplicationContext() } returns app
             val firstResult = CompletableDeferred<GatewayFileResult>()
             val fetchedPaths = mutableListOf<String>()
-            coEvery { GatewayFileClient.fetch(capture(fetchedPaths), any()) } coAnswers { firstResult.await() }
+            coEvery { GatewayFileClient.fetchWorkspaceFile(capture(fetchedPaths), any()) } coAnswers
+                { firstResult.await() }
             val resolver = mockk<android.content.ContentResolver>(relaxed = true)
             every { app.contentResolver } returns resolver
             val viewModel = createViewModel()
@@ -12018,7 +12019,7 @@ class ChatViewModelTest {
             every { app.applicationContext } returns app
             every { app.getApplicationContext() } returns app
             coEvery {
-                GatewayFileClient.fetch(any(), any())
+                GatewayFileClient.fetchWorkspaceFile(any(), any())
             } returns GatewayFileResult.NotFound
 
             val vm = createViewModel()
@@ -12056,7 +12057,8 @@ class ChatViewModelTest {
             every { app.getApplicationContext() } returns app
             val firstResult = CompletableDeferred<GatewayFileResult>()
             val fetchedPaths = mutableListOf<String>()
-            coEvery { GatewayFileClient.fetch(capture(fetchedPaths), any()) } coAnswers { firstResult.await() }
+            coEvery { GatewayFileClient.fetchWorkspaceFile(capture(fetchedPaths), any()) } coAnswers
+                { firstResult.await() }
 
             val vm = createViewModel()
             val attachment =

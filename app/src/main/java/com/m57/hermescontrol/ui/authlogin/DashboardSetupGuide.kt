@@ -41,8 +41,8 @@ import androidx.compose.ui.unit.sp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.applock.AlertDialog
 import com.m57.hermescontrol.theme.HermesControlTheme
+import com.m57.hermescontrol.ui.common.HermesIconButton
 import kotlinx.coroutines.launch
-import com.m57.hermescontrol.ui.common.ExpressiveIconButton as IconButton
 import com.m57.hermescontrol.ui.common.ExpressiveTextButton as TextButton
 
 private const val SETUP_GUIDE_URL = "https://github.com/Hy4ri/hermes-mobile/wiki/Connecting-to-Hermes"
@@ -138,19 +138,15 @@ private fun SetupStep(
                 )
             }
             if (code != null) {
-                IconButton(
+                HermesIconButton(
+                    imageVector = Icons.Filled.ContentCopy,
+                    label = stringResource(R.string.content_desc_copy),
                     onClick = {
                         scope.launch {
                             clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, code)))
                         }
                     },
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.ContentCopy,
-                        contentDescription = stringResource(R.string.content_desc_copy),
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
+                )
             }
         }
         if (code != null) {

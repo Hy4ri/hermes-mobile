@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.ui.keys
 
 import com.m57.hermescontrol.data.model.EnvVarConfig
+import com.m57.hermescontrol.ui.common.KEY_MASK
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

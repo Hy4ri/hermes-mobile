@@ -43,6 +43,7 @@ import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -487,6 +488,9 @@ class ChatCompressRpcTest {
                     .lastOrNull { it.role == MessageRole.SYSTEM }
             val expectedContent = "Context compressed\nTokens: 120k -> 35k (70% saved)\nTrimmed 14 earlier turns"
             assertEquals(expectedContent, lastAssistantMessage?.content)
+            // The full-bleed list draws a SYSTEM row with a displayKind as a timeline chip, which is blank
+            // for unknown kinds. The notice must stay a plain system row to be visible (#637).
+            assertNull(lastAssistantMessage?.displayKind)
         }
 
     @Test

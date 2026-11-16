@@ -70,7 +70,6 @@
 <string name="screen_settings">الإعدادات</string>
 <string name="screen_profiles">الملفات الشخصية</string>
 <string name="screen_bots">البوتات</string>
-<string name="bots_active_now">نشط الآن</string>
 <string name="bots_empty_title">لم يتم العثور على بوتات</string>
 <string name="bots_empty_description">أنشئ ملف وكيل شخصي للبدء في استخدام وضع البوت.</string>
 <string name="bots_search_placeholder">البحث في البوتات…</string>

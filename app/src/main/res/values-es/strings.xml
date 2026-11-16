@@ -92,7 +92,6 @@
     <string name="screen_account_connectors">Conectores</string>
     <string name="screen_profiles">Perfiles</string>
     <string name="screen_bots">Bots</string>
-    <string name="bots_active_now">Activos ahora</string>
     <string name="bots_empty_title">No se encontraron bots</string>
     <string name="bots_empty_description">Cree un perfil de agente para comenzar a usar el modo Bot.</string>
     <string name="bots_search_placeholder">Buscar bots…</string>

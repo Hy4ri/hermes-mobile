@@ -59,6 +59,19 @@
 <string name="nav_drawer_subtitle">التحكم في وكيل الذكاء الاصطناعي</string>
 <string name="nav_drawer_support">ادعم المشروع</string>
 <string name="whats_new_title">ما الجديد في %1$s</string>
+    <string name="whats_new_section_features">جديد</string>
+    <string name="whats_new_section_improvements">تحسينات</string>
+    <string name="whats_new_section_fixes">إصلاحات</string>
+    <string name="whats_new_thanks">شكرًا لـ %1$s</string>
+    <string name="whats_new_full_release_notes">ملاحظات الإصدار</string>
+    <plurals name="whats_new_internal_changes">
+        <item quantity="zero">لا تغييرات داخلية</item>
+        <item quantity="one">تغيير داخلي واحد</item>
+        <item quantity="two">تغييران داخليان</item>
+        <item quantity="few">%d تغييرات داخلية</item>
+        <item quantity="many">%d تغييرًا داخليًا</item>
+        <item quantity="other">%d تغيير داخلي</item>
+    </plurals>
 <string name="nav_drawer_section_converse">محادثة</string>
 <string name="nav_drawer_section_automate">أتمتة</string>
 <string name="nav_drawer_section_configure">تهيئة</string>

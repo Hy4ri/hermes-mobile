@@ -59,6 +59,14 @@
     <string name="nav_drawer_subtitle">AI Agent 控制台</string>
     <string name="nav_drawer_support">支持本项目</string>
     <string name="whats_new_title">%1$s 更新内容</string>
+    <string name="whats_new_section_features">新功能</string>
+    <string name="whats_new_section_improvements">改进</string>
+    <string name="whats_new_section_fixes">修复</string>
+    <string name="whats_new_thanks">感谢 %1$s</string>
+    <string name="whats_new_full_release_notes">完整发布说明</string>
+    <plurals name="whats_new_internal_changes">
+        <item quantity="other">%d 项内部更改</item>
+    </plurals>
     <string name="nav_drawer_section_converse">对话</string>
     <string name="nav_drawer_section_automate">自动化</string>
     <string name="nav_drawer_section_configure">配置</string>

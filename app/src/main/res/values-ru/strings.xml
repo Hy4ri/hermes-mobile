@@ -80,6 +80,17 @@
     <string name="nav_drawer_subtitle">Управление AI-агентом</string>
     <string name="nav_drawer_support">Поддержать проект</string>
     <string name="whats_new_title">Что нового в %1$s</string>
+    <string name="whats_new_section_features">Новое</string>
+    <string name="whats_new_section_improvements">Улучшения</string>
+    <string name="whats_new_section_fixes">Исправления</string>
+    <string name="whats_new_thanks">Спасибо: %1$s</string>
+    <string name="whats_new_full_release_notes">Полные примечания к выпуску</string>
+    <plurals name="whats_new_internal_changes">
+        <item quantity="one">%d внутреннее изменение</item>
+        <item quantity="few">%d внутренних изменения</item>
+        <item quantity="many">%d внутренних изменений</item>
+        <item quantity="other">%d внутреннего изменения</item>
+    </plurals>
     <string name="nav_drawer_section_converse">Общение</string>
     <string name="nav_drawer_section_automate">Автоматизация</string>
     <string name="nav_drawer_section_configure">Настройка</string>

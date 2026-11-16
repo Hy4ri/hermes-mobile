@@ -80,6 +80,15 @@
     <string name="nav_drawer_subtitle">AI Agent Control</string>
     <string name="nav_drawer_support">Support the project</string>
     <string name="whats_new_title">What\'s new in %1$s</string>
+    <string name="whats_new_section_features">New</string>
+    <string name="whats_new_section_improvements">Improvements</string>
+    <string name="whats_new_section_fixes">Fixes</string>
+    <string name="whats_new_thanks">Thanks to %1$s</string>
+    <string name="whats_new_full_release_notes">Full release notes</string>
+    <plurals name="whats_new_internal_changes">
+        <item quantity="one">%d internal change</item>
+        <item quantity="other">%d internal changes</item>
+    </plurals>
     <string name="nav_drawer_section_converse">Converse</string>
     <string name="nav_drawer_section_automate">Automate</string>
     <string name="nav_drawer_section_configure">Configure</string>

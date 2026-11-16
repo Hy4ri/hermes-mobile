@@ -12,7 +12,7 @@ import kotlinx.coroutines.CancellationException
 
 /**
  * One-shot "What's new" dialog for the first launch after an app update.
- * Fresh installs are recorded silently and never see it.
+ * Fresh installs, and releases with no user-facing notes, are recorded silently and never see it.
  */
 object WhatsNewNotice {
     var release by mutableStateOf<UpdateInfo?>(null)
@@ -38,7 +38,7 @@ object WhatsNewNotice {
             } catch (_: Exception) {
                 return // Network failure: retry on the next launch.
             }
-        if (info == null || info.body.isBlank()) {
+        if (info == null || parseReleaseNotes(info.body).isEmpty) {
             AuthManager.setLastSeenVersion(currentVersion)
             return
         }

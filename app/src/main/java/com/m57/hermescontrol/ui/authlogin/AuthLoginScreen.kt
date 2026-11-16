@@ -183,7 +183,7 @@ fun AuthLoginScreen(
                     ),
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            DashboardSetupGuide()
 
             if (state.loggedInProfiles.isNotEmpty()) {
                 Text(

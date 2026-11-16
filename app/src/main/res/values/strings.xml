@@ -547,6 +547,14 @@
     <string name="kanban_priority_med">1 (Med)</string>
     <string name="kanban_priority_high">2 (High)</string>
     <string name="kanban_priority_urgent">3 (Urgent)</string>
+    <string name="kanban_column_triage">Triage</string>
+    <string name="kanban_column_todo">Todo</string>
+    <string name="kanban_column_scheduled">Scheduled</string>
+    <string name="kanban_column_ready">Ready</string>
+    <string name="kanban_column_running">Running</string>
+    <string name="kanban_column_blocked">Blocked</string>
+    <string name="kanban_column_review">Review</string>
+    <string name="kanban_column_done">Done</string>
     <string name="kanban_assignee">Assignee</string>
     <string name="kanban_assignee_default_suffix">%1$s (Default)</string>
     <string name="kanban_assignee_unassigned">Default (Unassigned)</string>
@@ -1700,7 +1708,7 @@
     <string name="context_window">Context window</string>
     <string name="context_window_usage_unavailable">Context window usage unavailable</string>
     <string name="gif_play">Play GIF</string>
-    <string name="kanban_filter_placeholder">Filter tasks by title, status, or assignee...</string>
+    <string name="kanban_filter_placeholder">Filter tasks…</string>
     <string name="logs_clipboard_label">Hermes Logs</string>
     <string name="logs_search_placeholder">Search logs...</string>
     <string name="mcp_no_match">No servers match &quot;%1$s&quot;</string>

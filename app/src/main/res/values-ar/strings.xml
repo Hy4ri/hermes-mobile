@@ -341,6 +341,14 @@
     <string name="kanban_priority_med">1 (متوسط)</string>
     <string name="kanban_priority_high">2 (مرتفع)</string>
     <string name="kanban_priority_urgent">3 (عاجل)</string>
+    <string name="kanban_column_triage">الفرز</string>
+    <string name="kanban_column_todo">المهام</string>
+    <string name="kanban_column_scheduled">مجدولة</string>
+    <string name="kanban_column_ready">جاهزة</string>
+    <string name="kanban_column_running">قيد التشغيل</string>
+    <string name="kanban_column_blocked">محظورة</string>
+    <string name="kanban_column_review">المراجعة</string>
+    <string name="kanban_column_done">منجزة</string>
     <string name="kanban_assignee">المسؤول</string>
     <string name="kanban_assignee_default_suffix">%1$s (الافتراضي)</string>
     <string name="kanban_assignee_unassigned">افتراضي (غير معيَّن)</string>
@@ -1315,7 +1323,7 @@
 <string name="context_window">نافذة السياق</string>
 <string name="context_window_usage_unavailable">استخدام نافذة السياق غير متوفر</string>
 <string name="gif_play">تشغيل GIF</string>
-<string name="kanban_filter_placeholder">تصفية المهام حسب العنوان أو الحالة أو المسؤول...</string>
+<string name="kanban_filter_placeholder">تصفية المهام…</string>
 <string name="logs_clipboard_label">سجلات Hermes</string>
 <string name="logs_search_placeholder">البحث في السجلات...</string>
 <string name="mcp_no_match">لا توجد خوادم تطابق \"%1$s\"</string>

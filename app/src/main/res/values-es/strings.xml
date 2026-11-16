@@ -445,6 +445,14 @@
     <string name="kanban_priority_med">1 (Medio)</string>
     <string name="kanban_priority_high">2 (Alta)</string>
     <string name="kanban_priority_urgent">3 (Urgente)</string>
+    <string name="kanban_column_triage">Triaje</string>
+    <string name="kanban_column_todo">Por hacer</string>
+    <string name="kanban_column_scheduled">Programadas</string>
+    <string name="kanban_column_ready">Listas</string>
+    <string name="kanban_column_running">En curso</string>
+    <string name="kanban_column_blocked">Bloqueadas</string>
+    <string name="kanban_column_review">Revisión</string>
+    <string name="kanban_column_done">Hechas</string>
     <string name="kanban_assignee">Asignatario</string>
     <string name="kanban_assignee_default_suffix">%1$s (Predeterminado)</string>
     <string name="kanban_assignee_unassigned">Predeterminado (Sin asignar)</string>
@@ -1528,7 +1536,7 @@
     <string name="context_window">Ventana de contexto</string>
     <string name="context_window_usage_unavailable">Uso de la ventana de contexto no disponible</string>
     <string name="gif_play">Reproducir GIF</string>
-    <string name="kanban_filter_placeholder">Filtrar tareas por título, estado o persona asignada...</string>
+    <string name="kanban_filter_placeholder">Filtrar tareas…</string>
     <string name="logs_clipboard_label">Registros de Hermes</string>
     <string name="logs_search_placeholder">Registros de búsqueda...</string>
     <string name="mcp_no_match">Ningún servidor coincide con \"%1$s\"</string>

@@ -482,6 +482,14 @@
     <string name="kanban_priority_med">1（中）</string>
     <string name="kanban_priority_high">2（高）</string>
     <string name="kanban_priority_urgent">3（緊急）</string>
+    <string name="kanban_column_triage">トリアージ</string>
+    <string name="kanban_column_todo">未着手</string>
+    <string name="kanban_column_scheduled">予約済み</string>
+    <string name="kanban_column_ready">準備完了</string>
+    <string name="kanban_column_running">実行中</string>
+    <string name="kanban_column_blocked">ブロック中</string>
+    <string name="kanban_column_review">レビュー</string>
+    <string name="kanban_column_done">完了</string>
     <string name="kanban_assignee">担当</string>
     <string name="kanban_assignee_default_suffix">%1$s（既定）</string>
     <string name="kanban_assignee_unassigned">未割り当て（既定）</string>
@@ -1574,7 +1582,7 @@
     <string name="context_window">コンテキストウィンドウ</string>
     <string name="context_window_usage_unavailable">コンテキストウィンドウの使用は利用できません</string>
     <string name="gif_play">GIFを再生する</string>
-    <string name="kanban_filter_placeholder">タスク名・状態・担当者で絞り込み…</string>
+    <string name="kanban_filter_placeholder">タスクを絞り込み…</string>
     <string name="logs_clipboard_label">エルメスログ</string>
     <string name="logs_search_placeholder">ログを検索...</string>
     <string name="mcp_no_match">サーバーが「%1$s」にマッチしない</string>

@@ -411,6 +411,14 @@
     <string name="kanban_priority_med">1 (Media)</string>
     <string name="kanban_priority_high">2 (Alta)</string>
     <string name="kanban_priority_urgent">3 (Urgente)</string>
+    <string name="kanban_column_triage">Triage</string>
+    <string name="kanban_column_todo">Da fare</string>
+    <string name="kanban_column_scheduled">Pianificate</string>
+    <string name="kanban_column_ready">Pronte</string>
+    <string name="kanban_column_running">In corso</string>
+    <string name="kanban_column_blocked">Bloccate</string>
+    <string name="kanban_column_review">Revisione</string>
+    <string name="kanban_column_done">Fatte</string>
     <string name="kanban_assignee">Assegnatario</string>
     <string name="kanban_assignee_default_suffix">%1$s (Predefinito)</string>
     <string name="kanban_assignee_unassigned">Predefinito (Non assegnato)</string>
@@ -1405,7 +1413,7 @@
     <string name="context_window">Finestra di contesto</string>
     <string name="context_window_usage_unavailable">Utilizzo della finestra di contesto non disponibile</string>
     <string name="gif_play">Riproduci GIF</string>
-    <string name="kanban_filter_placeholder">Filtra attività per titolo, stato o assegnatario...</string>
+    <string name="kanban_filter_placeholder">Filtra attività…</string>
     <string name="logs_clipboard_label">Log di Hermes</string>
     <string name="logs_search_placeholder">Cerca nei log...</string>
     <string name="mcp_no_match">Nessun server corrisponde a "%1$s"</string>

@@ -341,6 +341,14 @@
     <string name="kanban_priority_med">1 (중간)</string>
     <string name="kanban_priority_high">2 (높음)</string>
     <string name="kanban_priority_urgent">3 (긴급)</string>
+    <string name="kanban_column_triage">분류</string>
+    <string name="kanban_column_todo">할 일</string>
+    <string name="kanban_column_scheduled">예약됨</string>
+    <string name="kanban_column_ready">준비됨</string>
+    <string name="kanban_column_running">실행 중</string>
+    <string name="kanban_column_blocked">차단됨</string>
+    <string name="kanban_column_review">검토</string>
+    <string name="kanban_column_done">완료</string>
     <string name="kanban_assignee">담당자</string>
     <string name="kanban_assignee_default_suffix">%1$s (기본값)</string>
     <string name="kanban_assignee_unassigned">기본 (미지정)</string>
@@ -433,7 +441,7 @@
     <string name="kanban_skills_placeholder">예: git, coding, tests</string>
     <string name="kanban_profile_description_hint">라우팅에 사용할 프로필 설명</string>
     <string name="kanban_filter">필터</string>
-    <string name="kanban_filter_placeholder">제목, 상태 또는 담당자로 작업 필터링...</string>
+    <string name="kanban_filter_placeholder">작업 필터…</string>
     <string name="kanban_board_options">보드 옵션</string>
     <string name="kanban_new_board">새 보드</string>
     <string name="kanban_clear_selection">지우기</string>

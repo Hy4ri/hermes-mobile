@@ -67,6 +67,10 @@ class GatewayFileFetchTest {
 
         mockkObject(AuthManager)
         every { AuthManager.isGatedMode() } returns false
+        every { AuthManager.currentDataScope() } returns null
+
+        mockkObject(DashboardSessionTokenRefresher)
+        every { DashboardSessionTokenRefresher.refreshIfStale(any(), any()) } returns null
 
         mockkObject(ClientCertificates)
         every { ClientCertificates.cacheKey(any()) } returns "mock-cert-key"
@@ -317,14 +321,18 @@ class GatewayFileFetchTest {
         }
 
     @Test
-    fun fetchWorkspaceFileFallsBackToTheManagedRouteOn404() =
+    fun fetchWorkspaceFileFallsBackOnlyWhenTheGatewayLacksTheRoute() =
         runOnMain {
-            mockServer.enqueue(MockResponse().setResponseCode(404).setBody("""{"detail":"Not Found"}"""))
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(404)
+                    .setBody("""{"detail":"No such API endpoint: /api/fs/download"}"""),
+            )
             mockServer.enqueue(MockResponse().setResponseCode(200).setBody("host copy"))
 
             val result =
                 GatewayFileClient.fetchWorkspaceFile(
-                    path = "/home/u/.hermes/cache/audio/reply.mp3",
+                    path = "/home/u/notes.md",
                     baseUrl = mockServer.url("/").toString(),
                     token = "test-token",
                     profile = null,
@@ -337,6 +345,48 @@ class GatewayFileFetchTest {
             assertEquals("/api/fs/download", first.encodedPath)
             assertEquals(null, first.queryParameter("profile"))
             assertEquals("/api/files/download", mockServer.takeRequest(2, TimeUnit.SECONDS)!!.requestUrl!!.encodedPath)
+        }
+
+    @Test
+    fun fetchWorkspaceFileKeepsAMissingWorkspaceFileNotFound() =
+        runOnMain {
+            mockServer.enqueue(MockResponse().setResponseCode(404).setBody("""{"detail":"File not found"}"""))
+            mockServer.enqueue(MockResponse().setResponseCode(200).setBody("unrelated host file"))
+
+            val result =
+                GatewayFileClient.fetchWorkspaceFile(
+                    path = "~/notes.md",
+                    baseUrl = mockServer.url("/").toString(),
+                    token = "test-token",
+                    profile = "ssh-box",
+                    cacheDir = cacheDir,
+                )
+
+            assertEquals(GatewayFileResult.NotFound, result)
+            assertEquals(1, mockServer.requestCount)
+        }
+
+    @Test
+    fun fetchRefreshesAnExpiredTokenAndRetriesOnce() =
+        runOnMain {
+            every { DashboardSessionTokenRefresher.refreshIfStale("test-token", any()) } returns "fresh-token"
+            mockServer.enqueue(MockResponse().setResponseCode(401).setBody("""{"detail":"Unauthorized"}"""))
+            mockServer.enqueue(MockResponse().setResponseCode(200).setBody("# notes"))
+
+            val result =
+                GatewayFileClient.fetchWorkspaceFile(
+                    path = "/srv/notes.md",
+                    baseUrl = mockServer.url("/").toString(),
+                    token = "test-token",
+                    profile = "ssh-box",
+                    cacheDir = cacheDir,
+                )
+
+            assertTrue("Expected Success, got $result", result is GatewayFileResult.Success)
+            assertEquals("Bearer test-token", mockServer.takeRequest(2, TimeUnit.SECONDS)!!.getHeader("Authorization"))
+            val retry = mockServer.takeRequest(2, TimeUnit.SECONDS)!!
+            assertEquals("Bearer fresh-token", retry.getHeader("Authorization"))
+            assertEquals("/api/fs/download", retry.requestUrl!!.encodedPath)
         }
 
     @Test

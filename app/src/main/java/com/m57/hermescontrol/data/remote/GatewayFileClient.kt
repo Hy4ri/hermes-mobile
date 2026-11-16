@@ -88,6 +88,13 @@ object GatewayFileClient {
         profile: String?,
     ): String? {
         val url = buildUrl(baseUrl, token = "", path = path, endpointPath = WORKSPACE_DOWNLOAD_PATH) ?: return null
+        return withProfile(url, profile)
+    }
+
+    private fun withProfile(
+        url: String,
+        profile: String?,
+    ): String {
         val scope = profile?.takeIf { it.isNotBlank() } ?: return url
         return "$url&profile=${encodeQuery(scope)}"
     }
@@ -106,24 +113,24 @@ object GatewayFileClient {
     /**
      * Build the best URL for a gateway host file: `/api/files/stream` for seekable audio/video
      * with Range support (issue #920), and `/api/files/download` for images, documents, and other files.
+     *
+     * The stream URL carries [profile]: the stream route reads an SSH profile's clip from its
+     * SSH machine, as Desktop's player does (#1861).
      */
     fun buildMediaUrl(
         baseUrl: String,
         token: String,
         path: String,
+        profile: String? = null,
     ): String? {
         val kind =
             com.m57.hermescontrol.ui.chat
                 .mediaKindForPath(path)
-        val endpoint =
-            if (kind == com.m57.hermescontrol.ui.chat.MediaKind.AUDIO ||
+        val streamed =
+            kind == com.m57.hermescontrol.ui.chat.MediaKind.AUDIO ||
                 kind == com.m57.hermescontrol.ui.chat.MediaKind.VIDEO
-            ) {
-                STREAM_PATH
-            } else {
-                DOWNLOAD_PATH
-            }
-        return buildUrl(baseUrl, token, path, endpoint)
+        if (!streamed) return buildUrl(baseUrl, token, path, DOWNLOAD_PATH)
+        return withProfile(buildUrl(baseUrl, token, path, STREAM_PATH) ?: return null, profile)
     }
 
     private fun buildUrl(
@@ -227,9 +234,10 @@ object GatewayFileClient {
     /**
      * Fetch a file the agent named in a chat. The workspace route reads it where
      * the profile's tools run: its SSH machine when it has one, else the gateway
-     * host (#1861). A 404 there retries the managed route, which reads the
-     * gateway host only: files the gateway itself wrote for an SSH profile
-     * (for example TTS audio) and gateways without the workspace route.
+     * host (#1861), as Desktop's file save does. Only a gateway without that
+     * route falls back to the managed route. A file missing on the SSH machine
+     * stays "not found": the managed route reads the gateway host, which could
+     * hold an unrelated file at the same path.
      */
     suspend fun fetchWorkspaceFile(
         path: String,
@@ -239,15 +247,44 @@ object GatewayFileClient {
         cacheDir: File,
     ): GatewayFileResult {
         val namespace = "fs:${profile.orEmpty()}"
-        val result = download(path, token, cacheDir, namespace) { buildWorkspaceDownloadUrl(baseUrl, path, profile) }
-        return if (result is GatewayFileResult.NotFound) fetch(path, baseUrl, token, cacheDir) else result
+        val result =
+            download(path, token, cacheDir, namespace, detectMissingRoute = true) {
+                buildWorkspaceDownloadUrl(baseUrl, path, profile)
+            }
+        val routeMissing = result is GatewayFileResult.Failure && result.throwable is MissingRouteException
+        return if (routeMissing) fetch(path, baseUrl, token, cacheDir) else result
     }
+
+    @Volatile
+    private var authenticatedClient: Pair<okhttp3.OkHttpClient, okhttp3.OkHttpClient>? = null
+
+    /** [OkHttpProvider.base] plus the token refresher: in token mode a 401 refreshes the
+     * dashboard token and retries once, as REST calls do. Rebuilt only when base changes. */
+    private fun downloadClient(): okhttp3.OkHttpClient {
+        val base = OkHttpProvider.base
+        authenticatedClient?.takeIf { it.first === base }?.let { return it.second }
+        return base
+            .newBuilder()
+            .authenticator(TokenRefreshAuthenticator)
+            .build()
+            .also { authenticatedClient = base to it }
+    }
+
+    /** The gateway has no such API route (a release older than the route). */
+    private class MissingRouteException : IOException("gateway has no workspace download route")
+
+    /** True for the 404 body of an unknown API route: `No such API endpoint: ...`
+     * from the dashboard, or FastAPI's default `Not Found`. A missing file says
+     * `File not found` instead. */
+    internal fun isMissingRouteDetail(detail: String?): Boolean =
+        detail != null && (detail == "Not Found" || detail.startsWith("No such API endpoint"))
 
     private suspend fun download(
         path: String,
         token: String,
         cacheDir: File,
         cacheNamespace: String,
+        detectMissingRoute: Boolean = false,
         buildUrl: () -> String?,
     ): GatewayFileResult =
         withContext(Dispatchers.IO) {
@@ -290,7 +327,7 @@ object GatewayFileClient {
 
             val call =
                 try {
-                    OkHttpProvider.base.newCall(downloadRequest(url, token))
+                    downloadClient().newCall(downloadRequest(url, token))
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Throwable) {
@@ -298,6 +335,9 @@ object GatewayFileClient {
                 }
 
             executeCancellable(call) { resp ->
+                if (detectMissingRoute && resp.code == 404 && isMissingRouteDetail(errorDetail(peekBody(resp)))) {
+                    return@executeCancellable GatewayFileResult.Failure(MissingRouteException())
+                }
                 classifyStatus(resp.code)?.let { return@executeCancellable it }
                 if (!resp.isSuccessful) {
                     return@executeCancellable GatewayFileResult.Failure(IOException(httpFailureMessage(resp)))
@@ -319,10 +359,11 @@ object GatewayFileClient {
     /** `HTTP <code>`, plus the gateway's `detail` text when the body has one
      * (for example `HTTP 503: SSH workspace is unavailable`). */
     private fun httpFailureMessage(resp: Response): String {
-        val body = runCatching { resp.peekBody(4096).string() }.getOrNull()
-        val detail = body?.let(::errorDetail)
+        val detail = errorDetail(peekBody(resp))
         return if (detail == null) "HTTP ${resp.code}" else "HTTP ${resp.code}: $detail"
     }
+
+    private fun peekBody(resp: Response): String = runCatching { resp.peekBody(4096).string() }.getOrDefault("")
 
     /** The string `detail` of a FastAPI error body, shortened, or `null`. */
     internal fun errorDetail(body: String): String? {

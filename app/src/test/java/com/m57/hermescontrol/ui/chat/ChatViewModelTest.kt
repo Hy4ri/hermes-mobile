@@ -714,7 +714,7 @@ class ChatViewModelTest {
             mockkObject(com.m57.hermescontrol.data.remote.GatewayFileClient)
             every {
                 com.m57.hermescontrol.data.remote.GatewayFileClient
-                    .buildMediaUrl(any(), any(), any())
+                    .buildMediaUrl(any(), any(), any(), any())
             } answers {
                 if (reducerMediaCalls++ == 0) {
                     uiStateFlow.value = uiStateFlow.value.copy(contextDetailError = "concurrent write")

@@ -990,6 +990,8 @@ class ChatViewModel(
             getApplication = { getApplication() },
             scope = viewModelScope,
             ioDispatcher = ioDispatcher,
+            // Gated mode: an expired cookie needs a sign-in; token mode already refreshed and retried.
+            onSessionExpired = { if (AuthManager.isGatedMode()) relogin.open() },
         )
 
     /** In-chat re-login dialog: matches the gateway's sign-in providers (issue #1641). */
@@ -3029,7 +3031,12 @@ class ChatViewModel(
 
     /** Authenticated gateway URL for a host `MEDIA:` path; kept out of the pure mapper (#1337). */
     private fun gatewayMediaUrl(path: String): String? =
-        GatewayFileClient.buildMediaUrl(AuthManager.getBaseUrl(), AuthManager.getToken().orEmpty(), path)
+        GatewayFileClient.buildMediaUrl(
+            AuthManager.getBaseUrl(),
+            AuthManager.getToken().orEmpty(),
+            path,
+            AuthManager.activeProfileId.value,
+        )
 
     private fun sendScope(): String =
         listOf(

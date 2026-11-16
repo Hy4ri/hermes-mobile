@@ -129,6 +129,25 @@ class GatewayFileClientTest {
     }
 
     @Test
+    fun `buildMediaUrl scopes only stream URLs to the profile`() {
+        val audioUrl = GatewayFileClient.buildMediaUrl(base, tok, "/tmp/voice.ogg", "ssh box")!!
+        val docUrl = GatewayFileClient.buildMediaUrl(base, tok, "/tmp/report.pdf", "ssh box")!!
+
+        assertTrue(audioUrl.startsWith("$base/api/files/stream?"))
+        assertTrue(audioUrl.endsWith("&profile=ssh%20box"))
+        assertFalse(docUrl.contains("profile="))
+        assertFalse(GatewayFileClient.buildMediaUrl(base, tok, "/tmp/voice.ogg", null)!!.contains("profile="))
+    }
+
+    @Test
+    fun `isMissingRouteDetail separates an unknown route from a missing file`() {
+        assertTrue(GatewayFileClient.isMissingRouteDetail("No such API endpoint: /api/fs/download"))
+        assertTrue(GatewayFileClient.isMissingRouteDetail("Not Found"))
+        assertFalse(GatewayFileClient.isMissingRouteDetail("File not found"))
+        assertFalse(GatewayFileClient.isMissingRouteDetail(null))
+    }
+
+    @Test
     fun `errorDetail reads a FastAPI detail string only`() {
         assertEquals(
             "SSH workspace is unavailable",

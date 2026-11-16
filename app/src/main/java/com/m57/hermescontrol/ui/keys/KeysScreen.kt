@@ -540,10 +540,8 @@ private fun EnvVarCard(
     val displayValue =
         if (isRevealed) {
             revealedValue.orEmpty()
-        } else if (config.isSet) {
-            config.redactedValue ?: "••••••••••••"
         } else {
-            stringResource(R.string.keys_label_not_configured)
+            maskedKeyValue(config) ?: stringResource(R.string.keys_label_not_configured)
         }
 
     val copiedMessage = stringResource(R.string.keys_copied_toast)
@@ -875,3 +873,8 @@ private fun RestartBanner(
         }
     }
 }
+
+/** Fixed mask for a configured secret. The gateway's redacted_value can carry a prefix/suffix, so never show it. */
+internal const val KEY_MASK = "••••••••••••"
+
+internal fun maskedKeyValue(config: EnvVarConfig): String? = if (config.isSet) KEY_MASK else null

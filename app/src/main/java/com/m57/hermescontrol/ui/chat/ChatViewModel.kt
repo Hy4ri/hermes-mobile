@@ -5321,6 +5321,13 @@ class ChatViewModel(
         )
     }
 
+    /** Host status (compression result, refresh notices) is a compact SYSTEM row, not assistant prose. */
+    private fun addLocalSystemNotice(text: String) {
+        appendLocalTranscriptEvent(
+            ChatMessage(role = MessageRole.SYSTEM, content = text, displayKind = DisplayKind.LOCAL_FEEDBACK),
+        )
+    }
+
     private fun handleUndoCommand(count: String) {
         if (runtimeSessionId == null) {
             addAssistantMessage("No active session to undo.")
@@ -5498,7 +5505,7 @@ class ChatViewModel(
                         response.summary?.note?.takeIf { it.isNotBlank() },
                     ).takeIf { it.isNotEmpty() }?.joinToString("\n")
                     ?: response.message ?: "No changes from compression."
-            addAssistantMessage(feedback)
+            addLocalSystemNotice(feedback)
             return
         }
         // The target is a physical transcript tip; resume resolves its logical owner.
@@ -5549,7 +5556,7 @@ class ChatViewModel(
                 summary?.token_line?.takeIf { it.isNotBlank() },
                 summary?.note?.takeIf { it.isNotBlank() },
             ).takeIf { it.isNotEmpty() }?.joinToString("\n") ?: response.message ?: "Context compressed."
-        addAssistantMessage(
+        addLocalSystemNotice(
             if (incompleteFallback) "$feedback\nHistory refresh incomplete; cached history retained." else feedback,
         )
         if (!isCurrentSessionRequest(sessionId, generation)) return
@@ -5937,9 +5944,29 @@ class ChatViewModel(
         if (!mintNow) {
             draftSession = true
             _uiState.update { it.copy(isDraftSession = true) }
+            loadDraftDefaultModel(generation)
             return
         }
         sendSessionCreate(generation, cwd, setLoading)
+    }
+
+    /** Shows the profile's configured model on a draft pill until the first send (card #637). */
+    private fun loadDraftDefaultModel(generation: Long) {
+        val profile = AuthManager.activeProfileId.value
+        viewModelScope.launch {
+            val info =
+                withContext(ioDispatcher) {
+                    runCatching {
+                        when (val result = safeApiRead { ApiClient.hermesApi.getModelInfo(profile) }) {
+                            is NetworkResult.Success -> result.data
+                            is NetworkResult.Failure -> null
+                        }
+                    }.getOrNull()
+                }
+            val label = draftDefaultModelLabel(info) ?: return@launch
+            if (generation != sessionGeneration || !draftSession || draftModelPick != null) return@launch
+            _uiState.update { if (it.currentSessionModel == null) it.copy(currentSessionModel = label) else it }
+        }
     }
 
     /**
@@ -8394,4 +8421,11 @@ class ChatViewModel(
         /** Upper bound for the resume retry backoff delay. */
         const val RESUME_RETRY_MAX_MS = 8_000L
     }
+}
+
+/** The `provider/model` label the pill uses, from `GET /api/model/info`; null when unknown. */
+internal fun draftDefaultModelLabel(info: ModelInfoResponse?): String? {
+    val model = info?.model?.takeIf { it.isNotBlank() } ?: return null
+    val provider = info.provider?.takeIf { it.isNotBlank() }
+    return if (provider != null) "$provider/$model" else model
 }

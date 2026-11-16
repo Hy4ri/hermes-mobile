@@ -154,7 +154,7 @@ internal fun FullBleedAgentMessage(
                     message.tokenCount != null && message.tokenCount > 0
             val showTpsStat =
                 messageStatsEnabled && showTokensPerSecond &&
-                    message.tps != null && message.tps > 0.0
+                    TokenEstimator.isDisplayableTps(message.tps)
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -216,7 +216,7 @@ internal fun FullBleedAgentMessage(
                         value =
                             stringResource(
                                 R.string.chat_msg_tps,
-                                TokenEstimator.formatTps(message.tps),
+                                TokenEstimator.formatTps(message.tps ?: 0.0),
                             ),
                         testTag = "fullbleed_tps",
                     )

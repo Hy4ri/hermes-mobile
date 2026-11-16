@@ -21,6 +21,12 @@ class ServerEndpoint private constructor(
     val baseUrl: HttpUrl,
     val securityWarning: String?,
 ) {
+    // Value equality on the base URL: callers (e.g. the kanban events stream) compare endpoints captured at
+    // different times, and every AuthManager.endpointForBuild() call builds a fresh instance.
+    override fun equals(other: Any?): Boolean = other is ServerEndpoint && other.baseUrl == baseUrl
+
+    override fun hashCode(): Int = baseUrl.hashCode()
+
     fun resolve(relativePath: String): HttpUrl {
         val path = relativePath.trim().trimStart('/')
         require(path.isNotEmpty()) { "Endpoint path must not be blank" }

@@ -1050,10 +1050,13 @@ class KanbanViewModel(
         if (!isCurrentOwner(owner)) {
             return
         }
-        if (eventsBoard != board.id || eventsEndpoint != endpoint || eventsLoadGen != owner.loadGen) {
+        val cursor = latestBoardCursor
+        if (cursor == null || eventsBoard != board.id || eventsEndpoint != endpoint || eventsLoadGen != owner.loadGen) {
+            // No usable board snapshot (the REST load failed), so no stream can open. Say so instead of
+            // leaving the pill on "Connecting"; the next Refresh retries.
+            _uiState.update { it.copy(isLive = false, streamState = KanbanStreamState.UNAVAILABLE) }
             return
         }
-        val cursor = latestBoardCursor ?: return
         // A retry (Refresh, board switch) starts from "connecting", not from the last failure.
         _uiState.update { it.copy(isLive = false, streamState = KanbanStreamState.CONNECTING) }
         val client = eventsClient ?: eventsClientProvider().also { eventsClient = it }

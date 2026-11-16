@@ -2084,4 +2084,12 @@
     <string name="hosted_leave_title">مغادرة الغرف المستضافة؟</string>
     <string name="hosted_leave_warning">لم يتم تأكيد رسالتك الأخيرة. ربما استقبلتها البوابة. تحقّق من سجل الغرفة قبل إرسالها مرة أخرى.</string>
     <string name="hosted_leave">مغادرة</string>
+    <string name="chat_model_label">النموذج</string>
+    <string name="chat_mic">الميكروفون</string>
+    <string name="chat_stop_listening">إيقاف الاستماع</string>
+    <string name="chat_reasoning_none_label">بدون استدلال</string>
+    <string name="chat_reasoning_section">الاستدلال</string>
+    <string name="chat_reasoning_always_on">الاستدلال مفعّل دائمًا</string>
+    <string name="chat_reasoning_unsupported">لا يوجد معامل استدلال لهذا النموذج</string>
+    <string name="content_desc_session_options">خيارات الجلسة</string>
 </resources>

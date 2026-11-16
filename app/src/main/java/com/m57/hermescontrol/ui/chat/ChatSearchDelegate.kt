@@ -40,6 +40,9 @@ class ChatSearchDelegate(
     private var searchJob: Job? = null
     private var queryEpoch = 0L
     private var lastScannedMessages: List<ChatMessage>? = null
+    private var observedSessionId: String? = null
+    private var sessionObserved = false
+    private var observedLocale: String? = null
 
     /** Counts presentation filtering at this boundary, including validation rescans. */
     internal var searchableMessagesCallsForTest = 0
@@ -49,6 +52,7 @@ class ChatSearchDelegate(
         // Gate before queue filtering or list equality: inactive transcripts may be large.
         scope.launch {
             uiState.collect { state ->
+                onSessionObserved(state.currentSessionId)
                 if (!searchState.isActive || searchState.query.isBlank()) return@collect
                 val messages = searchableMessages(state)
                 if (messages == lastScannedMessages) return@collect
@@ -63,6 +67,20 @@ class ChatSearchDelegate(
                 }
             }
         }
+    }
+
+    /** Closes search when the chat moves to a different (or new) session. */
+    internal fun onSessionObserved(sessionId: String?) {
+        if (sessionObserved && sessionId != observedSessionId) clearSearch()
+        sessionObserved = true
+        observedSessionId = sessionId
+    }
+
+    /** Closes search when the app locale changes (activity recreation keeps the ViewModel). */
+    fun onLocaleObserved(localeTag: String) {
+        val previous = observedLocale
+        observedLocale = localeTag
+        if (previous != null && previous != localeTag) clearSearch()
     }
 
     fun toggleSearch() {

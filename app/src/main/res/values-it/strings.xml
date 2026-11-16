@@ -1182,7 +1182,10 @@
     <string name="cron_status_blocked_config">Bloccato (config)</string>
     <string name="cron_status_no_change">Nessuna modifica</string>
     <string name="cron_edit_hint_schedule">es. 0 9 * * * o every 2h</string>
-    <string name="cron_edit_hint_deliver">es. origin, local, all o telegram:chat_id</string>
+    <string name="cron_edit_hint_deliver">origin, local o una piattaforma connessa</string>
+    <string name="cron_edit_support_schedule">Cron (0 9 * * *) o intervallo (every 30m)</string>
+    <string name="cron_edit_error_schedule_required">La pianificazione è obbligatoria</string>
+    <string name="cron_edit_error_prompt_required">Aggiungi un prompt, una skill o uno script</string>
     <string name="cron_edit_hint_time">HH:MM</string>
     <string name="cron_edit_hint_skills">Una per riga</string>
     <string name="cron_edit_action_save">Salva</string>

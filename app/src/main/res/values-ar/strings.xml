@@ -1089,7 +1089,10 @@
 <string name="cron_status_blocked_config">محظور (الإعدادات)</string>
 <string name="cron_status_no_change">لا يوجد تغيير</string>
 <string name="cron_edit_hint_schedule">مثال: 0 9 * * * أو كل ساعتين (every 2h)</string>
-<string name="cron_edit_hint_deliver">مثال: origin أو local أو all أو telegram:chat_id</string>
+<string name="cron_edit_hint_deliver">origin أو local أو منصة متصلة</string>
+<string name="cron_edit_support_schedule">Cron (0 9 * * *) أو فترة (every 30m)</string>
+<string name="cron_edit_error_schedule_required">الجدولة مطلوبة</string>
+<string name="cron_edit_error_prompt_required">أضف موجّهًا أو مهارة أو سكربتًا</string>
 <string name="cron_edit_hint_time">HH:MM</string>
 <string name="cron_edit_hint_skills">مهارة واحدة في كل سطر</string>
 <string name="cron_edit_action_save">حفظ</string>

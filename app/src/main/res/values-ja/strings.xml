@@ -1314,7 +1314,10 @@
     <string name="cron_status_blocked_config">設定により実行できません</string>
     <string name="cron_status_no_change">変更なし</string>
     <string name="cron_edit_hint_schedule">例：0 9 * * * または every 2h</string>
-    <string name="cron_edit_hint_deliver">例：origin、local、all、telegram:chat_id</string>
+    <string name="cron_edit_hint_deliver">origin、local、または接続済みプラットフォーム</string>
+    <string name="cron_edit_support_schedule">Cron（0 9 * * *）または間隔（every 30m）</string>
+    <string name="cron_edit_error_schedule_required">スケジュールは必須です</string>
+    <string name="cron_edit_error_prompt_required">プロンプト、スキル、またはスクリプトを追加してください</string>
     <string name="cron_edit_hint_time">HH:MM</string>
     <string name="cron_edit_hint_skills">1行につき1つ</string>
     <string name="cron_edit_action_save">保存</string>

@@ -140,6 +140,8 @@ fun ChatInputBar(
     onStopGeneration: () -> Unit = {},
     receiveContentListener: ReceiveContentListener? = null,
     isReceivingContent: Boolean = false,
+    onRealtimeTap: () -> Unit = {},
+    realtimeEnabled: Boolean = false,
 ) {
     val inputText = inputState.text.toString()
     // Allow sending while the agent is mid-turn or awaiting approval: the
@@ -501,6 +503,8 @@ fun ChatInputBar(
                         onModelTap = onModelTap,
                         onReasoningSelected = onReasoningTap,
                         onMicTap = onMicTap,
+                        onRealtimeTap = onRealtimeTap,
+                        realtimeEnabled = realtimeEnabled && !isRecordingVoice && !isListening,
                         onMicHoldStart = handleMicHoldStart,
                         onMicHoldEnd = handleMicHoldEnd,
                         onMicHoldCancel = handleMicHoldCancel,

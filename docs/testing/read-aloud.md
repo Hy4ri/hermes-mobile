@@ -40,3 +40,7 @@ Android 36, x86_64 Pixel 6 emulator, local debug APK explicitly approved for thi
 - 126 focused JVM tests and the compile, formatting, and color checks passed. The full unit suite runs in CI.
 
 Generating and playing screenshots are in [`docs/screenshots/read-aloud`](../screenshots/read-aloud). Physical-device acceptance is a separate gate; emulator success does not claim it.
+
+## Tooltip follow-up
+
+The first full CI run caught a missing tooltip on the extracted Listen action. The button now uses the existing `HermesTooltip` with the same localized label as its accessibility description. The tooltip guard was not excluded or weakened. All 130 focused JVM cases, including the four tooltip-ratchet checks, pass. The generation-cancellation device case also long-presses the preparing action, verifies the Stop tooltip, and cancels playback; that case passed again on Android 36.

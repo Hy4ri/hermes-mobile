@@ -9,11 +9,16 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.theme.HermesControlTheme
 import com.m57.hermescontrol.ui.chat.ChatMessage
@@ -283,6 +288,8 @@ class StreamingListenDeviceTest {
         click()
         assertTrue(connected.await(5, TimeUnit.SECONDS))
         assertTrue(controller.preparingId.value != null)
+        compose.onNodeWithTag("fullbleed_speak").performTouchInput { longClick() }
+        compose.onNodeWithText(context.getString(R.string.content_desc_stop_speaking)).assertIsDisplayed()
         click()
         assertEquals(null, controller.preparingId.value)
         assertEquals(null, controller.speakingId.value)

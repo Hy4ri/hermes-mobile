@@ -26,6 +26,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.HermesControlTheme
 import com.m57.hermescontrol.ui.common.ExpressiveCircularProgressIndicator
 import com.m57.hermescontrol.ui.common.ExpressiveIconButton
+import com.m57.hermescontrol.ui.common.HermesTooltip
 
 @Composable
 internal fun SpeechPlaybackButton(
@@ -35,27 +36,29 @@ internal fun SpeechPlaybackButton(
 ) {
     val label = stringResource(if (isActive) R.string.content_desc_stop_speaking else R.string.content_desc_speak)
     val preparing = stringResource(R.string.tts_preparing)
-    ExpressiveIconButton(
-        onClick = onClick,
-        modifier =
-            Modifier.size(48.dp).testTag("fullbleed_speak").semantics {
-                contentDescription = label
-                if (isPreparing) stateDescription = preparing
-            },
-    ) {
-        if (isPreparing) {
-            ExpressiveCircularProgressIndicator(
-                modifier = Modifier.size(18.dp),
-                strokeWidth = 2.dp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        } else {
-            Icon(
-                imageVector = if (isActive) Icons.Filled.Stop else Icons.AutoMirrored.Filled.VolumeUp,
-                contentDescription = null,
-                modifier = Modifier.size(14.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+    HermesTooltip(label) {
+        ExpressiveIconButton(
+            onClick = onClick,
+            modifier =
+                Modifier.size(48.dp).testTag("fullbleed_speak").semantics {
+                    contentDescription = label
+                    if (isPreparing) stateDescription = preparing
+                },
+        ) {
+            if (isPreparing) {
+                ExpressiveCircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                Icon(
+                    imageVector = if (isActive) Icons.Filled.Stop else Icons.AutoMirrored.Filled.VolumeUp,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

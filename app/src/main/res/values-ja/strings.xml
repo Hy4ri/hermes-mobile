@@ -281,6 +281,7 @@
     <string name="content_desc_copied">コピーしました</string>
     <string name="content_desc_speak">読み上げ</string>
     <string name="content_desc_stop_speaking">読み上げを停止</string>
+    <string name="tts_preparing">音声を生成中</string>
     <string name="tts_error_synthesis">メッセージの音声を合成できませんでした</string>
     <string name="content_desc_edit">編集</string>
     <string name="chat_msg_tokens">%1$s トークン</string>

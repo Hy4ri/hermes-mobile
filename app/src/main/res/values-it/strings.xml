@@ -235,6 +235,7 @@
     <string name="content_desc_copied">Copiato</string>
     <string name="content_desc_speak">Leggi ad alta voce</string>
     <string name="content_desc_stop_speaking">Interrompi lettura</string>
+    <string name="tts_preparing">Generazione audio</string>
     <string name="tts_error_synthesis">Impossibile sintetizzare l\'audio del messaggio</string>
     <string name="content_desc_edit">Modifica</string>
     <string name="chat_msg_tokens">%1$s tok</string>

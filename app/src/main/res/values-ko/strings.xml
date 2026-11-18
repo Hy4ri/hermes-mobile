@@ -1329,6 +1329,7 @@
     <string name="chat_pending_discard_warning">기기 대기열에서 이 메시지를 삭제하시겠습니까? 이미 서버에 전달된 작업이나 메시지는 취소 또는 삭제되지 않습니다.</string>
     <string name="content_desc_speak">소리 내어 읽기</string>
     <string name="content_desc_stop_speaking">읽기 중지</string>
+    <string name="tts_preparing">음성 생성 중</string>
     <string name="tts_error_synthesis">메시지 오디오를 합성할 수 없습니다</string>
     <string name="account_connectors_title">계정 커넥터</string>
     <string name="account_connectors_unavailable_title">커넥터를 사용할 수 없음</string>

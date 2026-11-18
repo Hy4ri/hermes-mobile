@@ -1117,6 +1117,9 @@ interface HermesApiService : KanbanApiService {
         @Body body: AudioTranscriptionRequest,
     ): Response<AudioTranscriptionResponse>
 
+    @POST("api/auth/ws-ticket")
+    suspend fun mintSpeechTicket(): Response<com.m57.hermescontrol.data.ws.WsTicketResponse>
+
     @POST("api/audio/speak")
     suspend fun speakText(
         @Body request: TtsSpeakRequest,

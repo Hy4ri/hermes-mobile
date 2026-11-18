@@ -13,10 +13,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -42,6 +40,7 @@ import com.m57.hermescontrol.ui.chat.MessageSegment
 import com.m57.hermescontrol.ui.chat.TokenEstimator
 import com.m57.hermescontrol.ui.chat.components.MessageReactionChips
 import com.m57.hermescontrol.ui.chat.components.ReasoningCard
+import com.m57.hermescontrol.ui.chat.components.SpeechPlaybackButton
 import com.m57.hermescontrol.ui.chat.components.rememberCopyFeedback
 import com.m57.hermescontrol.ui.chat.splitByMedia
 import kotlinx.coroutines.launch
@@ -72,6 +71,7 @@ internal fun FullBleedAgentMessage(
     canSaveAttachment: Boolean = true,
     onImageClick: (ImageViewerModel) -> Unit = {},
     isSpeaking: Boolean = false,
+    isPreparingSpeech: Boolean = false,
     onToggleSpeak: (() -> Unit)? = null,
     messageStatsEnabled: Boolean = false,
     showAssistantMessageTokens: Boolean = true,
@@ -177,29 +177,11 @@ internal fun FullBleedAgentMessage(
                     )
                 }
                 if (onToggleSpeak != null) {
-                    IconButton(
+                    SpeechPlaybackButton(
+                        isActive = isSpeaking,
+                        isPreparing = isPreparingSpeech,
                         onClick = onToggleSpeak,
-                        modifier = Modifier.size(28.dp).testTag("fullbleed_speak"),
-                    ) {
-                        Icon(
-                            imageVector =
-                                if (isSpeaking) {
-                                    Icons.Filled.Stop
-                                } else {
-                                    Icons.AutoMirrored.Filled.VolumeUp
-                                },
-                            contentDescription =
-                                stringResource(
-                                    if (isSpeaking) {
-                                        R.string.content_desc_stop_speaking
-                                    } else {
-                                        R.string.content_desc_speak
-                                    },
-                                ),
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    )
                 }
                 if (showTokenStat) {
                     AssistantStatItem(

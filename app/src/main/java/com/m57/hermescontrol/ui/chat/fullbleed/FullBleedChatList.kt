@@ -520,6 +520,8 @@ fun FullBleedChatList(
                                                                 canSaveAttachment = savingAttachmentPath == null,
                                                                 onImageClick = actions.onImageClick,
                                                                 isSpeaking = isSpeakingThis,
+                                                                isPreparingSpeech =
+                                                                    transcript.preparingSpeechId == proseMessage.id,
                                                                 onToggleSpeak = toggleSpeakAction,
                                                                 messageStatsEnabled = messageStatsEnabled,
                                                                 showAssistantMessageTokens = showAssistantMessageTokens,

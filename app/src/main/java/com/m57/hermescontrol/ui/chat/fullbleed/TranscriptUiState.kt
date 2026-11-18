@@ -40,6 +40,7 @@ data class TranscriptUiState(
     val isCompressing: Boolean,
     val compressionStatus: String?,
     val speakingMessageId: String?,
+    val preparingSpeechId: String? = null,
     val pendingSendStates: Map<String, PendingSendState> = emptyMap(),
 ) {
     companion object {

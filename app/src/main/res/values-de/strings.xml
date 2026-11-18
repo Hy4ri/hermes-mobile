@@ -291,6 +291,7 @@
     <string name="content_desc_copied">Kopiert</string>
     <string name="content_desc_speak">Vorlesen</string>
     <string name="content_desc_stop_speaking">Vorlesen stoppen</string>
+    <string name="tts_preparing">Audio wird erzeugt</string>
     <string name="tts_error_synthesis">Audio der Nachricht konnte nicht erzeugt werden</string>
     <string name="content_desc_edit">Bearbeiten</string>
     <string name="chat_msg_tokens">%1$s Tok.</string>

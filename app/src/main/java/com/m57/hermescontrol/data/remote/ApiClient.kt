@@ -100,13 +100,20 @@ object ApiClient {
         scope: DataScope,
         token: String?,
         cookies: List<Cookie>,
+        requestTimeoutMs: Long? = null,
+        authenticator: okhttp3.Authenticator = okhttp3.Authenticator.NONE,
     ): HermesApiService {
         val endpoint = ServerEndpoint.parseForBuild(scope.baseUrl)
         val capturedCookies = cookies.toList()
         val client =
             OkHttpProvider.base
                 .newBuilder()
-                .cookieJar(
+                .apply {
+                    if (requestTimeoutMs != null) {
+                        readTimeout(requestTimeoutMs, TimeUnit.MILLISECONDS)
+                        callTimeout(requestTimeoutMs, TimeUnit.MILLISECONDS)
+                    }
+                }.cookieJar(
                     object : CookieJar {
                         override fun loadForRequest(url: HttpUrl): List<Cookie> =
                             capturedCookies.filter { it.matches(url) }
@@ -132,10 +139,10 @@ object ApiClient {
                         } else {
                             request.url
                         }
-                    val builder = request.newBuilder().url(url)
+                    val builder = request.newBuilder().url(url).tag(DataScope::class.java, scope)
                     if (!token.isNullOrBlank()) builder.header("Authorization", "Bearer $token")
                     chain.proceed(builder.build())
-                }.authenticator(okhttp3.Authenticator.NONE)
+                }.authenticator(authenticator)
                 .followRedirects(false)
                 .followSslRedirects(false)
                 .build()

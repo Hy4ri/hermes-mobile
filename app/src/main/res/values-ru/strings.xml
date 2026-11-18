@@ -355,6 +355,7 @@
     <string name="content_desc_copied">Скопировано</string>
     <string name="content_desc_speak">Прочитать вслух</string>
     <string name="content_desc_stop_speaking">Остановить озвучивание</string>
+    <string name="tts_preparing">Создание аудио</string>
     <string name="tts_error_synthesis">Не удалось озвучить сообщение</string>
     <string name="content_desc_edit">Изменить</string>
     <string name="chat_msg_tokens">%1$s ток.</string>

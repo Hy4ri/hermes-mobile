@@ -16,6 +16,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
+import kotlinx.coroutines.Dispatchers
 
 /**
  * Creates and remembers a screen/list-level [SpeechController] scoped to the active
@@ -32,14 +33,15 @@ fun rememberChatSpeech(
     onError: (() -> Unit)? = null,
 ): SpeechController {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
+    val scope = rememberCoroutineScope { Dispatchers.Main.immediate }
     val lifecycleOwner = LocalLifecycleOwner.current
     val errorSynthesisMessage = stringResource(R.string.tts_error_synthesis)
 
     val dataScope by AuthManager.dataScopeFlow.collectAsStateWithLifecycle()
     val activeSessionId by ActiveSessionHolder.activeSessionId.collectAsStateWithLifecycle()
 
-    val profile = dataScope?.activeProfileId
+    val capturedScope = dataScope
+    val profile = capturedScope?.activeProfileId
     val scopeKey = dataScope?.inMemoryKey(localKey = activeSessionId ?: "none").orEmpty()
 
     val resolvedSynthesizer =
@@ -48,6 +50,9 @@ fun rememberChatSpeech(
                 context = context,
                 api = ApiClient.hermesApi,
                 profile = profile,
+                serviceProvider = { text ->
+                    GatewaySpeechConnection.capture(checkNotNull(capturedScope)).service(speechRequestTimeoutMs(text))
+                },
             )
         }
 
@@ -62,6 +67,22 @@ fun rememberChatSpeech(
                 scope = scope,
                 synthesizer = resolvedSynthesizer,
                 player = resolvedPlayer,
+                streamingPlayer =
+                    if (synthesizer == null && player == null && capturedScope != null) {
+                        StreamingSpeechPlayer(
+                            frames = { request -> GatewaySpeechConnection.frames(capturedScope, request.text) },
+                            cacheFactory = { rate ->
+                                openSpeechResource {
+                                    SpeechPcmCache(context.cacheDir, rate)
+                                }
+                            },
+                            outputFactory = { rate ->
+                                openSpeechResource { AndroidPcmOutput(context, rate) }
+                            },
+                        )
+                    } else {
+                        null
+                    },
                 onError = {
                     onError?.invoke() ?: Toast
                         .makeText(

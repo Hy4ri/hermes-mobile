@@ -82,6 +82,144 @@ class SpeechControllerTest {
     }
 
     @Test
+    fun `completed stream transfers cache for replay and reset disposes it`() =
+        runTest {
+            val synth = FakeSynthesizer()
+            val player = FakePlayer()
+            val audio = FakeAudio("stream")
+            var streamCalls = 0
+            val streaming =
+                object : SpeechStreamingPlayer {
+                    override suspend fun play(
+                        request: SpeechRequest,
+                        onPlaying: () -> Unit,
+                    ): Boolean {
+                        streamCalls++
+                        onPlaying()
+                        return true
+                    }
+
+                    override fun takeCachedAudio(): SpeechAudio = audio
+                }
+            val controller = SpeechController(this, synth, player, { error("unexpected") }, streaming)
+            val request = SpeechRequest("s", "m", "hello")
+            controller.toggle(request)
+            advanceUntilIdle()
+            assertNull(controller.speakingId.value)
+            controller.toggle(request)
+            advanceUntilIdle()
+            assertEquals(1, streamCalls)
+            assertEquals(1, player.playCallCount)
+            assertTrue(synth.calls.isEmpty())
+            assertFalse(audio.isDisposed)
+            controller.reset()
+            assertTrue(audio.isDisposed)
+        }
+
+    @Test
+    fun `stream starts before completion without requesting whole message`() =
+        runTest {
+            val synth = FakeSynthesizer()
+            val player = FakePlayer()
+            val done = CompletableDeferred<Unit>()
+            var started: (() -> Unit)? = null
+            val controller =
+                SpeechController(
+                    scope = this,
+                    synthesizer = synth,
+                    player = player,
+                    onError = { error("unexpected failure") },
+                    streamingPlayer =
+                        SpeechStreamingPlayer { _, onPlaying ->
+                            started = onPlaying
+                            done.await()
+                            true
+                        },
+                )
+            controller.toggle(SpeechRequest("s", "m", "hello"))
+            runCurrent()
+            assertEquals("m", controller.preparingId.value)
+            started!!.invoke()
+            assertNull(controller.preparingId.value)
+            assertEquals("m", controller.speakingId.value)
+            assertTrue(synth.calls.isEmpty())
+            done.complete(Unit)
+            advanceUntilIdle()
+            assertNull(controller.speakingId.value)
+        }
+
+    @Test
+    fun `unavailable stream falls back once`() =
+        runTest {
+            val synth = FakeSynthesizer()
+            val player = FakePlayer()
+            val controller =
+                SpeechController(
+                    this,
+                    synth,
+                    player,
+                    { error("unexpected failure") },
+                    SpeechStreamingPlayer { _, _ -> false },
+                )
+            controller.toggle(SpeechRequest("s", "m", "hello"))
+            advanceUntilIdle()
+            assertEquals(1, synth.calls.size)
+            assertEquals(1, player.playCallCount)
+            assertNull(controller.preparingId.value)
+        }
+
+    @Test
+    fun `partial stream failure never replays whole message`() =
+        runTest {
+            val synth = FakeSynthesizer()
+            var errors = 0
+            val controller =
+                SpeechController(
+                    this,
+                    synth,
+                    FakePlayer(),
+                    { errors++ },
+                    SpeechStreamingPlayer { _, onPlaying ->
+                        onPlaying()
+                        throw java.io.IOException("stream dropped")
+                    },
+                )
+            controller.toggle(SpeechRequest("s", "m", "hello"))
+            advanceUntilIdle()
+            assertTrue(synth.calls.isEmpty())
+            assertEquals(1, errors)
+            assertNull(controller.speakingId.value)
+            assertNull(controller.preparingId.value)
+        }
+
+    @Test
+    fun `cancelled stream never falls back and stale callback cannot revive it`() =
+        runTest {
+            val synth = FakeSynthesizer()
+            var started: (() -> Unit)? = null
+            val controller =
+                SpeechController(
+                    this,
+                    synth,
+                    FakePlayer(),
+                    { error("unexpected failure") },
+                    SpeechStreamingPlayer { _, onPlaying ->
+                        started = onPlaying
+                        CompletableDeferred<Unit>().await()
+                        false
+                    },
+                )
+            controller.toggle(SpeechRequest("s", "m", "hello"))
+            runCurrent()
+            controller.stop()
+            started!!.invoke()
+            advanceUntilIdle()
+            assertTrue(synth.calls.isEmpty())
+            assertNull(controller.speakingId.value)
+            assertNull(controller.preparingId.value)
+        }
+
+    @Test
     fun `toggle with blank text is a no-op`() =
         runTest {
             val fixture = Fixture(this)

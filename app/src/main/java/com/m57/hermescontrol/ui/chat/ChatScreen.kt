@@ -288,6 +288,7 @@ fun ChatScreen(
     val browserEvent = connectorsState.browserLaunchEvent
     val speechController = rememberChatSpeech()
     val speakingMessageId by speechController.speakingId.collectAsStateWithLifecycle()
+    val preparingSpeechId by speechController.preparingId.collectAsStateWithLifecycle()
     val dataScope by AuthManager.dataScopeFlow.collectAsStateWithLifecycle()
     val activeSessionId by ActiveSessionHolder.activeSessionId.collectAsStateWithLifecycle()
     val listState = rememberLazyListState(prefetchStrategy = ChatTimelineNoPrefetchStrategy)
@@ -965,6 +966,7 @@ fun ChatScreen(
                         transcriptState.copy(
                             savingAttachmentPath = pendingSavePath ?: transcriptState.savingAttachmentPath,
                             speakingMessageId = speakingMessageId,
+                            preparingSpeechId = preparingSpeechId,
                         ),
                     actions =
                         TranscriptActions(

@@ -3,6 +3,7 @@ package com.m57.hermescontrol.ui.chat.components
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -37,9 +38,13 @@ class SpeechController(
     private val synthesizer: SpeechSynthesizer,
     private val player: SpeechPlayer,
     private val onError: () -> Unit,
+    private val streamingPlayer: SpeechStreamingPlayer? = null,
 ) {
     private val _speakingId = MutableStateFlow<String?>(null)
     val speakingId: StateFlow<String?> = _speakingId.asStateFlow()
+
+    private val _preparingId = MutableStateFlow<String?>(null)
+    val preparingId: StateFlow<String?> = _preparingId.asStateFlow()
 
     private var activeRequest: SpeechRequest? = null
     private var activeJob: Job? = null
@@ -66,8 +71,10 @@ class SpeechController(
         activeJob?.cancel()
         activeJob = null
         activeRequest = null
+        streamingPlayer?.clearCache()
         player.stop()
         _speakingId.value = null
+        _preparingId.value = null
     }
 
     fun reset() {
@@ -88,6 +95,7 @@ class SpeechController(
 
         activeRequest = request
         _speakingId.value = request.messageId
+        _preparingId.value = request.messageId
 
         val cached = cachedAudio
         if (cached != null && cachedRequest == request) {
@@ -99,6 +107,27 @@ class SpeechController(
             scope.launch {
                 var synthesizedAudio: SpeechAudio? = null
                 try {
+                    if (streamingPlayer != null) {
+                        val completed =
+                            streamingPlayer.play(request) {
+                                if (generation == currentGen && activeRequest == request) {
+                                    _preparingId.value = null
+                                }
+                            }
+                        // A non-cooperative implementation must not start REST after stop/switch.
+                        kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                        if (generation != currentGen) return@launch
+                        if (completed) {
+                            val audio = streamingPlayer.takeCachedAudio()
+                            if (audio != null) {
+                                cachedAudio?.dispose()
+                                cachedRequest = request
+                                cachedAudio = audio
+                            }
+                            handlePlaybackFinished()
+                            return@launch
+                        }
+                    }
                     val audio = synthesizer.synthesize(request)
                     synthesizedAudio = audio
 
@@ -119,6 +148,9 @@ class SpeechController(
                 } catch (e: Exception) {
                     synthesizedAudio?.dispose()
                     if (generation == currentGen) {
+                        java.util.logging.Logger
+                            .getLogger(SpeechController::class.java.name)
+                            .log(java.util.logging.Level.WARNING, "Read aloud failed", e)
                         handlePlaybackFailure()
                     }
                 }
@@ -130,6 +162,7 @@ class SpeechController(
         gen: Long,
     ) {
         try {
+            _preparingId.value = null
             var completed = false
             player.play(
                 audio = audio,
@@ -160,6 +193,7 @@ class SpeechController(
         activeRequest = null
         player.stop()
         _speakingId.value = null
+        _preparingId.value = null
     }
 
     private fun handlePlaybackFailure() {
@@ -167,6 +201,7 @@ class SpeechController(
         activeRequest = null
         player.stop()
         _speakingId.value = null
+        _preparingId.value = null
         onError()
     }
 

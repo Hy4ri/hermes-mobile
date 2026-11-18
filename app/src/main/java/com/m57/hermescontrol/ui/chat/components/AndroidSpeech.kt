@@ -50,12 +50,13 @@ class AndroidSpeechSynthesizer(
     context: Context,
     private val api: HermesApiService,
     private val profile: String?,
+    private val serviceProvider: (String) -> HermesApiService = { api },
 ) : SpeechSynthesizer {
     private val appContext = context.applicationContext
 
     override suspend fun synthesize(request: SpeechRequest): SpeechAudio {
         val response =
-            api.speakText(
+            serviceProvider(request.text).speakText(
                 request = TtsSpeakRequest(request.text),
                 profile = profile,
             )

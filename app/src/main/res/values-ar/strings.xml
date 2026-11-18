@@ -1611,6 +1611,7 @@
     <string name="notif_session_failed">فشلت الجلسة: %1$s</string>
     <string name="content_desc_speak">قراءة بصوت عالٍ</string>
     <string name="content_desc_stop_speaking">إيقاف القراءة</string>
+    <string name="tts_preparing">جارٍ توليد الصوت</string>
     <string name="tts_error_synthesis">تعذر توليد صوت الرسالة</string>
     <string name="chat_action_timeline">المخطط الزمني</string>
     <string name="chat_timeline_title">المخطط الزمني للمحادثة</string>

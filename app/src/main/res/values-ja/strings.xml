@@ -1948,4 +1948,8 @@
     <plurals name="whats_new_internal_changes">
         <item quantity="other">内部変更 %d 件</item>
     </plurals>
+    <string name="chat_menu_switch_connection_hint">接続を切り替え</string>
+    <string name="chat_connection_switcher_title">接続を切り替え</string>
+    <string name="chat_connection_switcher_open_settings">接続設定</string>
+    <string name="chat_connection_active_desc">アクティブな接続</string>
 </resources>

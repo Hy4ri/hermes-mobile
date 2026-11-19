@@ -2188,4 +2188,8 @@
     <string name="ssh_tunnel_error_host_key_unconfirmed">SSH-туннель: подтвердите ключ хоста в настройках SSH-туннеля (отпечаток %1$s).</string>
     <string name="ssh_tunnel_error_load">Не удалось загрузить настройки SSH-туннеля. Существующие настройки нельзя перезаписать.</string>
     <string name="ssh_tunnel_loopback_warning">Туннель привязывается к локальному порту на 127.0.0.1; другие приложения на этом устройстве могут подключиться к открытому локальному порту.</string>
+    <string name="chat_menu_switch_connection_hint">Сменить подключение</string>
+    <string name="chat_connection_switcher_title">Сменить подключение</string>
+    <string name="chat_connection_switcher_open_settings">Настройки подключения</string>
+    <string name="chat_connection_active_desc">Активное подключение</string>
 </resources>

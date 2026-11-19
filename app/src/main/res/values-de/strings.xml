@@ -2111,4 +2111,8 @@
         <item quantity="one">%1$d Hintergrundprozess läuft</item>
         <item quantity="other">%1$d Hintergrundprozesse laufen</item>
     </plurals>
+    <string name="chat_menu_switch_connection_hint">Verbindung wechseln</string>
+    <string name="chat_connection_switcher_title">Verbindung wechseln</string>
+    <string name="chat_connection_switcher_open_settings">Verbindungseinstellungen</string>
+    <string name="chat_connection_active_desc">Aktive Verbindung</string>
 </resources>

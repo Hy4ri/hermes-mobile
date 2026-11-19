@@ -1974,4 +1974,8 @@
         <item quantity="many">%1$d processi in background in esecuzione</item>
         <item quantity="other">%1$d processi in background in esecuzione</item>
     </plurals>
+    <string name="chat_menu_switch_connection_hint">Cambia connessione</string>
+    <string name="chat_connection_switcher_title">Cambia connessione</string>
+    <string name="chat_connection_switcher_open_settings">Impostazioni connessione</string>
+    <string name="chat_connection_active_desc">Connessione attiva</string>
 </resources>

@@ -2105,4 +2105,8 @@
     <string name="chat_reasoning_always_on">الاستدلال مفعّل دائمًا</string>
     <string name="chat_reasoning_unsupported">لا يوجد معامل استدلال لهذا النموذج</string>
     <string name="content_desc_session_options">خيارات الجلسة</string>
+    <string name="chat_menu_switch_connection_hint">تبديل الاتصال</string>
+    <string name="chat_connection_switcher_title">تبديل الاتصال</string>
+    <string name="chat_connection_switcher_open_settings">إعدادات الاتصال</string>
+    <string name="chat_connection_active_desc">الاتصال النشط</string>
 </resources>

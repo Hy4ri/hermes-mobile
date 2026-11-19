@@ -2109,4 +2109,8 @@
         <item quantity="many">%1$d procesos en segundo plano en ejecución</item>
         <item quantity="other">%1$d procesos en segundo plano en ejecución</item>
     </plurals>
+    <string name="chat_menu_switch_connection_hint">Cambiar conexión</string>
+    <string name="chat_connection_switcher_title">Cambiar conexión</string>
+    <string name="chat_connection_switcher_open_settings">Ajustes de conexión</string>
+    <string name="chat_connection_active_desc">Conexión activa</string>
 </resources>

@@ -1963,4 +1963,8 @@
     <plurals name="sessions_live_work_background_desc">
         <item quantity="other">%1$d 个后台进程正在运行</item>
     </plurals>
+    <string name="chat_menu_switch_connection_hint">切换连接</string>
+    <string name="chat_connection_switcher_title">切换连接</string>
+    <string name="chat_connection_switcher_open_settings">连接设置</string>
+    <string name="chat_connection_active_desc">当前连接</string>
 </resources>

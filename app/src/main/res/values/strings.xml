@@ -2300,4 +2300,8 @@
     <string name="chat_reasoning_section">REASONING</string>
     <string name="chat_reasoning_always_on">reasoning always on</string>
     <string name="chat_reasoning_unsupported">no reasoning parameter for this model</string>
+    <string name="chat_menu_switch_connection_hint">Switch connection</string>
+    <string name="chat_connection_switcher_title">Switch connection</string>
+    <string name="chat_connection_switcher_open_settings">Connection settings</string>
+    <string name="chat_connection_active_desc">Active connection</string>
 </resources>

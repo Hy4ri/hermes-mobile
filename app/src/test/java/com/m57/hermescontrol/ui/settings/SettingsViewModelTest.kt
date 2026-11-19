@@ -607,4 +607,22 @@ class SettingsViewModelTest {
             assertEquals(false, viewModel.uiState.value.isTesting)
             assertEquals("✅ Connected successfully", viewModel.uiState.value.testResult)
         }
+
+    @Test
+    fun refreshConnectionProfilesReconcilesExternalChanges() {
+        val viewModel = createViewModel()
+        val updated =
+            listOf(
+                ConnectionProfile(id = "prof-3", name = "Lab", baseUrl = "http://10.0.0.3:9119/"),
+            )
+        every { AuthManager.getConnectionProfiles() } returns updated
+        every { AuthManager.getSelectedProfileId() } returns "prof-3"
+        every { AuthManager.getBaseUrl() } returns "http://10.0.0.3:9119/"
+
+        viewModel.refreshConnectionProfiles()
+
+        assertEquals(updated, viewModel.uiState.value.profiles)
+        assertEquals("prof-3", viewModel.uiState.value.selectedProfileId)
+        assertEquals("http://10.0.0.3:9119/", viewModel.uiState.value.baseUrl)
+    }
 }

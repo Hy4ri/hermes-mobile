@@ -68,3 +68,11 @@
 -dontwarn com.jcraft.jsch.**
 -dontwarn org.bouncycastle.**
 -dontwarn org.ietf.jgss.**
+
+# ── Reproducible builds (#1823) ──────────────────────────────────────────
+# R8 non-deterministically picks Continuation or ContinuationImpl for the last
+# parameter of emitAbort, which breaks F-Droid's reproducible build check.
+# Pinning the method signature makes classes*.dex and baseline.prof stable.
+-keepclassmembers,allowobfuscation,allowshrinking class kotlinx.coroutines.flow.FlowKt__LimitKt {
+    *** emitAbort*(...);
+}

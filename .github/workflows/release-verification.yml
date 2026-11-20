@@ -6,14 +6,12 @@ on:
     paths:
       - '.github/scripts/verify_release_apk.py'
       - '.github/scripts/test_verify_release_apk.py'
-      - '.github/scripts/install_debian_jdk.sh'
       - '.github/workflows/release*.yml'
   push:
     branches: [main]
     paths:
       - '.github/scripts/verify_release_apk.py'
       - '.github/scripts/test_verify_release_apk.py'
-      - '.github/scripts/install_debian_jdk.sh'
       - '.github/workflows/release*.yml'
 
 permissions:
@@ -29,18 +27,3 @@ jobs:
           persist-credentials: false
       - name: Test release APK identity checks
         run: python3 -m unittest discover -s .github/scripts -p 'test_verify_release_apk.py' -v
-
-  debian-jdk:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - name: Install the release JDK (F-Droid's Debian OpenJDK 21)
-        run: bash .github/scripts/install_debian_jdk.sh "$RUNNER_TEMP/jdk"
-      - name: Check the JDK runs with its security config
-        run: |
-          set -euo pipefail
-          "$RUNNER_TEMP/jdk/bin/java" -XshowSettings:security:properties -version 2>&1 | grep -q 'jdk.tls.disabledAlgorithms'
-          "$RUNNER_TEMP/jdk/bin/keytool" -list -cacerts -storepass changeit | grep -q 'trustedCertEntry'

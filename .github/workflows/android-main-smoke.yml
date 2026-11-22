@@ -1,0 +1,54 @@
+name: Android Main Smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      # App/build inputs from android.yml, plus this workflow itself.
+      - 'app/**'
+      - '!app/src/main/java/**/*.md'
+      - 'gradle/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - '.editorconfig'
+      - 'flake.nix'
+      - 'flake.lock'
+      - '.github/workflows/android-main-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Merged Android Compile and Contract Smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          validate-wrappers: true
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTED_KEY }}
+
+      # A combined Gradle graph can compile both variants in the same JVM
+      # at once and exhaust the Kotlin daemon heap.
+      - name: Compile release Kotlin
+        run: ./gradlew compileReleaseKotlin
+
+      - name: Run gateway contract smoke tests
+        run: |
+          ./gradlew testDebugUnitTest \
+            --tests '*GatewayContractTest' --tests '*GatewayRouteContractTest'

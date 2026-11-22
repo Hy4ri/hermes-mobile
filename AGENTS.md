@@ -62,22 +62,22 @@ nix develop -c android --no-metrics preview render app \
 - `--component-tree` writes a JSON tree (bounds, source locations, semantics, modifiers) alongside the PNG.
 - Preview renders inspect layout/theme/fontScale only — they do not replace device or emulator verification.
 
-### CI pipeline (`.github/workflows/android.yml`)
+### CI by event
 
-| Job                  | Purpose                                                                                                                            |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `ktlint`             | ktlint 1.8.0 style check + `checkColorLiterals` (hardcoded Color guard, issue #622)                                                |
-| `android-lint`       | Android Lint                                                                                                                       |
-| `unit-tests`         | JUnit                                                                                                                              |
-| `build`              | assembleDebug (gated by the 3 above)                                                                                               |
-| `release-compile`    | compileReleaseKotlin — catches release-variant compilation issues (e.g. debugImplementation-scoped deps referenced in main source) |
-| `instrumented-tests` | Compose UI tests on Android emulator (API 34 ATD)                                                                                  |
-| `ci-summary`         | Aggregator (`if: always()`) — branch protection gates on THIS check                                                                |
+- **PR** (`.github/workflows/android.yml`): branch protection requires **CI Summary**.
+  A docs-only PR skips Android work, but the template still applies to outside contributors.
+  App and build changes run ktlint, the color guard, Android Lint, the full JVM and API 34
+  emulator suites, release compilation, and a debug APK build. The APK can build even if
+  the template fails. Workflow and automation changes run the offline tooling tests,
+  including release-verifier tests. A required job that unexpectedly skips fails the
+  summary. Manual dispatch runs the full suite under a separate **Manual CI Summary**.
+- **Push to main** (`.github/workflows/android-main-smoke.yml`): app and build changes
+  compile the release variant and run the JVM gateway contract tests on the merged commit.
+  No review APK, full test suite, or repeat lint. The conflict detector still checks
+  open PRs when main moves.
+- **CodeQL**: scans applicable PRs and scans the default branch nightly. It does not run on each merge.
 
-Also: There is a separate workflow `merge-conflict-detector.yml` that auto-labels PRs with `has-conflicts`.
-
-Every Gradle job validates `gradle-wrapper.jar` and uses the remote build cache
-(`GRADLE_ENCRYPTED_KEY` secret). `concurrency.cancel-in-progress: true`.
+Gradle CI jobs validate the wrapper. New commits supersede older Android CI runs for the same PR.
 
 ### Releasing (`.github/workflows/release.yml`)
 

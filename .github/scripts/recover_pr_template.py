@@ -147,10 +147,11 @@ def recover(gh, number):
         )
     ):
         return "not-template-failure"
+    # The status label is cosmetic, not a second reason to block recovery.
     if any(
         job["conclusion"] not in ("success", "skipped")
         for job in jobs
-        if job["name"] not in ("PR Template", "CI Summary")
+        if job["name"] not in ("PR Template", "CI Summary", "Update CI Label")
     ):
         return "other-failure"
 

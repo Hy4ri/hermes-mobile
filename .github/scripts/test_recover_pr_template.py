@@ -119,6 +119,11 @@ class RecoveryTests(unittest.TestCase):
         self.assertNotIn("CI restart requested", gh.posts[0][1]["body"])
         self.assertIn("CI restart requested", gh.comments[0]["body"])
 
+    def test_label_job_failure_does_not_block_template_recovery(self):
+        gh = FakeGitHub()
+        gh.jobs.append({"name": "Update CI Label", "conclusion": "failure"})
+        self.assertEqual(recovery.recover(gh, 42), "requested")
+
     def test_comment_failure_after_restart_does_not_allow_duplicate(self):
         gh = FakeGitHub()
         with (

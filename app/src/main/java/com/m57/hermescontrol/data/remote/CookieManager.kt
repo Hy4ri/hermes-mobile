@@ -101,7 +101,8 @@ object CookieManager {
         expiresAt: Long,
     ): Cookie {
         val prefix = sessionCookiePrefix(url)
-        val cookiePath = if (prefix == "__Host-") "/" else url.encodedPath
+        // Match the server's Set-Cookie Path so refresh and clearing overwrite the installed cookie.
+        val cookiePath = url.encodedPath.trimEnd('/').ifEmpty { "/" }
         return Cookie
             .Builder()
             .name(prefix + bareName)

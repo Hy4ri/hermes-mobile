@@ -125,8 +125,45 @@ class NativeSessionCookiesTest {
             )
             assertEquals("new-access", CookieManager.getSessionCookie())
             assertEquals("self-hosted", CookieManager.getSessionProvider())
-            assertTrue(cookies.all { it.secure && it.httpOnly && it.hostOnly && it.path == "/hermes/" })
+            assertTrue(cookies.all { it.secure && it.httpOnly && it.hostOnly && it.path == "/hermes" })
             stale.filter { !it.name.startsWith("__Secure-") }.forEach { assertNull(jar.getCookie(it.name)) }
+        }
+
+    @Test
+    fun `server rotation and clearing replace native session cookies on an HTTPS subpath`() =
+        runTest {
+            val jar = buildFakePersistentCookieJar()
+            jar.useStore("connection-a")
+            CookieManager.setJarForTest(jar)
+            val endpoint = ServerEndpoint.parse("https://dashboard.test/hermes/", CleartextPolicy.DENY)
+            val requestUrl = endpoint.resolve("api/auth/ws-ticket")
+            val rotated =
+                mapOf(
+                    "__Secure-hermes_session_at" to "rotated-access",
+                    "__Secure-hermes_session_rt" to "rotated-refresh",
+                    "__Secure-hermes_session_provider" to "self-hosted",
+                )
+            CookieManager.installNativeSession(NativeTokens("first-access", "first-refresh", "self-hosted"), endpoint)
+
+            jar.saveFromResponse(
+                requestUrl,
+                rotated.map { (name, value) ->
+                    checkNotNull(Cookie.parse(requestUrl, "$name=$value; Path=/hermes; Max-Age=60; Secure; HttpOnly"))
+                },
+            )
+
+            val afterRotation = jar.loadForRequest(requestUrl)
+            assertEquals(rotated.size, afterRotation.size)
+            assertEquals(rotated, afterRotation.associate { it.name to it.value })
+
+            jar.saveFromResponse(
+                requestUrl,
+                rotated.keys.map { name ->
+                    checkNotNull(Cookie.parse(requestUrl, "$name=; Path=/hermes; Max-Age=0; Secure; HttpOnly"))
+                },
+            )
+
+            assertTrue(jar.loadForRequest(requestUrl).none { it.name in rotated && it.value.isNotEmpty() })
         }
 
     @Test

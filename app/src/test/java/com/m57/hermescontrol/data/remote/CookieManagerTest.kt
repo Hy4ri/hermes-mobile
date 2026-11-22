@@ -84,7 +84,7 @@ class CookieManagerTest {
             assertTrue("HTTPS session cookie must be Secure", cookies[0].secure)
             assertTrue("HTTPS session cookie must be HttpOnly", cookies[0].httpOnly)
             assertTrue("HTTPS session cookie must be host-only", cookies[0].hostOnly)
-            assertEquals("/hermes/", cookies[0].path)
+            assertEquals("/hermes", cookies[0].path)
             assertEquals("sess-secure", CookieManager.getSessionCookie())
         }
 

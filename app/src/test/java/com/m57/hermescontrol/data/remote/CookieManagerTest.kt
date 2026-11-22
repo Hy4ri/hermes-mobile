@@ -80,8 +80,31 @@ class CookieManagerTest {
                     "https://dash.local/hermes/api/status".toHttpUrl(),
                 )
             assertEquals(1, cookies.size)
+            assertEquals("__Secure-$SESSION_COOKIE_NAME", cookies[0].name)
             assertTrue("HTTPS session cookie must be Secure", cookies[0].secure)
+            assertTrue("HTTPS session cookie must be HttpOnly", cookies[0].httpOnly)
+            assertTrue("HTTPS session cookie must be host-only", cookies[0].hostOnly)
             assertEquals("/hermes/", cookies[0].path)
+            assertEquals("sess-secure", CookieManager.getSessionCookie())
+        }
+
+    @Test
+    fun setSessionCookie_httpsRootUsesHostPrefix() =
+        runTest {
+            val jar = fakeJar()
+            CookieManager.setSessionCookie("sess-host", httpsEp("dash.local", "/"))
+
+            val cookies =
+                jar.loadForRequest(
+                    "https://dash.local/api/status".toHttpUrl(),
+                )
+            assertEquals(1, cookies.size)
+            assertEquals("__Host-$SESSION_COOKIE_NAME", cookies[0].name)
+            assertTrue("__Host- cookie must be Secure", cookies[0].secure)
+            assertTrue("__Host- cookie must be HttpOnly", cookies[0].httpOnly)
+            assertTrue("__Host- cookie must be host-only", cookies[0].hostOnly)
+            assertEquals("/", cookies[0].path)
+            assertEquals("sess-host", CookieManager.getSessionCookie())
         }
 
     @Test

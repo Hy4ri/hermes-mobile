@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import okhttp3.Cookie
+import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 /**
@@ -81,8 +82,42 @@ object CookieManager {
     }
 
     /**
+     * Resolve the cookie-name prefix expected by Hermes Agent (`hermes_cli/dashboard_auth/cookies.py`):
+     * - Plain HTTP: bare name (`""`)
+     * - HTTPS at root (`/`): `__Host-` (RFC 6265bis: `Secure`, `Path=/`, host-only)
+     * - HTTPS behind a path prefix: `__Secure-` (RFC 6265bis: `Secure`)
+     */
+    internal fun sessionCookiePrefix(url: HttpUrl): String =
+        when {
+            !url.isHttps -> ""
+            url.encodedPath.trimEnd('/').isEmpty() -> "__Host-"
+            else -> "__Secure-"
+        }
+
+    private fun buildSessionCookie(
+        url: HttpUrl,
+        bareName: String,
+        value: String,
+        expiresAt: Long,
+    ): Cookie {
+        val prefix = sessionCookiePrefix(url)
+        val cookiePath = if (prefix == "__Host-") "/" else url.encodedPath
+        return Cookie
+            .Builder()
+            .name(prefix + bareName)
+            .value(value)
+            .expiresAt(expiresAt)
+            .hostOnlyDomain(url.host)
+            .path(cookiePath)
+            .httpOnly()
+            .apply { if (url.isHttps) secure() }
+            .build()
+    }
+
+    /**
      * Set the session cookie for the active scope and canonical endpoint.
-     * HTTPS endpoints produce Secure cookies that cannot be sent over HTTP.
+     * HTTPS endpoints produce Secure, prefix-hardened cookies (`__Host-` at root,
+     * `__Secure-` behind a path prefix) that cannot be sent over HTTP.
      */
     fun setSessionCookie(
         rawValue: String?,
@@ -93,25 +128,23 @@ object CookieManager {
             j.clearActive()
             return
         }
-        val builder =
-            Cookie
-                .Builder()
-                .name(SESSION_COOKIE_NAME)
-                .value(rawValue)
-                .expiresAt(
-                    System.currentTimeMillis() +
-                        10L * 365 * 24 * 60 * 60 * 1000,
-                ).hostOnlyDomain(endpoint.baseUrl.host)
-                .path(endpoint.baseUrl.encodedPath)
-                .httpOnly()
-        if (endpoint.baseUrl.isHttps) builder.secure()
-        j.saveFromResponse(endpoint.baseUrl, listOf(builder.build()))
+        val url = endpoint.baseUrl
+        val cookie =
+            buildSessionCookie(
+                url = url,
+                bareName = SESSION_COOKIE_NAME,
+                value = rawValue,
+                expiresAt = System.currentTimeMillis() + SESSION_COOKIE_LIFETIME_MS,
+            )
+        j.replaceCookies(url, listOf(cookie), SESSION_COOKIE_NAMES.toSet())
     }
 
     /**
      * Install the bearer tokens from the dashboard's native (browser) login as the same session
-     * cookies a password login would have set. The dashboard accepts them under their bare names on
-     * any scheme and rotates them itself through `Set-Cookie` when the access token expires.
+     * cookies a password login would have set. On HTTPS, Hermes strictly requires the prefix
+     * matching the request shape (`__Host-` at root `/`, `__Secure-` behind a path prefix) and
+     * rejects bare names; over plain HTTP it accepts bare names. The server rotates them itself
+     * through `Set-Cookie` when the access token expires.
      */
     fun installNativeSession(
         tokens: NativeTokens,
@@ -121,31 +154,29 @@ object CookieManager {
         val url = endpoint.baseUrl
         val now = System.currentTimeMillis()
 
-        fun cookie(
-            name: String,
-            value: String,
-            lifetimeMs: Long,
-        ): Cookie =
-            Cookie
-                .Builder()
-                .name(name)
-                .value(value)
-                .expiresAt(now + lifetimeMs)
-                .hostOnlyDomain(url.host)
-                .path(url.encodedPath)
-                .httpOnly()
-                .apply { if (url.isHttps) secure() }
-                .build()
-
         val cookies =
             buildList {
                 // Lifetime of the access token is owned server-side, as for password login.
-                add(cookie(SESSION_COOKIE_NAME, tokens.accessToken, SESSION_COOKIE_LIFETIME_MS))
+                add(buildSessionCookie(url, SESSION_COOKIE_NAME, tokens.accessToken, now + SESSION_COOKIE_LIFETIME_MS))
                 if (tokens.refreshToken.isNotBlank()) {
-                    add(cookie(SESSION_RT_COOKIE_NAME, tokens.refreshToken, REFRESH_COOKIE_LIFETIME_MS))
+                    add(
+                        buildSessionCookie(
+                            url,
+                            SESSION_RT_COOKIE_NAME,
+                            tokens.refreshToken,
+                            now + REFRESH_COOKIE_LIFETIME_MS,
+                        ),
+                    )
                 }
                 if (tokens.provider.isNotBlank()) {
-                    add(cookie(SESSION_PROVIDER_COOKIE_NAME, tokens.provider, REFRESH_COOKIE_LIFETIME_MS))
+                    add(
+                        buildSessionCookie(
+                            url,
+                            SESSION_PROVIDER_COOKIE_NAME,
+                            tokens.provider,
+                            now + REFRESH_COOKIE_LIFETIME_MS,
+                        ),
+                    )
                 }
             }
         j.replaceCookies(url, cookies, SESSION_FAMILY_COOKIE_NAMES)

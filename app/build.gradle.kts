@@ -47,41 +47,6 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
-        create("release") {
-            val isReleaseBuild =
-                gradle.startParameter.taskNames.any { name ->
-                    name.contains("Release", ignoreCase = true) || name == "build"
-                }
-
-            if (isReleaseBuild) {
-                val storePath = System.getenv("KEYSTORE_PATH")
-                val storePass = System.getenv("KEYSTORE_PASSWORD")
-                val alias = System.getenv("KEY_ALIAS")
-                val keyPass = System.getenv("KEY_PASSWORD")
-
-                if (storePath != null && storePass != null && alias != null && keyPass != null) {
-                    storeFile = file(storePath)
-                    storePassword = storePass
-                    keyAlias = alias
-                    keyPassword = keyPass
-                } else {
-                    // Env vars missing — signing deferred to release workflow.
-                    // Don't hard-require(): that would break compileReleaseKotlin
-                    // in CI where keystore secrets aren't set.
-                    logger.warn("Release signing config missing env vars — signing deferred to release workflow")
-                    storeFile = file("dummy.keystore")
-                    storePassword = "dummy"
-                    keyAlias = "dummy"
-                    keyPassword = "dummy"
-                }
-            } else {
-                // Dummy values for evaluation configuration during non-release builds
-                storeFile = file("dummy.keystore")
-                storePassword = "dummy"
-                keyAlias = "dummy"
-                keyPassword = "dummy"
-            }
-        }
     }
 
     buildTypes {
@@ -100,7 +65,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            signingConfig = signingConfigs["release"]
+            // CI signs the verified main-branch APK outside Gradle when it is released.
             buildConfigField("boolean", "ALLOW_CLEARTEXT", "true")
             manifestPlaceholders["usesCleartextTraffic"] = "true"
         }

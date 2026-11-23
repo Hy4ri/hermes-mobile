@@ -265,6 +265,9 @@
     <string name="notif_channel_chat_desc">Alerts for new replies from Hermes</string>
     <string name="notif_session_complete">Session finished: %1$s</string>
     <string name="notif_session_failed">Session failed: %1$s</string>
+    <string name="notif_cron_completed">Cron job finished</string>
+    <string name="notif_cron_failed">Cron job failed</string>
+    <string name="notif_cron_delivery_failed">Cron job finished, but delivery failed</string>
     <string name="action_reply">Reply</string>
 
     <!-- Chat Screen & Bubble -->
@@ -383,7 +386,7 @@
     <string name="settings_keep_connected_in_background_title">Stay connected in background</string>
     <string name="settings_keep_connected_in_background_desc">Keep Hermes connected while using other apps. Shows an ongoing notification and may use more battery.</string>
     <string name="settings_notify_session_completions_title">Notify when a session completes</string>
-    <string name="settings_notify_session_completions_desc">Alert when any Hermes session finishes while the app is in the background. Keeps Hermes connected in the background (ongoing notification, extra battery use) so finished sessions can alert you.</string>
+    <string name="settings_notify_session_completions_desc">Alert when Hermes reports a finished session or cron job while the app is in the background. Keeps Hermes connected in the background (ongoing notification, extra battery use).</string>
     <string name="settings_sec_behavior">Behavior</string>
     <string name="settings_item_auto_reconnect">Auto-Reconnect</string>
     <string name="settings_desc_auto_reconnect">Automatically reconnect on disconnect</string>

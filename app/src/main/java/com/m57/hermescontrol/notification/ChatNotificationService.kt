@@ -240,6 +240,7 @@ class ChatNotificationService : Service() {
         startEventCollection()
         startStatusCollection()
         kanbanAlertMonitor.start(serviceScope)
+        startCronBackgroundAlerts(this, serviceScope)
     }
 
     private fun startEventCollection() {

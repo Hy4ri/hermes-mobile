@@ -47,6 +47,8 @@ object NavigationController {
         private set
     var pendingKanbanNavigation: PendingKanbanNavigation? by mutableStateOf(null)
         private set
+    var pendingCronNotification: Boolean by mutableStateOf(false)
+        private set
 
     /**
      * The list screen a chat was opened from (History, Bots). Back out of that
@@ -130,6 +132,14 @@ object NavigationController {
 
     fun consumePendingKanbanNavigation() {
         pendingKanbanNavigation = null
+    }
+
+    fun openCronJobsFromNotification() {
+        pendingCronNotification = true
+    }
+
+    fun consumeCronNotification() {
+        pendingCronNotification = false
     }
 
     fun openChatSessionFromNotification(sessionId: String) {

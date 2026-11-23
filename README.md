@@ -56,6 +56,7 @@ The app connects to the Hermes dashboard over its REST API and WebSocket gateway
 ## Features
 
 - Chat with your agent. History is stored locally in Room, and notifications support inline replies.
+- Enable **Notify when a session completes** for cron results on the selected profile while the app stays connected in the background. The cron API exposes each job’s latest result, so quick successive runs can appear as one alert.
 - Manage profiles, skills, plugins, toolsets, and model/provider selections.
 - Stream and filter live logs, manage cron jobs, edit environment keys, test webhooks, and monitor processes.
 - Check the WebSocket connection, MCP servers, messaging channels, and OAuth providers.

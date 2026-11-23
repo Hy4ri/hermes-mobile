@@ -30,15 +30,6 @@ class ImageUploadPolicyTest {
     }
 
     @Test
-    fun originalChoiceRetainsTheTransportLimitWhilePhotosHaveABoundedSourceAllowance() {
-        val photo = Attachment("uri", "camera.jpg", "image/jpeg")
-        assertEquals(MAX_PHOTO_SOURCE_BYTES, photo.sourceByteLimit())
-        assertEquals(MAX_CHAT_ATTACHMENT_BYTES, photo.copy(sendOriginal = true).sourceByteLimit())
-        assertEquals(MAX_CHAT_ATTACHMENT_BYTES, photo.copy(mimeType = "image/gif").sourceByteLimit())
-        assertEquals(MAX_CHAT_ATTACHMENT_BYTES, photo.copy(mimeType = "application/pdf").sourceByteLimit())
-    }
-
-    @Test
     fun decodeIsBoundedOnBothAxesWithoutUpscaling() {
         assertEquals(1, photoSampleSize(640, 480))
         assertEquals(1, photoSampleSize(2048, 2048))

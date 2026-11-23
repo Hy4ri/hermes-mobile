@@ -58,6 +58,7 @@ import com.m57.hermescontrol.data.ws.contract.ConfigSetParams
 import com.m57.hermescontrol.data.ws.contract.DESKTOP_SESSION_SOURCE
 import com.m57.hermescontrol.data.ws.contract.FileAttachParams
 import com.m57.hermescontrol.data.ws.contract.ImageAttachBytesParams
+import com.m57.hermescontrol.data.ws.contract.ImageAttachParams
 import com.m57.hermescontrol.data.ws.contract.ProcessStopParams
 import com.m57.hermescontrol.data.ws.contract.PromptBtwParams
 import com.m57.hermescontrol.data.ws.contract.RpcMethod
@@ -92,6 +93,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -168,23 +170,25 @@ private fun rpcResultMap(result: Any?): Map<*, *>? =
         else -> null
     }
 
+/** Exactly one of [encodedFile] (inline Base64 for the frame) or [staged] (already on the gateway). */
 private data class PreparedAttachment(
     val attachment: Attachment,
-    val encodedFile: File,
+    val encodedFile: File?,
+    val staged: GatewayStagedAttachment? = null,
 )
-
-private class QueuedAttachmentTooLargeException(
-    val attachment: Attachment,
-) : Exception("Attachment too large: ${attachment.name}")
 
 private sealed interface PrepareAttachmentResult {
     data class Success(
         val prepared: PreparedAttachment,
     ) : PrepareAttachmentResult
 
-    data object TooLarge : PrepareAttachmentResult
+    data class TooLarge(
+        val message: String,
+    ) : PrepareAttachmentResult
 
-    data object Unreadable : PrepareAttachmentResult
+    data class Unreadable(
+        val message: String,
+    ) : PrepareAttachmentResult
 }
 
 data class ChatUiState(
@@ -546,6 +550,7 @@ class ChatViewModel(
     private val voiceNoteRepository: VoiceNoteRepository = VoiceNoteRepository(),
     internal val onCompressionHistoryReplacedForTest: (() -> Unit)? = null,
     private val projectsSource: ProjectsSource = HermesProjectsSource(),
+    private val attachmentStager: ChatAttachmentStager = HttpChatAttachmentStager(),
 ) : AndroidViewModel(application) {
     constructor(application: Application) : this(application, startCleanup = true)
 
@@ -3249,6 +3254,7 @@ class ChatViewModel(
                     dispatchPrompt(
                         text = staged.text,
                         attachments = staged.attachments,
+                        composerAttachments = reservation.pending.attachments,
                         wasStreaming = reservation.wasStreaming,
                         storageSessionId = owner.storageSessionId,
                         agentSessionId = owner.agentSessionId,
@@ -3278,16 +3284,9 @@ class ChatViewModel(
                             messages = state.messages.filterNot { it.id == reservation.pending.id },
                             pendingAttachments = reservation.pending.attachments + state.pendingAttachments,
                             composerTextToRestore = reservation.pending.text,
-                            errorMessage =
-                                if (e is QueuedAttachmentTooLargeException) {
-                                    attachmentTooLargeMessage(e.attachment)
-                                } else {
-                                    "Could not retain attachment"
-                                },
+                            errorMessage = "Could not retain attachment",
                         )
                     }
-                } else if (e is QueuedAttachmentTooLargeException) {
-                    _uiState.update { it.copy(errorMessage = attachmentTooLargeMessage(e.attachment)) }
                 }
                 publishPendingSends()
             }
@@ -3507,14 +3506,7 @@ class ChatViewModel(
                     ).join()
                 } catch (e: Exception) {
                     if (e is CancellationException) throw e
-                    failOutgoingBeforeSubmit(
-                        next.id,
-                        if (e is QueuedAttachmentTooLargeException) {
-                            attachmentTooLargeMessage(e.attachment)
-                        } else {
-                            "Could not retain queued attachment"
-                        },
-                    )
+                    failOutgoingBeforeSubmit(next.id, "Could not retain queued attachment")
                 } finally {
                     if (queueDrainJob === currentCoroutineContext()[Job]) {
                         queueDrainJob = null
@@ -3543,18 +3535,8 @@ class ChatViewModel(
                     try {
                         val input = context.contentResolver.openInputStream(uri) ?: error("Attachment unavailable")
                         input.use { source ->
-                            partial.outputStream().use { output ->
-                                val buffer = ByteArray(8192)
-                                while (true) {
-                                    val count = source.read(buffer)
-                                    if (count < 0) break
-                                    copied += count
-                                    if (copied > attachment.sourceByteLimit()) {
-                                        throw QueuedAttachmentTooLargeException(attachment)
-                                    }
-                                    output.write(buffer, 0, count)
-                                }
-                            }
+                            // No size cap: the gateway enforces its own limit when the snapshot is sent.
+                            partial.outputStream().use { output -> copied = source.copyTo(output) }
                         }
                         if (!partial.renameTo(target)) error("Could not save attachment snapshot")
                         attachment.copy(uri = Uri.fromFile(target).toString(), size = copied)
@@ -3902,19 +3884,6 @@ class ChatViewModel(
             return true
         }
 
-        val oversizedAttachment =
-            _uiState.value.pendingAttachments.firstOrNull {
-                it.size > it.sourceByteLimit()
-            }
-        if (oversizedAttachment != null) {
-            _uiState.update {
-                it.copy(
-                    errorMessage = attachmentTooLargeMessage(oversizedAttachment),
-                )
-            }
-            return false
-        }
-
         val attachments = _uiState.value.pendingAttachments.toList()
         val submissionKey =
             listOf(_uiState.value.currentSessionId, text, attachments.joinToString { it.uri }).joinToString("\u001f")
@@ -4240,6 +4209,8 @@ class ChatViewModel(
     private fun dispatchPrompt(
         text: String,
         attachments: List<Attachment>,
+        // What a refused send gives back to the composer: the picked files, not private snapshots.
+        composerAttachments: List<Attachment> = attachments,
         wasStreaming: Boolean,
         storageSessionId: String,
         agentSessionId: String,
@@ -4280,6 +4251,7 @@ class ChatViewModel(
         return viewModelScope.launch(ioDispatcher) {
             val fileRefs = mutableListOf<String>()
             val preparedAttachments = mutableListOf<PreparedAttachment>()
+            val keptStagingPaths = mutableSetOf<String>()
             var receiptCommitted = outboundAlreadyStarted
             var outboundStarted = outboundAlreadyStarted
             var submitted = false
@@ -4316,7 +4288,7 @@ class ChatViewModel(
                             preparedAttachments += result.prepared
                         }
 
-                        PrepareAttachmentResult.TooLarge -> {
+                        is PrepareAttachmentResult.TooLarge -> {
                             if (!outboundStarted) {
                                 restoreKnownUnsentReceipt(
                                     attemptedReceipt,
@@ -4327,12 +4299,13 @@ class ChatViewModel(
                             if (!outboundStarted && rollbackReceipt != null) {
                                 withCurrentSendOwner(owner) {
                                     removeUnconfirmedBubble(msgToPersist.id)
-                                    _uiState.update { it.copy(errorMessage = attachmentTooLargeMessage(attachment)) }
+                                    _uiState.update { it.copy(errorMessage = result.message) }
                                 }
                             } else {
                                 rejectOversizedAttachment(
                                     attachment,
-                                    attachments,
+                                    result.message,
+                                    composerAttachments,
                                     msgToPersist,
                                     wasStreaming,
                                     dispatchGeneration,
@@ -4341,7 +4314,7 @@ class ChatViewModel(
                             return@launch
                         }
 
-                        PrepareAttachmentResult.Unreadable -> {
+                        is PrepareAttachmentResult.Unreadable -> {
                             if (!outboundStarted) {
                                 restoreKnownUnsentReceipt(
                                     attemptedReceipt,
@@ -4354,7 +4327,7 @@ class ChatViewModel(
                                     removeUnconfirmedBubble(msgToPersist.id)
                                     _uiState.update {
                                         it.copy(
-                                            errorMessage = "Attachment unavailable: ${attachment.name}",
+                                            errorMessage = result.message,
                                             isAgentTyping = mainTurnBusy,
                                         )
                                     }
@@ -4362,7 +4335,7 @@ class ChatViewModel(
                             } else {
                                 failOutgoingBeforeSubmit(
                                     msgToPersist.id,
-                                    "Attachment unavailable: ${attachment.name}",
+                                    result.message,
                                     dispatchGeneration,
                                 )
                             }
@@ -4405,9 +4378,51 @@ class ChatViewModel(
                     return@launch
                 }
 
-                for ((attachment, encodedFile) in preparedAttachments) {
+                for (prepared in preparedAttachments) {
+                    val attachment = prepared.attachment
                     try {
-                        val b64 = encodedFile.readText(Charsets.US_ASCII)
+                        val staged = prepared.staged
+                        if (staged != null && attachment.isImage) {
+                            val deferred =
+                                enqueueOwned {
+                                    wsClient.requestTyped(
+                                        RpcMethods.IMAGE_ATTACH,
+                                        ImageAttachParams(sessionId = owner.agentSessionId, path = staged.path),
+                                    )
+                                } ?: return@launch
+                            val response = deferred.await()
+                            val result = if (response is JsonElement) response.toAny() else response
+
+                            @Suppress("UNCHECKED_CAST")
+                            val ok = (result as? Map<String, Any?>)?.get("attached") as? Boolean
+                            if (ok != true) error("Image attachment was not accepted")
+                            continue
+                        }
+                        if (staged != null) {
+                            val deferred =
+                                enqueueOwned {
+                                    wsClient.requestTyped(
+                                        RpcMethods.FILE_ATTACH,
+                                        FileAttachParams(
+                                            sessionId = owner.agentSessionId,
+                                            path = staged.path,
+                                            name = attachment.name,
+                                        ),
+                                    )
+                                } ?: return@launch
+                            val response = deferred.await()
+                            val result = if (response is JsonElement) response.toAny() else response
+
+                            @Suppress("UNCHECKED_CAST")
+                            val reply = result as? Map<String, Any?>
+                            val refText = reply?.get("ref_text") as? String
+                            if (refText.isNullOrBlank()) error("File attachment was not accepted")
+                            fileRefs.add(refText)
+                            // Inside the session workspace the gateway references the staged file in place.
+                            if (reply["uploaded"] == false) staged.cleanupPath?.let(keptStagingPaths::add)
+                            continue
+                        }
+                        val b64 = requireNotNull(prepared.encodedFile).readText(Charsets.US_ASCII)
                         if (attachment.isImage) {
                             val deferred =
                                 enqueueOwned {
@@ -4561,7 +4576,13 @@ class ChatViewModel(
                     }
                 }
             } finally {
-                preparedAttachments.forEach { it.encodedFile.delete() }
+                preparedAttachments.forEach { prepared ->
+                    prepared.encodedFile?.delete()
+                    prepared.staged
+                        ?.cleanupPath
+                        ?.takeUnless { it in keptStagingPaths }
+                        ?.let(::discardStagedAttachment)
+                }
             }
         }
     }
@@ -4591,7 +4612,10 @@ class ChatViewModel(
         }
     }
 
-    /** Snapshot one URI to private cache while enforcing the outbound frame limit. */
+    /**
+     * Snapshot one URI for the inline frame, or stage it on the gateway over HTTP when it is
+     * larger than a frame can carry. The gateway alone decides how large is too large.
+     */
     private suspend fun prepareAttachment(attachment: Attachment): PrepareAttachmentResult {
         var encodedFile: File? = null
         var photo: PreparedPhoto? = null
@@ -4600,66 +4624,101 @@ class ChatViewModel(
             val uri = Uri.parse(attachment.uri)
             if (!attachment.sendOriginal && attachment.canOptimizePhoto()) {
                 photo =
-                    preparePhotoUpload(attachment, context.cacheDir) { context.contentResolver.openInputStream(uri) }
-                        ?: return PrepareAttachmentResult.Unreadable
+                    try {
+                        preparePhotoUpload(attachment, context.cacheDir) {
+                            context.contentResolver.openInputStream(uri)
+                        }
+                            ?: return unreadableAttachment(attachment)
+                    } catch (_: PhotoSourceTooLarge) {
+                        // Too large to optimize on the phone: send the original and let the gateway decide.
+                        null
+                    }
             }
             kotlinx.coroutines.currentCoroutineContext().ensureActive()
+            val prepared = photo?.attachment ?: attachment
+            val open: () -> java.io.InputStream? = {
+                photo?.file?.inputStream() ?: context.contentResolver.openInputStream(uri)
+            }
             encodedFile = File.createTempFile("chat-attachment-", ".b64", context.cacheDir)
-            val inputStream = photo?.file?.inputStream() ?: context.contentResolver.openInputStream(uri)
             val result =
-                inputStream?.use { input ->
+                open()?.use { input ->
                     encodedFile.outputStream().buffered().use { output ->
                         encodeAttachmentBase64(input, output)
                     }
-                } ?: return PrepareAttachmentResult.Unreadable.also { encodedFile.delete() }
+                } ?: return unreadableAttachment(attachment).also { encodedFile.delete() }
 
             when (result) {
                 AttachmentSizeResult.WITHIN_LIMIT -> {
-                    PrepareAttachmentResult.Success(PreparedAttachment(photo?.attachment ?: attachment, encodedFile))
+                    PrepareAttachmentResult.Success(PreparedAttachment(prepared, encodedFile))
                 }
 
                 AttachmentSizeResult.TOO_LARGE -> {
-                    PrepareAttachmentResult.TooLarge.also { encodedFile.delete() }
+                    encodedFile.delete()
+                    stageOnGateway(prepared, open)
                 }
             }
         } catch (e: Exception) {
             encodedFile?.delete()
             if (e is kotlinx.coroutines.CancellationException) throw e
-            if (e is PhotoSourceTooLarge) return PrepareAttachmentResult.TooLarge
             Log.e(TAG, "Failed to prepare attachment: ${e.message}", e)
-            PrepareAttachmentResult.Unreadable
+            unreadableAttachment(attachment)
         } finally {
             photo?.file?.delete()
         }
     }
 
+    private suspend fun stageOnGateway(
+        attachment: Attachment,
+        open: () -> java.io.InputStream?,
+    ): PrepareAttachmentResult =
+        when (val staged = attachmentStager.stage(attachment, open)) {
+            is GatewayStageResult.Staged -> {
+                PrepareAttachmentResult.Success(PreparedAttachment(attachment, null, staged.staged))
+            }
+
+            is GatewayStageResult.TooLarge -> {
+                PrepareAttachmentResult.TooLarge("Attachment too large: ${attachment.name} (${staged.detail})")
+            }
+
+            // An older gateway without the upload routes: only the inline frame remains.
+            GatewayStageResult.Unsupported -> {
+                PrepareAttachmentResult.TooLarge("Attachment too large: ${attachment.name} (maximum 10 MB)")
+            }
+
+            is GatewayStageResult.Failed -> {
+                PrepareAttachmentResult.Unreadable("Upload failed: ${attachment.name} (${staged.message})")
+            }
+        }
+
+    private fun unreadableAttachment(attachment: Attachment) =
+        PrepareAttachmentResult.Unreadable("Attachment unavailable: ${attachment.name}")
+
+    private fun discardStagedAttachment(path: String) {
+        // The send may already be cancelled; cleanup is best-effort and must not inherit that.
+        viewModelScope.launch(ioDispatcher + NonCancellable) { attachmentStager.discard(path) }
+    }
+
     private fun rejectOversizedAttachment(
         attachment: Attachment,
+        message: String,
         attachments: List<Attachment>,
-        message: ChatMessage,
+        chatMessage: ChatMessage,
         wasStreaming: Boolean,
         generation: Long,
     ) {
         Log.w(TAG, "Rejecting oversized attachment: ${attachment.name}")
         if (generation != sessionGeneration) return
-        removePendingSend(message.id)
+        removePendingSend(chatMessage.id)
         _uiState.update { state ->
             state.copy(
-                messages = state.messages.filterNot { it.id == message.id },
+                messages = state.messages.filterNot { it.id == chatMessage.id },
                 pendingAttachments = attachments + state.pendingAttachments,
-                composerTextToRestore = message.content,
-                errorMessage = attachmentTooLargeMessage(attachment),
+                composerTextToRestore = chatMessage.content,
+                errorMessage = message,
                 isAgentTyping = wasStreaming,
             )
         }
     }
-
-    private fun attachmentTooLargeMessage(attachment: Attachment): String =
-        if (!attachment.sendOriginal && attachment.canOptimizePhoto()) {
-            "Attachment too large: ${attachment.name} (photo source maximum 50 MB; upload maximum 10 MB)"
-        } else {
-            "Attachment too large: ${attachment.name} (maximum 10 MB)"
-        }
 
     // ── Attachment management ─────────────────────────────────────────────
 

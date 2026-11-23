@@ -33,6 +33,13 @@ data class FileAttachParams(
     @SerialName("name") val name: String? = null,
 )
 
+/** `path` must be gateway-visible: the gateway references the image where it is. */
+@Serializable
+data class ImageAttachParams(
+    @SerialName("session_id") val sessionId: String,
+    @SerialName("path") val path: String,
+)
+
 /** The mobile client always sends the payload as `content_base64`; the `data` alias is not modelled. */
 @Serializable
 data class ImageAttachBytesParams(

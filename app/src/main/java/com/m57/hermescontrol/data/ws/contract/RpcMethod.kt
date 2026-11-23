@@ -681,6 +681,14 @@ object RpcMethods {
             HostedApproveReceipt.serializer(),
         )
 
+    // Passthrough JsonElement results: callers keep their existing legacy decoders.
+    val IMAGE_ATTACH: RpcMethod<ImageAttachParams, JsonElement> =
+        RpcMethod(
+            WsMethods.IMAGE_ATTACH,
+            ImageAttachParams.serializer(),
+            JsonElement.serializer(),
+        )
+
     /** Every typed method. GatewayContractTest iterates this; future migrations append here. */
     val all: List<RpcMethod<*, *>> =
         listOf(
@@ -770,5 +778,6 @@ object RpcMethods {
             GROUPS_STOP,
             GROUPS_RETRY,
             GROUPS_APPROVE,
+            IMAGE_ATTACH,
         )
 }

@@ -13,6 +13,7 @@ import com.m57.hermescontrol.data.model.AuxiliaryModelsResponse
 import com.m57.hermescontrol.data.model.BackupTriggerRequest
 import com.m57.hermescontrol.data.model.BulkDeleteRequest
 import com.m57.hermescontrol.data.model.BulkDeleteResponse
+import com.m57.hermescontrol.data.model.ChatImageUploadResponse
 import com.m57.hermescontrol.data.model.CheckpointsResponse
 import com.m57.hermescontrol.data.model.ConfigSchemaResponse
 import com.m57.hermescontrol.data.model.ConfigUpdateRequest
@@ -1096,6 +1097,13 @@ interface HermesApiService : KanbanApiService {
         @Part("overwrite") overwrite: okhttp3.RequestBody,
         @Part file: okhttp3.MultipartBody.Part,
     ): Response<ManagedFileActionResponse>
+
+    // `{"data_url", "filename"}` JSON, streamed by the caller so a large image never sits in memory.
+    @POST("api/chat/image-upload")
+    suspend fun uploadChatImage(
+        @Query("profile") profile: String?,
+        @Body body: okhttp3.RequestBody,
+    ): Response<ChatImageUploadResponse>
 
     @POST("api/files/mkdir")
     suspend fun createManagedDirectory(

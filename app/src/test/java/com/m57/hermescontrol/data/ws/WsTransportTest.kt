@@ -15,6 +15,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,6 +33,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -153,6 +155,27 @@ class WsTransportTest {
         ActiveSessionHolder.clear()
         unmockkAll()
     }
+
+    @Test
+    fun drainToleratesLastHandshakeCompletingDuringSnapshot() =
+        runTest {
+            val transport = Fixture(this, testJson).transport
+            val handshake = Job()
+            val tracked = ConcurrentHashMap.newKeySet<Job>().apply { add(handshake) }
+            handshake.invokeOnCompletion { tracked.remove(handshake) }
+            val jobs =
+                object : AbstractSet<Job>() {
+                    // Finish the job between the size read and iterator creation, as in CI.
+                    override val size: Int get() = tracked.size.also { handshake.complete() }
+
+                    override fun iterator(): Iterator<Job> = tracked.iterator()
+                }
+
+            transport.awaitOpenSocketIdleForTest(jobs)
+
+            assertTrue(handshake.isCompleted)
+            assertTrue(tracked.isEmpty())
+        }
 
     @Test
     fun sendAcceptCallbackRunsUnderOutboundLockAfterSocketAccept() =

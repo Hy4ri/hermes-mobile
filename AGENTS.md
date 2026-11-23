@@ -71,18 +71,24 @@ nix develop -c android --no-metrics preview render app \
   the template fails. Workflow and automation changes run the offline tooling tests,
   including release-verifier tests. A required job that unexpectedly skips fails the
   summary. Manual dispatch runs the full suite under a separate **Manual CI Summary**.
-- **Push to main** (`.github/workflows/android-main-smoke.yml`): app and build changes
-  compile the release variant and run the JVM gateway contract tests on the merged commit.
-  No review APK, full test suite, or repeat lint. The conflict detector still checks
-  open PRs when main moves.
+- **Push to main** (`.github/workflows/android-main-smoke.yml`): builds an unsigned,
+  minified release APK and runs the JVM gateway contract tests for every main commit.
+  Successful runs retain the release candidate for 30 days. No debug APK, full test
+  suite, or repeat lint. The conflict detector still checks open PRs when main moves.
 - **CodeQL**: scans applicable PRs and scans the default branch nightly. It does not run on each merge.
 
 Gradle CI jobs validate the wrapper. New commits supersede older Android CI runs for the same PR.
 
 ### Releasing (`.github/workflows/release.yml`)
 
-Triggers on `git push tag v*`. Release APK uses R8 minification + resource shrinking.
-The `build-release` job has read-only contents permission. The separate `publish`
+1. Set `release-version.txt` to the intended version (without `v`) and land it on main.
+2. Wait for **Android Main Smoke** to succeed on the exact main commit you intend to tag.
+3. Push the matching `v*` tag for that commit. The `sign-release` job downloads the
+   unsigned release candidate from that commit's successful main push run, verifies its
+   package and version, and signs it without Gradle. If the artifact is missing or has
+   expired, rerun the exact main workflow run and retry the release after it succeeds.
+
+The signing job has read-only contents and Actions permissions. The separate `publish`
 job has contents/attestations write and OIDC permission, but no signing secrets.
 `RELEASE_CERTIFICATE_SHA256` must contain the independently trusted release signer
 fingerprint. The workflow verifies APK identity, attests its bytes, and checks
@@ -295,7 +301,7 @@ gh pr create --base main --title "fix(#N): description" --body "Closes #N"
 - **AuthManager token** is ephemeral — it becomes invalid when the Hermes dashboard
   restarts. Symptom: 401 on every call. Fix: re-extract the token from the running
   gateway, don't assume the stored one is valid.
-- **Release signing** uses a keystore with env-var credentials (`KEYSTORE_PATH`,
+- **Release signing** uses a keystore with env-var credentials (`KEYSTORE_BASE64`,
   `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`). Don't commit keystore files or
   hardcode passwords.
 

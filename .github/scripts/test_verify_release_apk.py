@@ -66,7 +66,7 @@ class VerifyReleaseApkCliTest(unittest.TestCase):
         path.write_text(source, encoding="utf-8")
         path.chmod(0o755)
 
-    def invoke(self, certificate=CERTIFICATE, omit_certificate=False):
+    def invoke(self, certificate=CERTIFICATE, omit_certificate=False, identity_only=False):
         command = [
             sys.executable, str(HELPER),
             "--apk", str(self.apk),
@@ -75,7 +75,9 @@ class VerifyReleaseApkCliTest(unittest.TestCase):
             "--apksigner", str(self.apksigner),
             "--aapt", str(self.aapt),
         ]
-        if not omit_certificate:
+        if identity_only:
+            command.append("--identity-only")
+        elif not omit_certificate:
             command.extend(["--certificate", certificate])
         environment = os.environ.copy()
         environment.pop("RELEASE_CERTIFICATE_SHA256", None)
@@ -98,6 +100,25 @@ class VerifyReleaseApkCliTest(unittest.TestCase):
             [str(self.apksigner), "verify", "--print-certs", str(self.apk)],
             [str(self.aapt), "dump", "badging", str(self.apk)],
         ])
+
+    def test_identity_only_checks_unsigned_candidate_without_apksigner(self):
+        self.apksigner.unlink()
+        result = self.invoke(identity_only=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(len(self.log.read_text().splitlines()), 1)
+
+    def test_identity_only_rejects_debug_package_and_wrong_version(self):
+        for badging in (self.badging_output(package=PACKAGE + ".dev"),
+                        self.badging_output(version_name="1.2.4"),
+                        self.badging_output(version_code="10204")):
+            with self.subTest(badging=badging):
+                self.write_tool(self.aapt, badging)
+                self.assert_rejected(self.invoke(identity_only=True))
+
+    def test_debuggable_apk_is_rejected_even_with_release_identity(self):
+        self.write_tool(self.aapt, self.badging_output() + "application-debuggable\n")
+        self.assert_rejected(self.invoke())
+        self.assert_rejected(self.invoke(identity_only=True))
 
     def test_certificate_normalizes_colons_and_case(self):
         colon_certificate = ":".join(CERTIFICATE[i:i + 2] for i in range(0, 64, 2)).upper()

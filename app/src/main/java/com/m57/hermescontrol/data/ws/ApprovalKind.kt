@@ -57,3 +57,11 @@ internal fun parseApprovalKindFields(map: Map<*, *>): ApprovalKindFields? {
         risk = text("risk"),
     )
 }
+
+/** JSON-RPC answer for a malformed folder/site approval request: code and message. */
+internal const val MALFORMED_APPROVAL_CODE = -32602
+internal const val MALFORMED_APPROVAL_MESSAGE = "approval request is missing the folder or site it asks about"
+
+/** True for an "approval" server request that must be refused (see [parseApprovalKindFields]). */
+internal fun isMalformedApprovalRequest(request: WsEvent.ServerRequest): Boolean =
+    request.method == "approval" && parseApprovalKindFields(request.params) == null

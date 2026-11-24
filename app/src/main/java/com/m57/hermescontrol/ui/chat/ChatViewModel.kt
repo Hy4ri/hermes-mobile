@@ -47,6 +47,8 @@ import com.m57.hermescontrol.data.ws.GateAdmission
 import com.m57.hermescontrol.data.ws.HermesProjectsSource
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.JsonRpcError
+import com.m57.hermescontrol.data.ws.MALFORMED_APPROVAL_CODE
+import com.m57.hermescontrol.data.ws.MALFORMED_APPROVAL_MESSAGE
 import com.m57.hermescontrol.data.ws.ProjectsSource
 import com.m57.hermescontrol.data.ws.StreamSegmentGate
 import com.m57.hermescontrol.data.ws.WsEvent
@@ -1847,8 +1849,8 @@ class ChatViewModel(
                 if (kindFields == null) {
                     wsClient.respondToServerRequestError(
                         request.id,
-                        -32602,
-                        "approval request is missing the folder or site it asks about",
+                        MALFORMED_APPROVAL_CODE,
+                        MALFORMED_APPROVAL_MESSAGE,
                     )
                     return
                 }

@@ -56,6 +56,15 @@ class ApprovalKindParsingTest {
     }
 
     @Test
+    fun malformedApprovalServerRequestIsDetectedForTheBackgroundService() {
+        fun req(params: Map<String, Any?>) = WsEvent.ServerRequest("srq-1", "approval", params)
+        assertTrue(isMalformedApprovalRequest(req(mapOf("kind" to "access"))))
+        assertTrue(isMalformedApprovalRequest(req(mapOf("kind" to "network", "host" to ""))))
+        assertEquals(false, isMalformedApprovalRequest(req(mapOf("command" to "ls"))))
+        assertEquals(false, isMalformedApprovalRequest(WsEvent.ServerRequest("c", "clarify")))
+    }
+
+    @Test
     fun pausedFlagParsedFromMessageComplete() {
         val paused =
             EventParser.parseParams(

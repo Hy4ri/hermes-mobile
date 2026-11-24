@@ -29,6 +29,19 @@ object ChangeEventHub {
     /** Collect this from ViewModels to react to gateway change events. */
     val events: SharedFlow<WsEvent.ChangeEvent> = _events.asSharedFlow()
 
+    private val _groupsChanged =
+        MutableSharedFlow<WsEvent.GroupsChanged>(
+            extraBufferCapacity = 16,
+            onBufferOverflow = BufferOverflow.DROP_OLDEST,
+        )
+
+    /** Hosted-room pushes (`groups.changed`). */
+    val groupsChanged: SharedFlow<WsEvent.GroupsChanged> = _groupsChanged.asSharedFlow()
+
+    fun emit(event: WsEvent.GroupsChanged) {
+        _groupsChanged.tryEmit(event)
+    }
+
     /** Non-suspending emit — never blocks the WS event loop. */
     fun emit(event: WsEvent.ChangeEvent) {
         _events.tryEmit(event)

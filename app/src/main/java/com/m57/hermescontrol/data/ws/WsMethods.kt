@@ -110,6 +110,7 @@ object WsMethods {
      */
     const val GATEWAY_PING = "gateway.ping"
     const val CLIENT_CAPABILITIES = "client.capabilities"
+    const val CLIENT_ACTIVITY = "client.activity"
 
     // ── Commands catalog ──────────────────────────────────────────────────
     const val COMMANDS_CATALOG = "commands.catalog"

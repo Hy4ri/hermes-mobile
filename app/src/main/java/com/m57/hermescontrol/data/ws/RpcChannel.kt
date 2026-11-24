@@ -8,6 +8,9 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -45,6 +48,7 @@ internal class RpcChannel(
     private val logParseFailure: (Exception) -> Unit = {},
     private val decorateParams: (String, Map<String, Any>) -> Map<String, Any> = { _, p -> p },
     private val createSourceHost: () -> String = { "" },
+    private val logQuietRefusal: (String) -> Unit = {},
 ) {
     /** A single in-flight [request] awaiting its RPC result/error. */
     private data class PendingCall(
@@ -57,6 +61,11 @@ internal class RpcChannel(
     private val requestId = AtomicInteger(0)
     private val pendingCalls = ConcurrentHashMap<String, PendingCall>()
     private val capabilityRequestIds = ConcurrentHashMap.newKeySet<String>()
+    private val quietRequestIds = ConcurrentHashMap.newKeySet<String>()
+    private val _clientActivity = MutableStateFlow(false)
+
+    /** Backend advertised (in the `client.capabilities` result) that it keeps `client.activity` reports. */
+    val clientActivity: StateFlow<Boolean> = _clientActivity.asStateFlow()
 
     /** Newest `execution_generation` seen per runtime session id (session-authority route only). */
     private val generations = ConcurrentHashMap<String, Int>()
@@ -82,8 +91,15 @@ internal class RpcChannel(
         capabilityRequestIds.add(id)
     }
 
+    /** Fire-and-forget calls (identity hello, `client.activity`): the answer or refusal is swallowed. */
+    fun registerQuietRequest(id: String) {
+        quietRequestIds.add(id)
+    }
+
     fun clearCapabilityRequests() {
         capabilityRequestIds.clear()
+        quietRequestIds.clear()
+        _clientActivity.value = false
         declinesNotShown = false
         canonicalClarifyBatch = false
         sessionAuthority = false
@@ -111,6 +127,12 @@ internal class RpcChannel(
                 is WsEvent.RpcError -> event.id
                 else -> return false
             }
+        val isQuiet = synchronized(outboundLock) { quietRequestIds.remove(id) }
+        if (isQuiet) {
+            if (event is WsEvent.RpcError) logQuietRefusal("id=$id code=${event.error.code}")
+            removeQueuedMessage(id)
+            return true
+        }
         val isCapabilityResponse =
             synchronized(outboundLock) {
                 capabilityRequestIds.remove(id)
@@ -121,6 +143,7 @@ internal class RpcChannel(
             val result = event.result as? Map<*, *>
             declinesNotShown = result?.get("declines_not_shown") == true
             canonicalClarifyBatch = result?.get("canonical_clarify_batch") == true
+            _clientActivity.value = result?.get("client_activity") == true
         }
         removeQueuedMessage(id)
         return true

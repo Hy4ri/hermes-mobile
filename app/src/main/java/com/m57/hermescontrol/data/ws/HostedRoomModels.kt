@@ -81,6 +81,8 @@ data class HostedRoomSnapshot(
     @SerialName("room") val room: HostedRoom,
     @SerialName("driver_status") val driverStatus: HostedDriverStatus? = null,
     @SerialName("context") val context: HostedRoomContext? = null,
+    /** True when the backend pushes `groups.changed`, so polling is only a backstop. */
+    @SerialName("change_events") val changeEvents: Boolean = false,
 ) {
     /** Helper returning pending tasks if driverStatus is present. */
     val tasks: List<HostedTask>

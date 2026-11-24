@@ -337,7 +337,9 @@ object ChatWsEventReducer {
             is WsEvent.MessageReactionUpdated -> onMessageReaction(state, streamingState, event)
 
             // Change events (issue #784) are consumed by their screens' ViewModels
-            is WsEvent.ChangeEvent -> ReducerResult(state = state, streamingState = streamingState)
+            is WsEvent.ChangeEvent,
+            is WsEvent.GroupsChanged,
+            -> ReducerResult(state = state, streamingState = streamingState)
 
             // #1563: ephemeral notifications must never become transcript rows.
             is WsEvent.NotificationShow,
@@ -1415,6 +1417,7 @@ object ChatWsEventReducer {
             event.payload?.get(
                 "subagent_id",
             ) as? String ?: event.payload?.get("child_session_id") as? String
+        val childSessionId = event.payload?.get("child_session_id") as? String
 
         val indicators = state.subagentIndicators.toMutableList()
         val idx =
@@ -1453,6 +1456,7 @@ object ChatWsEventReducer {
                 status = finalStatus,
                 summary = summary ?: (if (idx >= 0) indicators[idx].summary else null),
                 subagentId = subagentId ?: (if (idx >= 0) indicators[idx].subagentId else null),
+                childSessionId = childSessionId ?: (if (idx >= 0) indicators[idx].childSessionId else null),
                 logs = trimmedLogs,
                 durationSeconds = durationSeconds ?: (if (idx >= 0) indicators[idx].durationSeconds else null),
                 model = model ?: (if (idx >= 0) indicators[idx].model else null),

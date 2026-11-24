@@ -578,6 +578,13 @@ object RpcMethods {
             JsonElement.serializer(),
         )
 
+    val CLIENT_ACTIVITY: RpcMethod<ClientActivityParams, JsonElement> =
+        RpcMethod(
+            WsMethods.CLIENT_ACTIVITY,
+            ClientActivityParams.serializer(),
+            JsonElement.serializer(),
+        )
+
     // Passthrough JsonElement results: callers keep their existing legacy decoders.
     val COMMANDS_CATALOG: RpcMethod<CommandsCatalogParams, JsonElement> =
         RpcMethod(
@@ -764,6 +771,7 @@ object RpcMethods {
             CONFIG_GET,
             MODEL_OPTIONS,
             CLIENT_CAPABILITIES,
+            CLIENT_ACTIVITY,
             COMMANDS_CATALOG,
             COMMAND_DISPATCH,
             SLASH_EXEC,

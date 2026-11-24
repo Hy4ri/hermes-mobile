@@ -2,6 +2,7 @@ package com.m57.hermescontrol.data.ws
 
 import android.util.Log
 import androidx.annotation.VisibleForTesting
+import com.m57.hermescontrol.BuildConfig
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
@@ -90,6 +91,18 @@ object HermesWsClient {
             onReplayFailure = { sid, e -> Log.w(TAG, "Replay failed for session $sid: ${e.message}") },
         )
 
+    private val presence =
+        ClientPresenceReporter(clock = System::currentTimeMillis, send = { params ->
+            runCatching {
+                send(
+                    RpcMethods.CLIENT_ACTIVITY.name,
+                    rpcChannel.encodeParams(RpcMethods.CLIENT_ACTIVITY, params),
+                    onSent = { id -> rpcChannel.registerQuietRequest(id) },
+                    queueIfDisconnected = false,
+                )
+            }
+        })
+
     internal val rpcChannel: RpcChannel =
         RpcChannel(
             scope = wsScope,
@@ -106,6 +119,7 @@ object HermesWsClient {
             logParseFailure = { e -> Log.e(TAG, "Failed to parse message: ${e.javaClass.simpleName}") },
             decorateParams = { method, params -> WsProfileParams.decorate(method, params) },
             createSourceHost = { AuthManager.baseUrlFlow.value },
+            logQuietRefusal = { Log.i(TAG, "client hello/activity refused: $it") },
         )
 
     private val transport: WsTransport =
@@ -162,6 +176,15 @@ object HermesWsClient {
             events.filterIsInstance<WsEvent.ChangeEvent>().collect { ChangeEventHub.emit(it) }
         }
         wsScope.launch {
+            rpcChannel.clientActivity.collect { presence.setSupported(it) }
+        }
+        wsScope.launch {
+            ActiveSessionHolder.activeSessionId.collect { presence.setSessions(listOfNotNull(it)) }
+        }
+        wsScope.launch {
+            events.filterIsInstance<WsEvent.GroupsChanged>().collect { ChangeEventHub.emit(it) }
+        }
+        wsScope.launch {
             events.collect { event ->
                 if (event is WsEvent.GatewayReady) {
                     runCatching {
@@ -172,6 +195,18 @@ object HermesWsClient {
                                 ClientCapabilitiesParams(serverRequests = true),
                             ),
                             onSent = { id -> rpcChannel.registerCapabilityRequest(id) },
+                            queueIfDisconnected = false,
+                        )
+                    }
+                    // Its own call, so an older backend refuses only the hello and keeps server_requests.
+                    runCatching {
+                        send(
+                            RpcMethods.CLIENT_CAPABILITIES.name,
+                            rpcChannel.encodeParams(
+                                RpcMethods.CLIENT_CAPABILITIES,
+                                ClientCapabilitiesParams(client = clientIdentity(BuildConfig.VERSION_NAME)),
+                            ),
+                            onSent = { id -> rpcChannel.registerQuietRequest(id) },
                             queueIfDisconnected = false,
                         )
                     }
@@ -194,7 +229,16 @@ object HermesWsClient {
     /** Socket generation; server-request ids are only valid on the socket that delivered them. */
     internal val connectionGeneration: Int get() = transport.currentGeneration
 
-    fun setAppForeground(foreground: Boolean) = transport.setAppForeground(foreground)
+    fun setAppForeground(foreground: Boolean) {
+        presence.setForeground(foreground)
+        transport.setAppForeground(foreground)
+    }
+
+    /** Any touch or key in the app; feeds `client.activity` idle time. */
+    fun noteUserInteraction() = presence.onInteraction()
+
+    /** Whether the app may post notifications, reported as `can_alert`. */
+    fun setCanAlert(canAlert: Boolean) = presence.setCanAlert(canAlert)
 
     fun acquireExternalActivityConnectionLease() = transport.acquireExternalActivityConnectionLease()
 

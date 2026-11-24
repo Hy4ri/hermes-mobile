@@ -21,6 +21,7 @@ data class SubagentListItem(
     @SerialName("tool_count") val toolCount: Int? = null,
     @SerialName("last_tool") val lastTool: String? = null,
     @SerialName("accepting_steer") val acceptingSteer: Boolean? = null,
+    @SerialName("child_session_id") val childSessionId: String? = null,
 )
 
 /**

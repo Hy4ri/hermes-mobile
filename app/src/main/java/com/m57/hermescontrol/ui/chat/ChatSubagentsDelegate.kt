@@ -301,6 +301,7 @@ class ChatSubagentsDelegate(
                                 item.elapsedSeconds ?: existing.durationSeconds
                             },
                         model = item.model ?: existing.model,
+                        childSessionId = item.childSessionId ?: existing.childSessionId,
                         lastEventTimestamp = maxOf(existing.lastEventTimestamp, requestTime),
                     )
             } else {
@@ -316,6 +317,7 @@ class ChatSubagentsDelegate(
                         subagentId = subagentId.takeIf { it.isNotEmpty() },
                         durationSeconds = item.elapsedSeconds,
                         model = item.model,
+                        childSessionId = item.childSessionId,
                         lastEventTimestamp = requestTime,
                     ),
                 )

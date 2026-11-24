@@ -339,6 +339,13 @@ object EventParser {
                 WsEvent.ChangeEvent(eventType, payload)
             }
 
+            "groups.changed" -> {
+                WsEvent.GroupsChanged(
+                    roomIds = (payload?.get("room_ids") as? List<*>)?.filterIsInstance<String>(),
+                    broadcastId = (payload?.get("broadcast_id") as? String)?.takeIf { it.isNotEmpty() },
+                )
+            }
+
             "review.summary" -> {
                 val text = (payload?.get("text") as? String)?.trim() ?: ""
                 WsEvent.ReviewSummary(text, sessionId)

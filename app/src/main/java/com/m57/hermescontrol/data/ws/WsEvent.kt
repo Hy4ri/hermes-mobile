@@ -464,6 +464,16 @@ sealed class WsEvent {
         val data: Map<String, Any?>? = null,
     ) : WsEvent()
 
+    /**
+     * Hosted-room change push (`groups.changed`). [roomIds] null means something process-wide moved
+     * and every open room re-reads. [broadcastId] names one broadcast: the same frame can reach a
+     * client once per open socket, and a copy needs no second read.
+     */
+    data class GroupsChanged(
+        val roomIds: List<String>?,
+        val broadcastId: String?,
+    ) : WsEvent()
+
     // ── Background job completion ──────────────────────────────────────
 
     /**

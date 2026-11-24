@@ -92,6 +92,26 @@ class ChatSubagentsDelegateTest {
     }
 
     @Test
+    fun snapshotLinksFinishedSubagentToItsSessionAfterReconnect() {
+        val fresh =
+            delegate.mergeSubagentList(
+                emptyList(),
+                listOf(SubagentListItem(subagentId = "child-1", status = "completed", childSessionId = "sess-9")),
+                requestTime = 100L,
+            )
+        assertEquals("sess-9", fresh.single().childSessionId)
+
+        val kept =
+            delegate
+                .mergeSubagentList(
+                    fresh,
+                    listOf(SubagentListItem(subagentId = "child-1", status = "completed")),
+                    requestTime = 200L,
+                ).single()
+        assertEquals("sess-9", kept.childSessionId)
+    }
+
+    @Test
     fun snapshotDoesNotClearControlsWhenNewerPushEventWins() {
         val pending =
             SubagentIndicator(

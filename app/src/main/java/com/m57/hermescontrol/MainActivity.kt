@@ -32,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -402,9 +403,15 @@ class MainActivity : ComponentActivity() {
             UpdateNoticeManager.checkOnLaunch()
         }
         ShortcutRefreshEvents.refresh()
+        HermesWsClient.setCanAlert(NotificationManagerCompat.from(this).areNotificationsEnabled())
         NotificationHelper.setAppForeground(this, true)
         ExternalActivityLifecycleGuard.onHostResumed()
         NotificationHelper.stop(this)
+    }
+
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        HermesWsClient.noteUserInteraction()
     }
 
     override fun onPause() {

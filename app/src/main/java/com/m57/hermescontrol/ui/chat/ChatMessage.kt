@@ -176,6 +176,8 @@ data class SubagentIndicator(
     val status: String? = null, // running / queued / completed / failed
     val summary: String? = null, // complete only
     val subagentId: String? = null,
+    /** Stored session holding the subagent transcript; null until the gateway reports it. */
+    val childSessionId: String? = null,
     val logs: List<SubagentLogLine> = emptyList(),
     val durationSeconds: Double? = null,
     val model: String? = null,

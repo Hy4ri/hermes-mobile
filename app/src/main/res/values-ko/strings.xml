@@ -2060,4 +2060,21 @@
     <string name="chat_connection_switcher_title">연결 전환</string>
     <string name="chat_connection_switcher_open_settings">연결 설정</string>
     <string name="chat_connection_active_desc">활성 연결</string>
+    <string name="notif_folder_access_needed">폴더 접근이 필요합니다</string>
+    <string name="notif_site_access_needed">웹사이트 접근이 필요합니다</string>
+    <string name="notif_action_allow">허용</string>
+    <string name="notif_allow_sent">허용을 Hermes에 보냈습니다</string>
+    <string name="approval_folder_title">폴더 접근</string>
+    <string name="approval_site_title">웹사이트 접근</string>
+    <string name="approval_access_read">읽기 전용</string>
+    <string name="approval_access_read_write">읽기 및 쓰기</string>
+    <string name="approval_allow">허용</string>
+    <string name="approval_always_allow">항상 허용</string>
+    <string name="approval_deny">거부</string>
+    <string name="approval_always_confirm_title">항상 허용할까요?</string>
+    <string name="approval_always_confirm_body">변경하기 전까지 다시 묻지 않고 허용된 상태로 유지됩니다.</string>
+    <string name="approval_deny_title">접근 거부</string>
+    <string name="approval_deny_reason_label">사유 (선택)</string>
+    <string name="approval_deny_confirm">거부</string>
+    <string name="chat_reply_continuing">계속하는 중…</string>
 </resources>

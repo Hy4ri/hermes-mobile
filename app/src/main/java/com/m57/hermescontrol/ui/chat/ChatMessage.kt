@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.chat
 
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.MessageReaction
+import com.m57.hermescontrol.data.ws.ApprovalKind
 import java.util.UUID
 
 /**
@@ -23,6 +24,14 @@ data class ApprovalInfo(
     val allowPermanent: Boolean? = null,
     /** True → Smart DENY override, once/deny only. */
     val smartDenied: Boolean? = null,
+    /** `command`, or a sandbox folder (`access`) / site (`network`) request. */
+    val kind: ApprovalKind = ApprovalKind.COMMAND,
+    val path: String? = null,
+    /** `read` or `read_write`. */
+    val access: String? = null,
+    val host: String? = null,
+    val label: String? = null,
+    val risk: String? = null,
 )
 
 /**

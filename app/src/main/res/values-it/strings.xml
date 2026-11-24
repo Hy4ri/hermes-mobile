@@ -1978,4 +1978,21 @@
     <string name="chat_connection_switcher_title">Cambia connessione</string>
     <string name="chat_connection_switcher_open_settings">Impostazioni connessione</string>
     <string name="chat_connection_active_desc">Connessione attiva</string>
+    <string name="notif_folder_access_needed">Serve l\'accesso a una cartella</string>
+    <string name="notif_site_access_needed">Serve l\'accesso a un sito web</string>
+    <string name="notif_action_allow">Consenti</string>
+    <string name="notif_allow_sent">Consenso inviato a Hermes</string>
+    <string name="approval_folder_title">Accesso alla cartella</string>
+    <string name="approval_site_title">Accesso al sito web</string>
+    <string name="approval_access_read">Sola lettura</string>
+    <string name="approval_access_read_write">Lettura e scrittura</string>
+    <string name="approval_allow">Consenti</string>
+    <string name="approval_always_allow">Consenti sempre</string>
+    <string name="approval_deny">Nega</string>
+    <string name="approval_always_confirm_title">Consentire sempre?</string>
+    <string name="approval_always_confirm_body">Resterà consentito senza richiesta finché non lo cambi.</string>
+    <string name="approval_deny_title">Nega accesso</string>
+    <string name="approval_deny_reason_label">Motivo (facoltativo)</string>
+    <string name="approval_deny_confirm">Nega</string>
+    <string name="chat_reply_continuing">Continuazione…</string>
 </resources>

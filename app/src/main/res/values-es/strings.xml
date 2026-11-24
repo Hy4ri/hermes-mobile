@@ -2113,4 +2113,21 @@
     <string name="chat_connection_switcher_title">Cambiar conexión</string>
     <string name="chat_connection_switcher_open_settings">Ajustes de conexión</string>
     <string name="chat_connection_active_desc">Conexión activa</string>
+    <string name="notif_folder_access_needed">Se necesita acceso a una carpeta</string>
+    <string name="notif_site_access_needed">Se necesita acceso a un sitio web</string>
+    <string name="notif_action_allow">Permitir</string>
+    <string name="notif_allow_sent">Permiso enviado a Hermes</string>
+    <string name="approval_folder_title">Acceso a carpeta</string>
+    <string name="approval_site_title">Acceso a sitio web</string>
+    <string name="approval_access_read">Solo lectura</string>
+    <string name="approval_access_read_write">Lectura y escritura</string>
+    <string name="approval_allow">Permitir</string>
+    <string name="approval_always_allow">Permitir siempre</string>
+    <string name="approval_deny">Denegar</string>
+    <string name="approval_always_confirm_title">¿Permitir siempre?</string>
+    <string name="approval_always_confirm_body">Seguirá permitido sin volver a preguntar hasta que lo cambies.</string>
+    <string name="approval_deny_title">Denegar acceso</string>
+    <string name="approval_deny_reason_label">Motivo (opcional)</string>
+    <string name="approval_deny_confirm">Denegar</string>
+    <string name="chat_reply_continuing">Continuando…</string>
 </resources>

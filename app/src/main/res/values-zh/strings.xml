@@ -1967,4 +1967,21 @@
     <string name="chat_connection_switcher_title">切换连接</string>
     <string name="chat_connection_switcher_open_settings">连接设置</string>
     <string name="chat_connection_active_desc">当前连接</string>
+    <string name="notif_folder_access_needed">需要文件夹访问权限</string>
+    <string name="notif_site_access_needed">需要网站访问权限</string>
+    <string name="notif_action_allow">允许</string>
+    <string name="notif_allow_sent">已将允许发送给 Hermes</string>
+    <string name="approval_folder_title">文件夹访问</string>
+    <string name="approval_site_title">网站访问</string>
+    <string name="approval_access_read">只读</string>
+    <string name="approval_access_read_write">读写</string>
+    <string name="approval_allow">允许</string>
+    <string name="approval_always_allow">始终允许</string>
+    <string name="approval_deny">拒绝</string>
+    <string name="approval_always_confirm_title">始终允许？</string>
+    <string name="approval_always_confirm_body">在你更改之前，这将保持允许，不再询问。</string>
+    <string name="approval_deny_title">拒绝访问</string>
+    <string name="approval_deny_reason_label">原因（可选）</string>
+    <string name="approval_deny_confirm">拒绝</string>
+    <string name="chat_reply_continuing">正在继续…</string>
 </resources>

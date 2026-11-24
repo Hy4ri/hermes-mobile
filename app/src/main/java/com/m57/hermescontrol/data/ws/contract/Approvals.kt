@@ -20,6 +20,8 @@ data class ApprovalRespondParams(
     @SerialName("choice") val choice: String? = null,
     @SerialName("all") val all: Boolean? = null,
     @SerialName("request_id") val requestId: String? = null,
+    /** Why a folder/site request was denied. Command approvals ignore it. */
+    @SerialName("reason") val reason: String? = null,
 )
 
 @Serializable

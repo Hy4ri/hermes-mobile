@@ -361,7 +361,7 @@ class ChatNotificationService : Service() {
                                     }
 
                                     is WsEvent.ApprovalRequest -> {
-                                        alertRequest(requestNoticeFor(event, correlationScopeId()))
+                                        requestNoticeFor(event, correlationScopeId())?.let(::alertRequest)
                                     }
 
                                     // Legacy credential/clarify events (not wrapped in a server request).

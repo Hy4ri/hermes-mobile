@@ -271,6 +271,8 @@ internal fun mapServerMessages(
         )
     }
 
+    mapped.dropContinuedStopNotices()
+
     // REST echoes must not reserve a match before the richer WS copy of that tool.
     val liveTools = liveMessages.filter { it.role == MessageRole.TOOL && !RestMessageId.isRest(it.id) }
     val mappedTools = mapped.filter { it.role == MessageRole.TOOL }
@@ -290,5 +292,32 @@ internal fun mapServerMessages(
         } else {
             local?.copy(restId = message.canonicalRestId, serverRowId = message.serverRowId) ?: message
         }
+    }
+}
+
+/**
+ * A stop notice says the reply ended there. When a hidden prompt follows and the assistant goes on (a host plugin
+ * paused the turn to apply a sandbox grant and continued it), it did not: the notice comes off. A visible row
+ * next (the user writing) keeps it, so a real Stop still reads as stopped after a reload.
+ */
+internal fun MutableList<ChatMessage>.dropContinuedStopNotices() {
+    var i = 0
+    while (i < size) {
+        val row = this[i]
+        val isStopNotice = row.role == MessageRole.SYSTEM && GatewayNotice.isInterruptSentinel(row.content)
+        if (isStopNotice) {
+            var next = i + 1
+            var sawHidden = false
+            while (next < size && this[next].role == MessageRole.USER && this[next].displayKind == "hidden") {
+                sawHidden = true
+                next++
+            }
+            val goesOn = sawHidden && next < size && this[next].role in setOf(MessageRole.ASSISTANT, MessageRole.TOOL)
+            if (goesOn) {
+                removeAt(i)
+                continue
+            }
+        }
+        i++
     }
 }

@@ -157,6 +157,7 @@ object EventParser {
                     reasoning,
                     rawPayload = payload,
                     completionId = completionId,
+                    paused = payload?.get("paused") == true,
                 )
             }
 
@@ -410,6 +411,9 @@ object EventParser {
             }
 
             "approval.request" -> {
+                // A folder/site request without a path/host (or an unknown kind) is refused: no card.
+                val kindFields = payload?.let(::parseApprovalKindFields)
+                if (payload != null && kindFields == null) return WsEvent.Unknown(rawJson)
                 val command = payload?.get("command") as? String
                 val description = payload?.get("description") as? String
 
@@ -449,6 +453,12 @@ object EventParser {
                     choices,
                     allowPermanent,
                     smartDenied,
+                    kind = kindFields?.kind ?: ApprovalKind.COMMAND,
+                    path = kindFields?.path,
+                    access = kindFields?.access,
+                    host = kindFields?.host,
+                    label = kindFields?.label,
+                    risk = kindFields?.risk,
                 )
             }
 

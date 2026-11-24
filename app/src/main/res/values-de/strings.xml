@@ -2115,4 +2115,21 @@
     <string name="chat_connection_switcher_title">Verbindung wechseln</string>
     <string name="chat_connection_switcher_open_settings">Verbindungseinstellungen</string>
     <string name="chat_connection_active_desc">Aktive Verbindung</string>
+    <string name="notif_folder_access_needed">Ordnerzugriff erforderlich</string>
+    <string name="notif_site_access_needed">Webzugriff erforderlich</string>
+    <string name="notif_action_allow">Erlauben</string>
+    <string name="notif_allow_sent">Erlauben an Hermes gesendet</string>
+    <string name="approval_folder_title">Ordnerzugriff</string>
+    <string name="approval_site_title">Webzugriff</string>
+    <string name="approval_access_read">Nur lesen</string>
+    <string name="approval_access_read_write">Lesen und schreiben</string>
+    <string name="approval_allow">Erlauben</string>
+    <string name="approval_always_allow">Immer erlauben</string>
+    <string name="approval_deny">Ablehnen</string>
+    <string name="approval_always_confirm_title">Immer erlauben?</string>
+    <string name="approval_always_confirm_body">Das bleibt erlaubt, ohne erneut zu fragen, bis du es änderst.</string>
+    <string name="approval_deny_title">Zugriff ablehnen</string>
+    <string name="approval_deny_reason_label">Grund (optional)</string>
+    <string name="approval_deny_confirm">Ablehnen</string>
+    <string name="chat_reply_continuing">Wird fortgesetzt…</string>
 </resources>

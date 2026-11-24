@@ -1260,6 +1260,7 @@ object ChatWsEventReducer {
         streamingState: StreamingState,
         text: String?,
         extraEffects: List<ReducerEffect> = emptyList(),
+        persist: Boolean = true,
     ): ReducerResult {
         if (text.isNullOrBlank()) {
             return ReducerResult(state = state, streamingState = streamingState, effects = extraEffects)
@@ -1273,7 +1274,9 @@ object ChatWsEventReducer {
         return ReducerResult(
             state = state.copy(messages = state.messages + notice),
             streamingState = streamingState,
-            effects = extraEffects + listOfNotNull(sid?.let { ReducerEffect.PersistMessage(notice, it) }),
+            effects =
+                extraEffects +
+                    listOfNotNull(sid?.takeIf { persist }?.let { ReducerEffect.PersistMessage(notice, it) }),
         )
     }
 
@@ -1292,7 +1295,8 @@ object ChatWsEventReducer {
         val usageState =
             event.rawPayload?.let(::parseUsageSnapshot)?.let { applyUsageSnapshot(state, it, allowModelUpdate) }
                 ?: state
-        val text = event.text.trim()
+        // A paused turn goes on by itself: its closing notice reads "Continuing…" and is not stored.
+        val text = if (event.paused) GatewayNotice.CONTINUING else event.text.trim()
         val effects = mutableListOf<ReducerEffect>()
         var messages = usageState.messages
         if (text == GatewayNotice.REPETITION_LOOP_INTERRUPTED) {
@@ -1315,7 +1319,7 @@ object ChatWsEventReducer {
         effects += ReducerEffect.RefreshSessions
         effects += ReducerEffect.RefreshContextUsage
         val settled = usageState.copy(messages = messages, isAgentTyping = false, clarifyRequest = null)
-        return appendGatewayNotice(settled, StreamingState(), text, effects)
+        return appendGatewayNotice(settled, StreamingState(), text, effects, persist = !event.paused)
     }
 
     /** Paints a live tapback on the row whose gateway id matches; unmatched rows arrive with the next REST load. */

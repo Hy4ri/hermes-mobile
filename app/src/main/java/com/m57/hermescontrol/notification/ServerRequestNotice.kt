@@ -1,6 +1,8 @@
 package com.m57.hermescontrol.notification
 
+import com.m57.hermescontrol.data.ws.ApprovalKind
 import com.m57.hermescontrol.data.ws.WsEvent
+import com.m57.hermescontrol.data.ws.parseApprovalKindFields
 
 /** What a background request notification asks the user to do. */
 internal enum class RequestNoticeKind {
@@ -30,6 +32,8 @@ internal data class RequestNotice(
     val preview: String?,
     val canApproveOnce: Boolean,
     val canDeny: Boolean,
+    /** Folder/site requests get their own title and an Allow action. */
+    val approvalKind: ApprovalKind = ApprovalKind.COMMAND,
 ) {
     /** Stable identity: one notification and one dedupe slot per request. */
     val key: String
@@ -58,6 +62,8 @@ internal fun requestNoticeFor(
     val sessionId = params["session_id"] as? String
     return when (request.method) {
         "approval" -> {
+            // Malformed folder/site requests get no notification (the chat answers them with an error).
+            val kindFields = parseApprovalKindFields(params) ?: return null
             val (once, deny) = approvalChoices((params["choices"] as? List<*>)?.filterIsInstance<String>())
             RequestNotice(
                 kind = RequestNoticeKind.APPROVAL,
@@ -66,10 +72,13 @@ internal fun requestNoticeFor(
                 sessionId = sessionId,
                 scopeId = scopeId,
                 preview =
-                    (params["description"] as? String)?.takeIf { it.isNotBlank() }
+                    kindFields.path
+                        ?: kindFields.host
+                        ?: (params["description"] as? String)?.takeIf { it.isNotBlank() }
                         ?: (params["command"] as? String)?.takeIf { it.isNotBlank() },
                 canApproveOnce = once,
                 canDeny = deny,
+                approvalKind = kindFields.kind,
             )
         }
 
@@ -110,7 +119,9 @@ internal fun requestNoticeFor(
 internal fun requestNoticeFor(
     event: WsEvent.ApprovalRequest,
     scopeId: String,
-): RequestNotice {
+): RequestNotice? {
+    if (event.kind == ApprovalKind.ACCESS && event.path == null) return null
+    if (event.kind == ApprovalKind.NETWORK && event.host == null) return null
     val (once, deny) = approvalChoices(event.choices)
     return RequestNotice(
         kind = RequestNoticeKind.APPROVAL,
@@ -119,10 +130,13 @@ internal fun requestNoticeFor(
         sessionId = event.sessionId,
         scopeId = scopeId,
         preview =
-            event.description?.takeIf { it.isNotBlank() }
+            event.path
+                ?: event.host
+                ?: event.description?.takeIf { it.isNotBlank() }
                 ?: event.command?.takeIf { it.isNotBlank() },
         canApproveOnce = once,
         canDeny = deny,
+        approvalKind = event.kind,
     )
 }
 

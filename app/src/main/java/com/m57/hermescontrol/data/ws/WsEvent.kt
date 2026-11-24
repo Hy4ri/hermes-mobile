@@ -83,6 +83,11 @@ sealed class WsEvent {
             java.util.UUID
                 .randomUUID()
                 .toString(),
+        /**
+         * True when a host plugin paused this turn (`session.interrupt` with
+         * `resume`) and will continue the reply itself: it did not stop here.
+         */
+        val paused: Boolean = false,
     ) : WsEvent()
 
     data class MessageDone(
@@ -339,6 +344,18 @@ sealed class WsEvent {
         val smartDenied: Boolean? = null,
         /** JSON-RPC server-request id (`srq-*`) used for the response frame. */
         val serverRequestId: String? = null,
+        /** `command` (default), or a sandbox `access` (folder) / `network` (site) request. */
+        val kind: ApprovalKind = ApprovalKind.COMMAND,
+        /** Folder path of an `access` request. */
+        val path: String? = null,
+        /** `read` or `read_write` for an `access` request. */
+        val access: String? = null,
+        /** Host of a `network` request. */
+        val host: String? = null,
+        /** Human label of the site or folder, when the sandbox supplies one. */
+        val label: String? = null,
+        /** One-line risk note shown under the card. */
+        val risk: String? = null,
     ) : WsEvent()
 
     // ── Sudo / secret requests ─────────────────────────────────────────

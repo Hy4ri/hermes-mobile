@@ -2192,4 +2192,21 @@
     <string name="chat_connection_switcher_title">Сменить подключение</string>
     <string name="chat_connection_switcher_open_settings">Настройки подключения</string>
     <string name="chat_connection_active_desc">Активное подключение</string>
+    <string name="notif_folder_access_needed">Нужен доступ к папке</string>
+    <string name="notif_site_access_needed">Нужен доступ к сайту</string>
+    <string name="notif_action_allow">Разрешить</string>
+    <string name="notif_allow_sent">Разрешение отправлено в Hermes</string>
+    <string name="approval_folder_title">Доступ к папке</string>
+    <string name="approval_site_title">Доступ к сайту</string>
+    <string name="approval_access_read">Только чтение</string>
+    <string name="approval_access_read_write">Чтение и запись</string>
+    <string name="approval_allow">Разрешить</string>
+    <string name="approval_always_allow">Всегда разрешать</string>
+    <string name="approval_deny">Отклонить</string>
+    <string name="approval_always_confirm_title">Всегда разрешать?</string>
+    <string name="approval_always_confirm_body">Останется разрешённым без повторных вопросов, пока вы не измените это.</string>
+    <string name="approval_deny_title">Отклонить доступ</string>
+    <string name="approval_deny_reason_label">Причина (необязательно)</string>
+    <string name="approval_deny_confirm">Отклонить</string>
+    <string name="chat_reply_continuing">Продолжаем…</string>
 </resources>

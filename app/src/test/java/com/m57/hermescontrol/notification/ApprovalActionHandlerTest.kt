@@ -178,7 +178,7 @@ class ApprovalActionHandlerTest {
                 sessionId = "rt1",
                 requestId = "rid-1",
             )
-        val (notices, key) = setup(requestNoticeFor(event, "default"))
+        val (notices, key) = setup(requestNoticeFor(event, "default")!!)
         val t = FakeTransport()
         assertEquals(ApprovalActionOutcome.RESOLVED, run(notices, key, "deny", t))
         assertEquals(ApprovalRespondParams("rt1", "deny", false, "rid-1"), t.legacy.single())
@@ -187,14 +187,14 @@ class ApprovalActionHandlerTest {
     @Test
     fun legacyNotResolvedIsStaleNotSuccess() {
         val event = WsEvent.ApprovalRequest("ls", null, null, "rt1", requestId = "rid-1")
-        val (notices, key) = setup(requestNoticeFor(event, "default"))
+        val (notices, key) = setup(requestNoticeFor(event, "default")!!)
         assertEquals(ApprovalActionOutcome.STALE, run(notices, key, "once", FakeTransport(resolved = 0)))
     }
 
     @Test
     fun legacyErrorIsFailureAndKeepsOpen() {
         val event = WsEvent.ApprovalRequest("ls", null, null, "rt1", requestId = "rid-1")
-        val (notices, key) = setup(requestNoticeFor(event, "default"))
+        val (notices, key) = setup(requestNoticeFor(event, "default")!!)
         assertEquals(ApprovalActionOutcome.FAILED, run(notices, key, "once", FakeTransport(legacyThrows = true)))
         assertNotNull(notices.find(key))
     }
@@ -202,6 +202,6 @@ class ApprovalActionHandlerTest {
     @Test
     fun legacyWithoutRequestIdHasNoActions() {
         val event = WsEvent.ApprovalRequest("ls", null, null, "rt1", requestId = null)
-        assertFalse(requestNoticeFor(event, "default").answerable)
+        assertFalse(requestNoticeFor(event, "default")!!.answerable)
     }
 }

@@ -47,6 +47,8 @@ import com.m57.hermescontrol.data.ws.GateAdmission
 import com.m57.hermescontrol.data.ws.HermesProjectsSource
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.JsonRpcError
+import com.m57.hermescontrol.data.ws.MALFORMED_APPROVAL_CODE
+import com.m57.hermescontrol.data.ws.MALFORMED_APPROVAL_MESSAGE
 import com.m57.hermescontrol.data.ws.ProjectsSource
 import com.m57.hermescontrol.data.ws.StreamSegmentGate
 import com.m57.hermescontrol.data.ws.WsEvent
@@ -77,6 +79,7 @@ import com.m57.hermescontrol.data.ws.contract.SlashExecParams
 import com.m57.hermescontrol.data.ws.contract.SubagentInterruptParams
 import com.m57.hermescontrol.data.ws.contract.SubagentSteerParams
 import com.m57.hermescontrol.data.ws.contract.TypedRpcSender
+import com.m57.hermescontrol.data.ws.parseApprovalKindFields
 import com.m57.hermescontrol.data.ws.toAny
 import com.m57.hermescontrol.data.ws.toJsonElement
 import com.m57.hermescontrol.notification.ReplyNotificationTracker
@@ -673,6 +676,10 @@ class ChatViewModel(
     private val pendingSendReservations = mutableListOf<PendingSendReservation>()
     private var pendingSendReservationJob: Job? = null
     private var queueDrainJob: Job? = null
+
+    /** A host plugin paused the reply (`message.complete` `paused`) and will continue it itself. */
+    private var replyPaused = false
+    private var replyPauseJob: Job? = null
     private var mainTurnBusy = false
         set(busy) {
             field = busy
@@ -1594,6 +1601,7 @@ class ChatViewModel(
 
             is WsEvent.MessageStart -> {
                 if (isCurrentSession(event.sessionId)) {
+                    if (replyPaused) continueReplyPause()
                     mainTurnEpoch++
                     mainTurnBusy = true
                     activeTurnModelGeneration = modelGeneration
@@ -1607,6 +1615,11 @@ class ChatViewModel(
 
             is WsEvent.MessageComplete -> {
                 if (isCurrentSession(event.sessionId)) {
+                    if (event.paused) {
+                        pauseReply()
+                    } else if (replyPaused) {
+                        endReplyPause(continued = true)
+                    }
                     mainTurnBusy = false
                     lastMainCompletionAt = System.currentTimeMillis()
                     event.sessionId?.let { sid ->
@@ -1831,6 +1844,17 @@ class ChatViewModel(
             }
 
             "approval" -> {
+                // A folder/site request that names no folder or site is refused: no card, no ack.
+                val kindFields = parseApprovalKindFields(params)
+                if (kindFields == null) {
+                    wsClient.respondToServerRequestError(
+                        request.id,
+                        MALFORMED_APPROVAL_CODE,
+                        MALFORMED_APPROVAL_MESSAGE,
+                    )
+                    return
+                }
+
                 @Suppress("UNCHECKED_CAST")
                 val choices = (params["choices"] as? List<*>)?.filterIsInstance<String>()
                 handleWsEvent(
@@ -1844,6 +1868,12 @@ class ChatViewModel(
                         choices = choices,
                         allowPermanent = params["allow_permanent"] as? Boolean,
                         smartDenied = params["smart_denied"] as? Boolean,
+                        kind = kindFields.kind,
+                        path = kindFields.path,
+                        access = kindFields.access,
+                        host = kindFields.host,
+                        label = kindFields.label,
+                        risk = kindFields.risk,
                     ),
                 )
             }
@@ -3460,6 +3490,7 @@ class ChatViewModel(
         val runtimeId = runtimeSessionId ?: return
         val scope = sendScope()
         if (mainTurnBusy ||
+            replyPaused ||
             !_uiState.value.isSessionReady ||
             wsClient.connectionStatus.value != ConnectionStatus.CONNECTED
         ) {
@@ -3898,10 +3929,15 @@ class ChatViewModel(
                     it.state == PendingSendState.SENDING
             } ||
                 hasPendingSendReservation(sendScope(), _uiState.value.currentSessionId)
-        val busy = wasStreaming || hasOutstandingDelivery
+        val busy = wasStreaming || hasOutstandingDelivery || replyPaused
         val selectedMode = modeOverride ?: _uiState.value.busySendMode
         val mode =
             when {
+                // The paused reply continues by itself: a send waits in the local queue, never steers or interrupts it.
+                replyPaused -> {
+                    BusySendMode.QUEUE
+                }
+
                 selectedMode == BusySendMode.INTERRUPT && !wasStreaming && hasOutstandingDelivery -> {
                     BusySendMode.QUEUE
                 }
@@ -4184,6 +4220,68 @@ class ChatViewModel(
                 it.copy(
                     composerTextToRestore = transcript,
                     errorMessage = VOICE_NOTE_UNSENT_MESSAGE,
+                )
+            }
+        }
+    }
+
+    /** `message.complete` `paused`: hold sends in the local queue until the continuation completes (or the cap passes). */
+    private fun pauseReply() {
+        replyPaused = true
+        armReplyPauseCap()
+    }
+
+    /** The continuation's `message.start` arrived: drop "Continuing…", keep holding sends until it completes. */
+    private fun continueReplyPause() {
+        removeContinuingNotice(restoreStopped = false)
+        armReplyPauseCap()
+    }
+
+    private fun armReplyPauseCap() {
+        replyPauseJob?.cancel()
+        val generation = sessionGeneration
+        replyPauseJob =
+            viewModelScope.launch {
+                delay(REPLY_PAUSE_CAP_MS)
+                if (generation == sessionGeneration && replyPaused) endReplyPause(continued = false)
+            }
+    }
+
+    /**
+     * End the pause. [continued] false (cap passed, or Stop) means the reply never went on: its notice reads as
+     * stopped again. Queued sends then go as their own turn.
+     */
+    private fun endReplyPause(
+        continued: Boolean,
+        drain: Boolean = true,
+    ) {
+        replyPauseJob?.cancel()
+        replyPauseJob = null
+        replyPaused = false
+        removeContinuingNotice(restoreStopped = !continued)
+        if (drain) drainPendingQueue()
+    }
+
+    private fun removeContinuingNotice(restoreStopped: Boolean) {
+        _uiState.update { state ->
+            if (state.messages.none { it.role == MessageRole.SYSTEM && it.content == GatewayNotice.CONTINUING }) {
+                state
+            } else {
+                state.copy(
+                    messages =
+                        state.messages.mapNotNull {
+                            if (it.role == MessageRole.SYSTEM && it.content == GatewayNotice.CONTINUING) {
+                                if (restoreStopped) {
+                                    it.copy(
+                                        content = GatewayNotice.OPERATION_INTERRUPTED_TEXT,
+                                    )
+                                } else {
+                                    null
+                                }
+                            } else {
+                                it
+                            }
+                        },
                 )
             }
         }
@@ -5732,6 +5830,8 @@ class ChatViewModel(
     // ── Session management ───────────────────────────────────────────────
 
     fun interruptSession() {
+        // The user's own Stop wins over a pending continuation.
+        if (replyPaused) endReplyPause(continued = false, drain = false)
         val sessionId = runtimeSessionId ?: return
         _uiState.value.currentSessionId?.let { storageId ->
             sendStore.park(sendScope(), storageId)
@@ -7206,6 +7306,9 @@ class ChatViewModel(
         isLoading: Boolean,
     ): Long {
         val generation = ++sessionGeneration
+        replyPauseJob?.cancel()
+        replyPauseJob = null
+        replyPaused = false
         val composerScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
         // A slow drain belongs to the old session and must not block the resumed queue.
         queueDrainJob?.cancel()
@@ -8304,7 +8407,8 @@ class ChatViewModel(
     fun respondToApproval(
         action: String,
         requestId: String? = null,
-    ) = approvalsDelegate.respondToApproval(action, requestId)
+        reason: String? = null,
+    ) = approvalsDelegate.respondToApproval(action, requestId, reason)
 
     // ── Sudo / secret prompt flow (issue #524) ──────────────────────────
 
@@ -8483,6 +8587,9 @@ class ChatViewModel(
     }
 
     companion object {
+        /** A paused reply that never starts or completes its continuation reads as stopped after this long. */
+        const val REPLY_PAUSE_CAP_MS = 120_000L
+
         /** Max auto-retry attempts for a failed session.resume (desktop parity). */
         const val MAX_RESUME_RETRIES = 4
 

@@ -1952,4 +1952,21 @@
     <string name="chat_connection_switcher_title">接続を切り替え</string>
     <string name="chat_connection_switcher_open_settings">接続設定</string>
     <string name="chat_connection_active_desc">アクティブな接続</string>
+    <string name="notif_folder_access_needed">フォルダへのアクセスが必要です</string>
+    <string name="notif_site_access_needed">ウェブサイトへのアクセスが必要です</string>
+    <string name="notif_action_allow">許可</string>
+    <string name="notif_allow_sent">許可を Hermes に送信しました</string>
+    <string name="approval_folder_title">フォルダへのアクセス</string>
+    <string name="approval_site_title">ウェブサイトへのアクセス</string>
+    <string name="approval_access_read">読み取り専用</string>
+    <string name="approval_access_read_write">読み取りと書き込み</string>
+    <string name="approval_allow">許可</string>
+    <string name="approval_always_allow">常に許可</string>
+    <string name="approval_deny">拒否</string>
+    <string name="approval_always_confirm_title">常に許可しますか？</string>
+    <string name="approval_always_confirm_body">変更するまで、再確認なしで許可されたままになります。</string>
+    <string name="approval_deny_title">アクセスを拒否</string>
+    <string name="approval_deny_reason_label">理由（任意）</string>
+    <string name="approval_deny_confirm">拒否</string>
+    <string name="chat_reply_continuing">続行中…</string>
 </resources>

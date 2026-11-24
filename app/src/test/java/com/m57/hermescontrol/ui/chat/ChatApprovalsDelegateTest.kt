@@ -66,28 +66,28 @@ class ChatApprovalsDelegateTest {
             parseApprovalMap(
                 mapOf("smart_denied" to true),
                 sessionId = "s1",
-            )
+            )!!
         assertEquals(listOf("once", "deny"), denied.choices)
 
         val full =
             parseApprovalMap(
                 mapOf("allow_session" to true, "allow_permanent" to true),
                 sessionId = "s1",
-            )
+            )!!
         assertEquals(listOf("once", "session", "always", "deny"), full.choices)
 
         val noAlways =
             parseApprovalMap(
                 mapOf("allow_session" to true, "allow_permanent" to false),
                 sessionId = "s1",
-            )
+            )!!
         assertEquals(listOf("once", "session", "deny"), noAlways.choices)
 
         val explicit =
             parseApprovalMap(
                 mapOf("choices" to listOf("custom", "deny")),
                 sessionId = "s1",
-            )
+            )!!
         assertEquals(listOf("custom", "deny"), explicit.choices)
     }
 
@@ -472,4 +472,72 @@ class ChatApprovalsDelegateTest {
                 ?.content,
         )
     }
+
+    @Test
+    fun handleApprovalPendingResult_skipsMalformedSandboxEntryAndKeepsKindFields() =
+        testScope.runTest {
+            delegate.handleApprovalPendingResult(
+                mapOf(
+                    "approvals" to
+                        listOf(
+                            mapOf("request_id" to "bad", "kind" to "access"),
+                            mapOf(
+                                "request_id" to "good",
+                                "kind" to "network",
+                                "host" to "example.com",
+                                "label" to "Example",
+                                "risk" to "Reaches the internet",
+                            ),
+                        ),
+                ),
+            )
+            advanceUntilIdle()
+
+            val info =
+                uiState.value.messages
+                    .single()
+                    .approvalInfo!!
+            assertEquals("good", info.requestId)
+            assertEquals(com.m57.hermescontrol.data.ws.ApprovalKind.NETWORK, info.kind)
+            assertEquals("example.com", info.host)
+            assertEquals("Reaches the internet", info.risk)
+            // Only the valid entry is acknowledged.
+            assertEquals(listOf(WsMethods.APPROVAL_RECEIVED), sentMethods)
+            assertEquals(JsonPrimitive("good"), sentParams.first()["request_id"])
+        }
+
+    @Test
+    fun respondToApproval_denyOnSandboxCardSendsReason_commandCardIgnoresIt() =
+        testScope.runTest {
+            runtimeId = "rt"
+            delegate.handleApprovalRequest(
+                WsEvent.ApprovalRequest(
+                    command = null,
+                    description = null,
+                    patternKeys = null,
+                    sessionId = "rt",
+                    requestId = "folder-1",
+                    kind = com.m57.hermescontrol.data.ws.ApprovalKind.ACCESS,
+                    path = "/data",
+                ),
+            )
+            advanceUntilIdle()
+            sentMethods.clear()
+            sentParams.clear()
+
+            delegate.respondToApproval("deny", "folder-1", reason = "  not now ")
+            advanceUntilIdle()
+
+            assertEquals(WsMethods.APPROVAL_RESPOND, sentMethods.first())
+            assertEquals(JsonPrimitive("not now"), sentParams.first()["reason"])
+
+            delegate.handleApprovalRequest(
+                WsEvent.ApprovalRequest("ls", null, null, "rt", requestId = "cmd-1"),
+            )
+            advanceUntilIdle()
+            sentParams.clear()
+            delegate.respondToApproval("deny", "cmd-1", reason = "x")
+            advanceUntilIdle()
+            assertNull(sentParams.first()["reason"])
+        }
 }

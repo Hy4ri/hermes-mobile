@@ -2109,4 +2109,21 @@
     <string name="chat_connection_switcher_title">تبديل الاتصال</string>
     <string name="chat_connection_switcher_open_settings">إعدادات الاتصال</string>
     <string name="chat_connection_active_desc">الاتصال النشط</string>
+    <string name="notif_folder_access_needed">مطلوب الوصول إلى مجلد</string>
+    <string name="notif_site_access_needed">مطلوب الوصول إلى موقع ويب</string>
+    <string name="notif_action_allow">سماح</string>
+    <string name="notif_allow_sent">تم إرسال السماح إلى Hermes</string>
+    <string name="approval_folder_title">الوصول إلى مجلد</string>
+    <string name="approval_site_title">الوصول إلى موقع ويب</string>
+    <string name="approval_access_read">قراءة فقط</string>
+    <string name="approval_access_read_write">قراءة وكتابة</string>
+    <string name="approval_allow">سماح</string>
+    <string name="approval_always_allow">السماح دائمًا</string>
+    <string name="approval_deny">رفض</string>
+    <string name="approval_always_confirm_title">السماح دائمًا؟</string>
+    <string name="approval_always_confirm_body">سيبقى مسموحًا دون سؤال مرة أخرى إلى أن تغيّره.</string>
+    <string name="approval_deny_title">رفض الوصول</string>
+    <string name="approval_deny_reason_label">السبب (اختياري)</string>
+    <string name="approval_deny_confirm">رفض</string>
+    <string name="chat_reply_continuing">جارٍ المتابعة…</string>
 </resources>

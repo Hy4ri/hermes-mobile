@@ -202,6 +202,17 @@ fun ChatScreen(
     viewModel: ChatViewModel = viewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var talkLaunch by remember { mutableStateOf<com.m57.hermescontrol.ui.voice.TalkLaunch?>(null) }
+    val dataScope by AuthManager.dataScopeFlow.collectAsStateWithLifecycle()
+    LaunchedEffect(dataScope) {
+        talkLaunch?.let { captured ->
+            if (captured.scope != dataScope) talkLaunch = null
+        }
+    }
+    talkLaunch?.let { launch ->
+        com.m57.hermescontrol.ui.voice
+            .RealtimeTalkDialog(launch, onDismiss = { talkLaunch = null })
+    }
     val profileLocked =
         ProfileLock.state
             .collectAsStateWithLifecycle()
@@ -292,7 +303,6 @@ fun ChatScreen(
     val speechController = rememberChatSpeech()
     val speakingMessageId by speechController.speakingId.collectAsStateWithLifecycle()
     val preparingSpeechId by speechController.preparingId.collectAsStateWithLifecycle()
-    val dataScope by AuthManager.dataScopeFlow.collectAsStateWithLifecycle()
     val activeSessionId by ActiveSessionHolder.activeSessionId.collectAsStateWithLifecycle()
     val listState = rememberLazyListState(prefetchStrategy = ChatTimelineNoPrefetchStrategy)
     val scrollScope = rememberCoroutineScope()
@@ -1101,6 +1111,20 @@ fun ChatScreen(
                     }
                 },
                 onMicTap = mediaLaunchers.onMicTap,
+                realtimeEnabled =
+                    state.isConnected && dataScope != null &&
+                        !mediaLaunchers.isListening && !state.isTranscribingVoiceNote &&
+                        !mediaLaunchers.isRecordingVoice,
+                onRealtimeTap = {
+                    val activeScope = AuthManager.currentDataScope()
+                    if (state.isConnected && activeScope != null && !mediaLaunchers.isListening &&
+                        !state.isTranscribingVoiceNote && !mediaLaunchers.isRecordingVoice
+                    ) {
+                        talkLaunch =
+                            com.m57.hermescontrol.ui.voice
+                                .TalkLaunch(activeScope)
+                    }
+                },
                 onMicHoldStart = mediaLaunchers.onMicHoldStart,
                 onMicHoldEnd = mediaLaunchers.onMicHoldEnd,
                 onMicHoldCancel = mediaLaunchers.onMicHoldCancel,

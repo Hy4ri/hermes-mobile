@@ -166,12 +166,20 @@ internal fun mapServerMessages(
 
     val mapped = mutableListOf<ChatMessage>()
     messages.forEachIndexed { index, msg ->
+        // Upstream stores plugin cards as role=user with top-level display_kind.
+        // Map them to SYSTEM before user-turn stripping so they render as cards
+        // and dedupe against the live WS row.
+        val pluginCard = msg.pluginCardMeta()
         val role =
-            when (msg.role?.lowercase()) {
-                "user" -> MessageRole.USER
-                "system" -> MessageRole.SYSTEM
-                "tool" -> MessageRole.TOOL
-                else -> MessageRole.ASSISTANT
+            if (pluginCard != null) {
+                MessageRole.SYSTEM
+            } else {
+                when (msg.role?.lowercase()) {
+                    "user" -> MessageRole.USER
+                    "system" -> MessageRole.SYSTEM
+                    "tool" -> MessageRole.TOOL
+                    else -> MessageRole.ASSISTANT
+                }
             }
         // Issue #859: under newest-anchored paging use the server's
         // AUTOINCREMENT row id as the stable key — from-end positions shift
@@ -251,7 +259,6 @@ internal fun mapServerMessages(
             } else {
                 null
             }
-        val pluginCard = msg.pluginCardMeta()
         val shownContent =
             if (pluginCard != null) {
                 msg.pluginCardDisplayText()?.takeIf { it.isNotBlank() } ?: msg.contentText
@@ -335,9 +342,9 @@ internal fun MutableList<ChatMessage>.dropContinuedStopNotices() {
 
 /** `display_metadata.plugin_card` when the row is a durable plugin card. Malformed cards are ignored. */
 internal fun SessionMessage.pluginCardMeta(): PluginCardMeta? {
+    // Upstream writes display_kind on the row, not inside display_metadata.
+    if (display_kind != DisplayKind.PLUGIN_CARD) return null
     val meta = display_metadata as? JsonObject ?: return null
-    val kind = (meta["display_kind"] as? JsonPrimitive)?.takeIf { it.isString }?.content
-    if (kind != DisplayKind.PLUGIN_CARD) return null
     val card = meta["plugin_card"] as? JsonObject ?: return null
     val pluginId =
         (card["plugin_id"] as? JsonPrimitive)

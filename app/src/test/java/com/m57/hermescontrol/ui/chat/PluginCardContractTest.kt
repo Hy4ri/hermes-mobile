@@ -5,6 +5,8 @@ import com.m57.hermescontrol.data.ws.EventParser
 import com.m57.hermescontrol.data.ws.JsonRpcResponse
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.toJsonElement
+import com.m57.hermescontrol.ui.chat.fullbleed.AgentEntry
+import com.m57.hermescontrol.ui.chat.fullbleed.groupIntoTurns
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
@@ -32,31 +34,14 @@ class PluginCardContractTest {
     @Test
     fun mapServerMessages_hydratesDisplayTextAndStableId() {
         val row =
-            SessionMessage(
+            cardRow(
                 id = 42,
-                role = "system",
-                content = JsonPrimitive("[weather posted a card abc]"),
-                display_metadata =
-                    JsonObject(
-                        mapOf(
-                            "display_kind" to JsonPrimitive("plugin_card"),
-                            "display_text" to JsonPrimitive("Bring a jacket."),
-                            "plugin_card" to
-                                JsonObject(
-                                    mapOf(
-                                        "plugin_id" to JsonPrimitive("weather"),
-                                        "card_id" to JsonPrimitive("c1"),
-                                        "directive" to
-                                            JsonObject(
-                                                mapOf(
-                                                    "name" to JsonPrimitive("forecast"),
-                                                    "attrs" to JsonObject(mapOf("city" to JsonPrimitive("Salt"))),
-                                                ),
-                                            ),
-                                    ),
-                                ),
-                        ),
-                    ),
+                pluginId = "weather",
+                cardId = "c1",
+                content = "[weather posted a card abc]",
+                displayText = "Bring a jacket.",
+                directiveName = "forecast",
+                attrs = mapOf("city" to "Salt"),
             )
         val mapped = mapServerMessages("sess-1", listOf(row), 0, true, emptyList()).single()
         assertEquals("plugin-card-weather-c1", mapped.id)
@@ -72,23 +57,12 @@ class PluginCardContractTest {
     @Test
     fun mapServerMessages_fallsBackToContentWhenDisplayTextMissing() {
         val row =
-            SessionMessage(
+            cardRow(
                 id = 3,
-                role = "system",
-                content = JsonPrimitive("fallback body"),
-                display_metadata =
-                    JsonObject(
-                        mapOf(
-                            "display_kind" to JsonPrimitive("plugin_card"),
-                            "plugin_card" to
-                                JsonObject(
-                                    mapOf(
-                                        "plugin_id" to JsonPrimitive("notes"),
-                                        "card_id" to JsonPrimitive("n1"),
-                                    ),
-                                ),
-                        ),
-                    ),
+                pluginId = "notes",
+                cardId = "n1",
+                content = "fallback body",
+                displayText = null,
             )
         val mapped = mapServerMessages("s", listOf(row), 0, true, emptyList()).single()
         assertEquals("fallback body", mapped.content)
@@ -98,17 +72,12 @@ class PluginCardContractTest {
     @Test
     fun mapServerMessages_ignoresMalformedPluginCardMetadata() {
         val row =
-            SessionMessage(
+            cardRow(
                 id = 4,
-                role = "system",
-                content = JsonPrimitive("keep me"),
-                display_metadata =
-                    JsonObject(
-                        mapOf(
-                            "display_kind" to JsonPrimitive("plugin_card"),
-                            "plugin_card" to JsonObject(mapOf("plugin_id" to JsonPrimitive(" "))),
-                        ),
-                    ),
+                pluginId = " ",
+                cardId = "",
+                content = "keep me",
+                displayText = null,
             )
         val mapped = mapServerMessages("s", listOf(row), 0, true, emptyList()).single()
         assertNull(mapped.pluginCard)
@@ -137,24 +106,12 @@ class PluginCardContractTest {
             mapServerMessages(
                 "sess-1",
                 listOf(
-                    SessionMessage(
+                    cardRow(
                         id = 9,
-                        role = "system",
-                        content = JsonPrimitive("[weather posted a card abc]"),
-                        display_metadata =
-                            JsonObject(
-                                mapOf(
-                                    "display_kind" to JsonPrimitive("plugin_card"),
-                                    "display_text" to JsonPrimitive("Bring a jacket."),
-                                    "plugin_card" to
-                                        JsonObject(
-                                            mapOf(
-                                                "plugin_id" to JsonPrimitive("weather"),
-                                                "card_id" to JsonPrimitive("c1"),
-                                            ),
-                                        ),
-                                ),
-                            ),
+                        pluginId = "weather",
+                        cardId = "c1",
+                        content = "[weather posted a card abc]",
+                        displayText = "Bring a jacket.",
                     ),
                 ),
                 0,
@@ -189,6 +146,80 @@ class PluginCardContractTest {
             second.state.messages
                 .single()
                 .id,
+        )
+    }
+
+    @Test
+    fun hydratedUserRoleCardIsASystemEventAndDedupesAgainstLive() {
+        val live =
+            ChatWsEventReducer
+                .reduce(
+                    ChatUiState(currentSessionId = "sess-1"),
+                    StreamingState(),
+                    WsEvent.PluginCard("sess-1", "weather", "c1", "Bring a jacket."),
+                    "sess-1",
+                ).state.messages
+                .single()
+        val hydrated =
+            mapServerMessages(
+                "sess-1",
+                listOf(
+                    cardRow(
+                        id = 11,
+                        pluginId = "weather",
+                        cardId = "c1",
+                        content = "[weather posted a card abc]",
+                        displayText = "Bring a jacket.",
+                    ),
+                ),
+                0,
+                true,
+                listOf(live),
+            ).single()
+        assertEquals(MessageRole.SYSTEM, hydrated.role)
+        assertNull(hydrated.displayKind)
+        val turns = groupIntoTurns(listOf(hydrated))
+        val agent = turns.single() as com.m57.hermescontrol.ui.chat.fullbleed.ChatTurn.Agent
+        assertTrue(agent.entries.single() is AgentEntry.SystemEvent)
+        assertEquals(1, mergeTranscriptWithLive(listOf(hydrated), listOf(live)).size)
+    }
+
+    private fun cardRow(
+        id: Int,
+        pluginId: String,
+        cardId: String,
+        content: String,
+        displayText: String?,
+        directiveName: String? = null,
+        attrs: Map<String, String> = emptyMap(),
+    ): SessionMessage {
+        val card =
+            buildMap<String, kotlinx.serialization.json.JsonElement> {
+                put("plugin_id", JsonPrimitive(pluginId))
+                put("card_id", JsonPrimitive(cardId))
+                if (directiveName != null) {
+                    put(
+                        "directive",
+                        JsonObject(
+                            mapOf(
+                                "name" to JsonPrimitive(directiveName),
+                                "attrs" to JsonObject(attrs.mapValues { JsonPrimitive(it.value) }),
+                            ),
+                        ),
+                    )
+                }
+            }
+        val meta =
+            buildMap<String, kotlinx.serialization.json.JsonElement> {
+                if (displayText != null) put("display_text", JsonPrimitive(displayText))
+                put("plugin_card", JsonObject(card))
+            }
+        return SessionMessage(
+            id = id,
+            role = "user",
+            content = JsonPrimitive(content),
+            display_kind = "plugin_card",
+            display_metadata = JsonObject(meta),
         )
     }
 

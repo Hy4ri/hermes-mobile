@@ -81,6 +81,8 @@ import com.m57.hermescontrol.data.model.MemoryProviderSetupResponse
 import com.m57.hermescontrol.data.model.MemoryResetRequest
 import com.m57.hermescontrol.data.model.MemoryResetResponse
 import com.m57.hermescontrol.data.model.MemoryResponse
+import com.m57.hermescontrol.data.model.MessagingCatalogInstallRequest
+import com.m57.hermescontrol.data.model.MessagingCatalogInstallResponse
 import com.m57.hermescontrol.data.model.MessagingPlatformResponse
 import com.m57.hermescontrol.data.model.MessagingPlatformTestResult
 import com.m57.hermescontrol.data.model.MessagingPlatformUpdate
@@ -785,6 +787,13 @@ interface HermesApiService : KanbanApiService {
         @Path("platform_id") platformId: String,
         @Body config: MessagingPlatformUpdate,
     ): Response<MessagingPlatformUpdateResponse>
+
+    /** Catalog install clones and resolves deps; call through [com.m57.hermescontrol.data.remote.ApiClient.messagingCatalogApi]. */
+    @POST("api/messaging/catalog/{name}/install")
+    suspend fun installMessagingCatalogPlatform(
+        @Path("name") name: String,
+        @Body body: MessagingCatalogInstallRequest = MessagingCatalogInstallRequest(),
+    ): Response<MessagingCatalogInstallResponse>
 
     @POST("api/messaging/platforms/{platform_id}/test")
     suspend fun testMessagingPlatform(

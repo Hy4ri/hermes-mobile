@@ -52,6 +52,33 @@ data class MessagingPlatformResponse(
     @SerialName("env_path") val envPath: String,
     @SerialName("gateway_start_command") val gatewayStartCommand: String,
     val platforms: List<MessagingPlatform>,
+    /** Uninstalled official/verified catalog rows. Absent on gateways older than v0.23.5. */
+    val available: List<MessagingCatalogPlatform> = emptyList(),
+)
+
+@Serializable
+data class MessagingCatalogPlatform(
+    val name: String,
+    val title: String,
+    val summary: String = "",
+    val badge: String = "",
+    val blocked: String = "",
+    @SerialName("blocked_reason") val blockedReason: String = "",
+    val disclosure: String = "",
+    @SerialName("install_command") val installCommand: String = "",
+)
+
+@Serializable
+class MessagingCatalogInstallRequest
+
+@Serializable
+data class MessagingCatalogInstallResponse(
+    val ok: Boolean = false,
+    @SerialName("plugin_name") val pluginName: String? = null,
+    val platforms: List<String> = emptyList(),
+    val warnings: List<String> = emptyList(),
+    val error: String? = null,
+    @SerialName("install_command") val installCommand: String? = null,
 )
 
 @Serializable
@@ -70,10 +97,19 @@ data class MessagingPlatformTestResult(
 )
 
 @Serializable
+data class MessagingLiveApply(
+    val applied: Boolean = false,
+    val state: String? = null,
+    val detail: String? = null,
+)
+
+@Serializable
 data class MessagingPlatformUpdateResponse(
     val ok: Boolean = false,
     val platform: String? = null,
     @SerialName("hot_served") val hotServed: Boolean = false,
+    /** v0.23.5 live start/restart/stop verdict. Older gateways omit it; fall back to [hotServed]. */
+    val live: MessagingLiveApply? = null,
 )
 
 // ── Telegram onboarding ─────────────────────────────────────────────────

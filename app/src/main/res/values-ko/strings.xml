@@ -1010,6 +1010,13 @@
     <string name="channels_action_test">테스트</string>
     <string name="channels_action_restart_now">지금 재시작</string>
     <string name="channels_restart_banner">변경사항이 저장되었습니다. 게이트웨이를 재시작하면 적용됩니다.</string>
+    <string name="channels_available_title">추가할 수 있는 플랫폼</string>
+    <string name="channels_available_install">설치</string>
+    <string name="channels_installing">설치 중</string>
+    <string name="channels_badge_official">공식</string>
+    <string name="channels_badge_verified">검증됨</string>
+    <string name="channels_state_connecting">연결 중</string>
+    <string name="channels_state_needs_setup">설정 필요</string>
     <string name="channels_ingress_url">수신 URL</string>
     <string name="channels_copy_ingress_url">수신 URL 복사</string>
 

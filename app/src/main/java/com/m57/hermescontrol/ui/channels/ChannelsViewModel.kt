@@ -3,6 +3,8 @@ package com.m57.hermescontrol.ui.channels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.model.MessagingCatalogInstallRequest
+import com.m57.hermescontrol.data.model.MessagingCatalogPlatform
 import com.m57.hermescontrol.data.model.MessagingPlatform
 import com.m57.hermescontrol.data.model.MessagingPlatformUpdate
 import com.m57.hermescontrol.data.model.MessagingPlatformUpdateResponse
@@ -38,9 +40,12 @@ data class ChannelsUiState(
     val platforms: List<MessagingPlatform> = emptyList(),
     val errorMessage: String? = null,
     val toastMessage: String? = null,
-    val restartNeeded: Boolean = false,
+    val restartPendingPlatforms: Set<String> = emptySet(),
     val isRestarting: Boolean = false,
     val togglingId: String? = null,
+    val installingName: String? = null,
+    val highlightedPlatformId: String? = null,
+    val available: List<MessagingCatalogPlatform> = emptyList(),
     val testingId: String? = null,
     val removingId: String? = null,
     val gatewayStartCommand: String = "hermes gateway start",
@@ -56,7 +61,10 @@ data class ChannelsUiState(
     val onboardingExpiresIn: String = "",
     // Admin section
     val envPath: String = "~/.hermes/.env",
-)
+) {
+    val restartNeeded: Boolean
+        get() = restartPendingPlatforms.isNotEmpty()
+}
 
 class ChannelsViewModel :
     ViewModel(),
@@ -76,6 +84,7 @@ class ChannelsViewModel :
                 _uiState.update {
                     it.copy(
                         platforms = data.platforms.orEmpty(),
+                        available = data.available,
                         gatewayStartCommand = data.gatewayStartCommand,
                         envPath = data.envPath,
                     )
@@ -97,6 +106,7 @@ class ChannelsViewModel :
                     it.copy(
                         isLoading = false,
                         platforms = data.platforms.orEmpty(),
+                        available = data.available,
                         gatewayStartCommand = data.gatewayStartCommand,
                         envPath = data.envPath,
                     )
@@ -130,32 +140,44 @@ class ChannelsViewModel :
             },
             onStart = {},
             onSuccess = { response ->
-                val hotServed = response.hotServed
+                val applied = appliedLive(response)
                 _uiState.update { state ->
+                    val configured = state.platforms.firstOrNull { it.id == platformId }?.configured == true
                     state.copy(
                         platforms =
                             state.platforms.map { p ->
                                 if (p.id == platformId) {
                                     p.copy(
                                         enabled = enabled,
-                                        state =
-                                            when {
-                                                !enabled -> "disabled"
-                                                hotServed -> "connected"
-                                                else -> "pending_restart"
-                                            },
+                                        state = optimisticToggleState(enabled, configured, response),
                                     )
                                 } else {
                                     p
                                 }
                             },
-                        restartNeeded = !hotServed,
+                        restartPendingPlatforms =
+                            restartPendingAfter(
+                                state.restartPendingPlatforms,
+                                platformId,
+                                response,
+                            ),
                         togglingId = null,
                         toastMessage =
-                            if (hotServed) {
-                                "$platformId updated live"
-                            } else {
-                                null
+                            when {
+                                applied -> {
+                                    "$platformId updated live"
+                                }
+
+                                response.live?.applied == false && !response.live.detail.isNullOrBlank() -> {
+                                    restartReason(
+                                        response,
+                                        "$platformId saved. Restart the gateway for it to take effect",
+                                    )
+                                }
+
+                                else -> {
+                                    null
+                                }
                             },
                     )
                 }
@@ -218,12 +240,16 @@ class ChannelsViewModel :
                 _uiState.update { state ->
                     state.copy(
                         removingId = null,
-                        restartNeeded = state.restartNeeded || !response.hotServed,
+                        restartPendingPlatforms =
+                            restartPendingAfter(state.restartPendingPlatforms, platformId, response),
                         toastMessage =
-                            if (response.hotServed) {
+                            if (appliedLive(response)) {
                                 "Platform disconnected and credentials cleared live"
                             } else {
-                                "Platform disconnected and credentials cleared; restart the gateway"
+                                restartReason(
+                                    response,
+                                    "Platform disconnected and credentials cleared; restart the gateway",
+                                )
                             },
                     )
                 }
@@ -257,17 +283,19 @@ class ChannelsViewModel :
                 }
             },
             onSuccess = { response ->
-                val hotServed = response.hotServed
                 val message =
-                    if (hotServed) {
+                    if (appliedLive(response)) {
                         "$platformId configured and reloaded live"
                     } else {
-                        "$platformId configured successfully — restart the gateway for changes to take effect"
+                        restartReason(
+                            response,
+                            "$platformId configured successfully — restart the gateway for changes to take effect",
+                        )
                     }
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        restartNeeded = !hotServed,
+                        restartPendingPlatforms = restartPendingAfter(it.restartPendingPlatforms, platformId, response),
                         toastMessage = message,
                     )
                 }
@@ -312,6 +340,56 @@ class ChannelsViewModel :
         )
     }
 
+    /** Install an official/verified catalog platform into the active profile. */
+    fun installCatalogPlatform(name: String) {
+        if (_uiState.value.installingName != null) return
+        _uiState.update { it.copy(installingName = name) }
+        safeLaunchLoad(
+            apiCall = {
+                safeApiCall(retries = 0) {
+                    ApiClient.messagingCatalogApi().installMessagingCatalogPlatform(
+                        name,
+                        MessagingCatalogInstallRequest(),
+                    )
+                }
+            },
+            onStart = {},
+            onSuccess = { response ->
+                if (!response.ok) {
+                    val command = response.installCommand?.takeIf { it.isNotBlank() }
+                    val error = response.error?.takeIf { it.isNotBlank() } ?: "Install refused"
+                    _uiState.update {
+                        it.copy(
+                            installingName = null,
+                            toastMessage = if (command != null) "$error\n$command" else error,
+                        )
+                    }
+                } else {
+                    val warning = response.warnings.filter { it.isNotBlank() }.joinToString("; ")
+                    val highlight = response.platforms.firstOrNull { it.isNotBlank() }
+                    _uiState.update {
+                        it.copy(
+                            installingName = null,
+                            highlightedPlatformId = highlight,
+                            toastMessage =
+                                if (warning.isEmpty()) {
+                                    "$name installed"
+                                } else {
+                                    "$name installed. $warning"
+                                },
+                        )
+                    }
+                    loadPlatforms()
+                }
+            },
+            onError = { error ->
+                _uiState.update {
+                    it.copy(installingName = null, toastMessage = "Install failed: $error")
+                }
+            },
+        )
+    }
+
     /** Restart the whole gateway. Reloads platforms after a 4s delay. */
     fun restartGateway() {
         safeLaunchLoad(
@@ -323,7 +401,7 @@ class ChannelsViewModel :
             },
             onSuccess = {
                 _uiState.update {
-                    it.copy(isRestarting = false, restartNeeded = false)
+                    it.copy(isRestarting = false, restartPendingPlatforms = emptySet())
                 }
                 viewModelScope.launch {
                     delay(4000)

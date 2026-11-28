@@ -1196,6 +1196,13 @@
 <string name="channels_action_test">اختبار</string>
 <string name="channels_action_restart_now">إعادة التشغيل الآن</string>
 <string name="channels_restart_banner">تم حفظ التغييرات. أعد تشغيل البوابة (Gateway) لتصبح سارية المفعول.</string>
+    <string name="channels_available_title">المنصات المتاحة</string>
+    <string name="channels_available_install">تثبيت</string>
+    <string name="channels_installing">جارٍ التثبيت</string>
+    <string name="channels_badge_official">رسمي</string>
+    <string name="channels_badge_verified">موثّق</string>
+    <string name="channels_state_connecting">جارٍ الاتصال</string>
+    <string name="channels_state_needs_setup">يلزم الإعداد</string>
 <string name="channels_ingress_url">رابط الدخول</string>
 <string name="channels_copy_ingress_url">نسخ رابط الدخول</string>
 <string name="pairing_sec_pending">الموافقات المعلقة</string>

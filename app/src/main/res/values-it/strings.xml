@@ -1286,6 +1286,13 @@
     <string name="channels_action_test">Testa</string>
     <string name="channels_action_restart_now">Riavvia ora</string>
     <string name="channels_restart_banner">Modifiche salvate. Riavvia il gateway per renderle effettive.</string>
+    <string name="channels_available_title">Piattaforme disponibili</string>
+    <string name="channels_available_install">Installa</string>
+    <string name="channels_installing">Installazione</string>
+    <string name="channels_badge_official">Ufficiale</string>
+    <string name="channels_badge_verified">Verificata</string>
+    <string name="channels_state_connecting">Connessione in corso</string>
+    <string name="channels_state_needs_setup">Serve la configurazione</string>
     <string name="channels_ingress_url">URL di ingress</string>
     <string name="channels_copy_ingress_url">Copia URL di ingress</string>
     <string name="pairing_sec_pending">Approvazioni in sospeso</string>

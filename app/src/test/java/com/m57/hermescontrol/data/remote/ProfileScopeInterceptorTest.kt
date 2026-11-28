@@ -79,6 +79,14 @@ class ProfileScopeInterceptorTest {
     }
 
     @Test
+    fun catalogInstall_appendsProfile() {
+        val client = clientFor("work")
+        val url = requestedUrl(client, "api/messaging/catalog/discord/install", method = "POST")
+        assertEquals("work", url.queryParameter("profile"))
+        assertEquals("/api/messaging/catalog/discord/install", url.encodedPath)
+    }
+
+    @Test
     fun noActiveProfile_scopesToDefault() {
         // A multi-profile backend rejects an unnamed destructive request with 400
         // "requires an explicit profile", so a scoped path must always name one.

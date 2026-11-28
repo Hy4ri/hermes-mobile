@@ -90,6 +90,8 @@ class MainActivity : ComponentActivity() {
             "com.m57.hermescontrol.ACTION_OPEN_CHAT_FROM_NOTIFICATION"
         const val ACTION_OPEN_KANBAN_TASK_FROM_NOTIFICATION =
             "com.m57.hermescontrol.ACTION_OPEN_KANBAN_TASK_FROM_NOTIFICATION"
+        const val ACTION_OPEN_CRON_FROM_NOTIFICATION =
+            "com.m57.hermescontrol.ACTION_OPEN_CRON_FROM_NOTIFICATION"
         const val EXTRA_KANBAN_BOARD = "com.m57.hermescontrol.EXTRA_KANBAN_BOARD"
         const val EXTRA_KANBAN_TASK = "com.m57.hermescontrol.EXTRA_KANBAN_TASK"
         const val ACTION_NEW_CHAT_FROM_TILE = "com.m57.hermescontrol.ACTION_NEW_CHAT_FROM_TILE"
@@ -458,6 +460,11 @@ class MainActivity : ComponentActivity() {
                 val sessionId = intent.getStringExtra(NotificationReplyReceiver.EXTRA_SESSION_ID)
                 intent.removeExtra(NotificationReplyReceiver.EXTRA_SESSION_ID)
                 sessionId?.takeIf { it.isNotBlank() }?.let(NavigationController::openChatSessionFromNotification)
+            }
+
+            ACTION_OPEN_CRON_FROM_NOTIFICATION -> {
+                intent.action = Intent.ACTION_MAIN
+                NavigationController.openCronJobsFromNotification()
             }
 
             ACTION_OPEN_KANBAN_TASK_FROM_NOTIFICATION -> {

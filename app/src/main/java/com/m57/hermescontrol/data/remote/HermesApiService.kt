@@ -405,7 +405,9 @@ interface HermesApiService : KanbanApiService {
     ): Response<LockSkillResponse>
 
     @GET("api/cron/jobs")
-    suspend fun getCronJobs(): Response<List<CronJob>>
+    suspend fun getCronJobs(
+        @Query("profile") profile: String? = null,
+    ): Response<List<CronJob>>
 
     @POST("api/cron/jobs/{id}/pause")
     suspend fun pauseCronJob(

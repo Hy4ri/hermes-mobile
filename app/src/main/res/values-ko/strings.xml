@@ -1671,6 +1671,8 @@
     <string name="memory_recent_events">최근 에이전트 자기 개선 이벤트</string>
     <string name="message_reasoning_steps">추론 · %1$s단계</string>
     <string name="timeline_marker_model_switch">모델 전환됨</string>
+    <string name="plugin_card_from">플러그인 · %1$s</string>
+    <string name="plugin_card_cd">플러그인 %1$s 카드</string>
     <string name="timeline_marker_model_switch_to">%1$s(으)로 모델 전환됨</string>
     <string name="timeline_marker_personality_switch">개성(페르소나) 전환됨</string>
     <string name="timeline_marker_auto_continue">턴 자동 계속됨</string>

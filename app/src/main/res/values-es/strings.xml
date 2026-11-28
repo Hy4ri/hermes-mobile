@@ -1557,6 +1557,8 @@
 
     <!-- Timeline markers (issue #904) -->
     <string name="timeline_marker_model_switch">Modelo cambiado</string>
+    <string name="plugin_card_from">Plugin · %1$s</string>
+    <string name="plugin_card_cd">Tarjeta del plugin %1$s</string>
     <string name="timeline_marker_model_switch_to">Modelo cambiado a%1$s</string>
     <string name="timeline_marker_personality_switch">Personalidad cambiada</string>
     <string name="timeline_marker_auto_continue">Turno continuado automáticamente</string>

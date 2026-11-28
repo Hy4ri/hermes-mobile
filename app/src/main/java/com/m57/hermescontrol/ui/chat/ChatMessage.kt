@@ -135,6 +135,19 @@ data class ChatMessage(
      * is stripped for rendering; the UI never shows this field.
      */
     val persistedContent: String? = null,
+    /**
+     * Durable plugin card (`plugin.card` / `display_metadata.plugin_card`).
+     * Transient: history rehydrates it from the REST row. Not a timeline marker.
+     */
+    val pluginCard: PluginCardMeta? = null,
+)
+
+/** Identity of a plugin-posted display card. [directiveAttrs] is display-only metadata. */
+data class PluginCardMeta(
+    val pluginId: String,
+    val cardId: String,
+    val directiveName: String? = null,
+    val directiveAttrs: Map<String, String> = emptyMap(),
 )
 
 /** Cached REST rows already carry their canonical identity in the persisted primary key. */

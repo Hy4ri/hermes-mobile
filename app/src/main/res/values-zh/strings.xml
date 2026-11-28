@@ -1307,6 +1307,8 @@
     <string name="memory_recent_events">最近的 Agent 自我改进事件</string>
     <string name="message_reasoning_steps">推理 · %1$s 步</string>
     <string name="timeline_marker_model_switch">模型已切换</string>
+    <string name="plugin_card_from">插件 · %1$s</string>
+    <string name="plugin_card_cd">来自插件 %1$s 的卡片</string>
     <string name="timeline_marker_model_switch_to">模型已切换至 %1$s</string>
     <string name="timeline_marker_personality_switch">人格已切换</string>
     <string name="timeline_marker_auto_continue">回合已自动继续</string>

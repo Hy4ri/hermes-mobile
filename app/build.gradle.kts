@@ -16,11 +16,18 @@ android {
     lint {
         disable += "MissingTranslation"
     }
-    compileSdk = 37
+    // Integer assignment cannot name a minor platform. 37.1 is platforms/android-37.1.
+    compileSdk {
+        version =
+            release(37) {
+                minorApiLevel = 1
+            }
+    }
     buildToolsVersion = "37.0.0"
     defaultConfig {
         applicationId = "com.m57.hermescontrol"
         minSdk = 26
+        // uses-sdk targetSdkVersion is an integer API level. A minor SDK cannot be targeted.
         targetSdk = 37
         // Version overrides passed from CI via -PversionName / -PversionCode
         // Falls back to defaults for local development.

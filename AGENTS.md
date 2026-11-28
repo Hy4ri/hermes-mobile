@@ -16,7 +16,7 @@ Flag conflicts between requirements and implementation instead of silently diver
 dashboard's REST API and WebSocket TUI Gateway (JSON-RPC 2.0) over a trusted LAN.
 
 - **Package:** `com.m57.hermescontrol`
-- **Min SDK 26 / Target SDK 37 / Compile SDK 37**
+- **Min SDK 26 / Target SDK 37 / Compile SDK 37.1**
 - **Kotlin and KSP:** versions are pinned in [`gradle/libs.versions.toml`](gradle/libs.versions.toml). KSP uses standalone versioning, NOT `kotlinVersion-kspVersion`.
 - **Jetpack Compose**, Room, Navigation3, OkHttp WebSocket, Retrofit, Kotlinx Serialization. See the version catalog and [`app/build.gradle.kts`](app/build.gradle.kts) for versions and dependency scopes.
 - **Auth:** `EncryptedSharedPreferences` (AES256-GCM); connection/authentication flows are documented in the [wiki](https://github.com/Hy4ri/hermes-mobile/wiki/Connecting-to-Hermes). Trace the active REST and WebSocket auth paths before changing them.
@@ -47,7 +47,7 @@ chmod +x ktlint
 
 ### Nix dev shell & Compose preview rendering
 
-`flake.nix` provides JDK 21, Android SDK 37, `ktlint`, and `android-cli` (on `x86_64-linux` and `aarch64-darwin`) via `nix develop -c ...`. On Linux/NixOS, the flake wraps `android` with the X11 libraries required by the preview renderer.
+`flake.nix` provides JDK 21, Android SDK 37.1, `ktlint`, and `android-cli` (on `x86_64-linux` and `aarch64-darwin`) via `nix develop -c ...`. On Linux/NixOS, the flake wraps `android` with the X11 libraries required by the preview renderer.
 
 To verify stateless `@Preview` composables headless before testing on a device:
 

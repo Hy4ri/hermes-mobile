@@ -2,6 +2,10 @@ package com.m57.hermescontrol.ui.channels
 
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.EnvVarField
+import com.m57.hermescontrol.data.model.MessagingCatalogInstallRequest
+import com.m57.hermescontrol.data.model.MessagingCatalogInstallResponse
+import com.m57.hermescontrol.data.model.MessagingCatalogPlatform
+import com.m57.hermescontrol.data.model.MessagingLiveApply
 import com.m57.hermescontrol.data.model.MessagingPlatform
 import com.m57.hermescontrol.data.model.MessagingPlatformResponse
 import com.m57.hermescontrol.data.model.MessagingPlatformUpdate
@@ -41,6 +45,7 @@ class ChannelsViewModelTest {
         mockkObject(ApiClient)
         mockApi = mockk(relaxed = true)
         every { ApiClient.hermesApi } returns mockApi
+        every { ApiClient.messagingCatalogApi() } returns mockApi
         mockkObject(AuthManager)
         every { AuthManager.currentDataScope() } returns null
         every { AuthManager.activeProfileId } returns MutableStateFlow("work")
@@ -282,11 +287,188 @@ class ChannelsViewModelTest {
             "telegram configured successfully — restart the gateway for changes to take effect",
             viewModel.uiState.value.toastMessage,
         )
+        assertEquals(setOf("telegram"), viewModel.uiState.value.restartPendingPlatforms)
         coVerify {
             mockApi.configurePlatform(
                 "telegram",
                 MessagingPlatformUpdate(env = mapOf("bot_token" to "xyz")),
             )
         }
+    }
+
+    @Test
+    fun `live applied true clears that platform from restart pending and shows connecting`() {
+        coEvery { mockApi.configurePlatform("telegram", any()) } returns
+            Response.success(
+                MessagingPlatformUpdateResponse(
+                    ok = true,
+                    live = MessagingLiveApply(applied = true, state = "connecting"),
+                    hotServed = false,
+                ),
+            )
+        val viewModel = ChannelsViewModel()
+        viewModel.loadPlatforms()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.togglePlatform("telegram", enabled = true)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(
+            viewModel.uiState.value.restartPendingPlatforms
+                .isEmpty(),
+        )
+        assertFalse(viewModel.uiState.value.restartNeeded)
+    }
+
+    @Test
+    fun `not configured live apply does not ask for a restart`() {
+        coEvery { mockApi.configurePlatform("telegram", any()) } returns
+            Response.success(
+                MessagingPlatformUpdateResponse(
+                    ok = true,
+                    live = MessagingLiveApply(applied = true, state = "not_configured", detail = "needs TOKEN"),
+                ),
+            )
+        val viewModel = ChannelsViewModel()
+        viewModel.loadPlatforms()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.togglePlatform("telegram", enabled = true)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(
+            viewModel.uiState.value.restartPendingPlatforms
+                .isEmpty(),
+        )
+        assertFalse(
+            viewModel.uiState.value.toastMessage
+                .orEmpty()
+                .contains("restart"),
+        )
+    }
+
+    @Test
+    fun `live applied false keeps restart pending and includes detail`() {
+        coEvery { mockApi.configurePlatform("telegram", any()) } returns
+            Response.success(
+                MessagingPlatformUpdateResponse(
+                    ok = true,
+                    hotServed = true,
+                    live =
+                        MessagingLiveApply(
+                            applied = false,
+                            state = "pending_restart",
+                            detail = "adapter build failed",
+                        ),
+                ),
+            )
+        val viewModel = ChannelsViewModel()
+        viewModel.loadPlatforms()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.configurePlatform("telegram", MessagingPlatformUpdate(enabled = true))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(setOf("telegram"), viewModel.uiState.value.restartPendingPlatforms)
+        assertTrue(viewModel.uiState.value.restartNeeded)
+        assertTrue(
+            viewModel.uiState.value.toastMessage
+                .orEmpty()
+                .contains("adapter build failed"),
+        )
+    }
+
+    @Test
+    fun `a later live save for one platform does not clear another pending restart`() {
+        coEvery { mockApi.configurePlatform("telegram", any()) } returns
+            Response.success(MessagingPlatformUpdateResponse(ok = true, hotServed = false))
+        coEvery { mockApi.configurePlatform("discord", any()) } returns
+            Response.success(
+                MessagingPlatformUpdateResponse(
+                    ok = true,
+                    live = MessagingLiveApply(applied = true, state = "connecting"),
+                ),
+            )
+        val viewModel = ChannelsViewModel()
+        viewModel.configurePlatform("telegram", MessagingPlatformUpdate(enabled = true))
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.configurePlatform("discord", MessagingPlatformUpdate(enabled = true))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(setOf("telegram"), viewModel.uiState.value.restartPendingPlatforms)
+    }
+
+    @Test
+    fun `load stores available catalog platforms`() {
+        coEvery { mockApi.getMessagingPlatforms() } returns
+            Response.success(
+                platformsResponse().copy(
+                    available =
+                        listOf(
+                            MessagingCatalogPlatform(name = "discord", title = "Discord", badge = "official"),
+                        ),
+                ),
+            )
+        val viewModel = ChannelsViewModel()
+        viewModel.loadPlatforms()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            "discord",
+            viewModel.uiState.value.available
+                .single()
+                .name,
+        )
+    }
+
+    @Test
+    fun `catalog install success refreshes platforms and highlights the new id`() {
+        coEvery { mockApi.installMessagingCatalogPlatform("discord", any()) } returns
+            Response.success(
+                MessagingCatalogInstallResponse(
+                    ok = true,
+                    pluginName = "discord",
+                    platforms = listOf("discord"),
+                    warnings = listOf("restart recommended"),
+                ),
+            )
+        val viewModel = ChannelsViewModel()
+        viewModel.installCatalogPlatform("discord")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("discord", viewModel.uiState.value.highlightedPlatformId)
+        assertEquals(null, viewModel.uiState.value.installingName)
+        assertTrue(
+            viewModel.uiState.value.toastMessage
+                .orEmpty()
+                .contains("restart recommended"),
+        )
+        coVerify {
+            mockApi.installMessagingCatalogPlatform("discord", any<MessagingCatalogInstallRequest>())
+        }
+        coVerify(atLeast = 1) { mockApi.getMessagingPlatforms() }
+    }
+
+    @Test
+    fun `catalog install refusal surfaces error and command`() {
+        coEvery { mockApi.installMessagingCatalogPlatform("discord", any()) } returns
+            Response.success(
+                MessagingCatalogInstallResponse(
+                    ok = false,
+                    error = "lazy installs are off",
+                    installCommand = "hermes plugins install discord",
+                ),
+            )
+        val viewModel = ChannelsViewModel()
+        viewModel.installCatalogPlatform("discord")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val toast =
+            viewModel.uiState.value.toastMessage
+                .orEmpty()
+        assertTrue(toast.contains("lazy installs are off"))
+        assertTrue(toast.contains("hermes plugins install discord"))
+        assertEquals(null, viewModel.uiState.value.installingName)
+        coVerify(exactly = 0) { mockApi.getMessagingPlatforms() }
     }
 }

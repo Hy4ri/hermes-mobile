@@ -1162,6 +1162,13 @@
     <string name="channels_action_test">测试</string>
     <string name="channels_action_restart_now">立即重启</string>
     <string name="channels_restart_banner">更改已保存。重启网关后生效。</string>
+    <string name="channels_available_title">可添加的平台</string>
+    <string name="channels_available_install">安装</string>
+    <string name="channels_installing">正在安装</string>
+    <string name="channels_badge_official">官方</string>
+    <string name="channels_badge_verified">已验证</string>
+    <string name="channels_state_connecting">正在连接</string>
+    <string name="channels_state_needs_setup">需要设置</string>
     <string name="channels_ingress_url">入口 URL</string>
     <string name="channels_copy_ingress_url">复制入口 URL</string>
     <string name="pairing_sec_pending">待批准</string>

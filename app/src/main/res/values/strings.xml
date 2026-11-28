@@ -1541,6 +1541,13 @@
     <string name="channels_action_test">Test</string>
     <string name="channels_action_restart_now">Restart now</string>
     <string name="channels_restart_banner">Changes saved. Restart the gateway for them to take effect.</string>
+    <string name="channels_available_title">Available platforms</string>
+    <string name="channels_available_install">Install</string>
+    <string name="channels_installing">Installing</string>
+    <string name="channels_badge_official">Official</string>
+    <string name="channels_badge_verified">Verified</string>
+    <string name="channels_state_connecting">Connecting</string>
+    <string name="channels_state_needs_setup">Needs setup</string>
     <string name="channels_ingress_url">Ingress URL</string>
     <string name="channels_copy_ingress_url">Copy ingress URL</string>
     <string name="channels_relay_via">Via Team Gateway</string>

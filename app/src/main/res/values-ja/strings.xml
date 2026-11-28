@@ -1417,6 +1417,13 @@
     <string name="channels_action_test">テスト</string>
     <string name="channels_action_restart_now">今すぐ再起動</string>
     <string name="channels_restart_banner">変更を保存しました。反映するにはゲートウェイを再起動してください。</string>
+    <string name="channels_available_title">追加できるプラットフォーム</string>
+    <string name="channels_available_install">インストール</string>
+    <string name="channels_installing">インストール中</string>
+    <string name="channels_badge_official">公式</string>
+    <string name="channels_badge_verified">確認済み</string>
+    <string name="channels_state_connecting">接続中</string>
+    <string name="channels_state_needs_setup">設定が必要</string>
     <string name="channels_ingress_url">受信URL</string>
     <string name="channels_copy_ingress_url">受信URLをコピー</string>
 

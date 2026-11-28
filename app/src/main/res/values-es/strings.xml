@@ -1388,6 +1388,13 @@
     <string name="channels_action_test">Probar</string>
     <string name="channels_action_restart_now">Reiniciar ahora</string>
     <string name="channels_restart_banner">Cambios guardados. Reinicie la gateway para que surtan efecto.</string>
+    <string name="channels_available_title">Plataformas disponibles</string>
+    <string name="channels_available_install">Instalar</string>
+    <string name="channels_installing">Instalando</string>
+    <string name="channels_badge_official">Oficial</string>
+    <string name="channels_badge_verified">Verificada</string>
+    <string name="channels_state_connecting">Conectando</string>
+    <string name="channels_state_needs_setup">Falta configurar</string>
     <string name="channels_ingress_url">URL de ingreso</string>
     <string name="channels_copy_ingress_url">Copiar URL de ingreso</string>
 

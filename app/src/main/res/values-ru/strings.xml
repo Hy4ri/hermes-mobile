@@ -1533,6 +1533,13 @@
     <string name="channels_action_test">Проверить</string>
     <string name="channels_action_restart_now">Перезапустить сейчас</string>
     <string name="channels_restart_banner">Изменения сохранены. Перезапустите шлюз, чтобы они вступили в силу.</string>
+    <string name="channels_available_title">Доступные платформы</string>
+    <string name="channels_available_install">Установить</string>
+    <string name="channels_installing">Установка</string>
+    <string name="channels_badge_official">Официальная</string>
+    <string name="channels_badge_verified">Проверенная</string>
+    <string name="channels_state_connecting">Подключение</string>
+    <string name="channels_state_needs_setup">Нужна настройка</string>
     <string name="channels_ingress_url">URL входящих запросов</string>
     <string name="channels_copy_ingress_url">Копировать URL входящих запросов</string>
 

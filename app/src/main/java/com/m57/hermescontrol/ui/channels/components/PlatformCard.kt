@@ -1,12 +1,14 @@
 package com.m57.hermescontrol.ui.channels.components
 
 import android.content.ClipData
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
@@ -61,6 +63,10 @@ private fun platformStateInfo(state: String): PlatformStateInfo =
             PlatformStateInfo("Connected", StatusBadgeType.SUCCESS, Icons.Filled.CheckCircle)
         }
 
+        "connecting" -> {
+            PlatformStateInfo("Connecting", StatusBadgeType.INFO, Icons.Filled.Refresh)
+        }
+
         "pending_restart" -> {
             PlatformStateInfo("Restart to apply", StatusBadgeType.WARNING, Icons.Filled.Refresh)
         }
@@ -78,7 +84,7 @@ private fun platformStateInfo(state: String): PlatformStateInfo =
         }
 
         "not_configured" -> {
-            PlatformStateInfo("Not configured", StatusBadgeType.NEUTRAL, Icons.Filled.RadioButtonChecked)
+            PlatformStateInfo("Needs setup", StatusBadgeType.NEUTRAL, Icons.Filled.RadioButtonChecked)
         }
 
         "disabled" -> {
@@ -105,6 +111,7 @@ internal fun PlatformCard(
     onSave: (MessagingPlatformUpdate) -> Unit,
     onRemove: () -> Unit,
     onStartOnboarding: () -> Unit,
+    highlighted: Boolean = false,
 ) {
     var showConfigureForm by remember { mutableStateOf(false) }
     var showRemoveConfirm by remember { mutableStateOf(false) }
@@ -117,9 +124,21 @@ internal fun PlatformCard(
     val relayManaged = relayChip == RelayChip.VIA_RELAY || relayChip == RelayChip.MANAGED_BY_RELAY
     val relayLabel =
         when (relayChip) {
-            RelayChip.VIA_RELAY -> stringResource(R.string.channels_relay_via)
-            RelayChip.MANAGED_BY_RELAY -> stringResource(R.string.channels_relay_managed)
-            else -> stateInfo.label
+            RelayChip.VIA_RELAY -> {
+                stringResource(R.string.channels_relay_via)
+            }
+
+            RelayChip.MANAGED_BY_RELAY -> {
+                stringResource(R.string.channels_relay_managed)
+            }
+
+            else -> {
+                when (platform.state) {
+                    "connecting" -> stringResource(R.string.channels_state_connecting)
+                    "not_configured" -> stringResource(R.string.channels_state_needs_setup)
+                    else -> stateInfo.label
+                }
+            }
         }
     val iconTint =
         when (stateInfo.statusBadgeType) {
@@ -131,6 +150,12 @@ internal fun PlatformCard(
         }
 
     ManageableItemCard(
+        modifier =
+            if (highlighted) {
+                Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
+            } else {
+                Modifier
+            },
         title = platform.name,
         subtitle = platform.description?.takeIf { it.isNotBlank() },
         badges = {

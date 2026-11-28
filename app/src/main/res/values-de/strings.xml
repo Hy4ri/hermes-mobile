@@ -1445,6 +1445,13 @@
     <string name="channels_action_test">Testen</string>
     <string name="channels_action_restart_now">Jetzt neu starten</string>
     <string name="channels_restart_banner">Änderungen gespeichert. Starte das Gateway neu, damit sie wirksam werden.</string>
+    <string name="channels_available_title">Verfügbare Plattformen</string>
+    <string name="channels_available_install">Installieren</string>
+    <string name="channels_installing">Wird installiert</string>
+    <string name="channels_badge_official">Offiziell</string>
+    <string name="channels_badge_verified">Verifiziert</string>
+    <string name="channels_state_connecting">Verbindung wird hergestellt</string>
+    <string name="channels_state_needs_setup">Einrichtung nötig</string>
     <string name="channels_ingress_url">Ingress-URL</string>
     <string name="channels_copy_ingress_url">Ingress-URL kopieren</string>
 

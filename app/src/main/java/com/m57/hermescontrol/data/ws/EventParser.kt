@@ -568,10 +568,45 @@ object EventParser {
                 WsEvent.Unknown(rawJson)
             }
 
+            "plugin.card" -> {
+                parsePluginCard(payload, sessionId, rawJson)
+            }
+
             else -> {
                 Log.w(TAG, "Unknown event type: $eventType")
                 WsEvent.Unknown(rawJson)
             }
         }
+    }
+
+    private fun parsePluginCard(
+        payload: Map<String, Any?>?,
+        sessionId: String?,
+        rawJson: String,
+    ): WsEvent {
+        val pluginId = (payload?.get("plugin_id") as? String)?.trim().orEmpty()
+        val cardId = (payload?.get("card_id") as? String)?.trim().orEmpty()
+        val text = payload?.get("text") as? String
+        if (pluginId.isEmpty() || cardId.isEmpty() || text.isNullOrBlank()) {
+            return WsEvent.Unknown(rawJson)
+        }
+        val directive = payload["directive"] as? Map<*, *>
+        val directiveName = (directive?.get("name") as? String)?.trim()?.takeIf { it.isNotEmpty() }
+        val directiveAttrs =
+            (directive?.get("attrs") as? Map<*, *>)
+                ?.mapNotNull { (key, value) ->
+                    val name = key as? String ?: return@mapNotNull null
+                    val attr = value as? String ?: return@mapNotNull null
+                    name to attr
+                }?.toMap()
+                .orEmpty()
+        return WsEvent.PluginCard(
+            sessionId = sessionId,
+            pluginId = pluginId,
+            cardId = cardId,
+            text = text,
+            directiveName = directiveName,
+            directiveAttrs = directiveAttrs,
+        )
     }
 }

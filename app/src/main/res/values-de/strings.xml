@@ -1622,6 +1622,8 @@
 
     <!-- Timeline markers (issue #904) -->
     <string name="timeline_marker_model_switch">Modell gewechselt</string>
+    <string name="plugin_card_from">Plugin · %1$s</string>
+    <string name="plugin_card_cd">Karte vom Plugin %1$s</string>
     <string name="timeline_marker_model_switch_to">Modell gewechselt zu %1$s</string>
     <string name="timeline_marker_personality_switch">Persönlichkeit gewechselt</string>
     <string name="timeline_marker_auto_continue">Zug automatisch fortgesetzt</string>

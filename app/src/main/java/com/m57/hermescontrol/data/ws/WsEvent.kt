@@ -553,6 +553,19 @@ sealed class WsEvent {
         val sessionId: String? = null,
     ) : WsEvent()
 
+    /**
+     * `plugin.card`: a plugin posted a durable display-only card without a model turn.
+     * [directiveName] and [directiveAttrs] are optional display metadata.
+     */
+    data class PluginCard(
+        val sessionId: String?,
+        val pluginId: String,
+        val cardId: String,
+        val text: String,
+        val directiveName: String? = null,
+        val directiveAttrs: Map<String, String> = emptyMap(),
+    ) : WsEvent()
+
     // ── Replay resync (internal) ──────────────────────────────────────────
 
     /** Internal: replay could not cover the reconnect gap (truncated or epoch change) — UI must refetch history. */

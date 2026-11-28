@@ -106,6 +106,10 @@ internal fun SystemBubble(
     onRespondApproval: (action: String, requestId: String?, reason: String?) -> Unit = { _, _, _ -> },
     modifier: Modifier = Modifier,
 ) {
+    if (message.pluginCard != null) {
+        PluginCardBubble(message = message, modifier = modifier)
+        return
+    }
     if (message.content.contains("Self-improvement review:", ignoreCase = true)) {
         SelfImprovementReviewCard(content = message.content, modifier = modifier)
         return

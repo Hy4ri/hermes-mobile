@@ -1733,6 +1733,8 @@
 
     <!-- Timeline markers (issue #904) -->
     <string name="timeline_marker_model_switch">Model switched</string>
+    <string name="plugin_card_from">Plugin · %1$s</string>
+    <string name="plugin_card_cd">Card from plugin %1$s</string>
     <string name="timeline_marker_model_switch_to">Model switched to %1$s</string>
     <string name="timeline_marker_personality_switch">Personality switched</string>
     <string name="timeline_marker_auto_continue">Turn auto-continued</string>

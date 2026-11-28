@@ -5,6 +5,7 @@ import com.m57.hermescontrol.data.model.SessionMessage
 import com.m57.hermescontrol.notification.ReplyNotificationTarget
 import com.m57.hermescontrol.ui.chat.tool.ToolJson
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * Maps REST transcript rows ([SessionMessage]) into UI [ChatMessage]s.
@@ -250,23 +251,33 @@ internal fun mapServerMessages(
             } else {
                 null
             }
-        val tokenCount = msg.tokenCount ?: TokenEstimator.estimate(finalContent).takeIf { it > 0 }
+        val pluginCard = msg.pluginCardMeta()
+        val shownContent =
+            if (pluginCard != null) {
+                msg.pluginCardDisplayText()?.takeIf { it.isNotBlank() } ?: msg.contentText
+            } else {
+                finalContent
+            }
+        val tokenCount = msg.tokenCount ?: TokenEstimator.estimate(shownContent).takeIf { it > 0 }
         mapped.add(
             ChatMessage(
-                id = restId,
+                id = if (pluginCard != null) pluginCardMessageId(pluginCard.pluginId, pluginCard.cardId) else restId,
                 role = role,
-                content = finalContent,
+                content = shownContent,
                 reasoningText = rowReasoning,
                 toolCallId = msg.toolCallId,
                 attachments = attachments,
                 timestamp = timestamp,
                 isStreaming = false,
-                displayKind = msg.display_kind,
+                // A plugin card must not carry displayKind: FullBleedChatList draws those as chips.
+                displayKind = if (pluginCard != null) null else msg.display_kind,
                 tokenCount = tokenCount,
                 completionId = completionId,
+                restId = pluginCard?.let { restId },
                 serverRowId = msg.id?.toLong()?.takeIf { it > 0L },
                 reactions = msg.reactions,
                 persistedContent = persistedContent,
+                pluginCard = pluginCard,
             ).normalizedGatewayNotice(),
         )
     }
@@ -320,4 +331,46 @@ internal fun MutableList<ChatMessage>.dropContinuedStopNotices() {
         }
         i++
     }
+}
+
+/** `display_metadata.plugin_card` when the row is a durable plugin card. Malformed cards are ignored. */
+internal fun SessionMessage.pluginCardMeta(): PluginCardMeta? {
+    val meta = display_metadata as? JsonObject ?: return null
+    val kind = (meta["display_kind"] as? JsonPrimitive)?.takeIf { it.isString }?.content
+    if (kind != DisplayKind.PLUGIN_CARD) return null
+    val card = meta["plugin_card"] as? JsonObject ?: return null
+    val pluginId =
+        (card["plugin_id"] as? JsonPrimitive)
+            ?.takeIf { it.isString }
+            ?.content
+            ?.trim()
+            .orEmpty()
+    val cardId =
+        (card["card_id"] as? JsonPrimitive)
+            ?.takeIf { it.isString }
+            ?.content
+            ?.trim()
+            .orEmpty()
+    if (pluginId.isEmpty() || cardId.isEmpty()) return null
+    val directive = card["directive"] as? JsonObject
+    val directiveName =
+        (directive?.get("name") as? JsonPrimitive)
+            ?.takeIf { it.isString }
+            ?.content
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+    val directiveAttrs =
+        (directive?.get("attrs") as? JsonObject)
+            ?.mapNotNull { (key, value) ->
+                val text = (value as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return@mapNotNull null
+                key to text
+            }?.toMap()
+            .orEmpty()
+    return PluginCardMeta(pluginId, cardId, directiveName, directiveAttrs)
+}
+
+/** Human-readable card body. Null when the gateway omitted `display_text`. */
+internal fun SessionMessage.pluginCardDisplayText(): String? {
+    val meta = display_metadata as? JsonObject ?: return null
+    return (meta["display_text"] as? JsonPrimitive)?.takeIf { it.isString }?.content
 }

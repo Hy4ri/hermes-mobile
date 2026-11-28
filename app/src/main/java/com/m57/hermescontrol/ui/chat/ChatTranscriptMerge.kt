@@ -153,6 +153,13 @@ internal class TranscriptComparison(
         if (a.role != b.role) return false
         // #1285: two proven row ids decide identity; a missing one is unproven, so fall through.
         if (a.serverRowId != null && b.serverRowId != null) return a.serverRowId == b.serverRowId
+        // A live plugin card has no server row yet. Match the history echo by card identity,
+        // not by the model-facing fallback text.
+        if (a.pluginCard != null || b.pluginCard != null) {
+            val left = a.pluginCard
+            val right = b.pluginCard
+            return left != null && right != null && left.pluginId == right.pluginId && left.cardId == right.cardId
+        }
         val aRestId = a.canonicalRestId
         val bRestId = b.canonicalRestId
         if (aRestId != null && bRestId != null) return aRestId == bRestId

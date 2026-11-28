@@ -1710,6 +1710,8 @@
 
     <!-- Timeline markers (issue #904) -->
     <string name="timeline_marker_model_switch">Модель переключена</string>
+    <string name="plugin_card_from">Плагин · %1$s</string>
+    <string name="plugin_card_cd">Карточка плагина %1$s</string>
     <string name="timeline_marker_model_switch_to">Модель переключена на %1$s</string>
     <string name="timeline_marker_personality_switch">Личность переключена</string>
     <string name="timeline_marker_auto_continue">Ход продолжен автоматически</string>

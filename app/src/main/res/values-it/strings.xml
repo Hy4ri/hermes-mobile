@@ -1432,6 +1432,8 @@
     <string name="memory_recent_events">Eventi recenti di auto-miglioramento dell\'agente</string>
     <string name="message_reasoning_steps">Ragionamento · %1$s passaggi</string>
     <string name="timeline_marker_model_switch">Modello cambiato</string>
+    <string name="plugin_card_from">Plugin · %1$s</string>
+    <string name="plugin_card_cd">Scheda dal plugin %1$s</string>
     <string name="timeline_marker_model_switch_to">Modello cambiato in %1$s</string>
     <string name="timeline_marker_personality_switch">Personalità cambiata</string>
     <string name="timeline_marker_auto_continue">Turno proseguito automaticamente</string>

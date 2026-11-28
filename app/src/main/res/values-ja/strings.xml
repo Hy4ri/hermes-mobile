@@ -1594,6 +1594,8 @@
 
     <!-- Timeline markers (issue #904) -->
     <string name="timeline_marker_model_switch">モデルを切り替え</string>
+    <string name="plugin_card_from">プラグイン · %1$s</string>
+    <string name="plugin_card_cd">プラグイン %1$s のカード</string>
     <string name="timeline_marker_model_switch_to">モデルを%1$sに切り替えました</string>
     <string name="timeline_marker_personality_switch">応答スタイルを切り替え</string>
     <string name="timeline_marker_auto_continue">応答を自動継続</string>

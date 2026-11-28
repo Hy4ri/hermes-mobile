@@ -95,8 +95,10 @@ class ParamsDescriptorCheckTest {
 
     @Test
     fun omittingRequiredProfileIsRejectedLikeAnyRequiredParam() {
-        // bot_relay.deliver has required: ["profile", "message"]. Profile injection is skipped when no
-        // profile is active, so `profile` gets no special treatment: the params class must declare it.
+        // bot_relay.deliver's shared schema requires id, profile, and message (v0.23.5). The canonical
+        // schema does not require profile, and the checker accepts a class that matches any one schema.
+        // This fixture declares only message, so it cannot hide behind the canonical schema: the shared
+        // schema must still report the omitted profile. Do not add `id` here or that miss disappears.
         val problems =
             GatewayContract.paramsDescriptorProblems(
                 "bot_relay.deliver",

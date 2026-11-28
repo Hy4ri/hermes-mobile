@@ -1345,6 +1345,8 @@
 <string name="memory_recent_events">أحدث أحداث التحسين الذاتي للوكيل</string>
 <string name="message_reasoning_steps">الاستدلال · %1$s خطوة</string>
 <string name="timeline_marker_model_switch">تم تبديل النموذج</string>
+    <string name="plugin_card_from">إضافة · %1$s</string>
+    <string name="plugin_card_cd">بطاقة من الإضافة %1$s</string>
 <string name="timeline_marker_model_switch_to">تم تبديل النموذج إلى %1$s</string>
 <string name="timeline_marker_personality_switch">تم تبديل الشخصية</string>
 <string name="timeline_marker_auto_continue">تمت المتابعة التلقائية للدور</string>

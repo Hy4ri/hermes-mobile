@@ -37,6 +37,7 @@ import com.m57.hermescontrol.ui.chat.ChatMessage
 import com.m57.hermescontrol.ui.chat.ChatSearchState
 import com.m57.hermescontrol.ui.chat.ImageViewerModel
 import com.m57.hermescontrol.ui.chat.PendingSendState
+import com.m57.hermescontrol.ui.chat.PluginCardBubble
 import com.m57.hermescontrol.ui.chat.SearchTarget
 import com.m57.hermescontrol.ui.chat.ToolCallDivider
 import com.m57.hermescontrol.ui.chat.UserBubble
@@ -591,7 +592,10 @@ fun FullBleedChatList(
                                                 contentType = FullBleedContentType.SYSTEM_EVENT,
                                             ) {
                                                 Column(modifier = Modifier.padding(bottom = 6.dp)) {
-                                                    if (sysMessage.displayKind != null) {
+                                                    if (sysMessage.pluginCard != null) {
+                                                        // Not a timeline marker: unknown kinds render nothing.
+                                                        PluginCardBubble(message = sysMessage)
+                                                    } else if (sysMessage.displayKind != null) {
                                                         // Timeline marker (issue #904):
                                                         // model/personality switches and
                                                         // auto-continues render as a chip.

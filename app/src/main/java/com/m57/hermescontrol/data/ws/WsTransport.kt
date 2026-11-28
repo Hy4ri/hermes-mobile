@@ -884,8 +884,9 @@ internal class WsTransport(
 
     /** Blocks until every [openSocket] handshake has finished, so none can touch AuthManager after a test unmocks it. */
     @VisibleForTesting
-    internal fun awaitOpenSocketIdleForTest() {
-        runBlocking { withTimeout(OPEN_SOCKET_IDLE_TIMEOUT_MS) { openSocketJobs.toList().forEach { it.join() } } }
+    internal fun awaitOpenSocketIdleForTest(jobs: Set<Job> = openSocketJobs) {
+        // Kotlin's singleton toList() path can read size before a completion removes the last job.
+        runBlocking { withTimeout(OPEN_SOCKET_IDLE_TIMEOUT_MS) { ArrayList(jobs).forEach { it.join() } } }
     }
 
     @VisibleForTesting

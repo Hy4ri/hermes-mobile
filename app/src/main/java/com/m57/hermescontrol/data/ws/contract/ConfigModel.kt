@@ -35,7 +35,30 @@ data class ModelOptionsParams(
     @SerialName("refresh") val refresh: Boolean? = null,
 )
 
+/**
+ * `client.capabilities` params. Each call updates only what it names: the identity hello omits
+ * [serverRequests] so it cannot withdraw what the first call advertised.
+ */
 @Serializable
 data class ClientCapabilitiesParams(
-    @SerialName("server_requests") val serverRequests: Boolean,
+    @SerialName("server_requests") val serverRequests: Boolean? = null,
+    @SerialName("client") val client: ClientIdentity? = null,
+)
+
+/** `client.capabilities` `client` label: attribution only, grants nothing. */
+@Serializable
+data class ClientIdentity(
+    @SerialName("name") val name: String,
+    @SerialName("version") val version: String? = null,
+    @SerialName("kind") val kind: String? = null,
+)
+
+/** `client.activity` params: the connection's whole statement about where the user is. */
+@Serializable
+data class ClientActivityParams(
+    @SerialName("sessions") val sessions: List<String>,
+    @SerialName("idle_seconds") val idleSeconds: Double,
+    @SerialName("basis") val basis: String,
+    @SerialName("can_alert") val canAlert: Boolean,
+    @SerialName("away") val away: Boolean,
 )

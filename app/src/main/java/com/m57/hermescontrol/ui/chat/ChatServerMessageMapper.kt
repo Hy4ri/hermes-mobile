@@ -5,6 +5,7 @@ import com.m57.hermescontrol.data.model.SessionMessage
 import com.m57.hermescontrol.notification.ReplyNotificationTarget
 import com.m57.hermescontrol.ui.chat.tool.ToolJson
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * Maps REST transcript rows ([SessionMessage]) into UI [ChatMessage]s.
@@ -165,12 +166,20 @@ internal fun mapServerMessages(
 
     val mapped = mutableListOf<ChatMessage>()
     messages.forEachIndexed { index, msg ->
+        // Upstream stores plugin cards as role=user with top-level display_kind.
+        // Map them to SYSTEM before user-turn stripping so they render as cards
+        // and dedupe against the live WS row.
+        val pluginCard = msg.pluginCardMeta()
         val role =
-            when (msg.role?.lowercase()) {
-                "user" -> MessageRole.USER
-                "system" -> MessageRole.SYSTEM
-                "tool" -> MessageRole.TOOL
-                else -> MessageRole.ASSISTANT
+            if (pluginCard != null) {
+                MessageRole.SYSTEM
+            } else {
+                when (msg.role?.lowercase()) {
+                    "user" -> MessageRole.USER
+                    "system" -> MessageRole.SYSTEM
+                    "tool" -> MessageRole.TOOL
+                    else -> MessageRole.ASSISTANT
+                }
             }
         // Issue #859: under newest-anchored paging use the server's
         // AUTOINCREMENT row id as the stable key — from-end positions shift
@@ -250,26 +259,37 @@ internal fun mapServerMessages(
             } else {
                 null
             }
-        val tokenCount = msg.tokenCount ?: TokenEstimator.estimate(finalContent).takeIf { it > 0 }
+        val shownContent =
+            if (pluginCard != null) {
+                msg.pluginCardDisplayText()?.takeIf { it.isNotBlank() } ?: msg.contentText
+            } else {
+                finalContent
+            }
+        val tokenCount = msg.tokenCount ?: TokenEstimator.estimate(shownContent).takeIf { it > 0 }
         mapped.add(
             ChatMessage(
-                id = restId,
+                id = if (pluginCard != null) pluginCardMessageId(pluginCard.pluginId, pluginCard.cardId) else restId,
                 role = role,
-                content = finalContent,
+                content = shownContent,
                 reasoningText = rowReasoning,
                 toolCallId = msg.toolCallId,
                 attachments = attachments,
                 timestamp = timestamp,
                 isStreaming = false,
-                displayKind = msg.display_kind,
+                // A plugin card must not carry displayKind: FullBleedChatList draws those as chips.
+                displayKind = if (pluginCard != null) null else msg.display_kind,
                 tokenCount = tokenCount,
                 completionId = completionId,
+                restId = pluginCard?.let { restId },
                 serverRowId = msg.id?.toLong()?.takeIf { it > 0L },
                 reactions = msg.reactions,
                 persistedContent = persistedContent,
+                pluginCard = pluginCard,
             ).normalizedGatewayNotice(),
         )
     }
+
+    mapped.dropContinuedStopNotices()
 
     // REST echoes must not reserve a match before the richer WS copy of that tool.
     val liveTools = liveMessages.filter { it.role == MessageRole.TOOL && !RestMessageId.isRest(it.id) }
@@ -291,4 +311,73 @@ internal fun mapServerMessages(
             local?.copy(restId = message.canonicalRestId, serverRowId = message.serverRowId) ?: message
         }
     }
+}
+
+/**
+ * A stop notice says the reply ended there. When a hidden prompt follows and the assistant goes on (a host plugin
+ * paused the turn to apply a sandbox grant and continued it), it did not: the notice comes off. A visible row
+ * next (the user writing) keeps it, so a real Stop still reads as stopped after a reload.
+ */
+internal fun MutableList<ChatMessage>.dropContinuedStopNotices() {
+    var i = 0
+    while (i < size) {
+        val row = this[i]
+        val isStopNotice = row.role == MessageRole.SYSTEM && GatewayNotice.isInterruptSentinel(row.content)
+        if (isStopNotice) {
+            var next = i + 1
+            var sawHidden = false
+            while (next < size && this[next].role == MessageRole.USER && this[next].displayKind == "hidden") {
+                sawHidden = true
+                next++
+            }
+            val goesOn = sawHidden && next < size && this[next].role in setOf(MessageRole.ASSISTANT, MessageRole.TOOL)
+            if (goesOn) {
+                removeAt(i)
+                continue
+            }
+        }
+        i++
+    }
+}
+
+/** `display_metadata.plugin_card` when the row is a durable plugin card. Malformed cards are ignored. */
+internal fun SessionMessage.pluginCardMeta(): PluginCardMeta? {
+    // Upstream writes display_kind on the row, not inside display_metadata.
+    if (display_kind != DisplayKind.PLUGIN_CARD) return null
+    val meta = display_metadata as? JsonObject ?: return null
+    val card = meta["plugin_card"] as? JsonObject ?: return null
+    val pluginId =
+        (card["plugin_id"] as? JsonPrimitive)
+            ?.takeIf { it.isString }
+            ?.content
+            ?.trim()
+            .orEmpty()
+    val cardId =
+        (card["card_id"] as? JsonPrimitive)
+            ?.takeIf { it.isString }
+            ?.content
+            ?.trim()
+            .orEmpty()
+    if (pluginId.isEmpty() || cardId.isEmpty()) return null
+    val directive = card["directive"] as? JsonObject
+    val directiveName =
+        (directive?.get("name") as? JsonPrimitive)
+            ?.takeIf { it.isString }
+            ?.content
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+    val directiveAttrs =
+        (directive?.get("attrs") as? JsonObject)
+            ?.mapNotNull { (key, value) ->
+                val text = (value as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return@mapNotNull null
+                key to text
+            }?.toMap()
+            .orEmpty()
+    return PluginCardMeta(pluginId, cardId, directiveName, directiveAttrs)
+}
+
+/** Human-readable card body. Null when the gateway omitted `display_text`. */
+internal fun SessionMessage.pluginCardDisplayText(): String? {
+    val meta = display_metadata as? JsonObject ?: return null
+    return (meta["display_text"] as? JsonPrimitive)?.takeIf { it.isString }?.content
 }

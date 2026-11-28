@@ -1010,6 +1010,13 @@
     <string name="channels_action_test">테스트</string>
     <string name="channels_action_restart_now">지금 재시작</string>
     <string name="channels_restart_banner">변경사항이 저장되었습니다. 게이트웨이를 재시작하면 적용됩니다.</string>
+    <string name="channels_available_title">추가할 수 있는 플랫폼</string>
+    <string name="channels_available_install">설치</string>
+    <string name="channels_installing">설치 중</string>
+    <string name="channels_badge_official">공식</string>
+    <string name="channels_badge_verified">검증됨</string>
+    <string name="channels_state_connecting">연결 중</string>
+    <string name="channels_state_needs_setup">설정 필요</string>
     <string name="channels_ingress_url">수신 URL</string>
     <string name="channels_copy_ingress_url">수신 URL 복사</string>
 
@@ -1671,6 +1678,8 @@
     <string name="memory_recent_events">최근 에이전트 자기 개선 이벤트</string>
     <string name="message_reasoning_steps">추론 · %1$s단계</string>
     <string name="timeline_marker_model_switch">모델 전환됨</string>
+    <string name="plugin_card_from">플러그인 · %1$s</string>
+    <string name="plugin_card_cd">플러그인 %1$s 카드</string>
     <string name="timeline_marker_model_switch_to">%1$s(으)로 모델 전환됨</string>
     <string name="timeline_marker_personality_switch">개성(페르소나) 전환됨</string>
     <string name="timeline_marker_auto_continue">턴 자동 계속됨</string>
@@ -2060,4 +2069,21 @@
     <string name="chat_connection_switcher_title">연결 전환</string>
     <string name="chat_connection_switcher_open_settings">연결 설정</string>
     <string name="chat_connection_active_desc">활성 연결</string>
+    <string name="notif_folder_access_needed">폴더 접근이 필요합니다</string>
+    <string name="notif_site_access_needed">웹사이트 접근이 필요합니다</string>
+    <string name="notif_action_allow">허용</string>
+    <string name="notif_allow_sent">허용을 Hermes에 보냈습니다</string>
+    <string name="approval_folder_title">폴더 접근</string>
+    <string name="approval_site_title">웹사이트 접근</string>
+    <string name="approval_access_read">읽기 전용</string>
+    <string name="approval_access_read_write">읽기 및 쓰기</string>
+    <string name="approval_allow">허용</string>
+    <string name="approval_always_allow">항상 허용</string>
+    <string name="approval_deny">거부</string>
+    <string name="approval_always_confirm_title">항상 허용할까요?</string>
+    <string name="approval_always_confirm_body">변경하기 전까지 다시 묻지 않고 허용된 상태로 유지됩니다.</string>
+    <string name="approval_deny_title">접근 거부</string>
+    <string name="approval_deny_reason_label">사유 (선택)</string>
+    <string name="approval_deny_confirm">거부</string>
+    <string name="chat_reply_continuing">계속하는 중…</string>
 </resources>

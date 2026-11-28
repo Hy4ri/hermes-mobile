@@ -1544,6 +1544,13 @@
     <string name="channels_action_test">Test</string>
     <string name="channels_action_restart_now">Restart now</string>
     <string name="channels_restart_banner">Changes saved. Restart the gateway for them to take effect.</string>
+    <string name="channels_available_title">Available platforms</string>
+    <string name="channels_available_install">Install</string>
+    <string name="channels_installing">Installing</string>
+    <string name="channels_badge_official">Official</string>
+    <string name="channels_badge_verified">Verified</string>
+    <string name="channels_state_connecting">Connecting</string>
+    <string name="channels_state_needs_setup">Needs setup</string>
     <string name="channels_ingress_url">Ingress URL</string>
     <string name="channels_copy_ingress_url">Copy ingress URL</string>
     <string name="channels_relay_via">Via Team Gateway</string>
@@ -1736,6 +1743,8 @@
 
     <!-- Timeline markers (issue #904) -->
     <string name="timeline_marker_model_switch">Model switched</string>
+    <string name="plugin_card_from">Plugin · %1$s</string>
+    <string name="plugin_card_cd">Card from plugin %1$s</string>
     <string name="timeline_marker_model_switch_to">Model switched to %1$s</string>
     <string name="timeline_marker_personality_switch">Personality switched</string>
     <string name="timeline_marker_auto_continue">Turn auto-continued</string>
@@ -2307,4 +2316,21 @@
     <string name="chat_connection_switcher_title">Switch connection</string>
     <string name="chat_connection_switcher_open_settings">Connection settings</string>
     <string name="chat_connection_active_desc">Active connection</string>
+    <string name="notif_folder_access_needed">Folder access needed</string>
+    <string name="notif_site_access_needed">Website access needed</string>
+    <string name="notif_action_allow">Allow</string>
+    <string name="notif_allow_sent">Allow sent to Hermes</string>
+    <string name="approval_folder_title">Folder access</string>
+    <string name="approval_site_title">Website access</string>
+    <string name="approval_access_read">Read only</string>
+    <string name="approval_access_read_write">Read and write</string>
+    <string name="approval_allow">Allow</string>
+    <string name="approval_always_allow">Always allow</string>
+    <string name="approval_deny">Deny</string>
+    <string name="approval_always_confirm_title">Always allow this?</string>
+    <string name="approval_always_confirm_body">This stays allowed without asking again until you change it.</string>
+    <string name="approval_deny_title">Deny access</string>
+    <string name="approval_deny_reason_label">Reason (optional)</string>
+    <string name="approval_deny_confirm">Deny</string>
+    <string name="chat_reply_continuing">Continuing…</string>
 </resources>

@@ -1388,6 +1388,13 @@
     <string name="channels_action_test">Probar</string>
     <string name="channels_action_restart_now">Reiniciar ahora</string>
     <string name="channels_restart_banner">Cambios guardados. Reinicie la gateway para que surtan efecto.</string>
+    <string name="channels_available_title">Plataformas disponibles</string>
+    <string name="channels_available_install">Instalar</string>
+    <string name="channels_installing">Instalando</string>
+    <string name="channels_badge_official">Oficial</string>
+    <string name="channels_badge_verified">Verificada</string>
+    <string name="channels_state_connecting">Conectando</string>
+    <string name="channels_state_needs_setup">Falta configurar</string>
     <string name="channels_ingress_url">URL de ingreso</string>
     <string name="channels_copy_ingress_url">Copiar URL de ingreso</string>
 
@@ -1557,6 +1564,8 @@
 
     <!-- Timeline markers (issue #904) -->
     <string name="timeline_marker_model_switch">Modelo cambiado</string>
+    <string name="plugin_card_from">Plugin · %1$s</string>
+    <string name="plugin_card_cd">Tarjeta del plugin %1$s</string>
     <string name="timeline_marker_model_switch_to">Modelo cambiado a%1$s</string>
     <string name="timeline_marker_personality_switch">Personalidad cambiada</string>
     <string name="timeline_marker_auto_continue">Turno continuado automáticamente</string>
@@ -2113,4 +2122,21 @@
     <string name="chat_connection_switcher_title">Cambiar conexión</string>
     <string name="chat_connection_switcher_open_settings">Ajustes de conexión</string>
     <string name="chat_connection_active_desc">Conexión activa</string>
+    <string name="notif_folder_access_needed">Se necesita acceso a una carpeta</string>
+    <string name="notif_site_access_needed">Se necesita acceso a un sitio web</string>
+    <string name="notif_action_allow">Permitir</string>
+    <string name="notif_allow_sent">Permiso enviado a Hermes</string>
+    <string name="approval_folder_title">Acceso a carpeta</string>
+    <string name="approval_site_title">Acceso a sitio web</string>
+    <string name="approval_access_read">Solo lectura</string>
+    <string name="approval_access_read_write">Lectura y escritura</string>
+    <string name="approval_allow">Permitir</string>
+    <string name="approval_always_allow">Permitir siempre</string>
+    <string name="approval_deny">Denegar</string>
+    <string name="approval_always_confirm_title">¿Permitir siempre?</string>
+    <string name="approval_always_confirm_body">Seguirá permitido sin volver a preguntar hasta que lo cambies.</string>
+    <string name="approval_deny_title">Denegar acceso</string>
+    <string name="approval_deny_reason_label">Motivo (opcional)</string>
+    <string name="approval_deny_confirm">Denegar</string>
+    <string name="chat_reply_continuing">Continuando…</string>
 </resources>

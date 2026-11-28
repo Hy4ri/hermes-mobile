@@ -921,8 +921,8 @@ fun ChatScreen(
                             onOpenAttachment = viewModel::openAttachment,
                             onSaveAttachment = onSaveAttachment,
                             onImageClick = { viewingImage = it },
-                            onRespondApproval = { action, requestId ->
-                                viewModel.respondToApproval(action, requestId)
+                            onRespondApproval = { action, requestId, reason ->
+                                viewModel.respondToApproval(action, requestId, reason)
                             },
                             onRespondClarify = viewModel::respondToClarify,
                             onRespondClarifyBatch = viewModel::respondToClarifyBatch,

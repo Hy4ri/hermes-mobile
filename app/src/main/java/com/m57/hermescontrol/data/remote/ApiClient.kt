@@ -15,6 +15,8 @@ import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.util.concurrent.TimeUnit
 
+private const val CATALOG_INSTALL_TIMEOUT_MS = 300_000L
+
 /**
  * Provides a Retrofit-backed [HermesApiService].
  *
@@ -154,6 +156,12 @@ object ApiClient {
             .build()
             .create(HermesApiService::class.java)
     }
+
+    /**
+     * Catalog platform installs clone a plugin and resolve dependencies on the gateway
+     * (desktop uses 300s). The shared 30s client would abort a successful install.
+     */
+    fun messagingCatalogApi(): HermesApiService = transcriptionService(CATALOG_INSTALL_TIMEOUT_MS)
 
     /**
      * Dedicated [HermesApiService] for the blocking voice-note transcription

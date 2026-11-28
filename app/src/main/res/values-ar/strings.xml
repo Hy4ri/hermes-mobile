@@ -1196,6 +1196,13 @@
 <string name="channels_action_test">اختبار</string>
 <string name="channels_action_restart_now">إعادة التشغيل الآن</string>
 <string name="channels_restart_banner">تم حفظ التغييرات. أعد تشغيل البوابة (Gateway) لتصبح سارية المفعول.</string>
+    <string name="channels_available_title">المنصات المتاحة</string>
+    <string name="channels_available_install">تثبيت</string>
+    <string name="channels_installing">جارٍ التثبيت</string>
+    <string name="channels_badge_official">رسمي</string>
+    <string name="channels_badge_verified">موثّق</string>
+    <string name="channels_state_connecting">جارٍ الاتصال</string>
+    <string name="channels_state_needs_setup">يلزم الإعداد</string>
 <string name="channels_ingress_url">رابط الدخول</string>
 <string name="channels_copy_ingress_url">نسخ رابط الدخول</string>
 <string name="pairing_sec_pending">الموافقات المعلقة</string>
@@ -1345,6 +1352,8 @@
 <string name="memory_recent_events">أحدث أحداث التحسين الذاتي للوكيل</string>
 <string name="message_reasoning_steps">الاستدلال · %1$s خطوة</string>
 <string name="timeline_marker_model_switch">تم تبديل النموذج</string>
+    <string name="plugin_card_from">إضافة · %1$s</string>
+    <string name="plugin_card_cd">بطاقة من الإضافة %1$s</string>
 <string name="timeline_marker_model_switch_to">تم تبديل النموذج إلى %1$s</string>
 <string name="timeline_marker_personality_switch">تم تبديل الشخصية</string>
 <string name="timeline_marker_auto_continue">تمت المتابعة التلقائية للدور</string>
@@ -2109,4 +2118,21 @@
     <string name="chat_connection_switcher_title">تبديل الاتصال</string>
     <string name="chat_connection_switcher_open_settings">إعدادات الاتصال</string>
     <string name="chat_connection_active_desc">الاتصال النشط</string>
+    <string name="notif_folder_access_needed">مطلوب الوصول إلى مجلد</string>
+    <string name="notif_site_access_needed">مطلوب الوصول إلى موقع ويب</string>
+    <string name="notif_action_allow">سماح</string>
+    <string name="notif_allow_sent">تم إرسال السماح إلى Hermes</string>
+    <string name="approval_folder_title">الوصول إلى مجلد</string>
+    <string name="approval_site_title">الوصول إلى موقع ويب</string>
+    <string name="approval_access_read">قراءة فقط</string>
+    <string name="approval_access_read_write">قراءة وكتابة</string>
+    <string name="approval_allow">سماح</string>
+    <string name="approval_always_allow">السماح دائمًا</string>
+    <string name="approval_deny">رفض</string>
+    <string name="approval_always_confirm_title">السماح دائمًا؟</string>
+    <string name="approval_always_confirm_body">سيبقى مسموحًا دون سؤال مرة أخرى إلى أن تغيّره.</string>
+    <string name="approval_deny_title">رفض الوصول</string>
+    <string name="approval_deny_reason_label">السبب (اختياري)</string>
+    <string name="approval_deny_confirm">رفض</string>
+    <string name="chat_reply_continuing">جارٍ المتابعة…</string>
 </resources>

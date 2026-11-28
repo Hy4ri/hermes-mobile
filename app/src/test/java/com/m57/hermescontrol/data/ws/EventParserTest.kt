@@ -153,6 +153,28 @@ class EventParserTest {
     }
 
     @Test
+    fun testParseGroupsChanged_readsRoomIdsAndBroadcastId() {
+        fun parse(payload: Map<String, Any?>?) =
+            EventParser.parse(
+                createJsonRpcResponse(
+                    jsonrpc = "2.0",
+                    id = null,
+                    result = null,
+                    error = null,
+                    method = "event",
+                    params = mapOf("type" to "groups.changed", "payload" to payload),
+                ),
+            )
+
+        assertEquals(
+            WsEvent.GroupsChanged(listOf("r1", "r2"), "b-1"),
+            parse(mapOf("room_ids" to listOf("r1", "r2"), "broadcast_id" to "b-1")),
+        )
+        assertEquals(WsEvent.GroupsChanged(null, null), parse(mapOf("broadcast_id" to "")))
+        assertEquals(WsEvent.GroupsChanged(null, null), parse(null))
+    }
+
+    @Test
     fun testParseChangeEvents_returnsChangeEvent() {
         // Issue #784: gateway broadcasts change events (pet.changed excluded —
         // mobile has no pet feature). All four must map to ChangeEvent with the

@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.chat
 
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.MessageReaction
+import com.m57.hermescontrol.data.ws.ApprovalKind
 import java.util.UUID
 
 /**
@@ -23,6 +24,14 @@ data class ApprovalInfo(
     val allowPermanent: Boolean? = null,
     /** True → Smart DENY override, once/deny only. */
     val smartDenied: Boolean? = null,
+    /** `command`, or a sandbox folder (`access`) / site (`network`) request. */
+    val kind: ApprovalKind = ApprovalKind.COMMAND,
+    val path: String? = null,
+    /** `read` or `read_write`. */
+    val access: String? = null,
+    val host: String? = null,
+    val label: String? = null,
+    val risk: String? = null,
 )
 
 /**
@@ -126,6 +135,19 @@ data class ChatMessage(
      * is stripped for rendering; the UI never shows this field.
      */
     val persistedContent: String? = null,
+    /**
+     * Durable plugin card (`plugin.card` / `display_metadata.plugin_card`).
+     * Transient: history rehydrates it from the REST row. Not a timeline marker.
+     */
+    val pluginCard: PluginCardMeta? = null,
+)
+
+/** Identity of a plugin-posted display card. [directiveAttrs] is display-only metadata. */
+data class PluginCardMeta(
+    val pluginId: String,
+    val cardId: String,
+    val directiveName: String? = null,
+    val directiveAttrs: Map<String, String> = emptyMap(),
 )
 
 /** Cached REST rows already carry their canonical identity in the persisted primary key. */
@@ -176,6 +198,8 @@ data class SubagentIndicator(
     val status: String? = null, // running / queued / completed / failed
     val summary: String? = null, // complete only
     val subagentId: String? = null,
+    /** Stored session holding the subagent transcript; null until the gateway reports it. */
+    val childSessionId: String? = null,
     val logs: List<SubagentLogLine> = emptyList(),
     val durationSeconds: Double? = null,
     val model: String? = null,

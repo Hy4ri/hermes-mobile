@@ -1533,6 +1533,13 @@
     <string name="channels_action_test">Проверить</string>
     <string name="channels_action_restart_now">Перезапустить сейчас</string>
     <string name="channels_restart_banner">Изменения сохранены. Перезапустите шлюз, чтобы они вступили в силу.</string>
+    <string name="channels_available_title">Доступные платформы</string>
+    <string name="channels_available_install">Установить</string>
+    <string name="channels_installing">Установка</string>
+    <string name="channels_badge_official">Официальная</string>
+    <string name="channels_badge_verified">Проверенная</string>
+    <string name="channels_state_connecting">Подключение</string>
+    <string name="channels_state_needs_setup">Нужна настройка</string>
     <string name="channels_ingress_url">URL входящих запросов</string>
     <string name="channels_copy_ingress_url">Копировать URL входящих запросов</string>
 
@@ -1710,6 +1717,8 @@
 
     <!-- Timeline markers (issue #904) -->
     <string name="timeline_marker_model_switch">Модель переключена</string>
+    <string name="plugin_card_from">Плагин · %1$s</string>
+    <string name="plugin_card_cd">Карточка плагина %1$s</string>
     <string name="timeline_marker_model_switch_to">Модель переключена на %1$s</string>
     <string name="timeline_marker_personality_switch">Личность переключена</string>
     <string name="timeline_marker_auto_continue">Ход продолжен автоматически</string>
@@ -2192,4 +2201,21 @@
     <string name="chat_connection_switcher_title">Сменить подключение</string>
     <string name="chat_connection_switcher_open_settings">Настройки подключения</string>
     <string name="chat_connection_active_desc">Активное подключение</string>
+    <string name="notif_folder_access_needed">Нужен доступ к папке</string>
+    <string name="notif_site_access_needed">Нужен доступ к сайту</string>
+    <string name="notif_action_allow">Разрешить</string>
+    <string name="notif_allow_sent">Разрешение отправлено в Hermes</string>
+    <string name="approval_folder_title">Доступ к папке</string>
+    <string name="approval_site_title">Доступ к сайту</string>
+    <string name="approval_access_read">Только чтение</string>
+    <string name="approval_access_read_write">Чтение и запись</string>
+    <string name="approval_allow">Разрешить</string>
+    <string name="approval_always_allow">Всегда разрешать</string>
+    <string name="approval_deny">Отклонить</string>
+    <string name="approval_always_confirm_title">Всегда разрешать?</string>
+    <string name="approval_always_confirm_body">Останется разрешённым без повторных вопросов, пока вы не измените это.</string>
+    <string name="approval_deny_title">Отклонить доступ</string>
+    <string name="approval_deny_reason_label">Причина (необязательно)</string>
+    <string name="approval_deny_confirm">Отклонить</string>
+    <string name="chat_reply_continuing">Продолжаем…</string>
 </resources>

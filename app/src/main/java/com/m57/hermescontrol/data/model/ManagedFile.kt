@@ -88,6 +88,15 @@ data class ManagedDirectoryCreate(
     val path: String,
 )
 
+/** Response of `POST /api/chat/image-upload`: a gateway-visible image path for `image.attach`. */
+@Serializable
+data class ChatImageUploadResponse(
+    val ok: Boolean = false,
+    val path: String = "",
+    @SerialName("mime_type")
+    val mimeType: String? = null,
+)
+
 /** Request body for `DELETE /api/files`. */
 @Serializable
 data class ManagedFileDelete(

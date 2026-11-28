@@ -110,6 +110,7 @@ object WsMethods {
      */
     const val GATEWAY_PING = "gateway.ping"
     const val CLIENT_CAPABILITIES = "client.capabilities"
+    const val CLIENT_ACTIVITY = "client.activity"
 
     // ── Commands catalog ──────────────────────────────────────────────────
     const val COMMANDS_CATALOG = "commands.catalog"
@@ -122,6 +123,9 @@ object WsMethods {
 
     /** Upload image bytes (base64) from a remote client. */
     const val IMAGE_ATTACH_BYTES = "image.attach_bytes"
+
+    /** Attach an image already on the gateway (staged over HTTP when too large for a frame). */
+    const val IMAGE_ATTACH = "image.attach"
 
     /** Stage a non-image file (data URL) for agent access. */
     const val FILE_ATTACH = "file.attach"

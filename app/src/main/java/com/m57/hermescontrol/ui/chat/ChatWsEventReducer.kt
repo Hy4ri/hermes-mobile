@@ -207,6 +207,7 @@ object ChatWsEventReducer {
                 is WsEvent.VaultCodeRequest -> event.sessionId
                 is WsEvent.VaultCodeExpire -> event.sessionId
                 is WsEvent.StatusUpdate -> event.sessionId
+                is WsEvent.PluginCard -> event.sessionId
                 else -> null
             }
         if (eventSessionId != null && (currentSessionId == null || eventSessionId != currentSessionId)) {
@@ -337,7 +338,9 @@ object ChatWsEventReducer {
             is WsEvent.MessageReactionUpdated -> onMessageReaction(state, streamingState, event)
 
             // Change events (issue #784) are consumed by their screens' ViewModels
-            is WsEvent.ChangeEvent -> ReducerResult(state = state, streamingState = streamingState)
+            is WsEvent.ChangeEvent,
+            is WsEvent.GroupsChanged,
+            -> ReducerResult(state = state, streamingState = streamingState)
 
             // #1563: ephemeral notifications must never become transcript rows.
             is WsEvent.NotificationShow,
@@ -346,6 +349,8 @@ object ChatWsEventReducer {
 
             // TranscriptResyncRequired is handled by ChatViewModel directly (refetch history on replay gap)
             is WsEvent.TranscriptResyncRequired -> ReducerResult(state = state, streamingState = streamingState)
+
+            is WsEvent.PluginCard -> onPluginCard(state, streamingState, event)
         }
 
     // ── GatewayReady ──────────────────────────────────────────────────
@@ -1258,6 +1263,7 @@ object ChatWsEventReducer {
         streamingState: StreamingState,
         text: String?,
         extraEffects: List<ReducerEffect> = emptyList(),
+        persist: Boolean = true,
     ): ReducerResult {
         if (text.isNullOrBlank()) {
             return ReducerResult(state = state, streamingState = streamingState, effects = extraEffects)
@@ -1271,7 +1277,9 @@ object ChatWsEventReducer {
         return ReducerResult(
             state = state.copy(messages = state.messages + notice),
             streamingState = streamingState,
-            effects = extraEffects + listOfNotNull(sid?.let { ReducerEffect.PersistMessage(notice, it) }),
+            effects =
+                extraEffects +
+                    listOfNotNull(sid?.takeIf { persist }?.let { ReducerEffect.PersistMessage(notice, it) }),
         )
     }
 
@@ -1290,7 +1298,8 @@ object ChatWsEventReducer {
         val usageState =
             event.rawPayload?.let(::parseUsageSnapshot)?.let { applyUsageSnapshot(state, it, allowModelUpdate) }
                 ?: state
-        val text = event.text.trim()
+        // A paused turn goes on by itself: its closing notice reads "Continuing…" and is not stored.
+        val text = if (event.paused) GatewayNotice.CONTINUING else event.text.trim()
         val effects = mutableListOf<ReducerEffect>()
         var messages = usageState.messages
         if (text == GatewayNotice.REPETITION_LOOP_INTERRUPTED) {
@@ -1313,7 +1322,7 @@ object ChatWsEventReducer {
         effects += ReducerEffect.RefreshSessions
         effects += ReducerEffect.RefreshContextUsage
         val settled = usageState.copy(messages = messages, isAgentTyping = false, clarifyRequest = null)
-        return appendGatewayNotice(settled, StreamingState(), text, effects)
+        return appendGatewayNotice(settled, StreamingState(), text, effects, persist = !event.paused)
     }
 
     /** Paints a live tapback on the row whose gateway id matches; unmatched rows arrive with the next REST load. */
@@ -1328,6 +1337,52 @@ object ChatWsEventReducer {
         val messages =
             state.messages.map {
                 if (it.serverRowId == event.rowId) it.copy(reactions = event.reactions) else it
+            }
+        return ReducerResult(state = state.copy(messages = messages), streamingState = streamingState)
+    }
+
+    private fun onPluginCard(
+        state: ChatUiState,
+        streamingState: StreamingState,
+        event: WsEvent.PluginCard,
+    ): ReducerResult {
+        val card =
+            PluginCardMeta(
+                pluginId = event.pluginId,
+                cardId = event.cardId,
+                directiveName = event.directiveName,
+                directiveAttrs = event.directiveAttrs,
+            )
+        val id = pluginCardMessageId(event.pluginId, event.cardId)
+        val row =
+            ChatMessage(
+                id = id,
+                role = MessageRole.SYSTEM,
+                content = event.text,
+                pluginCard = card,
+            )
+        val index =
+            state.messages.indexOfFirst { existing ->
+                existing.id == id ||
+                    (
+                        existing.pluginCard?.pluginId == event.pluginId &&
+                            existing.pluginCard.cardId == event.cardId
+                    )
+            }
+        val messages =
+            if (index < 0) {
+                state.messages + row
+            } else {
+                state.messages.toMutableList().also { list ->
+                    val previous = list[index]
+                    list[index] =
+                        row.copy(
+                            id = previous.id,
+                            timestamp = previous.timestamp,
+                            restId = previous.restId,
+                            serverRowId = previous.serverRowId,
+                        )
+                }
             }
         return ReducerResult(state = state.copy(messages = messages), streamingState = streamingState)
     }
@@ -1415,6 +1470,7 @@ object ChatWsEventReducer {
             event.payload?.get(
                 "subagent_id",
             ) as? String ?: event.payload?.get("child_session_id") as? String
+        val childSessionId = event.payload?.get("child_session_id") as? String
 
         val indicators = state.subagentIndicators.toMutableList()
         val idx =
@@ -1453,6 +1509,7 @@ object ChatWsEventReducer {
                 status = finalStatus,
                 summary = summary ?: (if (idx >= 0) indicators[idx].summary else null),
                 subagentId = subagentId ?: (if (idx >= 0) indicators[idx].subagentId else null),
+                childSessionId = childSessionId ?: (if (idx >= 0) indicators[idx].childSessionId else null),
                 logs = trimmedLogs,
                 durationSeconds = durationSeconds ?: (if (idx >= 0) indicators[idx].durationSeconds else null),
                 model = model ?: (if (idx >= 0) indicators[idx].model else null),

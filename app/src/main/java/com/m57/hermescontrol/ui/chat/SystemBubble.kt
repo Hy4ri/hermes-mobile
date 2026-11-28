@@ -32,9 +32,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.applock.AlertDialog
 import com.m57.hermescontrol.ui.common.ExpressiveFilledTonalButton as FilledTonalButton
 import com.m57.hermescontrol.ui.common.ExpressiveTextButton as TextButton
@@ -101,9 +103,13 @@ private fun SelfImprovementReviewCard(
 @Composable
 internal fun SystemBubble(
     message: ChatMessage,
-    onRespondApproval: (action: String, requestId: String?) -> Unit = { _, _ -> },
+    onRespondApproval: (action: String, requestId: String?, reason: String?) -> Unit = { _, _, _ -> },
     modifier: Modifier = Modifier,
 ) {
+    if (message.pluginCard != null) {
+        PluginCardBubble(message = message, modifier = modifier)
+        return
+    }
     if (message.content.contains("Self-improvement review:", ignoreCase = true)) {
         SelfImprovementReviewCard(content = message.content, modifier = modifier)
         return
@@ -120,8 +126,20 @@ internal fun SystemBubble(
                 .padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        if (approvalInfo != null && approvalInfo.kind.isSandbox) {
+            SandboxApprovalCard(
+                info = approvalInfo,
+                onRespond = { action, reason -> onRespondApproval(action, targetRequestId, reason) },
+            )
+            return@Column
+        }
         Text(
-            text = message.content,
+            text =
+                if (message.content == GatewayNotice.CONTINUING) {
+                    stringResource(R.string.chat_reply_continuing)
+                } else {
+                    message.content
+                },
             style =
                 MaterialTheme.typography.bodySmall.copy(
                     fontStyle = FontStyle.Italic,
@@ -150,7 +168,7 @@ internal fun SystemBubble(
                     when (choice) {
                         "deny" -> {
                             FilledTonalButton(
-                                onClick = { onRespondApproval("deny", targetRequestId) },
+                                onClick = { onRespondApproval("deny", targetRequestId, null) },
                                 modifier =
                                     Modifier
                                         .height(36.dp)
@@ -172,7 +190,7 @@ internal fun SystemBubble(
 
                         "session" -> {
                             FilledTonalButton(
-                                onClick = { onRespondApproval("session", targetRequestId) },
+                                onClick = { onRespondApproval("session", targetRequestId, null) },
                                 modifier =
                                     Modifier
                                         .height(36.dp)
@@ -217,7 +235,7 @@ internal fun SystemBubble(
                         else -> {
                             // "once" (+ legacy "approve" → normalized to once in VM)
                             FilledTonalButton(
-                                onClick = { onRespondApproval(choice, targetRequestId) },
+                                onClick = { onRespondApproval(choice, targetRequestId, null) },
                                 modifier =
                                     Modifier
                                         .height(36.dp)
@@ -255,7 +273,7 @@ internal fun SystemBubble(
                         TextButton(
                             onClick = {
                                 confirmAlways = false
-                                onRespondApproval("always", targetRequestId)
+                                onRespondApproval("always", targetRequestId, null)
                             },
                         ) {
                             Text("Always allow")

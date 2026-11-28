@@ -16,7 +16,7 @@ Flag conflicts between requirements and implementation instead of silently diver
 dashboard's REST API and WebSocket TUI Gateway (JSON-RPC 2.0) over a trusted LAN.
 
 - **Package:** `com.m57.hermescontrol`
-- **Min SDK 26 / Target SDK 37 / Compile SDK 37**
+- **Min SDK 26 / Target SDK 37 / Compile SDK 37.1**
 - **Kotlin and KSP:** versions are pinned in [`gradle/libs.versions.toml`](gradle/libs.versions.toml). KSP uses standalone versioning, NOT `kotlinVersion-kspVersion`.
 - **Jetpack Compose**, Room, Navigation3, OkHttp WebSocket, Retrofit, Kotlinx Serialization. See the version catalog and [`app/build.gradle.kts`](app/build.gradle.kts) for versions and dependency scopes.
 - **Auth:** `EncryptedSharedPreferences` (AES256-GCM); connection/authentication flows are documented in the [wiki](https://github.com/Hy4ri/hermes-mobile/wiki/Connecting-to-Hermes). Trace the active REST and WebSocket auth paths before changing them.
@@ -47,7 +47,7 @@ chmod +x ktlint
 
 ### Nix dev shell & Compose preview rendering
 
-`flake.nix` provides JDK 21, Android SDK 37, `ktlint`, and `android-cli` (on `x86_64-linux` and `aarch64-darwin`) via `nix develop -c ...`. On Linux/NixOS, the flake wraps `android` with the X11 libraries required by the preview renderer.
+`flake.nix` provides JDK 21, Android SDK 37.1, `ktlint`, and `android-cli` (on `x86_64-linux` and `aarch64-darwin`) via `nix develop -c ...`. On Linux/NixOS, the flake wraps `android` with the X11 libraries required by the preview renderer.
 
 To verify stateless `@Preview` composables headless before testing on a device:
 
@@ -62,27 +62,33 @@ nix develop -c android --no-metrics preview render app \
 - `--component-tree` writes a JSON tree (bounds, source locations, semantics, modifiers) alongside the PNG.
 - Preview renders inspect layout/theme/fontScale only — they do not replace device or emulator verification.
 
-### CI pipeline (`.github/workflows/android.yml`)
+### CI by event
 
-| Job                  | Purpose                                                                                                                            |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `ktlint`             | ktlint 1.8.0 style check + `checkColorLiterals` (hardcoded Color guard, issue #622)                                                |
-| `android-lint`       | Android Lint                                                                                                                       |
-| `unit-tests`         | JUnit                                                                                                                              |
-| `build`              | assembleDebug (gated by the 3 above)                                                                                               |
-| `release-compile`    | compileReleaseKotlin — catches release-variant compilation issues (e.g. debugImplementation-scoped deps referenced in main source) |
-| `instrumented-tests` | Compose UI tests on Android emulator (API 34 ATD)                                                                                  |
-| `ci-summary`         | Aggregator (`if: always()`) — branch protection gates on THIS check                                                                |
+- **PR** (`.github/workflows/android.yml`): branch protection requires **CI Summary**.
+  A docs-only PR skips Android work, but the template still applies to outside contributors.
+  App and build changes run ktlint, the color guard, Android Lint, the full JVM and API 34
+  emulator suites, release compilation, and a debug APK build. The APK can build even if
+  the template fails. Workflow and automation changes run the offline tooling tests,
+  including release-verifier tests. A required job that unexpectedly skips fails the
+  summary. Manual dispatch runs the full suite under a separate **Manual CI Summary**.
+- **Push to main** (`.github/workflows/android-main-smoke.yml`): builds an unsigned,
+  minified release APK and runs the JVM gateway contract tests for every main commit.
+  Successful runs retain the release candidate for 30 days. No debug APK, full test
+  suite, or repeat lint. The conflict detector still checks open PRs when main moves.
+- **CodeQL**: scans applicable PRs and scans the default branch nightly. It does not run on each merge.
 
-Also: There is a separate workflow `merge-conflict-detector.yml` that auto-labels PRs with `has-conflicts`.
-
-Every Gradle job validates `gradle-wrapper.jar` and uses the remote build cache
-(`GRADLE_ENCRYPTED_KEY` secret). `concurrency.cancel-in-progress: true`.
+Gradle CI jobs validate the wrapper. New commits supersede older Android CI runs for the same PR.
 
 ### Releasing (`.github/workflows/release.yml`)
 
-Triggers on `git push tag v*`. Release APK uses R8 minification + resource shrinking.
-The `build-release` job has read-only contents permission. The separate `publish`
+1. Set `release-version.txt` to the intended version (without `v`) and land it on main.
+2. Wait for **Android Main Smoke** to succeed on the exact main commit you intend to tag.
+3. Push the matching `v*` tag for that commit. The `sign-release` job downloads the
+   unsigned release candidate from that commit's successful main push run, verifies its
+   package and version, and signs it without Gradle. If the artifact is missing or has
+   expired, rerun the exact main workflow run and retry the release after it succeeds.
+
+The signing job has read-only contents and Actions permissions. The separate `publish`
 job has contents/attestations write and OIDC permission, but no signing secrets.
 `RELEASE_CERTIFICATE_SHA256` must contain the independently trusted release signer
 fingerprint. The workflow verifies APK identity, attests its bytes, and checks
@@ -295,7 +301,7 @@ gh pr create --base main --title "fix(#N): description" --body "Closes #N"
 - **AuthManager token** is ephemeral — it becomes invalid when the Hermes dashboard
   restarts. Symptom: 401 on every call. Fix: re-extract the token from the running
   gateway, don't assume the stored one is valid.
-- **Release signing** uses a keystore with env-var credentials (`KEYSTORE_PATH`,
+- **Release signing** uses a keystore with env-var credentials (`KEYSTORE_BASE64`,
   `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`). Don't commit keystore files or
   hardcode passwords.
 

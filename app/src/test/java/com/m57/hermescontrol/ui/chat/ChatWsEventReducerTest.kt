@@ -13,6 +13,36 @@ import org.junit.Test
 
 class ChatWsEventReducerTest {
     @Test
+    fun sessionTitle_longFallbackTitleIsShortened() {
+        val prompt = "Say hello in five words exactly and then keep going for a long while after"
+        val state = ChatUiState(currentSessionId = "s1", chatTitle = "")
+        val result = ChatWsEventReducer.reduce(state, StreamingState(), WsEvent.SessionTitle("s1", prompt, "rt"), "rt")
+        assertEquals("Say hello in five words exactly and…", result.state.chatTitle)
+        assertEquals("Short", shortSessionTitle(" Short "))
+    }
+
+    @Test
+    fun statusUpdate_titleGenerationFailureAddsNoTranscriptRow() {
+        val event =
+            WsEvent.StatusUpdate(
+                "warn",
+                mapOf("kind" to "warn", "text" to "Auxiliary title generation failed: HTTP 429"),
+            )
+        val result = ChatWsEventReducer.reduce(ChatUiState(currentSessionId = "s1"), StreamingState(), event, "rt")
+        assertTrue(result.state.messages.isEmpty())
+        assertTrue(result.effects.isEmpty())
+    }
+
+    @Test
+    fun draftDefaultModelLabel_usesProviderAndModelOrNull() {
+        val info =
+            com.m57.hermescontrol.data.model
+                .ModelInfoResponse(model = "step-3.7-flash:free", provider = "nous")
+        assertEquals("nous/step-3.7-flash:free", draftDefaultModelLabel(info))
+        assertNull(draftDefaultModelLabel(null))
+    }
+
+    @Test
     fun sessionTitle_updatesChatTitleAndPickerRowForCurrentStoredSession() {
         val state =
             ChatUiState(

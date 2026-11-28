@@ -48,7 +48,7 @@ internal fun FullBleedToolRow(
 @Composable
 internal fun FullBleedSystemEvent(
     message: ChatMessage,
-    onRespondApproval: (action: String, requestId: String?) -> Unit,
+    onRespondApproval: (action: String, requestId: String?, reason: String?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     SystemBubble(

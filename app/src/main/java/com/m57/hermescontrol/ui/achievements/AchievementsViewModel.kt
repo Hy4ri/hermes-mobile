@@ -1,21 +1,26 @@
 package com.m57.hermescontrol.ui.achievements
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.SwrCache
 import com.m57.hermescontrol.data.model.Achievement
 import com.m57.hermescontrol.data.model.AchievementsResponse
 import com.m57.hermescontrol.data.model.RecentUnlock
 import com.m57.hermescontrol.data.remote.ApiClient
+import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.remote.safeApiRead
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import com.m57.hermescontrol.ui.common.safeLaunchSwrLoad
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 data class AchievementsUiState(
     val isLoading: Boolean = false,
@@ -44,6 +49,11 @@ data class AchievementsUiState(
     val toastMessage: String? = null,
 )
 
+internal const val SCAN_POLL_INTERVAL_MS = 3_000L
+internal const val SCAN_POLL_MAX_ATTEMPTS = 20
+
+internal fun isScanRunning(data: AchievementsResponse): Boolean = data.scanMeta?.status?.state == "running"
+
 class AchievementsViewModel :
     ViewModel(),
     ToastHost {
@@ -52,8 +62,10 @@ class AchievementsViewModel :
 
     private val api get() = ApiClient.hermesApi
     private val achievementsCache = SwrCache<String, AchievementsResponse>()
+    private var pollJob: Job? = null
 
     fun clearScopeOwnedState() {
+        pollJob?.cancel()
         _uiState.update {
             it.copy(
                 isLoading = false,
@@ -74,57 +86,16 @@ class AchievementsViewModel :
             cache = achievementsCache,
             forceRefresh = forceRefresh,
             onCacheHit = { data ->
-                val categories =
-                    data.achievements
-                        ?.mapNotNull { it.category }
-                        ?.distinct()
-                        ?.sorted() ?: emptyList()
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        achievements = data.achievements.orEmpty(),
-                        unlockedCount = data.unlockedCount,
-                        discoveredCount = data.discoveredCount,
-                        secretCount = data.secretCount,
-                        totalCount = data.totalCount,
-                        isStale = data.isStale,
-                        generatedAt = data.generatedAt,
-                        scanState = data.scanMeta?.status?.state ?: "idle",
-                        scanLastError = data.scanMeta?.status?.lastError,
-                        scanLastDurationMs = data.scanMeta?.status?.lastDurationMs,
-                        scanRunCount = data.scanMeta?.status?.runCount ?: 0,
-                        categories = categories,
-                        errorMessage = null,
-                    )
-                }
+                applyResponse(data)
+                pollWhileScanning(data)
             },
             apiCall = { safeApiRead { api.getAchievements() } },
             onStart = {
                 _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             },
             onSuccess = { data ->
-                val categories =
-                    data.achievements
-                        ?.mapNotNull { it.category }
-                        ?.distinct()
-                        ?.sorted() ?: emptyList()
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        achievements = data.achievements.orEmpty(),
-                        unlockedCount = data.unlockedCount,
-                        discoveredCount = data.discoveredCount,
-                        secretCount = data.secretCount,
-                        totalCount = data.totalCount,
-                        isStale = data.isStale,
-                        generatedAt = data.generatedAt,
-                        scanState = data.scanMeta?.status?.state ?: "idle",
-                        scanLastError = data.scanMeta?.status?.lastError,
-                        scanLastDurationMs = data.scanMeta?.status?.lastDurationMs,
-                        scanRunCount = data.scanMeta?.status?.runCount ?: 0,
-                        categories = categories,
-                    )
-                }
+                applyResponse(data)
+                pollWhileScanning(data)
             },
             onError = { errorMsg ->
                 _uiState.update {
@@ -135,6 +106,65 @@ class AchievementsViewModel :
                 }
             },
         )
+    }
+
+    private fun applyResponse(data: AchievementsResponse) {
+        val categories =
+            data.achievements
+                ?.mapNotNull { it.category }
+                ?.distinct()
+                ?.sorted() ?: emptyList()
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                achievements = data.achievements.orEmpty(),
+                unlockedCount = data.unlockedCount,
+                discoveredCount = data.discoveredCount,
+                secretCount = data.secretCount,
+                totalCount = data.totalCount,
+                isStale = data.isStale,
+                generatedAt = data.generatedAt,
+                scanState = data.scanMeta?.status?.state ?: "idle",
+                scanLastError = data.scanMeta?.status?.lastError,
+                scanLastDurationMs = data.scanMeta?.status?.lastDurationMs,
+                scanRunCount = data.scanMeta?.status?.runCount ?: 0,
+                categories = categories,
+                errorMessage = null,
+            )
+        }
+    }
+
+    /**
+     * The gateway answers with the pre-scan snapshot (`is_stale`, scan state `running`) and
+     * finishes the scan in the background. A single GET would leave "Scanning…" and "Cached"
+     * up forever, so re-read until the scan reports a finished state.
+     */
+    private fun pollWhileScanning(data: AchievementsResponse) {
+        pollJob?.cancel()
+        if (!isScanRunning(data)) return
+        val requestScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+        pollJob =
+            viewModelScope.launch {
+                repeat(SCAN_POLL_MAX_ATTEMPTS) {
+                    delay(SCAN_POLL_INTERVAL_MS)
+                    val result = safeApiRead { api.getAchievements() }
+                    val currentScope = runCatching { AuthManager.currentDataScope() }.getOrNull()
+                    if (currentScope != requestScope) return@launch
+                    if (result is NetworkResult.Success) {
+                        val fresh = result.data
+                        if (requestScope != null) {
+                            achievementsCache.put(requestScope.scopedKey("default"), fresh)
+                        }
+                        applyResponse(fresh)
+                        if (!isScanRunning(fresh)) return@launch
+                    }
+                }
+            }
+    }
+
+    override fun onCleared() {
+        pollJob?.cancel()
+        super.onCleared()
     }
 
     fun loadRecentUnlocks() {

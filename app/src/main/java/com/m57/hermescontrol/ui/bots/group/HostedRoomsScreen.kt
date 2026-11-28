@@ -44,6 +44,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.applock.AlertDialog
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.ws.ChangeEventHub
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.HostedRoomSnapshot
 import com.m57.hermescontrol.data.ws.HostedTask
@@ -57,10 +58,12 @@ import com.m57.hermescontrol.ui.common.HermesIconButton
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.NavIcon
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import com.m57.hermescontrol.ui.common.ExpressiveButton as Button
@@ -80,9 +83,24 @@ fun HostedRoomsScreen(
                 dataScope to connection
             }.collectLatest {
                 viewModel.syncOwner()
-                while (true) {
-                    viewModel.refresh()
-                    delay(2_000)
+                val gate = GroupsChangedGate()
+                val kick = Channel<Unit>(Channel.CONFLATED)
+                coroutineScope {
+                    launch {
+                        ChangeEventHub.groupsChanged.collect {
+                            if (gate.shouldRead(it, viewModel.state.value.selectedRoomId)) kick.trySend(Unit)
+                        }
+                    }
+                    while (true) {
+                        viewModel.refresh()
+                        val current = viewModel.state.value
+                        val wait =
+                            hostedPollIntervalMs(
+                                backendPushes = current.snapshot?.changeEvents == true,
+                                lastReadFailed = current.error != null,
+                            )
+                        withTimeoutOrNull(wait) { kick.receive() }
+                    }
                 }
             }
         }

@@ -12,6 +12,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.applock.AppLockStore
 import com.m57.hermescontrol.data.local.AgentDisplayName
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
+import com.m57.hermescontrol.data.ws.ApprovalKind
 
 /** Builds and posts the notifications for gateway requests (approval, clarify, credentials). */
 internal object RequestNotifications {
@@ -38,11 +39,23 @@ internal object RequestNotifications {
                     context.getString(R.string.notif_input_needed)
                 }
             }
-        val builder = base(context, notice.key, notice.sessionId, body)
+        val title =
+            when (notice.approvalKind.takeIf { notice.kind == RequestNoticeKind.APPROVAL }) {
+                ApprovalKind.ACCESS -> context.getString(R.string.notif_folder_access_needed)
+                ApprovalKind.NETWORK -> context.getString(R.string.notif_site_access_needed)
+                else -> null
+            }
+        val builder = base(context, notice.key, notice.sessionId, body, title)
         if (canOfferActions(context, notice)) {
             if (notice.canApproveOnce) {
+                val label =
+                    if (notice.approvalKind.isSandbox) {
+                        R.string.notif_action_allow
+                    } else {
+                        R.string.notif_action_approve_once
+                    }
                 builder.addAction(
-                    action(context, notice.key, ApprovalActionHandler.CHOICE_ONCE, R.string.notif_action_approve_once),
+                    action(context, notice.key, ApprovalActionHandler.CHOICE_ONCE, label),
                 )
             }
             if (notice.canDeny) {
@@ -82,7 +95,13 @@ internal object RequestNotifications {
                 -> {
                     context.getString(
                         if (choice == ApprovalActionHandler.CHOICE_ONCE) {
-                            R.string.notif_approval_sent_once
+                            if (notice?.approvalKind?.isSandbox ==
+                                true
+                            ) {
+                                R.string.notif_allow_sent
+                            } else {
+                                R.string.notif_approval_sent_once
+                            }
                         } else {
                             R.string.notif_approval_sent_deny
                         },
@@ -105,11 +124,12 @@ internal object RequestNotifications {
         key: String,
         sessionId: String?,
         body: String,
+        title: String? = null,
     ): NotificationCompat.Builder =
         NotificationCompat
             .Builder(context, ChatNotificationService.CHAT_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(AgentDisplayName.current.value)
+            .setContentTitle(title ?: AgentDisplayName.current.value)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(NotificationCompat.PRIORITY_HIGH)

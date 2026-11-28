@@ -78,6 +78,15 @@
     <string name="nav_drawer_subtitle">Control de agentes de IA</string>
     <string name="nav_drawer_support">Apoya el proyecto</string>
     <string name="whats_new_title">Novedades de %1$s</string>
+    <string name="whats_new_section_features">Novedades</string>
+    <string name="whats_new_section_improvements">Mejoras</string>
+    <string name="whats_new_section_fixes">Correcciones</string>
+    <string name="whats_new_thanks">Gracias a %1$s</string>
+    <string name="whats_new_full_release_notes">Notas de la versión completas</string>
+    <plurals name="whats_new_internal_changes">
+        <item quantity="one">%d cambio interno</item>
+        <item quantity="other">%d cambios internos</item>
+    </plurals>
     <string name="nav_drawer_section_converse">Conversar</string>
     <string name="nav_drawer_section_automate">Automatizar</string>
     <string name="nav_drawer_section_configure">Configurar</string>
@@ -92,7 +101,6 @@
     <string name="screen_account_connectors">Conectores</string>
     <string name="screen_profiles">Perfiles</string>
     <string name="screen_bots">Bots</string>
-    <string name="bots_active_now">Activos ahora</string>
     <string name="bots_empty_title">No se encontraron bots</string>
     <string name="bots_empty_description">Cree un perfil de agente para comenzar a usar el modo Bot.</string>
     <string name="bots_search_placeholder">Buscar bots…</string>
@@ -244,6 +252,7 @@
     <string name="content_desc_copied">Copiado</string>
     <string name="content_desc_speak">Leer en voz alta</string>
     <string name="content_desc_stop_speaking">Dejar de hablar</string>
+    <string name="tts_preparing">Generando audio</string>
     <string name="tts_error_synthesis">No se pudo sintetizar el audio del mensaje</string>
     <string name="content_desc_edit">Editar</string>
     <string name="chat_msg_tokens">%1$stok</string>
@@ -436,13 +445,23 @@
     <string name="kanban_complete_summary_label">Resumen de finalización</string>
     <string name="kanban_complete_summary_hint">Almacenado como resultado de la tarea</string>
     <string name="kanban_live">En vivo</string>
-    <string name="kanban_offline">Sin conexión</string>
+    <string name="kanban_connecting">Conectando</string>
+    <string name="kanban_reconnecting">Reconectando</string>
+    <string name="kanban_updates_manual">Actualización manual</string>
     <string name="kanban_no_tasks">Sin tareas</string>
     <string name="kanban_priority">Prioridad</string>
     <string name="kanban_priority_normal">0 (Normal)</string>
     <string name="kanban_priority_med">1 (Medio)</string>
     <string name="kanban_priority_high">2 (Alta)</string>
     <string name="kanban_priority_urgent">3 (Urgente)</string>
+    <string name="kanban_column_triage">Triaje</string>
+    <string name="kanban_column_todo">Por hacer</string>
+    <string name="kanban_column_scheduled">Programadas</string>
+    <string name="kanban_column_ready">Listas</string>
+    <string name="kanban_column_running">En curso</string>
+    <string name="kanban_column_blocked">Bloqueadas</string>
+    <string name="kanban_column_review">Revisión</string>
+    <string name="kanban_column_done">Hechas</string>
     <string name="kanban_assignee">Asignatario</string>
     <string name="kanban_assignee_default_suffix">%1$s (Predeterminado)</string>
     <string name="kanban_assignee_unassigned">Predeterminado (Sin asignar)</string>
@@ -1274,7 +1293,10 @@
     <string name="cron_status_blocked_config">Bloqueado (config)</string>
     <string name="cron_status_no_change">Sin cambios</string>
     <string name="cron_edit_hint_schedule">p.e. 0 9 * * * o cada 2h</string>
-    <string name="cron_edit_hint_deliver">p.e. origen, local, todo o telegrama:chat_id</string>
+    <string name="cron_edit_hint_deliver">origin, local o una plataforma conectada</string>
+    <string name="cron_edit_support_schedule">Cron (0 9 * * *) o intervalo (every 30m)</string>
+    <string name="cron_edit_error_schedule_required">El horario es obligatorio</string>
+    <string name="cron_edit_error_prompt_required">Añade un prompt, skill o script</string>
     <string name="cron_edit_hint_time">HH:MM</string>
     <string name="cron_edit_hint_skills">Uno por línea</string>
     <string name="cron_edit_action_save">Guardar</string>
@@ -1366,6 +1388,13 @@
     <string name="channels_action_test">Probar</string>
     <string name="channels_action_restart_now">Reiniciar ahora</string>
     <string name="channels_restart_banner">Cambios guardados. Reinicie la gateway para que surtan efecto.</string>
+    <string name="channels_available_title">Plataformas disponibles</string>
+    <string name="channels_available_install">Instalar</string>
+    <string name="channels_installing">Instalando</string>
+    <string name="channels_badge_official">Oficial</string>
+    <string name="channels_badge_verified">Verificada</string>
+    <string name="channels_state_connecting">Conectando</string>
+    <string name="channels_state_needs_setup">Falta configurar</string>
     <string name="channels_ingress_url">URL de ingreso</string>
     <string name="channels_copy_ingress_url">Copiar URL de ingreso</string>
 
@@ -1523,7 +1552,7 @@
     <string name="context_window">Ventana de contexto</string>
     <string name="context_window_usage_unavailable">Uso de la ventana de contexto no disponible</string>
     <string name="gif_play">Reproducir GIF</string>
-    <string name="kanban_filter_placeholder">Filtrar tareas por título, estado o persona asignada...</string>
+    <string name="kanban_filter_placeholder">Filtrar tareas…</string>
     <string name="logs_clipboard_label">Registros de Hermes</string>
     <string name="logs_search_placeholder">Registros de búsqueda...</string>
     <string name="mcp_no_match">Ningún servidor coincide con \"%1$s\"</string>
@@ -1535,6 +1564,8 @@
 
     <!-- Timeline markers (issue #904) -->
     <string name="timeline_marker_model_switch">Modelo cambiado</string>
+    <string name="plugin_card_from">Plugin · %1$s</string>
+    <string name="plugin_card_cd">Tarjeta del plugin %1$s</string>
     <string name="timeline_marker_model_switch_to">Modelo cambiado a%1$s</string>
     <string name="timeline_marker_personality_switch">Personalidad cambiada</string>
     <string name="timeline_marker_auto_continue">Turno continuado automáticamente</string>
@@ -2087,4 +2118,25 @@
         <item quantity="many">%1$d procesos en segundo plano en ejecución</item>
         <item quantity="other">%1$d procesos en segundo plano en ejecución</item>
     </plurals>
+    <string name="chat_menu_switch_connection_hint">Cambiar conexión</string>
+    <string name="chat_connection_switcher_title">Cambiar conexión</string>
+    <string name="chat_connection_switcher_open_settings">Ajustes de conexión</string>
+    <string name="chat_connection_active_desc">Conexión activa</string>
+    <string name="notif_folder_access_needed">Se necesita acceso a una carpeta</string>
+    <string name="notif_site_access_needed">Se necesita acceso a un sitio web</string>
+    <string name="notif_action_allow">Permitir</string>
+    <string name="notif_allow_sent">Permiso enviado a Hermes</string>
+    <string name="approval_folder_title">Acceso a carpeta</string>
+    <string name="approval_site_title">Acceso a sitio web</string>
+    <string name="approval_access_read">Solo lectura</string>
+    <string name="approval_access_read_write">Lectura y escritura</string>
+    <string name="approval_allow">Permitir</string>
+    <string name="approval_always_allow">Permitir siempre</string>
+    <string name="approval_deny">Denegar</string>
+    <string name="approval_always_confirm_title">¿Permitir siempre?</string>
+    <string name="approval_always_confirm_body">Seguirá permitido sin volver a preguntar hasta que lo cambies.</string>
+    <string name="approval_deny_title">Denegar acceso</string>
+    <string name="approval_deny_reason_label">Motivo (opcional)</string>
+    <string name="approval_deny_confirm">Denegar</string>
+    <string name="chat_reply_continuing">Continuando…</string>
 </resources>

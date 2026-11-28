@@ -19,9 +19,6 @@ internal const val PHOTO_LONG_EDGE = 2048
 internal fun Attachment.canOptimizePhoto(): Boolean =
     !isGateway && mimeType.lowercase() in setOf("image/jpeg", "image/png", "image/heic", "image/heif")
 
-internal fun Attachment.sourceByteLimit(): Long =
-    if (!sendOriginal && canOptimizePhoto()) MAX_PHOTO_SOURCE_BYTES else MAX_CHAT_ATTACHMENT_BYTES
-
 internal fun photoSampleSize(
     width: Int,
     height: Int,

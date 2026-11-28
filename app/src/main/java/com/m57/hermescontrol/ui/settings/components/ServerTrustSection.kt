@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.settings.components
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,46 +36,72 @@ internal fun ServerTrustSection() {
     var saving by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
 
+    ServerTrustContent(
+        enabled = enabled,
+        saving = saving,
+        restartRequired = enabled != ServerTrust.active,
+        saveFailed = failed,
+        onToggle = { value ->
+            saving = true
+            failed = false
+            scope.launch {
+                // Finish saving the next-start preference even if this page leaves composition.
+                failed =
+                    withContext(Dispatchers.IO + NonCancellable) {
+                        runCatching { ServerTrust.setEnabled(value) }.isFailure
+                    }
+                saving = false
+            }
+        },
+    )
+}
+
+@Composable
+internal fun ServerTrustContent(
+    enabled: Boolean,
+    saving: Boolean,
+    restartRequired: Boolean,
+    saveFailed: Boolean,
+    onToggle: (Boolean) -> Unit,
+) {
     SectionCard {
-        Row(
+        Column(
             modifier =
                 Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(
                     value = enabled,
                     enabled = !saving,
                     role = Role.Switch,
-                    onValueChange = { value ->
-                        saving = true
-                        failed = false
-                        scope.launch {
-                            // Finish saving the next-start preference even if this page leaves composition.
-                            failed =
-                                withContext(Dispatchers.IO + NonCancellable) {
-                                    runCatching { ServerTrust.setEnabled(value) }.isFailure
-                                }
-                            saving = false
-                        }
-                    },
+                    onValueChange = onToggle,
                 ),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(stringResource(R.string.trust_user_cas_title), style = MaterialTheme.typography.bodyLarge)
+            // The title shares the row with the switch; the long description gets the full card width.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
                 Text(
-                    stringResource(R.string.trust_user_cas_description),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    stringResource(R.string.trust_user_cas_title),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
                 )
+                Switch(checked = enabled, onCheckedChange = null, enabled = !saving)
             }
-            Switch(checked = enabled, onCheckedChange = null, enabled = !saving)
+            Text(
+                stringResource(R.string.trust_user_cas_description),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
-        if (enabled != ServerTrust.active) {
+        if (restartRequired) {
             Text(
                 stringResource(R.string.trust_user_cas_restart_required),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        if (failed) {
+        if (saveFailed) {
             Text(
                 stringResource(R.string.trust_user_cas_save_failed),
                 style = MaterialTheme.typography.bodySmall,

@@ -1,0 +1,65 @@
+name: Android Main Smoke
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Release Candidate and Contract Smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          validate-wrappers: true
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTED_KEY }}
+
+      - name: Read release version
+        id: version
+        run: python3 .github/scripts/release_version.py "v$(cat release-version.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Build unsigned release variant
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          CODE: ${{ steps.version.outputs.code }}
+        run: ./gradlew :app:assembleRelease -PversionName="$VERSION" -PversionCode="$CODE"
+
+      # A combined Gradle graph can compile both variants in the same JVM
+      # at once and exhaust the Kotlin daemon heap.
+      - name: Run gateway contract smoke tests
+        run: |
+          ./gradlew testDebugUnitTest \
+            --tests '*GatewayContractTest' --tests '*GatewayRouteContractTest'
+
+      - name: Verify release candidate identity
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          CODE: ${{ steps.version.outputs.code }}
+        run: |
+          python3 .github/scripts/verify_release_apk.py --identity-only \
+            --apk app/build/outputs/apk/release/app-release-unsigned.apk \
+            --version-name "$VERSION" --version-code "$CODE" \
+            --aapt "$ANDROID_HOME/build-tools/37.0.0/aapt"
+
+      - name: Upload the unsigned release candidate
+        uses: actions/upload-artifact@v7
+        with:
+          name: hermes-mobile-release-candidate-${{ github.run_attempt }}
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: error
+          retention-days: 30

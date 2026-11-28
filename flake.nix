@@ -33,11 +33,10 @@
             # Build tools
             buildToolsVersions = [ buildToolsVersion ];
 
-            # Target platforms: 37.0 provides both the SDK platform for
-            # compileSdk 37 AND the published android-37.0 system image the
-            # emulator needs to boot an AVD (no 37.1 image exists yet).
-            # compileSdk/targetSdk in app/build.gradle.kts stay 37.
-            platformVersions = [ "37.0" ];
+            # compileSdk 37.1 (platforms/android-37.1). targetSdk stays 37:
+            # the manifest cannot name a minor SDK. Build-tools stay 37.0.0.
+            # System images are not installed in this shell.
+            platformVersions = [ "37.1" ];
 
             # Emulator + system images for local AVD testing
             includeEmulator = false;

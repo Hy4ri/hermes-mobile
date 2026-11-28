@@ -59,6 +59,14 @@
     <string name="nav_drawer_subtitle">AI Agent 控制台</string>
     <string name="nav_drawer_support">支持本项目</string>
     <string name="whats_new_title">%1$s 更新内容</string>
+    <string name="whats_new_section_features">新功能</string>
+    <string name="whats_new_section_improvements">改进</string>
+    <string name="whats_new_section_fixes">修复</string>
+    <string name="whats_new_thanks">感谢 %1$s</string>
+    <string name="whats_new_full_release_notes">完整发布说明</string>
+    <plurals name="whats_new_internal_changes">
+        <item quantity="other">%d 项内部更改</item>
+    </plurals>
     <string name="nav_drawer_section_converse">对话</string>
     <string name="nav_drawer_section_automate">自动化</string>
     <string name="nav_drawer_section_configure">配置</string>
@@ -70,7 +78,6 @@
     <string name="screen_settings">设置</string>
     <string name="screen_profiles">配置</string>
     <string name="screen_bots">Bots</string>
-    <string name="bots_active_now">当前活跃</string>
     <string name="bots_empty_title">未找到智能体</string>
     <string name="bots_empty_description">创建智能体配置文件以开始使用 Bot 模式。</string>
     <string name="bots_search_placeholder">搜索智能体…</string>
@@ -331,13 +338,23 @@
     <string name="kanban_complete_summary_label">完成摘要</string>
     <string name="kanban_complete_summary_hint">将作为任务结果保存</string>
     <string name="kanban_live">实时</string>
-    <string name="kanban_offline">离线</string>
+    <string name="kanban_connecting">连接中</string>
+    <string name="kanban_reconnecting">重新连接中</string>
+    <string name="kanban_updates_manual">手动刷新</string>
     <string name="kanban_no_tasks">暂无任务</string>
     <string name="kanban_priority">优先级</string>
     <string name="kanban_priority_normal">0 (普通)</string>
     <string name="kanban_priority_med">1 (中等)</string>
     <string name="kanban_priority_high">2 (高)</string>
     <string name="kanban_priority_urgent">3 (紧急)</string>
+    <string name="kanban_column_triage">分诊</string>
+    <string name="kanban_column_todo">待办</string>
+    <string name="kanban_column_scheduled">已计划</string>
+    <string name="kanban_column_ready">就绪</string>
+    <string name="kanban_column_running">运行中</string>
+    <string name="kanban_column_blocked">已阻塞</string>
+    <string name="kanban_column_review">审核</string>
+    <string name="kanban_column_done">完成</string>
     <string name="kanban_assignee">负责人</string>
     <string name="kanban_assignee_default_suffix">%1$s（默认）</string>
     <string name="kanban_assignee_unassigned">默认 (未指定)</string>
@@ -1058,7 +1075,10 @@
     <string name="cron_status_blocked_config">被配置阻止</string>
     <string name="cron_status_no_change">无变化</string>
     <string name="cron_edit_hint_schedule">例如 0 9 * * * 或 every 2h</string>
-    <string name="cron_edit_hint_deliver">例如 origin、local、all 或 telegram:chat_id</string>
+    <string name="cron_edit_hint_deliver">origin、local 或已连接的平台</string>
+    <string name="cron_edit_support_schedule">Cron（0 9 * * *）或间隔（every 30m）</string>
+    <string name="cron_edit_error_schedule_required">必须填写计划</string>
+    <string name="cron_edit_error_prompt_required">请添加提示词、技能或脚本</string>
     <string name="cron_edit_hint_time">HH:MM</string>
     <string name="cron_edit_hint_skills">每行一个</string>
     <string name="cron_edit_action_save">保存</string>
@@ -1142,6 +1162,13 @@
     <string name="channels_action_test">测试</string>
     <string name="channels_action_restart_now">立即重启</string>
     <string name="channels_restart_banner">更改已保存。重启网关后生效。</string>
+    <string name="channels_available_title">可添加的平台</string>
+    <string name="channels_available_install">安装</string>
+    <string name="channels_installing">正在安装</string>
+    <string name="channels_badge_official">官方</string>
+    <string name="channels_badge_verified">已验证</string>
+    <string name="channels_state_connecting">正在连接</string>
+    <string name="channels_state_needs_setup">需要设置</string>
     <string name="channels_ingress_url">入口 URL</string>
     <string name="channels_copy_ingress_url">复制入口 URL</string>
     <string name="pairing_sec_pending">待批准</string>
@@ -1277,7 +1304,7 @@
     <string name="context_window">上下文窗口</string>
     <string name="context_window_usage_unavailable">上下文窗口使用量不可用</string>
     <string name="gif_play">播放 GIF</string>
-    <string name="kanban_filter_placeholder">按标题、状态或负责人筛选任务…</string>
+    <string name="kanban_filter_placeholder">筛选任务…</string>
     <string name="logs_clipboard_label">Hermes 日志</string>
     <string name="logs_search_placeholder">搜索日志…</string>
     <string name="mcp_no_match">没有匹配&quot;%1$s&quot;的服务器</string>
@@ -1287,6 +1314,8 @@
     <string name="memory_recent_events">最近的 Agent 自我改进事件</string>
     <string name="message_reasoning_steps">推理 · %1$s 步</string>
     <string name="timeline_marker_model_switch">模型已切换</string>
+    <string name="plugin_card_from">插件 · %1$s</string>
+    <string name="plugin_card_cd">来自插件 %1$s 的卡片</string>
     <string name="timeline_marker_model_switch_to">模型已切换至 %1$s</string>
     <string name="timeline_marker_personality_switch">人格已切换</string>
     <string name="timeline_marker_auto_continue">回合已自动继续</string>
@@ -1664,6 +1693,7 @@
     <string name="notif_session_failed">会话失败：%1$s</string>
     <string name="content_desc_speak">朗读</string>
     <string name="content_desc_stop_speaking">停止朗读</string>
+    <string name="tts_preparing">正在生成音频</string>
     <string name="tts_error_synthesis">无法合成消息音频</string>
     <string name="account_connectors_title">账号连接器</string>
     <string name="account_connectors_unavailable_title">连接器不可用</string>
@@ -1942,4 +1972,25 @@
     <plurals name="sessions_live_work_background_desc">
         <item quantity="other">%1$d 个后台进程正在运行</item>
     </plurals>
+    <string name="chat_menu_switch_connection_hint">切换连接</string>
+    <string name="chat_connection_switcher_title">切换连接</string>
+    <string name="chat_connection_switcher_open_settings">连接设置</string>
+    <string name="chat_connection_active_desc">当前连接</string>
+    <string name="notif_folder_access_needed">需要文件夹访问权限</string>
+    <string name="notif_site_access_needed">需要网站访问权限</string>
+    <string name="notif_action_allow">允许</string>
+    <string name="notif_allow_sent">已将允许发送给 Hermes</string>
+    <string name="approval_folder_title">文件夹访问</string>
+    <string name="approval_site_title">网站访问</string>
+    <string name="approval_access_read">只读</string>
+    <string name="approval_access_read_write">读写</string>
+    <string name="approval_allow">允许</string>
+    <string name="approval_always_allow">始终允许</string>
+    <string name="approval_deny">拒绝</string>
+    <string name="approval_always_confirm_title">始终允许？</string>
+    <string name="approval_always_confirm_body">在你更改之前，这将保持允许，不再询问。</string>
+    <string name="approval_deny_title">拒绝访问</string>
+    <string name="approval_deny_reason_label">原因（可选）</string>
+    <string name="approval_deny_confirm">拒绝</string>
+    <string name="chat_reply_continuing">正在继续…</string>
 </resources>

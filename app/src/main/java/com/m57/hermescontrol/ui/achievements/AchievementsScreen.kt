@@ -40,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -193,14 +194,16 @@ fun AchievementsScreen(
             }
 
             else -> {
+                val contentInset = Modifier.padding(horizontal = 16.dp)
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                    contentPadding = PaddingValues(bottom = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     // Search
                     item(key = "search") {
                         SearchBar(
+                            modifier = contentInset,
                             query = query,
                             onQueryChange = { query = it },
                             placeholder = stringResource(R.string.achievements_search_hint),
@@ -210,6 +213,7 @@ fun AchievementsScreen(
                     // Header stats
                     item(key = "stats") {
                         StatsRow(
+                            modifier = contentInset,
                             unlockedCount = state.unlockedCount,
                             discoveredCount = state.discoveredCount,
                             secretCount = state.secretCount,
@@ -220,6 +224,7 @@ fun AchievementsScreen(
                     // Scan status
                     item(key = "scan_status") {
                         ScanStatusChip(
+                            modifier = contentInset,
                             scanState = state.scanState,
                             isStale = state.isStale,
                             scanLastError = state.scanLastError,
@@ -259,6 +264,7 @@ fun AchievementsScreen(
                     if (state.recentUnlocks.isNotEmpty()) {
                         item(key = "recent_header") {
                             SectionHeader(
+                                modifier = contentInset,
                                 title = stringResource(R.string.achievements_recent_title),
                             )
                         }
@@ -266,7 +272,7 @@ fun AchievementsScreen(
                             items = state.recentUnlocks.take(3),
                             key = { "recent_${it.id}" },
                         ) { unlock ->
-                            RecentUnlockCard(unlock = unlock)
+                            RecentUnlockCard(unlock = unlock, modifier = contentInset)
                         }
                     }
 
@@ -281,13 +287,14 @@ fun AchievementsScreen(
                                 ),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 4.dp),
+                            modifier = contentInset.padding(top = 4.dp),
                         )
                     }
 
                     // Achievement cards
                     items(filteredAchievements, key = { it.id }) { achievement ->
                         AchievementCard(
+                            modifier = contentInset,
                             achievement = achievement,
                         )
                     }
@@ -300,43 +307,52 @@ fun AchievementsScreen(
 // ── Stats Row ──────────────────────────────────────────────────────────
 
 @Composable
-private fun StatsRow(
+internal fun StatsRow(
     unlockedCount: Int,
     discoveredCount: Int,
     secretCount: Int,
     totalCount: Int,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        StatPill(
-            label = stringResource(R.string.achievements_stat_unlocked),
-            value = "$unlockedCount",
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.weight(1f),
+    val pills =
+        listOf(
+            Triple(
+                stringResource(R.string.achievements_stat_unlocked),
+                unlockedCount,
+                MaterialTheme.colorScheme.primary,
+            ),
+            Triple(
+                stringResource(R.string.achievements_stat_discovered),
+                discoveredCount,
+                MaterialTheme.colorScheme.tertiary,
+            ),
+            Triple(stringResource(R.string.achievements_stat_secret), secretCount, MaterialTheme.colorScheme.error),
+            Triple(
+                stringResource(R.string.achievements_stat_total),
+                totalCount,
+                MaterialTheme.colorScheme.onSurfaceVariant,
+            ),
         )
-        StatPill(
-            label = stringResource(R.string.achievements_stat_discovered),
-            value = "$discoveredCount",
-            color = MaterialTheme.colorScheme.tertiary,
-            modifier = Modifier.weight(1f),
-        )
-        StatPill(
-            label = stringResource(R.string.achievements_stat_secret),
-            value = "$secretCount",
-            color = MaterialTheme.colorScheme.error,
-            modifier = Modifier.weight(1f),
-        )
-        StatPill(
-            label = stringResource(R.string.achievements_stat_total),
-            value = "$totalCount",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
-        )
+    // Four tiles in one row only fit at normal text size. With large text a label like
+    // "Discovered" is wider than a quarter of the screen, so use two rows of two instead.
+    val rows = if (LocalDensity.current.fontScale > STATS_TWO_ROW_FONT_SCALE) pills.chunked(2) else listOf(pills)
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        rows.forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { (label, count, color) ->
+                    StatPill(
+                        label = label,
+                        value = "$count",
+                        color = color,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
     }
 }
+
+private const val STATS_TWO_ROW_FONT_SCALE = 1.15f
 
 @Composable
 private fun StatPill(
@@ -364,6 +380,9 @@ private fun StatPill(
                 text = label,
                 style = MaterialTheme.typography.labelSmall,
                 color = color.copy(alpha = 0.8f),
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
@@ -372,7 +391,7 @@ private fun StatPill(
 // ── Scan Status Chip ───────────────────────────────────────────────────
 
 @Composable
-private fun ScanStatusChip(
+internal fun ScanStatusChip(
     scanState: String,
     isStale: Boolean,
     scanLastError: String?,
@@ -414,7 +433,7 @@ private fun ScanStatusChip(
 // ── Category Filter Row ────────────────────────────────────────────────
 
 @Composable
-private fun CategoryFilterRow(
+internal fun CategoryFilterRow(
     categories: List<String>,
     activeCategory: String?,
     onCategorySelected: (String) -> Unit,
@@ -422,6 +441,7 @@ private fun CategoryFilterRow(
 ) {
     LazyRow(
         modifier = modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item(key = "all_cat") {
@@ -444,7 +464,7 @@ private fun CategoryFilterRow(
 // ── State Filter Row ───────────────────────────────────────────────────
 
 @Composable
-private fun StateFilterRow(
+internal fun StateFilterRow(
     activeState: String?,
     onStateSelected: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -458,6 +478,7 @@ private fun StateFilterRow(
         )
     LazyRow(
         modifier = modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         items(filters, key = { it.second ?: "all" }) { (label, stateValue) ->

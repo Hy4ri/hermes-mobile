@@ -157,6 +157,7 @@ object EventParser {
                     reasoning,
                     rawPayload = payload,
                     completionId = completionId,
+                    paused = payload?.get("paused") == true,
                 )
             }
 
@@ -339,6 +340,13 @@ object EventParser {
                 WsEvent.ChangeEvent(eventType, payload)
             }
 
+            "groups.changed" -> {
+                WsEvent.GroupsChanged(
+                    roomIds = (payload?.get("room_ids") as? List<*>)?.filterIsInstance<String>(),
+                    broadcastId = (payload?.get("broadcast_id") as? String)?.takeIf { it.isNotEmpty() },
+                )
+            }
+
             "review.summary" -> {
                 val text = (payload?.get("text") as? String)?.trim() ?: ""
                 WsEvent.ReviewSummary(text, sessionId)
@@ -410,6 +418,9 @@ object EventParser {
             }
 
             "approval.request" -> {
+                // A folder/site request without a path/host (or an unknown kind) is refused: no card.
+                val kindFields = payload?.let(::parseApprovalKindFields)
+                if (payload != null && kindFields == null) return WsEvent.Unknown(rawJson)
                 val command = payload?.get("command") as? String
                 val description = payload?.get("description") as? String
 
@@ -449,6 +460,12 @@ object EventParser {
                     choices,
                     allowPermanent,
                     smartDenied,
+                    kind = kindFields?.kind ?: ApprovalKind.COMMAND,
+                    path = kindFields?.path,
+                    access = kindFields?.access,
+                    host = kindFields?.host,
+                    label = kindFields?.label,
+                    risk = kindFields?.risk,
                 )
             }
 
@@ -551,10 +568,45 @@ object EventParser {
                 WsEvent.Unknown(rawJson)
             }
 
+            "plugin.card" -> {
+                parsePluginCard(payload, sessionId, rawJson)
+            }
+
             else -> {
                 Log.w(TAG, "Unknown event type: $eventType")
                 WsEvent.Unknown(rawJson)
             }
         }
+    }
+
+    private fun parsePluginCard(
+        payload: Map<String, Any?>?,
+        sessionId: String?,
+        rawJson: String,
+    ): WsEvent {
+        val pluginId = (payload?.get("plugin_id") as? String)?.trim().orEmpty()
+        val cardId = (payload?.get("card_id") as? String)?.trim().orEmpty()
+        val text = payload?.get("text") as? String
+        if (pluginId.isEmpty() || cardId.isEmpty() || text.isNullOrBlank()) {
+            return WsEvent.Unknown(rawJson)
+        }
+        val directive = payload["directive"] as? Map<*, *>
+        val directiveName = (directive?.get("name") as? String)?.trim()?.takeIf { it.isNotEmpty() }
+        val directiveAttrs =
+            (directive?.get("attrs") as? Map<*, *>)
+                ?.mapNotNull { (key, value) ->
+                    val name = key as? String ?: return@mapNotNull null
+                    val attr = value as? String ?: return@mapNotNull null
+                    name to attr
+                }?.toMap()
+                .orEmpty()
+        return WsEvent.PluginCard(
+            sessionId = sessionId,
+            pluginId = pluginId,
+            cardId = cardId,
+            text = text,
+            directiveName = directiveName,
+            directiveAttrs = directiveAttrs,
+        )
     }
 }

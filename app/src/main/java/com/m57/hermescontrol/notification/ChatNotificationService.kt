@@ -20,9 +20,12 @@ import com.m57.hermescontrol.data.model.ActiveSessionsResponse
 import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.HermesWsClient
+import com.m57.hermescontrol.data.ws.MALFORMED_APPROVAL_CODE
+import com.m57.hermescontrol.data.ws.MALFORMED_APPROVAL_MESSAGE
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
 import com.m57.hermescontrol.data.ws.contract.SessionActiveListParams
+import com.m57.hermescontrol.data.ws.isMalformedApprovalRequest
 import com.m57.hermescontrol.ui.chat.replyFailureFromPayload
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -240,6 +243,7 @@ class ChatNotificationService : Service() {
         startEventCollection()
         startStatusCollection()
         kanbanAlertMonitor.start(serviceScope)
+        startCronBackgroundAlerts(this, serviceScope)
     }
 
     private fun startEventCollection() {
@@ -351,7 +355,18 @@ class ChatNotificationService : Service() {
                                     is WsEvent.ServerRequest -> {
                                         // Modern requests: classified, deduplicated, and posted per
                                         // request identity. Replays do not alert again.
-                                        requestNoticeFor(event, correlationScopeId())?.let(::alertRequest)
+                                        // No chat handles it while the app is backgrounded: refuse a
+                                        // malformed folder/site request here so the gateway need not
+                                        // wait out its deadline.
+                                        if (isMalformedApprovalRequest(event)) {
+                                            HermesWsClient.respondToServerRequestError(
+                                                event.id,
+                                                MALFORMED_APPROVAL_CODE,
+                                                MALFORMED_APPROVAL_MESSAGE,
+                                            )
+                                        } else {
+                                            requestNoticeFor(event, correlationScopeId())?.let(::alertRequest)
+                                        }
                                     }
 
                                     is WsEvent.ServerRequestCancelled -> {
@@ -361,7 +376,7 @@ class ChatNotificationService : Service() {
                                     }
 
                                     is WsEvent.ApprovalRequest -> {
-                                        alertRequest(requestNoticeFor(event, correlationScopeId()))
+                                        requestNoticeFor(event, correlationScopeId())?.let(::alertRequest)
                                     }
 
                                     // Legacy credential/clarify events (not wrapped in a server request).

@@ -76,6 +76,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.text.BidiFormatter
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.applock.DropdownMenu
 import kotlinx.coroutines.withTimeoutOrNull
@@ -218,10 +219,12 @@ fun ComposerToolbar(
         // Model + reasoning pill — wraps its content inside the free space,
         // pushing the mic/action buttons to the far end
         val modelScrollState = rememberScrollState()
+        val modelPlaceholder = stringResource(R.string.chat_model_label)
         val modelLabel =
             currentSessionModel?.let { model ->
-                composerModelLabel(model, showProvider = showModelProvider)
-            } ?: "Model"
+                // Model ids are Latin: isolate them so an RTL locale keeps them intact.
+                BidiFormatter.getInstance().unicodeWrap(composerModelLabel(model, showProvider = showModelProvider))
+            } ?: modelPlaceholder
         LaunchedEffect(modelLabel) {
             modelScrollState.scrollTo(0)
         }
@@ -294,7 +297,13 @@ fun ComposerToolbar(
                         Text(
                             text =
                                 if (reasoningDisabledForModel) {
-                                    if (fastMode) stringResource(R.string.chat_fast_mode_label) else "No reasoning"
+                                    if (fastMode) {
+                                        stringResource(
+                                            R.string.chat_fast_mode_label,
+                                        )
+                                    } else {
+                                        stringResource(R.string.chat_reasoning_none_label)
+                                    }
                                 } else {
                                     val targetEffort = pendingReasoningLevel ?: reasoningLevel
                                     val wire = if (pendingReasoningLevel != null) null else reasoningWireLevel
@@ -393,7 +402,7 @@ fun ComposerToolbar(
                         HorizontalDivider()
 
                         Text(
-                            text = "REASONING",
+                            text = stringResource(R.string.chat_reasoning_section),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                             fontWeight = FontWeight.Bold,
@@ -401,7 +410,7 @@ fun ComposerToolbar(
                         )
                         if (canDisable == false) {
                             Text(
-                                text = "reasoning always on",
+                                text = stringResource(R.string.chat_reasoning_always_on),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
@@ -409,7 +418,7 @@ fun ComposerToolbar(
                         }
                         if (reasoningDisabledForModel) {
                             Text(
-                                text = "no reasoning parameter for this model",
+                                text = stringResource(R.string.chat_reasoning_unsupported),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
@@ -585,7 +594,10 @@ fun ComposerToolbar(
                         ) {
                             Icon(
                                 imageVector = if (isListening) Icons.Default.Stop else Icons.Outlined.Mic,
-                                contentDescription = if (isListening) "Stop listening" else "Mic",
+                                contentDescription =
+                                    stringResource(
+                                        if (isListening) R.string.chat_stop_listening else R.string.chat_mic,
+                                    ),
                                 tint = if (isConnected) micColors.contentColor else micColors.disabledContentColor,
                             )
                         }
@@ -696,7 +708,7 @@ fun ComposerToolbar(
                                         if (canInterrupt) {
                                             stringResource(R.string.chat_voice_stop_generating)
                                         } else {
-                                            "Stop listening"
+                                            stringResource(R.string.chat_stop_listening)
                                         },
                                     tint = actionTint,
                                 )
@@ -705,7 +717,7 @@ fun ComposerToolbar(
                             ActionGlyph.VOICE -> {
                                 Icon(
                                     imageVector = Icons.Outlined.Mic,
-                                    contentDescription = "Mic",
+                                    contentDescription = stringResource(R.string.chat_mic),
                                     tint = actionTint,
                                 )
                             }

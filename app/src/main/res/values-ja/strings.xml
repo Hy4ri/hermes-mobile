@@ -93,7 +93,6 @@
     <string name="screen_account_connectors">コネクタ</string>
     <string name="screen_profiles">プロフィール</string>
     <string name="screen_bots">Bot</string>
-    <string name="bots_active_now">現在使用中</string>
     <string name="bots_empty_title">Botがありません</string>
     <string name="bots_empty_description">エージェントのプロフィールを作成してBotモードを利用しましょう。</string>
     <string name="bots_search_placeholder">Botを検索…</string>
@@ -282,6 +281,7 @@
     <string name="content_desc_copied">コピーしました</string>
     <string name="content_desc_speak">読み上げ</string>
     <string name="content_desc_stop_speaking">読み上げを停止</string>
+    <string name="tts_preparing">音声を生成中</string>
     <string name="tts_error_synthesis">メッセージの音声を合成できませんでした</string>
     <string name="content_desc_edit">編集</string>
     <string name="chat_msg_tokens">%1$s トークン</string>
@@ -473,13 +473,23 @@
     <string name="kanban_complete_summary_label">完了内容の要約</string>
     <string name="kanban_complete_summary_hint">タスクの結果として保存されます</string>
     <string name="kanban_live">ライブ</string>
-    <string name="kanban_offline">オフライン</string>
+    <string name="kanban_connecting">接続中</string>
+    <string name="kanban_reconnecting">再接続中</string>
+    <string name="kanban_updates_manual">手動更新</string>
     <string name="kanban_no_tasks">タスクはありません</string>
     <string name="kanban_priority">優先度</string>
     <string name="kanban_priority_normal">0（通常）</string>
     <string name="kanban_priority_med">1（中）</string>
     <string name="kanban_priority_high">2（高）</string>
     <string name="kanban_priority_urgent">3（緊急）</string>
+    <string name="kanban_column_triage">トリアージ</string>
+    <string name="kanban_column_todo">未着手</string>
+    <string name="kanban_column_scheduled">予約済み</string>
+    <string name="kanban_column_ready">準備完了</string>
+    <string name="kanban_column_running">実行中</string>
+    <string name="kanban_column_blocked">ブロック中</string>
+    <string name="kanban_column_review">レビュー</string>
+    <string name="kanban_column_done">完了</string>
     <string name="kanban_assignee">担当</string>
     <string name="kanban_assignee_default_suffix">%1$s（既定）</string>
     <string name="kanban_assignee_unassigned">未割り当て（既定）</string>
@@ -1312,7 +1322,10 @@
     <string name="cron_status_blocked_config">設定により実行できません</string>
     <string name="cron_status_no_change">変更なし</string>
     <string name="cron_edit_hint_schedule">例：0 9 * * * または every 2h</string>
-    <string name="cron_edit_hint_deliver">例：origin、local、all、telegram:chat_id</string>
+    <string name="cron_edit_hint_deliver">origin、local、または接続済みプラットフォーム</string>
+    <string name="cron_edit_support_schedule">Cron（0 9 * * *）または間隔（every 30m）</string>
+    <string name="cron_edit_error_schedule_required">スケジュールは必須です</string>
+    <string name="cron_edit_error_prompt_required">プロンプト、スキル、またはスクリプトを追加してください</string>
     <string name="cron_edit_hint_time">HH:MM</string>
     <string name="cron_edit_hint_skills">1行につき1つ</string>
     <string name="cron_edit_action_save">保存</string>
@@ -1404,6 +1417,13 @@
     <string name="channels_action_test">テスト</string>
     <string name="channels_action_restart_now">今すぐ再起動</string>
     <string name="channels_restart_banner">変更を保存しました。反映するにはゲートウェイを再起動してください。</string>
+    <string name="channels_available_title">追加できるプラットフォーム</string>
+    <string name="channels_available_install">インストール</string>
+    <string name="channels_installing">インストール中</string>
+    <string name="channels_badge_official">公式</string>
+    <string name="channels_badge_verified">確認済み</string>
+    <string name="channels_state_connecting">接続中</string>
+    <string name="channels_state_needs_setup">設定が必要</string>
     <string name="channels_ingress_url">受信URL</string>
     <string name="channels_copy_ingress_url">受信URLをコピー</string>
 
@@ -1569,7 +1589,7 @@
     <string name="context_window">コンテキストウィンドウ</string>
     <string name="context_window_usage_unavailable">コンテキストウィンドウの使用は利用できません</string>
     <string name="gif_play">GIFを再生する</string>
-    <string name="kanban_filter_placeholder">タスク名・状態・担当者で絞り込み…</string>
+    <string name="kanban_filter_placeholder">タスクを絞り込み…</string>
     <string name="logs_clipboard_label">エルメスログ</string>
     <string name="logs_search_placeholder">ログを検索...</string>
     <string name="mcp_no_match">サーバーが「%1$s」にマッチしない</string>
@@ -1581,6 +1601,8 @@
 
     <!-- Timeline markers (issue #904) -->
     <string name="timeline_marker_model_switch">モデルを切り替え</string>
+    <string name="plugin_card_from">プラグイン · %1$s</string>
+    <string name="plugin_card_cd">プラグイン %1$s のカード</string>
     <string name="timeline_marker_model_switch_to">モデルを%1$sに切り替えました</string>
     <string name="timeline_marker_personality_switch">応答スタイルを切り替え</string>
     <string name="timeline_marker_auto_continue">応答を自動継続</string>
@@ -1927,4 +1949,33 @@
     <plurals name="sessions_live_work_background_desc">
         <item quantity="other">%1$d 個のバックグラウンドプロセスが実行中</item>
     </plurals>
+    <string name="whats_new_section_features">新機能</string>
+    <string name="whats_new_section_improvements">改善</string>
+    <string name="whats_new_section_fixes">修正</string>
+    <string name="whats_new_thanks">%1$s に感謝</string>
+    <string name="whats_new_full_release_notes">リリースノート全文</string>
+    <plurals name="whats_new_internal_changes">
+        <item quantity="other">内部変更 %d 件</item>
+    </plurals>
+    <string name="chat_menu_switch_connection_hint">接続を切り替え</string>
+    <string name="chat_connection_switcher_title">接続を切り替え</string>
+    <string name="chat_connection_switcher_open_settings">接続設定</string>
+    <string name="chat_connection_active_desc">アクティブな接続</string>
+    <string name="notif_folder_access_needed">フォルダへのアクセスが必要です</string>
+    <string name="notif_site_access_needed">ウェブサイトへのアクセスが必要です</string>
+    <string name="notif_action_allow">許可</string>
+    <string name="notif_allow_sent">許可を Hermes に送信しました</string>
+    <string name="approval_folder_title">フォルダへのアクセス</string>
+    <string name="approval_site_title">ウェブサイトへのアクセス</string>
+    <string name="approval_access_read">読み取り専用</string>
+    <string name="approval_access_read_write">読み取りと書き込み</string>
+    <string name="approval_allow">許可</string>
+    <string name="approval_always_allow">常に許可</string>
+    <string name="approval_deny">拒否</string>
+    <string name="approval_always_confirm_title">常に許可しますか？</string>
+    <string name="approval_always_confirm_body">変更するまで、再確認なしで許可されたままになります。</string>
+    <string name="approval_deny_title">アクセスを拒否</string>
+    <string name="approval_deny_reason_label">理由（任意）</string>
+    <string name="approval_deny_confirm">拒否</string>
+    <string name="chat_reply_continuing">続行中…</string>
 </resources>

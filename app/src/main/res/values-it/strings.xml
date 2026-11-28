@@ -67,6 +67,15 @@
     <string name="nav_drawer_subtitle">Controllo agente AI</string>
     <string name="nav_drawer_support">Supporta il progetto</string>
     <string name="whats_new_title">Novità in %1$s</string>
+    <string name="whats_new_section_features">Novità</string>
+    <string name="whats_new_section_improvements">Miglioramenti</string>
+    <string name="whats_new_section_fixes">Correzioni</string>
+    <string name="whats_new_thanks">Grazie a %1$s</string>
+    <string name="whats_new_full_release_notes">Note di rilascio complete</string>
+    <plurals name="whats_new_internal_changes">
+        <item quantity="one">%d modifica interna</item>
+        <item quantity="other">%d modifiche interne</item>
+    </plurals>
     <string name="nav_drawer_section_converse">Conversazione</string>
     <string name="nav_drawer_section_automate">Automazione</string>
     <string name="nav_drawer_section_configure">Configurazione</string>
@@ -79,7 +88,6 @@
     <string name="screen_account_connectors">Connettori</string>
     <string name="screen_profiles">Profili</string>
     <string name="screen_bots">Bot</string>
-    <string name="bots_active_now">Attivi ora</string>
     <string name="bots_empty_title">Nessun bot trovato</string>
     <string name="bots_empty_description">Crea un profilo agente per iniziare a usare la Modalità Bot.</string>
     <string name="bots_search_placeholder">Cerca bot…</string>
@@ -227,6 +235,7 @@
     <string name="content_desc_copied">Copiato</string>
     <string name="content_desc_speak">Leggi ad alta voce</string>
     <string name="content_desc_stop_speaking">Interrompi lettura</string>
+    <string name="tts_preparing">Generazione audio</string>
     <string name="tts_error_synthesis">Impossibile sintetizzare l\'audio del messaggio</string>
     <string name="content_desc_edit">Modifica</string>
     <string name="chat_msg_tokens">%1$s tok</string>
@@ -402,13 +411,23 @@
     <string name="kanban_complete_summary_label">Riepilogo completamento</string>
     <string name="kanban_complete_summary_hint">Salvato come risultato dell\'attività</string>
     <string name="kanban_live">In diretta</string>
-    <string name="kanban_offline">Non in linea</string>
+    <string name="kanban_connecting">Connessione</string>
+    <string name="kanban_reconnecting">Riconnessione</string>
+    <string name="kanban_updates_manual">Aggiornamento manuale</string>
     <string name="kanban_no_tasks">Nessuna attività</string>
     <string name="kanban_priority">Priorità</string>
     <string name="kanban_priority_normal">0 (Normale)</string>
     <string name="kanban_priority_med">1 (Media)</string>
     <string name="kanban_priority_high">2 (Alta)</string>
     <string name="kanban_priority_urgent">3 (Urgente)</string>
+    <string name="kanban_column_triage">Triage</string>
+    <string name="kanban_column_todo">Da fare</string>
+    <string name="kanban_column_scheduled">Pianificate</string>
+    <string name="kanban_column_ready">Pronte</string>
+    <string name="kanban_column_running">In corso</string>
+    <string name="kanban_column_blocked">Bloccate</string>
+    <string name="kanban_column_review">Revisione</string>
+    <string name="kanban_column_done">Fatte</string>
     <string name="kanban_assignee">Assegnatario</string>
     <string name="kanban_assignee_default_suffix">%1$s (Predefinito)</string>
     <string name="kanban_assignee_unassigned">Predefinito (Non assegnato)</string>
@@ -1180,7 +1199,10 @@
     <string name="cron_status_blocked_config">Bloccato (config)</string>
     <string name="cron_status_no_change">Nessuna modifica</string>
     <string name="cron_edit_hint_schedule">es. 0 9 * * * o every 2h</string>
-    <string name="cron_edit_hint_deliver">es. origin, local, all o telegram:chat_id</string>
+    <string name="cron_edit_hint_deliver">origin, local o una piattaforma connessa</string>
+    <string name="cron_edit_support_schedule">Cron (0 9 * * *) o intervallo (every 30m)</string>
+    <string name="cron_edit_error_schedule_required">La pianificazione è obbligatoria</string>
+    <string name="cron_edit_error_prompt_required">Aggiungi un prompt, una skill o uno script</string>
     <string name="cron_edit_hint_time">HH:MM</string>
     <string name="cron_edit_hint_skills">Una per riga</string>
     <string name="cron_edit_action_save">Salva</string>
@@ -1264,6 +1286,13 @@
     <string name="channels_action_test">Testa</string>
     <string name="channels_action_restart_now">Riavvia ora</string>
     <string name="channels_restart_banner">Modifiche salvate. Riavvia il gateway per renderle effettive.</string>
+    <string name="channels_available_title">Piattaforme disponibili</string>
+    <string name="channels_available_install">Installa</string>
+    <string name="channels_installing">Installazione</string>
+    <string name="channels_badge_official">Ufficiale</string>
+    <string name="channels_badge_verified">Verificata</string>
+    <string name="channels_state_connecting">Connessione in corso</string>
+    <string name="channels_state_needs_setup">Serve la configurazione</string>
     <string name="channels_ingress_url">URL di ingress</string>
     <string name="channels_copy_ingress_url">Copia URL di ingress</string>
     <string name="pairing_sec_pending">Approvazioni in sospeso</string>
@@ -1400,7 +1429,7 @@
     <string name="context_window">Finestra di contesto</string>
     <string name="context_window_usage_unavailable">Utilizzo della finestra di contesto non disponibile</string>
     <string name="gif_play">Riproduci GIF</string>
-    <string name="kanban_filter_placeholder">Filtra attività per titolo, stato o assegnatario...</string>
+    <string name="kanban_filter_placeholder">Filtra attività…</string>
     <string name="logs_clipboard_label">Log di Hermes</string>
     <string name="logs_search_placeholder">Cerca nei log...</string>
     <string name="mcp_no_match">Nessun server corrisponde a "%1$s"</string>
@@ -1410,6 +1439,8 @@
     <string name="memory_recent_events">Eventi recenti di auto-miglioramento dell\'agente</string>
     <string name="message_reasoning_steps">Ragionamento · %1$s passaggi</string>
     <string name="timeline_marker_model_switch">Modello cambiato</string>
+    <string name="plugin_card_from">Plugin · %1$s</string>
+    <string name="plugin_card_cd">Scheda dal plugin %1$s</string>
     <string name="timeline_marker_model_switch_to">Modello cambiato in %1$s</string>
     <string name="timeline_marker_personality_switch">Personalità cambiata</string>
     <string name="timeline_marker_auto_continue">Turno proseguito automaticamente</string>
@@ -1952,4 +1983,25 @@
         <item quantity="many">%1$d processi in background in esecuzione</item>
         <item quantity="other">%1$d processi in background in esecuzione</item>
     </plurals>
+    <string name="chat_menu_switch_connection_hint">Cambia connessione</string>
+    <string name="chat_connection_switcher_title">Cambia connessione</string>
+    <string name="chat_connection_switcher_open_settings">Impostazioni connessione</string>
+    <string name="chat_connection_active_desc">Connessione attiva</string>
+    <string name="notif_folder_access_needed">Serve l\'accesso a una cartella</string>
+    <string name="notif_site_access_needed">Serve l\'accesso a un sito web</string>
+    <string name="notif_action_allow">Consenti</string>
+    <string name="notif_allow_sent">Consenso inviato a Hermes</string>
+    <string name="approval_folder_title">Accesso alla cartella</string>
+    <string name="approval_site_title">Accesso al sito web</string>
+    <string name="approval_access_read">Sola lettura</string>
+    <string name="approval_access_read_write">Lettura e scrittura</string>
+    <string name="approval_allow">Consenti</string>
+    <string name="approval_always_allow">Consenti sempre</string>
+    <string name="approval_deny">Nega</string>
+    <string name="approval_always_confirm_title">Consentire sempre?</string>
+    <string name="approval_always_confirm_body">Resterà consentito senza richiesta finché non lo cambi.</string>
+    <string name="approval_deny_title">Nega accesso</string>
+    <string name="approval_deny_reason_label">Motivo (facoltativo)</string>
+    <string name="approval_deny_confirm">Nega</string>
+    <string name="chat_reply_continuing">Continuazione…</string>
 </resources>

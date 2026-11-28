@@ -67,6 +67,10 @@ class GatewayFileFetchTest {
 
         mockkObject(AuthManager)
         every { AuthManager.isGatedMode() } returns false
+        every { AuthManager.currentDataScope() } returns null
+
+        mockkObject(DashboardSessionTokenRefresher)
+        every { DashboardSessionTokenRefresher.refreshIfStale(any(), any()) } returns null
 
         mockkObject(ClientCertificates)
         every { ClientCertificates.cacheKey(any()) } returns "mock-cert-key"
@@ -267,6 +271,140 @@ class GatewayFileFetchTest {
             val result = GatewayFileClient.fetch("/tmp/crash.log", cacheDir)
 
             assertTrue("Expected Failure, got $result", result is GatewayFileResult.Failure)
+        }
+
+    @Test
+    fun fetchFailureCarriesTheGatewayErrorDetail() =
+        runOnMain {
+            mockServer.enqueue(
+                MockResponse().setResponseCode(503).setBody("""{"detail":"SSH workspace is unavailable"}"""),
+            )
+
+            val result = GatewayFileClient.fetch("/tmp/notes.md", cacheDir)
+
+            assertTrue("Expected Failure, got $result", result is GatewayFileResult.Failure)
+            assertEquals(
+                "HTTP 503: SSH workspace is unavailable",
+                (result as GatewayFileResult.Failure).throwable.message,
+            )
+        }
+
+    @Test
+    fun fetchWorkspaceFileReadsTheProfileWorkspaceWithHeaderAuth() =
+        runOnMain {
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setHeader("Content-Type", "text/markdown")
+                    .setHeader("Content-Disposition", "attachment; filename*=UTF-8''notes.md")
+                    .setBody("# remote"),
+            )
+
+            val result =
+                GatewayFileClient.fetchWorkspaceFile(
+                    path = "~/proj/notes.md",
+                    baseUrl = mockServer.url("/").toString(),
+                    token = "test-token",
+                    profile = "ssh-box",
+                    cacheDir = cacheDir,
+                )
+
+            assertTrue("Expected Success, got $result", result is GatewayFileResult.Success)
+            assertEquals("# remote", (result as GatewayFileResult.Success).file.cacheFile.readText())
+            val request = mockServer.takeRequest(2, TimeUnit.SECONDS)!!
+            assertEquals("/api/fs/download", request.requestUrl!!.encodedPath)
+            assertEquals("~/proj/notes.md", request.requestUrl!!.queryParameter("path"))
+            assertEquals("ssh-box", request.requestUrl!!.queryParameter("profile"))
+            assertEquals(null, request.requestUrl!!.queryParameter("token"))
+            assertEquals("Bearer test-token", request.getHeader("Authorization"))
+            assertEquals(1, mockServer.requestCount)
+        }
+
+    @Test
+    fun fetchWorkspaceFileFallsBackOnlyWhenTheGatewayLacksTheRoute() =
+        runOnMain {
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(404)
+                    .setBody("""{"detail":"No such API endpoint: /api/fs/download"}"""),
+            )
+            mockServer.enqueue(MockResponse().setResponseCode(200).setBody("host copy"))
+
+            val result =
+                GatewayFileClient.fetchWorkspaceFile(
+                    path = "/home/u/notes.md",
+                    baseUrl = mockServer.url("/").toString(),
+                    token = "test-token",
+                    profile = null,
+                    cacheDir = cacheDir,
+                )
+
+            assertTrue("Expected Success, got $result", result is GatewayFileResult.Success)
+            assertEquals("host copy", (result as GatewayFileResult.Success).file.cacheFile.readText())
+            val first = mockServer.takeRequest(2, TimeUnit.SECONDS)!!.requestUrl!!
+            assertEquals("/api/fs/download", first.encodedPath)
+            assertEquals(null, first.queryParameter("profile"))
+            assertEquals("/api/files/download", mockServer.takeRequest(2, TimeUnit.SECONDS)!!.requestUrl!!.encodedPath)
+        }
+
+    @Test
+    fun fetchWorkspaceFileKeepsAMissingWorkspaceFileNotFound() =
+        runOnMain {
+            mockServer.enqueue(MockResponse().setResponseCode(404).setBody("""{"detail":"File not found"}"""))
+            mockServer.enqueue(MockResponse().setResponseCode(200).setBody("unrelated host file"))
+
+            val result =
+                GatewayFileClient.fetchWorkspaceFile(
+                    path = "~/notes.md",
+                    baseUrl = mockServer.url("/").toString(),
+                    token = "test-token",
+                    profile = "ssh-box",
+                    cacheDir = cacheDir,
+                )
+
+            assertEquals(GatewayFileResult.NotFound, result)
+            assertEquals(1, mockServer.requestCount)
+        }
+
+    @Test
+    fun fetchRefreshesAnExpiredTokenAndRetriesOnce() =
+        runOnMain {
+            every { DashboardSessionTokenRefresher.refreshIfStale("test-token", any()) } returns "fresh-token"
+            mockServer.enqueue(MockResponse().setResponseCode(401).setBody("""{"detail":"Unauthorized"}"""))
+            mockServer.enqueue(MockResponse().setResponseCode(200).setBody("# notes"))
+
+            val result =
+                GatewayFileClient.fetchWorkspaceFile(
+                    path = "/srv/notes.md",
+                    baseUrl = mockServer.url("/").toString(),
+                    token = "test-token",
+                    profile = "ssh-box",
+                    cacheDir = cacheDir,
+                )
+
+            assertTrue("Expected Success, got $result", result is GatewayFileResult.Success)
+            assertEquals("Bearer test-token", mockServer.takeRequest(2, TimeUnit.SECONDS)!!.getHeader("Authorization"))
+            val retry = mockServer.takeRequest(2, TimeUnit.SECONDS)!!
+            assertEquals("Bearer fresh-token", retry.getHeader("Authorization"))
+            assertEquals("/api/fs/download", retry.requestUrl!!.encodedPath)
+        }
+
+    @Test
+    fun fetchWorkspaceFileDoesNotFallBackOnOtherErrors() =
+        runOnMain {
+            mockServer.enqueue(MockResponse().setResponseCode(403).setBody("""{"detail":"Access denied"}"""))
+
+            val result =
+                GatewayFileClient.fetchWorkspaceFile(
+                    path = "/srv/secret.md",
+                    baseUrl = mockServer.url("/").toString(),
+                    token = "test-token",
+                    profile = "ssh-box",
+                    cacheDir = cacheDir,
+                )
+
+            assertEquals(GatewayFileResult.Forbidden, result)
+            assertEquals(1, mockServer.requestCount)
         }
 
     @Test

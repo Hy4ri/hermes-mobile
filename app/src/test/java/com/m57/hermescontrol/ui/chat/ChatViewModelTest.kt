@@ -110,12 +110,16 @@ class ChatViewModelTest {
 
     /** Counter used to generate unique WS request IDs. */
     private var reqCount = 0
+
+    /** Gateway HTTP staging double; by default the gateway refuses the size like a 413 would. */
+    private var fakeStager = FakeAttachmentStager()
     private val sentRequestMethods = mutableListOf<Pair<String, String>>()
 
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
         reqCount = 0
+        fakeStager = FakeAttachmentStager()
         sentRequestMethods.clear()
 
         mockkStatic(Log::class)
@@ -714,7 +718,7 @@ class ChatViewModelTest {
             mockkObject(com.m57.hermescontrol.data.remote.GatewayFileClient)
             every {
                 com.m57.hermescontrol.data.remote.GatewayFileClient
-                    .buildMediaUrl(any(), any(), any())
+                    .buildMediaUrl(any(), any(), any(), any())
             } answers {
                 if (reducerMediaCalls++ == 0) {
                     uiStateFlow.value = uiStateFlow.value.copy(contextDetailError = "concurrent write")
@@ -821,6 +825,7 @@ class ChatViewModelTest {
             testDispatcher,
             historyDispatcher,
             sendStore,
+            attachmentStager = fakeStager,
         )
 
     /**
@@ -4116,57 +4121,282 @@ class ChatViewModelTest {
         }
 
     @Test
-    fun sendOriginalRejectsAnOversizedPhotoBeforeReadingAndKeepsTheChoice() =
+    fun sendOriginalOversizedPhotoIsStagedUnchangedOverHttp() =
         runTest {
-            val (viewModel, _) = createViewModelWithSession()
-            val resolver = mockk<ContentResolver>()
-            every { app.contentResolver } returns resolver
-            viewModel.addAttachment("content://photo", "camera.jpg", "image/jpeg", MAX_CHAT_ATTACHMENT_BYTES + 1)
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val uriString = "content://photo/original"
+            stubOversizedStream(uriString)
+            fakeStager.result = {
+                GatewayStageResult.Staged(
+                    GatewayStagedAttachment("/srv/hermes/images/original.jpg", cleanupPath = null),
+                )
+            }
+            val attachRequest = slot<Map<String, Any>>()
+            every { HermesWsClient.request(WsMethods.IMAGE_ATTACH, capture(attachRequest), any()) } returns
+                CompletableDeferred<Any?>(mapOf("attached" to true))
+
+            viewModel.addAttachment(uriString, "camera.jpg", "image/jpeg", MAX_CHAT_ATTACHMENT_BYTES + 1)
             viewModel.setAttachmentSendOriginal(0, true)
-            assertFalse(viewModel.sendMessage("Original details"))
+            assertTrue(viewModel.sendMessage("Original details"))
             advanceUntilIdle()
-            assertTrue(
-                viewModel.uiState.value.pendingAttachments
-                    .single()
-                    .sendOriginal,
+
+            assertEquals(listOf("camera.jpg"), fakeStager.staged)
+            assertEquals(
+                "/srv/hermes/images/original.jpg",
+                (attachRequest.captured["path"] as JsonPrimitive).content,
             )
-            assertTrue(
-                viewModel.uiState.value.errorMessage
-                    ?.contains("too large") == true,
-            )
-            verify(exactly = 0) { resolver.openInputStream(any()) }
+            verify(exactly = 1) { HermesWsClient.sendMessage(sessionId, "Original details", any(), any()) }
         }
 
     @Test
-    fun sendMessage_mixedAttachmentsWithOversizedFileAreRejectedBeforeReading() =
+    fun sendMessage_declaredOversizedFileIsNotRejectedLocally() =
         runTest {
-            val (viewModel, _) = createViewModelWithSession()
-            val contentResolver = mockk<ContentResolver>()
-            every { app.contentResolver } returns contentResolver
+            val (viewModel, sessionId) = createViewModelWithSession()
+            stubContentStream("content://declared/archive") { "tiny".byteInputStream() }
+            every { HermesWsClient.request(WsMethods.FILE_ATTACH, any(), any()) } returns
+                CompletableDeferred<Any?>(mapOf("ref_text" to "@file:attachments/archive.zip"))
 
             viewModel.addAttachment(
-                uri = "content://image/photo",
-                name = "photo.jpg",
-                mimeType = "image/jpeg",
-                size = 1024,
-            )
-            viewModel.addAttachment(
-                uri = "content://oversized/archive",
+                uri = "content://declared/archive",
                 name = "archive.zip",
                 mimeType = "application/zip",
                 size = MAX_CHAT_ATTACHMENT_BYTES + 1,
             )
 
-            assertFalse(viewModel.sendMessage("Inspect this archive"))
+            assertTrue(viewModel.sendMessage("Inspect this archive"))
             advanceUntilIdle()
 
-            assertEquals(2, viewModel.uiState.value.pendingAttachments.size)
-            assertNull(viewModel.uiState.value.composerTextToRestore)
+            assertTrue(fakeStager.staged.isEmpty())
+            verify(exactly = 1) {
+                HermesWsClient.sendMessage(
+                    sessionId,
+                    "@file:attachments/archive.zip\n\nInspect this archive",
+                    any(),
+                    any(),
+                )
+            }
+        }
+
+    @Test
+    fun sendMessage_largeFileIsStagedOverHttpAndAttachedByGatewayPath() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val uriString = "content://large/report"
+            stubOversizedStream(uriString)
+            fakeStager.result = {
+                GatewayStageResult.Staged(
+                    GatewayStagedAttachment(
+                        path = "/srv/home/.hermes-mobile-uploads/u1/report.pdf",
+                        cleanupPath = "/srv/home/.hermes-mobile-uploads/u1",
+                    ),
+                )
+            }
+            val attachRequest = slot<Map<String, Any>>()
+            every { HermesWsClient.request(WsMethods.FILE_ATTACH, capture(attachRequest), any()) } returns
+                CompletableDeferred<Any?>(
+                    mapOf("ref_text" to "@file:attachments/report.pdf", "uploaded" to true),
+                )
+
+            viewModel.addAttachment(uriString, "report.pdf", "application/pdf", MAX_CHAT_ATTACHMENT_BYTES + 1)
+            viewModel.sendMessage("Summarize")
+            advanceUntilIdle()
+
+            assertEquals(listOf("report.pdf"), fakeStager.staged)
+            assertEquals(
+                "/srv/home/.hermes-mobile-uploads/u1/report.pdf",
+                (attachRequest.captured["path"] as JsonPrimitive).content,
+            )
+            assertEquals(sessionId, (attachRequest.captured["session_id"] as JsonPrimitive).content)
+            assertFalse(attachRequest.captured.containsKey("data_url"))
+            verify(exactly = 1) {
+                HermesWsClient.sendMessage(sessionId, "@file:attachments/report.pdf\n\nSummarize", any(), any())
+            }
+            // The gateway copied the file into the session, so the staging directory goes.
+            assertEquals(listOf("/srv/home/.hermes-mobile-uploads/u1"), fakeStager.discarded)
+            assertNull(viewModel.uiState.value.errorMessage)
+        }
+
+    @Test
+    fun sendMessage_stagedFileReferencedInPlaceIsKept() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val uriString = "content://large/in-place"
+            stubOversizedStream(uriString)
+            fakeStager.result = {
+                GatewayStageResult.Staged(
+                    GatewayStagedAttachment(
+                        path = "/srv/home/.hermes-mobile-uploads/u2/data.csv",
+                        cleanupPath = "/srv/home/.hermes-mobile-uploads/u2",
+                    ),
+                )
+            }
+            every { HermesWsClient.request(WsMethods.FILE_ATTACH, any(), any()) } returns
+                CompletableDeferred<Any?>(
+                    mapOf("ref_text" to "@file:.hermes-mobile-uploads/u2/data.csv", "uploaded" to false),
+                )
+
+            viewModel.addAttachment(uriString, "data.csv", "text/csv", MAX_CHAT_ATTACHMENT_BYTES + 1)
+            viewModel.sendMessage("Plot it")
+            advanceUntilIdle()
+
+            verify(exactly = 1) {
+                HermesWsClient.sendMessage(
+                    sessionId,
+                    "@file:.hermes-mobile-uploads/u2/data.csv\n\nPlot it",
+                    any(),
+                    any(),
+                )
+            }
+            assertTrue(fakeStager.discarded.isEmpty())
+        }
+
+    @Test
+    fun sendMessage_largeImageIsUploadedAndAttachedByPath() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val uriString = "content://large/photo"
+            stubOversizedStream(uriString)
+            fakeStager.result = {
+                GatewayStageResult.Staged(
+                    GatewayStagedAttachment(path = "/srv/hermes/images/dashboard_photo.webp", cleanupPath = null),
+                )
+            }
+            val attachRequest = slot<Map<String, Any>>()
+            every { HermesWsClient.request(WsMethods.IMAGE_ATTACH, capture(attachRequest), any()) } returns
+                CompletableDeferred<Any?>(mapOf("attached" to true))
+
+            // WebP is never re-encoded on the phone, so its original bytes go to the gateway.
+            viewModel.addAttachment(uriString, "photo.webp", "image/webp", MAX_CHAT_ATTACHMENT_BYTES + 1)
+            viewModel.sendMessage("What is this?")
+            advanceUntilIdle()
+
+            assertEquals(
+                "/srv/hermes/images/dashboard_photo.webp",
+                (attachRequest.captured["path"] as JsonPrimitive).content,
+            )
+            verify(exactly = 0) { HermesWsClient.request(WsMethods.IMAGE_ATTACH_BYTES, any(), any()) }
+            verify(exactly = 1) { HermesWsClient.sendMessage(sessionId, "What is this?", any(), any()) }
+            assertTrue(fakeStager.discarded.isEmpty())
+        }
+
+    @Test
+    fun sendMessage_failedGatewayUploadIsRejectedWithoutGhostMessage() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val persistedBeforeSend = fakeRepo.dao.count()
+            val uriString = "content://large/offline"
+            stubOversizedStream(uriString)
+            fakeStager.result = { GatewayStageResult.Failed("Network connection failure: reset") }
+
+            viewModel.addAttachment(uriString, "offline.bin", "application/octet-stream", 0)
+            viewModel.sendMessage("Inspect upload")
+            advanceUntilIdle()
+
+            // Like an unreadable attachment: a rejected, retryable receipt and no ghost bubble.
+            assertEquals(persistedBeforeSend, fakeRepo.dao.count())
+            assertFalse(
+                viewModel.uiState.value.messages
+                    .any { it.content == "Inspect upload" },
+            )
             assertTrue(
                 viewModel.uiState.value.errorMessage
-                    ?.contains("too large") == true,
+                    ?.startsWith("Upload failed: offline.bin") == true,
             )
-            verify(exactly = 0) { contentResolver.openInputStream(any()) }
+            verify(exactly = 0) { HermesWsClient.request(WsMethods.FILE_ATTACH, any(), any()) }
+            verify(exactly = 0) { HermesWsClient.sendMessage(sessionId, any(), any(), any()) }
+        }
+
+    @Test
+    fun sendMessage_gatewayRefusalShowsTheGatewayLimit() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            val uriString = "content://large/huge"
+            stubOversizedStream(uriString)
+            fakeStager.result = { GatewayStageResult.TooLarge("File is too large") }
+
+            viewModel.addAttachment(uriString, "huge.iso", "application/octet-stream", 0)
+            viewModel.sendMessage("Inspect")
+            advanceUntilIdle()
+
+            assertEquals(
+                "Attachment too large: huge.iso (File is too large)",
+                viewModel.uiState.value.errorMessage,
+            )
+            assertEquals("Inspect", viewModel.uiState.value.composerTextToRestore)
+            // The composer gets the picked file back, not the private snapshot deleted on rollback.
+            assertEquals(
+                uriString,
+                viewModel.uiState.value.pendingAttachments
+                    .single()
+                    .uri,
+            )
+        }
+
+    @Test
+    fun sendMessage_gatewayWithoutUploadRoutesKeepsTheInlineLimit() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            val uriString = "content://large/legacy"
+            stubOversizedStream(uriString)
+            fakeStager.result = { GatewayStageResult.Unsupported }
+
+            viewModel.addAttachment(uriString, "legacy.bin", "application/octet-stream", 0)
+            viewModel.sendMessage("Inspect")
+            advanceUntilIdle()
+
+            assertEquals(
+                "Attachment too large: legacy.bin (maximum 10 MB)",
+                viewModel.uiState.value.errorMessage,
+            )
+        }
+
+    /** A content URI whose stream is one byte past the inline limit, fresh on every open. */
+    private fun stubOversizedStream(uriString: String) {
+        stubContentStream(uriString) { zeroStream(MAX_CHAT_ATTACHMENT_BYTES + 1) }
+    }
+
+    /**
+     * Routes [uriString] and the private send snapshots taken from it through one resolver, so
+     * the idle-send path (snapshot, then prepare) reads real bytes.
+     */
+    private fun stubContentStream(
+        uriString: String,
+        open: () -> java.io.InputStream,
+    ) {
+        val uri = mockk<Uri>()
+        val snapshotUri = mockk<Uri>()
+        val contentResolver = mockk<ContentResolver>()
+        lateinit var snapshot: java.io.File
+        mockkStatic(Uri::class)
+        every { Uri.parse(uriString) } returns uri
+        every { Uri.fromFile(any()) } answers {
+            snapshot = firstArg()
+            snapshotUri
+        }
+        every { snapshotUri.toString() } returns "file://snapshot$uriString"
+        every { Uri.parse("file://snapshot$uriString") } returns snapshotUri
+        every { app.contentResolver } returns contentResolver
+        every { contentResolver.openInputStream(uri) } answers { open() }
+        every { contentResolver.openInputStream(snapshotUri) } answers { snapshot.inputStream() }
+    }
+
+    private fun zeroStream(size: Long): java.io.InputStream =
+        object : java.io.InputStream() {
+            private var remaining = size
+
+            override fun read(): Int = if (remaining-- > 0) 0 else -1
+
+            override fun read(
+                buffer: ByteArray,
+                offset: Int,
+                length: Int,
+            ): Int {
+                if (remaining <= 0) return -1
+                val count = minOf(length.toLong(), remaining).toInt()
+                java.util.Arrays.fill(buffer, offset, offset + count, 0)
+                remaining -= count
+                return count
+            }
         }
 
     @Test
@@ -4174,29 +4404,7 @@ class ChatViewModelTest {
         runTest {
             val (viewModel, _) = createViewModelWithSession()
             val uriString = "content://unknown/large-file"
-            val mockUri = mockk<Uri>()
-            val contentResolver = mockk<ContentResolver>()
-            val oversizedStream =
-                object : java.io.InputStream() {
-                    private var remaining = MAX_CHAT_ATTACHMENT_BYTES + 1
-
-                    override fun read(): Int = if (remaining-- > 0) 0 else -1
-
-                    override fun read(
-                        buffer: ByteArray,
-                        offset: Int,
-                        length: Int,
-                    ): Int {
-                        if (remaining <= 0) return -1
-                        val count = minOf(length.toLong(), remaining).toInt()
-                        remaining -= count
-                        return count
-                    }
-                }
-            mockkStatic(Uri::class)
-            every { Uri.parse(uriString) } returns mockUri
-            every { app.contentResolver } returns contentResolver
-            every { contentResolver.openInputStream(mockUri) } returns oversizedStream
+            stubOversizedStream(uriString)
 
             viewModel.addAttachment(
                 uri = uriString,
@@ -11784,7 +11992,7 @@ class ChatViewModelTest {
             mockkObject(GatewayFileClient)
             val file = java.io.File(cacheDir, "note.txt").apply { writeBytes("hello".toByteArray()) }
             coEvery {
-                GatewayFileClient.fetch(any(), any())
+                GatewayFileClient.fetchWorkspaceFile(any(), any())
             } returns GatewayFileResult.Success(GatewayFile("note.txt", "text/plain", file))
 
             val intentSlot = slot<Intent>()
@@ -11816,7 +12024,7 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             // fetch was invoked (proves we entered the IO launch)
-            coVerify { GatewayFileClient.fetch(any(), any()) }
+            coVerify { GatewayFileClient.fetchWorkspaceFile(any(), any()) }
             // ACTION_VIEW intent delivered, with the right type + grant flag.
             verify { app.startActivity(any()) }
             verify { intentSlot.captured.setDataAndType(any(), eq("text/plain")) }
@@ -11842,7 +12050,7 @@ class ChatViewModelTest {
                 java.io
                     .File(System.getProperty("java.io.tmpdir"), "note_${System.nanoTime()}.txt")
                     .apply { writeText("downloaded") }
-            coEvery { GatewayFileClient.fetch("/tmp/note.txt", any()) } returns
+            coEvery { GatewayFileClient.fetchWorkspaceFile("/tmp/note.txt", any()) } returns
                 GatewayFileResult.Success(GatewayFile("note.txt", "text/plain", file))
             // copyChunked is mocked with the object — restore real copy so the
             // saved document actually receives the bytes.
@@ -11890,7 +12098,7 @@ class ChatViewModelTest {
             val destination = mockk<android.net.Uri>()
             every { app.contentResolver } returns resolver
             coEvery {
-                GatewayFileClient.fetch("/tmp/missing.pdf", any())
+                GatewayFileClient.fetchWorkspaceFile("/tmp/missing.pdf", any())
             } returns GatewayFileResult.NotFound
 
             val (viewModel, _) = createViewModelWithSession()
@@ -11929,7 +12137,7 @@ class ChatViewModelTest {
             val destination = mockk<android.net.Uri>()
             every { app.contentResolver } returns resolver
             every { resolver.openOutputStream(destination, "wt") } throws IllegalStateException("write failed")
-            coEvery { GatewayFileClient.fetch("/tmp/report.pdf", any()) } returns
+            coEvery { GatewayFileClient.fetchWorkspaceFile("/tmp/report.pdf", any()) } returns
                 GatewayFileResult.Success(
                     GatewayFile(
                         "report.pdf",
@@ -11976,7 +12184,8 @@ class ChatViewModelTest {
             every { app.getApplicationContext() } returns app
             val firstResult = CompletableDeferred<GatewayFileResult>()
             val fetchedPaths = mutableListOf<String>()
-            coEvery { GatewayFileClient.fetch(capture(fetchedPaths), any()) } coAnswers { firstResult.await() }
+            coEvery { GatewayFileClient.fetchWorkspaceFile(capture(fetchedPaths), any()) } coAnswers
+                { firstResult.await() }
             val resolver = mockk<android.content.ContentResolver>(relaxed = true)
             every { app.contentResolver } returns resolver
             val viewModel = createViewModel()
@@ -12018,7 +12227,7 @@ class ChatViewModelTest {
             every { app.applicationContext } returns app
             every { app.getApplicationContext() } returns app
             coEvery {
-                GatewayFileClient.fetch(any(), any())
+                GatewayFileClient.fetchWorkspaceFile(any(), any())
             } returns GatewayFileResult.NotFound
 
             val vm = createViewModel()
@@ -12056,7 +12265,8 @@ class ChatViewModelTest {
             every { app.getApplicationContext() } returns app
             val firstResult = CompletableDeferred<GatewayFileResult>()
             val fetchedPaths = mutableListOf<String>()
-            coEvery { GatewayFileClient.fetch(capture(fetchedPaths), any()) } coAnswers { firstResult.await() }
+            coEvery { GatewayFileClient.fetchWorkspaceFile(capture(fetchedPaths), any()) } coAnswers
+                { firstResult.await() }
 
             val vm = createViewModel()
             val attachment =
@@ -14312,6 +14522,17 @@ class ChatViewModelTest {
                     .filter { it.content == "hello" }
             assertEquals(1, hello.size)
             assertEquals(20L, hello.single().serverRowId)
+            // #1831: the assistant reply was re-issued too (11 -> 21) and must not render twice.
+            val reply =
+                vm.uiState.value.messages
+                    .filter { it.content == "reply" }
+            assertEquals(1, reply.size)
+            assertEquals(21L, reply.single().serverRowId)
+            assertEquals(
+                listOf("first", "ok", "hello", "reply"),
+                vm.uiState.value.messages
+                    .map { it.content },
+            )
         }
 
     @Test
@@ -15024,4 +15245,22 @@ class ChatViewModelTest {
                     .any { it.content == "Stale scopeA content" },
             )
         }
+}
+
+private class FakeAttachmentStager : ChatAttachmentStager {
+    var result: (Attachment) -> GatewayStageResult = { GatewayStageResult.TooLarge("File is too large") }
+    val staged = mutableListOf<String>()
+    val discarded = mutableListOf<String>()
+
+    override suspend fun stage(
+        attachment: Attachment,
+        open: () -> java.io.InputStream?,
+    ): GatewayStageResult {
+        staged += attachment.name
+        return result(attachment)
+    }
+
+    override suspend fun discard(path: String) {
+        discarded += path
+    }
 }

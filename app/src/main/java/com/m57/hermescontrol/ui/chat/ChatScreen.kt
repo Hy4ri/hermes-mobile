@@ -33,17 +33,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Archive
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarDuration
@@ -54,6 +50,7 @@ import androidx.compose.material3.SnackbarVisuals
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -68,11 +65,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -86,6 +85,7 @@ import com.m57.hermescontrol.HistoryScreen
 import com.m57.hermescontrol.LogsScreen
 import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.SettingsConnection
 import com.m57.hermescontrol.applock.AlertDialog
 import com.m57.hermescontrol.applock.DropdownMenu
 import com.m57.hermescontrol.data.local.AgentDisplayName
@@ -113,10 +113,12 @@ import com.m57.hermescontrol.ui.chat.components.ChatHistoryWindowBanner
 import com.m57.hermescontrol.ui.chat.components.ChatInputBar
 import com.m57.hermescontrol.ui.chat.components.ChatLifecycleEffects
 import com.m57.hermescontrol.ui.chat.components.ChatLoadingOverlay
+import com.m57.hermescontrol.ui.chat.components.ChatOverflowMenuContent
 import com.m57.hermescontrol.ui.chat.components.ChatResumeErrorOverlay
 import com.m57.hermescontrol.ui.chat.components.ChatScrollToBottomFab
 import com.m57.hermescontrol.ui.chat.components.ChatTimelineNoPrefetchStrategy
 import com.m57.hermescontrol.ui.chat.components.ChatTimelineSheet
+import com.m57.hermescontrol.ui.chat.components.ConnectionQuickSwitcherSheet
 import com.m57.hermescontrol.ui.chat.components.ConnectionSetupSheet
 import com.m57.hermescontrol.ui.chat.components.ContextDetailSheet
 import com.m57.hermescontrol.ui.chat.components.ContextUsageChip
@@ -135,7 +137,9 @@ import com.m57.hermescontrol.ui.chat.components.SpeechRequest
 import com.m57.hermescontrol.ui.chat.components.SpeechText
 import com.m57.hermescontrol.ui.chat.components.SubagentInspectionSheet
 import com.m57.hermescontrol.ui.chat.components.TaskProgressChip
+import com.m57.hermescontrol.ui.chat.components.activeConnectionProfile
 import com.m57.hermescontrol.ui.chat.components.appendSharedComposerDraft
+import com.m57.hermescontrol.ui.chat.components.connectionDisplayName
 import com.m57.hermescontrol.ui.chat.components.rememberChatImagePaste
 import com.m57.hermescontrol.ui.chat.components.rememberChatMediaLaunchers
 import com.m57.hermescontrol.ui.chat.components.rememberChatScrollController
@@ -245,6 +249,8 @@ fun ChatScreen(
     // Snapshot-backed search state — read directly so only the scopes that
     // read its fields recompose on search changes (bar, matched bubbles).
     val searchState = viewModel.searchState
+    val localeTag = LocalConfiguration.current.locales.toLanguageTags()
+    LaunchedEffect(localeTag) { viewModel.onLocaleObserved(localeTag) }
     val displayedMessages = transcriptState.messages
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
@@ -296,6 +302,7 @@ fun ChatScreen(
     val browserEvent = connectorsState.browserLaunchEvent
     val speechController = rememberChatSpeech()
     val speakingMessageId by speechController.speakingId.collectAsStateWithLifecycle()
+    val preparingSpeechId by speechController.preparingId.collectAsStateWithLifecycle()
     val activeSessionId by ActiveSessionHolder.activeSessionId.collectAsStateWithLifecycle()
     val listState = rememberLazyListState(prefetchStrategy = ChatTimelineNoPrefetchStrategy)
     val scrollScope = rememberCoroutineScope()
@@ -442,6 +449,7 @@ fun ChatScreen(
     }
     val reloginState by viewModel.reloginState.collectAsStateWithLifecycle()
     var showSubagentInspectionSheet by rememberSaveable { mutableStateOf(false) }
+    var showConnectionSwitcher by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(showSubagentInspectionSheet) {
         if (showSubagentInspectionSheet) {
             viewModel.hydrateSubagents()
@@ -534,6 +542,7 @@ fun ChatScreen(
             state.secretPrompt == null &&
             !showContextSheet &&
             !showSubagentInspectionSheet &&
+            !showConnectionSwitcher &&
             state.btwState == null &&
             viewingImage == null &&
             !connectorsState.isVisible &&
@@ -638,13 +647,14 @@ fun ChatScreen(
                 onClick = { viewModel.createNewSession() },
             )
 
-            // Session actions overflow menu (issue #1091)
+            // Session actions overflow menu (issue #1091, #1886)
             var showSessionMenu by remember { mutableStateOf(false) }
             Box {
                 HermesIconButton(
                     imageVector = Icons.Filled.MoreVert,
                     label = stringResource(R.string.content_desc_session_options),
                     onClick = {
+                        settingsViewModel.refreshConnectionProfiles()
                         settingsViewModel.refreshKeepScreenAwake()
                         settingsViewModel.refreshKeepConnectedInBackground()
                         showSessionMenu = true
@@ -655,79 +665,48 @@ fun ChatScreen(
                     expanded = showSessionMenu,
                     onDismissRequest = { showSessionMenu = false },
                 ) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.chat_action_timeline)) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Filled.History,
-                                contentDescription = null,
-                            )
+                    val activeConnection =
+                        activeConnectionProfile(settingsState.profiles, settingsState.selectedProfileId)
+                    val activeConnectionName =
+                        connectionDisplayName(activeConnection, settingsState.baseUrl)
+                    val exportShareTitle = stringResource(R.string.chat_export_share_chooser)
+                    val exportFailedMessage = stringResource(R.string.chat_export_failed)
+                    val archivedMessage = stringResource(R.string.chat_archived)
+                    val archiveFailedMessage = stringResource(R.string.chat_archive_failed)
+                    val archiveUndoLabel = stringResource(R.string.sessions_undo_action)
+                    val archiveUndoFailedMessage = stringResource(R.string.sessions_undo_failed)
+
+                    ChatOverflowMenuContent(
+                        activeConnectionName = activeConnectionName,
+                        profileLocked = profileLocked,
+                        hasCurrentSession = state.currentSessionId != null,
+                        isSearchActive = searchState.isActive,
+                        isHistoricalTimeline = timelineState.isHistorical,
+                        // Not while a reply is being generated: archiving does not stop the run.
+                        canArchive =
+                            state.currentSessionId != null &&
+                                state.hasConversation &&
+                                !state.isAgentTyping &&
+                                !state.isMainTurnBusy,
+                        keepScreenAwake = settingsState.keepScreenAwake,
+                        keepConnectedInBackground = settingsState.keepConnectedInBackground,
+                        onOpenConnectionSwitcher = {
+                            showSessionMenu = false
+                            showConnectionSwitcher = true
                         },
-                        enabled = state.currentSessionId != null,
-                        onClick = {
+                        onOpenTimeline = {
                             showSessionMenu = false
                             viewModel.openTimeline()
                         },
-                        modifier = Modifier.testTag("chat_menu_timeline"),
-                    )
-
-                    // Chat search lives in this overflow menu (moved from the top bar)
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                stringResource(
-                                    if (searchState.isActive) {
-                                        R.string.chat_action_close_search
-                                    } else {
-                                        R.string.chat_action_search
-                                    },
-                                ),
-                            )
-                        },
-                        leadingIcon = {
-                            Icon(
-                                imageVector =
-                                    if (searchState.isActive) Icons.Filled.Close else Icons.Filled.Search,
-                                contentDescription = null,
-                            )
-                        },
-                        onClick = {
+                        onToggleSearch = {
                             showSessionMenu = false
                             viewModel.toggleSearch()
                         },
-                        enabled = !timelineState.isHistorical,
-                        modifier = Modifier.testTag("chat_menu_search"),
-                    )
-
-                    // #1643: integrations manage credentials; hidden while a profile lock is on.
-                    if (!profileLocked) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.session_integrations_menu_item)) },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Filled.Extension,
-                                    contentDescription = null,
-                                )
-                            },
-                            onClick = {
-                                showSessionMenu = false
-                                connectorsViewModel.show()
-                            },
-                            modifier = Modifier.testTag("chat_menu_session_integrations"),
-                        )
-                    }
-                    val exportShareTitle = stringResource(R.string.chat_export_share_chooser)
-                    val exportFailedMessage = stringResource(R.string.chat_export_failed)
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.chat_action_export)) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Filled.Share,
-                                contentDescription = null,
-                            )
+                        onOpenIntegrations = {
+                            showSessionMenu = false
+                            connectorsViewModel.show()
                         },
-                        enabled = state.currentSessionId != null,
-                        onClick = {
+                        onExportChat = {
                             showSessionMenu = false
                             val sessionId = state.currentSessionId
                             if (sessionId != null) {
@@ -764,28 +743,7 @@ fun ChatScreen(
                                 }
                             }
                         },
-                        modifier = Modifier.testTag("chat_menu_export_chat"),
-                    )
-                    val archivedMessage = stringResource(R.string.chat_archived)
-                    val archiveFailedMessage = stringResource(R.string.chat_archive_failed)
-                    val archiveUndoLabel = stringResource(R.string.sessions_undo_action)
-                    val archiveUndoFailedMessage = stringResource(R.string.sessions_undo_failed)
-                    // Archive the chat you are in; land on a fresh chat with a one-tap undo.
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.chat_action_archive)) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Filled.Archive,
-                                contentDescription = null,
-                            )
-                        },
-                        // Not while a reply is being generated: archiving does not stop the run.
-                        enabled =
-                            state.currentSessionId != null &&
-                                state.hasConversation &&
-                                !state.isAgentTyping &&
-                                !state.isMainTurnBusy,
-                        onClick = {
+                        onArchiveChat = {
                             showSessionMenu = false
                             val sessionId = state.currentSessionId
                             if (sessionId != null) {
@@ -833,15 +791,8 @@ fun ChatScreen(
                                 }
                             }
                         },
-                        modifier = Modifier.testTag("chat_menu_archive"),
-                    )
-                    ChatKeepScreenAwakeMenuItem(
-                        checked = settingsState.keepScreenAwake,
-                        onToggle = settingsViewModel::onKeepScreenAwakeChange,
-                    )
-                    ChatBackgroundConnectionMenuItem(
-                        checked = settingsState.keepConnectedInBackground,
-                        onToggle = settingsViewModel::onKeepConnectedInBackgroundChange,
+                        onKeepScreenAwakeChange = settingsViewModel::onKeepScreenAwakeChange,
+                        onKeepConnectedInBackgroundChange = settingsViewModel::onKeepConnectedInBackgroundChange,
                     )
                 }
             }
@@ -972,6 +923,7 @@ fun ChatScreen(
                         transcriptState.copy(
                             savingAttachmentPath = pendingSavePath ?: transcriptState.savingAttachmentPath,
                             speakingMessageId = speakingMessageId,
+                            preparingSpeechId = preparingSpeechId,
                         ),
                     actions =
                         TranscriptActions(
@@ -979,8 +931,8 @@ fun ChatScreen(
                             onOpenAttachment = viewModel::openAttachment,
                             onSaveAttachment = onSaveAttachment,
                             onImageClick = { viewingImage = it },
-                            onRespondApproval = { action, requestId ->
-                                viewModel.respondToApproval(action, requestId)
+                            onRespondApproval = { action, requestId, reason ->
+                                viewModel.respondToApproval(action, requestId, reason)
                             },
                             onRespondClarify = viewModel::respondToClarify,
                             onRespondClarifyBatch = viewModel::respondToClarifyBatch,
@@ -1411,6 +1363,25 @@ fun ChatScreen(
             onConnect = { slug, reconnect -> connectorsViewModel.connect(slug, reconnect) },
             onClearError = connectorsViewModel::clearError,
         )
+
+        if (showConnectionSwitcher && !profileLocked) {
+            ConnectionQuickSwitcherSheet(
+                profiles = settingsState.profiles,
+                selectedProfileId = settingsState.selectedProfileId,
+                fallbackBaseUrl = settingsState.baseUrl,
+                onSelectProfile = { profileId ->
+                    showConnectionSwitcher = false
+                    if (profileId != settingsState.selectedProfileId) {
+                        settingsViewModel.selectProfile(profileId)
+                    }
+                },
+                onOpenConnectionSettings = {
+                    showConnectionSwitcher = false
+                    NavigationController.navigateTo(SettingsConnection)
+                },
+                onDismiss = { showConnectionSwitcher = false },
+            )
+        }
     }
 }
 
@@ -1421,12 +1392,25 @@ internal fun ChatBackgroundConnectionMenuItem(
 ) {
     DropdownMenuItem(
         text = { Text(stringResource(R.string.settings_keep_connected_in_background_title)) },
-        trailingIcon = {
-            Checkbox(
-                checked = checked,
-                onCheckedChange = onToggle,
-                modifier = Modifier.testTag("chat_menu_keep_connected_checkbox"),
+        leadingIcon = {
+            Icon(
+                imageVector = Icons.Filled.CloudSync,
+                contentDescription = null,
             )
+        },
+        trailingIcon = {
+            CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
+                Box(
+                    modifier = Modifier.size(24.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Checkbox(
+                        checked = checked,
+                        onCheckedChange = onToggle,
+                        modifier = Modifier.testTag("chat_menu_keep_connected_checkbox"),
+                    )
+                }
+            }
         },
         onClick = { onToggle(!checked) },
         modifier = Modifier.testTag("chat_menu_keep_connected"),

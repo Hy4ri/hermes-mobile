@@ -15,6 +15,8 @@ import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.util.concurrent.TimeUnit
 
+private const val CATALOG_INSTALL_TIMEOUT_MS = 300_000L
+
 /**
  * Provides a Retrofit-backed [HermesApiService].
  *
@@ -100,13 +102,20 @@ object ApiClient {
         scope: DataScope,
         token: String?,
         cookies: List<Cookie>,
+        requestTimeoutMs: Long? = null,
+        authenticator: okhttp3.Authenticator = okhttp3.Authenticator.NONE,
     ): HermesApiService {
         val endpoint = ServerEndpoint.parseForBuild(scope.baseUrl)
         val capturedCookies = cookies.toList()
         val client =
             OkHttpProvider.base
                 .newBuilder()
-                .cookieJar(
+                .apply {
+                    if (requestTimeoutMs != null) {
+                        readTimeout(requestTimeoutMs, TimeUnit.MILLISECONDS)
+                        callTimeout(requestTimeoutMs, TimeUnit.MILLISECONDS)
+                    }
+                }.cookieJar(
                     object : CookieJar {
                         override fun loadForRequest(url: HttpUrl): List<Cookie> =
                             capturedCookies.filter { it.matches(url) }
@@ -132,10 +141,10 @@ object ApiClient {
                         } else {
                             request.url
                         }
-                    val builder = request.newBuilder().url(url)
+                    val builder = request.newBuilder().url(url).tag(DataScope::class.java, scope)
                     if (!token.isNullOrBlank()) builder.header("Authorization", "Bearer $token")
                     chain.proceed(builder.build())
-                }.authenticator(okhttp3.Authenticator.NONE)
+                }.authenticator(authenticator)
                 .followRedirects(false)
                 .followSslRedirects(false)
                 .build()
@@ -147,6 +156,12 @@ object ApiClient {
             .build()
             .create(HermesApiService::class.java)
     }
+
+    /**
+     * Catalog platform installs clone a plugin and resolve dependencies on the gateway
+     * (desktop uses 300s). The shared 30s client would abort a successful install.
+     */
+    fun messagingCatalogApi(): HermesApiService = transcriptionService(CATALOG_INSTALL_TIMEOUT_MS)
 
     /**
      * Dedicated [HermesApiService] for the blocking voice-note transcription

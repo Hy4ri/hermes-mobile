@@ -4,7 +4,10 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.util.Base64
 
-/** Keeps the encoded JSON-RPC frame safely below the WebSocket's 16 MiB limit. */
+/**
+ * Largest attachment sent inline as Base64 in one JSON-RPC frame, safely below OkHttp's
+ * 16 MiB WebSocket message limit. Larger attachments are staged on the gateway over HTTP.
+ */
 internal const val MAX_CHAT_ATTACHMENT_BYTES = 10L * 1024L * 1024L
 
 internal enum class AttachmentSizeResult {

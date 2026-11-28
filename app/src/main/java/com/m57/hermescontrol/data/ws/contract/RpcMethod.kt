@@ -578,6 +578,13 @@ object RpcMethods {
             JsonElement.serializer(),
         )
 
+    val CLIENT_ACTIVITY: RpcMethod<ClientActivityParams, JsonElement> =
+        RpcMethod(
+            WsMethods.CLIENT_ACTIVITY,
+            ClientActivityParams.serializer(),
+            JsonElement.serializer(),
+        )
+
     // Passthrough JsonElement results: callers keep their existing legacy decoders.
     val COMMANDS_CATALOG: RpcMethod<CommandsCatalogParams, JsonElement> =
         RpcMethod(
@@ -681,6 +688,14 @@ object RpcMethods {
             HostedApproveReceipt.serializer(),
         )
 
+    // Passthrough JsonElement results: callers keep their existing legacy decoders.
+    val IMAGE_ATTACH: RpcMethod<ImageAttachParams, JsonElement> =
+        RpcMethod(
+            WsMethods.IMAGE_ATTACH,
+            ImageAttachParams.serializer(),
+            JsonElement.serializer(),
+        )
+
     /** Every typed method. GatewayContractTest iterates this; future migrations append here. */
     val all: List<RpcMethod<*, *>> =
         listOf(
@@ -756,6 +771,7 @@ object RpcMethods {
             CONFIG_GET,
             MODEL_OPTIONS,
             CLIENT_CAPABILITIES,
+            CLIENT_ACTIVITY,
             COMMANDS_CATALOG,
             COMMAND_DISPATCH,
             SLASH_EXEC,
@@ -770,5 +786,6 @@ object RpcMethods {
             GROUPS_STOP,
             GROUPS_RETRY,
             GROUPS_APPROVE,
+            IMAGE_ATTACH,
         )
 }

@@ -7,6 +7,7 @@ import com.m57.hermescontrol.data.ws.contract.ApprovalReceivedParams
 import com.m57.hermescontrol.data.ws.contract.ApprovalRespondParams
 import com.m57.hermescontrol.data.ws.contract.RpcMethods
 import com.m57.hermescontrol.data.ws.contract.TypedRpcSender
+import com.m57.hermescontrol.data.ws.parseApprovalKindFields
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -64,6 +65,11 @@ class ChatApprovalsDelegate(
                                                 choices = event.choices ?: approval.choices,
                                                 allowPermanent = event.allowPermanent ?: approval.allowPermanent,
                                                 smartDenied = event.smartDenied ?: approval.smartDenied,
+                                                path = event.path ?: approval.path,
+                                                access = event.access ?: approval.access,
+                                                host = event.host ?: approval.host,
+                                                label = event.label ?: approval.label,
+                                                risk = event.risk ?: approval.risk,
                                             ),
                                     )
                                 }
@@ -73,7 +79,8 @@ class ChatApprovalsDelegate(
             }
             return
         }
-        val description = event.description ?: event.command ?: "Unknown command"
+        val description =
+            event.description ?: event.command ?: event.path ?: event.host ?: "Unknown command"
         val content = "**Approval Required**\n$description"
         val msg =
             ChatMessage(
@@ -89,6 +96,12 @@ class ChatApprovalsDelegate(
                         choices = event.choices,
                         allowPermanent = event.allowPermanent,
                         smartDenied = event.smartDenied,
+                        kind = event.kind,
+                        path = event.path,
+                        access = event.access,
+                        host = event.host,
+                        label = event.label,
+                        risk = event.risk,
                     ),
             )
         uiState.update { state ->
@@ -129,13 +142,20 @@ class ChatApprovalsDelegate(
     fun handleApprovalPendingResult(result: Any?) {
         @Suppress("UNCHECKED_CAST")
         val approvals = (result as? Map<*, *>)?.get("approvals") as? List<*>
-        val first = approvals?.filterIsInstance<Map<*, *>>()?.firstOrNull() ?: return
-        val requestId = first["request_id"] as? String ?: return
         val sessionId = runtimeSessionId() ?: uiState.value.currentSessionId
+        // A malformed folder/site entry is not parked and not acknowledged: skip to the next valid one.
+        val (first, event) =
+            approvals
+                ?.filterIsInstance<Map<*, *>>()
+                ?.firstNotNullOfOrNull { entry ->
+                    if (entry["request_id"] !is String) return@firstNotNullOfOrNull null
+                    parseApprovalMap(entry, sessionId)?.let { entry to it }
+                } ?: return
+        val requestId = first["request_id"] as? String ?: return
         val alreadyShown =
             uiState.value.messages.any { it.approvalInfo?.requestId == requestId }
         if (alreadyShown) return
-        handleApprovalRequest(parseApprovalMap(first, sessionId))
+        handleApprovalRequest(event)
     }
 
     fun handleApprovalRespondResult(result: Any?) {
@@ -155,13 +175,14 @@ class ChatApprovalsDelegate(
             requestId != null &&
                 uiState.value.messages.any { it.approvalInfo?.requestId == requestId }
         if (!alreadyShown) {
-            handleApprovalRequest(parseApprovalMap(map, sessionId))
+            parseApprovalMap(map, sessionId)?.let(::handleApprovalRequest)
         }
     }
 
     fun respondToApproval(
         action: String,
         targetRequestId: String? = null,
+        reason: String? = null,
     ) {
         val state = uiState.value
         val approvalMsg =
@@ -181,6 +202,11 @@ class ChatApprovalsDelegate(
         val choice = if (action == "approve") "once" else action
         val requestId = approvalMsg.approvalInfo?.requestId
         val serverRequestId = approvalMsg.approvalInfo?.serverRequestId
+        // Only a denied folder/site request carries a reason; command approvals ignore it.
+        val denyReason =
+            reason
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() && choice == "deny" && approvalMsg.approvalInfo?.kind?.isSandbox == true }
 
         // Clear buttons immediately
         uiState.update { s ->
@@ -203,6 +229,7 @@ class ChatApprovalsDelegate(
                     buildJsonObject {
                         put("choice", choice)
                         put("all", false)
+                        if (denyReason != null) put("reason", denyReason)
                     },
                 )
                 return@launch
@@ -214,6 +241,7 @@ class ChatApprovalsDelegate(
                     choice = choice,
                     all = false,
                     requestId = requestId,
+                    reason = denyReason,
                 ),
             ) { id -> trackRequest(id, WsMethods.APPROVAL_RESPOND) }
             // The queue can hold more pendings — surface the next one.
@@ -253,7 +281,9 @@ class ChatApprovalsDelegate(
 internal fun parseApprovalMap(
     map: Map<*, *>,
     sessionId: String?,
-): WsEvent.ApprovalRequest {
+): WsEvent.ApprovalRequest? {
+    val kindFields = parseApprovalKindFields(map) ?: return null
+
     @Suppress("UNCHECKED_CAST")
     val patternKeys = (map["pattern_keys"] as? List<*>)?.filterIsInstance<String>()
 
@@ -287,5 +317,11 @@ internal fun parseApprovalMap(
         choices = choices,
         allowPermanent = allowPermanent,
         smartDenied = smartDenied,
+        kind = kindFields.kind,
+        path = kindFields.path,
+        access = kindFields.access,
+        host = kindFields.host,
+        label = kindFields.label,
+        risk = kindFields.risk,
     )
 }

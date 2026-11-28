@@ -245,6 +245,14 @@ fun MainNavigation(sessionId: String? = null) {
         }
     }
 
+    val pendingCronNotification = NavigationController.pendingCronNotification
+    LaunchedEffect(pendingCronNotification, hasToken) {
+        if (pendingCronNotification && hasToken) {
+            NavigationController.navigateTo(CronJobsScreen)
+            NavigationController.consumeCronNotification()
+        }
+    }
+
     val pendingKanban = NavigationController.pendingKanbanNavigation
     LaunchedEffect(pendingKanban, hasToken) {
         if (hasToken && pendingKanban != null) {
@@ -353,6 +361,7 @@ fun MainNavigation(sessionId: String? = null) {
             WhatsNewDialog(
                 tag = release.tagName,
                 releaseNotes = release.body,
+                releaseUrl = release.htmlUrl,
                 onDismiss = { WhatsNewNotice.dismiss() },
             )
         }

@@ -83,6 +83,11 @@ sealed class WsEvent {
             java.util.UUID
                 .randomUUID()
                 .toString(),
+        /**
+         * True when a host plugin paused this turn (`session.interrupt` with
+         * `resume`) and will continue the reply itself: it did not stop here.
+         */
+        val paused: Boolean = false,
     ) : WsEvent()
 
     data class MessageDone(
@@ -339,6 +344,18 @@ sealed class WsEvent {
         val smartDenied: Boolean? = null,
         /** JSON-RPC server-request id (`srq-*`) used for the response frame. */
         val serverRequestId: String? = null,
+        /** `command` (default), or a sandbox `access` (folder) / `network` (site) request. */
+        val kind: ApprovalKind = ApprovalKind.COMMAND,
+        /** Folder path of an `access` request. */
+        val path: String? = null,
+        /** `read` or `read_write` for an `access` request. */
+        val access: String? = null,
+        /** Host of a `network` request. */
+        val host: String? = null,
+        /** Human label of the site or folder, when the sandbox supplies one. */
+        val label: String? = null,
+        /** One-line risk note shown under the card. */
+        val risk: String? = null,
     ) : WsEvent()
 
     // ── Sudo / secret requests ─────────────────────────────────────────
@@ -464,6 +481,16 @@ sealed class WsEvent {
         val data: Map<String, Any?>? = null,
     ) : WsEvent()
 
+    /**
+     * Hosted-room change push (`groups.changed`). [roomIds] null means something process-wide moved
+     * and every open room re-reads. [broadcastId] names one broadcast: the same frame can reach a
+     * client once per open socket, and a copy needs no second read.
+     */
+    data class GroupsChanged(
+        val roomIds: List<String>?,
+        val broadcastId: String?,
+    ) : WsEvent()
+
     // ── Background job completion ──────────────────────────────────────
 
     /**
@@ -524,6 +551,19 @@ sealed class WsEvent {
     data class NotificationClear(
         val key: String,
         val sessionId: String? = null,
+    ) : WsEvent()
+
+    /**
+     * `plugin.card`: a plugin posted a durable display-only card without a model turn.
+     * [directiveName] and [directiveAttrs] are optional display metadata.
+     */
+    data class PluginCard(
+        val sessionId: String?,
+        val pluginId: String,
+        val cardId: String,
+        val text: String,
+        val directiveName: String? = null,
+        val directiveAttrs: Map<String, String> = emptyMap(),
     ) : WsEvent()
 
     // ── Replay resync (internal) ──────────────────────────────────────────

@@ -98,6 +98,7 @@ import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.StatusBadge
 import com.m57.hermescontrol.ui.common.StatusBadgeType
 import com.m57.hermescontrol.ui.common.ToastEffect
+import com.m57.hermescontrol.ui.common.maskedSecret
 import kotlinx.coroutines.launch
 import com.m57.hermescontrol.ui.common.ExpressiveButton as Button
 import com.m57.hermescontrol.ui.common.ExpressiveCircularProgressIndicator as CircularProgressIndicator
@@ -540,10 +541,8 @@ private fun EnvVarCard(
     val displayValue =
         if (isRevealed) {
             revealedValue.orEmpty()
-        } else if (config.isSet) {
-            config.redactedValue ?: "••••••••••••"
         } else {
-            stringResource(R.string.keys_label_not_configured)
+            maskedKeyValue(config) ?: stringResource(R.string.keys_label_not_configured)
         }
 
     val copiedMessage = stringResource(R.string.keys_copied_toast)
@@ -875,3 +874,5 @@ private fun RestartBanner(
         }
     }
 }
+
+internal fun maskedKeyValue(config: EnvVarConfig): String? = maskedSecret(config.isSet)

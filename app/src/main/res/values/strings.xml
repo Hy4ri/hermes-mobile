@@ -80,6 +80,15 @@
     <string name="nav_drawer_subtitle">AI Agent Control</string>
     <string name="nav_drawer_support">Support the project</string>
     <string name="whats_new_title">What\'s new in %1$s</string>
+    <string name="whats_new_section_features">New</string>
+    <string name="whats_new_section_improvements">Improvements</string>
+    <string name="whats_new_section_fixes">Fixes</string>
+    <string name="whats_new_thanks">Thanks to %1$s</string>
+    <string name="whats_new_full_release_notes">Full release notes</string>
+    <plurals name="whats_new_internal_changes">
+        <item quantity="one">%d internal change</item>
+        <item quantity="other">%d internal changes</item>
+    </plurals>
     <string name="nav_drawer_section_converse">Converse</string>
     <string name="nav_drawer_section_automate">Automate</string>
     <string name="nav_drawer_section_configure">Configure</string>
@@ -94,7 +103,6 @@
     <string name="screen_account_connectors">Connectors</string>
     <string name="screen_profiles">Profiles</string>
     <string name="screen_bots">Bots</string>
-    <string name="bots_active_now">Active Now</string>
     <string name="bots_empty_title">No Bots Found</string>
     <string name="bots_empty_description">Create an agent profile to start using Bot Mode.</string>
     <string name="bots_search_placeholder">Search bots…</string>
@@ -257,6 +265,9 @@
     <string name="notif_channel_chat_desc">Alerts for new replies from Hermes</string>
     <string name="notif_session_complete">Session finished: %1$s</string>
     <string name="notif_session_failed">Session failed: %1$s</string>
+    <string name="notif_cron_completed">Cron job finished</string>
+    <string name="notif_cron_failed">Cron job failed</string>
+    <string name="notif_cron_delivery_failed">Cron job finished, but delivery failed</string>
     <string name="action_reply">Reply</string>
 
     <!-- Chat Screen & Bubble -->
@@ -343,6 +354,7 @@
     <string name="content_desc_copied">Copied</string>
     <string name="content_desc_speak">Read aloud</string>
     <string name="content_desc_stop_speaking">Stop speaking</string>
+    <string name="tts_preparing">Generating audio</string>
     <string name="tts_error_synthesis">Could not synthesize the message audio</string>
     <string name="content_desc_edit">Edit</string>
     <string name="chat_msg_tokens">%1$s tok</string>
@@ -374,7 +386,7 @@
     <string name="settings_keep_connected_in_background_title">Stay connected in background</string>
     <string name="settings_keep_connected_in_background_desc">Keep Hermes connected while using other apps. Shows an ongoing notification and may use more battery.</string>
     <string name="settings_notify_session_completions_title">Notify when a session completes</string>
-    <string name="settings_notify_session_completions_desc">Alert when any Hermes session finishes while the app is in the background. Keeps Hermes connected in the background (ongoing notification, extra battery use) so finished sessions can alert you.</string>
+    <string name="settings_notify_session_completions_desc">Alert when Hermes reports a finished session or cron job while the app is in the background. Keeps Hermes connected in the background (ongoing notification, extra battery use).</string>
     <string name="settings_sec_behavior">Behavior</string>
     <string name="settings_item_auto_reconnect">Auto-Reconnect</string>
     <string name="settings_desc_auto_reconnect">Automatically reconnect on disconnect</string>
@@ -538,13 +550,23 @@
     <string name="kanban_complete_summary_label">Completion summary</string>
     <string name="kanban_complete_summary_hint">Stored as the task result</string>
     <string name="kanban_live">Live</string>
-    <string name="kanban_offline">Offline</string>
+    <string name="kanban_connecting">Connecting</string>
+    <string name="kanban_reconnecting">Reconnecting</string>
+    <string name="kanban_updates_manual">Manual refresh</string>
     <string name="kanban_no_tasks">No tasks</string>
     <string name="kanban_priority">Priority</string>
     <string name="kanban_priority_normal">0 (Normal)</string>
     <string name="kanban_priority_med">1 (Med)</string>
     <string name="kanban_priority_high">2 (High)</string>
     <string name="kanban_priority_urgent">3 (Urgent)</string>
+    <string name="kanban_column_triage">Triage</string>
+    <string name="kanban_column_todo">Todo</string>
+    <string name="kanban_column_scheduled">Scheduled</string>
+    <string name="kanban_column_ready">Ready</string>
+    <string name="kanban_column_running">Running</string>
+    <string name="kanban_column_blocked">Blocked</string>
+    <string name="kanban_column_review">Review</string>
+    <string name="kanban_column_done">Done</string>
     <string name="kanban_assignee">Assignee</string>
     <string name="kanban_assignee_default_suffix">%1$s (Default)</string>
     <string name="kanban_assignee_unassigned">Default (Unassigned)</string>
@@ -1427,7 +1449,10 @@
     <string name="cron_status_blocked_config">Blocked (config)</string>
     <string name="cron_status_no_change">No change</string>
     <string name="cron_edit_hint_schedule">e.g. 0 9 * * * or every 2h</string>
-    <string name="cron_edit_hint_deliver">e.g. origin, local, all, or telegram:chat_id</string>
+    <string name="cron_edit_hint_deliver">origin, local, or a connected platform</string>
+    <string name="cron_edit_support_schedule">Cron (0 9 * * *) or interval (every 30m)</string>
+    <string name="cron_edit_error_schedule_required">Schedule is required</string>
+    <string name="cron_edit_error_prompt_required">Add a prompt, skill, or script</string>
     <string name="cron_edit_hint_time">HH:MM</string>
     <string name="cron_edit_hint_skills">One per line</string>
     <string name="cron_edit_action_save">Save</string>
@@ -1519,6 +1544,13 @@
     <string name="channels_action_test">Test</string>
     <string name="channels_action_restart_now">Restart now</string>
     <string name="channels_restart_banner">Changes saved. Restart the gateway for them to take effect.</string>
+    <string name="channels_available_title">Available platforms</string>
+    <string name="channels_available_install">Install</string>
+    <string name="channels_installing">Installing</string>
+    <string name="channels_badge_official">Official</string>
+    <string name="channels_badge_verified">Verified</string>
+    <string name="channels_state_connecting">Connecting</string>
+    <string name="channels_state_needs_setup">Needs setup</string>
     <string name="channels_ingress_url">Ingress URL</string>
     <string name="channels_copy_ingress_url">Copy ingress URL</string>
     <string name="channels_relay_via">Via Team Gateway</string>
@@ -1570,6 +1602,10 @@
     <string name="auth_login_error_browser_bad_response">The dashboard returned an unexpected sign-in response.</string>
     <string name="auth_login_existing_profiles_title">Use existing logged-in profile:</string>
     <string name="auth_login_use_profile">Enter as %1$s</string>
+    <string name="auth_login_setup_guide_title">How to set up the Hermes dashboard</string>
+    <string name="auth_login_setup_step_start">On the computer that runs Hermes, run this command. The first time, choose Username &amp; password, then pick yours.</string>
+    <string name="auth_login_setup_step_connect">Back in this app, type the computer\'s IP address and port 9119 in the Server URL field, for example %1$s. Then enter the username and password from step&#160;1 here to sign in.</string>
+    <string name="auth_login_setup_full_guide">Full setup guide</string>
 
     <!-- Landing Screen -->
     <string name="landing_title">Hermes Mobile</string>
@@ -1695,7 +1731,7 @@
     <string name="context_window">Context window</string>
     <string name="context_window_usage_unavailable">Context window usage unavailable</string>
     <string name="gif_play">Play GIF</string>
-    <string name="kanban_filter_placeholder">Filter tasks by title, status, or assignee...</string>
+    <string name="kanban_filter_placeholder">Filter tasks…</string>
     <string name="logs_clipboard_label">Hermes Logs</string>
     <string name="logs_search_placeholder">Search logs...</string>
     <string name="mcp_no_match">No servers match &quot;%1$s&quot;</string>
@@ -1707,6 +1743,8 @@
 
     <!-- Timeline markers (issue #904) -->
     <string name="timeline_marker_model_switch">Model switched</string>
+    <string name="plugin_card_from">Plugin · %1$s</string>
+    <string name="plugin_card_cd">Card from plugin %1$s</string>
     <string name="timeline_marker_model_switch_to">Model switched to %1$s</string>
     <string name="timeline_marker_personality_switch">Personality switched</string>
     <string name="timeline_marker_auto_continue">Turn auto-continued</string>
@@ -2267,4 +2305,32 @@
     <string name="hosted_context_purpose_count">%1$d / %2$d characters</string>
     <string name="hosted_context_notes_count">%1$d / %2$d bytes</string>
     <string name="hosted_context_save_failed">Save not confirmed. Your draft is unchanged. Retry to submit it again.</string>
+    <string name="chat_model_label">Model</string>
+    <string name="chat_mic">Microphone</string>
+    <string name="chat_stop_listening">Stop listening</string>
+    <string name="chat_reasoning_none_label">No reasoning</string>
+    <string name="chat_reasoning_section">REASONING</string>
+    <string name="chat_reasoning_always_on">reasoning always on</string>
+    <string name="chat_reasoning_unsupported">no reasoning parameter for this model</string>
+    <string name="chat_menu_switch_connection_hint">Switch connection</string>
+    <string name="chat_connection_switcher_title">Switch connection</string>
+    <string name="chat_connection_switcher_open_settings">Connection settings</string>
+    <string name="chat_connection_active_desc">Active connection</string>
+    <string name="notif_folder_access_needed">Folder access needed</string>
+    <string name="notif_site_access_needed">Website access needed</string>
+    <string name="notif_action_allow">Allow</string>
+    <string name="notif_allow_sent">Allow sent to Hermes</string>
+    <string name="approval_folder_title">Folder access</string>
+    <string name="approval_site_title">Website access</string>
+    <string name="approval_access_read">Read only</string>
+    <string name="approval_access_read_write">Read and write</string>
+    <string name="approval_allow">Allow</string>
+    <string name="approval_always_allow">Always allow</string>
+    <string name="approval_deny">Deny</string>
+    <string name="approval_always_confirm_title">Always allow this?</string>
+    <string name="approval_always_confirm_body">This stays allowed without asking again until you change it.</string>
+    <string name="approval_deny_title">Deny access</string>
+    <string name="approval_deny_reason_label">Reason (optional)</string>
+    <string name="approval_deny_confirm">Deny</string>
+    <string name="chat_reply_continuing">Continuing…</string>
 </resources>

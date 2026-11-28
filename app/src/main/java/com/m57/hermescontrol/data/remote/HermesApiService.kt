@@ -13,6 +13,7 @@ import com.m57.hermescontrol.data.model.AuxiliaryModelsResponse
 import com.m57.hermescontrol.data.model.BackupTriggerRequest
 import com.m57.hermescontrol.data.model.BulkDeleteRequest
 import com.m57.hermescontrol.data.model.BulkDeleteResponse
+import com.m57.hermescontrol.data.model.ChatImageUploadResponse
 import com.m57.hermescontrol.data.model.CheckpointsResponse
 import com.m57.hermescontrol.data.model.ConfigSchemaResponse
 import com.m57.hermescontrol.data.model.ConfigUpdateRequest
@@ -80,6 +81,8 @@ import com.m57.hermescontrol.data.model.MemoryProviderSetupResponse
 import com.m57.hermescontrol.data.model.MemoryResetRequest
 import com.m57.hermescontrol.data.model.MemoryResetResponse
 import com.m57.hermescontrol.data.model.MemoryResponse
+import com.m57.hermescontrol.data.model.MessagingCatalogInstallRequest
+import com.m57.hermescontrol.data.model.MessagingCatalogInstallResponse
 import com.m57.hermescontrol.data.model.MessagingPlatformResponse
 import com.m57.hermescontrol.data.model.MessagingPlatformTestResult
 import com.m57.hermescontrol.data.model.MessagingPlatformUpdate
@@ -402,7 +405,9 @@ interface HermesApiService : KanbanApiService {
     ): Response<LockSkillResponse>
 
     @GET("api/cron/jobs")
-    suspend fun getCronJobs(): Response<List<CronJob>>
+    suspend fun getCronJobs(
+        @Query("profile") profile: String? = null,
+    ): Response<List<CronJob>>
 
     @POST("api/cron/jobs/{id}/pause")
     suspend fun pauseCronJob(
@@ -785,6 +790,13 @@ interface HermesApiService : KanbanApiService {
         @Body config: MessagingPlatformUpdate,
     ): Response<MessagingPlatformUpdateResponse>
 
+    /** Catalog install clones and resolves deps; call through [com.m57.hermescontrol.data.remote.ApiClient.messagingCatalogApi]. */
+    @POST("api/messaging/catalog/{name}/install")
+    suspend fun installMessagingCatalogPlatform(
+        @Path("name") name: String,
+        @Body body: MessagingCatalogInstallRequest = MessagingCatalogInstallRequest(),
+    ): Response<MessagingCatalogInstallResponse>
+
     @POST("api/messaging/platforms/{platform_id}/test")
     suspend fun testMessagingPlatform(
         @Path("platform_id") platformId: String,
@@ -1097,6 +1109,13 @@ interface HermesApiService : KanbanApiService {
         @Part file: okhttp3.MultipartBody.Part,
     ): Response<ManagedFileActionResponse>
 
+    // `{"data_url", "filename"}` JSON, streamed by the caller so a large image never sits in memory.
+    @POST("api/chat/image-upload")
+    suspend fun uploadChatImage(
+        @Query("profile") profile: String?,
+        @Body body: okhttp3.RequestBody,
+    ): Response<ChatImageUploadResponse>
+
     @POST("api/files/mkdir")
     suspend fun createManagedDirectory(
         @Body body: ManagedDirectoryCreate,
@@ -1116,6 +1135,9 @@ interface HermesApiService : KanbanApiService {
     suspend fun transcribeAudio(
         @Body body: AudioTranscriptionRequest,
     ): Response<AudioTranscriptionResponse>
+
+    @POST("api/auth/ws-ticket")
+    suspend fun mintSpeechTicket(): Response<com.m57.hermescontrol.data.ws.WsTicketResponse>
 
     @POST("api/audio/speak")
     suspend fun speakText(

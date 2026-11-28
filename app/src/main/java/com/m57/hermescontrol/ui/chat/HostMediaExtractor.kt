@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.ui.chat
 
+import com.m57.hermescontrol.data.remote.GatewayFileClient
+
 /**
  * Issue #724: parse agent-delivered `MEDIA:<path>` directives out of message
  * text so they can be attached (and rendered) as real files.
@@ -60,26 +62,7 @@ internal object HostMediaExtractor {
             .trim()
     }
 
-    /** Expand ~/ and verify the path is absolute. Null if not an absolute path. */
-    internal fun normalizePath(raw: String): String? {
-        val trimmed =
-            raw
-                .trim()
-                .removeSurrounding("`")
-                .removeSurrounding("\"")
-                .removeSurrounding("'")
-        val expanded =
-            if (trimmed.startsWith("~")) {
-                val home = System.getenv("HOME") ?: return null
-                home + trimmed.removePrefix("~")
-            } else {
-                trimmed
-            }
-        if (!expanded.startsWith("/") &&
-            !Regex("^[A-Za-z]:[/\\\\]").containsMatchIn(expanded)
-        ) {
-            return null
-        }
-        return expanded
-    }
+    /** The gateway path of a directive, or null if it is not absolute or `~/`-relative.
+     * A leading `~` stays for the gateway to expand (#1861). */
+    internal fun normalizePath(raw: String): String? = GatewayFileClient.normalizePath(raw)
 }

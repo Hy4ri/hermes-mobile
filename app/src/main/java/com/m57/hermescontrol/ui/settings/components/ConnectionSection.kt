@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
@@ -60,94 +61,14 @@ internal fun ConnectionSection(
             Spacer(modifier = Modifier.height(4.dp))
 
             state.profiles.forEach { profile ->
-                val isActive = profile.id == state.selectedProfileId
-                Card(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 2.dp)
-                            .clickable(role = Role.Button) { viewModel.selectProfile(profile.id) },
-                    colors =
-                        CardDefaults.cardColors(
-                            containerColor =
-                                if (isActive) {
-                                    MaterialTheme.colorScheme.primaryContainer
-                                } else {
-                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                                },
-                        ),
-                    border =
-                        if (isActive) {
-                            BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
-                        } else {
-                            BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                        },
-                    elevation = CardDefaults.cardElevation(0.dp),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = profile.name,
-                                style =
-                                    MaterialTheme.typography.bodyMedium.copy(
-                                        fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
-                                    ),
-                                color =
-                                    if (isActive) {
-                                        MaterialTheme.colorScheme.onPrimaryContainer
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurface
-                                    },
-                            )
-                            Text(
-                                text = profile.resolveBaseUrl(state.baseUrl),
-                                style =
-                                    MaterialTheme.typography.bodySmall.copy(
-                                        color =
-                                            if (isActive) {
-                                                MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                                            } else {
-                                                MaterialTheme.colorScheme.onSurfaceVariant
-                                            },
-                                    ),
-                            )
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(0.dp)) {
-                            HermesTooltip(stringResource(R.string.settings_action_edit_profile)) {
-                                IconButton(
-                                    onClick = { viewModel.openEditProfile(profile.id) },
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Edit,
-                                        contentDescription = stringResource(R.string.settings_action_edit_profile),
-                                        modifier = Modifier.size(18.dp),
-                                        tint =
-                                            if (isActive) {
-                                                MaterialTheme.colorScheme.onPrimaryContainer
-                                            } else {
-                                                MaterialTheme.colorScheme.onSurfaceVariant
-                                            },
-                                    )
-                                }
-                            }
-                            HermesTooltip(stringResource(R.string.content_desc_delete_profile)) {
-                                IconButton(
-                                    onClick = { viewModel.requestDeleteProfile(profile.id) },
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Close,
-                                        contentDescription = stringResource(R.string.content_desc_delete_profile),
-                                        tint = MaterialTheme.colorScheme.error,
-                                        modifier = Modifier.size(18.dp),
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
+                SavedProfileRow(
+                    name = profile.name,
+                    url = profile.resolveBaseUrl(state.baseUrl),
+                    isActive = profile.id == state.selectedProfileId,
+                    onSelect = { viewModel.selectProfile(profile.id) },
+                    onEdit = { viewModel.openEditProfile(profile.id) },
+                    onDelete = { viewModel.requestDeleteProfile(profile.id) },
+                )
             }
         }
 
@@ -190,6 +111,106 @@ internal fun ConnectionSection(
             onConfirm = viewModel::confirmDeleteProfile,
             onDismiss = viewModel::cancelDeleteProfile,
         )
+    }
+}
+
+@Composable
+internal fun SavedProfileRow(
+    name: String,
+    url: String,
+    isActive: Boolean,
+    onSelect: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = 2.dp)
+                .clickable(role = Role.Button) { onSelect() },
+        colors =
+            CardDefaults.cardColors(
+                containerColor =
+                    if (isActive) {
+                        MaterialTheme.colorScheme.primaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                    },
+            ),
+        border =
+            if (isActive) {
+                BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
+            } else {
+                BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+            },
+        elevation = CardDefaults.cardElevation(0.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = name,
+                    style =
+                        MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
+                        ),
+                    color =
+                        if (isActive) {
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        },
+                )
+                Text(
+                    text = url,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style =
+                        MaterialTheme.typography.bodySmall.copy(
+                            color =
+                                if (isActive) {
+                                    MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                        ),
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(0.dp)) {
+                HermesTooltip(stringResource(R.string.settings_action_edit_profile)) {
+                    IconButton(
+                        onClick = onEdit,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Edit,
+                            contentDescription = stringResource(R.string.settings_action_edit_profile),
+                            modifier = Modifier.size(18.dp),
+                            tint =
+                                if (isActive) {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                        )
+                    }
+                }
+                HermesTooltip(stringResource(R.string.content_desc_delete_profile)) {
+                    IconButton(
+                        onClick = onDelete,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = stringResource(R.string.content_desc_delete_profile),
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

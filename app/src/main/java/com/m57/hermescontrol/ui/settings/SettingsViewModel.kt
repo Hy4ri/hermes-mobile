@@ -460,6 +460,20 @@ class SettingsViewModel(
         _uiState.update { it.copy(keepConnectedInBackground = enabled) }
     }
 
+    /** Reconcile saved connections with changes made through Connection Settings or sign-in. */
+    fun refreshConnectionProfiles() {
+        val selectedId = AuthManager.getSelectedProfileId()
+        val baseUrl = AuthManager.getBaseUrl()
+        val profiles = AuthManager.getConnectionProfiles()
+        _uiState.update {
+            it.copy(
+                baseUrl = baseUrl,
+                profiles = profiles,
+                selectedProfileId = selectedId,
+            )
+        }
+    }
+
     /** Clear all auth credentials — logs out and returns to landing screen. */
     fun logout() {
         AuthManager.setToken(null)

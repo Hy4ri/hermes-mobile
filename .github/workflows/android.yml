@@ -1,14 +1,9 @@
 name: Android CI/CD
 # Stable PR identity for recovery when GitHub omits fork run.pull_requests (#1506).
 run-name: >-
-  ${{ github.event_name == 'pull_request' && format('Android CI PR #{0}', github.event.pull_request.number) || format('Android CI {0}', github.ref_name) }}
-
-env:
-  GRADLE_CACHE_ENCRYPTED_KEY: ${{ secrets.GRADLE_ENCRYPTED_KEY }}
+  ${{ github.event_name == 'pull_request' && format('Android CI PR #{0}', github.event.pull_request.number) || format('Manual Android CI {0}', github.ref_name) }}
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -16,17 +11,15 @@ on:
 permissions:
   contents: read
 
-# Cancel in-progress runs when a new commit lands on the same PR branch.
-# On main (push events), each commit gets a unique group so rapid merges
-# don't cancel each other's CI runs.
+# New commits supersede in-flight checks for the same PR, not other PRs.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: true
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────
-  # Job -1: PR template gate — runs alongside Detect Changes; a failure skips
-  # every expensive job (lint/tests/build) but not the cheap ones.
+  # A failed template blocks lint/tests but not the contributor's review APK
+  # or release compile check.
   # Uses the base branch's copy of the script so a PR cannot weaken its own check.
   # The explanatory bot comment is posted by pr-template.yml.
   # Re-running this job re-reads the current PR body (see the step below).
@@ -66,18 +59,24 @@ jobs:
     name: Detect Changes
     runs-on: ubuntu-latest
     timeout-minutes: 3
+    permissions:
+      pull-requests: read
     outputs:
-      code: ${{ steps.filter.outputs.code }}
+      code: ${{ steps.manual.outputs.code || steps.filter.outputs.code }}
+      tooling: ${{ steps.manual.outputs.tooling || steps.filter.outputs.tooling }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
+      # Inline filters use the PR files API; a manual dispatch runs everything.
       - name: Paths Filter
+        if: github.event_name == 'pull_request'
         uses: dorny/paths-filter@v4
         id: filter
         with:
+          predicate-quantifier: some-with-excludes
           filters: |
             code:
               - 'app/**'
+              # Theme documentation lives beside Kotlin sources, not assets.
+              - '!app/src/main/java/**/*.md'
               - 'gradle/**'
               - 'build.gradle.kts'
               - 'settings.gradle.kts'
@@ -88,6 +87,27 @@ jobs:
               - '.editorconfig'
               - 'flake.nix'
               - 'flake.lock'
+            tooling:
+              - '.github/scripts/**'
+              - '.github/workflows/**'
+              - 'scripts/sync-gateway-contract.sh'
+      - name: Select all checks for manual runs
+        if: github.event_name == 'workflow_dispatch'
+        id: manual
+        run: printf '%s\n' 'code=true' 'tooling=true' >> "$GITHUB_OUTPUT"
+
+  tooling-tests:
+    name: Tooling Regression Tests
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.result == 'success' && needs.changes.outputs.tooling == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Run offline tooling tests
+        run: python3 -m unittest discover -s .github/scripts -p 'test_*.py' -v
 
   # ─────────────────────────────────────────────────────────────────────
   # Job 1: ktlint (code style) — fastest feedback, runs in parallel.
@@ -95,7 +115,11 @@ jobs:
   ktlint:
     name: ktlint — Code Style
     needs: [pr-template, changes]
-    if: ${{ !cancelled() && needs.pr-template.result != 'failure' && needs.changes.outputs.code == 'true' }}
+    if: >-
+      !cancelled() &&
+      needs.changes.result == 'success' &&
+      needs.changes.outputs.code == 'true' &&
+      (needs.pr-template.result == 'success' || needs.pr-template.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -133,7 +157,7 @@ jobs:
           mv ktlint ~/.local/bin/
 
       - name: Add local bin to PATH
-        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Run ktlintCheck + checkColorLiterals (hardcoded Color guard, issue #622)
         run: ./gradlew ktlintCheck checkColorLiterals --continue
@@ -156,7 +180,11 @@ jobs:
   android-lint:
     name: Android Lint — Static Analysis
     needs: [pr-template, changes]
-    if: ${{ !cancelled() && needs.pr-template.result != 'failure' && needs.changes.outputs.code == 'true' }}
+    if: >-
+      !cancelled() &&
+      needs.changes.result == 'success' &&
+      needs.changes.outputs.code == 'true' &&
+      (needs.pr-template.result == 'success' || needs.pr-template.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -195,7 +223,11 @@ jobs:
   unit-tests:
     name: Unit & Integration Tests
     needs: [pr-template, changes]
-    if: ${{ !cancelled() && needs.pr-template.result != 'failure' && needs.changes.outputs.code == 'true' }}
+    if: >-
+      !cancelled() &&
+      needs.changes.result == 'success' &&
+      needs.changes.outputs.code == 'true' &&
+      (needs.pr-template.result == 'success' || needs.pr-template.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -254,7 +286,7 @@ jobs:
     name: Build Debug APK
     # Not gated on pr-template: contributors need the APK to take the screenshots the template asks for.
     needs: [changes]
-    if: ${{ !cancelled() && needs.changes.outputs.code == 'true' }}
+    if: ${{ !cancelled() && needs.changes.result == 'success' && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -298,7 +330,7 @@ jobs:
     name: Release Compile Check
     # Not gated on pr-template, same as build: a release-only compile error shows before the template is fixed.
     needs: [changes]
-    if: ${{ !cancelled() && needs.changes.outputs.code == 'true' }}
+    if: ${{ !cancelled() && needs.changes.result == 'success' && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -331,7 +363,11 @@ jobs:
   instrumented-tests:
     name: Instrumented Tests
     needs: [pr-template, changes]
-    if: ${{ !cancelled() && needs.pr-template.result != 'failure' && needs.changes.outputs.code == 'true' }}
+    if: >-
+      !cancelled() &&
+      needs.changes.result == 'success' &&
+      needs.changes.outputs.code == 'true' &&
+      (needs.pr-template.result == 'success' || needs.pr-template.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -391,58 +427,64 @@ jobs:
           retention-days: 7
 
   # ─────────────────────────────────────────────────────────────────────
-  # Job 7: PR status summary — aggregates all checks.
+  # Sole required check. A skip is valid only when the job was not selected.
   # ─────────────────────────────────────────────────────────────────────
   ci-summary:
-    name: CI Summary
-    needs: [pr-template, changes, ktlint, android-lint, unit-tests, build, release-compile, instrumented-tests]
+    name: ${{ github.event_name == 'pull_request' && 'CI Summary' || 'Manual CI Summary' }}
+    needs:
+      - pr-template
+      - changes
+      - tooling-tests
+      - ktlint
+      - android-lint
+      - unit-tests
+      - build
+      - release-compile
+      - instrumented-tests
     runs-on: ubuntu-latest
     timeout-minutes: 2
     if: always()
-    permissions:
-      contents: read
-      pull-requests: write
     steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts
       - name: Check job results
         env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          TEMPLATE_RESULT: ${{ needs.pr-template.result }}
-          KTLINT_RESULT: ${{ needs.ktlint.result }}
-          LINT_RESULT: ${{ needs.android-lint.result }}
-          TEST_RESULT: ${{ needs.unit-tests.result }}
-          BUILD_RESULT: ${{ needs.build.result }}
-          RELEASE_COMPILE_RESULT: ${{ needs.release-compile.result }}
-          INSTRUMENTED_RESULT: ${{ needs.instrumented-tests.result }}
-        run: |
-          LABEL="ci-red"
-          FAILED=0
-          FAILED_JOBS=""
-          for entry in "pr-template:$TEMPLATE_RESULT" "ktlint:$KTLINT_RESULT" "android-lint:$LINT_RESULT" "unit-tests:$TEST_RESULT" "build:$BUILD_RESULT" "release-compile:$RELEASE_COMPILE_RESULT" "instrumented-tests:$INSTRUMENTED_RESULT"; do
-            name="${entry%%:*}"
-            result="${entry#*:}"
-            echo "::notice::$name = $result"
-            if [[ "$result" != "success" && "$result" != "skipped" ]]; then
-              FAILED=1
-              FAILED_JOBS+="$name "
-            fi
-          done
+          CI_NEEDS: ${{ toJSON(needs) }}
+          CI_TEMPLATE_REQUIRED: ${{ github.event_name == 'pull_request' && github.event.pull_request.user.login != 'Hy4ri' && 'true' || 'false' }}
+        run: python3 .github/scripts/check_ci_summary.py
 
-          # Label the PR so red CI is visible at a glance; remove it once green.
-          # Only PR events carry a PR number — pushes to main have nothing to label.
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            PR=${{ github.event.pull_request.number }}
-            if [[ "$FAILED" -eq 1 ]]; then
-              gh api -X POST "repos/$GH_REPO/issues/$PR/labels" -f "labels[]=$LABEL" --silent \
-                && echo "::notice::Added \"$LABEL\" to PR #$PR (failed: ${FAILED_JOBS% })"
-            else
-              # Fails if the label isn't present — that's fine, ignore it.
-              gh api -X DELETE "repos/$GH_REPO/issues/$PR/labels/$LABEL" --silent 2>/dev/null || true
-            fi
-          fi
-
-          if [[ "$FAILED" -eq 1 ]]; then
-            echo "::error::CI failed (${FAILED_JOBS% }) — check individual job logs"
-            exit 1
-          fi
-          echo "All CI jobs passed ✅"
+  label-ci:
+    name: Update CI Label
+    needs: ci-summary
+    # Fork PR tokens are read-only; the check itself is visible on every PR.
+    if: >-
+      !cancelled() &&
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (needs.ci-summary.result == 'failure' || needs.ci-summary.result == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/github-script@v9
+        env:
+          CI_RESULT: ${{ needs.ci-summary.result }}
+        with:
+          script: |
+            const issue = { ...context.repo, issue_number: context.issue.number };
+            const label = 'ci-red';
+            const failed = process.env.CI_RESULT === 'failure';
+            try {
+              if (failed) {
+                await github.rest.issues.addLabels({ ...issue, labels: [label] });
+              } else {
+                await github.rest.issues.removeLabel({ ...issue, name: label });
+              }
+            } catch (error) {
+              if (failed || error.status !== 404) {
+                core.warning(`Could not update the CI label: ${error.message}`);
+              }
+            }

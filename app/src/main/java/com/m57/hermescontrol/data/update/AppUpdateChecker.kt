@@ -26,6 +26,8 @@ import java.util.concurrent.ConcurrentHashMap
 data class UpdateInfo(
     val tagName: String = "",
     val body: String = "",
+    /** The release page on GitHub; blank in caches written before this field existed. */
+    val htmlUrl: String = "",
     /** GitHub release flags: a draft is unpublished, a prerelease is pre-stable. */
     val draft: Boolean = false,
     val prerelease: Boolean = false,

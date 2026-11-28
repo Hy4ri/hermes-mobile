@@ -12,7 +12,8 @@ object MarkdownMediaResolver {
         }
         val baseUrl = runCatching { AuthManager.getBaseUrl() }.getOrDefault("")
         val token = runCatching { AuthManager.getToken() }.getOrNull().orEmpty()
-        val mediaUrl = GatewayFileClient.buildMediaUrl(baseUrl, token, trimmed)
+        val profile = runCatching { AuthManager.activeProfileId.value }.getOrNull()
+        val mediaUrl = GatewayFileClient.buildMediaUrl(baseUrl, token, trimmed, profile)
         if (mediaUrl != null) return mediaUrl
 
         if (baseUrl.isNotBlank() && (trimmed.startsWith("/api/") || trimmed.startsWith("api/"))) {

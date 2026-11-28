@@ -31,7 +31,10 @@ Every change must go through a pull request (PR) targeting the `main` branch. Do
    - CI/chore: `ci/...`, `chore/...`
 3. **Implement your changes** and format them locally (see Code Style).
 4. **Submit a PR** targeting the `main` branch, filling the PR template.
-5. **Ensure all CI checks pass** (ktlint, Android Lint, unit tests, build).
+5. **Ensure CI Summary passes.** App and build changes run the full Android checks
+   and produce a review APK. Tooling changes run offline regression tests. Docs-only
+   changes still get a summary without running Android checks. After merge, only
+   app and build changes trigger Android Main Smoke on the merged commit.
 6. **Rebase onto `main` before merge.** Run `git fetch origin main && git rebase origin/main`, resolve conflicts carefully, and re-run verification on the rebased result. Maintainers squash-merge; green CI does not by itself authorize a merge.
 
 ### Fixing a blocked PR description
@@ -55,7 +58,7 @@ can rerun Android CI directly if needed; repeating recovery will not reuse that
 reservation. Older fork runs without the PR-number run name cannot be associated
 safely; a fresh push/reopen is needed to use the newer workflow.
 
-Run the offline automation tests with:
+Run the offline tooling tests (including release-verifier checks) with:
 `python3 -m unittest discover -s .github/scripts -p 'test_*.py' -v`.
 
 ---

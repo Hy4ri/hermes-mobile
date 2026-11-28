@@ -153,6 +153,13 @@ internal class TranscriptComparison(
         if (a.role != b.role) return false
         // #1285: two proven row ids decide identity; a missing one is unproven, so fall through.
         if (a.serverRowId != null && b.serverRowId != null) return a.serverRowId == b.serverRowId
+        // A live plugin card has no server row yet. Match the history echo by card identity,
+        // not by the model-facing fallback text.
+        if (a.pluginCard != null || b.pluginCard != null) {
+            val left = a.pluginCard
+            val right = b.pluginCard
+            return left != null && right != null && left.pluginId == right.pluginId && left.cardId == right.cardId
+        }
         val aRestId = a.canonicalRestId
         val bRestId = b.canonicalRestId
         if (aRestId != null && bRestId != null) return aRestId == bRestId
@@ -295,18 +302,20 @@ internal fun matchTranscriptMessages(
         }
     }
     matchRewrittenUserRows(incoming, existing, comparison, used, matches, supersededRowIds)
+    matchReissuedRows(incoming, existing, comparison, used, matches, supersededRowIds)
     return matches.toList()
 }
 
 /**
- * #1520: gateway row ids of known USER rows that the newest server page proves were re-issued.
+ * #1520: gateway row ids of known rows that the newest server page proves were re-issued.
+ * #1831: compaction re-issues assistant and tool rows too, not only USER rows.
  * The newest page holds every displayed row from its oldest timestamp onward, and compaction keeps
  * timestamps. A known row clearly newer than that boundary whose id the page lacks is no longer
  * displayed under that id. Only the newest page qualifies; an older page proves nothing.
  * A [pageIsComplete] page (short of the page limit) holds the whole transcript, so the timestamp
  * boundary is moot: it also covers the session's first sends, which sit at the boundary itself.
  */
-internal fun supersededUserRowIds(
+internal fun reissuedRowIds(
     page: List<ChatMessage>,
     current: List<ChatMessage>,
     pageIsNewest: Boolean,
@@ -317,11 +326,18 @@ internal fun supersededUserRowIds(
     val boundary = page.filter { it.serverRowId != null }.minOfOrNull { it.timestamp } ?: return emptySet()
     return current
         .asSequence()
-        .filter { it.role == MessageRole.USER && !it.isPermanentlyLocal() }
+        .filter { !it.isPermanentlyLocal() }
         .filter { pageIsComplete || it.timestamp - REWRITTEN_ROW_WINDOW_MS > boundary }
-        .mapNotNull { it.serverRowId }
+        .mapNotNull { it.knownRowId }
         .filterTo(mutableSetOf()) { it !in pageRowIds }
 }
+
+/** #1831: the gateway row id. The Room cache does not keep serverRowId, but a canonical REST id ends with it. */
+private val ChatMessage.knownRowId: Long?
+    get() = serverRowId ?: canonicalRestId?.substringAfterLast('-')?.toLongOrNull()
+
+/** Content-only copy for re-issue matching: a re-issued row shares no id, REST id, or completion with its original. */
+private fun ChatMessage.withoutIdentity() = copy(id = "", restId = null, serverRowId = null, completionId = null)
 
 /** Clock skew between phone and gateway plus send latency; a rewritten row keeps its original timestamp. */
 private const val REWRITTEN_ROW_WINDOW_MS = 120_000L
@@ -345,14 +361,14 @@ private fun matchRewrittenUserRows(
     ) = a.role == MessageRole.USER && b.role == MessageRole.USER &&
         a.displayKind != DisplayKind.CLARIFY_RESPONSE && b.displayKind != DisplayKind.CLARIFY_RESPONSE &&
         !a.isPermanentlyLocal() && !b.isPermanentlyLocal() && a.content.isNotBlank() &&
-        comparison.same(a.copy(restId = null, serverRowId = null), b.copy(restId = null, serverRowId = null)) &&
+        comparison.same(a.withoutIdentity(), b.withoutIdentity()) &&
         kotlin.math.abs(a.timestamp - b.timestamp) <= REWRITTEN_ROW_WINDOW_MS
 
     // #1520: a delivered (receipt-backed) row is never "restored", but its proven-superseded id qualifies.
     val restored =
         existing.indices.filter {
             !used[it] && existing[it].role == MessageRole.USER &&
-                (existing[it].isRestoredUnconfirmed || existing[it].serverRowId in supersededRowIds)
+                (existing[it].isRestoredUnconfirmed || existing[it].knownRowId in supersededRowIds)
         }
     if (restored.isEmpty()) return
     val open =
@@ -369,6 +385,79 @@ private fun matchRewrittenUserRows(
             matches[single] = existing[candidate]
         }
     }
+}
+
+/**
+ * #1831: compaction re-issues the ids of every kept row. Both copies carry a gateway id, so the content pass
+ * treats them as separate occurrences and the stale assistant and tool rows render a second time. Once the
+ * newest page proves a known row's id is gone, pair it with its re-issued copy: same role, same content with
+ * identity removed, timestamps inside [REWRITTEN_ROW_WINDOW_MS]. Compaction keeps row order, so both sides are
+ * walked in transcript order and repeated segments pair one to one.
+ */
+private fun matchReissuedRows(
+    incoming: List<ChatMessage>,
+    existing: List<ChatMessage>,
+    comparison: TranscriptComparison,
+    used: BooleanArray,
+    matches: Array<ChatMessage?>,
+    supersededRowIds: Set<Long>,
+) {
+    if (supersededRowIds.isEmpty()) return
+    val stale =
+        existing.indices.filter {
+            !used[it] && existing[it].role != MessageRole.USER && existing[it].knownRowId in supersededRowIds
+        }
+    val open =
+        incoming.indices.filter {
+            matches[it] == null && incoming[it].role != MessageRole.USER && incoming[it].serverRowId != null
+        }
+    var next = 0
+    for (candidate in stale) {
+        val old = existing[candidate]
+        val hit =
+            (next until open.size).firstOrNull { position ->
+                val copy = incoming[open[position]]
+                copy.role == old.role &&
+                    kotlin.math.abs(copy.timestamp - old.timestamp) <= REWRITTEN_ROW_WINDOW_MS &&
+                    comparison.same(copy.withoutIdentity(), old.withoutIdentity())
+            } ?: continue
+        used[candidate] = true
+        matches[open[hit]] = old
+        next = hit + 1
+    }
+}
+
+/**
+ * #1831: once a sync has stored a re-issued copy, the cache holds both copies, and every further compaction
+ * adds one more. The newest copy matches its page row by id, so the stale originals have no open row left to
+ * pair with and render as duplicates, even after reopen. Drop a proven-superseded row when the page already
+ * shows a copy of it: same role, same content with identity removed, timestamps inside [REWRITTEN_ROW_WINDOW_MS].
+ * Several stale generations can share one copy, so this is not one to one. Returns stale id to the copy.
+ */
+private fun reissuedDuplicates(
+    incoming: List<ChatMessage>,
+    current: List<ChatMessage>,
+    matches: List<ChatMessage?>,
+    supersededRowIds: Set<Long>,
+): Map<String, ChatMessage> {
+    if (supersededRowIds.isEmpty()) return emptyMap()
+    val matchedIds = matches.mapNotNullTo(mutableSetOf()) { it?.id }
+    val stale =
+        current.filter { it.id !in matchedIds && !it.isPermanentlyLocal() && it.knownRowId in supersededRowIds }
+    if (stale.isEmpty()) return emptyMap()
+    val comparison = TranscriptComparison()
+    val shown = incoming.filterIndexed { index, _ -> matches[index] != null }.map { it to it.withoutIdentity() }
+    return stale
+        .mapNotNull { old ->
+            val bare = old.withoutIdentity()
+            shown
+                .filter { (copy, copyBare) ->
+                    copy.role == old.role &&
+                        kotlin.math.abs(copy.timestamp - old.timestamp) <= REWRITTEN_ROW_WINDOW_MS &&
+                        comparison.same(copyBare, bare)
+                }.minByOrNull { (copy, _) -> kotlin.math.abs(copy.timestamp - old.timestamp) }
+                ?.let { (copy, _) -> old.id to copy }
+        }.toMap()
 }
 
 /**
@@ -578,7 +667,8 @@ internal fun mergeTranscriptWithLive(
             contentMatchExcludedIds = contentMatchExcludedIds,
             supersededRowIds = supersededRowIds,
         )
-    val consumed = matches.mapNotNull { it?.id }.toSet()
+    val reissuedDuplicates = reissuedDuplicates(incoming, current, matches, supersededRowIds)
+    val consumed = matches.mapNotNull { it?.id }.toSet() + reissuedDuplicates.keys
     val merged =
         incoming.mapIndexed { index, message ->
             val match = matches[index]
@@ -667,11 +757,13 @@ internal fun mergeTranscriptWithLive(
     // copy is also present. Fold that now-confirmed echo without changing the live key.
     // The page has already consumed its content matches; consuming another would
     // collapse a separate repeated occurrence. Only confirmed identities can fold here.
+    // #1831: a dropped stale row hands its position to its copy, so local rows anchored after it stay put.
     val resolvedOrders =
         incoming.indices
             .mapNotNull { index ->
                 matches[index]?.id?.let { id -> incoming[index].canonicalOrder?.let { id to it } }
-            }.toMap()
+            }.toMap() +
+            reissuedDuplicates.mapNotNull { (id, copy) -> copy.canonicalOrder?.let { id to it } }
     return dedupeCachedMessages(
         transcript.inTranscriptOrder(
             previous = current,

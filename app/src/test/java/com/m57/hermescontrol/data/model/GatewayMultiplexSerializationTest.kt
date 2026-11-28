@@ -65,6 +65,50 @@ class GatewayMultiplexSerializationTest {
         assertEquals("telegram", hotServed.platform)
         assertTrue(hotServed.hotServed)
         assertFalse(oldResponse.hotServed)
+        assertEquals(null, oldResponse.live)
+    }
+
+    @Test
+    fun `messaging platform update decodes live verdict and falls back when omitted`() {
+        val live =
+            json.decodeFromString<MessagingPlatformUpdateResponse>(
+                """
+                {"ok": true, "platform": "telegram", "hot_served": false,
+                 "live": {"applied": false, "state": "pending_restart", "detail": "adapter build failed"}}
+                """.trimIndent(),
+            )
+        val omitted =
+            json.decodeFromString<MessagingPlatformUpdateResponse>(
+                """{"ok": true, "platform": "telegram", "hot_served": true}""",
+            )
+
+        assertEquals(false, live.live?.applied)
+        assertEquals("pending_restart", live.live?.state)
+        assertEquals("adapter build failed", live.live?.detail)
+        assertEquals(null, omitted.live)
+        assertTrue(omitted.hotServed)
+    }
+
+    @Test
+    fun `messaging platforms response decodes available catalog rows and defaults when absent`() {
+        val withAvailable =
+            json.decodeFromString<MessagingPlatformResponse>(
+                """
+                {"env_path": "/tmp/.env", "gateway_start_command": "hermes gateway start",
+                 "platforms": [],
+                 "available": [{"name": "discord", "title": "Discord", "summary": "Chat",
+                   "badge": "official", "blocked": "", "blocked_reason": "",
+                   "disclosure": "", "install_command": "hermes plugins install discord"}]}
+                """.trimIndent(),
+            )
+        val old =
+            json.decodeFromString<MessagingPlatformResponse>(
+                """{"env_path": "/tmp/.env", "gateway_start_command": "hermes gateway start", "platforms": []}""",
+            )
+
+        assertEquals("discord", withAvailable.available.single().name)
+        assertEquals("official", withAvailable.available.single().badge)
+        assertTrue(old.available.isEmpty())
     }
 
     @Test

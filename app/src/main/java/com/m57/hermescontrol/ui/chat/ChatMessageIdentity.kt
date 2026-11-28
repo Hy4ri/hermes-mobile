@@ -16,6 +16,7 @@ internal object DisplayKind {
     const val SKILL_INVOCATION = "skill_invocation"
     const val INTERNAL_NOTIFICATION = "internal_notification"
     const val MAX_ITERATIONS_REACHED = "max_iterations_reached"
+    const val PLUGIN_CARD = "plugin_card"
 
     /** Kinds that tag real user or local rows rather than timeline markers. */
     val nonMarkerKinds = setOf(STEER, CLARIFY_RESPONSE, LOCAL_FEEDBACK)
@@ -38,3 +39,9 @@ internal object RestMessageId {
 
     fun isRest(id: String): Boolean = id.startsWith(PREFIX)
 }
+
+/** Stable live/history key so a reloaded transcript does not duplicate a live card. */
+internal fun pluginCardMessageId(
+    pluginId: String,
+    cardId: String,
+): String = "plugin-card-$pluginId-$cardId"

@@ -39,6 +39,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.EnvVarField
+import com.m57.hermescontrol.data.model.MessagingCatalogPlatform
 import com.m57.hermescontrol.data.model.MessagingPlatform
 import com.m57.hermescontrol.data.model.MessagingPlatformUpdate
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
@@ -54,6 +55,7 @@ import com.m57.hermescontrol.ui.common.StatusFilter
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
+import com.m57.hermescontrol.ui.common.maskedSecret
 import com.m57.hermescontrol.ui.common.ExpressiveButton as Button
 import com.m57.hermescontrol.ui.common.ExpressiveCircularProgressIndicator as CircularProgressIndicator
 import com.m57.hermescontrol.ui.common.ExpressiveOutlinedButton as OutlinedButton
@@ -145,7 +147,7 @@ fun ChannelsScreen(
                 )
             }
 
-            state.platforms.isEmpty() -> {
+            state.platforms.isEmpty() && state.available.isEmpty() -> {
                 EmptyState(
                     title = stringResource(R.string.channels_empty_title),
                     subtitle = stringResource(R.string.channels_empty_desc),
@@ -173,7 +175,7 @@ fun ChannelsScreen(
                     }
 
                     // ── Gateway-not-running hint ──
-                    if (!gatewayRunning && !state.restartNeeded) {
+                    if (state.platforms.isNotEmpty() && !gatewayRunning && !state.restartNeeded) {
                         item(key = "gateway_offline") {
                             GatewayOfflineBanner(gatewayCommand = state.gatewayStartCommand)
                         }
@@ -202,7 +204,25 @@ fun ChannelsScreen(
                             onSave = { env -> viewModel.configurePlatform(platform.id, env) },
                             onRemove = { viewModel.removePlatform(platform.id) },
                             onStartOnboarding = { viewModel.startTelegramOnboarding() },
+                            highlighted = state.highlightedPlatformId == platform.id,
                         )
+                    }
+
+                    if (state.available.isNotEmpty()) {
+                        item(key = "available_header") {
+                            Text(
+                                text = stringResource(R.string.channels_available_title),
+                                style = MaterialTheme.typography.titleSmall,
+                            )
+                        }
+                        items(state.available, key = { "available:${it.name}" }) { row ->
+                            AvailablePlatformRow(
+                                platform = row,
+                                installing = state.installingName == row.name,
+                                installLocked = state.installingName != null && state.installingName != row.name,
+                                onInstall = { viewModel.installCatalogPlatform(row.name) },
+                            )
+                        }
                     }
 
                     // ── Admin section ──
@@ -212,6 +232,84 @@ fun ChannelsScreen(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun AvailablePlatformRow(
+    platform: MessagingCatalogPlatform,
+    installing: Boolean,
+    installLocked: Boolean,
+    onInstall: () -> Unit,
+) {
+    val blocked = platform.blocked.isNotBlank()
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = platform.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.weight(1f),
+                )
+                if (platform.badge.isNotBlank()) {
+                    Text(
+                        text =
+                            when (platform.badge) {
+                                "official" -> stringResource(R.string.channels_badge_official)
+                                "verified" -> stringResource(R.string.channels_badge_verified)
+                                else -> platform.badge
+                            },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+            if (platform.summary.isNotBlank()) {
+                Text(
+                    text = platform.summary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (blocked && platform.blockedReason.isNotBlank()) {
+                Text(
+                    text = platform.blockedReason,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            Button(
+                onClick = onInstall,
+                enabled = !blocked && !installing && !installLocked,
+            ) {
+                if (installing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(14.dp),
+                        strokeWidth = 2.dp,
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                }
+                Text(
+                    text =
+                        if (installing) {
+                            stringResource(R.string.channels_installing)
+                        } else {
+                            stringResource(R.string.channels_available_install)
+                        },
+                    style = MaterialTheme.typography.labelSmall,
+                )
             }
         }
     }
@@ -333,9 +431,7 @@ internal fun ConfigureForm(
             },
             label = { Text(field.prompt ?: field.key) },
             placeholder = {
-                if (field.isSet) {
-                    Text(field.redactedValue ?: "******** (Already Configured)")
-                }
+                maskedChannelField(field)?.let { Text(it) }
             },
             supportingText = {
                 fieldErrors[field.key]?.let { error ->
@@ -468,3 +564,5 @@ private fun formatTimestamp(isoDate: String): String {
         ""
     }
 }
+
+internal fun maskedChannelField(field: EnvVarField): String? = maskedSecret(field.isSet)

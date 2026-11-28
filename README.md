@@ -14,6 +14,7 @@
   <a href="https://github.com/Hy4ri/hermes-mobile/releases/latest"><img src="https://img.shields.io/github/v/release/Hy4ri/hermes-mobile?color=6750A4&label=Latest%20Release&logo=github" alt="Latest Release"></a>
   <img src="https://img.shields.io/github/actions/workflow/status/Hy4ri/hermes-mobile/android.yml?branch=main&label=CI&logo=githubactions" alt="CI">
   <img src="https://img.shields.io/badge/minSdk-26-brightgreen" alt="minSdk 26">
+  <img src="https://img.shields.io/badge/compileSdk-37.1-brightgreen" alt="compileSdk 37.1">
   <img src="https://img.shields.io/badge/targetSdk-37-brightgreen" alt="targetSdk 37">
 </p>
 
@@ -56,6 +57,7 @@ The app connects to the Hermes dashboard over its REST API and WebSocket gateway
 ## Features
 
 - Chat with your agent. History is stored locally in Room, and notifications support inline replies.
+- Enable **Notify when a session completes** for cron results on the selected profile while the app stays connected in the background. The cron API exposes each job’s latest result, so quick successive runs can appear as one alert.
 - Manage profiles, skills, plugins, toolsets, and model/provider selections.
 - Stream and filter live logs, manage cron jobs, edit environment keys, test webhooks, and monitor processes.
 - Check the WebSocket connection, MCP servers, messaging channels, and OAuth providers.

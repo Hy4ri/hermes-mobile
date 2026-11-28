@@ -79,6 +79,15 @@
     <string name="nav_drawer_subtitle">For Hermes Agent</string>
     <string name="nav_drawer_support">Projekt unterstützen</string>
     <string name="whats_new_title">Neu in %1$s</string>
+    <string name="whats_new_section_features">Neu</string>
+    <string name="whats_new_section_improvements">Verbesserungen</string>
+    <string name="whats_new_section_fixes">Fehlerbehebungen</string>
+    <string name="whats_new_thanks">Danke an %1$s</string>
+    <string name="whats_new_full_release_notes">Vollständige Versionshinweise</string>
+    <plurals name="whats_new_internal_changes">
+        <item quantity="one">%d interne Änderung</item>
+        <item quantity="other">%d interne Änderungen</item>
+    </plurals>
     <string name="nav_drawer_section_converse">Unterhalten</string>
     <string name="nav_drawer_section_automate">Automatisieren</string>
     <string name="nav_drawer_section_configure">Konfigurieren</string>
@@ -93,7 +102,6 @@
     <string name="screen_account_connectors">Konnektoren</string>
     <string name="screen_profiles">Profile</string>
     <string name="screen_bots">Bots</string>
-    <string name="bots_active_now">Jetzt aktiv</string>
     <string name="bots_empty_title">Keine Bots gefunden</string>
     <string name="bots_empty_description">Erstelle ein Agentenprofil, um den Bot-Modus zu nutzen.</string>
     <string name="bots_search_placeholder">Bots suchen…</string>
@@ -283,6 +291,7 @@
     <string name="content_desc_copied">Kopiert</string>
     <string name="content_desc_speak">Vorlesen</string>
     <string name="content_desc_stop_speaking">Vorlesen stoppen</string>
+    <string name="tts_preparing">Audio wird erzeugt</string>
     <string name="tts_error_synthesis">Audio der Nachricht konnte nicht erzeugt werden</string>
     <string name="content_desc_edit">Bearbeiten</string>
     <string name="chat_msg_tokens">%1$s Tok.</string>
@@ -474,13 +483,23 @@
     <string name="kanban_complete_summary_label">Abschlusszusammenfassung</string>
     <string name="kanban_complete_summary_hint">Wird als Aufgabenergebnis gespeichert</string>
     <string name="kanban_live">Live</string>
-    <string name="kanban_offline">Offline</string>
+    <string name="kanban_connecting">Verbinden</string>
+    <string name="kanban_reconnecting">Neuverbindung</string>
+    <string name="kanban_updates_manual">Manuell aktualisieren</string>
     <string name="kanban_no_tasks">Keine Aufgaben</string>
     <string name="kanban_priority">Priorität</string>
     <string name="kanban_priority_normal">0 (Normal)</string>
     <string name="kanban_priority_med">1 (Mittel)</string>
     <string name="kanban_priority_high">2 (Hoch)</string>
     <string name="kanban_priority_urgent">3 (Dringend)</string>
+    <string name="kanban_column_triage">Triage</string>
+    <string name="kanban_column_todo">Offen</string>
+    <string name="kanban_column_scheduled">Geplant</string>
+    <string name="kanban_column_ready">Bereit</string>
+    <string name="kanban_column_running">Läuft</string>
+    <string name="kanban_column_blocked">Blockiert</string>
+    <string name="kanban_column_review">Prüfung</string>
+    <string name="kanban_column_done">Erledigt</string>
     <string name="kanban_assignee">Zuständig</string>
     <string name="kanban_assignee_default_suffix">%1$s (Standard)</string>
     <string name="kanban_assignee_unassigned">Standard (Nicht zugewiesen)</string>
@@ -1331,7 +1350,10 @@
     <string name="cron_status_blocked_config">Blockiert (Konfiguration)</string>
     <string name="cron_status_no_change">Keine Änderung</string>
     <string name="cron_edit_hint_schedule">z. B. 0 9 * * * oder every 2h</string>
-    <string name="cron_edit_hint_deliver">z. B. origin, local, all oder telegram:chat_id</string>
+    <string name="cron_edit_hint_deliver">origin, local oder eine verbundene Plattform</string>
+    <string name="cron_edit_support_schedule">Cron (0 9 * * *) oder Intervall (every 30m)</string>
+    <string name="cron_edit_error_schedule_required">Zeitplan ist erforderlich</string>
+    <string name="cron_edit_error_prompt_required">Prompt, Skill oder Skript angeben</string>
     <string name="cron_edit_hint_time">HH:MM</string>
     <string name="cron_edit_hint_skills">Einer pro Zeile</string>
     <string name="cron_edit_action_save">Speichern</string>
@@ -1423,6 +1445,13 @@
     <string name="channels_action_test">Testen</string>
     <string name="channels_action_restart_now">Jetzt neu starten</string>
     <string name="channels_restart_banner">Änderungen gespeichert. Starte das Gateway neu, damit sie wirksam werden.</string>
+    <string name="channels_available_title">Verfügbare Plattformen</string>
+    <string name="channels_available_install">Installieren</string>
+    <string name="channels_installing">Wird installiert</string>
+    <string name="channels_badge_official">Offiziell</string>
+    <string name="channels_badge_verified">Verifiziert</string>
+    <string name="channels_state_connecting">Verbindung wird hergestellt</string>
+    <string name="channels_state_needs_setup">Einrichtung nötig</string>
     <string name="channels_ingress_url">Ingress-URL</string>
     <string name="channels_copy_ingress_url">Ingress-URL kopieren</string>
 
@@ -1588,7 +1617,7 @@
     <string name="context_window">Kontextfenster</string>
     <string name="context_window_usage_unavailable">Auslastung des Kontextfensters nicht verfügbar</string>
     <string name="gif_play">GIF abspielen</string>
-    <string name="kanban_filter_placeholder">Aufgaben nach Titel, Status oder Bearbeiter filtern…</string>
+    <string name="kanban_filter_placeholder">Aufgaben filtern…</string>
     <string name="logs_clipboard_label">Hermes-Logs</string>
     <string name="logs_search_placeholder">Logs durchsuchen…</string>
     <string name="mcp_no_match">Keine Server passen zu &quot;%1$s&quot;</string>
@@ -1600,6 +1629,8 @@
 
     <!-- Timeline markers (issue #904) -->
     <string name="timeline_marker_model_switch">Modell gewechselt</string>
+    <string name="plugin_card_from">Plugin · %1$s</string>
+    <string name="plugin_card_cd">Karte vom Plugin %1$s</string>
     <string name="timeline_marker_model_switch_to">Modell gewechselt zu %1$s</string>
     <string name="timeline_marker_personality_switch">Persönlichkeit gewechselt</string>
     <string name="timeline_marker_auto_continue">Zug automatisch fortgesetzt</string>
@@ -2089,4 +2120,25 @@
         <item quantity="one">%1$d Hintergrundprozess läuft</item>
         <item quantity="other">%1$d Hintergrundprozesse laufen</item>
     </plurals>
+    <string name="chat_menu_switch_connection_hint">Verbindung wechseln</string>
+    <string name="chat_connection_switcher_title">Verbindung wechseln</string>
+    <string name="chat_connection_switcher_open_settings">Verbindungseinstellungen</string>
+    <string name="chat_connection_active_desc">Aktive Verbindung</string>
+    <string name="notif_folder_access_needed">Ordnerzugriff erforderlich</string>
+    <string name="notif_site_access_needed">Webzugriff erforderlich</string>
+    <string name="notif_action_allow">Erlauben</string>
+    <string name="notif_allow_sent">Erlauben an Hermes gesendet</string>
+    <string name="approval_folder_title">Ordnerzugriff</string>
+    <string name="approval_site_title">Webzugriff</string>
+    <string name="approval_access_read">Nur lesen</string>
+    <string name="approval_access_read_write">Lesen und schreiben</string>
+    <string name="approval_allow">Erlauben</string>
+    <string name="approval_always_allow">Immer erlauben</string>
+    <string name="approval_deny">Ablehnen</string>
+    <string name="approval_always_confirm_title">Immer erlauben?</string>
+    <string name="approval_always_confirm_body">Das bleibt erlaubt, ohne erneut zu fragen, bis du es änderst.</string>
+    <string name="approval_deny_title">Zugriff ablehnen</string>
+    <string name="approval_deny_reason_label">Grund (optional)</string>
+    <string name="approval_deny_confirm">Ablehnen</string>
+    <string name="chat_reply_continuing">Wird fortgesetzt…</string>
 </resources>

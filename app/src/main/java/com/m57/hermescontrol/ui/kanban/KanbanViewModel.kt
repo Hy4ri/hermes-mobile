@@ -62,6 +62,7 @@ data class KanbanUiState(
     val modelProviders: List<ModelProvider> = emptyList(),
     val pinnedModels: List<PinnedModel> = emptyList(),
     val isLive: Boolean = false,
+    val streamState: KanbanStreamState = KanbanStreamState.CONNECTING,
     val includeArchived: Boolean = false,
     val groupRunning: Boolean = false,
     val columnCollapseOverrides: Map<String, Boolean> = emptyMap(),
@@ -1049,10 +1050,15 @@ class KanbanViewModel(
         if (!isCurrentOwner(owner)) {
             return
         }
-        if (eventsBoard != board.id || eventsEndpoint != endpoint || eventsLoadGen != owner.loadGen) {
+        val cursor = latestBoardCursor
+        if (cursor == null || eventsBoard != board.id || eventsEndpoint != endpoint || eventsLoadGen != owner.loadGen) {
+            // No usable board snapshot (the REST load failed), so no stream can open. Say so instead of
+            // leaving the pill on "Connecting"; the next Refresh retries.
+            _uiState.update { it.copy(isLive = false, streamState = KanbanStreamState.UNAVAILABLE) }
             return
         }
-        val cursor = latestBoardCursor ?: return
+        // A retry (Refresh, board switch) starts from "connecting", not from the last failure.
+        _uiState.update { it.copy(isLive = false, streamState = KanbanStreamState.CONNECTING) }
         val client = eventsClient ?: eventsClientProvider().also { eventsClient = it }
         client.connect(
             scope = viewModelScope,
@@ -1060,7 +1066,9 @@ class KanbanViewModel(
             since = cursor,
             onEvents = { scheduleBoardReload() },
             onStatus = { status ->
-                _uiState.update { it.copy(isLive = status == KanbanLiveStatus.CONNECTED) }
+                _uiState.update {
+                    it.copy(isLive = status == KanbanLiveStatus.CONNECTED, streamState = status.toStreamState())
+                }
                 if (status == KanbanLiveStatus.BOARD_UNAVAILABLE) reconcileUnavailableBoard(board)
             },
         )
@@ -1212,3 +1220,13 @@ class KanbanViewModel(
         const val RELOAD_DEBOUNCE_MS = 250L
     }
 }
+
+/** What the live-events stream is doing, as shown by the board pill. REST loads work in every state. */
+enum class KanbanStreamState { CONNECTING, LIVE, RECONNECTING, UNAVAILABLE }
+
+internal fun KanbanLiveStatus.toStreamState(): KanbanStreamState =
+    when (this) {
+        KanbanLiveStatus.CONNECTED -> KanbanStreamState.LIVE
+        KanbanLiveStatus.DISCONNECTED -> KanbanStreamState.RECONNECTING
+        KanbanLiveStatus.AUTH_FAILED, KanbanLiveStatus.BOARD_UNAVAILABLE -> KanbanStreamState.UNAVAILABLE
+    }

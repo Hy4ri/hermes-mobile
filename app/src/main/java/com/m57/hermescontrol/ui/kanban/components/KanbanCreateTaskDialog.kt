@@ -5,6 +5,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -265,24 +267,11 @@ fun KanbanCreateTaskDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                ) {
-                    listOf(
-                        0 to stringResource(R.string.kanban_priority_normal),
-                        1 to stringResource(R.string.kanban_priority_med),
-                        2 to stringResource(R.string.kanban_priority_high),
-                        3 to stringResource(R.string.kanban_priority_urgent),
-                    ).forEach { (pVal, label) ->
-                        FilterChip(
-                            selected = priority == pVal,
-                            onClick = { priority = pVal },
-                            label = { Text(label) },
-                            enabled = !isCreating,
-                        )
-                    }
-                }
+                KanbanPriorityChips(
+                    selected = priority,
+                    onSelect = { priority = it },
+                    enabled = !isCreating,
+                )
 
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -590,4 +579,33 @@ fun KanbanCreateTaskDialog(
             }
         },
     )
+}
+
+/** Priority chips wrap onto extra lines so every label stays fully visible at any width or font scale. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun KanbanPriorityChips(
+    selected: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        listOf(
+            0 to stringResource(R.string.kanban_priority_normal),
+            1 to stringResource(R.string.kanban_priority_med),
+            2 to stringResource(R.string.kanban_priority_high),
+            3 to stringResource(R.string.kanban_priority_urgent),
+        ).forEach { (value, label) ->
+            FilterChip(
+                selected = selected == value,
+                onClick = { onSelect(value) },
+                label = { Text(label) },
+                enabled = enabled,
+            )
+        }
+    }
 }

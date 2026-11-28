@@ -20,6 +20,7 @@ import io.mockk.verify
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
@@ -44,7 +45,7 @@ class ChatMediaDelegateTest {
             every { app.packageName } returns "com.m57.hermescontrol"
             every { app.startActivity(any()) } returns Unit
             mockkObject(GatewayFileClient)
-            coEvery { GatewayFileClient.fetch("/reports/report.html", any()) } returns
+            coEvery { GatewayFileClient.fetchWorkspaceFile("/reports/report.html", any()) } returns
                 GatewayFileResult.Success(GatewayFile("report.html", "text/html; charset=utf-8", file))
             mockkStatic(FileProvider::class)
             every { FileProvider.getUriForFile(app, "com.m57.hermescontrol.fileprovider", file) } returns uri
@@ -69,5 +70,34 @@ class ChatMediaDelegateTest {
             verify(exactly = 1) { app.startActivity(any()) }
             assertNull(state.value.openError)
             assertNull(state.value.openingAttachmentPath)
+        }
+
+    @Test
+    fun `an expired session while opening or saving asks for sign-in`() =
+        runTest {
+            val app = mockk<Application>(relaxed = true)
+            every { app.applicationContext } returns app
+            every { app.cacheDir } returns files.newFolder()
+            mockkObject(GatewayFileClient)
+            coEvery { GatewayFileClient.fetchWorkspaceFile("/srv/notes.md", any()) } returns
+                GatewayFileResult.Unauthorized
+            val state = MutableStateFlow(ChatUiState())
+            var expired = 0
+            val delegate = ChatMediaDelegate(state, { app }, this, coroutineContext, onSessionExpired = { expired++ })
+            val attachment =
+                Attachment(
+                    uri = "gateway:/srv/notes.md",
+                    name = "notes.md",
+                    mimeType = "text/markdown",
+                    source = AttachmentSource.GATEWAY,
+                )
+
+            delegate.openAttachment(attachment)
+            testScheduler.advanceUntilIdle()
+            delegate.saveAttachment(attachment, mockk(relaxed = true))
+            testScheduler.advanceUntilIdle()
+
+            assertEquals(2, expired)
+            assertEquals("Session expired — reconnect to save: notes.md", state.value.openError)
         }
 }

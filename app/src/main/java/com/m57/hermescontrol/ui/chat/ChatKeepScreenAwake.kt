@@ -1,10 +1,16 @@
 package com.m57.hermescontrol.ui.chat
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BrightnessHigh
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
@@ -14,6 +20,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.state.ToggleableState
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -49,12 +56,23 @@ internal fun ChatKeepScreenAwakeMenuItem(
 ) {
     DropdownMenuItem(
         text = { Text(stringResource(R.string.settings_keep_screen_awake_title)) },
-        trailingIcon = {
-            Checkbox(
-                checked = checked,
-                onCheckedChange = null,
-                modifier = Modifier.testTag("chat_menu_keep_awake_checkbox"),
+        leadingIcon = {
+            Icon(
+                imageVector = Icons.Filled.BrightnessHigh,
+                contentDescription = null,
             )
+        },
+        trailingIcon = {
+            Box(
+                modifier = Modifier.size(24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Checkbox(
+                    checked = checked,
+                    onCheckedChange = null,
+                    modifier = Modifier.testTag("chat_menu_keep_awake_checkbox"),
+                )
+            }
         },
         onClick = { onToggle(!checked) },
         modifier =

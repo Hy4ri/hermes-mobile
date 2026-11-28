@@ -29,6 +29,7 @@ class ChatMediaDelegate(
     private val getApplication: () -> Application,
     private val scope: kotlinx.coroutines.CoroutineScope,
     private val ioDispatcher: kotlin.coroutines.CoroutineContext,
+    private val onSessionExpired: () -> Unit = {},
 ) {
     /**
      * Open an attachment when its chip/thumbnail is tapped.
@@ -62,7 +63,7 @@ class ChatMediaDelegate(
         val cacheDir = java.io.File(ctx.cacheDir, "gateway_files")
         scope.launch(ioDispatcher) {
             try {
-                when (val result = GatewayFileClient.fetch(path, cacheDir)) {
+                when (val result = GatewayFileClient.fetchWorkspaceFile(path, cacheDir)) {
                     is GatewayFileResult.Success -> {
                         openBytes(ctx, result.file)
                     }
@@ -81,6 +82,7 @@ class ChatMediaDelegate(
 
                     is GatewayFileResult.Unauthorized -> {
                         showOpenError("Session expired — reconnect to open: ${attachment.name}")
+                        onSessionExpired()
                     }
 
                     is GatewayFileResult.Failure -> {
@@ -107,7 +109,7 @@ class ChatMediaDelegate(
         uiState.update { it.copy(savingAttachmentPath = path) }
         scope.launch(ioDispatcher) {
             try {
-                when (val result = GatewayFileClient.fetch(path, cacheDir)) {
+                when (val result = GatewayFileClient.fetchWorkspaceFile(path, cacheDir)) {
                     is GatewayFileResult.Success -> {
                         val resolver = getApplication().contentResolver
                         runCatching {
@@ -142,6 +144,7 @@ class ChatMediaDelegate(
                         showOpenError(
                             "Session expired — reconnect to save: ${attachment.name}",
                         )
+                        onSessionExpired()
                     }
 
                     is GatewayFileResult.Failure -> {
